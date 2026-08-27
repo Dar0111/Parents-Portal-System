@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { hashPassword } = require('../utils/password');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
+const { parseId } = require('../utils/validateId');
 
 const router = express.Router();
 
@@ -147,7 +148,10 @@ router.get('/parents/pending', authenticate, authorize('admin'), async (req, res
 
 // PUT /api/users/parents/:id/approve — Admin approves parent account
 router.put('/parents/:id/approve', authenticate, authorize('admin'), async (req, res) => {
-  const parentId = Number(req.params.id);
+  const parentId = parseId(req.params.id);
+  if (parentId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid id.' });
+  }
 
   try {
     const [rows] = await pool.query(
@@ -192,7 +196,11 @@ router.put('/parents/:id/approve', authenticate, authorize('admin'), async (req,
 
 // PUT /api/users/parents/:id/reject — Admin rejects parent account
 router.put('/parents/:id/reject', authenticate, authorize('admin'), async (req, res) => {
-  const parentId = Number(req.params.id);
+  const parentId = parseId(req.params.id);
+  if (parentId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid id.' });
+  }
+
   const { reason } = req.body;
 
   if (!reason || !String(reason).trim()) {

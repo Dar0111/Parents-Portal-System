@@ -235,6 +235,9 @@ async function run() {
   const teacherList = await request('GET', '/api/users/parents/pending', { token: teacherToken });
   assert(teacherList.status === 403, 'Teacher cannot list pending parents');
 
+  const approveNonNumeric = await request('PUT', '/api/users/parents/abc/approve', { token: adminToken });
+  assert(approveNonNumeric.status === 400, 'Approve with non-numeric id returns 400, not 500');
+
   const approve = await request('PUT', `/api/users/parents/${pendingParentId}/approve`, {
     token: adminToken,
   });
