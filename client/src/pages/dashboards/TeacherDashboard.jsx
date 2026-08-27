@@ -1,0 +1,9 @@
+import Shell from '../../layout/Shell';
+
+export default function TeacherDashboard() {
+  return (
+    <Shell title="Teacher Dashboard">
+      <p className="text-sm text-slate-500">No modules built yet.</p>
+    </Shell>
+  );
+}
