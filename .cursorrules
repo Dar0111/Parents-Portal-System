@@ -1,0 +1,43 @@
+# Cursor Rules — Parent's Portal System
+
+## Read CLAUDE.md first
+
+`CLAUDE.md` in the repo root is the single source of truth for this project.
+Read it before answering anything about architecture, features, or current
+state. Do not duplicate its contents here — if this file and CLAUDE.md ever
+disagree, CLAUDE.md wins.
+
+## Non-negotiables
+
+- **Trust the code, not the docs.** `PROJECT_PROGRESS.md` overstates progress.
+  It lists modules as done that have tables only and no handlers. Verify
+  against actual route files before claiming anything works.
+
+- **The auth module is the template.** Every new module follows the exact
+  pattern in `routes/users.js`: `authenticate` + `authorize()`,
+  `sanitizeUser()` on any response containing a user row, `logActivity()` on
+  every write. Do not invent a new structure.
+
+- **Never take `role` or `student_id` from the client.** Both come from the
+  database row. `role` from `users.role`, `student_id` from
+  `users.student_id`. Not from `req.body`, not from a URL param.
+
+- **Stack is locked.** React + Tailwind + Font Awesome for web. React Native
+  (Expo) for mobile. No other UI library, no PWA, no Flutter. `server/` and
+  `client/` stay separate — no monorepo tooling.
+
+- **Grades module is blocked.** Grading periods, components, and weights are
+  unconfirmed pending a school visit. Do not build grade computation logic
+  on assumptions. See the Blocked section in CLAUDE.md.
+
+## When starting work
+
+State plainly what already exists and what does not before proposing
+anything. If a file, endpoint, or column is not in the repo, say so rather
+than assuming it is there.
+
+## When finishing work
+
+Update the CURRENT STATE and CHANGELOG sections of `CLAUDE.md`. List
+endpoints, not percentages. If a module has tables but no handlers, it is
+not started.

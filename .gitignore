@@ -1,0 +1,46 @@
+# --- Secrets (NEVER push to GitHub) ---
+server/.env
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- Dependencies ---
+node_modules/
+server/node_modules/
+web/node_modules/
+mobile/node_modules/
+
+# --- Build output ---
+dist/
+build/
+.expo/
+web-build/
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# --- Uploads (user files — local only) ---
+server/uploads/*
+!server/uploads/.gitkeep
+
+# --- Database dumps / backups ---
+*.sql.backup
+backups/
+*.dump
+
+# --- Test / temp ---
+coverage/
+.nyc_output/
+tmp/
+temp/

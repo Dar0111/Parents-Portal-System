@@ -1,0 +1,146 @@
+const express = require('express');
+const pool = require('../config/db');
+const { comparePassword, hashPassword } = require('../utils/password');
+const { signToken } = require('../utils/jwt');
+const { authenticate } = require('../middleware/auth');
+const { logActivity } = require('../utils/activity');
+
+const router = express.Router();
+
+function sanitizeUser(user) {
+  const { password, ...safe } = user;
+  return safe;
+}
+
+async function fetchUserByLoginId(loginId) {
+  const [rows] = await pool.query(
+    `SELECT u.*, s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name,
+            s.grade_level, s.section
+     FROM users u
+     LEFT JOIN students s ON s.id = u.student_id
+     WHERE u.login_id = ?
+     LIMIT 1`,
+    [loginId]
+  );
+  return rows[0] || null;
+}
+
+// POST /api/auth/login
+router.post('/login', async (req, res) => {
+  const { login_id, password } = req.body;
+
+  if (!login_id || !password) {
+    return res.status(400).json({ success: false, message: 'login_id and password are required.' });
+  }
+
+  try {
+    const user = await fetchUserByLoginId(String(login_id).trim());
+
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid login credentials.' });
+    }
+
+    const valid = await comparePassword(password, user.password);
+    if (!valid) {
+      return res.status(401).json({ success: false, message: 'Invalid login credentials.' });
+    }
+
+    if (user.status === 'pending') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account pending admin approval.',
+        status: 'pending',
+      });
+    }
+
+    if (user.status === 'rejected') {
+      return res.status(403).json({
+        success: false,
+        message: user.rejection_reason || 'Account was rejected by the administrator.',
+        status: 'rejected',
+      });
+    }
+
+    if (user.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is not active.',
+        status: user.status,
+      });
+    }
+
+    const token = signToken({
+      id: user.id,
+      role: user.role,
+      login_id: user.login_id,
+      student_id: user.student_id || null,
+    });
+
+    await logActivity(user.id, 'login', `${user.role} logged in`);
+
+    return res.json({
+      success: true,
+      token,
+      user: sanitizeUser(user),
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ success: false, message: 'Login failed.' });
+  }
+});
+
+// GET /api/auth/me
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const user = await fetchUserByLoginId(req.user.login_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    return res.json({ success: true, user: sanitizeUser(user) });
+  } catch (error) {
+    console.error('Me error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch profile.' });
+  }
+});
+
+// PUT /api/auth/change-password
+router.put('/change-password', authenticate, async (req, res) => {
+  const { current_password, new_password } = req.body;
+
+  if (!current_password || !new_password) {
+    return res.status(400).json({
+      success: false,
+      message: 'current_password and new_password are required.',
+    });
+  }
+
+  if (String(new_password).length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password must be at least 6 characters.',
+    });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const valid = await comparePassword(current_password, rows[0].password);
+    if (!valid) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    }
+
+    const hashed = await hashPassword(new_password);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashed, req.user.id]);
+    await logActivity(req.user.id, 'change_password', 'Password updated');
+
+    return res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to change password.' });
+  }
+});
+
+module.exports = router;
