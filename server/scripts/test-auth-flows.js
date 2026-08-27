@@ -2,6 +2,10 @@
  * End-to-end auth & account lifecycle tests.
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
+ * Idempotent: every row this script creates is timestamp-suffixed and
+ * deleted in a finally block, so it passes on repeat runs with no
+ * db:setup in between.
+ *
  * Usage: npm run test:auth
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -81,6 +85,28 @@ async function run() {
     );
   }
 
+  // Unique per run so repeat runs never collide on login_id/lrn uniqueness —
+  // and everything pushed into these two arrays gets deleted in the finally
+  // block below, so a run leaves the DB exactly as it found it.
+  const runId = Date.now();
+  const newTeacherId = `TCH-${runId}`;
+  const pendingLrn = String(runId).slice(-10);
+  const rejectLrn = String(runId + 1).slice(-10);
+
+  const createdLoginIds = [];
+  const createdLrns = [];
+
+  async function cleanup() {
+    await withDb(async (conn) => {
+      if (createdLoginIds.length) {
+        await conn.query('DELETE FROM users WHERE login_id IN (?)', [createdLoginIds]);
+      }
+      if (createdLrns.length) {
+        await conn.query('DELETE FROM students WHERE lrn IN (?)', [createdLrns]);
+      }
+    });
+  }
+
   // Health check
   const health = await request('GET', '/api/health');
   assert(health.status === 200 && health.data?.success, 'API health check');
@@ -89,181 +115,193 @@ async function run() {
     process.exit(1);
   }
 
-  // --- Login flows ---
-  console.log('\nLogin:');
-
-  const badLogin = await login('ADMIN001', 'wrong-password');
-  assert(badLogin.status === 401, 'Invalid password rejected');
-
-  const adminLogin = await login('ADMIN001', 'Admin@2026');
-  assert(adminLogin.status === 200 && adminLogin.data?.token, 'Admin login');
-  const adminToken = adminLogin.data?.token;
-
-  const teacherLogin = await login('TCH-001', 'Teacher@2026');
-  assert(teacherLogin.status === 200 && teacherLogin.data?.user?.role === 'teacher', 'Teacher login');
-  const teacherToken = teacherLogin.data?.token;
-
-  const parentActive = await login('13567454', 'Parent@2026');
-  assert(
-    parentActive.status === 200 && parentActive.data?.user?.role === 'parent',
-    'Active parent login (Marwin LRN)'
-  );
-  const parentToken = parentActive.data?.token;
-
-  const parentPending = await login('1234567', 'Parent@2026');
-  assert(parentPending.status === 403 && parentPending.data?.status === 'pending', 'Pending parent blocked');
-
-  // Unexpected status (not pending/rejected/active) must not receive a token.
-  // users.status is ENUM(pending, active, rejected) — temporarily widen it for this case.
   try {
-    await withDb(async (conn) => {
-      await conn.query(
-        `ALTER TABLE users MODIFY status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'pending'`
-      );
-      await conn.query(`UPDATE users SET status = 'inactive' WHERE login_id = 'TCH-001' LIMIT 1`);
-    });
-    const inactiveLogin = await login('TCH-001', 'Teacher@2026');
+    // --- Login flows ---
+    console.log('\nLogin:');
+
+    const badLogin = await login('ADMIN001', 'wrong-password');
+    assert(badLogin.status === 401, 'Invalid password rejected');
+
+    const adminLogin = await login('ADMIN001', 'Admin@2026');
+    assert(adminLogin.status === 200 && adminLogin.data?.token, 'Admin login');
+    const adminToken = adminLogin.data?.token;
+
+    const teacherLogin = await login('TCH-001', 'Teacher@2026');
+    assert(teacherLogin.status === 200 && teacherLogin.data?.user?.role === 'teacher', 'Teacher login');
+    const teacherToken = teacherLogin.data?.token;
+
+    const parentActive = await login('13567454', 'Parent@2026');
     assert(
-      inactiveLogin.status === 403 && !inactiveLogin.data?.token,
-      'Unexpected status cannot obtain a token'
+      parentActive.status === 200 && parentActive.data?.user?.role === 'parent',
+      'Active parent login (Marwin LRN)'
     );
-  } finally {
-    await withDb(async (conn) => {
-      await conn.query(`UPDATE users SET status = 'active' WHERE login_id = 'TCH-001' LIMIT 1`);
-      await conn.query(
-        `ALTER TABLE users MODIFY status ENUM('pending', 'active', 'rejected') NOT NULL DEFAULT 'pending'`
+    const parentToken = parentActive.data?.token;
+
+    const parentPending = await login('1234567', 'Parent@2026');
+    assert(parentPending.status === 403 && parentPending.data?.status === 'pending', 'Pending parent blocked');
+
+    // Unexpected status (not pending/rejected/active) must not receive a token.
+    // users.status is ENUM(pending, active, rejected) — temporarily widen it for this case.
+    try {
+      await withDb(async (conn) => {
+        await conn.query(
+          `ALTER TABLE users MODIFY status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'pending'`
+        );
+        await conn.query(`UPDATE users SET status = 'inactive' WHERE login_id = 'TCH-001' LIMIT 1`);
+      });
+      const inactiveLogin = await login('TCH-001', 'Teacher@2026');
+      assert(
+        inactiveLogin.status === 403 && !inactiveLogin.data?.token,
+        'Unexpected status cannot obtain a token'
       );
+    } finally {
+      await withDb(async (conn) => {
+        await conn.query(`UPDATE users SET status = 'active' WHERE login_id = 'TCH-001' LIMIT 1`);
+        await conn.query(
+          `ALTER TABLE users MODIFY status ENUM('pending', 'active', 'rejected') NOT NULL DEFAULT 'pending'`
+        );
+      });
+    }
+
+    // --- Profile & password ---
+    console.log('\nProfile & password:');
+
+    const me = await request('GET', '/api/auth/me', { token: parentToken });
+    assert(me.status === 200 && me.data?.user?.login_id === '13567454', 'GET /api/auth/me');
+
+    const noAuth = await request('GET', '/api/auth/me');
+    assert(noAuth.status === 401, 'Unauthenticated /me rejected');
+
+    try {
+      const changePw = await request('PUT', '/api/auth/change-password', {
+        token: parentToken,
+        body: { current_password: 'Parent@2026', new_password: 'Parent@2026New' },
+      });
+      assert(changePw.status === 200, 'Change password');
+
+      const oldPw = await login('13567454', 'Parent@2026');
+      assert(oldPw.status === 401, 'Old password no longer works');
+
+      const newPw = await login('13567454', 'Parent@2026New');
+      assert(newPw.status === 200, 'Login with new password');
+    } finally {
+      // Re-derive the token instead of reusing one from the try block, so this
+      // still lands on the known password even if an assertion above threw
+      // before that token was captured.
+      const recovery = await login('13567454', 'Parent@2026New');
+      if (recovery.data?.token) {
+        await request('PUT', '/api/auth/change-password', {
+          token: recovery.data.token,
+          body: { current_password: 'Parent@2026New', new_password: 'Parent@2026' },
+        });
+      }
+    }
+
+    // --- Admin creates teacher ---
+    console.log('\nAccount creation:');
+
+    const createTeacher = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: {
+        login_id: newTeacherId,
+        password: 'Teacher@2026',
+        name: 'Test Teacher',
+        email: 'test.teacher@chfes.edu.ph',
+        contact_number: '09170000999',
+      },
     });
+    assert(createTeacher.status === 201 && createTeacher.data?.user?.status === 'active', 'Admin creates teacher (active)');
+    if (createTeacher.status === 201) createdLoginIds.push(newTeacherId);
+
+    const teacherCanCreate = await request('POST', '/api/users/teachers', {
+      token: teacherToken,
+      body: { login_id: 'TCH-FAIL', password: 'x', name: 'Fail' },
+    });
+    assert(teacherCanCreate.status === 403, 'Teacher cannot create teacher');
+
+    const newTeacherLogin = await login(newTeacherId, 'Teacher@2026');
+    assert(newTeacherLogin.status === 200, 'New teacher can login immediately');
+
+    // --- Teacher creates parent (pending) ---
+    const createParent = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: {
+        lrn: pendingLrn,
+        password: 'Parent@2026',
+        name: 'Test Guardian',
+        email: 'guardian@test.com',
+        contact_number: '09170000888',
+      },
+    });
+    assert(createParent.status === 404, 'Parent creation fails for unknown LRN');
+
+    await insertTestStudent(pendingLrn, 'Test', 'Student', 4, 'Bonifacio');
+    createdLrns.push(pendingLrn);
+
+    const createParent2 = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: {
+        lrn: pendingLrn,
+        password: 'Parent@2026',
+        name: 'Test Guardian',
+        email: 'guardian@test.com',
+      },
+    });
+    assert(
+      createParent2.status === 201 && createParent2.data?.user?.status === 'pending',
+      'Teacher creates parent (pending)'
+    );
+    const pendingParentId = createParent2.data?.user?.id;
+    if (createParent2.status === 201) createdLoginIds.push(pendingLrn);
+
+    const pendingLogin = await login(pendingLrn, 'Parent@2026');
+    assert(pendingLogin.status === 403, 'New pending parent cannot login');
+
+    // --- Admin approval flow ---
+    console.log('\nAdmin approval:');
+
+    const listPending = await request('GET', '/api/users/parents/pending', { token: adminToken });
+    assert(
+      listPending.status === 200 && listPending.data?.parents?.some((p) => p.login_id === pendingLrn),
+      'Admin lists pending parents'
+    );
+
+    const teacherList = await request('GET', '/api/users/parents/pending', { token: teacherToken });
+    assert(teacherList.status === 403, 'Teacher cannot list pending parents');
+
+    const approveNonNumeric = await request('PUT', '/api/users/parents/abc/approve', { token: adminToken });
+    assert(approveNonNumeric.status === 400, 'Approve with non-numeric id returns 400, not 500');
+
+    const approve = await request('PUT', `/api/users/parents/${pendingParentId}/approve`, {
+      token: adminToken,
+    });
+    assert(approve.status === 200 && approve.data?.user?.status === 'active', 'Admin approves parent');
+
+    const approvedLogin = await login(pendingLrn, 'Parent@2026');
+    assert(approvedLogin.status === 200, 'Approved parent can login');
+
+    // --- Rejection flow (second temp student) ---
+    await insertTestStudent(rejectLrn, 'Reject', 'Student', 3, 'Aguinaldo');
+    createdLrns.push(rejectLrn);
+
+    const createForReject = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: rejectLrn, password: 'Parent@2026', name: 'Reject Guardian' },
+    });
+    const rejectParentId = createForReject.data?.user?.id;
+    if (createForReject.status === 201) createdLoginIds.push(rejectLrn);
+
+    const reject = await request('PUT', `/api/users/parents/${rejectParentId}/reject`, {
+      token: adminToken,
+      body: { reason: 'Invalid guardian documents' },
+    });
+    assert(reject.status === 200, 'Admin rejects parent');
+
+    const rejectedLogin = await login(rejectLrn, 'Parent@2026');
+    assert(rejectedLogin.status === 403 && rejectedLogin.data?.status === 'rejected', 'Rejected parent blocked');
+  } finally {
+    await cleanup();
   }
-
-  // --- Profile & password ---
-  console.log('\nProfile & password:');
-
-  const me = await request('GET', '/api/auth/me', { token: parentToken });
-  assert(me.status === 200 && me.data?.user?.login_id === '13567454', 'GET /api/auth/me');
-
-  const noAuth = await request('GET', '/api/auth/me');
-  assert(noAuth.status === 401, 'Unauthenticated /me rejected');
-
-  const changePw = await request('PUT', '/api/auth/change-password', {
-    token: parentToken,
-    body: { current_password: 'Parent@2026', new_password: 'Parent@2026New' },
-  });
-  assert(changePw.status === 200, 'Change password');
-
-  const oldPw = await login('13567454', 'Parent@2026');
-  assert(oldPw.status === 401, 'Old password no longer works');
-
-  const newPw = await login('13567454', 'Parent@2026New');
-  assert(newPw.status === 200, 'Login with new password');
-  const parentToken2 = newPw.data?.token;
-
-  // Restore password for repeatable runs
-  await request('PUT', '/api/auth/change-password', {
-    token: parentToken2,
-    body: { current_password: 'Parent@2026New', new_password: 'Parent@2026' },
-  });
-
-  // --- Admin creates teacher ---
-  console.log('\nAccount creation:');
-
-  const newTeacherId = `TCH-T${String(Date.now()).slice(-5)}`;
-  const createTeacher = await request('POST', '/api/users/teachers', {
-    token: adminToken,
-    body: {
-      login_id: newTeacherId,
-      password: 'Teacher@2026',
-      name: 'Test Teacher',
-      email: 'test.teacher@chfes.edu.ph',
-      contact_number: '09170000999',
-    },
-  });
-  assert(createTeacher.status === 201 && createTeacher.data?.user?.status === 'active', 'Admin creates teacher (active)');
-
-  const teacherCanCreate = await request('POST', '/api/users/teachers', {
-    token: teacherToken,
-    body: { login_id: 'TCH-FAIL', password: 'x', name: 'Fail' },
-  });
-  assert(teacherCanCreate.status === 403, 'Teacher cannot create teacher');
-
-  const newTeacherLogin = await login(newTeacherId, 'Teacher@2026');
-  assert(newTeacherLogin.status === 200, 'New teacher can login immediately');
-
-  // --- Teacher creates parent (pending) ---
-  const pendingLrn = '9999999';
-  const createParent = await request('POST', '/api/users/parents', {
-    token: teacherToken,
-    body: {
-      lrn: pendingLrn,
-      password: 'Parent@2026',
-      name: 'Test Guardian',
-      email: 'guardian@test.com',
-      contact_number: '09170000888',
-    },
-  });
-  assert(createParent.status === 404, 'Parent creation fails for unknown LRN');
-
-  await insertTestStudent('9999999', 'Test', 'Student', 4, 'Bonifacio');
-
-  const createParent2 = await request('POST', '/api/users/parents', {
-    token: teacherToken,
-    body: {
-      lrn: pendingLrn,
-      password: 'Parent@2026',
-      name: 'Test Guardian',
-      email: 'guardian@test.com',
-    },
-  });
-  assert(
-    createParent2.status === 201 && createParent2.data?.user?.status === 'pending',
-    'Teacher creates parent (pending)'
-  );
-  const pendingParentId = createParent2.data?.user?.id;
-
-  const pendingLogin = await login(pendingLrn, 'Parent@2026');
-  assert(pendingLogin.status === 403, 'New pending parent cannot login');
-
-  // --- Admin approval flow ---
-  console.log('\nAdmin approval:');
-
-  const listPending = await request('GET', '/api/users/parents/pending', { token: adminToken });
-  assert(
-    listPending.status === 200 && listPending.data?.parents?.some((p) => p.login_id === pendingLrn),
-    'Admin lists pending parents'
-  );
-
-  const teacherList = await request('GET', '/api/users/parents/pending', { token: teacherToken });
-  assert(teacherList.status === 403, 'Teacher cannot list pending parents');
-
-  const approveNonNumeric = await request('PUT', '/api/users/parents/abc/approve', { token: adminToken });
-  assert(approveNonNumeric.status === 400, 'Approve with non-numeric id returns 400, not 500');
-
-  const approve = await request('PUT', `/api/users/parents/${pendingParentId}/approve`, {
-    token: adminToken,
-  });
-  assert(approve.status === 200 && approve.data?.user?.status === 'active', 'Admin approves parent');
-
-  const approvedLogin = await login(pendingLrn, 'Parent@2026');
-  assert(approvedLogin.status === 200, 'Approved parent can login');
-
-  // --- Rejection flow (second temp student) ---
-  const rejectLrn = '8888888';
-  await insertTestStudent('8888888', 'Reject', 'Student', 3, 'Aguinaldo');
-
-  const createForReject = await request('POST', '/api/users/parents', {
-    token: teacherToken,
-    body: { lrn: rejectLrn, password: 'Parent@2026', name: 'Reject Guardian' },
-  });
-  const rejectParentId = createForReject.data?.user?.id;
-
-  const reject = await request('PUT', `/api/users/parents/${rejectParentId}/reject`, {
-    token: adminToken,
-    body: { reason: 'Invalid guardian documents' },
-  });
-  assert(reject.status === 200, 'Admin rejects parent');
-
-  const rejectedLogin = await login(rejectLrn, 'Parent@2026');
-  assert(rejectedLogin.status === 403 && rejectedLogin.data?.status === 'rejected', 'Rejected parent blocked');
 
   // --- Summary ---
   console.log(`\n${passed} passed, ${failed} failed\n`);

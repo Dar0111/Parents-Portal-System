@@ -2,6 +2,10 @@
  * Student Records API tests — scoping, validation, lifecycle.
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
+ * Idempotent: every student this script creates uses a timestamp-suffixed
+ * LRN and is deleted in a finally block, so it passes on repeat runs with
+ * no db:setup in between.
+ *
  * Usage: npm run test:students
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -80,155 +84,184 @@ async function run() {
   const jeaId = jea?.id;
   assert(Number.isInteger(jeaId), 'Resolve Jea\'s student id (Grade 5 - Rizal, outside TCH-001 scope)');
 
-  // --- Create ---
-  console.log('\nCreate:');
+  // Every student created below is tracked here and deleted in the finally
+  // block, so a run leaves the DB exactly as it found it.
+  const mysql = require('mysql2/promise');
+  const dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'parents_portal',
+  };
+  async function withDb(fn) {
+    const conn = await mysql.createConnection(dbConfig);
+    try {
+      return await fn(conn);
+    } finally {
+      await conn.end();
+    }
+  }
+  const createdStudentIds = [];
+  async function cleanup() {
+    if (createdStudentIds.length) {
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+    }
+  }
 
-  const uniqueSuffix = String(Date.now()).slice(-6);
-  const inScopeLrn = `6${uniqueSuffix}`;
+  try {
+    // --- Create ---
+    console.log('\nCreate:');
 
-  const createInScope = await request('POST', '/api/students', {
-    token: teacherToken,
-    body: {
-      lrn: inScopeLrn,
-      first_name: 'InScope',
-      last_name: 'Student',
-      grade_level: 6,
-      section: 'Mabini',
-    },
-  });
-  assert(createInScope.status === 201, 'Teacher creates student inside own assignment (Grade 6 - Mabini)');
-  const inScopeId = createInScope.data?.student?.id;
+    const uniqueSuffix = String(Date.now()).slice(-6);
+    const inScopeLrn = `6${uniqueSuffix}`;
 
-  const createOutOfScope = await request('POST', '/api/students', {
-    token: teacherToken,
-    body: {
-      lrn: `3${uniqueSuffix}`,
-      first_name: 'OutOfScope',
-      last_name: 'Student',
-      grade_level: 3,
-      section: 'Aguinaldo',
-    },
-  });
-  assert(
-    createOutOfScope.status === 403,
-    'Teacher creating student outside own assignment (Grade 3 - Aguinaldo) is rejected'
-  );
+    const createInScope = await request('POST', '/api/students', {
+      token: teacherToken,
+      body: {
+        lrn: inScopeLrn,
+        first_name: 'InScope',
+        last_name: 'Student',
+        grade_level: 6,
+        section: 'Mabini',
+      },
+    });
+    assert(createInScope.status === 201, 'Teacher creates student inside own assignment (Grade 6 - Mabini)');
+    const inScopeId = createInScope.data?.student?.id;
+    if (createInScope.status === 201 && inScopeId) createdStudentIds.push(inScopeId);
 
-  const createDuplicate = await request('POST', '/api/students', {
-    token: adminToken,
-    body: {
-      lrn: '13567454', // Marwin's LRN — already exists
-      first_name: 'Dup',
-      last_name: 'Student',
-      grade_level: 6,
-      section: 'Mabini',
-    },
-  });
-  assert(createDuplicate.status === 409, 'Duplicate LRN rejected');
+    const createOutOfScope = await request('POST', '/api/students', {
+      token: teacherToken,
+      body: {
+        lrn: `3${uniqueSuffix}`,
+        first_name: 'OutOfScope',
+        last_name: 'Student',
+        grade_level: 3,
+        section: 'Aguinaldo',
+      },
+    });
+    assert(
+      createOutOfScope.status === 403,
+      'Teacher creating student outside own assignment (Grade 3 - Aguinaldo) is rejected'
+    );
 
-  const createBadGrade = await request('POST', '/api/students', {
-    token: adminToken,
-    body: {
-      lrn: `9${uniqueSuffix}`,
-      first_name: 'Bad',
-      last_name: 'Grade',
-      grade_level: 7,
-      section: 'Test',
-    },
-  });
-  assert(createBadGrade.status === 400, 'grade_level outside 1-6 rejected');
+    const createDuplicate = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: '13567454', // Marwin's LRN — already exists
+        first_name: 'Dup',
+        last_name: 'Student',
+        grade_level: 6,
+        section: 'Mabini',
+      },
+    });
+    assert(createDuplicate.status === 409, 'Duplicate LRN rejected');
 
-  const createByAdminAnywhere = await request('POST', '/api/students', {
-    token: adminToken,
-    body: {
-      lrn: `5${uniqueSuffix}`,
-      first_name: 'AdminCreated',
-      last_name: 'Student',
-      grade_level: 5,
-      section: 'Rizal',
-    },
-  });
-  assert(createByAdminAnywhere.status === 201, 'Admin creates student in any grade/section');
+    const createBadGrade = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `9${uniqueSuffix}`,
+        first_name: 'Bad',
+        last_name: 'Grade',
+        grade_level: 7,
+        section: 'Test',
+      },
+    });
+    assert(createBadGrade.status === 400, 'grade_level outside 1-6 rejected');
 
-  // --- Read: list + single, scoped ---
-  console.log('\nRead (scoping):');
+    const createByAdminAnywhere = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `5${uniqueSuffix}`,
+        first_name: 'AdminCreated',
+        last_name: 'Student',
+        grade_level: 5,
+        section: 'Rizal',
+      },
+    });
+    assert(createByAdminAnywhere.status === 201, 'Admin creates student in any grade/section');
+    const adminCreatedId = createByAdminAnywhere.data?.student?.id;
+    if (createByAdminAnywhere.status === 201 && adminCreatedId) createdStudentIds.push(adminCreatedId);
 
-  const teacherList = await request('GET', '/api/students', { token: teacherToken });
-  const teacherListIds = (teacherList.data?.students || []).map((s) => s.id);
-  assert(teacherList.status === 200, 'Teacher can list students');
-  assert(teacherListIds.includes(marwinId), 'Teacher list includes in-scope student (Marwin)');
-  assert(!teacherListIds.includes(jeaId), 'Teacher list excludes out-of-scope student (Jea)');
+    // --- Read: list + single, scoped ---
+    console.log('\nRead (scoping):');
 
-  const teacherGetInScope = await request('GET', `/api/students/${marwinId}`, { token: teacherToken });
-  assert(teacherGetInScope.status === 200, 'Teacher reads in-scope student by id');
+    const teacherList = await request('GET', '/api/students', { token: teacherToken });
+    const teacherListIds = (teacherList.data?.students || []).map((s) => s.id);
+    assert(teacherList.status === 200, 'Teacher can list students');
+    assert(teacherListIds.includes(marwinId), 'Teacher list includes in-scope student (Marwin)');
+    assert(!teacherListIds.includes(jeaId), 'Teacher list excludes out-of-scope student (Jea)');
 
-  const teacherGetOutOfScope = await request('GET', `/api/students/${jeaId}`, { token: teacherToken });
-  assert(teacherGetOutOfScope.status === 404, 'Teacher reading out-of-scope student returns 404');
+    const teacherGetInScope = await request('GET', `/api/students/${marwinId}`, { token: teacherToken });
+    assert(teacherGetInScope.status === 200, 'Teacher reads in-scope student by id');
 
-  const nonNumericId = await request('GET', '/api/students/abc', { token: adminToken });
-  assert(nonNumericId.status === 400, 'GET /api/students/abc returns 400, not 500');
+    const teacherGetOutOfScope = await request('GET', `/api/students/${jeaId}`, { token: teacherToken });
+    assert(teacherGetOutOfScope.status === 404, 'Teacher reading out-of-scope student returns 404');
 
-  const negativeId = await request('GET', '/api/students/-1', { token: adminToken });
-  assert(negativeId.status === 400, 'GET /api/students/-1 returns 400');
+    const nonNumericId = await request('GET', '/api/students/abc', { token: adminToken });
+    assert(nonNumericId.status === 400, 'GET /api/students/abc returns 400, not 500');
 
-  const parentGetOwn = await request('GET', `/api/students/${marwinId}`, { token: parentToken });
-  assert(parentGetOwn.status === 200, 'Parent reads own child');
+    const negativeId = await request('GET', '/api/students/-1', { token: adminToken });
+    assert(negativeId.status === 400, 'GET /api/students/-1 returns 400');
 
-  const parentGetOther = await request('GET', `/api/students/${jeaId}`, { token: parentToken });
-  assert(parentGetOther.status === 404, 'Parent reading another student returns 404 (not 403)');
+    const parentGetOwn = await request('GET', `/api/students/${marwinId}`, { token: parentToken });
+    assert(parentGetOwn.status === 200, 'Parent reads own child');
 
-  const adminGetAny = await request('GET', `/api/students/${jeaId}`, { token: adminToken });
-  assert(adminGetAny.status === 200, 'Admin reads any student');
+    const parentGetOther = await request('GET', `/api/students/${jeaId}`, { token: parentToken });
+    assert(parentGetOther.status === 404, 'Parent reading another student returns 404 (not 403)');
 
-  // --- Update ---
-  console.log('\nUpdate:');
+    const adminGetAny = await request('GET', `/api/students/${jeaId}`, { token: adminToken });
+    assert(adminGetAny.status === 200, 'Admin reads any student');
 
-  const teacherUpdateInScope = await request('PUT', `/api/students/${inScopeId}`, {
-    token: teacherToken,
-    body: { contact_number: '09171234567' },
-  });
-  assert(teacherUpdateInScope.status === 200, 'Teacher updates in-scope student');
+    // --- Update ---
+    console.log('\nUpdate:');
 
-  const teacherUpdateOutOfScope = await request('PUT', `/api/students/${jeaId}`, {
-    token: teacherToken,
-    body: { contact_number: '09170000000' },
-  });
-  assert(teacherUpdateOutOfScope.status === 404, 'Teacher updating out-of-scope student returns 404');
+    const teacherUpdateInScope = await request('PUT', `/api/students/${inScopeId}`, {
+      token: teacherToken,
+      body: { contact_number: '09171234567' },
+    });
+    assert(teacherUpdateInScope.status === 200, 'Teacher updates in-scope student');
 
-  const adminUpdateBadGrade = await request('PUT', `/api/students/${inScopeId}`, {
-    token: adminToken,
-    body: { grade_level: 0 },
-  });
-  assert(adminUpdateBadGrade.status === 400, 'Update with invalid grade_level rejected');
+    const teacherUpdateOutOfScope = await request('PUT', `/api/students/${jeaId}`, {
+      token: teacherToken,
+      body: { contact_number: '09170000000' },
+    });
+    assert(teacherUpdateOutOfScope.status === 404, 'Teacher updating out-of-scope student returns 404');
 
-  // --- Status (admin only, no hard delete) ---
-  console.log('\nStatus:');
+    const adminUpdateBadGrade = await request('PUT', `/api/students/${inScopeId}`, {
+      token: adminToken,
+      body: { grade_level: 0 },
+    });
+    assert(adminUpdateBadGrade.status === 400, 'Update with invalid grade_level rejected');
 
-  const teacherStatusChange = await request('PATCH', `/api/students/${inScopeId}/status`, {
-    token: teacherToken,
-    body: { status: 'inactive' },
-  });
-  assert(teacherStatusChange.status === 403, 'Teacher cannot change student status');
+    // --- Status (admin only, no hard delete) ---
+    console.log('\nStatus:');
 
-  const adminStatusChange = await request('PATCH', `/api/students/${inScopeId}/status`, {
-    token: adminToken,
-    body: { status: 'inactive' },
-  });
-  assert(
-    adminStatusChange.status === 200 && adminStatusChange.data?.student?.status === 'inactive',
-    'Admin deactivates student'
-  );
+    const teacherStatusChange = await request('PATCH', `/api/students/${inScopeId}/status`, {
+      token: teacherToken,
+      body: { status: 'inactive' },
+    });
+    assert(teacherStatusChange.status === 403, 'Teacher cannot change student status');
 
-  const listExcludesInactiveByDefault = await request('GET', '/api/students', { token: adminToken });
-  const stillListed = (listExcludesInactiveByDefault.data?.students || []).some((s) => s.id === inScopeId);
-  assert(!stillListed, 'Default list excludes inactive students');
+    const adminStatusChange = await request('PATCH', `/api/students/${inScopeId}/status`, {
+      token: adminToken,
+      body: { status: 'inactive' },
+    });
+    assert(
+      adminStatusChange.status === 200 && adminStatusChange.data?.student?.status === 'inactive',
+      'Admin deactivates student'
+    );
 
-  const listAllIncludesInactive = await request('GET', '/api/students?status=all', { token: adminToken });
-  const nowListed = (listAllIncludesInactive.data?.students || []).some((s) => s.id === inScopeId);
-  assert(nowListed, 'status=all includes inactive students');
+    const listExcludesInactiveByDefault = await request('GET', '/api/students', { token: adminToken });
+    const stillListed = (listExcludesInactiveByDefault.data?.students || []).some((s) => s.id === inScopeId);
+    assert(!stillListed, 'Default list excludes inactive students');
 
-  // Restore for repeatable runs
-  await request('PATCH', `/api/students/${inScopeId}/status`, { token: adminToken, body: { status: 'active' } });
+    const listAllIncludesInactive = await request('GET', '/api/students?status=all', { token: adminToken });
+    const nowListed = (listAllIncludesInactive.data?.students || []).some((s) => s.id === inScopeId);
+    assert(nowListed, 'status=all includes inactive students');
+  } finally {
+    await cleanup();
+  }
 
   // --- Summary ---
   console.log(`\n${passed} passed, ${failed} failed\n`);

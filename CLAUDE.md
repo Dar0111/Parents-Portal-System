@@ -40,25 +40,38 @@ to the team.
 | GET | `/api/users/parents/pending` | admin |
 | PUT | `/api/users/parents/:id/approve` | admin |
 | PUT | `/api/users/parents/:id/reject` | admin |
+| GET | `/api/students` | teacher, admin |
+| GET | `/api/students/:id` | teacher, admin, parent (own child only) |
+| POST | `/api/students` | teacher (own assignment only), admin |
+| PUT | `/api/students/:id` | teacher (own assignment only), admin |
+| PATCH | `/api/students/:id/status` | admin |
 
-**Tests:** 24 passing — `npm run test:auth`
+**Tests:** both suites are idempotent — every row they create is timestamp-suffixed
+and deleted in a `finally` block, so no `db:setup` is needed between runs. Verified
+by running each twice in a row with no reset: same 100% pass count both times, and
+the DB confirmed byte-for-byte back to the seeded 4 users / 2 students after.
+- `npm run test:students` — 28/28
+- `npm run test:auth` — 25/25
 
 ### Files that exist
 
 ```
 server/
-  server.js                    Express app; mounts /api/auth and /api/users only
+  server.js                    Express app; mounts /api/auth, /api/users, /api/students
   package.json
   .env.example
   config/db.js                 MySQL connection pool
   middleware/auth.js           authenticate + authorize
   routes/auth.js               login, me, change-password
   routes/users.js              create teacher/parent, pending, approve/reject
+  routes/students.js           list/view/create/update, teacher scoped to own assignments
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
+  utils/validateId.js          parseId() — validates :id route params before any query
   scripts/setup-db.js          runs schema + seed, hashes seed passwords
   scripts/test-auth-flows.js   HTTP tests
+  scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
 database/
   schema.sql                   18 tables
   seed.sql                     subjects, students, settings
@@ -78,13 +91,12 @@ client/
 
 ### Not started — zero handlers
 
-Grades · Attendance · Student Records · Announcements · Memos · Messages ·
+Grades · Attendance · Announcements · Memos · Messages ·
 Excuse Letters · Contributions · System Settings · Backup/Restore
 
 **No Expo app. No Socket.io.**
 
-Nine modules have tables in `schema.sql` but no route files and no queries.
-Roughly **15–20% of the backend.**
+Eight modules have tables in `schema.sql` but no route files and no queries.
 
 ### React web app — auth, verified end-to-end
 
@@ -108,14 +120,22 @@ must follow this exact pattern. Do not invent a new structure.**
 - `student_id` comes from `users.student_id`, never from a URL param or body
 - approve/reject filter on `role = 'parent'` so a teacher cannot be approved
   through the parent route
+- every `:id` route param is validated with `parseId()` from
+  `utils/validateId.js` before it touches a query — reject non-numeric or
+  non-positive values with `400`. Found in `routes/users.js` approve/reject:
+  `Number(req.params.id)` on an unvalidated param becomes `NaN` and reaches
+  MySQL as `WHERE id = NaN`. MySQL rejected it, so nothing leaked, but the
+  auth pattern audit had missed route params entirely — role and
+  `student_id` handling were solid, this wasn't.
 - `sanitizeUser()` strips the password hash from every response
 - `logActivity()` writes to `activity_logs` on every write operation
 
 When starting a new module, say this:
 
-> Follow the exact same pattern as `routes/users.js`: `authenticate` +
-> `authorize()`, `sanitizeUser` on any response containing a user row, and
-> `logActivity` for any write. Do not invent a new structure.
+> Follow the exact same pattern as `routes/users.js` and `routes/students.js`:
+> `authenticate` + `authorize()`, `parseId()` on every `:id` param,
+> `sanitizeUser` on any response containing a user row, and `logActivity`
+> for any write. Do not invent a new structure.
 
 **Known caveat:** `sanitizeUser` only deletes the key named `password`. If a
 JOIN ever aliases the hash to another name, it leaks. Watch for this when
@@ -243,7 +263,7 @@ at the end of each session.
 - [x] Auth backend — login, JWT, RBAC, approve/reject
 - [x] Auth tests
 
-### Stage 2 — Auth frontend ✅ CODE COMPLETE — see caveat above
+### Stage 2 — Auth frontend ✅ DONE
 
 Do this before any other backend module. It is the only work with zero
 external dependencies, and it turns a terminal-only project into something
@@ -256,16 +276,15 @@ you can actually see on screen.
 - [x] `/admin` `/teacher` `/parent` empty dashboards
 - [x] Shared layout — sidebar, header, logout
 
-Built, builds clean, both dev servers run together. Login round-trip not
-yet exercised against a live DB — see "React web app" note under CURRENT
-STATE. Confirm that before treating Stage 2 as demo-ready.
+Login round-trip verified in the browser — see "React web app" note under
+CURRENT STATE.
 
 ### Stage 3 — Backend modules
 
 Order matters. Student Records first because everything references students.
 Grades is last in this stage because it is blocked.
 
-- [ ] Student Records API — list, view, create, update
+- [x] Student Records API — list, view, create, update
 - [ ] Attendance API — per day, per subject
 - [ ] Announcements + Memos + Events API
 - [ ] Excuse Letters API — submit, review, approve/decline
@@ -416,6 +435,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-27 | Both test suites made idempotent — `test-auth-flows.js` and `test-student-flows.js` now generate timestamp-suffixed LRNs/login IDs per run and delete everything they create in a `finally` block, so `npm run db:setup` is no longer required between runs. Previously both used fixed values (`9999999`, `8888888`) with no cleanup, so a second run without a reset failed 6 of 25 auth assertions on stale state, not code — this was masking real signal with a false failure and would only get worse as the remaining 8 modules add their own suites. Cleaned the pre-existing polluted rows out of `users`/`students` (DB now byte-for-byte the seeded 4 users / 2 students). Verified by running each suite twice back-to-back with no reset in between: 28/28 and 25/25 both times. |
+| 2026-08-27 | Student Records API built — `routes/students.js`: `GET /api/students` (list, filterable), `GET /api/students/:id`, `POST /api/students`, `PUT /api/students/:id`, `PATCH /api/students/:id/status` (admin only, no hard delete). Parents see only their own child (`req.user.student_id`, never the URL param); teachers see only students in their `teacher_assignments` grade/section pairs — both an out-of-scope read and a nonexistent id return the same `404`, so neither role can enumerate students outside their reach. Teacher-initiated creates are the one place scope violations return `403` instead of `404` — there's no id to enumerate on a create, and the teacher needs to know why it failed. LRN is immutable after creation (it doubles as a parent's `login_id`). Found and fixed a real bug while building this: `routes/users.js` approve/reject passed `Number(req.params.id)` straight into a query with no validation — a non-numeric id becomes `NaN` and reaches MySQL as `WHERE id = NaN` (MySQL rejected it, so nothing leaked, but it should never have reached the query layer). Added `utils/validateId.js` (`parseId()`) as the one shared fix, applied to both `routes/users.js` and `routes/students.js`, and folded into the auth pattern template for every future module. `npm run test:students` — 28 passing. |
 | 2026-08-27 | React auth frontend built — `client/` (Vite, React 19, Tailwind v4, Font Awesome). `AuthContext` awaits `GET /api/auth/me` on load instead of decoding the JWT client-side, so a deactivated account can't render a dashboard off a still-valid-looking token. Axios interceptor skips its 401/403 redirect when the failing request is the login call itself, so bad credentials and pending/rejected accounts show inline on the login form instead of bouncing away from it. MySQL started, `db:setup` run, all 24 auth tests pass, and the full login round-trip verified in the browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no login-page flash. |
 | 2026-08-26 | Login now asserts `status === 'active'` before `signToken`. Test added. |
 | 2026-08-13 | Auth backend complete — login, JWT, RBAC, approve/reject. 23 tests. |

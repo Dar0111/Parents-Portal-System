@@ -24,8 +24,9 @@
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
-Stage 3 is 🔨 because User Management has 5 working endpoints out of a
-larger set (see table below) — everything else in that stage is ❌.
+Stage 3 is 🔨: Student Records is fully built (5 endpoints), User
+Management is partial (5 of a larger set) — everything else in that stage
+is ❌. See table below.
 
 ---
 
@@ -37,11 +38,11 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 
 | Module | Schema | API | Web | Mobile | Notes |
 |--------|--------|-----|-----|--------|-------|
-| Authentication | ✅ `users` | ✅ 3 endpoints — login, me, change-password | ✅ Login page, `ProtectedRoute`, axios JWT interceptor | ❌ | 24 auth tests pass; login round-trip verified in browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no flash. Mobile: Expo project doesn't exist. |
+| Authentication | ✅ `users` | ✅ 3 endpoints — login, me, change-password | ✅ Login page, `ProtectedRoute`, axios JWT interceptor | ❌ | 25/25 auth tests pass (`npm run test:auth`), idempotent — no `db:setup` needed between runs. Login round-trip verified in browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no flash. Mobile: Expo project doesn't exist. |
 | User Management (Admin) | ✅ `users` | 🔨 5 endpoints — create teacher, create parent, list pending, approve, reject | ❌ Dashboards are empty placeholders | ❌ | Next: `GET /api/users` (list all), edit, deactivate. Web screens come after. |
 | Grade Management & Viewing | ✅ `grades`, `grade_components`, `grade_weight_configs` | ❌ | ❌ | ❌ | Blocked: school must confirm quarters vs. terms, 3 vs. 5 grade components, and whether weights key on subject or grade level. See CLAUDE.md "Blocked." |
 | Attendance Monitoring | ✅ `attendance` | ❌ | ❌ | ❌ | Next: `routes/attendance.js` — mark per day/subject, view by student and date range. |
-| Student Records Management | ✅ `students` | ❌ | ❌ | ❌ | Next: `routes/students.js` — list, view, create, update. First in Stage 3 — every other module references students. |
+| Student Records Management | ✅ `students` | ✅ 5 endpoints — list, view, create, update, status | ❌ | ❌ | 28/28 tests pass (`npm run test:students`), idempotent — no `db:setup` needed between runs. Parents see only their own child; teachers see only their assigned grade/section, both via `404` (not `403`) to avoid enumeration. Teacher creates outside their assignment get `403`. Next: web screens (list, view, create, edit) and Expo screens. |
 | Announcements & Memo Dissemination | ✅ `announcements`, `memos`, `events` | ❌ | ❌ | ❌ | Next: `routes/announcements.js` covering all three tables. |
 | Parent-Teacher Messaging | ✅ `messages` | ❌ | ❌ | ❌ | Next: Socket.io isn't wired into `server.js` yet. No handlers at all. |
 | Excuse Letter Submission & Management | ✅ `excuse_letters` | ❌ | ❌ | ❌ | Next: `routes/excuse-letters.js` — submit, review, approve/decline. |
@@ -61,6 +62,10 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 - [ ] Edit user endpoint.
 - [ ] Deactivate/reactivate user endpoint.
 - [ ] Admin web screens: pending-approvals list, user list, create-teacher form.
+
+**Student Records Management** — API done, no screens yet.
+- [ ] Web pages: student list, student detail, create/edit forms.
+- [ ] Expo screens (Stage 5, not started).
 
 Everything else in the 10 core features has a schema table and nothing
 else — no route file, no queries, no pages, no screens. See the Notes
