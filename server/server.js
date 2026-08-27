@@ -7,6 +7,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const studentRoutes = require('./routes/students');
+const attendanceRoutes = require('./routes/attendance');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -23,6 +24,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found.' });
