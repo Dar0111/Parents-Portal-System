@@ -25,7 +25,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-08-26 (audited against the code, not the docs)
+**Last verified:** 2026-08-27 (audited against the code, not the docs)
 
 ### Working endpoints — this is the entire API
 
@@ -64,6 +64,16 @@ database/
   seed.sql                     subjects, students, settings
 scripts/
   create-backup-zip.js         folder copy, NOT a DB backup — see Known Issues
+client/
+  package.json                 Vite + React 19 + Tailwind v4 + Font Awesome
+  vite.config.js                dev server pinned to port 3000 (matches server's CORS_ORIGIN default)
+  src/App.jsx                  routes: /login, /admin, /teacher, /parent
+  src/api/axios.js             baseURL from VITE_API_BASE_URL, Bearer interceptor, 401/403 handling
+  src/auth/AuthContext.jsx     login/logout/user/loading — see note below
+  src/auth/ProtectedRoute.jsx  role-gated route wrapper
+  src/pages/Login.jsx          Login ID + password, no role dropdown
+  src/pages/dashboards/        AdminDashboard, TeacherDashboard, ParentDashboard — empty
+  src/layout/Shell.jsx         sidebar, header, logout
 ```
 
 ### Not started — zero handlers
@@ -71,10 +81,19 @@ scripts/
 Grades · Attendance · Student Records · Announcements · Memos · Messages ·
 Excuse Letters · Contributions · System Settings · Backup/Restore
 
-**No React web app. No Expo app. No Socket.io.**
+**No Expo app. No Socket.io.**
 
 Nine modules have tables in `schema.sql` but no route files and no queries.
 Roughly **15–20% of the backend.**
+
+### React web app — auth, verified end-to-end
+
+`client/` builds clean (`npm run build`) and both dev servers run together
+(`server/` on :5000, `client/` on :3000). Verified in the browser: admin
+login (`ADMIN001` / `Admin@2026`) redirects to `/admin`; a wrong password
+shows an inline error without leaving the login page; a pending parent
+account shows the approval-pending message inline; refreshing a logged-in
+session shows the loading spinner with no login-page flash.
 
 ---
 
@@ -224,18 +243,22 @@ at the end of each session.
 - [x] Auth backend — login, JWT, RBAC, approve/reject
 - [x] Auth tests
 
-### Stage 2 — Auth frontend ← YOU ARE HERE
+### Stage 2 — Auth frontend ✅ CODE COMPLETE — see caveat above
 
 Do this before any other backend module. It is the only work with zero
 external dependencies, and it turns a terminal-only project into something
 you can actually see on screen.
 
-- [ ] `client/` folder + React + Tailwind + Font Awesome setup
-- [ ] Axios client with JWT interceptor and 401 handling
-- [ ] Login page — Login ID + password, no role dropdown
-- [ ] `ProtectedRoute` with a loading state (prevents the refresh flash)
-- [ ] `/admin` `/teacher` `/parent` empty dashboards
-- [ ] Shared layout — sidebar, header, logout
+- [x] `client/` folder + React + Tailwind + Font Awesome setup
+- [x] Axios client with JWT interceptor and 401 handling
+- [x] Login page — Login ID + password, no role dropdown
+- [x] `ProtectedRoute` with a loading state (prevents the refresh flash)
+- [x] `/admin` `/teacher` `/parent` empty dashboards
+- [x] Shared layout — sidebar, header, logout
+
+Built, builds clean, both dev servers run together. Login round-trip not
+yet exercised against a live DB — see "React web app" note under CURRENT
+STATE. Confirm that before treating Stage 2 as demo-ready.
 
 ### Stage 3 — Backend modules
 
@@ -288,16 +311,19 @@ always something to show.
 Paste this before you stop working:
 
 ```
-Update CLAUDE.md:
-1. Add today's changes to the CHANGELOG with the date
-2. Update CURRENT STATE to match the actual code
-3. Tick off any completed items in BUILD ORDER
+Update CLAUDE.md AND docs/PROJECT_PROGRESS.md:
+1. Add today's changes to the CLAUDE.md CHANGELOG with the date
+2. Update CURRENT STATE in CLAUDE.md to match the actual code
+3. Tick off completed items in BUILD ORDER
+4. Mirror the same state into docs/PROJECT_PROGRESS.md
 
-Only list what is verifiably working. If a module has tables but no
-handlers, it is NOT started. Endpoints, not percentages.
+Both files must agree. Only list what is verifiably working. If a
+module has tables but no handlers, it is NOT started. Endpoints, not
+percentages.
 ```
 
-Skipping this is how `PROJECT_PROGRESS.md` drifted out of sync with the code.
+Skipping this is how `PROJECT_PROGRESS.md` drifted out of sync with the code
+before.
 
 ---
 
@@ -390,6 +416,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-27 | React auth frontend built — `client/` (Vite, React 19, Tailwind v4, Font Awesome). `AuthContext` awaits `GET /api/auth/me` on load instead of decoding the JWT client-side, so a deactivated account can't render a dashboard off a still-valid-looking token. Axios interceptor skips its 401/403 redirect when the failing request is the login call itself, so bad credentials and pending/rejected accounts show inline on the login form instead of bouncing away from it. MySQL started, `db:setup` run, all 24 auth tests pass, and the full login round-trip verified in the browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no login-page flash. |
 | 2026-08-26 | Login now asserts `status === 'active'` before `signToken`. Test added. |
 | 2026-08-13 | Auth backend complete — login, JWT, RBAC, approve/reject. 23 tests. |
 | 2026-08-12 | Database schema + seed, 18 tables. `.gitignore` added. |
