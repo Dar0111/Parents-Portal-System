@@ -45,19 +45,41 @@ to the team.
 | POST | `/api/students` | teacher (own assignment only), admin |
 | PUT | `/api/students/:id` | teacher (own assignment only), admin |
 | PATCH | `/api/students/:id/status` | admin |
+| GET | `/api/attendance` | teacher, admin |
+| GET | `/api/attendance/student/:studentId` | teacher, admin, parent (own child only) |
+| GET | `/api/attendance/summary/:studentId` | teacher, admin, parent (own child only) — raw counts, no rate |
+| POST | `/api/attendance` | teacher (own subject+grade+section), admin (unscoped) |
+| POST | `/api/attendance/bulk` | teacher (own subject+grade+section), admin (unscoped) — all-or-nothing |
+| PUT | `/api/attendance/:id` | teacher (own subject+grade+section), admin (unscoped) |
+| GET | `/api/announcements` | all roles — scoped by audience (target_grade/target_section) |
+| POST | `/api/announcements` | teacher (own assignment only), admin |
+| PUT | `/api/announcements/:id` | author or admin |
+| DELETE | `/api/announcements/:id` | author or admin — hard delete |
+| GET | `/api/memos` | all roles — no targeting, school-wide by schema design |
+| POST | `/api/memos` | admin |
+| PUT | `/api/memos/:id` | admin |
+| DELETE | `/api/memos/:id` | admin — hard delete |
+| GET | `/api/events` | all roles — scoped by audience (target_grade only, no target_section column) |
+| POST | `/api/events` | teacher (own grade only), admin |
+| PUT | `/api/events/:id` | author or admin |
+| DELETE | `/api/events/:id` | author or admin — hard delete |
 
-**Tests:** both suites are idempotent — every row they create is timestamp-suffixed
-and deleted in a `finally` block, so no `db:setup` is needed between runs. Verified
-by running each twice in a row with no reset: same 100% pass count both times, and
-the DB confirmed byte-for-byte back to the seeded 4 users / 2 students after.
+**Tests:** all four suites are idempotent — every row they create is tracked and
+deleted in a `finally` block, so no `db:setup` is needed between runs. Verified by
+running each twice in a row with no reset: same pass count both times, and the DB
+confirmed back to the seeded 4 users / 2 students / 0 attendance / 0 announcements /
+0 memos / 0 events after.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
+- `npm run test:attendance` — 28/28
+- `npm run test:content` — 45/45
 
 ### Files that exist
 
 ```
 server/
-  server.js                    Express app; mounts /api/auth, /api/users, /api/students
+  server.js                    Express app; mounts /api/auth, /api/users, /api/students,
+                                /api/attendance, /api/announcements, /api/memos, /api/events
   package.json
   .env.example
   config/db.js                 MySQL connection pool
@@ -65,6 +87,8 @@ server/
   routes/auth.js               login, me, change-password
   routes/users.js              create teacher/parent, pending, approve/reject
   routes/students.js           list/view/create/update, teacher scoped to own assignments
+  routes/attendance.js         record/bulk/correct/list/summary, teacher scoped by subject+grade+section
+  routes/content.js            announcements/memos/events — 3 routers, one file
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
@@ -72,6 +96,8 @@ server/
   scripts/setup-db.js          runs schema + seed, hashes seed passwords
   scripts/test-auth-flows.js   HTTP tests
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
+  scripts/test-attendance-flows.js HTTP tests — scoping, bulk all-or-nothing, admin override
+  scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin
 database/
   schema.sql                   18 tables
   seed.sql                     subjects, students, settings
@@ -91,12 +117,11 @@ client/
 
 ### Not started — zero handlers
 
-Grades · Attendance · Announcements · Memos · Messages ·
-Excuse Letters · Contributions · System Settings · Backup/Restore
+Grades · Messages · Excuse Letters · Contributions · System Settings · Backup/Restore
 
 **No Expo app. No Socket.io.**
 
-Eight modules have tables in `schema.sql` but no route files and no queries.
+Six modules have tables in `schema.sql` but no route files and no queries.
 
 ### React web app — auth, verified end-to-end
 
@@ -285,8 +310,8 @@ Order matters. Student Records first because everything references students.
 Grades is last in this stage because it is blocked.
 
 - [x] Student Records API — list, view, create, update
-- [ ] Attendance API — per day, per subject
-- [ ] Announcements + Memos + Events API
+- [x] Attendance API — per day, per subject
+- [x] Announcements + Memos + Events API
 - [ ] Excuse Letters API — submit, review, approve/decline
 - [ ] Contributions API — create, record payment, view status
 - [ ] Messages API + Socket.io
@@ -435,6 +460,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-27 | Announcements/Memos/Events API built — `routes/content.js`, one file, three routers (`announcementsRouter`, `memosRouter`, `eventsRouter`) mounted at their own prefixes. Schema check caught a spec error before writing code: `events` has no `target_section` column — only `announcements` does — so event audience scoping is grade-only, never section-level. Audience read-scoping: parent sees school-wide items plus their own child's grade(+section for announcements); teacher sees school-wide plus anything matching their `teacher_assignments`; admin sees everything. Write-scoping: a teacher must name an exact grade+section (announcements) or grade (events) they're assigned to — leaving `target_grade` `NULL` (school-wide) or omitting `target_section` (whole-grade) is rejected with a `403` that names the specific reason ("School-wide announcements are admin-only. Specify a target_grade and target_section you are assigned to.") rather than a bare "forbidden" — deliberately, so a teacher hitting this mid-demo sees a rule, not a bug. `PUT`/`DELETE` are author-or-admin. Memos have no targeting or category columns at all — schema confirms they're school-wide by design, matching the manuscript's simpler single-Memo intent; writes are admin-only, reads open to all roles. Hard delete kept as specified (no status column on any of the three tables); `logActivity` captures the title before the row is gone. `npm run test:content` — 45 passing, idempotent. |
+| 2026-08-27 | Attendance API built — `routes/attendance.js`: list/record/bulk-record/correct/per-student/summary. Teacher scoping checks `teacher_assignments` on `subject_id` **and** `grade_level`+`section` together, not just grade/section — a teacher assigned to teach Math for Grade 6-Mabini can't see or record Science attendance for the same class. `POST /` and `POST /bulk` collapse "student doesn't exist" and "exists but out of scope" into the same `403` for a teacher (no way to enumerate students by testing which error comes back); admin is unscoped on all writes, covering a teacher being absent or having left. `POST /bulk` is all-or-nothing in a transaction — every entry validated before anything is written, so a bad `student_id` in a 30-student roster fails the whole batch instead of silently dropping one. Recording the same `(student_id, subject_id, date)` twice updates via `ON DUPLICATE KEY UPDATE` rather than erroring. `GET .../summary/:studentId` returns raw counts only (`Present`/`Absent`/`Late`/`Excused`/`total`) — no computed rate, since the school hasn't confirmed how attendance rate should be calculated. `npm run test:attendance` — 28 passing, idempotent. |
 | 2026-08-27 | Both test suites made idempotent — `test-auth-flows.js` and `test-student-flows.js` now generate timestamp-suffixed LRNs/login IDs per run and delete everything they create in a `finally` block, so `npm run db:setup` is no longer required between runs. Previously both used fixed values (`9999999`, `8888888`) with no cleanup, so a second run without a reset failed 6 of 25 auth assertions on stale state, not code — this was masking real signal with a false failure and would only get worse as the remaining 8 modules add their own suites. Cleaned the pre-existing polluted rows out of `users`/`students` (DB now byte-for-byte the seeded 4 users / 2 students). Verified by running each suite twice back-to-back with no reset in between: 28/28 and 25/25 both times. |
 | 2026-08-27 | Student Records API built — `routes/students.js`: `GET /api/students` (list, filterable), `GET /api/students/:id`, `POST /api/students`, `PUT /api/students/:id`, `PATCH /api/students/:id/status` (admin only, no hard delete). Parents see only their own child (`req.user.student_id`, never the URL param); teachers see only students in their `teacher_assignments` grade/section pairs — both an out-of-scope read and a nonexistent id return the same `404`, so neither role can enumerate students outside their reach. Teacher-initiated creates are the one place scope violations return `403` instead of `404` — there's no id to enumerate on a create, and the teacher needs to know why it failed. LRN is immutable after creation (it doubles as a parent's `login_id`). Found and fixed a real bug while building this: `routes/users.js` approve/reject passed `Number(req.params.id)` straight into a query with no validation — a non-numeric id becomes `NaN` and reaches MySQL as `WHERE id = NaN` (MySQL rejected it, so nothing leaked, but it should never have reached the query layer). Added `utils/validateId.js` (`parseId()`) as the one shared fix, applied to both `routes/users.js` and `routes/students.js`, and folded into the auth pattern template for every future module. `npm run test:students` — 28 passing. |
 | 2026-08-27 | React auth frontend built — `client/` (Vite, React 19, Tailwind v4, Font Awesome). `AuthContext` awaits `GET /api/auth/me` on load instead of decoding the JWT client-side, so a deactivated account can't render a dashboard off a still-valid-looking token. Axios interceptor skips its 401/403 redirect when the failing request is the login call itself, so bad credentials and pending/rejected accounts show inline on the login form instead of bouncing away from it. MySQL started, `db:setup` run, all 24 auth tests pass, and the full login round-trip verified in the browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no login-page flash. |
