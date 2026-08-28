@@ -22,7 +22,7 @@ INSERT INTO grade_weight_configs (grade_level_min, grade_level_max, quiz_weight,
 INSERT INTO system_settings (setting_key, setting_value) VALUES
   ('school_name', 'Captain H. Francisco Elementary School'),
   ('school_address', 'Captain H. Francisco Elementary School, Philippines'),
-  ('academic_year', '2025-2026'),
+  ('academic_year', '2026-2027'),
   ('current_quarter', 'Q1'),
   ('logo_url', '');
 

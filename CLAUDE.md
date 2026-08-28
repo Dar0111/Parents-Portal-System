@@ -63,23 +63,33 @@ to the team.
 | POST | `/api/events` | teacher (own grade only), admin |
 | PUT | `/api/events/:id` | author or admin |
 | DELETE | `/api/events/:id` | author or admin — hard delete |
+| GET | `/api/contributions` | all roles — scoped by grade_level (no section column on this table) |
+| GET | `/api/contributions/my-records` | parent only — own child's rows only, no aggregate/other-student data |
+| GET | `/api/contributions/:id` | all roles — scoped, `404` on violation |
+| GET | `/api/contributions/:id/records` | teacher, admin — live roster (LEFT JOIN), Pending default |
+| POST | `/api/contributions` | teacher (own grade only), admin |
+| PUT | `/api/contributions/:id` | author or admin |
+| DELETE | `/api/contributions/:id` | author or admin — `409` if any `contribution_records` exist (see below) |
+| PATCH | `/api/contributions/:id/records/:studentId` | teacher, admin — mark Paid/Pending, optional amount override |
 
-**Tests:** all four suites are idempotent — every row they create is tracked and
+**Tests:** all five suites are idempotent — every row they create is tracked and
 deleted in a `finally` block, so no `db:setup` is needed between runs. Verified by
 running each twice in a row with no reset: same pass count both times, and the DB
-confirmed back to the seeded 4 users / 2 students / 0 attendance / 0 announcements /
-0 memos / 0 events after.
+confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
+announcements, memos, events, contributions, contribution_records) after.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 28/28
 - `npm run test:content` — 45/45
+- `npm run test:contributions` — 35/35
 
 ### Files that exist
 
 ```
 server/
   server.js                    Express app; mounts /api/auth, /api/users, /api/students,
-                                /api/attendance, /api/announcements, /api/memos, /api/events
+                                /api/attendance, /api/announcements, /api/memos, /api/events,
+                                /api/contributions
   package.json
   .env.example
   config/db.js                 MySQL connection pool
@@ -89,6 +99,7 @@ server/
   routes/students.js           list/view/create/update, teacher scoped to own assignments
   routes/attendance.js         record/bulk/correct/list/summary, teacher scoped by subject+grade+section
   routes/content.js            announcements/memos/events — 3 routers, one file
+  routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
@@ -98,6 +109,7 @@ server/
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
   scripts/test-attendance-flows.js HTTP tests — scoping, bulk all-or-nothing, admin override
   scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin
+  scripts/test-contributions-flows.js HTTP tests — grade scoping, roster, amount cap, delete guard
 database/
   schema.sql                   18 tables
   seed.sql                     subjects, students, settings
@@ -117,11 +129,11 @@ client/
 
 ### Not started — zero handlers
 
-Grades · Messages · Excuse Letters · Contributions · System Settings · Backup/Restore
+Grades · Messages · Excuse Letters · System Settings · Backup/Restore
 
 **No Expo app. No Socket.io.**
 
-Six modules have tables in `schema.sql` but no route files and no queries.
+Five modules have tables in `schema.sql` but no route files and no queries.
 
 ### React web app — auth, verified end-to-end
 
@@ -313,7 +325,7 @@ Grades is last in this stage because it is blocked.
 - [x] Attendance API — per day, per subject
 - [x] Announcements + Memos + Events API
 - [ ] Excuse Letters API — submit, review, approve/decline
-- [ ] Contributions API — create, record payment, view status
+- [x] Contributions API — create, record payment, view status
 - [ ] Messages API + Socket.io
 - [ ] System Settings API (admin)
 - [ ] User Management API — extend the existing `routes/users.js`
@@ -460,6 +472,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-27 | Contributions API built — `routes/contributions.js`, 8 endpoints across `contributions` (the fee) and `contribution_records` (per-student payment status). `grade_level` is `NOT NULL` on `contributions` — unlike announcements/events there is no school-wide option; a teacher just needs the grade to match a `teacher_assignments` row, no NULL-target case to reject. Roster (`GET /:id/records`) is a live `LEFT JOIN` against active students in the contribution's grade, not a snapshot generated at creation — a student who enrolls after the fee is posted shows up automatically, defaulted to `Pending`. Caught a real bug before shipping: an amount-override on `PATCH .../records/:studentId` (a student can owe less than the full fee, never more — enforced with a `400` naming the cap) defaulted to the full fee on every write, which would have silently reset a previously-set discount back to full price on a plain status-only `PATCH`; fixed by defaulting to the existing record's amount instead, tested explicitly. `DELETE` is blocked with a `409` naming the exact count ("Cannot delete. 1 payment record exists for this contribution. Clear the payment records first if you need to remove it.") when any `contribution_records` exist — `contribution_records.contribution_id` is `ON DELETE CASCADE`, so an unguarded delete would have silently destroyed payment history with no recovery; caught from reading the schema's FK constraints before writing the delete handler, not after. `GET /api/contributions/my-records` never touches another student's row, individually or in aggregate — verified in tests by asserting the response carries no count/total-shaped fields, not just checking the query. `npm run test:contributions` — 35 passing, idempotent. |
 | 2026-08-27 | Announcements/Memos/Events API built — `routes/content.js`, one file, three routers (`announcementsRouter`, `memosRouter`, `eventsRouter`) mounted at their own prefixes. Schema check caught a spec error before writing code: `events` has no `target_section` column — only `announcements` does — so event audience scoping is grade-only, never section-level. Audience read-scoping: parent sees school-wide items plus their own child's grade(+section for announcements); teacher sees school-wide plus anything matching their `teacher_assignments`; admin sees everything. Write-scoping: a teacher must name an exact grade+section (announcements) or grade (events) they're assigned to — leaving `target_grade` `NULL` (school-wide) or omitting `target_section` (whole-grade) is rejected with a `403` that names the specific reason ("School-wide announcements are admin-only. Specify a target_grade and target_section you are assigned to.") rather than a bare "forbidden" — deliberately, so a teacher hitting this mid-demo sees a rule, not a bug. `PUT`/`DELETE` are author-or-admin. Memos have no targeting or category columns at all — schema confirms they're school-wide by design, matching the manuscript's simpler single-Memo intent; writes are admin-only, reads open to all roles. Hard delete kept as specified (no status column on any of the three tables); `logActivity` captures the title before the row is gone. `npm run test:content` — 45 passing, idempotent. |
 | 2026-08-27 | Attendance API built — `routes/attendance.js`: list/record/bulk-record/correct/per-student/summary. Teacher scoping checks `teacher_assignments` on `subject_id` **and** `grade_level`+`section` together, not just grade/section — a teacher assigned to teach Math for Grade 6-Mabini can't see or record Science attendance for the same class. `POST /` and `POST /bulk` collapse "student doesn't exist" and "exists but out of scope" into the same `403` for a teacher (no way to enumerate students by testing which error comes back); admin is unscoped on all writes, covering a teacher being absent or having left. `POST /bulk` is all-or-nothing in a transaction — every entry validated before anything is written, so a bad `student_id` in a 30-student roster fails the whole batch instead of silently dropping one. Recording the same `(student_id, subject_id, date)` twice updates via `ON DUPLICATE KEY UPDATE` rather than erroring. `GET .../summary/:studentId` returns raw counts only (`Present`/`Absent`/`Late`/`Excused`/`total`) — no computed rate, since the school hasn't confirmed how attendance rate should be calculated. `npm run test:attendance` — 28 passing, idempotent. |
 | 2026-08-27 | Both test suites made idempotent — `test-auth-flows.js` and `test-student-flows.js` now generate timestamp-suffixed LRNs/login IDs per run and delete everything they create in a `finally` block, so `npm run db:setup` is no longer required between runs. Previously both used fixed values (`9999999`, `8888888`) with no cleanup, so a second run without a reset failed 6 of 25 auth assertions on stale state, not code — this was masking real signal with a false failure and would only get worse as the remaining 8 modules add their own suites. Cleaned the pre-existing polluted rows out of `users`/`students` (DB now byte-for-byte the seeded 4 users / 2 students). Verified by running each suite twice back-to-back with no reset in between: 28/28 and 25/25 both times. |

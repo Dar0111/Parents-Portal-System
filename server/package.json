@@ -11,7 +11,8 @@
     "test:students": "node scripts/test-student-flows.js",
     "test:attendance": "node scripts/test-attendance-flows.js",
     "test:content": "node scripts/test-content-flows.js",
-    "test:contributions": "node scripts/test-contributions-flows.js"
+    "test:contributions": "node scripts/test-contributions-flows.js",
+    "test:settings": "node scripts/test-settings-flows.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

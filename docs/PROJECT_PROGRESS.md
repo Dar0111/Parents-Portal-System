@@ -24,9 +24,9 @@
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
-Stage 3 is 🔨: Student Records, Attendance, and Announcements/Memos/Events
-are fully built. User Management is partial (5 of a larger set). Grades,
-Messaging, Excuse Letters, Contributions, System Settings, and
+Stage 3 is 🔨: Student Records, Attendance, Announcements/Memos/Events, and
+Contributions are fully built. User Management is partial (5 of a larger
+set). Grades, Messaging, Excuse Letters, System Settings, and
 Backup/Restore are still ❌. See table below.
 
 ---
@@ -47,7 +47,7 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 | Announcements & Memo Dissemination | ✅ `announcements`, `memos`, `events` | ✅ 12 endpoints — 4 each for announcements/memos/events | ❌ | ❌ | 45/45 tests pass (`npm run test:content`), idempotent. `routes/content.js`, one file, three routers. **Schema correction:** `events` has no `target_section` column (only `announcements` does) — event audience scoping is grade-only. Teacher writes require an exact grade+section (announcements) or grade (events) they're assigned to; a school-wide/whole-grade attempt gets a `403` naming the specific reason, not a bare "forbidden." Memos have no targeting/category columns at all — school-wide by schema design, admin-only writes. Hard delete on all three (no status column); title logged to `activity_logs` before deletion. Next: web screens and Expo screens. |
 | Parent-Teacher Messaging | ✅ `messages` | ❌ | ❌ | ❌ | Next: Socket.io isn't wired into `server.js` yet. No handlers at all. |
 | Excuse Letter Submission & Management | ✅ `excuse_letters` | ❌ | ❌ | ❌ | Next: `routes/excuse-letters.js` — submit, review, approve/decline. |
-| Contribution/Fees Monitoring | ✅ `contributions`, `contribution_records` | ❌ | ❌ | ❌ | Next: `routes/contributions.js` — create, record payment, view status. Also open: no CSV export (manuscript Fig. 19), GWA computation undecided. |
+| Contribution/Fees Monitoring | ✅ `contributions`, `contribution_records` | ✅ 8 endpoints — list, detail, roster, my-records, create, update, delete, mark paid/pending | ❌ | ❌ | 35/35 tests pass (`npm run test:contributions`), idempotent. `grade_level` is `NOT NULL` — no school-wide option, unlike announcements/events. Roster is a live LEFT JOIN against active students, not a snapshot — a late enrollee shows up automatically as Pending. Amount override on a payment can go below the fee (discount) but never above it (`400`, names the cap). `DELETE` blocked with `409` naming the exact record count when `contribution_records` exist — that FK is `ON DELETE CASCADE`, so an unguarded delete would silently destroy payment history. `my-records` (parent) never touches another student's row, individually or in aggregate. Also open: no CSV export (manuscript Fig. 19), GWA computation undecided — unrelated to this API. Next: web screens and Expo screens. |
 | System Settings Management (Admin) | ✅ `system_settings` | ❌ | ❌ | ❌ | Next: `routes/settings.js`, admin-only. |
 | Backup & Restore (Admin, web only) | ✅ `backups` | ❌ | ❌ | — (web-only by design, mobile excluded) | `scripts/create-backup-zip.js` exists but copies folders — not a DB backup. Needs a `mysqldump`-based rewrite. |
 
@@ -75,6 +75,11 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 **Announcements & Memo Dissemination** — API done, no screens yet.
 - [ ] Web pages: feed view (parent/teacher), post/edit forms (teacher/admin), memo management (admin).
 - [ ] Expo screens (Stage 5, not started).
+
+**Contribution/Fees Monitoring** — API done, no screens yet.
+- [ ] Web pages: fee list, roster/mark-paid grid (teacher/admin), parent's own payment status view.
+- [ ] Expo screens (Stage 5, not started).
+- [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision.
 
 Everything else in the 10 core features has a schema table and nothing
 else — no route file, no queries, no pages, no screens. See the Notes
