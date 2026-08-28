@@ -16,7 +16,7 @@ CREATE TABLE users (
   login_id VARCHAR(20) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   role ENUM('parent', 'teacher', 'admin') NOT NULL,
-  status ENUM('pending', 'active', 'rejected') NOT NULL DEFAULT 'pending',
+  status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'pending',
   name VARCHAR(100) NOT NULL,
   email VARCHAR(100) DEFAULT NULL,
   contact_number VARCHAR(20) DEFAULT NULL,

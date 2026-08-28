@@ -140,27 +140,25 @@ async function run() {
     const parentPending = await login('1234567', 'Parent@2026');
     assert(parentPending.status === 403 && parentPending.data?.status === 'pending', 'Pending parent blocked');
 
-    // Unexpected status (not pending/rejected/active) must not receive a token.
-    // users.status is ENUM(pending, active, rejected) — temporarily widen it for this case.
+    // Deactivated account (status = 'inactive', a real ENUM value now that
+    // User Management's PATCH /api/users/:id/status exists) must not receive
+    // a token. No ALTER TABLE here — 'inactive' is permanent schema now, not
+    // a temporary widen-for-this-test hack. (It used to be; narrowing the
+    // ENUM back down in this test's finally block would have silently
+    // stripped 'inactive' out of the schema on every test:auth run.)
     try {
-      await withDb(async (conn) => {
-        await conn.query(
-          `ALTER TABLE users MODIFY status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'pending'`
-        );
-        await conn.query(`UPDATE users SET status = 'inactive' WHERE login_id = 'TCH-001' LIMIT 1`);
-      });
+      await withDb((conn) =>
+        conn.query(`UPDATE users SET status = 'inactive' WHERE login_id = 'TCH-001' LIMIT 1`)
+      );
       const inactiveLogin = await login('TCH-001', 'Teacher@2026');
       assert(
         inactiveLogin.status === 403 && !inactiveLogin.data?.token,
-        'Unexpected status cannot obtain a token'
+        'Deactivated account cannot obtain a token'
       );
     } finally {
-      await withDb(async (conn) => {
-        await conn.query(`UPDATE users SET status = 'active' WHERE login_id = 'TCH-001' LIMIT 1`);
-        await conn.query(
-          `ALTER TABLE users MODIFY status ENUM('pending', 'active', 'rejected') NOT NULL DEFAULT 'pending'`
-        );
-      });
+      await withDb((conn) =>
+        conn.query(`UPDATE users SET status = 'active' WHERE login_id = 'TCH-001' LIMIT 1`)
+      );
     }
 
     // --- Profile & password ---

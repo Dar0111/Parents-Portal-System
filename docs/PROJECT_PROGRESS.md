@@ -24,10 +24,10 @@
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
-Stage 3 is 🔨: Student Records, Attendance, Announcements/Memos/Events, and
-Contributions are fully built. User Management is partial (5 of a larger
-set). Grades, Messaging, Excuse Letters, System Settings, and
-Backup/Restore are still ❌. See table below.
+Stage 3 is 🔨: Student Records, Attendance, Announcements/Memos/Events,
+Contributions, System Settings, and User Management are fully built.
+Grades, Messaging, Excuse Letters, and Backup/Restore are still ❌. See
+table below.
 
 ---
 
@@ -39,8 +39,8 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 
 | Module | Schema | API | Web | Mobile | Notes |
 |--------|--------|-----|-----|--------|-------|
-| Authentication | ✅ `users` | ✅ 3 endpoints — login, me, change-password | ✅ Login page, `ProtectedRoute`, axios JWT interceptor | ❌ | 25/25 auth tests pass (`npm run test:auth`), idempotent — no `db:setup` needed between runs. Login round-trip verified in browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no flash. Mobile: Expo project doesn't exist. |
-| User Management (Admin) | ✅ `users` | 🔨 5 endpoints — create teacher, create parent, list pending, approve, reject | ❌ Dashboards are empty placeholders | ❌ | Next: `GET /api/users` (list all), edit, deactivate. Web screens come after. |
+| Authentication | ✅ `users` (status ENUM now `pending`/`active`/`rejected`/`inactive`) | ✅ 3 endpoints — login, me, change-password | ✅ Login page, `ProtectedRoute`, axios JWT interceptor | ❌ | 25/25 auth tests pass (`npm run test:auth`), idempotent — no `db:setup` needed between runs. Login round-trip verified in browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no flash. `authenticate` and login both already had a generic `status !== 'active'` fallback, so adding `'inactive'` (for User Management) needed zero changes there — deactivation takes effect immediately, even on an already-issued JWT. Mobile: Expo project doesn't exist. |
+| User Management (Admin) | ✅ `users` | ✅ 9 endpoints — create teacher, create parent, list pending, approve, reject, list, view, edit, status | ❌ Dashboards are empty placeholders | ❌ | 39/39 tests pass (`npm run test:users`), idempotent. `PUT` rejects `role`/`login_id`/`student_id`/`password`/`status` with `400` naming them rather than silently ignoring. `PATCH .../status` (active/inactive only): blocks self-deactivation unconditionally, blocks deactivating the last active admin via an independent count check, and requires the account's *current* status already be active/inactive — a pending/rejected account must go through approve/reject first. Schema change: `users.status` ENUM gained `'inactive'` (see Authentication row). Next: web screens. |
 | Grade Management & Viewing | ✅ `grades`, `grade_components`, `grade_weight_configs` | ❌ | ❌ | ❌ | Blocked: school must confirm quarters vs. terms, 3 vs. 5 grade components, and whether weights key on subject or grade level. See CLAUDE.md "Blocked." |
 | Attendance Monitoring | ✅ `attendance` | ✅ 6 endpoints — list, per-student, summary, record, bulk record, correct | ❌ | ❌ | 28/28 tests pass (`npm run test:attendance`), idempotent. Teacher scoping checks `teacher_assignments` on subject **and** grade/section together — not just grade/section. Bulk record is all-or-nothing in a transaction. Same `(student, subject, date)` recorded twice updates, doesn't error. Summary returns raw counts only, no rate (undefined formula). Admin unscoped on all writes. Next: web screens and Expo screens. |
 | Student Records Management | ✅ `students` | ✅ 5 endpoints — list, view, create, update, status | ❌ | ❌ | 28/28 tests pass (`npm run test:students`), idempotent — no `db:setup` needed between runs. Parents see only their own child; teachers see only their assigned grade/section, both via `404` (not `403`) to avoid enumeration. Teacher creates outside their assignment get `403`. Next: web screens (list, view, create, edit) and Expo screens. |
@@ -48,7 +48,7 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 | Parent-Teacher Messaging | ✅ `messages` | ❌ | ❌ | ❌ | Next: Socket.io isn't wired into `server.js` yet. No handlers at all. |
 | Excuse Letter Submission & Management | ✅ `excuse_letters` | ❌ | ❌ | ❌ | Next: `routes/excuse-letters.js` — submit, review, approve/decline. |
 | Contribution/Fees Monitoring | ✅ `contributions`, `contribution_records` | ✅ 8 endpoints — list, detail, roster, my-records, create, update, delete, mark paid/pending | ❌ | ❌ | 35/35 tests pass (`npm run test:contributions`), idempotent. `grade_level` is `NOT NULL` — no school-wide option, unlike announcements/events. Roster is a live LEFT JOIN against active students, not a snapshot — a late enrollee shows up automatically as Pending. Amount override on a payment can go below the fee (discount) but never above it (`400`, names the cap). `DELETE` blocked with `409` naming the exact record count when `contribution_records` exist — that FK is `ON DELETE CASCADE`, so an unguarded delete would silently destroy payment history. `my-records` (parent) never touches another student's row, individually or in aggregate. Also open: no CSV export (manuscript Fig. 19), GWA computation undecided — unrelated to this API. Next: web screens and Expo screens. |
-| System Settings Management (Admin) | ✅ `system_settings` | ❌ | ❌ | ❌ | Next: `routes/settings.js`, admin-only. |
+| System Settings Management (Admin) | ✅ `system_settings` | ✅ 4 endpoints — get all, get one, update one, bulk update | ❌ | ❌ | 26/26 tests pass (`npm run test:settings`), idempotent (restores original values). 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_quarter`, `logo_url`) — unknown key rejected with `400` naming the allowed ones. `current_quarter`'s valid values read live from `grades.quarter`'s ENUM via `INFORMATION_SCHEMA` rather than hardcoded, since that ENUM is still provisional (school hasn't confirmed quarters vs. terms). `academic_year` seed typo fixed to `'2026-2027'` as part of this. `PATCH` (bulk) is all-or-nothing. Next: web screens (admin settings form). |
 | Backup & Restore (Admin, web only) | ✅ `backups` | ❌ | ❌ | — (web-only by design, mobile excluded) | `scripts/create-backup-zip.js` exists but copies folders — not a DB backup. Needs a `mysqldump`-based rewrite. |
 
 ---
@@ -58,11 +58,8 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 **Authentication** — done except mobile.
 - [ ] Expo login screen (Stage 5, not started).
 
-**User Management (Admin)** — API partial, no screens yet.
-- [ ] `GET /api/users` — list all users (currently only pending parents are listable).
-- [ ] Edit user endpoint.
-- [ ] Deactivate/reactivate user endpoint.
-- [ ] Admin web screens: pending-approvals list, user list, create-teacher form.
+**User Management (Admin)** — API done, no screens yet.
+- [ ] Admin web screens: pending-approvals list, user list, edit-user form, activate/deactivate control.
 
 **Student Records Management** — API done, no screens yet.
 - [ ] Web pages: student list, student detail, create/edit forms.
@@ -80,6 +77,9 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 - [ ] Web pages: fee list, roster/mark-paid grid (teacher/admin), parent's own payment status view.
 - [ ] Expo screens (Stage 5, not started).
 - [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision.
+
+**System Settings Management (Admin)** — API done, no screens yet.
+- [ ] Admin web screen: settings form (school info, academic year, current quarter, logo).
 
 Everything else in the 10 core features has a schema table and nothing
 else — no route file, no queries, no pages, no screens. See the Notes

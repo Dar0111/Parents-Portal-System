@@ -40,6 +40,10 @@ to the team.
 | GET | `/api/users/parents/pending` | admin |
 | PUT | `/api/users/parents/:id/approve` | admin |
 | PUT | `/api/users/parents/:id/reject` | admin |
+| GET | `/api/users` | admin — filter by role, status, search on name/login_id |
+| GET | `/api/users/:id` | admin |
+| PUT | `/api/users/:id` | admin — name/email/contact_number only, forbidden fields rejected with 400 |
+| PATCH | `/api/users/:id/status` | admin — active/inactive only, self and last-active-admin blocked |
 | GET | `/api/students` | teacher, admin |
 | GET | `/api/students/:id` | teacher, admin, parent (own child only) |
 | POST | `/api/students` | teacher (own assignment only), admin |
@@ -71,17 +75,24 @@ to the team.
 | PUT | `/api/contributions/:id` | author or admin |
 | DELETE | `/api/contributions/:id` | author or admin — `409` if any `contribution_records` exist (see below) |
 | PATCH | `/api/contributions/:id/records/:studentId` | teacher, admin — mark Paid/Pending, optional amount override |
+| GET | `/api/settings` | authenticated — all settings, flat key-value object |
+| GET | `/api/settings/:key` | authenticated — `404` if not one of the 5 allow-listed keys |
+| PUT | `/api/settings/:key` | admin — per-key validation, unknown key rejected naming the allow-list |
+| PATCH | `/api/settings` | admin — bulk update, all-or-nothing in a transaction |
 
-**Tests:** all five suites are idempotent — every row they create is tracked and
-deleted in a `finally` block, so no `db:setup` is needed between runs. Verified by
-running each twice in a row with no reset: same pass count both times, and the DB
-confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
-announcements, memos, events, contributions, contribution_records) after.
+**Tests:** all seven suites are idempotent — every row they create is tracked and
+deleted in a `finally` block (or, for Settings, restored to its original value), so
+no `db:setup` is needed between runs. Verified by running each twice in a row with
+no reset: same pass count both times, and the DB confirmed back to the seeded 4
+users / 2 students / 0 everywhere else (attendance, announcements, memos, events,
+contributions, contribution_records) after.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 28/28
 - `npm run test:content` — 45/45
 - `npm run test:contributions` — 35/35
+- `npm run test:settings` — 26/26
+- `npm run test:users` — 39/39
 
 ### Files that exist
 
@@ -89,17 +100,18 @@ announcements, memos, events, contributions, contribution_records) after.
 server/
   server.js                    Express app; mounts /api/auth, /api/users, /api/students,
                                 /api/attendance, /api/announcements, /api/memos, /api/events,
-                                /api/contributions
+                                /api/contributions, /api/settings
   package.json
   .env.example
   config/db.js                 MySQL connection pool
   middleware/auth.js           authenticate + authorize
   routes/auth.js               login, me, change-password
-  routes/users.js              create teacher/parent, pending, approve/reject
+  routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
   routes/students.js           list/view/create/update, teacher scoped to own assignments
   routes/attendance.js         record/bulk/correct/list/summary, teacher scoped by subject+grade+section
   routes/content.js            announcements/memos/events — 3 routers, one file
   routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
+  routes/settings.js           key-value store, allow-listed keys, per-key validation
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
@@ -110,9 +122,12 @@ server/
   scripts/test-attendance-flows.js HTTP tests — scoping, bulk all-or-nothing, admin override
   scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin
   scripts/test-contributions-flows.js HTTP tests — grade scoping, roster, amount cap, delete guard
+  scripts/test-settings-flows.js HTTP tests — allow-list, per-key validation, PATCH all-or-nothing
+  scripts/test-user-management-flows.js HTTP tests — admin-only, PUT forbidden fields, status guards
 database/
-  schema.sql                   18 tables
-  seed.sql                     subjects, students, settings
+  schema.sql                   18 tables. users.status ENUM now includes 'inactive'
+                                (added for User Management's activate/deactivate)
+  seed.sql                     subjects, students, settings; academic_year fixed to '2026-2027'
 scripts/
   create-backup-zip.js         folder copy, NOT a DB backup — see Known Issues
 client/
@@ -129,11 +144,11 @@ client/
 
 ### Not started — zero handlers
 
-Grades · Messages · Excuse Letters · System Settings · Backup/Restore
+Grades · Messages · Excuse Letters · Backup/Restore
 
 **No Expo app. No Socket.io.**
 
-Five modules have tables in `schema.sql` but no route files and no queries.
+Four modules have tables in `schema.sql` but no route files and no queries.
 
 ### React web app — auth, verified end-to-end
 
@@ -264,7 +279,6 @@ re-keyed to `subject_id` once the school confirms actual practice.
 
 | Issue | Where | Note |
 |---|---|---|
-| `academic_year` is `'2025-2026'` | `seed.sql` | Should be `'2026-2027'`. One line. Visible to the panel during the demo. |
 | `users.email` has no UNIQUE constraint | `schema.sql` | Only matters if email login is added later. Duplicate emails would break the lookup. |
 | `create-backup-zip.js` copies folders | `scripts/` | Not a database backup. The Backup/Restore module needs `mysqldump`, not a folder copy. |
 | `grade_components.type` is `ENUM('quiz','activity')` | `schema.sql` | Manuscript promises five components. Blocked on the school. |
@@ -327,8 +341,8 @@ Grades is last in this stage because it is blocked.
 - [ ] Excuse Letters API — submit, review, approve/decline
 - [x] Contributions API — create, record payment, view status
 - [ ] Messages API + Socket.io
-- [ ] System Settings API (admin)
-- [ ] User Management API — extend the existing `routes/users.js`
+- [x] System Settings API (admin)
+- [x] User Management API — extend the existing `routes/users.js`
 - [ ] Backup/Restore API (admin, `mysqldump` — not a folder copy)
 - [ ] **Grades API — BLOCKED**, see the Blocked section above
 
@@ -472,6 +486,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-27 | User Management completed — `routes/users.js` gains `GET /api/users` (filter by role/status/search), `GET /api/users/:id`, `PUT /api/users/:id` (name/email/contact_number only — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` naming them if sent, not silently dropped), and `PATCH /api/users/:id/status` (active/inactive only). Schema change: `users.status` ENUM gained `'inactive'` (`schema.sql` + live DB) — reusing `'rejected'` would have shown a deactivated teacher a false "account was rejected" message on login, since that value is wired to the parent-approval flow's `rejection_reason` column. Zero changes needed in `auth.js`/`middleware/auth.js` — both already had a generic `status !== 'active'` fallback, so deactivation takes effect immediately, including on an already-issued JWT (verified in tests). Found and fixed a real landmine while doing this: `test-auth-flows.js`'s existing "unexpected status" test temporarily widened the ENUM to add `'inactive'` for itself and then narrowed it back to 3 values in its `finally` block — now that `'inactive'` is permanent, that narrowing would have silently deleted it from the schema on every subsequent `test:auth` run, breaking the new status endpoint with no obvious cause. Removed both `ALTER TABLE` statements from that test. `PATCH .../status` blocks self-deactivation unconditionally, and separately blocks deactivating the last active admin via an independent `COUNT(*) WHERE role='admin' AND status='active'` check — tested honestly: the count-check's *blocked* branch can't actually be triggered through the API, because any non-self admin acting is themselves active and always counts toward the total, so `count <= 1` is only ever reachable when actor equals target, which the unconditional self-check already catches first. Tested what's real (the allow branch, self-block, and a source check confirming the count-check's logic and message are actually wired up) instead of writing a test that would only appear to exercise it. `npm run test:users` — 39 passing, idempotent. |
+| 2026-08-27 | System Settings API built — `routes/settings.js`, `GET /`, `GET /:key`, `PUT /:key`, `PATCH /` (bulk, all-or-nothing). `system_settings` is key-value with a 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_quarter`, `logo_url`) — writing an unknown key is rejected with `400` naming the allowed ones, never silently accepted. `parseId` doesn't apply to `:key` (a string, not a numeric id) — corrected before writing code; an unknown key on a read is `404`, on a write is `400`. `current_quarter`'s valid values are read live from `grades.quarter`'s ENUM via `INFORMATION_SCHEMA.COLUMNS` instead of a hardcoded list, specifically because that ENUM is provisional (CLAUDE.md's own Blocked section — 4 quarters vs. 3 terms is still an open question for the school); a hardcoded copy here would be a second place to update that would silently go stale the moment the real answer came in. Fixed the long-standing `academic_year` seed typo as part of this — `seed.sql` and the live DB both now say `'2026-2027'`. `npm run test:settings` — 26 passing, idempotent (restores original values in a `finally`, same pattern as the auth suite's password-cycling test); includes a source-inspection test confirming the `current_quarter` validator actually queries `INFORMATION_SCHEMA` rather than a hardcoded array, since no black-box HTTP test can distinguish the two without mutating `grades.quarter`, which was ruled out. |
 | 2026-08-27 | Contributions API built — `routes/contributions.js`, 8 endpoints across `contributions` (the fee) and `contribution_records` (per-student payment status). `grade_level` is `NOT NULL` on `contributions` — unlike announcements/events there is no school-wide option; a teacher just needs the grade to match a `teacher_assignments` row, no NULL-target case to reject. Roster (`GET /:id/records`) is a live `LEFT JOIN` against active students in the contribution's grade, not a snapshot generated at creation — a student who enrolls after the fee is posted shows up automatically, defaulted to `Pending`. Caught a real bug before shipping: an amount-override on `PATCH .../records/:studentId` (a student can owe less than the full fee, never more — enforced with a `400` naming the cap) defaulted to the full fee on every write, which would have silently reset a previously-set discount back to full price on a plain status-only `PATCH`; fixed by defaulting to the existing record's amount instead, tested explicitly. `DELETE` is blocked with a `409` naming the exact count ("Cannot delete. 1 payment record exists for this contribution. Clear the payment records first if you need to remove it.") when any `contribution_records` exist — `contribution_records.contribution_id` is `ON DELETE CASCADE`, so an unguarded delete would have silently destroyed payment history with no recovery; caught from reading the schema's FK constraints before writing the delete handler, not after. `GET /api/contributions/my-records` never touches another student's row, individually or in aggregate — verified in tests by asserting the response carries no count/total-shaped fields, not just checking the query. `npm run test:contributions` — 35 passing, idempotent. |
 | 2026-08-27 | Announcements/Memos/Events API built — `routes/content.js`, one file, three routers (`announcementsRouter`, `memosRouter`, `eventsRouter`) mounted at their own prefixes. Schema check caught a spec error before writing code: `events` has no `target_section` column — only `announcements` does — so event audience scoping is grade-only, never section-level. Audience read-scoping: parent sees school-wide items plus their own child's grade(+section for announcements); teacher sees school-wide plus anything matching their `teacher_assignments`; admin sees everything. Write-scoping: a teacher must name an exact grade+section (announcements) or grade (events) they're assigned to — leaving `target_grade` `NULL` (school-wide) or omitting `target_section` (whole-grade) is rejected with a `403` that names the specific reason ("School-wide announcements are admin-only. Specify a target_grade and target_section you are assigned to.") rather than a bare "forbidden" — deliberately, so a teacher hitting this mid-demo sees a rule, not a bug. `PUT`/`DELETE` are author-or-admin. Memos have no targeting or category columns at all — schema confirms they're school-wide by design, matching the manuscript's simpler single-Memo intent; writes are admin-only, reads open to all roles. Hard delete kept as specified (no status column on any of the three tables); `logActivity` captures the title before the row is gone. `npm run test:content` — 45 passing, idempotent. |
 | 2026-08-27 | Attendance API built — `routes/attendance.js`: list/record/bulk-record/correct/per-student/summary. Teacher scoping checks `teacher_assignments` on `subject_id` **and** `grade_level`+`section` together, not just grade/section — a teacher assigned to teach Math for Grade 6-Mabini can't see or record Science attendance for the same class. `POST /` and `POST /bulk` collapse "student doesn't exist" and "exists but out of scope" into the same `403` for a teacher (no way to enumerate students by testing which error comes back); admin is unscoped on all writes, covering a teacher being absent or having left. `POST /bulk` is all-or-nothing in a transaction — every entry validated before anything is written, so a bad `student_id` in a 30-student roster fails the whole batch instead of silently dropping one. Recording the same `(student_id, subject_id, date)` twice updates via `ON DUPLICATE KEY UPDATE` rather than erroring. `GET .../summary/:studentId` returns raw counts only (`Present`/`Absent`/`Late`/`Excused`/`total`) — no computed rate, since the school hasn't confirmed how attendance rate should be calculated. `npm run test:attendance` — 28 passing, idempotent. |

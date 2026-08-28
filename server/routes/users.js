@@ -241,4 +241,188 @@ router.put('/parents/:id/reject', authenticate, authorize('admin'), async (req, 
   }
 });
 
+// GET /api/users — Admin lists all users, filterable
+router.get('/', authenticate, authorize('admin'), async (req, res) => {
+  const { role, status, search } = req.query;
+
+  const conditions = [];
+  const params = [];
+
+  if (role !== undefined) {
+    if (!['parent', 'teacher', 'admin'].includes(role)) {
+      return res.status(400).json({ success: false, message: "role must be 'parent', 'teacher', or 'admin'." });
+    }
+    conditions.push('role = ?');
+    params.push(role);
+  }
+
+  if (status !== undefined) {
+    if (!['pending', 'active', 'rejected', 'inactive'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "status must be 'pending', 'active', 'rejected', or 'inactive'.",
+      });
+    }
+    conditions.push('status = ?');
+    params.push(status);
+  }
+
+  if (search) {
+    const term = `%${String(search).trim()}%`;
+    conditions.push('(name LIKE ? OR login_id LIKE ?)');
+    params.push(term, term);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  try {
+    const [rows] = await pool.query(`SELECT * FROM users ${where} ORDER BY created_at DESC`, params);
+    return res.json({ success: true, users: rows.map(sanitizeUser) });
+  } catch (error) {
+    console.error('List users error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch users.' });
+  }
+});
+
+// GET /api/users/:id — Admin views a single user
+router.get('/:id', authenticate, authorize('admin'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    return res.status(400).json({ success: false, message: 'Invalid id.' });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    return res.json({ success: true, user: sanitizeUser(rows[0]) });
+  } catch (error) {
+    console.error('Get user error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch user.' });
+  }
+});
+
+// PUT /api/users/:id — Admin edits name/email/contact_number only. role,
+// login_id, student_id, password, and status are set at creation or through
+// their own dedicated endpoints — sending them here is rejected outright
+// rather than silently ignored, so a bug that tries to smuggle a role change
+// through this route fails loudly instead of quietly no-op'ing.
+const PUT_FORBIDDEN_FIELDS = ['role', 'login_id', 'student_id', 'password', 'status'];
+
+router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    return res.status(400).json({ success: false, message: 'Invalid id.' });
+  }
+
+  const sentForbidden = PUT_FORBIDDEN_FIELDS.filter((field) => req.body[field] !== undefined);
+  if (sentForbidden.length) {
+    return res.status(400).json({
+      success: false,
+      message: `Cannot change ${sentForbidden.join(', ')} through this endpoint.`,
+    });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const existing = rows[0];
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const { name, email, contact_number } = req.body;
+    const nextName = name !== undefined ? name : existing.name;
+    const nextEmail = email !== undefined ? email || null : existing.email;
+    const nextContact = contact_number !== undefined ? contact_number || null : existing.contact_number;
+
+    if (!nextName || !String(nextName).trim()) {
+      return res.status(400).json({ success: false, message: 'name must not be empty.' });
+    }
+
+    await pool.query('UPDATE users SET name = ?, email = ?, contact_number = ? WHERE id = ?', [
+      nextName,
+      nextEmail,
+      nextContact,
+      id,
+    ]);
+
+    const [updated] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    await logActivity(req.user.id, 'update_user', `Updated user #${id} (${existing.login_id})`);
+
+    return res.json({ success: true, message: 'User updated.', user: sanitizeUser(updated[0]) });
+  } catch (error) {
+    console.error('Update user error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update user.' });
+  }
+});
+
+// PATCH /api/users/:id/status — Admin activates/deactivates. active/inactive
+// only — pending/rejected belong to the approve/reject flow, both as the
+// target value and as the account's current state (a pending account must
+// go through approve/reject so approved_by gets set and the event is logged
+// there, not bypassed through this endpoint).
+router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    return res.status(400).json({ success: false, message: 'Invalid id.' });
+  }
+
+  const { status } = req.body;
+  if (status !== 'active' && status !== 'inactive') {
+    return res.status(400).json({ success: false, message: "status must be 'active' or 'inactive'." });
+  }
+
+  if (id === req.user.id && status === 'inactive') {
+    return res.status(400).json({
+      success: false,
+      message: 'You cannot deactivate your own account. Ask another admin to do this if needed.',
+    });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const target = rows[0];
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    if (target.status !== 'active' && target.status !== 'inactive') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot set status directly — account is currently ${target.status}. Use the approve/reject flow first.`,
+      });
+    }
+
+    // Locking the only admin out of the system is unrecoverable short of
+    // direct database access — block deactivating the last active admin,
+    // not just self-deactivation (admin A deactivating B, then B deactivating
+    // A, reaches the same dead end). Only applies when the target is
+    // *currently* active — deactivating an already-inactive admin doesn't
+    // reduce the active count, so it isn't a lockout risk and shouldn't be
+    // blocked by this check.
+    if (target.role === 'admin' && status === 'inactive' && target.status === 'active') {
+      const [activeAdmins] = await pool.query(
+        `SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active'`
+      );
+      if (activeAdmins[0].count <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot deactivate the last active admin account. Activate another admin first.',
+        });
+      }
+    }
+
+    await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, id]);
+
+    const [updated] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    await logActivity(req.user.id, 'update_user_status', `Set user #${id} (${target.login_id}) to ${status}`);
+
+    return res.json({ success: true, message: 'User status updated.', user: sanitizeUser(updated[0]) });
+  } catch (error) {
+    console.error('Update user status error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update user status.' });
+  }
+});
+
 module.exports = router;
