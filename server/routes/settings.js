@@ -87,10 +87,17 @@ async function validateSetting(key, value) {
   return VALIDATORS[key](value);
 }
 
-// GET /api/settings — all roles, read-only
+// GET /api/settings — all roles, read-only. Filtered by the same allow-list
+// writes are checked against — without this WHERE, this returns every row in
+// the table regardless of ALLOWED_KEYS, which would expose anything that
+// ever lands there by any other means (e.g. an internal-only key like
+// token_valid_after, never meant to be readable by non-admin roles) to
+// every authenticated role, parents included.
 router.get('/', authenticate, async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)', [
+      ALLOWED_KEYS,
+    ]);
     const settings = {};
     for (const row of rows) {
       settings[row.setting_key] = row.setting_value;

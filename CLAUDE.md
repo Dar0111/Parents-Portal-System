@@ -13,7 +13,7 @@ Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 18 tables |
+| Database | `parents_portal` — 19 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -83,33 +83,37 @@ to the team.
 | POST | `/api/backups` | admin — real `mysqldump`, row inserted only after success |
 | GET | `/api/backups/:id/download` | admin — streams the `.sql` file, `404` if missing on disk |
 | DELETE | `/api/backups/:id` | admin — removes row + file; row still removed if file already gone |
+| POST | `/api/backups/:id/restore` | admin — step-up password + `confirm_filename`, automatic safety dump first, invalidates every JWT |
 | GET | `/api/messages/conversations` | authenticated — one row per person messaged, last message + unread count |
 | GET | `/api/messages/with/:userId` | authenticated — full thread, participant-scoped (no re-check of `canMessage` on read) |
 | POST | `/api/messages` | authenticated — `canMessage()` boundary, `403` naming the reason on violation |
 | PATCH | `/api/messages/:id/read` | recipient only — sender or a third party gets `403` |
 | PATCH | `/api/messages/read-all/:userId` | recipient only — marks a whole thread read |
 
-**Backup only — Restore is deliberately not built.** See "RESTORE — required
-before building" below.
+**Backup and Restore both built.** See "RESTORE" below for what shipped and
+what the automated suite deliberately does not cover.
 
-**Tests:** ten suites. The nine HTTP suites are idempotent — every row they
+**Tests:** eleven suites. The ten HTTP suites are idempotent — every row they
 create is tracked and deleted in a `finally` block (or, for Settings, restored to
 its original value), so no `db:setup` is needed between runs. Verified by running
 each twice in a row with no reset: same pass count both times, and the DB
 confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
 announcements, memos, events, contributions, contribution_records, backups,
 messages) after. `test:sanitize` is a direct-call unit test — no server or DB
-involved.
+involved. `test:restore` is the one exception to "runs a real flow end to end":
+it tests every pre-flight gate and the `token_valid_after` mechanism, but
+never triggers an actual restore — see the RESTORE section.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 28/28
 - `npm run test:content` — 45/45
 - `npm run test:contributions` — 35/35
-- `npm run test:settings` — 26/26
+- `npm run test:settings` — 27/27
 - `npm run test:users` — 39/39
 - `npm run test:backups` — 33/33
 - `npm run test:sanitize` — 9/9
 - `npm run test:messages` — 39/39
+- `npm run test:restore` — 23/23
 
 ### Files that exist
 
@@ -124,8 +128,12 @@ server/
   socket.js                    initSocket(httpServer) — JWT auth at connection time, one room per user
   package.json                 socket.io (dependency), socket.io-client (devDependency, test-only)
   .env.example                 documents optional MYSQLDUMP_PATH override
-  config/db.js                 MySQL connection pool
-  middleware/auth.js           authenticate + authorize
+  config/db.js                 MySQL pool behind a proxy object (query/getConnection delegate to the
+                                current pool) — resetPool() swaps in a fresh pool after a restore,
+                                which a plain module.exports reassignment couldn't do (every existing
+                                `require('../config/db')` holds a direct reference, not a live binding)
+  middleware/auth.js           authenticate + authorize; authenticate also checks
+                                auth_security_state.token_valid_after against the JWT's iat
   routes/auth.js               login, me, change-password
   routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
   routes/students.js           list/view/create/update, teacher scoped to own assignments
@@ -133,7 +141,11 @@ server/
   routes/content.js            announcements/memos/events — 3 routers, one file
   routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   routes/settings.js           key-value store, allow-listed keys, per-key validation
-  routes/backups.js            real mysqldump via spawn, MYSQL_PWD on child env only, collision-safe filenames
+  routes/backups.js            real mysqldump via spawn, MYSQL_PWD on child env only, collision-safe
+                                filenames; POST /:id/restore — step-up password, confirm_filename,
+                                automatic pre_restore_* safety dump, dedicated one-off mysql2
+                                connection (multipleStatements) outside the shared pool, pool reset,
+                                token_valid_after set
   routes/messages.js           canMessage() boundary on send, participant-scoped reads, emits on send
   backups/                     .sql dump files land here — gitignored except .gitkeep
   utils/jwt.js                 sign/verify
@@ -152,9 +164,13 @@ server/
   scripts/test-backups-flows.js HTTP tests — real dump execution, collision guard, missing-file handling
   scripts/test-sanitize-user.js Direct-call unit test — no server/DB, tests the aliased-JOIN password gap
   scripts/test-messages-flows.js HTTP + Socket.io tests — canMessage boundary, connection auth, source check
+  scripts/test-restore-flows.js HTTP tests — every pre-flight gate, token_valid_after via crafted JWTs;
+                                deliberately never triggers a real restore, see CURRENT STATE
 database/
-  schema.sql                   18 tables. users.status ENUM now includes 'inactive'.
-                                backups.file_size added (bytes, populated after dump succeeds)
+  schema.sql                   19 tables. users.status ENUM now includes 'inactive'.
+                                backups.file_size added (bytes, populated after dump succeeds).
+                                auth_security_state — single-row (id=1), token_valid_after, set only
+                                by POST /api/backups/:id/restore, never exposed through /api/settings
   seed.sql                     subjects, students, settings; academic_year fixed to '2026-2027'
 scripts/
   create-backup-zip.js         folder copy, source-code archiver — NOT the DB backup (that's routes/backups.js)
@@ -181,9 +197,7 @@ Grades is fully blocked (see BLOCKED). Excuse Letters is only partially
 blocked — its CRUD shape (submit, list, view) doesn't depend on the open
 questions and could be built now, but nothing has been written yet;
 approve/decline specifically cannot be built until they're answered.
-Backup/Restore is partial in a different sense — Backup exists (4
-endpoints, code written and shipped), Restore is deliberately not built,
-see "RESTORE — required before building" below.
+Backup/Restore is fully built — 5 endpoints, see "RESTORE" below.
 
 ### React web app — auth, verified end-to-end
 
@@ -353,40 +367,100 @@ don't guess at either.
 
 ---
 
-## RESTORE — required before building
+## RESTORE — built
 
-Not blocked on an external answer like Grades — this is deliberately
-deferred so it gets designed on its own, with its own guards, instead of
-tacked onto the Backup API. Restoring drops and recreates the whole
-database; a bad implementation is unrecoverable in a way almost nothing
-else in this system is. Before writing it:
+`POST /api/backups/:id/restore`, admin only, `routes/backups.js`. Restoring
+drops and recreates the whole database; a bad implementation is
+unrecoverable in a way almost nothing else in this system is. Every guard
+below is in the shipped code, not a plan:
 
-- **Validate the source is one of *our own* tracked backups** — the
-  `backups` table + `server/backups/` directory only, never an arbitrary
-  uploaded file. Closes off a path/SQL-injection vector.
-- **Automatic safety dump of the current state immediately before
-  restoring** — so a bad restore is itself undoable. This means every
-  restore is really two backup-API operations plus the restore itself;
-  log both (`create_backup`, then `restore_backup`) so the activity log
-  reads as an honest sequence, not one opaque event.
-- **Step-up auth** — re-enter the admin's password immediately before
-  executing, not just an already-open session. This is a total,
-  irreversible data wipe; a left-open browser tab shouldn't be enough.
-- **A dedicated one-off connection for the restore, outside the shared
-  `mysql2` pool** — the pool's existing connections will error if the
-  database they're attached to gets dropped and recreated underneath
-  them mid-restore. Needs its own connection, and probably a pool reset
-  afterward.
-- **Async job tracking, not a blocking request/response** — a restore
-  can take a while; holding one HTTP request open for the whole thing is
-  fragile. Wants a status endpoint instead.
-- **Decide the JWT invalidation question** — a restore can replace every
-  `users` row with different data (different ids, different password
-  hashes, accounts that didn't exist yet at backup time). Every
-  currently-active JWT needs a decision: force logout everyone
-  (simplest, safest), or accept that some sessions may now reference
-  users that no longer match. Not investigated yet — decide before
-  building, not while building.
+- **Source validation is structural.** The only input is `backups.id` —
+  there is no file upload path and no arbitrary filename parameter
+  anywhere in the handler. The row is loaded first (`404` if missing, a
+  separate `404` naming it specifically if the file is gone from disk),
+  ahead of the password/`confirm_filename` checks — the spec this was
+  built from listed those first, but `confirm_filename` can't be verified
+  without knowing the real filename to compare against, so the load moved
+  first. Flagged and confirmed as no security cost: any admin can already
+  see every backup's filename for free via `GET /api/backups`, so a `404`
+  before step-up auth reveals nothing new.
+- **Step-up auth.** `password` is re-verified against the caller's own
+  bcrypt hash — `401` if missing or wrong. An open admin session is not
+  authorization for a total, irreversible data wipe on its own.
+- **Type-the-name confirmation.** `confirm_filename` must exactly match
+  the backup's real filename — `400` naming both the value sent and the
+  real one, so a typo is obviously a typo, not just "bad request."
+- **Automatic safety dump of the current state, before touching
+  anything.** Same `createBackupRecord()` machinery as a manual backup,
+  named `pre_restore_<timestamp>.sql`. If this fails for any reason, the
+  restore aborts outright and nothing is changed — this is the single
+  most important line in the feature.
+- **The restore itself runs on a dedicated one-off `mysql2` connection**
+  (`multipleStatements: true`), never the shared pool — the pool's
+  existing connections would error once the database they're attached to
+  is dropped and recreated underneath them mid-restore.
+  `multipleStatements` is safe specifically because this SQL always comes
+  from our own `mysqldump` output via a tracked `backups` row, never from
+  user-supplied text; if this endpoint ever took an uploaded file
+  instead, this stops being safe. MySQL does not support transactional
+  DDL — `DROP DATABASE`/`CREATE DATABASE` auto-commit, so a failure
+  partway through the dump SQL cannot be rolled back. That failure path
+  gets its own message, distinct from every other error in this handler:
+  it names the safety dump's filename and says plainly that the database
+  may be partially restored and manual recovery may be needed — the one
+  message someone reads while panicking, so it doesn't just say "500."
+- **The shared pool is reset after a successful restore**
+  (`pool.resetPool()`, `config/db.js`) so the rest of the running app
+  gets fresh connections against the now-restored database. `config/db.js`
+  was restructured into a proxy object for this — `query`/`getConnection`
+  delegate to whatever the current pool is, and `resetPool()` swaps that
+  current pool for a new one. A plain `module.exports = newPool`
+  reassignment couldn't do this: every file that already did
+  `const pool = require('../config/db')` holds a direct reference to the
+  original object, not a live binding, so a later reassignment would
+  never reach them.
+- **Every currently-active JWT is invalidated.** A restore can replace
+  every `users` row with different data (different ids, different
+  password hashes, accounts that didn't exist yet at backup time) — so
+  the decision made is force-logout-everyone, the simplest and safest of
+  the two options considered. Implemented via a new table,
+  `auth_security_state` (single row, `id = 1`, `token_valid_after`),
+  never a `system_settings` key — that table is readable by every
+  authenticated role and writable by any admin through a generic form,
+  neither appropriate for a value only the restore endpoint itself should
+  ever touch. `middleware/auth.js`'s `authenticate` reads it on every
+  request and rejects any JWT whose `iat` predates it, with a message
+  that says why ("Session invalidated by a database restore").
+- **Two activity log entries in sequence** — `create_backup` for the
+  safety dump, then `restore_backup` — so the log reads as an honest
+  two-step sequence, not one opaque event.
+- **Synchronous, not async job tracking — a deliberate call, not a
+  silent override of a requirement written for this same feature.** At
+  this database's actual size, a dump/restore completes in well under a
+  second; a status-polling endpoint would be complexity with nothing to
+  report. **Trigger to revisit:** if this ever runs against a database
+  large enough that a dump takes more than a few seconds, redesign as an
+  async job with a status endpoint — don't let a synchronous request hold
+  open indefinitely once that stops being true.
+
+**What `npm run test:restore` (23/23) does and does not cover.** Every
+pre-flight gate is tested for real over HTTP — admin-only, `parseId`,
+missing backup, missing file on disk, missing/wrong password, wrong
+`confirm_filename` — with confirmation that nothing was created and
+`token_valid_after` stayed unset after each. `token_valid_after` itself is
+tested in isolation using crafted JWTs with a deliberately chosen `iat`
+(same secret, `jwt.sign(..., { noTimestamp: true })`) rather than real
+logins timed around a wall-clock boundary — deterministic instead of a
+race. What it deliberately does **not** do: trigger an actual restore. That
+would `DROP DATABASE` on the same shared dev database every other suite,
+the running `--watch` server, and manual testing all depend on, reset the
+live pool inside the actually-running process mid-test, and invalidate
+every session including whichever one is open right now. No request in the
+suite ever combines the admin's *real* password with a backup's *real*
+`confirm_filename` in the same call — every permission test gets at least
+one of the two wrong on purpose, or fails an earlier gate first. A real
+end-to-end restore is run once, manually, with `db:setup` ready
+immediately after — not from the automated suite.
 
 ---
 
@@ -526,7 +600,7 @@ Grades is last in this stage because it is blocked.
 - [x] Messages API + Socket.io
 - [x] System Settings API (admin)
 - [x] User Management API — extend the existing `routes/users.js`
-- [x] Backup/Restore API (admin, `mysqldump` — not a folder copy) — **partial: Backup only.** Restore is deliberately not built; see "RESTORE — required before building" below
+- [x] Backup/Restore API (admin, `mysqldump` — not a folder copy) — both built, 5 endpoints; see "RESTORE" below
 - [ ] **Grades API — BLOCKED**, see the Blocked section above
 
 ### Stage 4 — Web pages
@@ -683,6 +757,9 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-29 | Fixed a real bug in `scripts/test-messages-flows.js`, found during the full regression pass after Restore — not a bug in the app code, which was correct the whole time. The source-inspection check for "no bare `io.emit(`" strips `//` line comments before checking, specifically so its own explanatory comments (`// Never io.emit()...`) can't false-match the negative check. `stripLineComments` split the file on `\n` only; `socket.js` and `routes/messages.js` have Windows CRLF line endings, so every split "line" kept a trailing `\r`. JS's `.` does not match `\r` (it's a line terminator), so `.*` in `/\/\/.*$/` stopped just short of it — and `$` without the `m` flag only matches true end-of-string, never that position, so the whole regex silently failed to match on every line and stripped nothing. The literal text "io.emit()" inside the comment then survived and tripped the check. This is why the check appeared to pass earlier in the session and then failed later with no code change in between — some tool along the way (not identified precisely; Windows editing/`git` are the suspects) rewrote the file's line endings to CRLF after the check was first written and verified against an LF version. Fixed by dropping the unneeded `$` anchor (`/\/\/.*/`) — `.*` already stops at the end of each single-line string without it, CRLF or not. **Lesson for source-inspection tests on Windows: never anchor a per-line regex on `$` without first normalizing or accounting for `\r` — verify the strip against the file's actual on-disk line endings, not just its content.** `npm run test:messages` — 39 passing, confirmed twice; app code in `socket.js`/`routes/messages.js` required no changes. |
+| 2026-08-29 | Restore built — `POST /api/backups/:id/restore`, admin only, `routes/backups.js`. Full guard list and what the test suite deliberately does not cover: see "RESTORE" section, which this entry does not duplicate. Summary: step-up password re-verification, `confirm_filename` exact-match, automatic `pre_restore_*` safety dump before anything is touched (abort with nothing changed if it fails), the actual restore on a dedicated one-off `mysql2` connection with `multipleStatements: true` (never the shared pool), a partial-failure message that names the safety dump by filename and says manual recovery may be needed (MySQL has no transactional DDL — `DROP`/`CREATE DATABASE` auto-commit, so this failure mode can't roll back), shared pool reset after success, and every active JWT invalidated via a new `token_valid_after` cutoff. Three supporting changes: (1) new table `auth_security_state` (single row, `token_valid_after`) — deliberately not a `system_settings` key, since that table is readable by every authenticated role and writable by any admin through a generic form; `middleware/auth.js`'s `authenticate` now rejects any JWT whose `iat` predates the cutoff. (2) `config/db.js` restructured into a proxy object (`query`/`getConnection` delegate to whatever pool is current; `resetPool()` swaps it) — a plain `module.exports` reassignment couldn't work here, since every file that already did `const pool = require('../config/db')` holds a direct reference to the original object, not a live binding; confirmed safe by grepping every pool call site (~130) across the codebase, all of which use only `.query()`/`.getConnection()`. (3) `routes/backups.js` refactored to extract `createBackupRecord({ prefix, createdBy })`, shared by a manual `POST /` backup and the restore endpoint's mandatory safety dump — same machinery, different filename prefix (`parents_portal` vs. `pre_restore`) and log attribution. One spec deviation, flagged and confirmed with no security cost: the original step order checked password/`confirm_filename` before loading the backup row; reordered to load-then-check, since `confirm_filename` can't be verified without knowing the real filename, and any admin can already see every backup's filename via `GET /api/backups` regardless. The synchronous (not async-job-tracking) design is a deliberate call given the current database's actual size — see the RESTORE section for the explicit trigger to revisit it. `npm run test:restore` — 23 passing: every pre-flight gate tested for real over HTTP with confirmation nothing was created after each failure, plus `token_valid_after` tested in isolation via crafted JWTs with a chosen `iat` (deterministic, not a wall-clock race). Deliberately excluded from the suite: an actual end-to-end restore, which would `DROP DATABASE` on the shared dev database, reset the live pool inside the running server process, and invalidate every real session including whichever one is open — planned as one deliberate manual run, together, with `db:setup` ready immediately after. Schema change: `auth_security_state` table added to `schema.sql` and applied live. |
+| 2026-08-29 | Fixed a real bug in `routes/settings.js`, found while designing Restore's `token_valid_after` storage — not Restore's bug, a pre-existing one. `GET /api/settings` (list all) had no `WHERE` filter: `SELECT setting_key, setting_value FROM system_settings` returned *every* row in the table regardless of `ALLOWED_KEYS`, even though the allow-list was already enforced on every write and on `GET /:key`. Anything that ever landed in that table by any means — a future internal-only key, a stray row from a bug elsewhere — was readable by every authenticated role, parents included. Added the same `WHERE setting_key IN (?)` filter the writes already use. Added a regression test that inserts a row directly into `system_settings` outside the allow-list (bypassing the API, the only way such a row could exist) and confirms it does not appear in `GET /api/settings`. `npm run test:settings` — 27 passing (was 26; the new test). |
 | 2026-08-29 | Messages API + Socket.io built — `routes/messages.js` (5 endpoints) and `socket.js`. `server.js` restructured: `app.listen()` replaced with an explicit `http.createServer(app)` + `httpServer.listen()` so Socket.io attaches to the same HTTP server instead of standing up a second one; `io` stored via `app.set('io', io)` so route handlers can reach it without a circular require. **Read vs. write use two different scoping rules, deliberately.** `canMessage()` — the shared eligibility boundary (parent↔their child's assigned teachers + admin; teacher↔parents of their own students + other teachers + admin) — runs only on `POST /api/messages`. Both read endpoints (`GET /conversations`, `GET /with/:userId`) are participant-scoped instead (`WHERE sender_id = req.user.id OR receiver_id = req.user.id`), never re-checked against current eligibility. Reasoning: a conversation is history, not a live directory entry — if a teacher's assignment changes mid-year, old threads with a parent shouldn't disappear just because that pairing could no longer *start* today; re-running `canMessage` on every read would make message history unstable under routine reassignment. The security property reads actually need — you can't see a thread you're not part of — is enforced structurally by the `WHERE` clause alone. `GET /conversations` uses a window function, not `GROUP BY` + `MAX(created_at)` — the latter doesn't guarantee the other selected columns (body, sender_id) come from the row that actually has that max timestamp, since MySQL is free to pick them from a different row in the group. `ROW_NUMBER() OVER (PARTITION BY <other_user_id via CASE> ORDER BY created_at DESC, id DESC)` avoids that; the `CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END` is the part that matters — messages are directional (sender/receiver) but a conversation is symmetric (you + them regardless of who sent last), so partitioning on raw `sender_id` or `receiver_id` would split one real conversation into two rows. Socket auth happens once, at connection (`io.use()` middleware verifying the JWT and re-reading `status` from the DB, same live-check as HTTP `authenticate`), not per event — a deactivated user's token is rejected at the handshake, verified in tests against a user deactivated after the token was issued. Delivery is a room-scoped `io.to(\`user:${receiverId}\`).emit(...)`, one room per user, never a broadcast; REST persists first, emits after — no socket event accepts a write. **What the test suite does and does not prove about delivery:** proving "emits to the recipient only" over the wire needs two concurrent client connections and a wait-for-an-event-that-should-not-arrive assertion on the second one — an arbitrary timeout dressed up as proof, the same shape of test rejected for the last-active-admin guard's blocked branch. Tested instead: connection-time auth (no token / valid token / deactivated-user token, all deterministic connect-or-connect_error outcomes), and a source-inspection check that `io.to(...).emit(` is present and no bare `io.emit(` exists anywhere — catching a future refactor that turns the room-scoped emit into a broadcast, which is the actual regression risk, without claiming to have tested delivery itself. That source check initially failed on its own explanatory comments (`// Never io.emit()...` matched its own negative regex) — fixed by stripping `//` line comments from the source before checking, so the check reads code, not prose about the code. Two CLAUDE.md additions from this work: a line in the auth pattern section that `sanitizeUser` is for `SELECT *`/`u.*` responses specifically — a query that only selects the columns it needs doesn't need it, and calling it anyway is theatre; and a new Open Questions entry flagging that there's no "who can I message" contacts endpoint, so a parent has no way to discover their child's teachers' user ids to start a first conversation — deliberately not built, surfaced now rather than mid-Stage-4. `npm run test:messages` — 39 passing, idempotent. |
 | 2026-08-29 | Hardened `sanitizeUser` before building Messages — that module JOINs `users` twice (sender, receiver), exactly the aliased-JOIN shape the old version couldn't catch. Was `const { password, ...safe } = user`, which only stripped the literal key named `password`; a JOIN aliasing the hash to anything else (`creator_password`, `sender_password`, `u2_password`) would have leaked it straight through. Now strips any key whose name contains `password`, case-insensitive. Moved to `utils/sanitizeUser.js` — was defined identically in both `routes/auth.js` and `routes/users.js`; now one implementation, same pattern as `parseId`. Unit-tested directly in `scripts/test-sanitize-user.js` (9 assertions) rather than through HTTP, since no current endpoint produces an aliased-password row — testing the function itself, not a shape nothing exercises yet. Considered and rejected adding `UNIQUE` to `users.email` (from KNOWN ISSUES): `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose — they're one guardian's two children, and the locked decision is one account per student, a guardian with three children has three accounts. A table-wide `UNIQUE` would block any real family with 2+ kids from reusing that same real email across sibling accounts. Logged in OPEN QUESTIONS instead: if email login is ever built, the uniqueness needs to be scoped to `role IN ('teacher', 'admin')` only, never a plain table constraint. Also added a header comment to `scripts/create-backup-zip.js` clarifying it's a source-code archiver, not the DB backup — that's `routes/backups.js`. `npm run test:sanitize` — 9 passing. |
 | 2026-08-29 | Backup API built — `routes/backups.js`, `GET /`, `POST /`, `GET /:id/download`, `DELETE /:id`. Real `mysqldump` via `child_process.spawn` (not the folder-copy `scripts/create-backup-zip.js`, which is a separate source-code archiver and stays untouched), streamed straight to disk rather than buffered in memory. Password passed via `MYSQL_PWD` on the spawned child's own environment only, never on argv — keeps it out of anything that lists command lines (Task Manager, `wmic process get commandline`, `ps`); considered and rejected `--defaults-extra-file` with restrictive ACLs as disproportionate complexity for a single local-admin dev machine. Dump uses `--databases` (not a bare db name) so it's self-contained for whenever Restore gets built. A row is inserted only after the dump exits 0 and the file is confirmed non-empty — a failed dump leaves no row and no stray file. Schema change: `backups.file_size` added (`schema.sql` + live DB) — manuscript Figure 34 promises it in the backup history UI. No `status` column added; see KNOWN ISSUES for why that's deliberate. Found and fixed a real bug before shipping, unprompted: the filename format (`parents_portal_YYYY-MM-DD_HHmmss.sql`) is second-granularity with no uniqueness constraint on `filename` — two backups requested within the same wall-clock second would have collided, with the second `mysqldump` silently overwriting the first backup's file on disk while both rows stayed in the table (the first row's `file_size` then wrong, its actual content replaced). Added `reserveBackupPath()` — appends `-2`, `-3`, etc. before `.sql` until it finds a name nothing has claimed; verified in tests that two backups created back-to-back get distinct filenames and the first file is untouched by the second. One residual gap flagged, not fixed: this closes the *sequential* case but not two truly *concurrent* requests processed in the same event-loop tick, which could both pass the existence check before either has written a file — accepted for a single-admin capstone deployment rather than building file-locking or a DB-based reservation. `download_backup` is logged (filename + requesting admin) alongside `create_backup`/`delete_backup` — the most sensitive action the API permits, since it produces a copy of every student's name, LRN, grades, attendance, and messages in one portable file. `.gitignore` fixed from a blanket `backups/` to `server/backups/*` + `!server/backups/.gitkeep` (the blanket form would have swallowed the `.gitkeep` too, so a fresh clone had no directory until the first backup). `npm run test:backups` — 33 passing, idempotent, against a real dump (verified the file starts with a genuine mysqldump header, contains `CREATE DATABASE`, and its byte size matches exactly what streams back on download). Restore is explicitly out of scope for this entry — see "RESTORE — required before building." |

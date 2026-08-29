@@ -11,6 +11,20 @@ async function authenticate(req, res, next) {
 
   try {
     const decoded = verifyToken(token);
+
+    // A restore can replace every users row with different data — a JWT
+    // pointing at a user_id that no longer means the same person must stop
+    // working. token_valid_after is NULL until the first restore ever runs,
+    // so this is a no-op for the entire life of the system until then.
+    const [stateRows] = await pool.query('SELECT token_valid_after FROM auth_security_state WHERE id = 1 LIMIT 1');
+    const tokenValidAfter = stateRows[0]?.token_valid_after;
+    if (tokenValidAfter && decoded.iat * 1000 < new Date(tokenValidAfter).getTime()) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session invalidated by a database restore. Please log in again.',
+      });
+    }
+
     const [rows] = await pool.query(
       `SELECT id, login_id, role, status, name, email, contact_number, profile_pic, student_id
        FROM users WHERE id = ? LIMIT 1`,

@@ -256,6 +256,19 @@ CREATE TABLE backups (
   INDEX idx_backups_created (created_by)
 ) ENGINE=InnoDB;
 
+-- Single-row global auth control, never exposed through /api/settings.
+-- token_valid_after is set by POST /api/backups/:id/restore — any JWT
+-- issued (iat) before this timestamp is rejected by middleware/auth.js,
+-- since a restore can replace every users row with different data.
+-- Deliberately not a system_settings row: that table is readable by
+-- every authenticated role and writable by any admin through a generic
+-- form, neither of which is appropriate for a value only the restore
+-- endpoint itself should ever read or write.
+CREATE TABLE auth_security_state (
+  id TINYINT UNSIGNED PRIMARY KEY DEFAULT 1,
+  token_valid_after TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------------
 -- Foreign keys (added after all tables exist)
 -- ---------------------------------------------------------------------------

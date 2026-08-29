@@ -16,7 +16,8 @@
     "test:users": "node scripts/test-user-management-flows.js",
     "test:backups": "node scripts/test-backups-flows.js",
     "test:sanitize": "node scripts/test-sanitize-user.js",
-    "test:messages": "node scripts/test-messages-flows.js"
+    "test:messages": "node scripts/test-messages-flows.js",
+    "test:restore": "node scripts/test-restore-flows.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

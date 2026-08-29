@@ -52,6 +52,22 @@ async function login(loginId, password) {
   return request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 }
 
+async function withDb(fn) {
+  const mysql = require('mysql2/promise');
+  const conn = await mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'parents_portal',
+  });
+  try {
+    return await fn(conn);
+  } finally {
+    await conn.end();
+  }
+}
+
 async function run() {
   console.log(`\nParents Portal — System Settings API Tests (${BASE})\n`);
 
@@ -100,6 +116,28 @@ async function run() {
 
     const getUnknown = await request('GET', '/api/settings/nonexistent_key', { token: adminToken });
     assert(getUnknown.status === 404, 'GET on an unknown key returns 404');
+
+    // A row in system_settings that isn't in ALLOWED_KEYS (inserted directly,
+    // bypassing the API entirely — the only way such a row could exist, since
+    // PUT/PATCH already reject unknown keys) must not appear in the "list
+    // all" response. This was a real bug: GET / had no WHERE filter, so it
+    // returned every row in the table regardless of the allow-list.
+    const unlistedKey = `test_unlisted_${Date.now()}`;
+    await withDb((conn) =>
+      conn.query('INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)', [
+        unlistedKey,
+        'should never be readable',
+      ])
+    );
+    try {
+      const listAfterDirectInsert = await request('GET', '/api/settings', { token: adminToken });
+      assert(
+        !(unlistedKey in (listAfterDirectInsert.data?.settings || {})),
+        'A row outside the allow-list does not appear in GET /api/settings, even if it exists in the table'
+      );
+    } finally {
+      await withDb((conn) => conn.query('DELETE FROM system_settings WHERE setting_key = ?', [unlistedKey]));
+    }
 
     // --- Write permission ---
     console.log('\nWrite permission:');

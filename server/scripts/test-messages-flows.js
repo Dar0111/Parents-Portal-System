@@ -393,10 +393,18 @@ async function run() {
     // Strip // line comments first — this file's own comments explain the
     // rule in prose ("Never io.emit()"), which would otherwise false-match
     // the negative check below. Check code, not prose about the code.
+    //
+    // No `$` anchor: these files have Windows CRLF line endings, so after
+    // splitting on '\n' each line still carries a trailing '\r'. JS's `.`
+    // doesn't match line terminators (which includes `\r`), so `.*` stops
+    // right before it — but `$` (no `m` flag) only matches true end-of-string,
+    // never that position, so the whole regex silently failed to match at
+    // all and stripped nothing. `.*` alone already extends to the end of
+    // each single line without needing an anchor.
     const stripLineComments = (source) =>
       source
         .split('\n')
-        .map((line) => line.replace(/\/\/.*$/, ''))
+        .map((line) => line.replace(/\/\/.*/, ''))
         .join('\n');
 
     const socketSource = stripLineComments(fs.readFileSync(path.join(__dirname, '..', 'socket.js'), 'utf8'));
