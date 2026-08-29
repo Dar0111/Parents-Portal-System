@@ -46,30 +46,22 @@ function reserveBackupPath(prefix) {
   return { filename, filePath: path.join(BACKUPS_DIR, filename) };
 }
 
-// Streams mysqldump's stdout straight to disk rather than buffering the whole
-// dump in memory. Password goes through MYSQL_PWD on the child's own env only
-// — never on argv, where it would be visible to any user via Task Manager's
-// command-line column, `wmic process get commandline`, `ps`, etc.
-function runMysqldump(outputPath) {
+// Runs one mysqldump invocation and streams its stdout to outputPath.
+// append: true opens the file in append mode instead of truncating it —
+// used to bolt a second, structure-only invocation onto the end of the
+// first one's output (see dumpDatabase below). Password goes through
+// MYSQL_PWD on the child's own env only — never on argv, where it would be
+// visible to any user via Task Manager's command-line column,
+// `wmic process get commandline`, `ps`, etc.
+function runMysqldump(outputPath, args, { append = false } = {}) {
   return new Promise((resolve, reject) => {
     const bin = process.env.MYSQLDUMP_PATH || 'mysqldump';
-    const args = [
-      '--single-transaction',
-      '--databases',
-      process.env.DB_NAME || 'parents_portal',
-      '-h',
-      process.env.DB_HOST || 'localhost',
-      '-P',
-      String(process.env.DB_PORT || 3306),
-      '-u',
-      process.env.DB_USER || 'root',
-    ];
 
     const child = spawn(bin, args, {
       env: { ...process.env, MYSQL_PWD: process.env.DB_PASSWORD || '' },
     });
 
-    const out = fs.createWriteStream(outputPath);
+    const out = fs.createWriteStream(outputPath, append ? { flags: 'a' } : undefined);
     let stderr = '';
     let settled = false;
 
@@ -114,6 +106,60 @@ function runMysqldump(outputPath) {
   });
 }
 
+// backups is infrastructure metadata about the backup system itself, not
+// school data — and it is uniquely self-referential: it is the table you
+// consult to find the file you are restoring FROM. A row is only ever
+// inserted after its own file finishes dumping (see createBackupRecord
+// below), so a backup's file can never contain its own row. Restoring any
+// backup therefore rewinds `backups` to a state that is missing that
+// backup's row, the safety dump's row taken moments before the restore,
+// and the row of every OTHER backup taken after the one being restored
+// from — their files stay on disk, untouched, but the table no longer
+// knows they exist. Excluding backups' DATA from every dump removes the
+// precondition entirely, for every backup, not just the ones touched by
+// one restore. `--no-data` on a second, separate invocation (rather than
+// plain `--ignore-table`, which would drop the table concept altogether)
+// keeps the CREATE TABLE statement in the dump, so a bare-metal restore
+// done by hand outside this API still ends up with an empty-but-real
+// `backups` table, not a missing one requiring schema.sql to be reapplied.
+// activity_logs does NOT get the same treatment — restoring it to the
+// backup's point in time is the CORRECT behavior for a snapshot restore,
+// the same as any other domain table losing rows written after that
+// point. See CLAUDE.md's RESTORE section for the one narrow exception
+// this doesn't cover (the two log entries the restore operation itself
+// writes).
+async function dumpDatabase(outputPath) {
+  const dbName = process.env.DB_NAME || 'parents_portal';
+  const host = process.env.DB_HOST || 'localhost';
+  const port = String(process.env.DB_PORT || 3306);
+  const user = process.env.DB_USER || 'root';
+
+  // Everything except backups' data — full structure + data for every
+  // other table, backups excluded entirely (not even its CREATE TABLE;
+  // the second call below supplies that).
+  await runMysqldump(outputPath, [
+    '--single-transaction',
+    '--databases',
+    dbName,
+    `--ignore-table=${dbName}.backups`,
+    '-h',
+    host,
+    '-P',
+    port,
+    '-u',
+    user,
+  ]);
+
+  // backups' structure only, no rows, appended to the same file. No FK
+  // references INTO backups from any other table, so its position at the
+  // end of the file is safe — nothing needs it to exist earlier.
+  await runMysqldump(
+    outputPath,
+    ['--no-data', '-h', host, '-P', port, '-u', user, dbName, 'backups'],
+    { append: true }
+  );
+}
+
 // Shared by POST / (a regular manual backup) and the restore endpoint's
 // mandatory safety dump — same machinery, only the filename prefix and
 // who's attributed as creator differ. Returns the inserted backups row, or
@@ -123,7 +169,7 @@ async function createBackupRecord({ prefix, createdBy }) {
   const { filename, filePath } = reserveBackupPath(prefix);
 
   try {
-    await runMysqldump(filePath);
+    await dumpDatabase(filePath);
 
     const stats = fs.statSync(filePath);
     if (!stats.size) {
@@ -152,7 +198,14 @@ async function createBackupRecord({ prefix, createdBy }) {
   }
 }
 
-// GET /api/backups — list, newest first
+// GET /api/backups — list, newest first. Also reconciles the table against
+// server/backups/ and surfaces any .sql file with no matching row as
+// orphaned_files — read-only, never auto-inserted. An unexpected file in
+// that directory (from the pre-`--ignore-table` restore bug, or a file
+// someone dropped in by hand) is reported, not silently adopted into the
+// table as though the system created it — that would fabricate a
+// created_by no one can actually vouch for. See CLAUDE.md's RESTORE
+// section for how the two orphans this bug already produced were handled.
 router.get('/', authenticate, authorize('admin'), async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -164,7 +217,23 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 
     const backups = rows.map((row) => ({ ...row, file_exists: fs.existsSync(row.file_path) }));
 
-    return res.json({ success: true, backups });
+    ensureBackupsDir();
+    const knownFilenames = new Set(rows.map((row) => row.filename));
+    const orphaned_files = fs
+      .readdirSync(BACKUPS_DIR)
+      .filter((name) => name.endsWith('.sql') && !knownFilenames.has(name))
+      .map((filename) => {
+        const filePath = path.join(BACKUPS_DIR, filename);
+        const stats = fs.statSync(filePath);
+        return {
+          filename,
+          file_path: filePath,
+          file_size: stats.size,
+          mtime: stats.mtime,
+        };
+      });
+
+    return res.json({ success: true, backups, orphaned_files });
   } catch (error) {
     console.error('List backups error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch backups.' });
@@ -336,6 +405,24 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
     });
   }
 
+  // Count activity_logs entries the restore is about to erase, while the
+  // live table still has them. activity_logs is correctly reverted to its
+  // snapshot in the backup being restored from — that's the right behavior
+  // for a point-in-time restore (see RESTORE section), not a bug — but
+  // silently means every entry newer than that snapshot, including this
+  // handler's own safety-dump `create_backup` log written moments ago,
+  // disappears with nothing to say so afterward. Computed as late as
+  // possible before the wipe, so it's exact, not estimated.
+  let wipedActivityLogCount = 0;
+  try {
+    const [wipedRows] = await pool.query('SELECT COUNT(*) AS c FROM activity_logs WHERE created_at > ?', [
+      backup.created_at,
+    ]);
+    wipedActivityLogCount = wipedRows[0].c;
+  } catch (error) {
+    console.error('Could not count activity_logs entries about to be wiped (restore proceeds regardless):', error);
+  }
+
   // The actual restore. A dedicated one-off connection, never the shared
   // pool — its pooled connections would error once the database they're
   // attached to is dropped and recreated underneath them. multipleStatements
@@ -391,6 +478,23 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
        ON DUPLICATE KEY UPDATE token_valid_after = VALUES(token_valid_after)`
     );
     await logActivity(req.user.id, 'restore_backup', `Restored database from backup "${backup.filename}"`);
+
+    // Written after the restore completes, same as restore_backup above, so
+    // it survives rather than being wiped by the thing it documents. Only
+    // written when something was actually lost — a restore from the most
+    // recent backup with no activity since typically wipes nothing. Not
+    // tamper-proof: an admin with direct DB access could delete this row
+    // too, same as any other. Not silent is still better than silent.
+    if (wipedActivityLogCount > 0) {
+      await logActivity(
+        req.user.id,
+        'restore_wiped_activity_logs',
+        `This restore reverted activity_logs to the state captured in backup "${backup.filename}" ` +
+          `(created ${new Date(backup.created_at).toISOString()}). ${wipedActivityLogCount} ` +
+          `activity_logs ${wipedActivityLogCount === 1 ? 'entry' : 'entries'} created after that timestamp — ` +
+          `including this restore's own pre-restore safety-dump log — were lost, not moved or archived.`
+      );
+    }
   } catch (error) {
     console.error('Post-restore bookkeeping failed (the restore itself succeeded):', error);
     return res.json({
@@ -408,6 +512,7 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
     message: 'Database restored. All sessions are now invalid — everyone, including you, must log in again.',
     restored_from: { id: backup.id, filename: backup.filename },
     safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
+    activity_logs_wiped: wipedActivityLogCount,
   });
 });
 

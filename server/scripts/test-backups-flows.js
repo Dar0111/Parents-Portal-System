@@ -157,7 +157,23 @@ async function run() {
 
       const head = fs.readFileSync(filePath, 'utf8').slice(0, 200);
       assert(/mysql dump/i.test(head), 'File content looks like a real mysqldump output, not a stub');
-      assert(/CREATE DATABASE/i.test(fs.readFileSync(filePath, 'utf8')), 'Dump includes CREATE DATABASE (--databases flag worked)');
+      const fullDump = fs.readFileSync(filePath, 'utf8');
+      assert(/CREATE DATABASE/i.test(fullDump), 'Dump includes CREATE DATABASE (--databases flag worked)');
+
+      // backups is self-referential — a backup's file can never legitimately
+      // contain its own row, and restoring FROM it would otherwise erase
+      // every backup row taken after it (files stay on disk, rows vanish).
+      // --ignore-table + a second --no-data pass exists exactly to prevent
+      // this. If someone removes that flag later, this is the regression it
+      // catches — no live restore needed, the dump's own content proves it.
+      assert(
+        /CREATE TABLE `?backups`?/i.test(fullDump),
+        'Dump still creates the backups table (structure survives via the --no-data pass)'
+      );
+      assert(
+        !/INSERT INTO `?backups`?/i.test(fullDump),
+        'Dump contains no INSERT INTO backups — its own row (and every other backup row) is never in the file'
+      );
     }
 
     // --- Filename collision guard ---

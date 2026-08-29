@@ -176,8 +176,13 @@ async function run() {
       );
       return rows[0].c;
     };
+    // Not asserted as zero: a real restore has genuinely run against this
+    // dev DB (see CLAUDE.md's RESTORE section), and its adopted pre_restore_
+    // row is legitimately still in the table. Track the count as a baseline
+    // instead — what this suite actually needs to prove is that none of its
+    // own pre-flight-failure requests created a NEW one, not that the table
+    // is pristine.
     const preRestoreCountBefore = await countPreRestoreBackups();
-    assert(preRestoreCountBefore === 0, 'No pre_restore_ backups exist yet (clean baseline)');
 
     // --- Admin-only ---
     console.log('\nAdmin-only:');
@@ -261,8 +266,8 @@ async function run() {
 
     const preRestoreCountAfter = await countPreRestoreBackups();
     assert(
-      preRestoreCountAfter === 0,
-      'No safety dump was ever created — every gate above failed before reaching it'
+      preRestoreCountAfter === preRestoreCountBefore,
+      'No NEW safety dump was created — every gate above failed before reaching it'
     );
 
     const [stateRows] = await withDb((conn) =>
