@@ -422,6 +422,37 @@ now: **only the CRUD half of Excuse Letters.**
 
 ---
 
+## GET /api/messages/contacts — decided, not built yet
+
+Was an open question (no way for a parent to discover their child's
+teachers' user ids to start a first conversation); now resolved. Not
+blocked, not built — deliberately deferred to Stage 4, built alongside
+the Messages web page, since a contacts list has no reason to exist
+before there's a UI that needs it. Recording the design now so it isn't
+re-derived later.
+
+Scoped by the **inverse of `canMessage()`** — same boundary, read
+direction instead of a permission check:
+
+- Parent sees the teachers assigned to their child's class, plus admin.
+  Include each teacher's subject on the row — a bare name isn't enough
+  to tell them apart if the child has more than one teacher.
+- Teacher sees the parents of students in their own `teacher_assignments`,
+  plus other teachers and admin. Include the student's name on each
+  parent row — a teacher is looking for "Marwin's parent," not the
+  guardian's name alone.
+- Admin sees everyone.
+- Optional `?search=` filters on both the contact's name and the
+  student's name, within scope only. **Never an unscoped user search** —
+  that would expose every teacher and parent in the school to anyone who
+  asks, defeating the point of `canMessage` existing at all.
+- Include each contact's existing conversation state (last message,
+  unread count) inline — same shape as `GET /conversations` — so the
+  frontend needs one call to render a combined contacts-and-conversations
+  view, not two merged client-side.
+
+---
+
 ## BUILD ORDER — tick these off as you go
 
 Work top to bottom. Do not jump ahead. Update the checkboxes in this file
@@ -469,7 +500,8 @@ Grades is last in this stage because it is blocked.
 ### Stage 4 — Web pages
 
 - [ ] Parent pages — grades, attendance, records, announcements, messages,
-      excuse letters, contributions
+      excuse letters, contributions. Messages needs `GET /api/messages/contacts`
+      built first — see that section above, not built yet
 - [ ] Teacher pages — same set plus management views
 - [ ] Admin pages — user management, settings, backup/restore
 
@@ -571,13 +603,6 @@ handled by the team. Do not re-raise it.
   — never a plain table constraint across all roles.
 - `activity_logs` exists in the schema but appears nowhere in the manuscript.
   Document it as a security feature, or drop the table.
-- No "who can I message" / contacts endpoint. `canMessage()` in
-  `routes/messages.js` enforces who's *allowed*, but there's no way for a
-  parent to discover their child's teachers' user ids (or a teacher to
-  discover their students' parents) to start a first conversation —
-  deliberately not built with the rest of Messages. Surfacing this now so
-  it doesn't get discovered mid-Stage-4 web build: the frontend needs
-  something here before a "new message" UI is possible.
 
 ---
 

@@ -77,9 +77,15 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 - [ ] Expo screens (Stage 5, not started).
 
 **Parent-Teacher Messaging** — API + Socket.io done, no screens yet.
+- [ ] `GET /api/messages/contacts` — design decided, not built. Scoped by the
+      inverse of `canMessage()`: parent sees their child's teachers (+ subject)
+      plus admin; teacher sees their students' parents (+ student name) plus
+      other teachers and admin; admin sees everyone. Optional `?search=` within
+      scope only — never unscoped. Includes last message + unread count inline
+      so the frontend needs one call. Build alongside the web page below, not
+      before — see CLAUDE.md's "GET /api/messages/contacts" section.
 - [ ] Web pages: conversation list, thread view, compose (live via Socket.io).
 - [ ] Expo screens (Stage 5, not started).
-- [ ] Open, not blocking: no "who can I message" contacts endpoint — a parent has no way to discover their child's teachers' user ids to start a first conversation. See CLAUDE.md Open Questions.
 
 **Contribution/Fees Monitoring** — API done, no screens yet.
 - [ ] Web pages: fee list, roster/mark-paid grid (teacher/admin), parent's own payment status view.
