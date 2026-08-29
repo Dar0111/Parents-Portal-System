@@ -87,12 +87,13 @@ to the team.
 **Backup only — Restore is deliberately not built.** See "RESTORE — required
 before building" below.
 
-**Tests:** all eight suites are idempotent — every row they create is tracked and
-deleted in a `finally` block (or, for Settings, restored to its original value), so
-no `db:setup` is needed between runs. Verified by running each twice in a row with
-no reset: same pass count both times, and the DB confirmed back to the seeded 4
-users / 2 students / 0 everywhere else (attendance, announcements, memos, events,
-contributions, contribution_records, backups) after.
+**Tests:** nine suites. The eight HTTP suites are idempotent — every row they
+create is tracked and deleted in a `finally` block (or, for Settings, restored to
+its original value), so no `db:setup` is needed between runs. Verified by running
+each twice in a row with no reset: same pass count both times, and the DB
+confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
+announcements, memos, events, contributions, contribution_records, backups) after.
+`test:sanitize` is a direct-call unit test — no server or DB involved.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 28/28
@@ -101,6 +102,7 @@ contributions, contribution_records, backups) after.
 - `npm run test:settings` — 26/26
 - `npm run test:users` — 39/39
 - `npm run test:backups` — 33/33
+- `npm run test:sanitize` — 9/9
 
 ### Files that exist
 
@@ -126,6 +128,7 @@ server/
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
   utils/validateId.js          parseId() — validates :id route params before any query
+  utils/sanitizeUser.js        sanitizeUser() — strips any key containing "password", case-insensitive
   scripts/setup-db.js          runs schema + seed, hashes seed passwords
   scripts/test-auth-flows.js   HTTP tests
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
@@ -135,6 +138,7 @@ server/
   scripts/test-settings-flows.js HTTP tests — allow-list, per-key validation, PATCH all-or-nothing
   scripts/test-user-management-flows.js HTTP tests — admin-only, PUT forbidden fields, status guards
   scripts/test-backups-flows.js HTTP tests — real dump execution, collision guard, missing-file handling
+  scripts/test-sanitize-user.js Direct-call unit test — no server/DB, tests the aliased-JOIN password gap
 database/
   schema.sql                   18 tables. users.status ENUM now includes 'inactive'.
                                 backups.file_size added (bytes, populated after dump succeeds)
@@ -298,6 +302,32 @@ weights vary by **learning area**, not grade level — Math is 40/40/20 while
 Filipino is 30/50/20 for the *same* student in the *same* quarter. Must be
 re-keyed to `subject_id` once the school confirms actual practice.
 
+### Excuse Letters module — waiting on the same school visit
+
+- Who approves an excuse letter: the class adviser only, or any teacher
+  assigned to the student's grade and section? There is no `adviser`
+  column on `students` — "adviser only" means a schema change, not just a
+  route file.
+- Does approving an excuse letter change the attendance record for that
+  day? Attendance is per subject; excuse letters are per day — one
+  approval would need to touch multiple `attendance` rows (one per
+  subject scheduled that day), not one. Deliberately not built until this
+  is answered.
+
+**Do not build the approve/decline logic until these are answered.** The
+CRUD shape (submit, list, view) doesn't depend on either answer, but the
+approve/decline endpoint — the actual point of the module — does.
+
+### Attendance rate formula — blocks the parent attendance page, not the API
+
+Not a Stage 3 blocker — `routes/attendance.js` is built and shipped, raw
+counts only, deliberately no computed rate (see CHANGELOG, 2026-08-27).
+This blocks Stage 4 instead: any parent-facing attendance page that wants
+to show a percentage needs the school to confirm how it's computed — does
+Late count toward "present"? Is Excused counted in the denominator at all,
+or excluded? Same category of question as the DepEd grade weights above —
+don't guess at either.
+
 ---
 
 ## RESTORE — required before building
@@ -351,16 +381,21 @@ else in this system is. Before writing it:
 
 ## SAFE TO BUILD NOW
 
-**React web auth frontend.** Nothing external affects it.
+**Messages API + Socket.io.** The only remaining Stage 3 module with no
+external blocker — Excuse Letters and Grades both wait on the school visit
+(see BLOCKED, below).
 
-- Login page — Login ID + password, no role dropdown
-- `ProtectedRoute` component reading role from the JWT
-- Three role dashboards: `/admin`, `/teacher`, `/parent`
-- Axios client with JWT interceptor and 401 handling
-
-Watch for the refresh flash: before the token loads from storage, `user` is
-briefly `null`. Without a `loading` state the login page flashes even when
-the user is authenticated.
+- Schema (`messages`: sender_id, receiver_id, body, read_status,
+  created_at) has no open questions.
+- Same auth pattern as every other module: `authenticate` + `authorize()`,
+  `parseId()` on any `:id`, `logActivity()` on every write.
+- This is the module that actually exercises the `sanitizeUser` hardening
+  from 2026-08-29 — listing a conversation means joining `users` twice, for
+  sender and receiver names, exactly the aliased-JOIN shape that used to
+  leak the password hash.
+- Socket.io is a locked stack decision (see LOCKED DECISIONS) but isn't
+  wired into `server.js` yet — this is the first real-time piece of the
+  system.
 
 ---
 
@@ -400,7 +435,7 @@ Grades is last in this stage because it is blocked.
 - [x] Student Records API — list, view, create, update
 - [x] Attendance API — per day, per subject
 - [x] Announcements + Memos + Events API
-- [ ] Excuse Letters API — submit, review, approve/decline
+- [ ] **Excuse Letters API — PARTIALLY BLOCKED**, see the Blocked section above (submit/list/view are unblocked; approve/decline is not)
 - [x] Contributions API — create, record payment, view status
 - [ ] Messages API + Socket.io
 - [x] System Settings API (admin)
@@ -556,6 +591,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-29 | Hardened `sanitizeUser` before building Messages — that module JOINs `users` twice (sender, receiver), exactly the aliased-JOIN shape the old version couldn't catch. Was `const { password, ...safe } = user`, which only stripped the literal key named `password`; a JOIN aliasing the hash to anything else (`creator_password`, `sender_password`, `u2_password`) would have leaked it straight through. Now strips any key whose name contains `password`, case-insensitive. Moved to `utils/sanitizeUser.js` — was defined identically in both `routes/auth.js` and `routes/users.js`; now one implementation, same pattern as `parseId`. Unit-tested directly in `scripts/test-sanitize-user.js` (9 assertions) rather than through HTTP, since no current endpoint produces an aliased-password row — testing the function itself, not a shape nothing exercises yet. Considered and rejected adding `UNIQUE` to `users.email` (from KNOWN ISSUES): `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose — they're one guardian's two children, and the locked decision is one account per student, a guardian with three children has three accounts. A table-wide `UNIQUE` would block any real family with 2+ kids from reusing that same real email across sibling accounts. Logged in OPEN QUESTIONS instead: if email login is ever built, the uniqueness needs to be scoped to `role IN ('teacher', 'admin')` only, never a plain table constraint. Also added a header comment to `scripts/create-backup-zip.js` clarifying it's a source-code archiver, not the DB backup — that's `routes/backups.js`. `npm run test:sanitize` — 9 passing. |
 | 2026-08-29 | Backup API built — `routes/backups.js`, `GET /`, `POST /`, `GET /:id/download`, `DELETE /:id`. Real `mysqldump` via `child_process.spawn` (not the folder-copy `scripts/create-backup-zip.js`, which is a separate source-code archiver and stays untouched), streamed straight to disk rather than buffered in memory. Password passed via `MYSQL_PWD` on the spawned child's own environment only, never on argv — keeps it out of anything that lists command lines (Task Manager, `wmic process get commandline`, `ps`); considered and rejected `--defaults-extra-file` with restrictive ACLs as disproportionate complexity for a single local-admin dev machine. Dump uses `--databases` (not a bare db name) so it's self-contained for whenever Restore gets built. A row is inserted only after the dump exits 0 and the file is confirmed non-empty — a failed dump leaves no row and no stray file. Schema change: `backups.file_size` added (`schema.sql` + live DB) — manuscript Figure 34 promises it in the backup history UI. No `status` column added; see KNOWN ISSUES for why that's deliberate. Found and fixed a real bug before shipping, unprompted: the filename format (`parents_portal_YYYY-MM-DD_HHmmss.sql`) is second-granularity with no uniqueness constraint on `filename` — two backups requested within the same wall-clock second would have collided, with the second `mysqldump` silently overwriting the first backup's file on disk while both rows stayed in the table (the first row's `file_size` then wrong, its actual content replaced). Added `reserveBackupPath()` — appends `-2`, `-3`, etc. before `.sql` until it finds a name nothing has claimed; verified in tests that two backups created back-to-back get distinct filenames and the first file is untouched by the second. One residual gap flagged, not fixed: this closes the *sequential* case but not two truly *concurrent* requests processed in the same event-loop tick, which could both pass the existence check before either has written a file — accepted for a single-admin capstone deployment rather than building file-locking or a DB-based reservation. `download_backup` is logged (filename + requesting admin) alongside `create_backup`/`delete_backup` — the most sensitive action the API permits, since it produces a copy of every student's name, LRN, grades, attendance, and messages in one portable file. `.gitignore` fixed from a blanket `backups/` to `server/backups/*` + `!server/backups/.gitkeep` (the blanket form would have swallowed the `.gitkeep` too, so a fresh clone had no directory until the first backup). `npm run test:backups` — 33 passing, idempotent, against a real dump (verified the file starts with a genuine mysqldump header, contains `CREATE DATABASE`, and its byte size matches exactly what streams back on download). Restore is explicitly out of scope for this entry — see "RESTORE — required before building." |
 | 2026-08-27 | User Management completed — `routes/users.js` gains `GET /api/users` (filter by role/status/search), `GET /api/users/:id`, `PUT /api/users/:id` (name/email/contact_number only — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` naming them if sent, not silently dropped), and `PATCH /api/users/:id/status` (active/inactive only). Schema change: `users.status` ENUM gained `'inactive'` (`schema.sql` + live DB) — reusing `'rejected'` would have shown a deactivated teacher a false "account was rejected" message on login, since that value is wired to the parent-approval flow's `rejection_reason` column. Zero changes needed in `auth.js`/`middleware/auth.js` — both already had a generic `status !== 'active'` fallback, so deactivation takes effect immediately, including on an already-issued JWT (verified in tests). Found and fixed a real landmine while doing this: `test-auth-flows.js`'s existing "unexpected status" test temporarily widened the ENUM to add `'inactive'` for itself and then narrowed it back to 3 values in its `finally` block — now that `'inactive'` is permanent, that narrowing would have silently deleted it from the schema on every subsequent `test:auth` run, breaking the new status endpoint with no obvious cause. Removed both `ALTER TABLE` statements from that test. `PATCH .../status` blocks self-deactivation unconditionally, and separately blocks deactivating the last active admin via an independent `COUNT(*) WHERE role='admin' AND status='active'` check — tested honestly: the count-check's *blocked* branch can't actually be triggered through the API, because any non-self admin acting is themselves active and always counts toward the total, so `count <= 1` is only ever reachable when actor equals target, which the unconditional self-check already catches first. Tested what's real (the allow branch, self-block, and a source check confirming the count-check's logic and message are actually wired up) instead of writing a test that would only appear to exercise it. `npm run test:users` — 39 passing, idempotent. |
 | 2026-08-27 | System Settings API built — `routes/settings.js`, `GET /`, `GET /:key`, `PUT /:key`, `PATCH /` (bulk, all-or-nothing). `system_settings` is key-value with a 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_quarter`, `logo_url`) — writing an unknown key is rejected with `400` naming the allowed ones, never silently accepted. `parseId` doesn't apply to `:key` (a string, not a numeric id) — corrected before writing code; an unknown key on a read is `404`, on a write is `400`. `current_quarter`'s valid values are read live from `grades.quarter`'s ENUM via `INFORMATION_SCHEMA.COLUMNS` instead of a hardcoded list, specifically because that ENUM is provisional (CLAUDE.md's own Blocked section — 4 quarters vs. 3 terms is still an open question for the school); a hardcoded copy here would be a second place to update that would silently go stale the moment the real answer came in. Fixed the long-standing `academic_year` seed typo as part of this — `seed.sql` and the live DB both now say `'2026-2027'`. `npm run test:settings` — 26 passing, idempotent (restores original values in a `finally`, same pattern as the auth suite's password-cycling test); includes a source-inspection test confirming the `current_quarter` validator actually queries `INFORMATION_SCHEMA` rather than a hardcoded array, since no black-box HTTP test can distinguish the two without mutating `grades.quarter`, which was ruled out. |
@@ -566,6 +602,6 @@ progress — do not let this file do the same.
 | 2026-08-27 | Student Records API built — `routes/students.js`: `GET /api/students` (list, filterable), `GET /api/students/:id`, `POST /api/students`, `PUT /api/students/:id`, `PATCH /api/students/:id/status` (admin only, no hard delete). Parents see only their own child (`req.user.student_id`, never the URL param); teachers see only students in their `teacher_assignments` grade/section pairs — both an out-of-scope read and a nonexistent id return the same `404`, so neither role can enumerate students outside their reach. Teacher-initiated creates are the one place scope violations return `403` instead of `404` — there's no id to enumerate on a create, and the teacher needs to know why it failed. LRN is immutable after creation (it doubles as a parent's `login_id`). Found and fixed a real bug while building this: `routes/users.js` approve/reject passed `Number(req.params.id)` straight into a query with no validation — a non-numeric id becomes `NaN` and reaches MySQL as `WHERE id = NaN` (MySQL rejected it, so nothing leaked, but it should never have reached the query layer). Added `utils/validateId.js` (`parseId()`) as the one shared fix, applied to both `routes/users.js` and `routes/students.js`, and folded into the auth pattern template for every future module. `npm run test:students` — 28 passing. |
 | 2026-08-27 | React auth frontend built — `client/` (Vite, React 19, Tailwind v4, Font Awesome). `AuthContext` awaits `GET /api/auth/me` on load instead of decoding the JWT client-side, so a deactivated account can't render a dashboard off a still-valid-looking token. Axios interceptor skips its 401/403 redirect when the failing request is the login call itself, so bad credentials and pending/rejected accounts show inline on the login form instead of bouncing away from it. MySQL started, `db:setup` run, all 24 auth tests pass, and the full login round-trip verified in the browser — admin → `/admin`, wrong password → inline error, pending account → inline message, refresh → spinner with no login-page flash. |
 | 2026-08-26 | Login now asserts `status === 'active'` before `signToken`. Test added. |
+| 2026-08-15 | Build restarted from zero. No legacy code. |
 | 2026-08-13 | Auth backend complete — login, JWT, RBAC, approve/reject. 23 tests. |
 | 2026-08-12 | Database schema + seed, 18 tables. `.gitignore` added. |
-| 2026-08-15 | Build restarted from zero. No legacy code. |
