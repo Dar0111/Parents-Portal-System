@@ -193,7 +193,10 @@ must follow this exact pattern. Do not invent a new structure.**
   MySQL as `WHERE id = NaN`. MySQL rejected it, so nothing leaked, but the
   auth pattern audit had missed route params entirely — role and
   `student_id` handling were solid, this wasn't.
-- `sanitizeUser()` strips the password hash from every response
+- `sanitizeUser()` from `utils/sanitizeUser.js` strips every key whose name
+  contains `password` (case-insensitive) from every response containing a
+  user row — not just the literal `password` key, so an aliased JOIN column
+  can't leak it
 - `logActivity()` writes to `activity_logs` on every write operation
 
 When starting a new module, say this:
@@ -203,9 +206,17 @@ When starting a new module, say this:
 > `sanitizeUser` on any response containing a user row, and `logActivity`
 > for any write. Do not invent a new structure.
 
-**Known caveat:** `sanitizeUser` only deletes the key named `password`. If a
-JOIN ever aliases the hash to another name, it leaks. Watch for this when
-writing joins against `users`.
+**Fixed, no longer a caveat:** `sanitizeUser` used to only delete the key
+literally named `password` — a JOIN aliasing the hash to another name
+(`creator_password`, `sender_password`, `u2_password`, ...) would have
+leaked it straight through. Now lives in one place, `utils/sanitizeUser.js`
+(was duplicated identically in `routes/auth.js` and `routes/users.js`), and
+strips **any** key whose name contains `password`, case-insensitive —
+covers every aliased-JOIN shape, not just the exact column name. Directly
+relevant to Messages: that module JOINs `users` twice, for sender and
+receiver names, which is exactly the shape that used to trigger this.
+Unit-tested directly (not through HTTP — no endpoint produces an aliased
+row yet) in `scripts/test-sanitize-user.js`.
 
 ---
 
@@ -330,7 +341,7 @@ else in this system is. Before writing it:
 
 | Issue | Where | Note |
 |---|---|---|
-| `users.email` has no UNIQUE constraint | `schema.sql` | Only matters if email login is added later. Duplicate emails would break the lookup. |
+| `users.email` has no UNIQUE constraint | `schema.sql` | Deliberately not added. A plain `UNIQUE` would conflict with the locked one-account-per-student design: `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose, and any real family with 2+ kids needs that same reuse. Only matters once email login is actually built — see Open Questions. |
 | `grade_components.type` is `ENUM('quiz','activity')` | `schema.sql` | Manuscript promises five components. Blocked on the school. |
 | No `Download Statement` export | — | Promised in manuscript Figure 19. Build a CSV export from `contribution_records`, or remove it from the paper. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |
@@ -492,6 +503,14 @@ handled by the team. Do not re-raise it.
   Undecided. Blocks the Figure 1 hardware requirements in the manuscript.
 - `Manage Templates` (Figure 23) — undefined in the manuscript. Likely means
   the grade weight configuration display. Confirm or remove.
+- `users.email` UNIQUE — not added, deliberately. The tradeoff: email login
+  for teachers/admin would need a unique lookup key, but a table-wide
+  `UNIQUE` on `users.email` conflicts with shared-guardian emails across
+  sibling parent accounts (one account per student is locked — a guardian
+  with three children has three accounts and one real email address). If
+  email login is ever built, scope the uniqueness to `role IN ('teacher',
+  'admin')` only — a partial/filtered index, or a check at the query level
+  — never a plain table constraint across all roles.
 - `activity_logs` exists in the schema but appears nowhere in the manuscript.
   Document it as a security feature, or drop the table.
 

@@ -4,13 +4,9 @@ const { hashPassword } = require('../utils/password');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { sanitizeUser } = require('../utils/sanitizeUser');
 
 const router = express.Router();
-
-function sanitizeUser(user) {
-  const { password, ...safe } = user;
-  return safe;
-}
 
 // POST /api/users/teachers — Admin creates teacher (active immediately)
 router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {

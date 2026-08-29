@@ -1,4 +1,10 @@
 /**
+ * This is a SOURCE-CODE archiver for project submission — it zips the
+ * codebase (database/, docs/, server/) to the Desktop. It is NOT a database
+ * backup: it never touches MySQL and has no relationship to the `backups`
+ * table. For an actual restorable database dump, see server/routes/backups.js
+ * (POST /api/backups — runs a real mysqldump).
+ *
  * Creates Parents_Portal_Backup.zip with correct folder structure.
  * Excludes: node_modules, .env, .git
  *

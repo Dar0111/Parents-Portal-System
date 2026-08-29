@@ -14,7 +14,8 @@
     "test:contributions": "node scripts/test-contributions-flows.js",
     "test:settings": "node scripts/test-settings-flows.js",
     "test:users": "node scripts/test-user-management-flows.js",
-    "test:backups": "node scripts/test-backups-flows.js"
+    "test:backups": "node scripts/test-backups-flows.js",
+    "test:sanitize": "node scripts/test-sanitize-user.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

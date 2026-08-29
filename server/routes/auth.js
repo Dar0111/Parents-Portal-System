@@ -4,13 +4,9 @@ const { comparePassword, hashPassword } = require('../utils/password');
 const { signToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
+const { sanitizeUser } = require('../utils/sanitizeUser');
 
 const router = express.Router();
-
-function sanitizeUser(user) {
-  const { password, ...safe } = user;
-  return safe;
-}
 
 async function fetchUserByLoginId(loginId) {
   const [rows] = await pool.query(
