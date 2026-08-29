@@ -105,6 +105,34 @@ column above for the concrete next step per module.
 
 ---
 
+## Before the parent demo (not blockers now — required before real parents see this)
+
+- [ ] Replace seed data — `seed.sql` uses the team's own names (Marwin
+      Conde, Jea Mae Bargaso, Ashley Geguiera). Fictional demo data, or
+      clear the seed if real records get loaded instead.
+- [ ] Change every default password (`Admin@2026`, `Teacher@2026`,
+      `Parent@2026`) — they're in `seed.sql`, in the public repo, and a
+      parent's login id is their child's LRN, so anyone who knows the LRN
+      knows the password too.
+- [ ] RA 10173 (Data Privacy Act, cited in the manuscript) — confirm with
+      the school whether loading real names/LRNs needs a consent process
+      and whether they already have a form. Two questions added for the
+      school visit, below.
+- [ ] `GET /api/messages/contacts` must exist before the demo — without
+      it a parent can't find their child's teacher to message (would
+      need to already know a numeric `user_id`). This is currently
+      planned as "build alongside the Stage 4 Messages page" — if the
+      demo lands before Stage 4 is underway, pull this one endpoint
+      forward. See CLAUDE.md's "GET /api/messages/contacts" section.
+
+**Two new school-visit questions:**
+- Do we need to load real student names and LRNs for the parent demo? If
+  so, is there a consent form already, or is permission needed per parent?
+- How many parents can attend, and when — is there a PTA meeting we could
+  join?
+
+---
+
 ## Excluded (not in scope)
 
 QR attendance · online payment · enrollment/transcript · schedule grid · college grading

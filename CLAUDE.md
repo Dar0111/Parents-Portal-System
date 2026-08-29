@@ -453,6 +453,38 @@ direction instead of a permission check:
 
 ---
 
+## BEFORE THE PARENT DEMO — not blockers now, required before real parents see this
+
+None of these block Stage 3/4 development. They block the moment real
+parents are actually in the room, which happens once the system is
+ready — do not let that arrive without these done.
+
+- **Seed data uses the team's own names** (Marwin Conde, Jea Mae Bargaso,
+  Ashley Geguiera — see `seed.sql`). Replace with obviously-fictional
+  demo data before any real parent sees the system, or clear the seed
+  entirely if real student records get loaded instead.
+- **Default passwords are public.** `Admin@2026`, `Teacher@2026`,
+  `Parent@2026` are in `seed.sql`, which is in the GitHub repo. A parent
+  logs in with their child's LRN as the login id — anyone who knows a
+  child's LRN would know that account's password too. Change every
+  default password before any real account exists.
+- **RA 10173 (Data Privacy Act) applies** — the manuscript itself cites
+  it. Loading real student names and LRNs needs the school's answer on
+  whether a consent process is required, whether they already have a
+  form, or whether permission is needed per parent. Two new questions
+  added to OPEN QUESTIONS below for the school visit.
+- **`GET /api/messages/contacts` must exist before the demo, not after.**
+  Without it, a parent has no way to find their child's teacher to
+  message them — they'd need to already know a numeric `user_id`, which
+  no parent will. Flagging a real scheduling tension this creates: the
+  section above deliberately defers this endpoint to "build alongside
+  the Stage 4 Messages page." If the parent demo happens before Stage 4
+  web pages are underway, this specific endpoint needs to be pulled
+  forward ahead of the rest of that page's build — that's a scheduling
+  call, not a technical one, and isn't resolved here.
+
+---
+
 ## BUILD ORDER — tick these off as you go
 
 Work top to bottom. Do not jump ahead. Update the checkboxes in this file
@@ -603,6 +635,11 @@ handled by the team. Do not re-raise it.
   — never a plain table constraint across all roles.
 - `activity_logs` exists in the schema but appears nowhere in the manuscript.
   Document it as a security feature, or drop the table.
+- **Parent demo — data:** do we need to load real student names and LRNs
+  for it? If so, is there a consent form already, or does permission
+  need to be per-parent? RA 10173 applies — see BEFORE THE PARENT DEMO.
+- **Parent demo — logistics:** how many parents can attend, and when —
+  is there a PTA meeting we could join?
 
 ---
 
