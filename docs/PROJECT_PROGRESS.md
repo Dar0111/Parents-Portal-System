@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-08-27
+**Last updated:** 2026-08-29
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -26,8 +26,9 @@
 
 Stage 3 is 🔨: Student Records, Attendance, Announcements/Memos/Events,
 Contributions, System Settings, and User Management are fully built.
-Grades, Messaging, Excuse Letters, and Backup/Restore are still ❌. See
-table below.
+Backup/Restore is partial — Backup is done, Restore is deliberately not
+built (see CLAUDE.md's "RESTORE — required before building"). Grades,
+Messaging, and Excuse Letters are still ❌. See table below.
 
 ---
 
@@ -49,7 +50,7 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 | Excuse Letter Submission & Management | ✅ `excuse_letters` | ❌ | ❌ | ❌ | Next: `routes/excuse-letters.js` — submit, review, approve/decline. |
 | Contribution/Fees Monitoring | ✅ `contributions`, `contribution_records` | ✅ 8 endpoints — list, detail, roster, my-records, create, update, delete, mark paid/pending | ❌ | ❌ | 35/35 tests pass (`npm run test:contributions`), idempotent. `grade_level` is `NOT NULL` — no school-wide option, unlike announcements/events. Roster is a live LEFT JOIN against active students, not a snapshot — a late enrollee shows up automatically as Pending. Amount override on a payment can go below the fee (discount) but never above it (`400`, names the cap). `DELETE` blocked with `409` naming the exact record count when `contribution_records` exist — that FK is `ON DELETE CASCADE`, so an unguarded delete would silently destroy payment history. `my-records` (parent) never touches another student's row, individually or in aggregate. Also open: no CSV export (manuscript Fig. 19), GWA computation undecided — unrelated to this API. Next: web screens and Expo screens. |
 | System Settings Management (Admin) | ✅ `system_settings` | ✅ 4 endpoints — get all, get one, update one, bulk update | ❌ | ❌ | 26/26 tests pass (`npm run test:settings`), idempotent (restores original values). 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_quarter`, `logo_url`) — unknown key rejected with `400` naming the allowed ones. `current_quarter`'s valid values read live from `grades.quarter`'s ENUM via `INFORMATION_SCHEMA` rather than hardcoded, since that ENUM is still provisional (school hasn't confirmed quarters vs. terms). `academic_year` seed typo fixed to `'2026-2027'` as part of this. `PATCH` (bulk) is all-or-nothing. Next: web screens (admin settings form). |
-| Backup & Restore (Admin, web only) | ✅ `backups` | ❌ | ❌ | — (web-only by design, mobile excluded) | `scripts/create-backup-zip.js` exists but copies folders — not a DB backup. Needs a `mysqldump`-based rewrite. |
+| Backup & Restore (Admin, web only) | ✅ `backups` (`file_size` added) | 🔨 4 endpoints — list, create, download, delete. **Restore not built, deliberately.** | ❌ | — (web-only by design, mobile excluded) | 33/33 tests pass (`npm run test:backups`), idempotent, against a real `mysqldump` — not mocked. Password via `MYSQL_PWD` on the spawned process's own env, never on argv. Row inserted only after the dump succeeds and the file is confirmed non-empty. Caught and fixed before shipping: the filename format is second-granularity with no uniqueness constraint, so two backups in the same second would have silently overwritten each other's file — added a collision-safe filename reservation, verified in tests. Known residual gap: closes the sequential case, not two truly concurrent requests in the same tick — accepted for a single-admin deployment. `download_backup` is logged alongside create/delete — the most sensitive action the API permits (a full copy of every student's data leaving in one file). `scripts/create-backup-zip.js` is a separate, legitimate source-code archiver (zips the codebase to the Desktop) — not the DB backup and not touched by this work. See CLAUDE.md's "RESTORE — required before building" for what Restore needs before it can be built: validate source is a tracked backup, auto safety dump first, step-up auth, dedicated DB connection outside the pool, async job tracking, and an undecided JWT-invalidation question. |
 
 ---
 
@@ -80,6 +81,10 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 
 **System Settings Management (Admin)** — API done, no screens yet.
 - [ ] Admin web screen: settings form (school info, academic year, current quarter, logo).
+
+**Backup & Restore (Admin, web only)** — Backup API done, Restore not started, no screens yet.
+- [ ] Restore — needs its own design pass first. See CLAUDE.md's "RESTORE — required before building": validate source is a tracked backup, automatic safety dump before restoring, step-up auth, a dedicated DB connection outside the shared pool, async job tracking (not a blocking request), and a decision on what happens to active JWTs after a restore.
+- [ ] Admin web screens: backup list/history (file size, "Completed" status, download, delete), create-backup button.
 
 Everything else in the 10 core features has a schema table and nothing
 else — no route file, no queries, no pages, no screens. See the Notes

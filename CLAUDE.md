@@ -79,13 +79,20 @@ to the team.
 | GET | `/api/settings/:key` | authenticated — `404` if not one of the 5 allow-listed keys |
 | PUT | `/api/settings/:key` | admin — per-key validation, unknown key rejected naming the allow-list |
 | PATCH | `/api/settings` | admin — bulk update, all-or-nothing in a transaction |
+| GET | `/api/backups` | admin — list, newest first, each row flags `file_exists` |
+| POST | `/api/backups` | admin — real `mysqldump`, row inserted only after success |
+| GET | `/api/backups/:id/download` | admin — streams the `.sql` file, `404` if missing on disk |
+| DELETE | `/api/backups/:id` | admin — removes row + file; row still removed if file already gone |
 
-**Tests:** all seven suites are idempotent — every row they create is tracked and
+**Backup only — Restore is deliberately not built.** See "RESTORE — required
+before building" below.
+
+**Tests:** all eight suites are idempotent — every row they create is tracked and
 deleted in a `finally` block (or, for Settings, restored to its original value), so
 no `db:setup` is needed between runs. Verified by running each twice in a row with
 no reset: same pass count both times, and the DB confirmed back to the seeded 4
 users / 2 students / 0 everywhere else (attendance, announcements, memos, events,
-contributions, contribution_records) after.
+contributions, contribution_records, backups) after.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 28/28
@@ -93,6 +100,7 @@ contributions, contribution_records) after.
 - `npm run test:contributions` — 35/35
 - `npm run test:settings` — 26/26
 - `npm run test:users` — 39/39
+- `npm run test:backups` — 33/33
 
 ### Files that exist
 
@@ -100,9 +108,9 @@ contributions, contribution_records) after.
 server/
   server.js                    Express app; mounts /api/auth, /api/users, /api/students,
                                 /api/attendance, /api/announcements, /api/memos, /api/events,
-                                /api/contributions, /api/settings
+                                /api/contributions, /api/settings, /api/backups
   package.json
-  .env.example
+  .env.example                 documents optional MYSQLDUMP_PATH override
   config/db.js                 MySQL connection pool
   middleware/auth.js           authenticate + authorize
   routes/auth.js               login, me, change-password
@@ -112,6 +120,8 @@ server/
   routes/content.js            announcements/memos/events — 3 routers, one file
   routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   routes/settings.js           key-value store, allow-listed keys, per-key validation
+  routes/backups.js            real mysqldump via spawn, MYSQL_PWD on child env only, collision-safe filenames
+  backups/                     .sql dump files land here — gitignored except .gitkeep
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
@@ -124,12 +134,13 @@ server/
   scripts/test-contributions-flows.js HTTP tests — grade scoping, roster, amount cap, delete guard
   scripts/test-settings-flows.js HTTP tests — allow-list, per-key validation, PATCH all-or-nothing
   scripts/test-user-management-flows.js HTTP tests — admin-only, PUT forbidden fields, status guards
+  scripts/test-backups-flows.js HTTP tests — real dump execution, collision guard, missing-file handling
 database/
-  schema.sql                   18 tables. users.status ENUM now includes 'inactive'
-                                (added for User Management's activate/deactivate)
+  schema.sql                   18 tables. users.status ENUM now includes 'inactive'.
+                                backups.file_size added (bytes, populated after dump succeeds)
   seed.sql                     subjects, students, settings; academic_year fixed to '2026-2027'
 scripts/
-  create-backup-zip.js         folder copy, NOT a DB backup — see Known Issues
+  create-backup-zip.js         folder copy, source-code archiver — NOT the DB backup (that's routes/backups.js)
 client/
   package.json                 Vite + React 19 + Tailwind v4 + Font Awesome
   vite.config.js                dev server pinned to port 3000 (matches server's CORS_ORIGIN default)
@@ -144,11 +155,14 @@ client/
 
 ### Not started — zero handlers
 
-Grades · Messages · Excuse Letters · Backup/Restore
+Grades · Messages · Excuse Letters
 
 **No Expo app. No Socket.io.**
 
-Four modules have tables in `schema.sql` but no route files and no queries.
+Three modules have tables in `schema.sql` but no route files and no queries.
+Backup/Restore is no longer in this list — Backup exists (4 endpoints);
+Restore specifically is still zero handlers, deliberately, see "RESTORE —
+required before building" below.
 
 ### React web app — auth, verified end-to-end
 
@@ -275,6 +289,43 @@ re-keyed to `subject_id` once the school confirms actual practice.
 
 ---
 
+## RESTORE — required before building
+
+Not blocked on an external answer like Grades — this is deliberately
+deferred so it gets designed on its own, with its own guards, instead of
+tacked onto the Backup API. Restoring drops and recreates the whole
+database; a bad implementation is unrecoverable in a way almost nothing
+else in this system is. Before writing it:
+
+- **Validate the source is one of *our own* tracked backups** — the
+  `backups` table + `server/backups/` directory only, never an arbitrary
+  uploaded file. Closes off a path/SQL-injection vector.
+- **Automatic safety dump of the current state immediately before
+  restoring** — so a bad restore is itself undoable. This means every
+  restore is really two backup-API operations plus the restore itself;
+  log both (`create_backup`, then `restore_backup`) so the activity log
+  reads as an honest sequence, not one opaque event.
+- **Step-up auth** — re-enter the admin's password immediately before
+  executing, not just an already-open session. This is a total,
+  irreversible data wipe; a left-open browser tab shouldn't be enough.
+- **A dedicated one-off connection for the restore, outside the shared
+  `mysql2` pool** — the pool's existing connections will error if the
+  database they're attached to gets dropped and recreated underneath
+  them mid-restore. Needs its own connection, and probably a pool reset
+  afterward.
+- **Async job tracking, not a blocking request/response** — a restore
+  can take a while; holding one HTTP request open for the whole thing is
+  fragile. Wants a status endpoint instead.
+- **Decide the JWT invalidation question** — a restore can replace every
+  `users` row with different data (different ids, different password
+  hashes, accounts that didn't exist yet at backup time). Every
+  currently-active JWT needs a decision: force logout everyone
+  (simplest, safest), or accept that some sessions may now reference
+  users that no longer match. Not investigated yet — decide before
+  building, not while building.
+
+---
+
 ## KNOWN ISSUES — fix when you reach them
 
 | Issue | Where | Note |
@@ -343,7 +394,7 @@ Grades is last in this stage because it is blocked.
 - [ ] Messages API + Socket.io
 - [x] System Settings API (admin)
 - [x] User Management API — extend the existing `routes/users.js`
-- [ ] Backup/Restore API (admin, `mysqldump` — not a folder copy)
+- [x] Backup/Restore API (admin, `mysqldump` — not a folder copy) — **partial: Backup only.** Restore is deliberately not built; see "RESTORE — required before building" below
 - [ ] **Grades API — BLOCKED**, see the Blocked section above
 
 ### Stage 4 — Web pages
@@ -486,6 +537,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-29 | Backup API built — `routes/backups.js`, `GET /`, `POST /`, `GET /:id/download`, `DELETE /:id`. Real `mysqldump` via `child_process.spawn` (not the folder-copy `scripts/create-backup-zip.js`, which is a separate source-code archiver and stays untouched), streamed straight to disk rather than buffered in memory. Password passed via `MYSQL_PWD` on the spawned child's own environment only, never on argv — keeps it out of anything that lists command lines (Task Manager, `wmic process get commandline`, `ps`); considered and rejected `--defaults-extra-file` with restrictive ACLs as disproportionate complexity for a single local-admin dev machine. Dump uses `--databases` (not a bare db name) so it's self-contained for whenever Restore gets built. A row is inserted only after the dump exits 0 and the file is confirmed non-empty — a failed dump leaves no row and no stray file. Schema change: `backups.file_size` added (`schema.sql` + live DB) — manuscript Figure 34 promises it in the backup history UI. No `status` column added; see KNOWN ISSUES for why that's deliberate. Found and fixed a real bug before shipping, unprompted: the filename format (`parents_portal_YYYY-MM-DD_HHmmss.sql`) is second-granularity with no uniqueness constraint on `filename` — two backups requested within the same wall-clock second would have collided, with the second `mysqldump` silently overwriting the first backup's file on disk while both rows stayed in the table (the first row's `file_size` then wrong, its actual content replaced). Added `reserveBackupPath()` — appends `-2`, `-3`, etc. before `.sql` until it finds a name nothing has claimed; verified in tests that two backups created back-to-back get distinct filenames and the first file is untouched by the second. One residual gap flagged, not fixed: this closes the *sequential* case but not two truly *concurrent* requests processed in the same event-loop tick, which could both pass the existence check before either has written a file — accepted for a single-admin capstone deployment rather than building file-locking or a DB-based reservation. `download_backup` is logged (filename + requesting admin) alongside `create_backup`/`delete_backup` — the most sensitive action the API permits, since it produces a copy of every student's name, LRN, grades, attendance, and messages in one portable file. `.gitignore` fixed from a blanket `backups/` to `server/backups/*` + `!server/backups/.gitkeep` (the blanket form would have swallowed the `.gitkeep` too, so a fresh clone had no directory until the first backup). `npm run test:backups` — 33 passing, idempotent, against a real dump (verified the file starts with a genuine mysqldump header, contains `CREATE DATABASE`, and its byte size matches exactly what streams back on download). Restore is explicitly out of scope for this entry — see "RESTORE — required before building." |
 | 2026-08-27 | User Management completed — `routes/users.js` gains `GET /api/users` (filter by role/status/search), `GET /api/users/:id`, `PUT /api/users/:id` (name/email/contact_number only — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` naming them if sent, not silently dropped), and `PATCH /api/users/:id/status` (active/inactive only). Schema change: `users.status` ENUM gained `'inactive'` (`schema.sql` + live DB) — reusing `'rejected'` would have shown a deactivated teacher a false "account was rejected" message on login, since that value is wired to the parent-approval flow's `rejection_reason` column. Zero changes needed in `auth.js`/`middleware/auth.js` — both already had a generic `status !== 'active'` fallback, so deactivation takes effect immediately, including on an already-issued JWT (verified in tests). Found and fixed a real landmine while doing this: `test-auth-flows.js`'s existing "unexpected status" test temporarily widened the ENUM to add `'inactive'` for itself and then narrowed it back to 3 values in its `finally` block — now that `'inactive'` is permanent, that narrowing would have silently deleted it from the schema on every subsequent `test:auth` run, breaking the new status endpoint with no obvious cause. Removed both `ALTER TABLE` statements from that test. `PATCH .../status` blocks self-deactivation unconditionally, and separately blocks deactivating the last active admin via an independent `COUNT(*) WHERE role='admin' AND status='active'` check — tested honestly: the count-check's *blocked* branch can't actually be triggered through the API, because any non-self admin acting is themselves active and always counts toward the total, so `count <= 1` is only ever reachable when actor equals target, which the unconditional self-check already catches first. Tested what's real (the allow branch, self-block, and a source check confirming the count-check's logic and message are actually wired up) instead of writing a test that would only appear to exercise it. `npm run test:users` — 39 passing, idempotent. |
 | 2026-08-27 | System Settings API built — `routes/settings.js`, `GET /`, `GET /:key`, `PUT /:key`, `PATCH /` (bulk, all-or-nothing). `system_settings` is key-value with a 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_quarter`, `logo_url`) — writing an unknown key is rejected with `400` naming the allowed ones, never silently accepted. `parseId` doesn't apply to `:key` (a string, not a numeric id) — corrected before writing code; an unknown key on a read is `404`, on a write is `400`. `current_quarter`'s valid values are read live from `grades.quarter`'s ENUM via `INFORMATION_SCHEMA.COLUMNS` instead of a hardcoded list, specifically because that ENUM is provisional (CLAUDE.md's own Blocked section — 4 quarters vs. 3 terms is still an open question for the school); a hardcoded copy here would be a second place to update that would silently go stale the moment the real answer came in. Fixed the long-standing `academic_year` seed typo as part of this — `seed.sql` and the live DB both now say `'2026-2027'`. `npm run test:settings` — 26 passing, idempotent (restores original values in a `finally`, same pattern as the auth suite's password-cycling test); includes a source-inspection test confirming the `current_quarter` validator actually queries `INFORMATION_SCHEMA` rather than a hardcoded array, since no black-box HTTP test can distinguish the two without mutating `grades.quarter`, which was ruled out. |
 | 2026-08-27 | Contributions API built — `routes/contributions.js`, 8 endpoints across `contributions` (the fee) and `contribution_records` (per-student payment status). `grade_level` is `NOT NULL` on `contributions` — unlike announcements/events there is no school-wide option; a teacher just needs the grade to match a `teacher_assignments` row, no NULL-target case to reject. Roster (`GET /:id/records`) is a live `LEFT JOIN` against active students in the contribution's grade, not a snapshot generated at creation — a student who enrolls after the fee is posted shows up automatically, defaulted to `Pending`. Caught a real bug before shipping: an amount-override on `PATCH .../records/:studentId` (a student can owe less than the full fee, never more — enforced with a `400` naming the cap) defaulted to the full fee on every write, which would have silently reset a previously-set discount back to full price on a plain status-only `PATCH`; fixed by defaulting to the existing record's amount instead, tested explicitly. `DELETE` is blocked with a `409` naming the exact count ("Cannot delete. 1 payment record exists for this contribution. Clear the payment records first if you need to remove it.") when any `contribution_records` exist — `contribution_records.contribution_id` is `ON DELETE CASCADE`, so an unguarded delete would have silently destroyed payment history with no recovery; caught from reading the schema's FK constraints before writing the delete handler, not after. `GET /api/contributions/my-records` never touches another student's row, individually or in aggregate — verified in tests by asserting the response carries no count/total-shaped fields, not just checking the query. `npm run test:contributions` — 35 passing, idempotent. |
