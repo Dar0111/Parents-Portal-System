@@ -15,7 +15,8 @@
     "test:settings": "node scripts/test-settings-flows.js",
     "test:users": "node scripts/test-user-management-flows.js",
     "test:backups": "node scripts/test-backups-flows.js",
-    "test:sanitize": "node scripts/test-sanitize-user.js"
+    "test:sanitize": "node scripts/test-sanitize-user.js",
+    "test:messages": "node scripts/test-messages-flows.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -23,6 +24,10 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mysql2": "^3.12.0"
+    "mysql2": "^3.12.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

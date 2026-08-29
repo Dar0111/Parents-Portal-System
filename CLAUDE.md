@@ -83,17 +83,23 @@ to the team.
 | POST | `/api/backups` | admin — real `mysqldump`, row inserted only after success |
 | GET | `/api/backups/:id/download` | admin — streams the `.sql` file, `404` if missing on disk |
 | DELETE | `/api/backups/:id` | admin — removes row + file; row still removed if file already gone |
+| GET | `/api/messages/conversations` | authenticated — one row per person messaged, last message + unread count |
+| GET | `/api/messages/with/:userId` | authenticated — full thread, participant-scoped (no re-check of `canMessage` on read) |
+| POST | `/api/messages` | authenticated — `canMessage()` boundary, `403` naming the reason on violation |
+| PATCH | `/api/messages/:id/read` | recipient only — sender or a third party gets `403` |
+| PATCH | `/api/messages/read-all/:userId` | recipient only — marks a whole thread read |
 
 **Backup only — Restore is deliberately not built.** See "RESTORE — required
 before building" below.
 
-**Tests:** nine suites. The eight HTTP suites are idempotent — every row they
+**Tests:** ten suites. The nine HTTP suites are idempotent — every row they
 create is tracked and deleted in a `finally` block (or, for Settings, restored to
 its original value), so no `db:setup` is needed between runs. Verified by running
 each twice in a row with no reset: same pass count both times, and the DB
 confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
-announcements, memos, events, contributions, contribution_records, backups) after.
-`test:sanitize` is a direct-call unit test — no server or DB involved.
+announcements, memos, events, contributions, contribution_records, backups,
+messages) after. `test:sanitize` is a direct-call unit test — no server or DB
+involved.
 - `npm run test:students` — 28/28
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 28/28
@@ -103,15 +109,20 @@ announcements, memos, events, contributions, contribution_records, backups) afte
 - `npm run test:users` — 39/39
 - `npm run test:backups` — 33/33
 - `npm run test:sanitize` — 9/9
+- `npm run test:messages` — 39/39
 
 ### Files that exist
 
 ```
 server/
-  server.js                    Express app; mounts /api/auth, /api/users, /api/students,
-                                /api/attendance, /api/announcements, /api/memos, /api/events,
-                                /api/contributions, /api/settings, /api/backups
-  package.json
+  server.js                    Express app + explicit http.createServer wrapping it (so Socket.io
+                                shares the same server, not a second one — app.listen() replaced
+                                with httpServer.listen()); mounts /api/auth, /api/users,
+                                /api/students, /api/attendance, /api/announcements, /api/memos,
+                                /api/events, /api/contributions, /api/settings, /api/backups,
+                                /api/messages
+  socket.js                    initSocket(httpServer) — JWT auth at connection time, one room per user
+  package.json                 socket.io (dependency), socket.io-client (devDependency, test-only)
   .env.example                 documents optional MYSQLDUMP_PATH override
   config/db.js                 MySQL connection pool
   middleware/auth.js           authenticate + authorize
@@ -123,6 +134,7 @@ server/
   routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   routes/settings.js           key-value store, allow-listed keys, per-key validation
   routes/backups.js            real mysqldump via spawn, MYSQL_PWD on child env only, collision-safe filenames
+  routes/messages.js           canMessage() boundary on send, participant-scoped reads, emits on send
   backups/                     .sql dump files land here — gitignored except .gitkeep
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
@@ -139,6 +151,7 @@ server/
   scripts/test-user-management-flows.js HTTP tests — admin-only, PUT forbidden fields, status guards
   scripts/test-backups-flows.js HTTP tests — real dump execution, collision guard, missing-file handling
   scripts/test-sanitize-user.js Direct-call unit test — no server/DB, tests the aliased-JOIN password gap
+  scripts/test-messages-flows.js HTTP + Socket.io tests — canMessage boundary, connection auth, source check
 database/
   schema.sql                   18 tables. users.status ENUM now includes 'inactive'.
                                 backups.file_size added (bytes, populated after dump succeeds)
@@ -159,14 +172,18 @@ client/
 
 ### Not started — zero handlers
 
-Grades · Messages · Excuse Letters
+Grades · Excuse Letters
 
-**No Expo app. No Socket.io.**
+**No Expo app.**
 
-Three modules have tables in `schema.sql` but no route files and no queries.
-Backup/Restore is no longer in this list — Backup exists (4 endpoints);
-Restore specifically is still zero handlers, deliberately, see "RESTORE —
-required before building" below.
+Both have tables in `schema.sql` but no route files and no queries yet.
+Grades is fully blocked (see BLOCKED). Excuse Letters is only partially
+blocked — its CRUD shape (submit, list, view) doesn't depend on the open
+questions and could be built now, but nothing has been written yet;
+approve/decline specifically cannot be built until they're answered.
+Backup/Restore is partial in a different sense — Backup exists (4
+endpoints, code written and shipped), Restore is deliberately not built,
+see "RESTORE — required before building" below.
 
 ### React web app — auth, verified end-to-end
 
@@ -201,6 +218,12 @@ must follow this exact pattern. Do not invent a new structure.**
   contains `password` (case-insensitive) from every response containing a
   user row — not just the literal `password` key, so an aliased JOIN column
   can't leak it
+- `sanitizeUser` is for responses built from `SELECT *` or `u.*` on `users`
+  — a query that only selects the columns it needs doesn't need it, and
+  calling it there anyway is theatre, not defense. Confirmed in Messages:
+  every query selects `name`/`role` explicitly, never a password-shaped
+  column, so nothing calls `sanitizeUser` there — the fix is not fetching
+  the column, not scrubbing it after
 - `logActivity()` writes to `activity_logs` on every write operation
 
 When starting a new module, say this:
@@ -381,21 +404,21 @@ else in this system is. Before writing it:
 
 ## SAFE TO BUILD NOW
 
-**Messages API + Socket.io.** The only remaining Stage 3 module with no
-external blocker — Excuse Letters and Grades both wait on the school visit
-(see BLOCKED, below).
+Messages is done (see CURRENT STATE) — what's left unblocked is narrower
+now: **only the CRUD half of Excuse Letters.**
 
-- Schema (`messages`: sender_id, receiver_id, body, read_status,
-  created_at) has no open questions.
+- `submit`, `list`, `view` don't depend on either open question in
+  BLOCKED — only `approve`/`decline` does. Build the first three now,
+  stop before the approval endpoint.
 - Same auth pattern as every other module: `authenticate` + `authorize()`,
   `parseId()` on any `:id`, `logActivity()` on every write.
-- This is the module that actually exercises the `sanitizeUser` hardening
-  from 2026-08-29 — listing a conversation means joining `users` twice, for
-  sender and receiver names, exactly the aliased-JOIN shape that used to
-  leak the password hash.
-- Socket.io is a locked stack decision (see LOCKED DECISIONS) but isn't
-  wired into `server.js` yet — this is the first real-time piece of the
-  system.
+- `excuse_letters` has `parent_id` and `reviewed_by`, both referencing
+  `users` — another place a careless `SELECT *`/`u.*` JOIN could leak a
+  password hash if someone reaches for it instead of selecting named
+  columns. See the auth pattern section's `sanitizeUser` guidance.
+- Once the school visit answers the two BLOCKED questions, `approve`/
+  `decline` — the actual point of the module — can follow in the same
+  file.
 
 ---
 
@@ -437,7 +460,7 @@ Grades is last in this stage because it is blocked.
 - [x] Announcements + Memos + Events API
 - [ ] **Excuse Letters API — PARTIALLY BLOCKED**, see the Blocked section above (submit/list/view are unblocked; approve/decline is not)
 - [x] Contributions API — create, record payment, view status
-- [ ] Messages API + Socket.io
+- [x] Messages API + Socket.io
 - [x] System Settings API (admin)
 - [x] User Management API — extend the existing `routes/users.js`
 - [x] Backup/Restore API (admin, `mysqldump` — not a folder copy) — **partial: Backup only.** Restore is deliberately not built; see "RESTORE — required before building" below
@@ -548,6 +571,13 @@ handled by the team. Do not re-raise it.
   — never a plain table constraint across all roles.
 - `activity_logs` exists in the schema but appears nowhere in the manuscript.
   Document it as a security feature, or drop the table.
+- No "who can I message" / contacts endpoint. `canMessage()` in
+  `routes/messages.js` enforces who's *allowed*, but there's no way for a
+  parent to discover their child's teachers' user ids (or a teacher to
+  discover their students' parents) to start a first conversation —
+  deliberately not built with the rest of Messages. Surfacing this now so
+  it doesn't get discovered mid-Stage-4 web build: the frontend needs
+  something here before a "new message" UI is possible.
 
 ---
 
@@ -591,6 +621,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-29 | Messages API + Socket.io built — `routes/messages.js` (5 endpoints) and `socket.js`. `server.js` restructured: `app.listen()` replaced with an explicit `http.createServer(app)` + `httpServer.listen()` so Socket.io attaches to the same HTTP server instead of standing up a second one; `io` stored via `app.set('io', io)` so route handlers can reach it without a circular require. **Read vs. write use two different scoping rules, deliberately.** `canMessage()` — the shared eligibility boundary (parent↔their child's assigned teachers + admin; teacher↔parents of their own students + other teachers + admin) — runs only on `POST /api/messages`. Both read endpoints (`GET /conversations`, `GET /with/:userId`) are participant-scoped instead (`WHERE sender_id = req.user.id OR receiver_id = req.user.id`), never re-checked against current eligibility. Reasoning: a conversation is history, not a live directory entry — if a teacher's assignment changes mid-year, old threads with a parent shouldn't disappear just because that pairing could no longer *start* today; re-running `canMessage` on every read would make message history unstable under routine reassignment. The security property reads actually need — you can't see a thread you're not part of — is enforced structurally by the `WHERE` clause alone. `GET /conversations` uses a window function, not `GROUP BY` + `MAX(created_at)` — the latter doesn't guarantee the other selected columns (body, sender_id) come from the row that actually has that max timestamp, since MySQL is free to pick them from a different row in the group. `ROW_NUMBER() OVER (PARTITION BY <other_user_id via CASE> ORDER BY created_at DESC, id DESC)` avoids that; the `CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END` is the part that matters — messages are directional (sender/receiver) but a conversation is symmetric (you + them regardless of who sent last), so partitioning on raw `sender_id` or `receiver_id` would split one real conversation into two rows. Socket auth happens once, at connection (`io.use()` middleware verifying the JWT and re-reading `status` from the DB, same live-check as HTTP `authenticate`), not per event — a deactivated user's token is rejected at the handshake, verified in tests against a user deactivated after the token was issued. Delivery is a room-scoped `io.to(\`user:${receiverId}\`).emit(...)`, one room per user, never a broadcast; REST persists first, emits after — no socket event accepts a write. **What the test suite does and does not prove about delivery:** proving "emits to the recipient only" over the wire needs two concurrent client connections and a wait-for-an-event-that-should-not-arrive assertion on the second one — an arbitrary timeout dressed up as proof, the same shape of test rejected for the last-active-admin guard's blocked branch. Tested instead: connection-time auth (no token / valid token / deactivated-user token, all deterministic connect-or-connect_error outcomes), and a source-inspection check that `io.to(...).emit(` is present and no bare `io.emit(` exists anywhere — catching a future refactor that turns the room-scoped emit into a broadcast, which is the actual regression risk, without claiming to have tested delivery itself. That source check initially failed on its own explanatory comments (`// Never io.emit()...` matched its own negative regex) — fixed by stripping `//` line comments from the source before checking, so the check reads code, not prose about the code. Two CLAUDE.md additions from this work: a line in the auth pattern section that `sanitizeUser` is for `SELECT *`/`u.*` responses specifically — a query that only selects the columns it needs doesn't need it, and calling it anyway is theatre; and a new Open Questions entry flagging that there's no "who can I message" contacts endpoint, so a parent has no way to discover their child's teachers' user ids to start a first conversation — deliberately not built, surfaced now rather than mid-Stage-4. `npm run test:messages` — 39 passing, idempotent. |
 | 2026-08-29 | Hardened `sanitizeUser` before building Messages — that module JOINs `users` twice (sender, receiver), exactly the aliased-JOIN shape the old version couldn't catch. Was `const { password, ...safe } = user`, which only stripped the literal key named `password`; a JOIN aliasing the hash to anything else (`creator_password`, `sender_password`, `u2_password`) would have leaked it straight through. Now strips any key whose name contains `password`, case-insensitive. Moved to `utils/sanitizeUser.js` — was defined identically in both `routes/auth.js` and `routes/users.js`; now one implementation, same pattern as `parseId`. Unit-tested directly in `scripts/test-sanitize-user.js` (9 assertions) rather than through HTTP, since no current endpoint produces an aliased-password row — testing the function itself, not a shape nothing exercises yet. Considered and rejected adding `UNIQUE` to `users.email` (from KNOWN ISSUES): `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose — they're one guardian's two children, and the locked decision is one account per student, a guardian with three children has three accounts. A table-wide `UNIQUE` would block any real family with 2+ kids from reusing that same real email across sibling accounts. Logged in OPEN QUESTIONS instead: if email login is ever built, the uniqueness needs to be scoped to `role IN ('teacher', 'admin')` only, never a plain table constraint. Also added a header comment to `scripts/create-backup-zip.js` clarifying it's a source-code archiver, not the DB backup — that's `routes/backups.js`. `npm run test:sanitize` — 9 passing. |
 | 2026-08-29 | Backup API built — `routes/backups.js`, `GET /`, `POST /`, `GET /:id/download`, `DELETE /:id`. Real `mysqldump` via `child_process.spawn` (not the folder-copy `scripts/create-backup-zip.js`, which is a separate source-code archiver and stays untouched), streamed straight to disk rather than buffered in memory. Password passed via `MYSQL_PWD` on the spawned child's own environment only, never on argv — keeps it out of anything that lists command lines (Task Manager, `wmic process get commandline`, `ps`); considered and rejected `--defaults-extra-file` with restrictive ACLs as disproportionate complexity for a single local-admin dev machine. Dump uses `--databases` (not a bare db name) so it's self-contained for whenever Restore gets built. A row is inserted only after the dump exits 0 and the file is confirmed non-empty — a failed dump leaves no row and no stray file. Schema change: `backups.file_size` added (`schema.sql` + live DB) — manuscript Figure 34 promises it in the backup history UI. No `status` column added; see KNOWN ISSUES for why that's deliberate. Found and fixed a real bug before shipping, unprompted: the filename format (`parents_portal_YYYY-MM-DD_HHmmss.sql`) is second-granularity with no uniqueness constraint on `filename` — two backups requested within the same wall-clock second would have collided, with the second `mysqldump` silently overwriting the first backup's file on disk while both rows stayed in the table (the first row's `file_size` then wrong, its actual content replaced). Added `reserveBackupPath()` — appends `-2`, `-3`, etc. before `.sql` until it finds a name nothing has claimed; verified in tests that two backups created back-to-back get distinct filenames and the first file is untouched by the second. One residual gap flagged, not fixed: this closes the *sequential* case but not two truly *concurrent* requests processed in the same event-loop tick, which could both pass the existence check before either has written a file — accepted for a single-admin capstone deployment rather than building file-locking or a DB-based reservation. `download_backup` is logged (filename + requesting admin) alongside `create_backup`/`delete_backup` — the most sensitive action the API permits, since it produces a copy of every student's name, LRN, grades, attendance, and messages in one portable file. `.gitignore` fixed from a blanket `backups/` to `server/backups/*` + `!server/backups/.gitkeep` (the blanket form would have swallowed the `.gitkeep` too, so a fresh clone had no directory until the first backup). `npm run test:backups` — 33 passing, idempotent, against a real dump (verified the file starts with a genuine mysqldump header, contains `CREATE DATABASE`, and its byte size matches exactly what streams back on download). Restore is explicitly out of scope for this entry — see "RESTORE — required before building." |
 | 2026-08-27 | User Management completed — `routes/users.js` gains `GET /api/users` (filter by role/status/search), `GET /api/users/:id`, `PUT /api/users/:id` (name/email/contact_number only — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` naming them if sent, not silently dropped), and `PATCH /api/users/:id/status` (active/inactive only). Schema change: `users.status` ENUM gained `'inactive'` (`schema.sql` + live DB) — reusing `'rejected'` would have shown a deactivated teacher a false "account was rejected" message on login, since that value is wired to the parent-approval flow's `rejection_reason` column. Zero changes needed in `auth.js`/`middleware/auth.js` — both already had a generic `status !== 'active'` fallback, so deactivation takes effect immediately, including on an already-issued JWT (verified in tests). Found and fixed a real landmine while doing this: `test-auth-flows.js`'s existing "unexpected status" test temporarily widened the ENUM to add `'inactive'` for itself and then narrowed it back to 3 values in its `finally` block — now that `'inactive'` is permanent, that narrowing would have silently deleted it from the schema on every subsequent `test:auth` run, breaking the new status endpoint with no obvious cause. Removed both `ALTER TABLE` statements from that test. `PATCH .../status` blocks self-deactivation unconditionally, and separately blocks deactivating the last active admin via an independent `COUNT(*) WHERE role='admin' AND status='active'` check — tested honestly: the count-check's *blocked* branch can't actually be triggered through the API, because any non-self admin acting is themselves active and always counts toward the total, so `count <= 1` is only ever reachable when actor equals target, which the unconditional self-check already catches first. Tested what's real (the allow branch, self-block, and a source check confirming the count-check's logic and message are actually wired up) instead of writing a test that would only appear to exercise it. `npm run test:users` — 39 passing, idempotent. |

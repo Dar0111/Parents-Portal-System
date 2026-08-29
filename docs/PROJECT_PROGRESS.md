@@ -25,13 +25,12 @@
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
 Stage 3 is 🔨: Student Records, Attendance, Announcements/Memos/Events,
-Contributions, System Settings, and User Management are fully built.
-Backup/Restore is partial — Backup is done, Restore is deliberately not
-built (see CLAUDE.md's "RESTORE — required before building"). Messaging
-is next — the only remaining module with no external blocker. Excuse
-Letters is partially blocked (its CRUD shape isn't, its approve/decline
-logic is) and Grades is fully blocked — both wait on the same school
-visit. See table below.
+Contributions, System Settings, User Management, and Messages + Socket.io
+are fully built. Backup/Restore is partial — Backup is done, Restore is
+deliberately not built (see CLAUDE.md's "RESTORE — required before
+building"). Excuse Letters is partially blocked — only its CRUD shape
+(submit/list/view) is safe to build now, approve/decline is not. Grades
+is fully blocked. Both wait on the same school visit. See table below.
 
 ---
 
@@ -49,7 +48,7 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 | Attendance Monitoring | ✅ `attendance` | ✅ 6 endpoints — list, per-student, summary, record, bulk record, correct | ❌ | ❌ | 28/28 tests pass (`npm run test:attendance`), idempotent. Teacher scoping checks `teacher_assignments` on subject **and** grade/section together — not just grade/section. Bulk record is all-or-nothing in a transaction. Same `(student, subject, date)` recorded twice updates, doesn't error. Summary returns raw counts only, no rate (undefined formula) — API is not blocked by this, but the parent-facing attendance page (Stage 4) is: showing a percentage needs the school to confirm whether Late counts toward "present" and whether Excused counts in the denominator. Admin unscoped on all writes. Next: web screens and Expo screens. |
 | Student Records Management | ✅ `students` | ✅ 5 endpoints — list, view, create, update, status | ❌ | ❌ | 28/28 tests pass (`npm run test:students`), idempotent — no `db:setup` needed between runs. Parents see only their own child; teachers see only their assigned grade/section, both via `404` (not `403`) to avoid enumeration. Teacher creates outside their assignment get `403`. Next: web screens (list, view, create, edit) and Expo screens. |
 | Announcements & Memo Dissemination | ✅ `announcements`, `memos`, `events` | ✅ 12 endpoints — 4 each for announcements/memos/events | ❌ | ❌ | 45/45 tests pass (`npm run test:content`), idempotent. `routes/content.js`, one file, three routers. **Schema correction:** `events` has no `target_section` column (only `announcements` does) — event audience scoping is grade-only. Teacher writes require an exact grade+section (announcements) or grade (events) they're assigned to; a school-wide/whole-grade attempt gets a `403` naming the specific reason, not a bare "forbidden." Memos have no targeting/category columns at all — school-wide by schema design, admin-only writes. Hard delete on all three (no status column); title logged to `activity_logs` before deletion. Next: web screens and Expo screens. |
-| Parent-Teacher Messaging | ✅ `messages` | ❌ | ❌ | ❌ | **Safe to build now** — the only remaining Stage 3 module with no external blocker. Schema has no open questions. Will exercise the `sanitizeUser` hardening directly: joins `users` twice, for sender and receiver names. Socket.io is locked in the stack but not wired into `server.js` yet. |
+| Parent-Teacher Messaging | ✅ `messages` | ✅ 5 endpoints — conversations, thread, send, mark-read, mark-thread-read | ❌ | ❌ | 39/39 tests pass (`npm run test:messages`), idempotent. `canMessage()` (parent↔child's assigned teachers + admin; teacher↔own students' parents + other teachers + admin) runs only on send — reads are participant-scoped instead (`WHERE sender_id = you OR receiver_id = you`), deliberately not re-checked against current eligibility, so a thread survives a teacher's later reassignment. Conversations list uses a window function (`ROW_NUMBER() OVER PARTITION BY` the other party, computed via `CASE`), not `GROUP BY` + `MAX(created_at)` — the latter doesn't guarantee the other selected columns come from the actual max row. `server.js` now wraps Express in an explicit `http.createServer` so Socket.io shares it. Socket auth is connection-time only (JWT + live `status` re-check, same as HTTP), verified against a user deactivated after their token was issued. Delivery is `io.to(user-room).emit(...)`, never a broadcast — tested via connection-auth (deterministic) plus a source check for the room-scoped emit pattern, not via a two-socket delivery test (would need a timeout-based "nothing arrived" assertion, rejected as not real proof). No queries here select `u.*`/`SELECT *` on `users`, so `sanitizeUser` isn't called despite the double sender/receiver JOIN — the fix is not fetching the password column, not scrubbing it after. Next: web screens. |
 | Excuse Letter Submission & Management | ✅ `excuse_letters` | ❌ | ❌ | ❌ | **Partially blocked**, same school visit as Grades. Submit/list/view don't depend on the answers; approve/decline does: (1) who can approve — class adviser only (no `adviser` column on `students`, needs a schema change) or any teacher assigned to the grade/section? (2) does approving change attendance — attendance is per subject, excuse letters are per day, so one approval would touch multiple `attendance` rows. Do not build approve/decline until answered. |
 | Contribution/Fees Monitoring | ✅ `contributions`, `contribution_records` | ✅ 8 endpoints — list, detail, roster, my-records, create, update, delete, mark paid/pending | ❌ | ❌ | 35/35 tests pass (`npm run test:contributions`), idempotent. `grade_level` is `NOT NULL` — no school-wide option, unlike announcements/events. Roster is a live LEFT JOIN against active students, not a snapshot — a late enrollee shows up automatically as Pending. Amount override on a payment can go below the fee (discount) but never above it (`400`, names the cap). `DELETE` blocked with `409` naming the exact record count when `contribution_records` exist — that FK is `ON DELETE CASCADE`, so an unguarded delete would silently destroy payment history. `my-records` (parent) never touches another student's row, individually or in aggregate. Also open: no CSV export (manuscript Fig. 19), GWA computation undecided — unrelated to this API. Next: web screens and Expo screens. |
 | System Settings Management (Admin) | ✅ `system_settings` | ✅ 4 endpoints — get all, get one, update one, bulk update | ❌ | ❌ | 26/26 tests pass (`npm run test:settings`), idempotent (restores original values). 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_quarter`, `logo_url`) — unknown key rejected with `400` naming the allowed ones. `current_quarter`'s valid values read live from `grades.quarter`'s ENUM via `INFORMATION_SCHEMA` rather than hardcoded, since that ENUM is still provisional (school hasn't confirmed quarters vs. terms). `academic_year` seed typo fixed to `'2026-2027'` as part of this. `PATCH` (bulk) is all-or-nothing. Next: web screens (admin settings form). |
@@ -76,6 +75,11 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 **Announcements & Memo Dissemination** — API done, no screens yet.
 - [ ] Web pages: feed view (parent/teacher), post/edit forms (teacher/admin), memo management (admin).
 - [ ] Expo screens (Stage 5, not started).
+
+**Parent-Teacher Messaging** — API + Socket.io done, no screens yet.
+- [ ] Web pages: conversation list, thread view, compose (live via Socket.io).
+- [ ] Expo screens (Stage 5, not started).
+- [ ] Open, not blocking: no "who can I message" contacts endpoint — a parent has no way to discover their child's teachers' user ids to start a first conversation. See CLAUDE.md Open Questions.
 
 **Contribution/Fees Monitoring** — API done, no screens yet.
 - [ ] Web pages: fee list, roster/mark-paid grid (teacher/admin), parent's own payment status view.

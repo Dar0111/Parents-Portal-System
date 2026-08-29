@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const http = require('http');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -12,6 +13,8 @@ const { announcementsRouter, memosRouter, eventsRouter } = require('./routes/con
 const contributionsRoutes = require('./routes/contributions');
 const settingsRoutes = require('./routes/settings');
 const backupsRoutes = require('./routes/backups');
+const messagesRoutes = require('./routes/messages');
+const { initSocket } = require('./socket');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,6 +38,7 @@ app.use('/api/events', eventsRouter);
 app.use('/api/contributions', contributionsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/backups', backupsRoutes);
+app.use('/api/messages', messagesRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found.' });
@@ -45,7 +49,14 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ success: false, message: 'Internal server error.' });
 });
 
-app.listen(PORT, () => {
+// Express's app.listen() is sugar for http.createServer(app).listen() — done
+// explicitly here so Socket.io can attach to the same underlying HTTP server
+// instead of standing up a second one.
+const httpServer = http.createServer(app);
+const io = initSocket(httpServer);
+app.set('io', io);
+
+httpServer.listen(PORT, () => {
   console.log(`Parents Portal API listening on http://localhost:${PORT}`);
 });
 
