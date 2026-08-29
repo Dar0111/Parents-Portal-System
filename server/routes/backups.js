@@ -160,6 +160,39 @@ async function dumpDatabase(outputPath) {
   );
 }
 
+// Keeping backups' CREATE TABLE in the dump file (above) fixed the stale-
+// row problem, but introduced a sharper one: the file still contains
+// `DROP TABLE IF EXISTS \`backups\`` followed by an empty `CREATE TABLE
+// \`backups\``, and the restore endpoint executes the ENTIRE file against
+// the live database. That DROP+CREATE runs too — wiping the live table to
+// zero rows on every single restore, unconditionally, regardless of which
+// backup was restored from (found by hand: restored from a backup, and
+// even the OTHER backup row created after it — never present in that
+// backup's own file either way — was gone, along with everything else).
+// mysqldump's own `--ignore-table` can't help here: applying it to the
+// SAME invocation that also needs backups' CREATE TABLE for a bare-metal
+// restore is a contradiction — you can't both include and exclude one
+// table from one mysqldump run. So the split happens at read time instead:
+// this strips the `backups` table's DDL out of the SQL string the RESTORE
+// CONNECTION executes, while the file on disk — what a bare-metal restore
+// outside this API would read — is never modified and still has the real
+// CREATE TABLE. Matched by mysqldump's own stable comment convention
+// (`-- Table structure for table \`backups\``), not a marker only new
+// dumps would carry — this also protects every backup file already on
+// disk from before this fix existed, including ones from the earlier,
+// even worse bug where backups' block additionally carried stale INSERT
+// rows. Stops at the next table's comment, or the invocation's own
+// trailing `-- Dump completed on` footer, or end of string, so it never
+// over-consumes into a neighboring table's block.
+function stripBackupsTableDdl(sql) {
+  const backupsBlockPattern =
+    /--\r?\n-- Table structure for table `backups`\r?\n--[\s\S]*?(?=(?:--\r?\n-- Table structure for table `)|(?:-- Dump completed on)|$)/;
+  return sql.replace(
+    backupsBlockPattern,
+    '-- backups table DDL/data intentionally skipped during restore — self-referential, see CLAUDE.md RESTORE section\n'
+  );
+}
+
 // Shared by POST / (a regular manual backup) and the restore endpoint's
 // mandatory safety dump — same machinery, only the filename prefix and
 // who's attributed as creator differ. Returns the inserted backups row, or
@@ -431,7 +464,11 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
   // text — if this endpoint ever took an uploaded file instead, this would
   // stop being safe.
   try {
+    // The file on disk is read but not executed verbatim — see
+    // stripBackupsTableDdl's comment for why the backups table's own
+    // DROP/CREATE must never run against the live database.
     const dumpSql = fs.readFileSync(backup.file_path, 'utf8');
+    const restorableSql = stripBackupsTableDdl(dumpSql);
     const restoreConnection = await mysql.createConnection({
       host: process.env.DB_HOST || 'localhost',
       port: Number(process.env.DB_PORT) || 3306,
@@ -440,7 +477,7 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
       multipleStatements: true,
     });
     try {
-      await restoreConnection.query(dumpSql);
+      await restoreConnection.query(restorableSql);
     } finally {
       await restoreConnection.end().catch(() => {});
     }
@@ -517,3 +554,9 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
 });
 
 module.exports = router;
+// Attached for direct-call unit testing (scripts/test-backups-flows.js) —
+// same pattern as sanitizeUser: proving "the restore path never executes
+// backups' DROP TABLE" for real needs an actual live restore, deliberately
+// excluded from the automated suite. Testing the extraction function
+// directly, against real dump content, is what's actually provable here.
+module.exports.stripBackupsTableDdl = stripBackupsTableDdl;

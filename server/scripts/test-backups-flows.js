@@ -163,9 +163,10 @@ async function run() {
       // backups is self-referential — a backup's file can never legitimately
       // contain its own row, and restoring FROM it would otherwise erase
       // every backup row taken after it (files stay on disk, rows vanish).
-      // --ignore-table + a second --no-data pass exists exactly to prevent
-      // this. If someone removes that flag later, this is the regression it
+      // --ignore-table + a second --no-data pass exists to prevent stale
+      // rows. If someone removes that flag later, this is the regression it
       // catches — no live restore needed, the dump's own content proves it.
+      // (This alone isn't the whole fix — see the DROP TABLE check below.)
       assert(
         /CREATE TABLE `?backups`?/i.test(fullDump),
         'Dump still creates the backups table (structure survives via the --no-data pass)'
@@ -173,6 +174,44 @@ async function run() {
       assert(
         !/INSERT INTO `?backups`?/i.test(fullDump),
         'Dump contains no INSERT INTO backups — its own row (and every other backup row) is never in the file'
+      );
+
+      // The above two checks passed even while the restore endpoint was
+      // still wiping the live backups table on every restore — they proved
+      // there's no stale INSERT, not that nothing destructive runs.
+      // --no-data still writes DROP TABLE `backups` / CREATE TABLE `backups`
+      // into the dump (needed so a bare-metal restore outside this API gets
+      // a real table), and the restore endpoint used to execute the whole
+      // file verbatim — so that DROP+CREATE ran against the LIVE table too,
+      // wiping it to zero rows regardless of which backup was restored from
+      // (found by hand: restoring backup #1 also erased backup #2, created
+      // after #1's dump and therefore never in #1's file either way).
+      // stripBackupsTableDdl() is what the restore handler now runs the SQL
+      // through before executing it — this asserts, against this real dump,
+      // that the DROP TABLE for backups is gone from what would be executed
+      // while the CREATE TABLE stays in the file on disk unmodified (so an
+      // external bare-metal restore is unaffected). Proving the restore
+      // endpoint itself never executes this in practice would need an
+      // actual live restore — deliberately excluded from this suite (see
+      // test:restore) — so this tests the extraction function directly
+      // against real content instead, the same shape as test:sanitize.
+      const { stripBackupsTableDdl } = require('../routes/backups.js');
+      const restorableSql = stripBackupsTableDdl(fullDump);
+      assert(
+        /DROP TABLE IF EXISTS `?backups`?/i.test(fullDump),
+        'Sanity check: the real file DOES contain DROP TABLE backups (so the next assertion is testing something real)'
+      );
+      assert(
+        !/DROP TABLE IF EXISTS `?backups`?/i.test(restorableSql),
+        'The SQL the restore endpoint would actually execute has backups\' DROP TABLE stripped out'
+      );
+      assert(
+        !/CREATE TABLE `?backups`?/i.test(restorableSql),
+        'The SQL the restore endpoint would actually execute has backups\' CREATE TABLE stripped out too'
+      );
+      assert(
+        /CREATE TABLE `?users`?/i.test(restorableSql) && /INSERT INTO `?users`?/i.test(restorableSql),
+        'Stripping backups leaves neighboring tables (users) completely untouched'
       );
     }
 

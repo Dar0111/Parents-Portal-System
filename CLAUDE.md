@@ -110,7 +110,7 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:contributions` — 35/35
 - `npm run test:settings` — 27/27
 - `npm run test:users` — 39/39
-- `npm run test:backups` — 35/35
+- `npm run test:backups` — 39/39
 - `npm run test:sanitize` — 9/9
 - `npm run test:messages` — 39/39
 - `npm run test:restore` — 22/22
@@ -145,8 +145,12 @@ server/
                                 filenames; dumpDatabase() runs mysqldump twice — main dump with
                                 --ignore-table=<db>.backups, then a --no-data pass appended for
                                 backups alone, so its data (self-referential, see RESTORE) is never
-                                in the file; GET / reconciles server/backups/ against the table and
-                                surfaces unmatched files as orphaned_files, never auto-inserted;
+                                in the file; stripBackupsTableDdl() removes backups' DROP/CREATE
+                                TABLE from the SQL the restore connection executes (exported for
+                                direct unit testing) — the dump FILE still has the real CREATE
+                                TABLE for bare-metal recovery, only what gets executed is filtered;
+                                GET / reconciles server/backups/ against the table and surfaces
+                                unmatched files as orphaned_files, never auto-inserted;
                                 POST /:id/restore — step-up password, confirm_filename, automatic
                                 pre_restore_* safety dump, dedicated one-off mysql2 connection
                                 (multipleStatements) outside the shared pool, pool reset,
@@ -422,6 +426,41 @@ below is in the shipped code, not a plan:
   a restore — that only patches what one operation touched directly, not
   backup #6 or #7 taken between the source dump and the restore, whose
   rows are equally gone and whose files are equally still on disk.
+  **That fix was incomplete — found in a second live restore.** The
+  `--no-data` pass still writes `DROP TABLE IF EXISTS \`backups\`` right
+  before the empty `CREATE TABLE`, and the restore endpoint executed the
+  entire file verbatim — so that DROP+CREATE ran against the *live* table
+  too, on every restore, unconditionally wiping it to zero rows
+  regardless of which backup was restored from (confirmed live: restoring
+  from backup #1 also erased backup #2, taken after #1's dump and
+  therefore never in #1's file under either version of this fix). Content-
+  inspecting the dump for "no `INSERT INTO backups`" — the test written
+  for the first bug — passed the whole time; it verified the anticipated
+  symptom, not the actual mechanism of harm. `--ignore-table` can't be
+  applied to the second pass either, since that pass exists specifically
+  to *include* `backups`' `CREATE TABLE` for a bare-metal restore — one
+  mysqldump invocation can't both include and exclude the same table.
+  Fixed by splitting the concern instead of the file: the dump on disk is
+  unchanged (still has a real `CREATE TABLE backups`, still useful for
+  recovery outside this API); a new `stripBackupsTableDdl()` in
+  `routes/backups.js` removes just `backups`' table block — matched on
+  mysqldump's own `-- Table structure for table` comment convention, not
+  a marker only new dumps would carry, so it also protects every backup
+  file already on disk from before this fix, including ones from the
+  original bug with stale rows — from the SQL string the restore
+  connection actually executes. Verified four ways: the function against
+  the real dump that exposed the bug (DROP/CREATE gone from the executed
+  string, `users`/`auth_security_state` untouched); the *stripped* SQL
+  executed for real against a disposable scratch database (name-
+  redirected, dropped immediately after) — 18 tables created, `backups`
+  correctly absent rather than present-and-empty, real data restored;
+  a permanent regression test in `test:backups` doing the same
+  content-level check; and — the actual proof, once the fix was in — a
+  real live restore against the shared dev DB: `GET /api/backups`
+  afterward showed three rows, both backups and the safety dump, all
+  present, `activity_logs_wiped: 2` in the response confirming that
+  marker fires too. Zero rows survived before this fix; three survived
+  after.
   `activity_logs` does **not** get the same treatment — reverting it to
   the backup's point in time is the *correct* behavior for a snapshot
   restore, same as any other domain table losing rows written after that
@@ -448,14 +487,17 @@ below is in the shipped code, not a plan:
   matching row as `orphaned_files` — read-only, never auto-inserted; an
   unexpected file is reported, not silently adopted into the table as
   though the system created it, since a fabricated `created_by` would be
-  a guess no one could vouch for. The two orphans this bug actually
-  produced (`parents_portal_2026-08-29_200152.sql`,
-  `pre_restore_2026-08-29_200239.sql`) were adopted by hand, once, as a
-  data fix, not automatically — `backups.created_by` is `ADMIN001`,
+  a guess no one could vouch for. Every orphan this feature has produced
+  across its two live-restore bugs — the original all-rows-wipe and the
+  later DROP-TABLE wipe, five files total — was adopted by hand, once
+  each, as a data fix, not automatically, and only after each underlying
+  bug was actually fixed and confirmed by a live restore, so adopting
+  never masked a still-broken state: `backups.created_by` is `ADMIN001`,
   `created_at` taken from the file's own mtime, and each is recorded in
   `activity_logs` as `manual_backup_adoption`, distinct from
-  `create_backup`, so the log stays honest about how those two rows
-  actually came to exist.
+  `create_backup`, so the log stays honest about how those rows actually
+  came to exist. `backups` currently holds 8 rows this way, 0
+  `orphaned_files`.
 - **The restore itself runs on a dedicated one-off `mysql2` connection**
   (`multipleStatements: true`), never the shared pool — the pool's
   existing connections would error once the database they're attached to
@@ -539,6 +581,21 @@ That gap — content-inspecting the dump for what restoring it would imply
 about `backups` specifically — existed before this bug was found and
 should have been written earlier; it wasn't a deliberate tradeoff the way
 excluding a live restore from the suite was.
+
+**That test still wasn't enough — it caught the stale-row bug and missed
+the DROP TABLE bug living right next to it.** "No `INSERT INTO backups`"
+says nothing about whether a `DROP TABLE` runs against the live table;
+both bugs were findable by content-inspecting the same dump, and only one
+check had been written. `npm run test:backups` now also asserts, against
+a real dump, that `stripBackupsTableDdl()` — the function the restore
+handler runs the SQL through before executing it — removes `backups`'
+`DROP TABLE` and `CREATE TABLE` from what would actually run, while
+leaving every other table's structure and data untouched. `npm run
+test:backups` — 39 passing (was 35 after the first fix; four more
+assertions here). The lesson: a content-inspection test proves what it
+explicitly checks for, not "this dump is now safe to restore" in
+general — the next thing to ask is "what else does executing this file
+imply," not just "does this one anticipated symptom show up."
 
 ---
 
@@ -835,6 +892,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-29 | The `stripBackupsTableDdl()` fix (entry below) confirmed by an actual live restore, not just the scratch-database simulation — the real proof this feature needs. Two fresh backups created, then restored from the first: `GET /api/backups` afterward showed **three** rows — both backups and the automatic safety dump, all present. Zero survived before this fix; three survived after. `activity_logs_wiped: 2` also came back in the restore response, confirming the `restore_wiped_activity_logs` marker fires correctly on a real restore, not just in isolation. Five files were orphaned across the two live-restore incidents this feature has now been through — the original all-rows-wiped bug's two (`parents_portal_2026-08-29_200152.sql`, `pre_restore_2026-08-29_200239.sql`) and this DROP-TABLE bug's three (`parents_portal_2026-08-29_221520.sql`, `parents_portal_2026-08-29_221523.sql`, `pre_restore_2026-08-29_221556.sql`) — all adopted by hand, once, the same way as the first two: `created_by` `ADMIN001`, `created_at` from each file's own mtime, each recorded in `activity_logs` as `manual_backup_adoption` (ids 4–8) so the log stays honest that these rows were reconstructed, not created by the normal flow. Deliberately not adopted until after the live restore confirmed the fix — adopting first would have muddied the result by giving the restore rows to inherit from instead of a clean empty-table baseline. `GET /api/backups` — 8 rows tracked, 0 `orphaned_files`, confirmed. `npm run test:backups` (39/39) and `npm run test:restore` (22/22) both still pass after the live write, confirmed twice. |
+| 2026-08-29 | Fixed a second, sharper version of the backups-wipe bug in the entry below, found by hand in a second live restore — the `--ignore-table`/`--no-data` fix did not actually fix it. Verified against the real dump file before touching anything: `parents_portal_2026-08-29_221520.sql` had no `INSERT INTO backups` (correct) but did have `DROP TABLE IF EXISTS \`backups\`` immediately followed by an empty `CREATE TABLE \`backups\``. The restore endpoint executes the entire file verbatim — so that DROP+CREATE ran against the LIVE table too, unconditionally wiping it to zero rows on every restore regardless of source backup. Confirmed live: created two backups (ids 1, 2), restored from #1, `GET /api/backups` came back `[]` — not just #1's row (structurally expected either way, per the first fix) but #2's too, created *after* #1's dump and therefore never in #1's file under any version of this fix. The `--no-data` pass exists so a bare-metal restore outside this API still gets a real `backups` table — that requirement doesn't go away — but it means the dump file necessarily contains that DROP+CREATE, and this API's own restore handler must never be the one executing it. Fixed by splitting concerns: the dump FILE is unchanged (still has real `CREATE TABLE backups`, still useful for external recovery); a new `stripBackupsTableDdl()` in `routes/backups.js` removes just the `backups` table's block (matched on mysqldump's own `-- Table structure for table \`backups\`` comment, stopping at the next table's comment or the trailing `-- Dump completed on` footer) from the SQL string the restore CONNECTION actually executes. Name-based, not a marker only new dumps would carry, so it also protects every backup file already on disk from before this fix, including ones from the original (even worse) bug where the block additionally carried stale rows. Verified three ways before calling it fixed: (1) ran the real stripping function against the actual `221520` dump and confirmed `DROP TABLE`/`CREATE TABLE backups` gone from the executed string while neighboring tables (`users`, `auth_security_state`) were untouched; (2) executed the *stripped* SQL for real against a disposable scratch database (name-redirected via a regex on the dump's own `parents_portal` references, dropped immediately after) — 18 tables created (19 minus `backups`, correctly absent rather than present-and-empty), real data restored (4 `users` rows) — proof the stripped SQL is not just missing the risky statements but still valid, executable SQL on its own; (3) `npm run test:backups` now asserts this directly — a real dump DOES contain `backups`' `DROP TABLE` (sanity check the test is testing something real), and `stripBackupsTableDdl()` applied to that same real content removes both `DROP TABLE` and `CREATE TABLE` for `backups` while leaving `users`' structure and data intact. Proving the restore endpoint itself never executes the stripped statements in production would need an actual live restore — deliberately excluded from the suite, same reasoning as everywhere else in this section — so this tests the extraction function directly against real dump content instead, same shape as `test:sanitize`. `npm run test:backups` — 39 passing (was 35; four new assertions), idempotent, confirmed twice. `npm run test:restore` — unaffected, 22/22, confirmed twice (`stripBackupsTableDdl` is only exercised by an actual restore, which that suite never triggers). **Also checked, unprompted, before writing any code: does `auth_security_state` have the same shape?** Mechanically yes — it's not excluded from the dump, so a restore drops and recreates it too, and the `221520` dump's own `auth_security_state` block proved this concretely (`DROP TABLE`/`CREATE TABLE` with zero rows — that table was empty when this backup was taken, before any restore had run). But unlike `backups`, `auth_security_state.token_valid_after` gets unconditionally re-set via `INSERT ... ON DUPLICATE KEY UPDATE token_valid_after = NOW()` immediately after every restore, regardless of what the dump's snapshot contained — no `if` guarding it, unlike the `restore_wiped_activity_logs` marker's nonzero-count gate. If that specific write fails, the handler's `catch` doesn't claim success — it returns `200` with an explicit warning to treat all sessions as suspect, never the normal "sessions invalidated" message. Verified live, not just reasoned through: `auth_security_state.token_valid_after` currently holds a timestamp matching the actual restore, despite that backup's own dump snapshot for the table being empty. No fix needed here — the existing unconditional post-restore write already covers it; this is architecturally different from `backups`, which has no equivalent write in normal operation. |
 | 2026-08-29 | Added a `restore_wiped_activity_logs` marker — the follow-up to the `activity_logs` gap flagged in the backups-wipe entry below, and a deliberate choice not to build the fuller fix (reordering both `create_backup`/`restore_backup` log writes to after the restore). The wipe itself still happens — `activity_logs` still correctly reverts to the restored backup's point in time, including losing the safety dump's own `create_backup` entry — this only makes it stop being silent. `routes/backups.js`'s restore handler now counts `activity_logs` entries newer than `backup.created_at` right before the restore SQL runs (as late as possible, so it's exact — not estimated — and naturally includes the safety-dump entry already written by that point), then, if that count is nonzero, writes one `restore_wiped_activity_logs` entry *after* the restore completes, same timing as `restore_backup` and `token_valid_after`, so it isn't wiped by the thing it documents. Its description names the source backup, that backup's own `created_at` as the boundary, and the exact count lost. The response body also carries `activity_logs_wiped: <count>` so the acting admin sees it immediately, not only in the log. Explicitly not tamper-proof — an admin with direct DB access could delete this row same as any other — but not silent is still better than silent. `npm run test:backups` (35/35) and `npm run test:restore` (22/22) both unaffected — the marker only fires on an actual restore, which neither suite triggers; verifying it requires the same deliberate manual restore everything else in this section does. |
 | 2026-08-29 | Fixed a real bug found by hand in the first live restore, not by the automated suite: `GET /api/backups` came back completely empty afterward — not just the safety dump's row, the row of the backup actually restored from too, and (in general, though not observed in this specific run) the row of any other backup taken after the source dump. Root cause: the `backups` table itself is self-referential. A row is inserted only after its own file finishes dumping (`createBackupRecord`), so a backup's file can never contain its own row, and restoring rewinds `backups` to a state missing it, plus every row inserted after that dump was taken; the files stay on disk, the table just stops knowing they exist. Considered and rejected a fix that re-inserts the two rows the restore handler happens to hold references to: it only patches what that one operation touched, not backups #6/#7 taken between the source dump and the restore. Fixed at the source instead — `routes/backups.js`'s `dumpDatabase()` now runs `mysqldump` twice: the main dump with `--ignore-table=<db>.backups` (full structure + data for every other table), then a second `--no-data` pass appended for `backups` alone, so the file still creates an empty `backups` table (a bare-metal restore outside this API still gets a real table, not one requiring `schema.sql` reapplied) but never repopulates it with stale rows. `GET /api/backups` now also reconciles the table against `server/backups/` on every read, returning any `.sql` file with no matching row as `orphaned_files` — read-only, never auto-inserted, since fabricating a `created_by` for an unmatched file would be a guess no one could vouch for. The two files this bug actually orphaned (`parents_portal_2026-08-29_200152.sql`, `pre_restore_2026-08-29_200239.sql`) were adopted by hand, once, as a data fix: `created_by` set to `ADMIN001`, `created_at` taken from the file's own mtime, and each recorded in `activity_logs` as `manual_backup_adoption` — a distinct action from `create_backup`, so the log stays honest that these two rows were reconstructed, not created by the normal flow. **What else in the system has this shape** — a table describing the system rather than the school, wrong to restore verbatim: `activity_logs` was the obvious candidate to check, and checking it live confirmed a real but narrower version of the same defect. Reverting `activity_logs` to the backup's point in time is *correct* for a snapshot restore in general — same as any domain table losing rows written after that point, not a bug. But the two log entries the restore operation itself writes have the identical self-referential problem `backups`' row had: verified against the live table, only the `restore_backup` entry survived a restore (logged *after* the restore SQL runs, same timing class as `token_valid_after`); the safety dump's `create_backup` entry was provably wiped by the very restore it documents, since it's logged *before* the restore SQL runs, into a table that operation then overwrites. Not fixed in this round — out of the agreed scope, and it's a much smaller blast radius (one missing log line, not an empty operational table) — flagged here as a known gap. A marker for it was added in a later entry the same day, below. New test: `npm run test:backups` now asserts a real dump contains `CREATE TABLE backups` (structure survives) and contains no `INSERT INTO backups` (no stale rows) — direct regression coverage for the `--ignore-table`/`--no-data` fix; if the flag is ever removed, this fails immediately with no live restore needed. `npm run test:backups` — 35 passing (was 33; two new assertions), idempotent. Fixing this also broke a fixture assumption in `test:restore`: it asserted `pre_restore_` backups count is exactly `0` at baseline and again after every gate-failure test ("clean baseline") — true only because no real restore had ever run yet. Once one genuinely had (see below) and its `pre_restore_*` row was adopted, that absolute-zero assumption became permanently false, failing 2 assertions on every subsequent run. Fixed to a before/after delta (no *new* `pre_restore_` row created by this suite's own requests) instead of an absolute count — the same idempotent-suite pattern used everywhere else in this codebase, just missed here because the suite was written before a real restore was possible to run against. `npm run test:restore` — 22 passing (one assertion converted to a tracked baseline, no longer a standalone check), confirmed twice. **On whether the suite could have caught the original bug without a live restore:** the *consequence* (empty table) genuinely needed one — that's why it surfaced by hand. But the *precondition* (a backup's file can never contain its own row) was checkable from a dump's content alone the whole time, same content-inspection shape already used for the `mysqldump` header/`CREATE DATABASE` checks — that test just hadn't been written. Unlike excluding a live restore from the suite (a deliberate, confirmed tradeoff), this was a gap, and it's fixed now. |
 | 2026-08-29 | Fixed a real bug in `scripts/test-messages-flows.js`, found during the full regression pass after Restore — not a bug in the app code, which was correct the whole time. The source-inspection check for "no bare `io.emit(`" strips `//` line comments before checking, specifically so its own explanatory comments (`// Never io.emit()...`) can't false-match the negative check. `stripLineComments` split the file on `\n` only; `socket.js` and `routes/messages.js` have Windows CRLF line endings, so every split "line" kept a trailing `\r`. JS's `.` does not match `\r` (it's a line terminator), so `.*` in `/\/\/.*$/` stopped just short of it — and `$` without the `m` flag only matches true end-of-string, never that position, so the whole regex silently failed to match on every line and stripped nothing. The literal text "io.emit()" inside the comment then survived and tripped the check. This is why the check appeared to pass earlier in the session and then failed later with no code change in between — some tool along the way (not identified precisely; Windows editing/`git` are the suspects) rewrote the file's line endings to CRLF after the check was first written and verified against an LF version. Fixed by dropping the unneeded `$` anchor (`/\/\/.*/`) — `.*` already stops at the end of each single-line string without it, CRLF or not. **Lesson for source-inspection tests on Windows: never anchor a per-line regex on `$` without first normalizing or accounting for `\r` — verify the strip against the file's actual on-disk line endings, not just its content.** `npm run test:messages` — 39 passing, confirmed twice; app code in `socket.js`/`routes/messages.js` required no changes. |
