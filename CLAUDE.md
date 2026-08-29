@@ -25,7 +25,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-08-27 (audited against the code, not the docs)
+**Last verified:** 2026-08-29 (audited against the code, not the docs)
 
 ### Working endpoints — this is the entire API
 
@@ -280,10 +280,10 @@ re-keyed to `subject_id` once the school confirms actual practice.
 | Issue | Where | Note |
 |---|---|---|
 | `users.email` has no UNIQUE constraint | `schema.sql` | Only matters if email login is added later. Duplicate emails would break the lookup. |
-| `create-backup-zip.js` copies folders | `scripts/` | Not a database backup. The Backup/Restore module needs `mysqldump`, not a folder copy. |
 | `grade_components.type` is `ENUM('quiz','activity')` | `schema.sql` | Manuscript promises five components. Blocked on the school. |
 | No `Download Statement` export | — | Promised in manuscript Figure 19. Build a CSV export from `contribution_records`, or remove it from the paper. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |
+| `backups` has no `status` column | `schema.sql` | Deliberate, not missing: a row is only ever inserted after the dump succeeds, so every row is definitionally "Completed" — the UI hardcodes that string. Revisit only if backup generation becomes asynchronous (a pending/failed state visible before the job finishes) — that's the trigger, not before. |
 
 ---
 

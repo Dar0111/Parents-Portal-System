@@ -11,6 +11,7 @@ const attendanceRoutes = require('./routes/attendance');
 const { announcementsRouter, memosRouter, eventsRouter } = require('./routes/content');
 const contributionsRoutes = require('./routes/contributions');
 const settingsRoutes = require('./routes/settings');
+const backupsRoutes = require('./routes/backups');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +34,7 @@ app.use('/api/memos', memosRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/contributions', contributionsRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/backups', backupsRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found.' });

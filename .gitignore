@@ -36,7 +36,8 @@ server/uploads/*
 
 # --- Database dumps / backups ---
 *.sql.backup
-backups/
+server/backups/*
+!server/backups/.gitkeep
 *.dump
 
 # --- Test / temp ---

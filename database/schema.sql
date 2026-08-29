@@ -250,6 +250,7 @@ CREATE TABLE backups (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   filename VARCHAR(255) NOT NULL,
   file_path VARCHAR(255) NOT NULL,
+  file_size INT UNSIGNED NOT NULL,
   created_by INT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_backups_created (created_by)
