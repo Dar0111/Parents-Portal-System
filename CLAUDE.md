@@ -25,7 +25,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-08-29 (audited against the code, not the docs)
+**Last verified:** 2026-08-30 (audited against the code, not the docs)
 
 ### Working endpoints — this is the entire API
 
@@ -103,11 +103,11 @@ messages) after. `test:sanitize` is a direct-call unit test — no server or DB
 involved. `test:restore` is the one exception to "runs a real flow end to end":
 it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
-- `npm run test:students` — 28/28
+- `npm run test:students` — 30/30
 - `npm run test:auth` — 25/25
-- `npm run test:attendance` — 28/28
-- `npm run test:content` — 45/45
-- `npm run test:contributions` — 35/35
+- `npm run test:attendance` — 33/33
+- `npm run test:content` — 47/47
+- `npm run test:contributions` — 38/38
 - `npm run test:settings` — 27/27
 - `npm run test:users` — 39/39
 - `npm run test:backups` — 39/39
@@ -131,13 +131,17 @@ server/
   config/db.js                 MySQL pool behind a proxy object (query/getConnection delegate to the
                                 current pool) — resetPool() swaps in a fresh pool after a restore,
                                 which a plain module.exports reassignment couldn't do (every existing
-                                `require('../config/db')` holds a direct reference, not a live binding)
+                                `require('../config/db')` holds a direct reference, not a live binding);
+                                dateStrings: ['DATE'] — DATE columns come back as raw 'YYYY-MM-DD'
+                                strings, never JS Date objects, so no UTC-conversion round-trip bug
+                                is possible; TIMESTAMP/DATETIME columns unaffected
   middleware/auth.js           authenticate + authorize; authenticate also checks
                                 auth_security_state.token_valid_after against the JWT's iat
   routes/auth.js               login, me, change-password
   routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
   routes/students.js           list/view/create/update, teacher scoped to own assignments
-  routes/attendance.js         record/bulk/correct/list/summary, teacher scoped by subject+grade+section
+  routes/attendance.js         record/bulk/correct/list/summary, teacher scoped by subject+grade+section;
+                                list + per-student reads now join subjects for subject_name
   routes/content.js            announcements/memos/events — 3 routers, one file
   routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   routes/settings.js           key-value store, allow-listed keys, per-key validation
@@ -162,6 +166,8 @@ server/
   utils/activity.js            insert into activity_logs
   utils/validateId.js          parseId() — validates :id route params before any query
   utils/sanitizeUser.js        sanitizeUser() — strips any key containing "password", case-insensitive
+  utils/dateFormat.js          isValidDateFormat() + todayLocalDateString() — shared by
+                                attendance/content/contributions, replacing 3 duplicated copies
   scripts/setup-db.js          runs schema + seed, hashes seed passwords
   scripts/test-auth-flows.js   HTTP tests
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
@@ -871,10 +877,99 @@ handled by the team. Do not re-raise it.
   final defense
 - Long responses when a short one answers the question
 
+**Working agreement**
+
+- Before writing code for a new module, state the exact list of files you
+  will create or modify. If you later need a file outside that list, stop
+  and say "SCOPE EXPANSION — need `<path>` because `<reason>`" rather than
+  quietly adding it.
+- When you stop, name the reason with one of: BASELINE MISMATCH, SCOPE
+  EXPANSION, CONTENT DRIFT, or a specific behavioral reason. "Something is
+  wrong" is not a stop reason.
+- Test assertions against shared tables must be scoped to rows the run
+  itself created, or written as invariants (`.every(...)`) that additional
+  real rows still satisfy. Never assert an exact row count or exact list
+  contents on a table the application also writes to. A suite that fails
+  when someone uses the feature is not testing the feature.
+
 When Darryl corrects a wrong assumption, accept it and move on. The `.md`
 and `.sql` files describe the real system; the manuscript describes the
 approved design. **When they conflict, say so plainly** rather than assuming
 either one is wrong.
+
+---
+
+## AGENT SKILLS — three installed, deliberately not the rest
+
+Installed 2026-08-30 from `mattpocock/skills` via
+`npx skills@latest add mattpocock/skills`. Files live in `.claude/skills/`,
+**copied, not symlinked** (`--copy`) — they are editable files this repo owns,
+not a managed subscription to someone else's repo. Edit them freely; nothing
+auto-updates them.
+
+The upstream repo has **37 skills**. Three were installed, plus the setup
+skill they require. This was a selection, not a partial install to be
+completed later.
+
+| Skill | Invoke with | For |
+|---|---|---|
+| `diagnosing-bugs` | `/diagnosing-bugs` | Disciplined red-first diagnosis loop for hard bugs and performance regressions |
+| `tdd` | `/tdd` | Red-green-refactor, one vertical slice at a time |
+| `handoff` | `/handoff` | Compact the current session into a handoff doc (written to the OS temp dir, not this repo) before context runs out |
+| `setup-matt-pocock-skills` | `/setup-matt-pocock-skills` | Already run once, 2026-08-30. Re-run only to switch issue tracker |
+
+**Two of them auto-invoke; two do not.** `handoff` and
+`setup-matt-pocock-skills` are `disable-model-invocation: true` — they run only
+when Darryl types the slash command. `diagnosing-bugs` and `tdd` are **not**
+marked that way, so Claude may reach for them on its own the moment something
+is reported broken or a feature is asked for test-first. That is intended —
+it is why they were chosen — but it means their discipline can start without
+being asked for. To make either opt-in only, add
+`disable-model-invocation: true` to its `SKILL.md` frontmatter; the files are
+copies this repo owns, so that edit sticks.
+
+**Why these two specifically.** Three bugs in the week of 2026-08-29 were found
+only by manual end-to-end testing, not by the 336-test suite — including the
+`stripBackupsTableDdl` case, where a test asserted the *anticipated symptom*
+("no `INSERT INTO backups`") and passed while the system was broken by a
+different mechanism sitting next to it (`DROP TABLE`). See the CHANGELOG. That
+is a diagnosis-discipline and test-design problem, which is what these two
+skills are for.
+
+**Deliberately NOT installed:** `grill-me`, `grill-with-docs`, `to-spec`,
+`to-tickets`, `implement`, `wayfinder`, `triage`,
+`improve-codebase-architecture`, and the remaining ~26. Reason: they are a
+planning and ticketing workflow, and this repo already has one — `CLAUDE.md`'s
+**BUILD ORDER**, **BLOCKED**, **LOCKED DECISIONS**, and **OPEN QUESTIONS**
+sections, plus the end-of-session update ritual. Two competing planning
+disciplines in one repo is how documents drift apart, which has already
+happened here once with `PROJECT_PROGRESS.md`. **Do not install more of them
+without a specific reason.** A future session finding only three skills present
+is looking at a decision, not an oversight.
+
+### Setup answers (recorded so they aren't re-asked)
+
+`/setup-matt-pocock-skills` was run once on 2026-08-30. Its answers:
+
+- **Issue tracker:** local markdown files, not GitHub Issues. See
+  `docs/agents/issue-tracker.md`. The repo does have a GitHub remote and the
+  skill defaults to GitHub — this was an explicit override, because this is a
+  solo capstone with no issues board.
+- **Triage labels:** none. Section skipped entirely, because `triage` is not
+  installed. There is no `docs/agents/triage-labels.md` and there should not be.
+- **Domain docs:** single-context. See `docs/agents/domain.md`.
+
+### No CONTEXT.md — deliberate
+
+`diagnosing-bugs/SKILL.md` and `tdd/SKILL.md` both say "read `CONTEXT.md` (if it
+exists)". **This repo has no `CONTEXT.md` and should not get one.** This file is
+the context document. `docs/agents/domain.md` redirects those skills here, so
+they read the real source of truth instead of nothing.
+
+A second root-level context document would be a third thing to keep in sync
+with the code alongside this file and `docs/PROJECT_PROGRESS.md` — and the
+warning at the top of this file exists precisely because that sync failed once
+already.
 
 ---
 
@@ -892,6 +987,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-08-30 | Fixed the `test:messages` failure flagged as its own task in the entry below (root cause found by investigating, not by inspecting `routes/messages.js`, which was correct the whole time). The `messages` table had exactly one stray row — `sender_id=3 (the seeded parent, Marwin), receiver_id=2 (TCH-001), body="Test message from manual check"` — left over from earlier manual testing against the API, outside the automated suite entirely. `test-messages-flows.js` reuses these two **seeded** accounts as its `parent1`/`teacher1` fixtures every run, unlike its own `teacher2`/`parent2`, which are timestamp-suffixed and genuinely fresh each time. That stray row sorted first in the thread's `ORDER BY created_at ASC, id ASC`, so this run's own 3 messages always had an unexpected 4th prepended — the "Thread returns messages in chronological order" assertion compared the full thread verbatim against a hardcoded 3-message string and failed, correctly, against data the test had no way to know about. Fixed in two parts. (1) Data: deleted the stray row, confirmed live — `messages` back to 0 rows, matching what CLAUDE.md's own CURRENT STATE already claimed as the baseline. (2) The test itself, and this is the part that matters going forward: the assertion was rewritten to scope to the 3 message ids *this run created* (filtering the fetched thread down to `[m1.id, m4.id, m5.id]` before checking order) instead of asserting the whole thread's exact content — still catches the actual regression this guards against (a reversed `ORDER BY`), immune to anything else in the thread. Verified this is a real fix, not just "removing the row made it pass again": reinserted a simulated stray message, confirmed the suite failed as before (proving the deletion alone wasn't the fix), applied the scoped assertion, reinserted the simulated row again, ran twice — 39/39 both times. Two more assertions in the same file had the identical shape, on the *same* reused `parent1`/`teacher1` pair, not yet triggered only by luck: `conversations` list's `unread_count` and `last_message_body` were hardcoded to literals (`1`, `'Spoofed sender test'`); `read-all`'s returned `count` was hardcoded to `2`. All three rewritten to compare against ground truth queried from the DB the same way the endpoint computes it (true last message by the same `ORDER BY created_at DESC, id DESC`, true unread count by the same `WHERE ... AND read_status = 0`, true pre-call unread count for the read-all delta) — an endpoint bug (e.g. a `GROUP BY`+`MAX` picking the wrong row, the exact failure mode `routes/messages.js`'s window-function design was built to avoid) still fails these; unrelated real activity through the same accounts does not. `teacherWithParent1?.unread_count === 0` (after read-all) was left as a literal zero — read-all marks every matching row read regardless of source, so zero remaining is a genuine invariant, not exposed to this class of bug. Verified the same way: reinserted a simulated unread `teacher1 → parent1` message (the exact direction that would have broken both the old `unread_count` and `last_message_body` checks), ran twice — 39/39 both times, cleaned up after. Reviewed all ten other suites for the same shape at the requester's request, before changing anything: found one more instance of the identical pattern in this same file (now fixed, above) and one lower-severity instance in `test-attendance-flows.js`'s summary check (scoped to the seeded student plus a rolling `daysAgo(2)` date — a transient, self-healing exposure window, not a permanent one like two reused accounts forever) — left alone deliberately, not worth the churn of rewriting a test that ages out of its own risk on its own. Everything else checked was already either scoped to a specific tracked id, or written as an `.every(...)` invariant that additional real rows still satisfy (`test-user-management-flows.js`'s "no user has a password key," `test-contributions-flows.js`'s key-name check) — structurally immune to this bug class, not merely lucky. New working-agreement line added to CLAUDE.md: test assertions against shared tables must be scoped to rows the run itself created, or written as invariants that additional real rows still satisfy — never an exact row count or exact list content on a table the app also writes to, since a suite that fails when someone uses the feature is not testing the feature. `npm run test:messages` — 39 passing, confirmed clean and confirmed to survive simulated real usage, both re-checked twice. |
+| 2026-08-30 | Fixed a real bug found in manual testing, not the automated suite: a DATE column round-tripped a calendar day backward. Posting `date: "2026-08-29"` to attendance came back `"2026-08-28T16:00:00.000Z"` on read — a teacher recording today's attendance would show yesterday to the parent. Root cause: mysql2, without `dateStrings` set, returns a DATE column as a JS `Date` object constructed at local midnight; `res.json()`'s `JSON.stringify` calls `Date#toJSON()` → `toISOString()`, which converts to UTC — at UTC+8 that always lands on the previous calendar day, not an edge case. Fixed with `dateStrings: ['DATE']` on the pool (`config/db.js`) rather than `dateStrings: true` or per-query `DATE_FORMAT()`: scoped to DATE columns only, so `created_at`/`updated_at` (TIMESTAMP) keep returning as JS `Date` objects exactly as before, and it's one change covering every DATE column on every query through the shared pool, not four separate per-query edits easy to miss one of. Checked every DATE column, not just `attendance.date`: `events.event_date`, `contributions.due_date`, `students.birthday` all had the identical bug, all fixed by the same one-line change. `excuse_letters.absence_date` was **not** touched — no route file exists for that module yet (confirmed: no `routes/excuse_letters.js`); the same `dateStrings` fix already covers it structurally, but `isValidDateFormat` still needs to be imported from the new shared file when that module is built. New shared `utils/dateFormat.js` — `isValidDateFormat()` was duplicated identically in `attendance.js`, `content.js`, and `contributions.js`; now one implementation, same pattern as `parseId`/`sanitizeUser`. Also added `todayLocalDateString()` there, because two **adjacent** bugs turned up while in these files, same root cause (naive UTC math at UTC+8) but a different mechanism (write-side comparison, not read-side serialization) — flagged explicitly rather than folded in silently: `attendance.js`'s `isFutureDate()` and `content.js`'s `isMoreThanOneYearAhead()` both computed "today" via `new Date().toISOString().slice(0, 10)` — UTC, not local. Between PH midnight and 8am, UTC's calendar date is still yesterday, so `isFutureDate` would have rejected a teacher's own-day attendance entry as "in the future" for the first 8 hours of every single day. `todayLocalDateString()` uses `getFullYear()`/`getMonth()`/`getDate()` (local wall-clock getters) instead — the same pattern `routes/backups.js`'s `formatBackupFilename()` already used for its own timestamps, not a new approach. Separately, `content.js` and `contributions.js` each had a `toDateString()` helper — converts a fetched value back to a string via `.toISOString().slice(0, 10)` when a PUT omits the date field, falling back to the existing row's value — with the identical UTC-shift bug, but on a **write path**: a PUT to `/events/:id` or `/contributions/:id` that didn't resend `event_date`/`due_date` would silently write back the wrong day, corrupting a date the caller never touched. Removed entirely — once `dateStrings: ['DATE']` is set, `existing.event_date`/`existing.due_date` are already correct strings, so the fallback is just `existing.event_date` directly, no conversion needed or safe to reintroduce. Also fixed, part 2 of this session's request: `attendance.js`'s `GET /` and `GET /student/:studentId` both returned `subject_id` with no `subject_name` — neither joined `subjects`. `GET /summary/:studentId` returns aggregated counts only, no per-record subject, so it doesn't apply. Both fixed with a plain `JOIN subjects sub ON sub.id = a.subject_id`. **Why the existing 336 tests never caught the round-trip bug:** every prior assertion that touched a DATE column compared the API's response against a value derived the *same wrong way* — e.g. a test fixture date built via `daysAgo()`'s own `.toISOString().slice(0, 10)`, then compared against a response that had *also* gone through a UTC-shifting round-trip; both sides were shifted identically, so they agreed with each other while both being wrong. The fix, per file: post a value, read the *exact same field* back on the same response (and again on a separate fresh `GET`), assert the strings are byte-identical to what was sent — never comparing two independently-computed values that could share the same bug. `npm run test:attendance` — 33 passing (was 28; round-trip on POST and a fresh GET, `subject_name` on both read endpoints, a same-day-not-future regression for the `isFutureDate` fix). `npm run test:content` — 47 passing (was 45; round-trip + a PUT-that-omits-`event_date` regression, the actual test for the `toDateString` removal — asserts the date survives an edit that never sent it, not just that the edit "succeeded"). `npm run test:contributions` — 38 passing (was 35; same two shapes for `due_date`, including a new author-edit test path that didn't exist before). `npm run test:students` — 30 passing (was 28; `birthday` round-trip + PUT-omits-it regression, found while checking every DATE column — `students.js` never had a buggy `toDateString` wrapper, it already passed `existing.birthday` straight through, so this is a regression lock, not a new code fix in that file). All four suites confirmed twice each (idempotent, no `db:setup` needed between runs). Full regression across all eleven suites afterward found one unrelated, pre-existing failure in `test:messages` — not caused by this work (confirmed via `git status`: `routes/messages.js`, `socket.js`, and its test file were untouched, and none touch a DATE column) — opened as its own task rather than mixed into this entry; see the entry above for what it turned out to be and how it was fixed. |
 | 2026-08-29 | The `stripBackupsTableDdl()` fix (entry below) confirmed by an actual live restore, not just the scratch-database simulation — the real proof this feature needs. Two fresh backups created, then restored from the first: `GET /api/backups` afterward showed **three** rows — both backups and the automatic safety dump, all present. Zero survived before this fix; three survived after. `activity_logs_wiped: 2` also came back in the restore response, confirming the `restore_wiped_activity_logs` marker fires correctly on a real restore, not just in isolation. Five files were orphaned across the two live-restore incidents this feature has now been through — the original all-rows-wiped bug's two (`parents_portal_2026-08-29_200152.sql`, `pre_restore_2026-08-29_200239.sql`) and this DROP-TABLE bug's three (`parents_portal_2026-08-29_221520.sql`, `parents_portal_2026-08-29_221523.sql`, `pre_restore_2026-08-29_221556.sql`) — all adopted by hand, once, the same way as the first two: `created_by` `ADMIN001`, `created_at` from each file's own mtime, each recorded in `activity_logs` as `manual_backup_adoption` (ids 4–8) so the log stays honest that these rows were reconstructed, not created by the normal flow. Deliberately not adopted until after the live restore confirmed the fix — adopting first would have muddied the result by giving the restore rows to inherit from instead of a clean empty-table baseline. `GET /api/backups` — 8 rows tracked, 0 `orphaned_files`, confirmed. `npm run test:backups` (39/39) and `npm run test:restore` (22/22) both still pass after the live write, confirmed twice. |
 | 2026-08-29 | Fixed a second, sharper version of the backups-wipe bug in the entry below, found by hand in a second live restore — the `--ignore-table`/`--no-data` fix did not actually fix it. Verified against the real dump file before touching anything: `parents_portal_2026-08-29_221520.sql` had no `INSERT INTO backups` (correct) but did have `DROP TABLE IF EXISTS \`backups\`` immediately followed by an empty `CREATE TABLE \`backups\``. The restore endpoint executes the entire file verbatim — so that DROP+CREATE ran against the LIVE table too, unconditionally wiping it to zero rows on every restore regardless of source backup. Confirmed live: created two backups (ids 1, 2), restored from #1, `GET /api/backups` came back `[]` — not just #1's row (structurally expected either way, per the first fix) but #2's too, created *after* #1's dump and therefore never in #1's file under any version of this fix. The `--no-data` pass exists so a bare-metal restore outside this API still gets a real `backups` table — that requirement doesn't go away — but it means the dump file necessarily contains that DROP+CREATE, and this API's own restore handler must never be the one executing it. Fixed by splitting concerns: the dump FILE is unchanged (still has real `CREATE TABLE backups`, still useful for external recovery); a new `stripBackupsTableDdl()` in `routes/backups.js` removes just the `backups` table's block (matched on mysqldump's own `-- Table structure for table \`backups\`` comment, stopping at the next table's comment or the trailing `-- Dump completed on` footer) from the SQL string the restore CONNECTION actually executes. Name-based, not a marker only new dumps would carry, so it also protects every backup file already on disk from before this fix, including ones from the original (even worse) bug where the block additionally carried stale rows. Verified three ways before calling it fixed: (1) ran the real stripping function against the actual `221520` dump and confirmed `DROP TABLE`/`CREATE TABLE backups` gone from the executed string while neighboring tables (`users`, `auth_security_state`) were untouched; (2) executed the *stripped* SQL for real against a disposable scratch database (name-redirected via a regex on the dump's own `parents_portal` references, dropped immediately after) — 18 tables created (19 minus `backups`, correctly absent rather than present-and-empty), real data restored (4 `users` rows) — proof the stripped SQL is not just missing the risky statements but still valid, executable SQL on its own; (3) `npm run test:backups` now asserts this directly — a real dump DOES contain `backups`' `DROP TABLE` (sanity check the test is testing something real), and `stripBackupsTableDdl()` applied to that same real content removes both `DROP TABLE` and `CREATE TABLE` for `backups` while leaving `users`' structure and data intact. Proving the restore endpoint itself never executes the stripped statements in production would need an actual live restore — deliberately excluded from the suite, same reasoning as everywhere else in this section — so this tests the extraction function directly against real dump content instead, same shape as `test:sanitize`. `npm run test:backups` — 39 passing (was 35; four new assertions), idempotent, confirmed twice. `npm run test:restore` — unaffected, 22/22, confirmed twice (`stripBackupsTableDdl` is only exercised by an actual restore, which that suite never triggers). **Also checked, unprompted, before writing any code: does `auth_security_state` have the same shape?** Mechanically yes — it's not excluded from the dump, so a restore drops and recreates it too, and the `221520` dump's own `auth_security_state` block proved this concretely (`DROP TABLE`/`CREATE TABLE` with zero rows — that table was empty when this backup was taken, before any restore had run). But unlike `backups`, `auth_security_state.token_valid_after` gets unconditionally re-set via `INSERT ... ON DUPLICATE KEY UPDATE token_valid_after = NOW()` immediately after every restore, regardless of what the dump's snapshot contained — no `if` guarding it, unlike the `restore_wiped_activity_logs` marker's nonzero-count gate. If that specific write fails, the handler's `catch` doesn't claim success — it returns `200` with an explicit warning to treat all sessions as suspect, never the normal "sessions invalidated" message. Verified live, not just reasoned through: `auth_security_state.token_valid_after` currently holds a timestamp matching the actual restore, despite that backup's own dump snapshot for the table being empty. No fix needed here — the existing unconditional post-restore write already covers it; this is architecturally different from `backups`, which has no equivalent write in normal operation. |
 | 2026-08-29 | Added a `restore_wiped_activity_logs` marker — the follow-up to the `activity_logs` gap flagged in the backups-wipe entry below, and a deliberate choice not to build the fuller fix (reordering both `create_backup`/`restore_backup` log writes to after the restore). The wipe itself still happens — `activity_logs` still correctly reverts to the restored backup's point in time, including losing the safety dump's own `create_backup` entry — this only makes it stop being silent. `routes/backups.js`'s restore handler now counts `activity_logs` entries newer than `backup.created_at` right before the restore SQL runs (as late as possible, so it's exact — not estimated — and naturally includes the safety-dump entry already written by that point), then, if that count is nonzero, writes one `restore_wiped_activity_logs` entry *after* the restore completes, same timing as `restore_backup` and `token_valid_after`, so it isn't wiped by the thing it documents. Its description names the source backup, that backup's own `created_at` as the boundary, and the exact count lost. The response body also carries `activity_logs_wiped: <count>` so the acting admin sees it immediately, not only in the log. Explicitly not tamper-proof — an admin with direct DB access could delete this row same as any other — but not silent is still better than silent. `npm run test:backups` (35/35) and `npm run test:restore` (22/22) both unaffected — the marker only fires on an actual restore, which neither suite triggers; verifying it requires the same deliberate manual restore everything else in this section does. |
