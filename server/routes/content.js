@@ -3,24 +3,18 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 
 function isValidGradeLevel(value) {
   const n = Number(value);
   return Number.isInteger(n) && n >= 1 && n <= 6;
 }
 
-function isValidDateFormat(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
 function isMoreThanOneYearAhead(dateStr) {
-  const max = new Date();
-  max.setFullYear(max.getFullYear() + 1);
-  return dateStr > max.toISOString().slice(0, 10);
-}
-
-function toDateString(value) {
-  return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+  const [y, m, d] = todayLocalDateString().split('-').map(Number);
+  const maxYear = y + 1;
+  const max = `${maxYear}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  return dateStr > max;
 }
 
 async function getStudentClass(studentId) {
@@ -507,7 +501,10 @@ eventsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), async (req
     const { title, description, event_date, target_grade } = req.body;
     const nextTitle = title !== undefined ? title : existing.title;
     const nextDescription = description !== undefined ? description || null : existing.description;
-    const nextEventDate = event_date !== undefined ? event_date : toDateString(existing.event_date);
+    // existing.event_date is already a plain 'YYYY-MM-DD' string — the pool's
+    // dateStrings: ['DATE'] option means DATE columns never come back as JS
+    // Date objects, so no conversion is needed (or safe to reintroduce) here.
+    const nextEventDate = event_date !== undefined ? event_date : existing.event_date;
     const nextTargetGrade = target_grade !== undefined ? target_grade : existing.target_grade;
 
     if (!nextTitle) {

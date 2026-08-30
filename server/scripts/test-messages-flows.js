@@ -298,20 +298,63 @@ async function run() {
     // --- Read: conversations + thread ---
     console.log('\nRead:');
 
+    // Ground truth from the DB directly, not a hardcoded literal — same
+    // reasoning as the thread-order fix above: parent1/teacher1 are the
+    // permanently-reused seeded accounts, and real messages will flow
+    // through them (demo, manual testing, Stage 4 web dev). Asserting
+    // against "the actual last message"/"the actual unread count",
+    // computed the same way the endpoint itself computes them, still
+    // catches a real bug (e.g. a GROUP BY + MAX picking the wrong row —
+    // exactly the concern the window-function design in routes/messages.js
+    // was built to avoid) without breaking the moment someone sends a real
+    // message through these accounts.
+    const [trueLastMessageRows] = await withDb((conn) =>
+      conn.query(
+        `SELECT body FROM messages
+         WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [parent1Id, teacher1Id, teacher1Id, parent1Id]
+      )
+    );
+    const [trueUnreadFromTeacher1Rows] = await withDb((conn) =>
+      conn.query(
+        'SELECT COUNT(*) AS c FROM messages WHERE sender_id = ? AND receiver_id = ? AND read_status = 0',
+        [teacher1Id, parent1Id]
+      )
+    );
+
     const conversations = await request('GET', '/api/messages/conversations', { token: parent1Token });
     const withTeacher1 = (conversations.data?.conversations || []).find((c) => c.other_user_id === teacher1Id);
     assert(conversations.status === 200 && withTeacher1, "Parent's conversation list includes the teacher");
     assert(
-      withTeacher1?.last_message_body === 'Spoofed sender test',
+      withTeacher1?.last_message_body === trueLastMessageRows[0]?.body,
       'Conversation list shows the actual last message for that pair, not an arbitrary row'
     );
-    assert(withTeacher1?.unread_count === 1, 'Unread count reflects only messages from the other person, not own sends');
+    assert(
+      withTeacher1?.unread_count === trueUnreadFromTeacher1Rows[0]?.c,
+      'Unread count matches the DB, not just a value this run expects to be the only activity'
+    );
 
     const thread = await request('GET', `/api/messages/with/${teacher1Id}`, { token: parent1Token });
-    const threadBodies = (thread.data?.messages || []).map((m) => m.body);
+    // Filtered to the 3 messages *this run* created (m1, m4, m5), not the
+    // whole thread verbatim. parent1/teacher1 are the seeded accounts
+    // (13567454/TCH-001), reused across every run rather than created
+    // fresh — a real message between them from a demo, manual testing, or
+    // actual use is legitimate data, not pollution, and asserting the
+    // thread's exact full content would fail against it with no broken
+    // code behind it (found exactly this: one stray manual-test row broke
+    // this assertion with the ordering logic completely correct). Still
+    // catches the actual regression this guards against — a reversed
+    // ORDER BY — since these three IDs' relative order in the response
+    // must match the order they were actually sent in, regardless of
+    // whatever else is in the thread.
+    const ownMessageIds = [m1.data?.data?.id, m4.data?.data?.id, m5.data?.data?.id];
+    const ownBodiesInThreadOrder = (thread.data?.messages || [])
+      .filter((m) => ownMessageIds.includes(m.id))
+      .map((m) => m.body);
     assert(
-      thread.status === 200 && threadBodies.join('|') === 'Hello teacher|Hello parent|Spoofed sender test',
-      'Thread returns messages in chronological order'
+      thread.status === 200 && ownBodiesInThreadOrder.join('|') === 'Hello teacher|Hello parent|Spoofed sender test',
+      'Thread returns this run\'s own messages in chronological order'
     );
     assert(
       thread.data?.messages?.every((m) => m.sender_name && m.receiver_name),
@@ -324,10 +367,20 @@ async function run() {
     // --- Read-status ---
     console.log('\nRead-status:');
 
+    // Ground truth captured immediately before the call, same reasoning as
+    // above — real usage may have left other parent1->teacher1 messages
+    // unread, and a hardcoded "2" (just m1, m5) would fail against that
+    // with the endpoint behaving correctly.
+    const [trueUnreadFromParent1Rows] = await withDb((conn) =>
+      conn.query(
+        'SELECT COUNT(*) AS c FROM messages WHERE sender_id = ? AND receiver_id = ? AND read_status = 0',
+        [parent1Id, teacher1Id]
+      )
+    );
     const readAll = await request('PATCH', `/api/messages/read-all/${parent1Id}`, { token: teacher1Token });
     assert(
-      readAll.status === 200 && readAll.data?.count === 2,
-      "Teacher marks the whole thread from parent1 read — 2 messages (m1, m5)"
+      readAll.status === 200 && readAll.data?.count === trueUnreadFromParent1Rows[0]?.c,
+      'Teacher marks the whole thread from parent1 read — count matches what was actually unread'
     );
 
     const convosAfterReadAll = await request('GET', '/api/messages/conversations', { token: teacher1Token });

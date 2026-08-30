@@ -116,6 +116,7 @@ async function run() {
     const uniqueSuffix = String(Date.now()).slice(-6);
     const inScopeLrn = `6${uniqueSuffix}`;
 
+    const inScopeBirthday = '2015-08-29';
     const createInScope = await request('POST', '/api/students', {
       token: teacherToken,
       body: {
@@ -124,11 +125,20 @@ async function run() {
         last_name: 'Student',
         grade_level: 6,
         section: 'Mabini',
+        birthday: inScopeBirthday,
       },
     });
     assert(createInScope.status === 201, 'Teacher creates student inside own assignment (Grade 6 - Mabini)');
     const inScopeId = createInScope.data?.student?.id;
     if (createInScope.status === 201 && inScopeId) createdStudentIds.push(inScopeId);
+    // Same class of regression as attendance.date/events.event_date/
+    // contributions.due_date — a DATE column round-tripping through
+    // mysql2 without dateStrings: ['DATE'] would come back shifted a
+    // calendar day at UTC+8.
+    assert(
+      createInScope.data?.student?.birthday === inScopeBirthday,
+      `birthday round-trips exactly as sent (sent ${inScopeBirthday}, got ${createInScope.data?.student?.birthday})`
+    );
 
     const createOutOfScope = await request('POST', '/api/students', {
       token: teacherToken,
@@ -221,6 +231,12 @@ async function run() {
       body: { contact_number: '09171234567' },
     });
     assert(teacherUpdateInScope.status === 200, 'Teacher updates in-scope student');
+    // birthday omitted from the PUT body — falls back to existing.birthday,
+    // already a plain string post-fix, so it must survive unchanged.
+    assert(
+      teacherUpdateInScope.data?.student?.birthday === inScopeBirthday,
+      `birthday is unchanged after a PUT that omits it (still ${inScopeBirthday}, got ${teacherUpdateInScope.data?.student?.birthday})`
+    );
 
     const teacherUpdateOutOfScope = await request('PUT', `/api/students/${jeaId}`, {
       token: teacherToken,

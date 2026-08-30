@@ -11,6 +11,20 @@ function createPool() {
     database: process.env.DB_NAME || 'parents_portal',
     waitForConnections: true,
     connectionLimit: 10,
+    // DATE columns only — not DATETIME/TIMESTAMP (created_at/updated_at keep
+    // returning as JS Date objects, unchanged). Without this, mysql2 builds a
+    // Date at local midnight for a DATE value, and res.json()'s JSON.stringify
+    // calls Date#toJSON() -> toISOString(), which converts to UTC: a DATE of
+    // 2026-08-29 read back at UTC+8 becomes "2026-08-28T16:00:00.000Z" — a
+    // full calendar day off, wrong every single time in this timezone, not an
+    // edge case. dateStrings: ['DATE'] makes mysql2 return the raw
+    // 'YYYY-MM-DD' string straight from MySQL instead, so no Date object (and
+    // therefore no timezone conversion) is ever constructed for these columns
+    // — the value round-trips as the exact string it was written as. Affects
+    // attendance.date, events.event_date, contributions.due_date,
+    // students.birthday (and excuse_letters.absence_date once that module is
+    // built) via every query on the shared pool with no per-query changes.
+    dateStrings: ['DATE'],
   });
 }
 

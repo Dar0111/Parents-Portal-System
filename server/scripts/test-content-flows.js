@@ -280,12 +280,19 @@ async function run() {
     // --- Events: write scoping, date bounds ---
     console.log('\nEvents — write scoping and dates:');
 
+    const ownGradeEventDate = daysAgo(1); // cached once — reused below, so the
+    // round-trip assertion can never flake against a fresh daysAgo(1) call
+    // straddling a UTC day boundary mid-test.
     const teacherEventOwnGrade = await request('POST', '/api/events', {
       token: teacherToken,
-      body: { title: 'Grade 6 field trip', event_date: daysAgo(1), target_grade: 6 },
+      body: { title: 'Grade 6 field trip', event_date: ownGradeEventDate, target_grade: 6 },
     });
     assert(teacherEventOwnGrade.status === 201, 'Teacher posts event within their assigned grade');
     if (teacherEventOwnGrade.data?.event?.id) createdEventIds.push(teacherEventOwnGrade.data.event.id);
+    assert(
+      teacherEventOwnGrade.data?.event?.event_date === ownGradeEventDate,
+      `event_date round-trips exactly as sent (sent ${ownGradeEventDate}, got ${teacherEventOwnGrade.data?.event?.event_date})`
+    );
 
     const teacherEventSchoolWide = await request('POST', '/api/events', {
       token: teacherToken,
@@ -361,6 +368,17 @@ async function run() {
       body: { title: 'Grade 6 field trip (rescheduled)' },
     });
     assert(authorEventEdit.status === 200, 'Author edits their own event');
+    // The actual regression this guards: PUT omits event_date entirely, so
+    // the handler falls back to the existing row's value. Before the fix,
+    // that fallback (toDateString(existing.event_date)) re-serialized a JS
+    // Date via toISOString(), silently shifting the date back a day at
+    // UTC+8 on every edit that didn't resend it — a teacher renaming an
+    // event would unknowingly move it. Asserts the date survives an edit
+    // untouched, not just that the edit "succeeded".
+    assert(
+      authorEventEdit.data?.event?.event_date === ownGradeEventDate,
+      `event_date is unchanged after a PUT that omits it (still ${ownGradeEventDate}, got ${authorEventEdit.data?.event?.event_date})`
+    );
 
     const adminDeletesEvent = await request('DELETE', `/api/events/${adminEventG5.data.event.id}`, {
       token: adminToken,

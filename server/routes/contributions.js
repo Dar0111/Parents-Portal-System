@@ -3,21 +3,13 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { isValidDateFormat } = require('../utils/dateFormat');
 
 const router = express.Router();
 
 function isValidGradeLevel(value) {
   const n = Number(value);
   return Number.isInteger(n) && n >= 1 && n <= 6;
-}
-
-function isValidDateFormat(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-function toDateString(value) {
-  if (value === null || value === undefined) return null;
-  return value instanceof Date ? value.toISOString().slice(0, 10) : value;
 }
 
 async function getStudentClass(studentId) {
@@ -273,7 +265,10 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     const nextTitle = title !== undefined ? title : existing.title;
     const nextAmountInput = amount !== undefined ? amount : existing.amount;
     const nextGradeInput = grade_level !== undefined ? grade_level : existing.grade_level;
-    const nextDueDate = due_date !== undefined ? due_date : toDateString(existing.due_date);
+    // existing.due_date is already a plain 'YYYY-MM-DD' string (or null, if
+    // unset) — the pool's dateStrings: ['DATE'] option means DATE columns
+    // never come back as JS Date objects, so no conversion is needed here.
+    const nextDueDate = due_date !== undefined ? due_date : existing.due_date;
 
     if (!nextTitle) {
       return res.status(400).json({ success: false, message: 'title is required.' });

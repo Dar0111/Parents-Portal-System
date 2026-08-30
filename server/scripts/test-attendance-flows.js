@@ -63,6 +63,18 @@ function tomorrow() {
   return d.toISOString().slice(0, 10);
 }
 
+// Local wall-clock "today", NOT toISOString() — deliberately the same
+// computation isFutureDate() itself now uses (routes/attendance.js), so
+// this test exercises the actual local-vs-UTC fix: the old UTC-based
+// isFutureDate would reject this value as "future" for the first 8 hours
+// of every day at UTC+8, since UTC's calendar date lags behind local's
+// until 8am.
+function todayLocal() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 async function run() {
   console.log(`\nParents Portal — Attendance API Tests (${BASE})\n`);
 
@@ -169,6 +181,20 @@ async function run() {
     );
     const attendanceId = recordPresent.data?.attendance?.id;
 
+    // The actual regression: post dateA, read the same field back on the
+    // POST response, assert byte-identical strings. A JS Date round-trip
+    // bug (dateStrings unset, res.json() serializing via toISOString()) at
+    // UTC+8 would return dateA shifted one calendar day back — the 336
+    // pre-existing tests never caught this because every prior assertion
+    // compared against a value derived the same wrong way (e.g. dateA
+    // itself came from daysAgo(), so a shifted response could still match
+    // a similarly-shifted expectation in some checks). This compares the
+    // response directly against the literal string that was sent.
+    assert(
+      recordPresent.data?.attendance?.date === dateA,
+      `POST response date round-trips exactly as sent (sent ${dateA}, got ${recordPresent.data?.attendance?.date})`
+    );
+
     const recordAgain = await request('POST', '/api/attendance', {
       token: teacherToken,
       body: { student_id: marwinId, subject_id: mathG6, date: dateA, status: 'Late' },
@@ -197,6 +223,23 @@ async function run() {
       body: { student_id: marwinId, subject_id: mathG6, date: tomorrow(), status: 'Present' },
     });
     assert(futureDate.status === 400, 'Future date rejected');
+
+    // Regression for the isFutureDate() UTC-vs-local fix: today's actual
+    // date must never be rejected as "future". Uses a different subject
+    // (scienceG3 has no assignment overlap risk — grade 3 Math is unused
+    // elsewhere in this file) so it can't collide with mathG6/dateA rows,
+    // and is cleaned up immediately rather than added to the shared
+    // dateA/dateB cleanup filter.
+    const todayDate = todayLocal();
+    const recordToday = await request('POST', '/api/attendance', {
+      token: adminToken,
+      body: { student_id: jeaId, subject_id: mathG3, date: todayDate, status: 'Present' },
+    });
+    assert(
+      recordToday.status === 201,
+      `Today's actual date is accepted, not rejected as "future" (isFutureDate UTC-vs-local fix; got ${recordToday.status})`
+    );
+    await withDb((conn) => conn.query('DELETE FROM attendance WHERE date = ?', [todayDate]));
 
     const badStatus = await request('POST', '/api/attendance', {
       token: teacherToken,
@@ -270,8 +313,24 @@ async function run() {
     assert(teacherListStudentIds.includes(marwinId), 'Teacher list includes in-scope student (Marwin)');
     assert(!teacherListStudentIds.includes(jeaId), 'Teacher list excludes out-of-scope student (Jea)');
 
+    const marwinRowInList = (teacherList.data?.attendance || []).find((a) => a.student_id === marwinId);
+    assert(
+      marwinRowInList?.date === dateA,
+      `GET / date round-trips on a fresh read, separate from the POST response (sent ${dateA}, got ${marwinRowInList?.date})`
+    );
+    assert(
+      marwinRowInList?.subject_name === 'Mathematics',
+      `GET / includes subject_name, not just subject_id (got ${JSON.stringify(marwinRowInList?.subject_name)})`
+    );
+
     const parentOwn = await request('GET', `/api/attendance/student/${marwinId}`, { token: parentToken });
     assert(parentOwn.status === 200 && parentOwn.data?.attendance?.length > 0, 'Parent reads own child attendance');
+
+    const parentOwnDateARow = (parentOwn.data?.attendance || []).find((a) => a.date === dateA);
+    assert(
+      parentOwnDateARow?.subject_name === 'Mathematics',
+      `GET /student/:id includes subject_name, not just subject_id (got ${JSON.stringify(parentOwnDateARow?.subject_name)})`
+    );
 
     const parentOther = await request('GET', `/api/attendance/student/${jeaId}`, { token: parentToken });
     assert(parentOther.status === 404, 'Parent reading another child returns 404');

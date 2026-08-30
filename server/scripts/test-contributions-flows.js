@@ -47,6 +47,16 @@ async function request(method, path, { token, body } = {}) {
   return { status: res.status, data };
 }
 
+// contributions.due_date has no future/past restriction (unlike attendance's
+// date or events' event_date) — any valid YYYY-MM-DD works. Local getters,
+// not toISOString(), matching the fix under test.
+function daysFromNow(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const pad = (v) => String(v).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 async function login(loginId, password) {
   return request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 }
@@ -111,13 +121,24 @@ async function run() {
     // --- Create: scoping and validation ---
     console.log('\nCreate:');
 
+    const fieldTripDueDate = daysFromNow(14);
     const teacherOwnGrade = await request('POST', '/api/contributions', {
       token: teacherToken,
-      body: { title: 'Field Trip Fee', amount: 500, grade_level: 6 },
+      body: { title: 'Field Trip Fee', amount: 500, grade_level: 6, due_date: fieldTripDueDate },
     });
     assert(teacherOwnGrade.status === 201, 'Teacher posts contribution for their own assigned grade');
     const g6ContributionId = teacherOwnGrade.data?.contribution?.id;
     if (g6ContributionId) createdContributionIds.push(g6ContributionId);
+    // The actual regression: post a due_date, read it back on the same
+    // response, assert byte-identical strings — same shape as the
+    // attendance.date and events.event_date checks. Without
+    // dateStrings: ['DATE'] on the pool, this would come back shifted a
+    // calendar day at UTC+8 (mysql2 returns a JS Date, res.json()
+    // serializes it via toISOString()).
+    assert(
+      teacherOwnGrade.data?.contribution?.due_date === fieldTripDueDate,
+      `due_date round-trips exactly as sent (sent ${fieldTripDueDate}, got ${teacherOwnGrade.data?.contribution?.due_date})`
+    );
 
     const teacherWrongGrade = await request('POST', '/api/contributions', {
       token: teacherToken,
@@ -284,6 +305,21 @@ async function run() {
       body: { title: 'Hijacked' },
     });
     assert(nonAuthorEdit.status === 403, "Non-author teacher cannot edit admin's contribution");
+
+    const authorEdit = await request('PUT', `/api/contributions/${g6ContributionId}`, {
+      token: teacherToken,
+      body: { title: 'Field Trip Fee (updated)' },
+    });
+    assert(authorEdit.status === 200, 'Author edits their own contribution');
+    // The actual regression: PUT omits due_date, so the handler falls back
+    // to the existing row's value. Before the fix, that fallback
+    // (toDateString(existing.due_date)) re-serialized a JS Date via
+    // toISOString(), silently shifting it back a calendar day at UTC+8 on
+    // every edit that didn't resend due_date.
+    assert(
+      authorEdit.data?.contribution?.due_date === fieldTripDueDate,
+      `due_date is unchanged after a PUT that omits it (still ${fieldTripDueDate}, got ${authorEdit.data?.contribution?.due_date})`
+    );
 
     const deleteWithRecords = await request('DELETE', `/api/contributions/${g6ContributionId}`, {
       token: teacherToken,

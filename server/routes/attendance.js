@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 
 const router = express.Router();
 
@@ -13,13 +14,8 @@ function isValidGradeLevel(value) {
   return Number.isInteger(n) && n >= 1 && n <= 6;
 }
 
-function isValidDateFormat(value) {
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
 function isFutureDate(value) {
-  const today = new Date().toISOString().slice(0, 10);
-  return value > today;
+  return value > todayLocalDateString();
 }
 
 async function teacherHasAssignment(teacherId, subjectId, gradeLevel, section) {
@@ -140,9 +136,11 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
   try {
     const [rows] = await pool.query(
       `SELECT a.id, a.student_id, a.subject_id, a.date, a.status, a.recorded_by, a.created_at, a.updated_at,
+              sub.name AS subject_name,
               s.first_name, s.last_name, s.grade_level, s.section
        FROM attendance a
        JOIN students s ON s.id = a.student_id
+       JOIN subjects sub ON sub.id = a.subject_id
        ${where}
        ORDER BY a.date DESC, s.last_name, s.first_name`,
       params
@@ -215,7 +213,11 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     }
 
     const [rows] = await pool.query(
-      `SELECT a.* FROM attendance a WHERE ${conditions.join(' AND ')} ORDER BY a.date DESC`,
+      `SELECT a.*, sub.name AS subject_name
+       FROM attendance a
+       JOIN subjects sub ON sub.id = a.subject_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY a.date DESC`,
       params
     );
 
