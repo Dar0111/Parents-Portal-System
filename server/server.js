@@ -14,6 +14,7 @@ const contributionsRoutes = require('./routes/contributions');
 const settingsRoutes = require('./routes/settings');
 const backupsRoutes = require('./routes/backups');
 const messagesRoutes = require('./routes/messages');
+const excusesRoutes = require('./routes/excuses');
 const { initSocket } = require('./socket');
 
 const app = express();
@@ -36,6 +37,7 @@ app.use('/api/announcements', announcementsRouter);
 app.use('/api/memos', memosRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/contributions', contributionsRoutes);
+app.use('/api/excuse-letters', excusesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/messages', messagesRoutes);
