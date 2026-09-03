@@ -13,7 +13,7 @@ Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 19 tables |
+| Database | `parents_portal` — 20 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -178,7 +178,12 @@ server/
   utils/sanitizeUser.js        sanitizeUser() — strips any key containing "password", case-insensitive
   utils/dateFormat.js          isValidDateFormat() + todayLocalDateString() — shared by
                                 attendance/content/contributions, replacing 3 duplicated copies
-  scripts/setup-db.js          runs schema + seed, hashes seed passwords
+  scripts/setup-db.js          runs schema + seed, hashes seed passwords; backfillSectionIds()
+                                runs after seeding — populates section_id from the matching VARCHAR
+                                value (name+grade_level+school_year), then reports any row left
+                                NULL with the unmatched value. Deliberate, not incidental — this is
+                                what caught 'Mabini'/'Rizal' as fictional; do not remove the
+                                reporting step even once every value matches cleanly
   scripts/test-auth-flows.js   HTTP tests
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
   scripts/test-attendance-flows.js HTTP tests — scoping, bulk all-or-nothing, admin override
@@ -192,14 +197,22 @@ server/
   scripts/test-restore-flows.js HTTP tests — every pre-flight gate, token_valid_after via crafted JWTs;
                                 deliberately never triggers a real restore, see CURRENT STATE
   scripts/test-excuses-flows.js HTTP tests — forbidden-body-fields ignored, absence_date round-trip,
-                                cross-parent 404, teacher scoping, Pending-only edit guard; no
-                                npm run alias (package.json untouched) — run via node directly
+                                cross-parent 404, teacher scoping, Pending-only edit guard
 database/
-  schema.sql                   19 tables. users.status ENUM now includes 'inactive'.
+  schema.sql                   20 tables. users.status ENUM now includes 'inactive'.
                                 backups.file_size added (bytes, populated after dump succeeds).
                                 auth_security_state — single-row (id=1), token_valid_after, set only
-                                by POST /api/backups/:id/restore, never exposed through /api/settings
-  seed.sql                     subjects, students, settings; academic_year fixed to '2026-2027'
+                                by POST /api/backups/:id/restore, never exposed through /api/settings.
+                                sections — id, name, grade_level, adviser_id, school_year; UNIQUE
+                                (grade_level, name, school_year); fk_sections_adviser -> users(id)
+                                ON DELETE SET NULL. Nullable section_id + FK added to students
+                                (RESTRICT), teacher_assignments (CASCADE), announcements (CASCADE) —
+                                see "sections — schema only, nothing reads it yet" below before
+                                assuming any route uses this.
+  seed.sql                     subjects, students, settings; academic_year fixed to '2026-2027'.
+                                23 sections seeded for SY 2026-2027 (school's official teacher
+                                list). Marwin/Jea's sample sections were fictional ('Mabini',
+                                'Rizal') and are now real seeded names ('Malikhain', 'Masigasig')
 scripts/
   create-backup-zip.js         folder copy, source-code archiver — NOT the DB backup (that's routes/backups.js)
 client/
@@ -220,11 +233,41 @@ Grades
 
 **No Expo app.**
 
-Grades has a table in `schema.sql` but no route file and no queries yet —
-fully blocked, see BLOCKED. Backup/Restore is fully built — 5 endpoints,
-see "RESTORE" below. Excuse Letters' CRUD half is built — see below;
-approve/decline is the only remaining piece, still blocked on the school
-visit.
+Grades has a table in `schema.sql` but no route file and no queries yet.
+The school-visit answers that were blocking it have arrived (DO 009/DO 015
+s. 2026 — see BLOCKED) — **the module is now answered, not blocked, but
+still not built.** Building it is a separate task from documenting the
+answers, which is all this entry records. Backup/Restore is fully built —
+5 endpoints, see "RESTORE" below. Excuse Letters' CRUD half is built — see
+below; approve/decline's attendance-side question is now answered
+(record-only, see BLOCKED), but who is authorized to approve is not
+explicitly re-confirmed — still not built.
+
+### sections table — schema only, nothing reads it yet
+
+**The thing a fresh session will get wrong.** `sections` exists in
+`schema.sql`, is seeded with the school's 23 real section names, and has a
+nullable `section_id` FK on `students`, `teacher_assignments`, and
+`announcements` — but **no route file reads or writes `section_id`
+anywhere.** All ten route files still scope entirely on the VARCHAR
+columns (`students.section`, `teacher_assignments.section`,
+`announcements.target_section`) — roughly 99 references across the
+codebase. `section_id` is populated at seed time (`setup-db.js`'s
+`backfillSectionIds()`) purely so it's ready and verified consistent; the
+app does not consult it for anything yet.
+
+This is deliberate, not an oversight left mid-migration. A full
+VARCHAR → FK cutover touches every route file that scopes by grade/section
+and changes the API contract (`section: "Malikhain"` → `section_id: 13`)
+for no user-facing gain on its own — scoped and explicitly deferred.
+`section_id` is planned to be read in exactly two places going forward:
+attendance scoping (via `sections.adviser_id`, once advisers are assigned
+— see below) and the Class Board. Everything else stays on the VARCHAR
+columns; do not start migrating a third place without checking here first.
+
+`sections.adviser_id` is `NULL` for all 23 rows right now — nobody has
+been assigned as a class adviser yet. Attendance adviser-scoping cannot
+work until that's done; this is a data gap, not a code gap.
 
 ### React web app — auth, verified end-to-end
 
@@ -338,19 +381,60 @@ transcript requests, schedule grid, college grading.
 
 ---
 
-## BLOCKED — do not build until answered
+## BLOCKED / RESOLVED
 
-### Grades module — waiting on the school visit
+Answers from the school visit and from published DepEd orders land here as
+they arrive. An item moves from **BLOCKED** to **RESOLVED** the moment the
+question is answered — that is a documentation change, not a build. Do not
+read a RESOLVED heading as "built"; check the endpoints table and BUILD
+ORDER for that.
 
-- Four quarters or three terms for SY 2026–2027?
-- Numerical or descriptive grading for Grades 1–3?
-- Three grade components or five? The manuscript (Figures 17 and 25) lists
-  five — quizzes, recitation, participation, projects, examinations. The
-  schema supports three.
-- What weights, and keyed by **subject** or by **grade level**?
+### Grades module — RESOLVED (school visit + DO 009/DO 015 s. 2026), not yet built
 
-**Do not build grade computation logic until these are answered.** Building
-on a guess means rewriting the module.
+All four original blocking questions are now answered:
+
+- **Terms, not quarters.** DO 009 s. 2026: three terms for SY 2026–2027,
+  not four quarters. Term 1 Jun 8–Sep 15, Term 2 Sep 16–Dec 18, Term 3
+  Jan 4–Apr 8. 201 class days total. `system_settings.current_quarter`
+  and `grades.quarter ENUM('Q1','Q2','Q3','Q4')` are now both the wrong
+  shape — built for a quarter system that isn't the one in use.
+- **Grading system — split, not uniform.** Grade 1 uses descriptive
+  grading (A/B/C/D/E) for SY 2026–2027. Grades 2–6 stay numerical, with an
+  adjusted transmutation table (e.g. IG 70.00 → TG 75). **Both systems run
+  simultaneously** — this is not "Grades 1–3 vs. 4–6" as originally
+  framed; it's Grade 1 alone vs. everyone else.
+- **Three components, not five.** DO 015 s. 2026 (signed Jun 4, 2026,
+  repeals DO 8 s. 2015): Written Works, Performance Tasks, Examinations.
+  **The manuscript is wrong**, not the schema — Figures 17 and 25's
+  five-component model (quizzes, recitation, participation, projects,
+  examinations) does not match current DepEd policy. The schema's
+  existing three-part shape (`grades.quiz_avg`/`activity_avg`/
+  `exam_score`) is structurally close (quiz≈Written Works,
+  activity≈Performance Tasks, exam≈Examinations) but not a clean match —
+  see the `grade_components.type` note in KNOWN ISSUES below for the gap
+  that still needs resolving.
+- **Weights are keyed by learning area, not grade level or subject
+  generically.** Core subjects: 20/50/30. EPP-TLE and MAPEH: 20/60/20.
+  Confirms the known `grade_weight_configs` defect below — it was already
+  suspected wrong, this makes it certain.
+- **Examinations is itself a composite**, not a single score:
+  `(ST1 × 0.30) + (ST2 × 0.30) + (TE × 0.40)`, then the result is scaled
+  by the learning area's EX weight. Nothing in `grades` or
+  `grade_components` currently stores ST1/ST2/TE as separate values —
+  `grades.exam_score` is one scalar. This is a schema gap, not just a
+  weighting gap.
+
+**Full grading policy detail is meant to live in `docs/GRADING_SPEC.md`.
+That file does not exist yet** — flagging this rather than silently
+inventing it or leaving a dead link. Everything given above is preserved
+here in the interim; creating the dedicated file (if still wanted) is a
+separate task.
+
+**Still not built.** Answered ≠ implemented — `grade_weight_configs`
+still needs re-keying to `subject_id`/learning-area, `grades.quarter`
+still says `Q1`–`Q4` instead of three terms, and the ST1/ST2/TE composite
+has no column to live in yet. None of that happened in this pass —
+docs only, per the dispatch that produced this entry.
 
 ### Known schema issue
 
@@ -361,35 +445,65 @@ grade_level_min TINYINT,
 grade_level_max TINYINT
 ```
 
-Seeded as G1–3: 30/50/20 and G4–6: 40/40/20. **This basis is wrong.** DepEd
-weights vary by **learning area**, not grade level — Math is 40/40/20 while
-Filipino is 30/50/20 for the *same* student in the *same* quarter. Must be
-re-keyed to `subject_id` once the school confirms actual practice.
+Seeded as G1–3: 30/50/20 and G4–6: 40/40/20. **Confirmed wrong** (was
+"suspected wrong" before the school visit) — DepEd weights vary by
+**learning area**, not grade level: core subjects are 20/50/30, EPP-TLE
+and MAPEH are 20/60/20, for the *same* student in the *same* term. Must be
+re-keyed to `subject_id`/learning-area — not done yet.
 
-### Excuse Letters module — waiting on the same school visit
+`grade_components.type` is `ENUM('quiz', 'activity')` — two raw component
+types, with exams living separately as `grades.exam_score`. DO 015's three
+official components (Written Works, Performance Tasks, Examinations) map
+loosely onto this (quiz/activity/exam) but not exactly, and Examinations'
+real internal structure (ST1/ST2/TE, weighted 30/30/40) isn't represented
+at all. Re-checking this shape is part of the still-not-built work above.
 
-- Who approves an excuse letter: the class adviser only, or any teacher
-  assigned to the student's grade and section? There is no `adviser`
-  column on `students` — "adviser only" means a schema change, not just a
-  route file.
-- Does approving an excuse letter change the attendance record for that
-  day? Attendance is per subject; excuse letters are per day — one
-  approval would need to touch multiple `attendance` rows (one per
-  subject scheduled that day), not one. Deliberately not built until this
-  is answered.
+### Excuse Letters module — one question RESOLVED, one still open
 
-**Do not build the approve/decline logic until these are answered.** The
-CRUD shape (submit, list, view) doesn't depend on either answer, but the
-approve/decline endpoint — the actual point of the module — does.
+- **RESOLVED: excuse letter approval is record-only.** The learner stays
+  `Absent`; the letter documents the reason. Approval must not modify
+  `attendance` rows. This answers the original "does approving change the
+  attendance record" question — it does not, by design.
+- **Still open: who approves.** The original question — class adviser
+  only, or any teacher assigned to the student's grade/section — was not
+  re-confirmed in the update that resolved the question above. The new
+  `sections.adviser_id` column (see the "sections table" note under
+  CURRENT STATE) is exactly the mechanism "adviser-only" would need, and
+  `adviser_id` is currently `NULL` for every section, so that mechanism
+  isn't usable yet regardless. Flagging this as a real gap, not assuming
+  the adviser answer just because the column now exists — confirm before
+  building `PATCH /:id/review`.
 
-### Attendance rate formula — blocks the parent attendance page, not the API
+**Net effect:** the CRUD half stays built as before. `PATCH /:id/review`
+has one of its two original blockers resolved, not both — do not build it
+as fully unblocked.
+
+### Attendance is per day, not per subject — RESOLVED, schema conversion needed
+
+The school's SF9 performance report records attendance **monthly**, as
+Class Days / Days Present / Days Absent — one figure per learner per
+month, not per subject. **The current `attendance` table is per-subject**
+(`UNIQUE (student_id, subject_id, date)`) and does not match this shape —
+it needs converting, not extending. Not done in this pass; docs only.
+
+Separately, but from the same answer: **attendance does not feed grade
+computation.** It appears on the report card as its own section, entirely
+apart from the grades section. Any future grade-calculation logic must
+not read from `attendance` — the two are siblings on the report card, not
+inputs to each other.
+
+This is a different question from the one below (how a *percentage* is
+computed for the parent-facing attendance page) — resolving "per day, not
+per subject" does not resolve that one.
+
+### Attendance rate formula — still open, blocks the parent attendance page, not the API
 
 Not a Stage 3 blocker — `routes/attendance.js` is built and shipped, raw
 counts only, deliberately no computed rate (see CHANGELOG, 2026-08-27).
 This blocks Stage 4 instead: any parent-facing attendance page that wants
 to show a percentage needs the school to confirm how it's computed — does
 Late count toward "present"? Is Excused counted in the denominator at all,
-or excluded? Same category of question as the DepEd grade weights above —
+or excluded? Not answered by the per-day/per-subject finding above —
 don't guess at either.
 
 ---
@@ -622,7 +736,7 @@ imply," not just "does this one anticipated symptom show up."
 | Issue | Where | Note |
 |---|---|---|
 | `users.email` has no UNIQUE constraint | `schema.sql` | Deliberately not added. A plain `UNIQUE` would conflict with the locked one-account-per-student design: `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose, and any real family with 2+ kids needs that same reuse. Only matters once email login is actually built — see Open Questions. |
-| `grade_components.type` is `ENUM('quiz','activity')` | `schema.sql` | Manuscript promises five components. Blocked on the school. |
+| `grade_components.type` is `ENUM('quiz','activity')` | `schema.sql` | No longer blocked — DO 015 s. 2026 confirms three official components (Written Works, Performance Tasks, Examinations), so the manuscript's five (Figures 17, 25) was wrong, not the schema. But the current two-value ENUM plus a separate `grades.exam_score` scalar isn't an exact match either — Examinations is itself a weighted composite (ST1/ST2/TE) with no column to hold the three sub-scores. See BLOCKED / RESOLVED → Grades module. |
 | No `Download Statement` export | — | Promised in manuscript Figure 19. Build a CSV export from `contribution_records`, or remove it from the paper. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |
 | `backups` has no `status` column | `schema.sql` | Deliberate, not missing: a row is only ever inserted after the dump succeeds, so every row is definitionally "Completed" — the UI hardcodes that string. Revisit only if backup generation becomes asynchronous (a pending/failed state visible before the job finishes) — that's the trigger, not before. |
@@ -741,13 +855,17 @@ Grades is last in this stage because it is blocked.
 - [x] Student Records API — list, view, create, update
 - [x] Attendance API — per day, per subject
 - [x] Announcements + Memos + Events API
-- [x] Excuse Letters API — **CRUD half only**: submit, mine, list, view, edit built; approve/decline is separately blocked, see the Blocked section above
+- [x] Excuse Letters API — **CRUD half only**: submit, mine, list, view, edit built; approve/decline has one of two blockers resolved (record-only, no attendance mutation) and one still open (who approves), see BLOCKED / RESOLVED
 - [x] Contributions API — create, record payment, view status
 - [x] Messages API + Socket.io
 - [x] System Settings API (admin)
 - [x] User Management API — extend the existing `routes/users.js`
 - [x] Backup/Restore API (admin, `mysqldump` — not a folder copy) — both built, 5 endpoints; see "RESTORE" below
-- [ ] **Grades API — BLOCKED**, see the Blocked section above
+- [ ] **Grades API — answered, not started.** School-visit/DepEd-order
+      questions are resolved (see BLOCKED / RESOLVED), but building was
+      out of scope for the docs pass that recorded the answers — `grade_weight_configs`
+      still needs re-keying, `grades.quarter` still says `Q1`-`Q4` instead
+      of three terms, and Examinations' ST1/ST2/TE composite has no column yet
 
 ### Stage 4 — Web pages
 
@@ -996,6 +1114,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-03 | Docs sync for the `sections` table work (merged to `main`) plus a batch of school-visit/DepEd-order answers — no code in this pass. Table count corrected to 20, not 19: `sections` was added on top of the count this file already had right after Restore shipped (`auth_security_state` had already moved it from 18→19 in an earlier entry) — the dispatch for this update assumed the stale "18," which itself was already wrong; verified against `schema.sql` directly (`grep -c "^CREATE TABLE"`) rather than trusted. New "sections table — schema only, nothing reads it yet" subsection added under CURRENT STATE — the load-bearing fact: `section_id` exists and is backfilled, but every route still scopes on the VARCHAR columns (`students.section`, `teacher_assignments.section`, `announcements.target_section`); the FK cutover is scoped and deliberately deferred, not forgotten. `sections.adviser_id` is `NULL` for all 23 rows — attendance adviser-scoping can't work until advisers are assigned; that's a data gap, not a code gap. **BLOCKED section restructured to BLOCKED / RESOLVED**, since several long-standing questions now have real answers: Grades module's four original blockers are all answered (DO 009 s. 2026 — three terms, not four quarters; DO 015 s. 2026 — three components, not five, repeals DO 8 s. 2015; weights keyed by learning area, not grade level, confirming the known `grade_weight_configs` defect; Grade 1 alone uses descriptive grading, Grades 2–6 stay numerical with an adjusted transmutation table — not "1–3 vs. 4–6" as originally framed) — **answered, not built**; `docs/GRADING_SPEC.md` was referenced in the source material for this update as where full detail lives, but that file does not exist — flagged rather than silently linked or silently created, full detail preserved inline instead. Excuse Letters' approve/decline has one of its two original blockers resolved (record-only, attendance rows untouched) and one still open (who approves — the new `sections.adviser_id` is the right mechanism but wasn't confirmed as the answer, and is NULL everywhere regardless) — do not treat the endpoint as fully unblocked. New finding, not previously documented at all: attendance is per **day** on the school's SF9 report (monthly Class Days/Days Present/Days Absent), not per subject like the current `attendance` table (`UNIQUE (student_id, subject_id, date)`) — needs converting, not extending; and attendance does not feed grade computation, it's a separate report-card section. Neither conversion happened in this pass. KNOWN ISSUES' `grade_components.type` row updated to match — no longer "blocked," DO 015 confirms the schema's three-part shape was closer to right than the manuscript, but Examinations' real internal structure (ST1/ST2/TE composite) still has no column. |
 | 2026-08-31 | **UTC in test date helpers.** Found in the same commit as Excuse Letters, but a separate fix, not part of that module's dispatch. `test-attendance-flows.js` and `test-content-flows.js` built dates with local getters (`setDate`/`setFullYear`) but formatted the result via `.toISOString()` — UTC. Between 00:00–08:00 PH, `.toISOString()`'s calendar date is still the previous day, so `tomorrow()` returned *today*, and "Future date rejected" failed even though the app code (already fixed earlier — see the DATE-column entry below) was correct. Affected helpers: `daysAgo`, `tomorrow` (`test-attendance-flows.js`), `daysAgo`, `yearsFromNow` (`test-content-flows.js`). Fixed by formatting from local components (`getFullYear()`/`getMonth()`/`getDate()`) instead, matching the `todayLocal()` pattern already present in `test-attendance-flows.js` — no shared helper module added, each fixture keeps its own local copy, deliberately. **Rule:** test date helpers must never use `.toISOString()`. Run date-sensitive suites at least once between 00:00–08:00 PH — the only window a UTC bug like this can actually surface in; a pass at noon proves nothing. Verified inside that window, not outside it: both suites run at ~00:15 AM PH, confirmed twice each — `npm run test:attendance` 33/33, `npm run test:content` 47/47. `test-contributions-flows.js` and `test-excuses-flows.js` were checked and already correct (their date helpers already used local components) — not touched. |
 | 2026-08-31 | Excuse Letters API — CRUD half only, `routes/excuses.js`, 5 endpoints. `PATCH /:id/review` (approve/decline) is deliberately not built, not stubbed, not commented in — still blocked on the school visit answering who can approve and whether approval touches attendance, see BLOCKED. `parent_id`/`student_id` come from `req.user`, never `req.body` or a URL param; `status` is always `'Pending'` on create; `status`/`teacher_remarks`/`reviewed_by`/`parent_id`/`student_id` sent in a POST or PUT body are silently ignored, not rejected with `400` — a deliberate difference from `routes/users.js`'s PUT (which rejects forbidden fields loudly): the spec for this module called for stripping, not rejecting, and the test suite checks for exactly that ("ignored", not "400"). Teacher list/view scoping reuses the exact `EXISTS`-against-`teacher_assignments` shape `routes/students.js` already uses (matched on the letter's student's `grade_level`+`section`, via a join, since neither column lives on `excuse_letters` itself) — no new scoping pattern invented. `GET /mine` is declared before `GET /:id` — Express matches route definitions in declaration order, and `parseId('mine')` would otherwise fire first and return `400` for every request to that path. Reads out of scope return `404` (anti-enumeration); the one write-scope violation (`PUT` on a letter no longer `Pending`) returns `403` naming the reason explicitly ("This excuse letter has already been reviewed and can no longer be edited."), never a bare "Access denied." `absence_date` validated with `isValidDateFormat`/rejected-if-future via the existing `todayLocalDateString()` in `utils/dateFormat.js` — no new date logic, no UTC. No maximum-age check on `absence_date` — the school hasn't set a submission deadline (a locked answer, not an oversight); duplicate letters for the same date are deliberately allowed, since a parent must be able to resubmit after a decline. `PUT` accepts partial updates (`absence_date`, `reason`, `details` only) — an omitted field keeps the existing DB value, never a computed default. Tests: `scripts/test-excuses-flows.js`, 41 assertions, structured like `test-contributions-flows.js`. Every row-count/list-content assertion is scoped to ids this run created or written as a property check on a `.find()`-scoped record — none of the "assert exact content against a shared table" shape the working agreement now forbids. One fixture (a student + approved parent outside TCH-001's assignment, created through the real `POST /api/users/parents` → approve → login flow, not a raw insert with a fake password hash) does double duty as both "the out-of-scope student" for teacher-scoping checks and "a different parent" for the cross-parent 404 check. The "PUT on a non-Pending letter" test moves a letter out of `Pending` via a direct `UPDATE` (approve/decline has no endpoint to do this through) — flagged as the one honest way to test that guard at all: the alternative was not testing it, which is worse than testing it via a path a real reviewer will eventually replace. Confirmed twice, DB verified back to baseline (`excuse_letters`: 0 rows, `students`: 2, `users`: 4) after. `package.json` was outside that dispatch's file whitelist, so `test:excuses` had no `npm run` alias at first — added in a follow-up correction the same day, approved separately. `npm run test:excuses` — 41 passing. **Manually verified 00:25 AM PH** (inside the UTC failing window, not at noon): POST with today's date accepted, not rejected as future; `absence_date` round-trips as `"2026-08-31"` while `created_at` stays ISO, confirming `dateStrings: ['DATE']` applies to DATE columns only, not TIMESTAMP; partial `PUT` with `details` only preserved `absence_date` and `reason`; teacher sees 1 letter via assignment scoping; parent gets `403` on the teacher-only list. All five passed. Response shape note: `login` returns `token`/`user` at the top level, excuse-letter endpoints wrap in `excuse_letter` — no `data` wrapper anywhere. |
 | 2026-08-30 | Fixed the `test:messages` failure flagged as its own task in the entry below (root cause found by investigating, not by inspecting `routes/messages.js`, which was correct the whole time). The `messages` table had exactly one stray row — `sender_id=3 (the seeded parent, Marwin), receiver_id=2 (TCH-001), body="Test message from manual check"` — left over from earlier manual testing against the API, outside the automated suite entirely. `test-messages-flows.js` reuses these two **seeded** accounts as its `parent1`/`teacher1` fixtures every run, unlike its own `teacher2`/`parent2`, which are timestamp-suffixed and genuinely fresh each time. That stray row sorted first in the thread's `ORDER BY created_at ASC, id ASC`, so this run's own 3 messages always had an unexpected 4th prepended — the "Thread returns messages in chronological order" assertion compared the full thread verbatim against a hardcoded 3-message string and failed, correctly, against data the test had no way to know about. Fixed in two parts. (1) Data: deleted the stray row, confirmed live — `messages` back to 0 rows, matching what CLAUDE.md's own CURRENT STATE already claimed as the baseline. (2) The test itself, and this is the part that matters going forward: the assertion was rewritten to scope to the 3 message ids *this run created* (filtering the fetched thread down to `[m1.id, m4.id, m5.id]` before checking order) instead of asserting the whole thread's exact content — still catches the actual regression this guards against (a reversed `ORDER BY`), immune to anything else in the thread. Verified this is a real fix, not just "removing the row made it pass again": reinserted a simulated stray message, confirmed the suite failed as before (proving the deletion alone wasn't the fix), applied the scoped assertion, reinserted the simulated row again, ran twice — 39/39 both times. Two more assertions in the same file had the identical shape, on the *same* reused `parent1`/`teacher1` pair, not yet triggered only by luck: `conversations` list's `unread_count` and `last_message_body` were hardcoded to literals (`1`, `'Spoofed sender test'`); `read-all`'s returned `count` was hardcoded to `2`. All three rewritten to compare against ground truth queried from the DB the same way the endpoint computes it (true last message by the same `ORDER BY created_at DESC, id DESC`, true unread count by the same `WHERE ... AND read_status = 0`, true pre-call unread count for the read-all delta) — an endpoint bug (e.g. a `GROUP BY`+`MAX` picking the wrong row, the exact failure mode `routes/messages.js`'s window-function design was built to avoid) still fails these; unrelated real activity through the same accounts does not. `teacherWithParent1?.unread_count === 0` (after read-all) was left as a literal zero — read-all marks every matching row read regardless of source, so zero remaining is a genuine invariant, not exposed to this class of bug. Verified the same way: reinserted a simulated unread `teacher1 → parent1` message (the exact direction that would have broken both the old `unread_count` and `last_message_body` checks), ran twice — 39/39 both times, cleaned up after. Reviewed all ten other suites for the same shape at the requester's request, before changing anything: found one more instance of the identical pattern in this same file (now fixed, above) and one lower-severity instance in `test-attendance-flows.js`'s summary check (scoped to the seeded student plus a rolling `daysAgo(2)` date — a transient, self-healing exposure window, not a permanent one like two reused accounts forever) — left alone deliberately, not worth the churn of rewriting a test that ages out of its own risk on its own. Everything else checked was already either scoped to a specific tracked id, or written as an `.every(...)` invariant that additional real rows still satisfy (`test-user-management-flows.js`'s "no user has a password key," `test-contributions-flows.js`'s key-name check) — structurally immune to this bug class, not merely lucky. New working-agreement line added to CLAUDE.md: test assertions against shared tables must be scoped to rows the run itself created, or written as invariants that additional real rows still satisfy — never an exact row count or exact list content on a table the app also writes to, since a suite that fails when someone uses the feature is not testing the feature. `npm run test:messages` — 39 passing, confirmed clean and confirmed to survive simulated real usage, both re-checked twice. |
