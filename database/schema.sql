@@ -43,6 +43,7 @@ CREATE TABLE students (
   last_name VARCHAR(50) NOT NULL,
   grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
   section VARCHAR(50) NOT NULL,
+  section_id INT UNSIGNED DEFAULT NULL,
   birthday DATE DEFAULT NULL,
   gender ENUM('male', 'female') DEFAULT NULL,
   address TEXT DEFAULT NULL,
@@ -62,12 +63,25 @@ CREATE TABLE subjects (
   INDEX idx_subjects_grade (grade_level)
 ) ENGINE=InnoDB;
 
+CREATE TABLE sections (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(50) NOT NULL,
+  grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
+  adviser_id INT UNSIGNED DEFAULT NULL,
+  school_year VARCHAR(9) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_section (grade_level, name, school_year),
+  INDEX idx_sections_adviser (adviser_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE teacher_assignments (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   teacher_id INT UNSIGNED NOT NULL,
   subject_id INT UNSIGNED NOT NULL,
   grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
   section VARCHAR(50) NOT NULL,
+  section_id INT UNSIGNED DEFAULT NULL,
   UNIQUE KEY uq_teacher_assignment (teacher_id, subject_id, grade_level, section),
   INDEX idx_assignments_teacher (teacher_id),
   INDEX idx_assignments_subject (subject_id)
@@ -174,6 +188,7 @@ CREATE TABLE announcements (
   category VARCHAR(50) DEFAULT NULL,
   target_grade TINYINT UNSIGNED DEFAULT NULL,
   target_section VARCHAR(50) DEFAULT NULL,
+  section_id INT UNSIGNED DEFAULT NULL,
   attachment_url VARCHAR(255) DEFAULT NULL,
   posted_by INT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -279,11 +294,18 @@ ALTER TABLE users
   ADD CONSTRAINT fk_users_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE students
-  ADD CONSTRAINT fk_students_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+  ADD CONSTRAINT fk_students_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  -- RESTRICT, not CASCADE: a section with enrolled learners must not be deletable.
+  ADD CONSTRAINT fk_students_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE RESTRICT;
+
+-- SET NULL, not RESTRICT — deactivating a teacher must not delete the section.
+ALTER TABLE sections
+  ADD CONSTRAINT fk_sections_adviser FOREIGN KEY (adviser_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE teacher_assignments
   ADD CONSTRAINT fk_assignments_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_assignments_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
+  ADD CONSTRAINT fk_assignments_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_assignments_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;
 
 ALTER TABLE grades
   ADD CONSTRAINT fk_grades_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
@@ -307,7 +329,8 @@ ALTER TABLE messages
   ADD CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE announcements
-  ADD CONSTRAINT fk_announcements_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE RESTRICT;
+  ADD CONSTRAINT fk_announcements_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE RESTRICT,
+  ADD CONSTRAINT fk_announcements_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;
 
 ALTER TABLE memos
   ADD CONSTRAINT fk_memos_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE RESTRICT;

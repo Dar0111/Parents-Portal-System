@@ -43,7 +43,7 @@ INSERT INTO users (login_id, password, role, status, name, email, contact_number
   ('1234567', '${parentHash}', 'parent', 'pending', 'Ashley Geguiera', 'ashley.g@email.com', '09170000003', 2, 2, NULL);
 
 INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section)
-SELECT 2, s.id, s.grade_level, 'Mabini'
+SELECT 2, s.id, s.grade_level, 'Malikhain'
 FROM subjects s
 WHERE s.grade_level = 6 AND s.name IN ('Mathematics', 'English', 'Filipino');
 
@@ -51,6 +51,75 @@ INSERT INTO activity_logs (user_id, action, description) VALUES
   (1, 'seed', 'Initial admin account seeded'),
   (2, 'seed', 'Sample teacher account seeded');
 `;
+}
+
+// Stage A of the sections migration: schema + seed only, no route changes.
+// students.section / teacher_assignments.section / announcements.target_section
+// stay as the VARCHAR columns every route still reads and writes — section_id
+// is populated here for verification only, not yet relied on by anything.
+// A NULL section_id after this runs means the VARCHAR value has no matching
+// row in `sections` (wrong name, wrong grade, or a value seed.sql's 23
+// sections simply don't cover) — reported below, never silently ignored.
+async function backfillSectionIds(connection) {
+  await connection.query(`
+    UPDATE students s
+      JOIN sections sec
+        ON sec.name = s.section
+       AND sec.grade_level = s.grade_level
+       AND sec.school_year = '2026-2027'
+      SET s.section_id = sec.id
+  `);
+
+  await connection.query(`
+    UPDATE teacher_assignments ta
+      JOIN sections sec
+        ON sec.name = ta.section
+       AND sec.grade_level = ta.grade_level
+       AND sec.school_year = '2026-2027'
+      SET ta.section_id = sec.id
+  `);
+
+  await connection.query(`
+    UPDATE announcements a
+      JOIN sections sec
+        ON sec.name = a.target_section
+       AND sec.grade_level = a.target_grade
+       AND sec.school_year = '2026-2027'
+      SET a.section_id = sec.id
+    WHERE a.target_section IS NOT NULL
+  `);
+
+  const [studentRows] = await connection.query(
+    'SELECT section, grade_level, COUNT(*) AS c FROM students WHERE section_id IS NULL GROUP BY section, grade_level'
+  );
+  const [assignmentRows] = await connection.query(
+    `SELECT section, grade_level, COUNT(*) AS c FROM teacher_assignments
+     WHERE section_id IS NULL GROUP BY section, grade_level`
+  );
+  // Scoped to target_section IS NOT NULL — a school-wide announcement
+  // (target_section NULL by design) has no section to match and is not a
+  // backfill mismatch, unlike a grade+section-targeted one that failed to match.
+  const [announcementRows] = await connection.query(
+    `SELECT target_section AS section, target_grade AS grade_level, COUNT(*) AS c FROM announcements
+     WHERE section_id IS NULL AND target_section IS NOT NULL GROUP BY target_section, target_grade`
+  );
+
+  console.log('\nsection_id backfill results:');
+  reportUnmatched('students', studentRows);
+  reportUnmatched('teacher_assignments', assignmentRows);
+  reportUnmatched('announcements (target_section-scoped only)', announcementRows);
+}
+
+function reportUnmatched(tableName, rows) {
+  const total = rows.reduce((sum, row) => sum + row.c, 0);
+  if (total === 0) {
+    console.log(`  ${tableName}: 0 rows with NULL section_id.`);
+    return;
+  }
+  console.log(`  ${tableName}: ${total} row(s) with NULL section_id — unmatched values:`);
+  for (const row of rows) {
+    console.log(`    "${row.section}" (grade ${row.grade_level}) — ${row.c} row(s)`);
+  }
 }
 
 async function main() {
@@ -78,6 +147,9 @@ async function main() {
     seedSql = seedSql.replace('-- __SEED_ACTIVITY__', '');
 
     await connection.query(seedSql);
+
+    console.log('Backfilling section_id from existing VARCHAR values...');
+    await backfillSectionIds(connection);
 
     console.log('\nDatabase setup complete.\n');
     console.log('Default accounts:');

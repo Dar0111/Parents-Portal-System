@@ -167,7 +167,7 @@ async function run() {
     const [rosterResult] = await withDb((conn) =>
       conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, status, created_by)
-         VALUES (?, 'Roster', 'Student', 6, 'Mabini', 'active', 2)`,
+         VALUES (?, 'Roster', 'Student', 6, 'Malikhain', 'active', 2)`,
         [rosterLrn]
       )
     );
@@ -270,7 +270,7 @@ async function run() {
       body: {
         subject_id: mathG6,
         grade_level: 6,
-        section: 'Mabini',
+        section: 'Malikhain',
         date: dateB,
         entries: [
           { student_id: marwinId, status: 'Present' },
@@ -289,7 +289,7 @@ async function run() {
       body: {
         subject_id: mathG6,
         grade_level: 6,
-        section: 'Mabini',
+        section: 'Malikhain',
         date: bulkBadDate,
         entries: [
           { student_id: marwinId, status: 'Present' },

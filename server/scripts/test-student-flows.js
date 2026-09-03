@@ -124,7 +124,7 @@ async function run() {
         first_name: 'InScope',
         last_name: 'Student',
         grade_level: 6,
-        section: 'Mabini',
+        section: 'Malikhain',
         birthday: inScopeBirthday,
       },
     });

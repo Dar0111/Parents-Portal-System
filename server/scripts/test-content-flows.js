@@ -94,7 +94,7 @@ async function run() {
 
   const meParent = await request('GET', '/api/auth/me', { token: parentToken });
   assert(
-    meParent.data?.user?.grade_level === 6 && meParent.data?.user?.section === 'Mabini',
+    meParent.data?.user?.grade_level === 6 && meParent.data?.user?.section === 'Malikhain',
     "Marwin's grade/section resolved via /me"
   );
 
@@ -146,21 +146,21 @@ async function run() {
 
     const adminG6Mabini = await request('POST', '/api/announcements', {
       token: adminToken,
-      body: { title: 'Grade 6 Mabini notice', content: 'For Marwin\'s class.', target_grade: 6, target_section: 'Mabini' },
+      body: { title: 'Grade 6 Malikhain notice', content: 'For Marwin\'s class.', target_grade: 6, target_section: 'Malikhain' },
     });
     assert(adminG6Mabini.status === 201, "Admin posts to Marwin's grade/section");
     if (adminG6Mabini.data?.announcement?.id) createdAnnouncementIds.push(adminG6Mabini.data.announcement.id);
 
     const adminG5Rizal = await request('POST', '/api/announcements', {
       token: adminToken,
-      body: { title: 'Grade 5 Rizal notice', content: "For Jea's class, not Marwin's.", target_grade: 5, target_section: 'Rizal' },
+      body: { title: 'Grade 5 Masigasig notice', content: "For Jea's class, not Marwin's.", target_grade: 5, target_section: 'Masigasig' },
     });
     assert(adminG5Rizal.status === 201, "Admin posts to a different grade/section (Jea's class)");
     if (adminG5Rizal.data?.announcement?.id) createdAnnouncementIds.push(adminG5Rizal.data.announcement.id);
 
     const teacherOwnClass = await request('POST', '/api/announcements', {
       token: teacherToken,
-      body: { title: 'From the teacher', content: 'Posted by TCH-001.', target_grade: 6, target_section: 'Mabini' },
+      body: { title: 'From the teacher', content: 'Posted by TCH-001.', target_grade: 6, target_section: 'Malikhain' },
     });
     assert(teacherOwnClass.status === 201, 'Teacher posts within their own assignment');
     if (teacherOwnClass.data?.announcement?.id) createdAnnouncementIds.push(teacherOwnClass.data.announcement.id);

@@ -97,13 +97,43 @@ INSERT INTO subjects (name, grade_level) VALUES
   ('EPP', 6);
 
 -- ---------------------------------------------------------------------------
+-- Sections — real names from the school's official teacher list, SY 2026-2027.
+-- adviser_id left NULL for now (Stage A is additive schema only).
+-- ---------------------------------------------------------------------------
+
+INSERT INTO sections (name, grade_level, school_year) VALUES
+  ('Matipid', 1, '2026-2027'),
+  ('Mabait', 1, '2026-2027'),
+  ('Maagap', 1, '2026-2027'),
+  ('Mapagmahal', 1, '2026-2027'),
+  ('Mapagkaibigan', 2, '2026-2027'),
+  ('Masikap', 2, '2026-2027'),
+  ('Mapagkakatiwalaan', 2, '2026-2027'),
+  ('Magiliw', 3, '2026-2027'),
+  ('Matapat', 3, '2026-2027'),
+  ('Masipag', 3, '2026-2027'),
+  ('Malinis', 3, '2026-2027'),
+  ('Makabansa', 4, '2026-2027'),
+  ('Makakalikasan', 4, '2026-2027'),
+  ('Makadiyos', 4, '2026-2027'),
+  ('Makatao', 4, '2026-2027'),
+  ('Mahusay', 5, '2026-2027'),
+  ('Masigasig', 5, '2026-2027'),
+  ('Masinop', 5, '2026-2027'),
+  ('Masunurin', 5, '2026-2027'),
+  ('Maunlad', 6, '2026-2027'),
+  ('Matatag', 6, '2026-2027'),
+  ('Malikhain', 6, '2026-2027'),
+  ('Marangal', 6, '2026-2027');
+
+-- ---------------------------------------------------------------------------
 -- Sample students (capstone examples: Marwin & Jea — same guardian, different LRNs)
 -- created_by will be set after teacher is seeded (see setup-db.js)
 -- ---------------------------------------------------------------------------
 
 INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday, gender, address, status) VALUES
-  ('13567454', 'Marwin', 'Conde', 6, 'Mabini', '2014-03-15', 'male', 'Pateros, Metro Manila', 'active'),
-  ('1234567', 'Jea Mae', 'Bargaso', 5, 'Rizal', '2015-07-22', 'female', 'Pateros, Metro Manila', 'active');
+  ('13567454', 'Marwin', 'Conde', 6, 'Malikhain', '2014-03-15', 'male', 'Pateros, Metro Manila', 'active'),
+  ('1234567', 'Jea Mae', 'Bargaso', 5, 'Masigasig', '2015-07-22', 'female', 'Pateros, Metro Manila', 'active');
 
 -- Password hashes for users are inserted by scripts/setup-db.js after bcrypt hashing.
 -- Placeholder markers below are replaced programmatically:
