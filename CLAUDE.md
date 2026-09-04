@@ -49,6 +49,9 @@ to the team.
 | POST | `/api/students` | teacher (own assignment only), admin |
 | PUT | `/api/students/:id` | teacher (own assignment only), admin |
 | PATCH | `/api/students/:id/status` | admin |
+| GET | `/api/sections` | all roles — unscoped reference data, no per-role filtering |
+| GET | `/api/sections/:id` | all roles — `404` only for a genuinely nonexistent id |
+| PATCH | `/api/sections/:id/adviser` | admin — assigns/clears a section's adviser, one teacher may advise more than one section |
 | GET | `/api/attendance` | teacher (section adviser), admin |
 | GET | `/api/attendance/student/:studentId` | teacher (adviser), admin, parent (own child only) |
 | GET | `/api/attendance/summary/:studentId` | teacher (adviser), admin, parent (own child only) — raw counts, no rate |
@@ -98,17 +101,22 @@ to the team.
 **Backup and Restore both built.** See "RESTORE" below for what shipped and
 what the automated suite deliberately does not cover.
 
-**Tests:** twelve suites. The eleven HTTP suites are idempotent — every row they
+**Tests:** thirteen suites. The twelve HTTP suites are idempotent — every row they
 create is tracked and deleted in a `finally` block (or, for Settings, restored to
-its original value), so no `db:setup` is needed between runs. Verified by running
+its original value; for Sections, the two NULL-adviser test sections are reset to
+NULL and the throwaway teacher fixture deleted, via a direct DB write, not a
+remembered API call), so no `db:setup` is needed between runs. Verified by running
 each twice in a row with no reset: same pass count both times, and the DB
 confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
 announcements, memos, events, contributions, contribution_records, excuse_letters,
-backups, messages) after. `test:sanitize` is a direct-call unit test — no server or DB
+backups, messages) — plus sections back to exactly 2 of 23 rows with a real
+adviser_id (Malikhain → TCH-001, Masigasig → TCH-002, both untouched by the
+suite) — after. `test:sanitize` is a direct-call unit test — no server or DB
 involved. `test:restore` is the one exception to "runs a real flow end to end":
 it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
 - `npm run test:students` — 30/30
+- `npm run test:sections` — 30/30
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 47/47
@@ -146,6 +154,13 @@ server/
   routes/auth.js               login, me, change-password
   routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
   routes/students.js           list/view/create/update, teacher scoped to own assignments
+  routes/sections.js           GET /, GET /:id (all roles, unscoped reference data — no per-role
+                                filtering), PATCH /:id/adviser (admin only, assigns/clears
+                                adviser_id — the only mutable field). No POST/DELETE, the 23
+                                sections are fixed for the school year. student_count via a
+                                correlated subquery, not JOIN + GROUP BY (see file comment) —
+                                same GROUP BY-avoidance reasoning as the Messages module's
+                                window function
   routes/attendance.js         record/bulk/correct/list/summary — per DAY (Stage B1), not per subject.
                                 No subject_id anywhere in this file. Scoped by section adviser
                                 (sections.adviser_id via students.section_id), not teacher_assignments —
@@ -192,6 +207,12 @@ server/
                                 adviser of Grade 5 - Masigasig) alongside TCH-001
   scripts/test-auth-flows.js   HTTP tests
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
+  scripts/test-sections-flows.js HTTP tests — 23-row fixed inventory, admin-only PATCH, role/status
+                                validation on adviser_id, one teacher advising two sections. Every
+                                mutation runs against 2 of the 21 NULL-adviser sections (resolved
+                                by id, never Malikhain/Masigasig), reset to NULL via a direct DB
+                                write in a finally block — never a remembered "restore the seeded
+                                value" step
   scripts/test-attendance-flows.js HTTP tests — per-day model (Stage B1): adviser scoping via
                                 sections.adviser_id, bulk section_id validation, all-or-nothing
   scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin
@@ -257,7 +278,7 @@ below; approve/decline's attendance-side question is now answered
 (record-only, see BLOCKED), but who is authorized to approve is not
 explicitly re-confirmed — still not built.
 
-### sections table — one route reads it now (attendance), nine still don't
+### sections table — one route reads it now (attendance), one route manages it (sections), eight still don't
 
 **The thing a fresh session will get wrong.** `sections` exists in
 `schema.sql`, is seeded with the school's 23 real section names, and has a
@@ -280,13 +301,26 @@ own. `section_id` was planned to be read in exactly two places:
 migrating a third route to `section_id` without checking here first — that
 would be exactly the scope creep this note exists to prevent.
 
+**`routes/sections.js` (new) is a different thing from that migration —
+do not conflate the two.** It doesn't read `section_id` to scope some
+*other* resource the way `attendance.js` does; it's the CRUD-minus-create
+management interface for the `sections` table itself: `GET /`, `GET /:id`
+(both unscoped — sections are reference data every role sees in full, no
+per-role filtering, no 404-as-anti-enumeration), and
+`PATCH /:id/adviser` (admin only — assigns or clears `adviser_id`, the
+only mutable field; no `POST`/`DELETE`, the 23 sections are fixed for the
+school year). This is what makes an unassigned section usable by
+attendance — before this route existed, setting `adviser_id` on one of
+the 21 `NULL` sections meant a direct DB write, not an admin action.
+
 `sections.adviser_id` is seeded for **2 of 23** sections: Grade 6 -
 Malikhain → TCH-001, Grade 5 - Masigasig → TCH-002 (a second seeded
 teacher account, added specifically so adviser-scoping could be tested
 against a real non-adviser, not a fabricated one). The other 21 are
-`NULL` — assigning them is an admin UI feature, not seed data, and
-attendance for those 21 sections has no valid adviser until that's built
-or done by hand.
+still `NULL` — `PATCH /api/sections/:id/adviser` is now how an admin
+assigns them (via a direct API call; there is still no admin *UI* page
+for it, that's Stage 4), and attendance for those 21 sections has no
+valid adviser until each is assigned, one call at a time or by hand.
 
 ### React web app — auth, verified end-to-end
 
@@ -880,6 +914,10 @@ Order matters. Student Records first because everything references students.
 Grades is last in this stage because it is blocked.
 
 - [x] Student Records API — list, view, create, update
+- [x] Sections API — `GET /`, `GET /:id` (unscoped), `PATCH /:id/adviser`
+      (admin) — not one of the original 10 core features, built because
+      attendance's adviser-scoping needs a way to assign the 21 still-NULL
+      sections without a direct DB write
 - [x] Attendance API — per day, adviser-scoped (Stage B1 rebuild; was per
       subject, see BLOCKED / RESOLVED and the 2026-09-04 CHANGELOG entry)
 - [x] Announcements + Memos + Events API
@@ -1142,6 +1180,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-05 | Sections API built — `routes/sections.js`, 3 endpoints (`GET /`, `GET /:id`, `PATCH /:id/adviser`), mounted at `/api/sections` between `/api/students` and `/api/attendance`. This is the admin-facing counterpart to Stage B1's attendance rebuild: attendance scoping has depended on `sections.adviser_id` since 2026-09-04, but until now the only way to set it on any of the 21 still-`NULL` sections was a direct DB write — this route is what makes those 21 sections usable through the API instead of by hand. Built from an explicit plan-then-approve dispatch: a PLAN ONLY pass answered 7 scoping/shape questions before any file was touched, and two of the plan's own original instructions were corrected on review rather than followed as written — see below. No `POST`/`DELETE` — the 23 sections are fixed for the school year; the table's inventory never changes, only `adviser_id` does. `GET /` and `GET /:id` are **unscoped** — sections are reference data every authenticated role sees in full, not filtered per role the way `students` is. This was the plan's own instruction ("reads out of scope → 404, matching routes/users.js") and it was **wrong**, caught during the plan pass, not after: there is no "section belongs to a role" concept, so inventing a scoping rule to satisfy the auth-pattern template would have been scope the template doesn't call for. `GET /:id`'s `404` fires only for a genuinely nonexistent id. `student_count` in both GET responses comes from a correlated subquery (`(SELECT COUNT(*) FROM students st WHERE st.section_id = sec.id)`), not a `JOIN students` + `GROUP BY` — a direct join fans out one-to-many, and adding the `LEFT JOIN users` for `adviser_name` on top of that risks the exact `ONLY_FULL_GROUP_BY` ambiguity the Messages module already worked around once with a window function instead of `GROUP BY + MAX(created_at)`; a subquery has no fan-out and no ambiguity, and at 23 rows total the per-row cost is nothing. `PATCH /:id/adviser` is admin-only, body `{ adviser_id }`: `adviser_id` missing from the body → `400` ("adviser_id is required — provide a teacher's user id, or null to clear the adviser."); non-null but not a positive integer → `400`; section id not found → `404`; `adviser_id` referencing a nonexistent user → `400` ("adviser_id does not reference an existing user."); referencing a non-teacher → `400` naming the found role; referencing an inactive teacher → `400` naming the found status. `adviser_id: null` is explicitly allowed and clears the field — skips the existence/role/status checks entirely, since there's nothing to validate against. One teacher advising two (or more) sections is allowed by design, not merely unblocked by omission — the validation only checks identity/role/status of the target user, never "is this teacher already advising something else." `logActivity()` on every successful PATCH records both the old and new `adviser_id`. Tests: `scripts/test-sections-flows.js`, 30 assertions. The test-fixture-safety design is the other plan correction: the original instruction was "restore the seeded advisers at the end," which was flagged during planning as fragile — a suite that errors before reaching its own restore step would silently leave `Malikhain`/`Masigasig` (or whichever section it touched) corrupted for every other suite's next run, `test-attendance-flows.js` specifically, which resolves those two sections by name and depends on TCH-001/TCH-002 actually being their real advisers. Rebuilt instead so corruption is structurally impossible rather than merely undone on a clean exit: every mutating test runs against two of the 21 currently-`NULL`-adviser sections only (resolved by id, deterministic `ORDER BY`), Malikhain and Masigasig are read in assertions but never written to, and cleanup resets the two test sections to `adviser_id = NULL` via a direct DB `UPDATE` in a `finally` block — not an API call remembered for "later." The "one teacher advising two sections" case reuses this same principle: TCH-001 (already the real adviser of Malikhain) is assigned to one of the two NULL test sections as its second section, rather than fabricating a third throwaway teacher — and a dedicated assertion re-reads Malikhain afterward to confirm its own seeded assignment is untouched. One throwaway user fixture was still necessary — an inactive teacher account, to test the status-check branch — created via the real `POST /api/users/teachers` → `PATCH /api/users/:id/status` flow (not a raw insert), deleted (along with its `activity_logs` rows) in the same `finally` block. `npm run test:sections` — 30 passing, confirmed twice in a row with no `db:setup` between runs. Full regression across the twelve existing suites afterward: all unchanged from their prior counts (auth 25, students 30, attendance 38, content 47, contributions 38, settings 27, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 41) — confirms nothing leaked outside this module. `git status` after implementation showed exactly the four whitelisted code files changed (`server/routes/sections.js`, `server/scripts/test-sections-flows.js`, `server/server.js`, `server/package.json`) — no scope expansion. |
 | 2026-09-04 | Attendance rebuilt per day, not per subject (Stage B1) — the answer recorded as "resolved, not built" in the previous entry is now built. `attendance.subject_id` dropped outright (column, FK, index), not made nullable — the table held 0 rows, so this was a clean rebuild, not a data migration; `UNIQUE KEY uq_attendance` is now `(student_id, date)`, was `(student_id, subject_id, date)`. Scoping in `routes/attendance.js` no longer touches `teacher_assignments` at all — replaced with `teacherIsAdviserOfSection(teacherId, sectionId)`, checking `sections.adviser_id` via `students.section_id`. This is the first (and, per the "sections table" CURRENT STATE note, one of only two planned) route to read `section_id` — every other route still scopes on the VARCHAR columns, unchanged, deliberately. `canViewStudent()`'s teacher branch is the same adviser check via a join. All six endpoints changed: `subject_id` is gone from both POST bodies, both list-filter query params, and every SELECT (no more `subjects` JOIN, no more `subject_name`); `POST /bulk` is now the primary path and takes `{ section_id, date, entries }` instead of a `{ grade_level, section }` VARCHAR pair, validating every entry's student actually belongs to that `section_id`; every out-of-scope write's `403` names the constraint explicitly ("You are not the adviser of this student's section." / "...of this section.") — never a bare "Access denied." Explicitly not built, per instruction: no attendance-rate percentage (formula still unconfirmed, `GET /summary` still returns raw counts only) and no 20%-absence promotion-rule logic anywhere, not even as a stub — the school mentioned it but didn't ask for it, and guessing at pass/fail logic is exactly the kind of thing this project's BLOCKED discipline exists to prevent. Two advisers seeded, not one, specifically so adviser-scoping could be tested against a real non-adviser rather than a fabricated third fixture: Grade 6 - Malikhain → TCH-001 (existing), Grade 5 - Masigasig → TCH-002 (new, `Ana Reyes`, deliberately fictional — not a real name from the school's teacher list, created the same way TCH-001 is, in `setup-db.js`'s `buildUserSeedSql()`). The other 21 sections stay `NULL` — assigning them is an admin UI feature, not seed data. Adviser assignment itself lives in `seed.sql`, keyed by `login_id` subquery (`WHERE login_id = 'TCH-001'`), not a hardcoded numeric id, since exact user ids depend on insert order and TCH-002's insert shifts nothing existing (appended after the parents' rows, so admin/TCH-001/both parents keep their original ids 1–4; TCH-002 lands on 5). `test-attendance-flows.js` fully rewritten for the new shape — `npm run test:attendance` — 38 passing (was 33), idempotent, confirmed twice, DB back to baseline (0 attendance rows, 2 students, 5 users) after. Full regression across the other eleven suites afterward: all unchanged from their prior counts (auth 25, students 30, content 47, contributions 38, settings 27, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 41) — confirms nothing leaked outside this module. One real deployment hiccup, not a code bug: the dev server had been running via plain `npm start` (no `--watch`) since an earlier session, so it silently kept serving the pre-rewrite `attendance.js` and the first test run failed against stale code with a stale error message ("subject_id... required") that looked like a real regression until traced to the wrong process. Killed it, restarted via `npm run dev`, re-ran clean. Worth remembering next session: confirm which server process is actually listening before trusting a failing test's error message. |
 | 2026-09-03 | Docs sync for the `sections` table work (merged to `main`) plus a batch of school-visit/DepEd-order answers — no code in this pass. Table count corrected to 20, not 19: `sections` was added on top of the count this file already had right after Restore shipped (`auth_security_state` had already moved it from 18→19 in an earlier entry) — the dispatch for this update assumed the stale "18," which itself was already wrong; verified against `schema.sql` directly (`grep -c "^CREATE TABLE"`) rather than trusted. New "sections table — schema only, nothing reads it yet" subsection added under CURRENT STATE — the load-bearing fact: `section_id` exists and is backfilled, but every route still scopes on the VARCHAR columns (`students.section`, `teacher_assignments.section`, `announcements.target_section`); the FK cutover is scoped and deliberately deferred, not forgotten. `sections.adviser_id` is `NULL` for all 23 rows — attendance adviser-scoping can't work until advisers are assigned; that's a data gap, not a code gap. **BLOCKED section restructured to BLOCKED / RESOLVED**, since several long-standing questions now have real answers: Grades module's four original blockers are all answered (DO 009 s. 2026 — three terms, not four quarters; DO 015 s. 2026 — three components, not five, repeals DO 8 s. 2015; weights keyed by learning area, not grade level, confirming the known `grade_weight_configs` defect; Grade 1 alone uses descriptive grading, Grades 2–6 stay numerical with an adjusted transmutation table — not "1–3 vs. 4–6" as originally framed) — **answered, not built**; `docs/GRADING_SPEC.md` was referenced in the source material for this update as where full detail lives, but that file does not exist — flagged rather than silently linked or silently created, full detail preserved inline instead. Excuse Letters' approve/decline has one of its two original blockers resolved (record-only, attendance rows untouched) and one still open (who approves — the new `sections.adviser_id` is the right mechanism but wasn't confirmed as the answer, and is NULL everywhere regardless) — do not treat the endpoint as fully unblocked. New finding, not previously documented at all: attendance is per **day** on the school's SF9 report (monthly Class Days/Days Present/Days Absent), not per subject like the current `attendance` table (`UNIQUE (student_id, subject_id, date)`) — needs converting, not extending; and attendance does not feed grade computation, it's a separate report-card section. Neither conversion happened in this pass. KNOWN ISSUES' `grade_components.type` row updated to match — no longer "blocked," DO 015 confirms the schema's three-part shape was closer to right than the manuscript, but Examinations' real internal structure (ST1/ST2/TE composite) still has no column. |
 | 2026-08-31 | **UTC in test date helpers.** Found in the same commit as Excuse Letters, but a separate fix, not part of that module's dispatch. `test-attendance-flows.js` and `test-content-flows.js` built dates with local getters (`setDate`/`setFullYear`) but formatted the result via `.toISOString()` — UTC. Between 00:00–08:00 PH, `.toISOString()`'s calendar date is still the previous day, so `tomorrow()` returned *today*, and "Future date rejected" failed even though the app code (already fixed earlier — see the DATE-column entry below) was correct. Affected helpers: `daysAgo`, `tomorrow` (`test-attendance-flows.js`), `daysAgo`, `yearsFromNow` (`test-content-flows.js`). Fixed by formatting from local components (`getFullYear()`/`getMonth()`/`getDate()`) instead, matching the `todayLocal()` pattern already present in `test-attendance-flows.js` — no shared helper module added, each fixture keeps its own local copy, deliberately. **Rule:** test date helpers must never use `.toISOString()`. Run date-sensitive suites at least once between 00:00–08:00 PH — the only window a UTC bug like this can actually surface in; a pass at noon proves nothing. Verified inside that window, not outside it: both suites run at ~00:15 AM PH, confirmed twice each — `npm run test:attendance` 33/33, `npm run test:content` 47/47. `test-contributions-flows.js` and `test-excuses-flows.js` were checked and already correct (their date helpers already used local components) — not touched. |

@@ -8,6 +8,7 @@ const http = require('http');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const studentRoutes = require('./routes/students');
+const sectionsRoutes = require('./routes/sections');
 const attendanceRoutes = require('./routes/attendance');
 const { announcementsRouter, memosRouter, eventsRouter } = require('./routes/content');
 const contributionsRoutes = require('./routes/contributions');
@@ -32,6 +33,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/sections', sectionsRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/announcements', announcementsRouter);
 app.use('/api/memos', memosRouter);
