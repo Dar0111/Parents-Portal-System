@@ -83,6 +83,7 @@ to the team.
 | GET | `/api/excuse-letters` | teacher (own assigned students only), admin (all) — filters: status, student_id, from, to |
 | GET | `/api/excuse-letters/:id` | all roles, scoped — `404` on violation |
 | PUT | `/api/excuse-letters/:id` | parent, own letter, only while `status='Pending'` — `404` if not theirs, `403` naming the reason if already reviewed |
+| PATCH | `/api/excuse-letters/:id/review` | teacher (adviser of student's section only), admin — `Approved`/`Declined`, never touches `attendance` |
 | GET | `/api/settings` | authenticated — all settings, flat key-value object |
 | GET | `/api/settings/:key` | authenticated — `404` if not one of the 5 allow-listed keys |
 | PUT | `/api/settings/:key` | admin — per-key validation, unknown key rejected naming the allow-list |
@@ -127,7 +128,7 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:sanitize` — 9/9
 - `npm run test:messages` — 39/39
 - `npm run test:restore` — 22/22
-- `npm run test:excuses` — 41/41
+- `npm run test:excuses` — 56/56
 
 ### Files that exist
 
@@ -185,10 +186,13 @@ server/
                                 (multipleStatements) outside the shared pool, pool reset,
                                 token_valid_after set
   routes/messages.js           canMessage() boundary on send, participant-scoped reads, emits on send
-  routes/excuses.js            submit/mine/list/view/edit — CRUD half only, approve/decline not built
-                                (blocked, see BLOCKED); parent_id/student_id/status always from
-                                req.user, never req.body; teacher list/view scoped via the exact
-                                EXISTS-on-teacher_assignments shape routes/students.js uses
+  routes/excuses.js            submit/mine/list/view/edit/review — full module, both blockers
+                                resolved (see BLOCKED / RESOLVED); parent_id/student_id/status
+                                always from req.user, never req.body; teacher list/view scoped via
+                                the exact EXISTS-on-teacher_assignments shape routes/students.js
+                                uses (broader than review — any assigned teacher, not just the
+                                adviser); PATCH /:id/review is adviser-only (sections.adviser_id),
+                                writes only status/teacher_remarks/reviewed_by, never attendance
   backups/                     .sql dump files land here — gitignored except .gitkeep
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
@@ -225,7 +229,10 @@ server/
   scripts/test-restore-flows.js HTTP tests — every pre-flight gate, token_valid_after via crafted JWTs;
                                 deliberately never triggers a real restore, see CURRENT STATE
   scripts/test-excuses-flows.js HTTP tests — forbidden-body-fields ignored, absence_date round-trip,
-                                cross-parent 404, teacher scoping, Pending-only edit guard
+                                cross-parent 404, teacher scoping, Pending-only edit guard, and
+                                review: adviser-only 403 (not 404, deliberately — see the comment
+                                in routes/excuses.js), already-reviewed 403, attendance-row-count
+                                unchanged before/after an approval, admin-unscoped review
 database/
   schema.sql                   20 tables. users.status ENUM now includes 'inactive'.
                                 backups.file_size added (bytes, populated after dump succeeds).
@@ -273,10 +280,10 @@ The school-visit answers that were blocking it have arrived (DO 009/DO 015
 s. 2026 — see BLOCKED) — **the module is now answered, not blocked, but
 still not built.** Building it is a separate task from documenting the
 answers, which is all this entry records. Backup/Restore is fully built —
-5 endpoints, see "RESTORE" below. Excuse Letters' CRUD half is built — see
-below; approve/decline's attendance-side question is now answered
-(record-only, see BLOCKED), but who is authorized to approve is not
-explicitly re-confirmed — still not built.
+5 endpoints, see "RESTORE" below. **Excuse Letters is fully built** — both
+original blockers (who approves, does approval touch attendance) are
+resolved and `PATCH /:id/review` is implemented; see BLOCKED / RESOLVED
+and the 2026-09-05 CHANGELOG entry.
 
 ### sections table — one route reads it now (attendance), one route manages it (sections), eight still don't
 
@@ -511,25 +518,40 @@ loosely onto this (quiz/activity/exam) but not exactly, and Examinations'
 real internal structure (ST1/ST2/TE, weighted 30/30/40) isn't represented
 at all. Re-checking this shape is part of the still-not-built work above.
 
-### Excuse Letters module — one question RESOLVED, one still open
+### Excuse Letters module — RESOLVED and BUILT (both blockers)
 
 - **RESOLVED: excuse letter approval is record-only.** The learner stays
   `Absent`; the letter documents the reason. Approval must not modify
   `attendance` rows. This answers the original "does approving change the
-  attendance record" question — it does not, by design.
-- **Still open: who approves.** The original question — class adviser
-  only, or any teacher assigned to the student's grade/section — was not
-  re-confirmed in the update that resolved the question above. The new
-  `sections.adviser_id` column (see the "sections table" note under
-  CURRENT STATE) is exactly the mechanism "adviser-only" would need, and
-  `adviser_id` is currently `NULL` for every section, so that mechanism
-  isn't usable yet regardless. Flagging this as a real gap, not assuming
-  the adviser answer just because the column now exists — confirm before
-  building `PATCH /:id/review`.
+  attendance record" question — it does not, by design. Enforced in code,
+  not just documentation: `PATCH /:id/review` writes only `status`,
+  `teacher_remarks`, and `reviewed_by` — no query in that handler
+  references the `attendance` table at all.
+- **RESOLVED: who approves — the class adviser only.** Confirmed by the
+  school, not "any teacher assigned to the student's grade/section."
+  `sections.adviser_id` (via `students.section_id`) is the authority,
+  exactly as the previous entry here anticipated. The Sections API
+  (2026-09-05) is what made every section's `adviser_id` assignable
+  through the API rather than a direct DB write, which is what actually
+  unblocked building this.
 
-**Net effect:** the CRUD half stays built as before. `PATCH /:id/review`
-has one of its two original blockers resolved, not both — do not build it
-as fully unblocked.
+**Net effect:** `PATCH /:id/review` is built. See the endpoints table and
+the 2026-09-05 CHANGELOG entry for the read-scope-vs-review-scope
+distinction (existing `GET` scoping is broader — any assigned teacher,
+via `teacher_assignments` — than review authority, which is adviser-only
+via `sections.adviser_id`) and why an unauthorized non-adviser gets `403`
+naming the reason rather than `404`.
+
+**Stage 4 UI note, not API enforcement:** `teacher_remarks` is deliberately
+optional on both `Approved` and `Declined` (API-level — see above), but a
+`Declined` letter with no remarks gives the parent no reason and pushes
+them to message the teacher instead — the exact repeated-PM problem the
+Class Board exists to reduce. The fix belongs in the Stage 4 decline form
+as a UI prompt (e.g. a soft "add a reason?" nudge before submitting a
+decline), not as a backend-enforced required field — see the confirmed
+reasoning above for why a status-conditional required field was rejected
+at the API layer. Flagging here so it isn't lost before Stage 4 web pages
+are built.
 
 ### Attendance is per day, not per subject — RESOLVED and DONE (Stage B1)
 
@@ -806,13 +828,11 @@ imply," not just "does this one anticipated symptom show up."
 
 ## SAFE TO BUILD NOW — done
 
-The CRUD half of Excuse Letters (`submit`, `mine`, `list`, `view`, `edit`)
-is built — see the endpoints table and `routes/excuses.js` in Files that
-exist. `approve`/`decline` (`PATCH /:id/review`) is the one remaining
-piece, and it's still blocked on the same school-visit questions as
-before — not stubbed, not commented in. Nothing else in the system is
-currently in this "unblocked but unbuilt" state; the next backend work
-waits on either the school visit (Grades, excuse-letter review) or
+Excuse Letters is fully built — `submit`, `mine`, `list`, `view`, `edit`,
+and `review` (`PATCH /:id/review`, approve/decline) — see the endpoints
+table and `routes/excuses.js` in Files that exist. Nothing in the system
+is currently in the "unblocked but unbuilt" state this section used to
+track; the next backend work waits on the school visit (Grades) or
 Stage 4 web pages.
 
 ---
@@ -921,7 +941,7 @@ Grades is last in this stage because it is blocked.
 - [x] Attendance API — per day, adviser-scoped (Stage B1 rebuild; was per
       subject, see BLOCKED / RESOLVED and the 2026-09-04 CHANGELOG entry)
 - [x] Announcements + Memos + Events API
-- [x] Excuse Letters API — **CRUD half only**: submit, mine, list, view, edit built; approve/decline has one of two blockers resolved (record-only, no attendance mutation) and one still open (who approves), see BLOCKED / RESOLVED
+- [x] Excuse Letters API — **fully built**: submit, mine, list, view, edit, and review (approve/decline, adviser-only, never touches attendance), see BLOCKED / RESOLVED
 - [x] Contributions API — create, record payment, view status
 - [x] Messages API + Socket.io
 - [x] System Settings API (admin)
@@ -1180,6 +1200,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-05 | `PATCH /api/excuse-letters/:id/review` built — the last piece of Excuse Letters, unblocking the module fully. Both school-visit questions that blocked it for weeks are resolved: the class adviser only may review (not any assigned teacher — confirmed by the school, superseding the earlier "not re-confirmed" flag), and review never touches `attendance` ("excuse lang yung bata pero absent pa rin" — the learner stays Absent, the letter documents the reason). Enforced structurally, not just by convention: the handler's `UPDATE` statement writes only `status`, `teacher_remarks`, and `reviewed_by` — no query anywhere in it references `attendance`, and a comment at the top of the handler says so explicitly so a future session doesn't "helpfully" add one. Built from a plan-then-approve dispatch identical in shape to the Sections one two entries below — 7 questions answered before any file was touched, two of which turned into real design decisions rather than restating the plan: the 403-vs-404 question and the teacher_remarks-required-on-decline question, both below. `authorize('teacher', 'admin')` at the route level already blocks parents. For a teacher, existence/read-scope is checked first, using the *same* `teacher_assignments`-based query `GET /:id` already uses — a teacher who can't even `GET` this letter gets the identical `404` here, never a leak. Review authority is checked second and is narrower: `sections.adviser_id` via the student's `section_id`, not `teacher_assignments` — a teacher who *can* read the letter but isn't the adviser gets **`403`** naming the reason ("Only the adviser of this student's section can review excuse letters."), **not `404`** — a deliberate deviation from `PUT /api/attendance/:id`'s own out-of-scope-returns-404 precedent, called out in a comment at the check itself so a future session reading only `attendance.js` doesn't "fix" it back to `404`. The reasoning: attendance's read-scope and write-scope are both adviser-only already, so `404` there is a true "cannot see this" signal; here read-scope is deliberately broader than review-scope, so a non-adviser teacher already got `200` from `GET /:id` on this exact id — `404` on `PATCH` would contradict `GET` and hide nothing they don't already have. A student whose `section_id` is `NULL` (VARCHAR `section` never matched a seeded row) can't be reviewed by any teacher, adviser or not — only admin; same accepted edge case as `attendance.js`, noted in a comment rather than special-cased. `teacher_remarks` stays optional on both `Approved` and `Declined` — no status-conditional required rule, which would have been the only field in the codebase required conditionally on a sibling field's value. A documentation-only note was added instead: a `Declined` letter with no remarks gives the parent no reason and pushes them toward messaging the teacher directly — the repeated-PM problem the Class Board is meant to reduce — but that belongs in the Stage 4 decline-form UI as a prompt, not backend enforcement; recorded under the Excuse Letters BLOCKED / RESOLVED section so it isn't lost before Stage 4. Already-reviewed guard reuses the same shape as `PUT /:id`'s: `403`, "This excuse letter has already been reviewed." `status` in the body accepts only `'Approved'`/`'Declined'` — `'Pending'` or anything else is `400`. Tests: `scripts/test-excuses-flows.js`, 15 new assertions (41 → 56) plus two stale comment fixes (leftover "Grade 6 - Mabini" references from before the Malikhain/Masigasig section rename, corrected to avoid misleading a future session reading this file). One new fixture: a throwaway teacher given a `teacher_assignments` row for Grade 6 - Malikhain (Marwin's section) but *not* made its adviser — the one account needed to exercise the 403-not-404 case at all, since every other teacher fixture in this file is either the real adviser (TCH-001) or has zero assignment to Marwin's section (TCH-002). Deleted in the `finally` block; `fk_assignments_teacher ON DELETE CASCADE` removes its `teacher_assignments` row automatically, so only the `users` row needed an explicit delete. The "admin reviews any letter" test deliberately targets the pre-existing `outsideLetterId` fixture (Grade 3 - Aguinaldo, `section_id` `NULL`, no teacher assigned to it in this suite at all) rather than an in-scope Malikhain letter — proves admin is unscoped against a letter literally no teacher in this test run could even read, not just one a teacher could read but not review. Attendance-untouched is asserted directly, not assumed: the student's `attendance` row count is snapshotted immediately before and compared immediately after a real approval, rather than trusting the code comment alone. `npm run test:excuses` — 56 passing, confirmed twice in a row with no `db:setup` between runs. Full regression across the other twelve suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, settings 27, users 39, backups 39, sanitize 9, messages 39, restore 22) — confirms nothing leaked outside this module. `git status` after implementation showed exactly the two whitelisted code files changed (`server/routes/excuses.js`, `server/scripts/test-excuses-flows.js`) — no scope expansion. |
 | 2026-09-05 | Sections API built — `routes/sections.js`, 3 endpoints (`GET /`, `GET /:id`, `PATCH /:id/adviser`), mounted at `/api/sections` between `/api/students` and `/api/attendance`. This is the admin-facing counterpart to Stage B1's attendance rebuild: attendance scoping has depended on `sections.adviser_id` since 2026-09-04, but until now the only way to set it on any of the 21 still-`NULL` sections was a direct DB write — this route is what makes those 21 sections usable through the API instead of by hand. Built from an explicit plan-then-approve dispatch: a PLAN ONLY pass answered 7 scoping/shape questions before any file was touched, and two of the plan's own original instructions were corrected on review rather than followed as written — see below. No `POST`/`DELETE` — the 23 sections are fixed for the school year; the table's inventory never changes, only `adviser_id` does. `GET /` and `GET /:id` are **unscoped** — sections are reference data every authenticated role sees in full, not filtered per role the way `students` is. This was the plan's own instruction ("reads out of scope → 404, matching routes/users.js") and it was **wrong**, caught during the plan pass, not after: there is no "section belongs to a role" concept, so inventing a scoping rule to satisfy the auth-pattern template would have been scope the template doesn't call for. `GET /:id`'s `404` fires only for a genuinely nonexistent id. `student_count` in both GET responses comes from a correlated subquery (`(SELECT COUNT(*) FROM students st WHERE st.section_id = sec.id)`), not a `JOIN students` + `GROUP BY` — a direct join fans out one-to-many, and adding the `LEFT JOIN users` for `adviser_name` on top of that risks the exact `ONLY_FULL_GROUP_BY` ambiguity the Messages module already worked around once with a window function instead of `GROUP BY + MAX(created_at)`; a subquery has no fan-out and no ambiguity, and at 23 rows total the per-row cost is nothing. `PATCH /:id/adviser` is admin-only, body `{ adviser_id }`: `adviser_id` missing from the body → `400` ("adviser_id is required — provide a teacher's user id, or null to clear the adviser."); non-null but not a positive integer → `400`; section id not found → `404`; `adviser_id` referencing a nonexistent user → `400` ("adviser_id does not reference an existing user."); referencing a non-teacher → `400` naming the found role; referencing an inactive teacher → `400` naming the found status. `adviser_id: null` is explicitly allowed and clears the field — skips the existence/role/status checks entirely, since there's nothing to validate against. One teacher advising two (or more) sections is allowed by design, not merely unblocked by omission — the validation only checks identity/role/status of the target user, never "is this teacher already advising something else." `logActivity()` on every successful PATCH records both the old and new `adviser_id`. Tests: `scripts/test-sections-flows.js`, 30 assertions. The test-fixture-safety design is the other plan correction: the original instruction was "restore the seeded advisers at the end," which was flagged during planning as fragile — a suite that errors before reaching its own restore step would silently leave `Malikhain`/`Masigasig` (or whichever section it touched) corrupted for every other suite's next run, `test-attendance-flows.js` specifically, which resolves those two sections by name and depends on TCH-001/TCH-002 actually being their real advisers. Rebuilt instead so corruption is structurally impossible rather than merely undone on a clean exit: every mutating test runs against two of the 21 currently-`NULL`-adviser sections only (resolved by id, deterministic `ORDER BY`), Malikhain and Masigasig are read in assertions but never written to, and cleanup resets the two test sections to `adviser_id = NULL` via a direct DB `UPDATE` in a `finally` block — not an API call remembered for "later." The "one teacher advising two sections" case reuses this same principle: TCH-001 (already the real adviser of Malikhain) is assigned to one of the two NULL test sections as its second section, rather than fabricating a third throwaway teacher — and a dedicated assertion re-reads Malikhain afterward to confirm its own seeded assignment is untouched. One throwaway user fixture was still necessary — an inactive teacher account, to test the status-check branch — created via the real `POST /api/users/teachers` → `PATCH /api/users/:id/status` flow (not a raw insert), deleted (along with its `activity_logs` rows) in the same `finally` block. `npm run test:sections` — 30 passing, confirmed twice in a row with no `db:setup` between runs. Full regression across the twelve existing suites afterward: all unchanged from their prior counts (auth 25, students 30, attendance 38, content 47, contributions 38, settings 27, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 41) — confirms nothing leaked outside this module. `git status` after implementation showed exactly the four whitelisted code files changed (`server/routes/sections.js`, `server/scripts/test-sections-flows.js`, `server/server.js`, `server/package.json`) — no scope expansion. |
 | 2026-09-04 | Attendance rebuilt per day, not per subject (Stage B1) — the answer recorded as "resolved, not built" in the previous entry is now built. `attendance.subject_id` dropped outright (column, FK, index), not made nullable — the table held 0 rows, so this was a clean rebuild, not a data migration; `UNIQUE KEY uq_attendance` is now `(student_id, date)`, was `(student_id, subject_id, date)`. Scoping in `routes/attendance.js` no longer touches `teacher_assignments` at all — replaced with `teacherIsAdviserOfSection(teacherId, sectionId)`, checking `sections.adviser_id` via `students.section_id`. This is the first (and, per the "sections table" CURRENT STATE note, one of only two planned) route to read `section_id` — every other route still scopes on the VARCHAR columns, unchanged, deliberately. `canViewStudent()`'s teacher branch is the same adviser check via a join. All six endpoints changed: `subject_id` is gone from both POST bodies, both list-filter query params, and every SELECT (no more `subjects` JOIN, no more `subject_name`); `POST /bulk` is now the primary path and takes `{ section_id, date, entries }` instead of a `{ grade_level, section }` VARCHAR pair, validating every entry's student actually belongs to that `section_id`; every out-of-scope write's `403` names the constraint explicitly ("You are not the adviser of this student's section." / "...of this section.") — never a bare "Access denied." Explicitly not built, per instruction: no attendance-rate percentage (formula still unconfirmed, `GET /summary` still returns raw counts only) and no 20%-absence promotion-rule logic anywhere, not even as a stub — the school mentioned it but didn't ask for it, and guessing at pass/fail logic is exactly the kind of thing this project's BLOCKED discipline exists to prevent. Two advisers seeded, not one, specifically so adviser-scoping could be tested against a real non-adviser rather than a fabricated third fixture: Grade 6 - Malikhain → TCH-001 (existing), Grade 5 - Masigasig → TCH-002 (new, `Ana Reyes`, deliberately fictional — not a real name from the school's teacher list, created the same way TCH-001 is, in `setup-db.js`'s `buildUserSeedSql()`). The other 21 sections stay `NULL` — assigning them is an admin UI feature, not seed data. Adviser assignment itself lives in `seed.sql`, keyed by `login_id` subquery (`WHERE login_id = 'TCH-001'`), not a hardcoded numeric id, since exact user ids depend on insert order and TCH-002's insert shifts nothing existing (appended after the parents' rows, so admin/TCH-001/both parents keep their original ids 1–4; TCH-002 lands on 5). `test-attendance-flows.js` fully rewritten for the new shape — `npm run test:attendance` — 38 passing (was 33), idempotent, confirmed twice, DB back to baseline (0 attendance rows, 2 students, 5 users) after. Full regression across the other eleven suites afterward: all unchanged from their prior counts (auth 25, students 30, content 47, contributions 38, settings 27, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 41) — confirms nothing leaked outside this module. One real deployment hiccup, not a code bug: the dev server had been running via plain `npm start` (no `--watch`) since an earlier session, so it silently kept serving the pre-rewrite `attendance.js` and the first test run failed against stale code with a stale error message ("subject_id... required") that looked like a real regression until traced to the wrong process. Killed it, restarted via `npm run dev`, re-ran clean. Worth remembering next session: confirm which server process is actually listening before trusting a failing test's error message. |
 | 2026-09-03 | Docs sync for the `sections` table work (merged to `main`) plus a batch of school-visit/DepEd-order answers — no code in this pass. Table count corrected to 20, not 19: `sections` was added on top of the count this file already had right after Restore shipped (`auth_security_state` had already moved it from 18→19 in an earlier entry) — the dispatch for this update assumed the stale "18," which itself was already wrong; verified against `schema.sql` directly (`grep -c "^CREATE TABLE"`) rather than trusted. New "sections table — schema only, nothing reads it yet" subsection added under CURRENT STATE — the load-bearing fact: `section_id` exists and is backfilled, but every route still scopes on the VARCHAR columns (`students.section`, `teacher_assignments.section`, `announcements.target_section`); the FK cutover is scoped and deliberately deferred, not forgotten. `sections.adviser_id` is `NULL` for all 23 rows — attendance adviser-scoping can't work until advisers are assigned; that's a data gap, not a code gap. **BLOCKED section restructured to BLOCKED / RESOLVED**, since several long-standing questions now have real answers: Grades module's four original blockers are all answered (DO 009 s. 2026 — three terms, not four quarters; DO 015 s. 2026 — three components, not five, repeals DO 8 s. 2015; weights keyed by learning area, not grade level, confirming the known `grade_weight_configs` defect; Grade 1 alone uses descriptive grading, Grades 2–6 stay numerical with an adjusted transmutation table — not "1–3 vs. 4–6" as originally framed) — **answered, not built**; `docs/GRADING_SPEC.md` was referenced in the source material for this update as where full detail lives, but that file does not exist — flagged rather than silently linked or silently created, full detail preserved inline instead. Excuse Letters' approve/decline has one of its two original blockers resolved (record-only, attendance rows untouched) and one still open (who approves — the new `sections.adviser_id` is the right mechanism but wasn't confirmed as the answer, and is NULL everywhere regardless) — do not treat the endpoint as fully unblocked. New finding, not previously documented at all: attendance is per **day** on the school's SF9 report (monthly Class Days/Days Present/Days Absent), not per subject like the current `attendance` table (`UNIQUE (student_id, subject_id, date)`) — needs converting, not extending; and attendance does not feed grade computation, it's a separate report-card section. Neither conversion happened in this pass. KNOWN ISSUES' `grade_components.type` row updated to match — no longer "blocked," DO 015 confirms the schema's three-part shape was closer to right than the manuscript, but Examinations' real internal structure (ST1/ST2/TE composite) still has no column. |

@@ -7,10 +7,11 @@ const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat
 
 const router = express.Router();
 
-// Only the CRUD half — submit, list, view, edit. approve/decline
-// (PATCH /:id/review) is blocked on the school visit answering who can
-// approve and whether it should touch attendance — see CLAUDE.md's
-// BLOCKED section. Not stubbed here on purpose.
+// CRUD half — submit, list, view, edit — plus PATCH /:id/review
+// (approve/decline). Both school-visit blockers on review are answered:
+// the section ADVISER only may review (not any assigned teacher), and
+// review never touches the attendance table (the learner stays Absent;
+// the letter documents the reason, nothing more).
 const VALID_STATUSES = ['Pending', 'Approved', 'Declined']; // for ?status= filter validation only
 
 function isFutureDate(value) {
@@ -256,6 +257,123 @@ router.put('/:id', authenticate, authorize('parent'), async (req, res) => {
   } catch (error) {
     console.error('Update excuse letter error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update excuse letter.' });
+  }
+});
+
+// PATCH /api/excuse-letters/:id/review — adviser of the student's section,
+// or admin. This is a documentation act only: it writes status,
+// teacher_remarks, and reviewed_by, nothing else. It must NEVER touch the
+// attendance table — the school was explicit that an approved excuse
+// letter does not change the learner's attendance record ("excuse lang
+// yung bata pero absent pa rin"). This exact constraint blocked the
+// endpoint for weeks; do not "helpfully" add an attendance write here.
+router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    return res.status(400).json({ success: false, message: 'Invalid excuse letter id.' });
+  }
+
+  const { status, teacher_remarks } = req.body;
+  const REVIEW_STATUSES = ['Approved', 'Declined'];
+  if (!REVIEW_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `status must be one of ${REVIEW_STATUSES.join(', ')}.`,
+    });
+  }
+
+  try {
+    let existing;
+
+    if (req.user.role === 'admin') {
+      const [rows] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
+      existing = rows[0];
+    } else {
+      // Same existence/read-scope query GET /:id already uses for a
+      // teacher (teacher_assignments-based — any assigned teacher, not
+      // just the adviser). A teacher who can't even GET this letter gets
+      // the same 404 here — never a leak that the id exists.
+      const [rows] = await pool.query(
+        `SELECT el.*, s.grade_level, s.section, s.section_id
+         FROM excuse_letters el
+         JOIN students s ON s.id = el.student_id
+         WHERE el.id = ?
+           AND EXISTS (
+             SELECT 1 FROM teacher_assignments ta
+             WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
+           )
+         LIMIT 1`,
+        [id, req.user.id]
+      );
+      existing = rows[0];
+    }
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Excuse letter not found.' });
+    }
+
+    if (req.user.role === 'teacher') {
+      // Read-scope above is teacher_assignments-based — any assigned
+      // teacher can see the letter. Review authority is narrower: the
+      // section ADVISER only (school-confirmed). A non-adviser teacher
+      // who reached this point already got 200 from GET /:id on this
+      // same id, so 404 here would contradict GET and hide nothing —
+      // 403 naming the reason instead. Deliberately NOT matching
+      // PUT /api/attendance/:id's 404-for-out-of-scope precedent: that
+      // precedent holds there because attendance's read-scope and
+      // write-scope are both adviser-only already, so GET and PUT never
+      // disagree. Here they can, so this is an intentional exception —
+      // do not "fix" it back to 404.
+      let isAdviser = false;
+      if (existing.section_id) {
+        const [adviserRows] = await pool.query('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ? LIMIT 1', [
+          existing.section_id,
+          req.user.id,
+        ]);
+        isAdviser = adviserRows.length > 0;
+      }
+      // existing.section_id can be NULL (VARCHAR section never matched a
+      // seeded section) — isAdviser stays false, so only admin can review
+      // that letter. Same accepted edge case as attendance.js.
+
+      if (!isAdviser) {
+        return res.status(403).json({
+          success: false,
+          message: "Only the adviser of this student's section can review excuse letters.",
+        });
+      }
+    }
+
+    if (existing.status !== 'Pending') {
+      return res.status(403).json({
+        success: false,
+        message: 'This excuse letter has already been reviewed.',
+      });
+    }
+
+    const remarks = teacher_remarks || null;
+
+    // Writes ONLY status, teacher_remarks, reviewed_by (+ updated_at via
+    // ON UPDATE CURRENT_TIMESTAMP). See the constraint noted at the top
+    // of this handler — attendance is never touched here.
+    await pool.query('UPDATE excuse_letters SET status = ?, teacher_remarks = ?, reviewed_by = ? WHERE id = ?', [
+      status,
+      remarks,
+      req.user.id,
+      id,
+    ]);
+
+    const [updated] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
+    await logActivity(
+      req.user.id,
+      'review_excuse_letter',
+      `Reviewed excuse letter #${id}: ${existing.status} -> ${status}`
+    );
+
+    return res.json({ success: true, message: 'Excuse letter reviewed.', excuse_letter: updated[0] });
+  } catch (error) {
+    console.error('Review excuse letter error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to review excuse letter.' });
   }
 });
 
