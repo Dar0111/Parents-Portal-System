@@ -42,6 +42,14 @@ INSERT INTO users (login_id, password, role, status, name, email, contact_number
   ('13567454', '${parentHash}', 'parent', 'active', 'Ashley Geguiera', 'ashley.g@email.com', '09170000003', 1, 2, 1),
   ('1234567', '${parentHash}', 'parent', 'pending', 'Ashley Geguiera', 'ashley.g@email.com', '09170000003', 2, 2, NULL);
 
+-- Second adviser, for the attendance per-day model (Stage B1): one adviser
+-- per section is the minimum needed to test adviser-scoping at all beyond a
+-- single account. Created the same way TCH-001 is — bcrypt hash, active
+-- immediately, same default password. Plainly fictional name, deliberately
+-- not one of the school's real teachers.
+INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by, approved_by) VALUES
+  ('TCH-002', '${teacherHash}', 'teacher', 'active', 'Ana Reyes', 'areyes@chfes.edu.ph', '09170000004', NULL, 1, NULL);
+
 INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section)
 SELECT 2, s.id, s.grade_level, 'Malikhain'
 FROM subjects s
@@ -49,7 +57,8 @@ WHERE s.grade_level = 6 AND s.name IN ('Mathematics', 'English', 'Filipino');
 
 INSERT INTO activity_logs (user_id, action, description) VALUES
   (1, 'seed', 'Initial admin account seeded'),
-  (2, 'seed', 'Sample teacher account seeded');
+  (2, 'seed', 'Sample teacher account seeded'),
+  (1, 'seed', 'Second sample teacher account seeded (adviser, Grade 5 - Masigasig)');
 `;
 }
 

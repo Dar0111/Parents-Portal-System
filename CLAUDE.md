@@ -49,12 +49,12 @@ to the team.
 | POST | `/api/students` | teacher (own assignment only), admin |
 | PUT | `/api/students/:id` | teacher (own assignment only), admin |
 | PATCH | `/api/students/:id/status` | admin |
-| GET | `/api/attendance` | teacher, admin |
-| GET | `/api/attendance/student/:studentId` | teacher, admin, parent (own child only) |
-| GET | `/api/attendance/summary/:studentId` | teacher, admin, parent (own child only) — raw counts, no rate |
-| POST | `/api/attendance` | teacher (own subject+grade+section), admin (unscoped) |
-| POST | `/api/attendance/bulk` | teacher (own subject+grade+section), admin (unscoped) — all-or-nothing |
-| PUT | `/api/attendance/:id` | teacher (own subject+grade+section), admin (unscoped) |
+| GET | `/api/attendance` | teacher (section adviser), admin |
+| GET | `/api/attendance/student/:studentId` | teacher (adviser), admin, parent (own child only) |
+| GET | `/api/attendance/summary/:studentId` | teacher (adviser), admin, parent (own child only) — raw counts, no rate |
+| POST | `/api/attendance` | teacher (adviser of student's section), admin (unscoped) |
+| POST | `/api/attendance/bulk` | teacher (adviser of section_id), admin (unscoped) — primary path, all-or-nothing |
+| PUT | `/api/attendance/:id` | teacher (adviser of record's section), admin (unscoped) |
 | GET | `/api/announcements` | all roles — scoped by audience (target_grade/target_section) |
 | POST | `/api/announcements` | teacher (own assignment only), admin |
 | PUT | `/api/announcements/:id` | author or admin |
@@ -110,7 +110,7 @@ it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
 - `npm run test:students` — 30/30
 - `npm run test:auth` — 25/25
-- `npm run test:attendance` — 33/33
+- `npm run test:attendance` — 38/38
 - `npm run test:content` — 47/47
 - `npm run test:contributions` — 38/38
 - `npm run test:settings` — 27/27
@@ -146,8 +146,12 @@ server/
   routes/auth.js               login, me, change-password
   routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
   routes/students.js           list/view/create/update, teacher scoped to own assignments
-  routes/attendance.js         record/bulk/correct/list/summary, teacher scoped by subject+grade+section;
-                                list + per-student reads now join subjects for subject_name
+  routes/attendance.js         record/bulk/correct/list/summary — per DAY (Stage B1), not per subject.
+                                No subject_id anywhere in this file. Scoped by section adviser
+                                (sections.adviser_id via students.section_id), not teacher_assignments —
+                                subject teachers don't record attendance under this model.
+                                teacherIsAdviserOfSection() replaces the old teacherHasAssignment().
+                                POST /bulk is the primary path: { section_id, date, entries }
   routes/content.js            announcements/memos/events — 3 routers, one file
   routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   routes/settings.js           key-value store, allow-listed keys, per-key validation
@@ -183,10 +187,13 @@ server/
                                 value (name+grade_level+school_year), then reports any row left
                                 NULL with the unmatched value. Deliberate, not incidental — this is
                                 what caught 'Mabini'/'Rizal' as fictional; do not remove the
-                                reporting step even once every value matches cleanly
+                                reporting step even once every value matches cleanly.
+                                buildUserSeedSql() also creates TCH-002 (Ana Reyes, fictional,
+                                adviser of Grade 5 - Masigasig) alongside TCH-001
   scripts/test-auth-flows.js   HTTP tests
   scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
-  scripts/test-attendance-flows.js HTTP tests — scoping, bulk all-or-nothing, admin override
+  scripts/test-attendance-flows.js HTTP tests — per-day model (Stage B1): adviser scoping via
+                                sections.adviser_id, bulk section_id validation, all-or-nothing
   scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin
   scripts/test-contributions-flows.js HTTP tests — grade scoping, roster, amount cap, delete guard
   scripts/test-settings-flows.js HTTP tests — allow-list, per-key validation, PATCH all-or-nothing
@@ -207,12 +214,19 @@ database/
                                 (grade_level, name, school_year); fk_sections_adviser -> users(id)
                                 ON DELETE SET NULL. Nullable section_id + FK added to students
                                 (RESTRICT), teacher_assignments (CASCADE), announcements (CASCADE) —
-                                see "sections — schema only, nothing reads it yet" below before
-                                assuming any route uses this.
+                                see "sections table" below for which routes actually use this.
+                                attendance — subject_id column, its FK, and its index DROPPED
+                                (Stage B1, not made nullable — table held 0 rows, clean rebuild);
+                                UNIQUE KEY uq_attendance now (student_id, date), was
+                                (student_id, subject_id, date)
   seed.sql                     subjects, students, settings; academic_year fixed to '2026-2027'.
                                 23 sections seeded for SY 2026-2027 (school's official teacher
                                 list). Marwin/Jea's sample sections were fictional ('Mabini',
-                                'Rizal') and are now real seeded names ('Malikhain', 'Masigasig')
+                                'Rizal') and are now real seeded names ('Malikhain', 'Masigasig').
+                                2 of 23 sections have an adviser_id seeded (Grade 6 - Malikhain ->
+                                TCH-001, Grade 5 - Masigasig -> TCH-002, both keyed by login_id
+                                subquery, not a hardcoded numeric id) — the other 21 stay NULL,
+                                admin assigns those through the UI, not seed data
 scripts/
   create-backup-zip.js         folder copy, source-code archiver — NOT the DB backup (that's routes/backups.js)
 client/
@@ -243,31 +257,36 @@ below; approve/decline's attendance-side question is now answered
 (record-only, see BLOCKED), but who is authorized to approve is not
 explicitly re-confirmed — still not built.
 
-### sections table — schema only, nothing reads it yet
+### sections table — one route reads it now (attendance), nine still don't
 
 **The thing a fresh session will get wrong.** `sections` exists in
 `schema.sql`, is seeded with the school's 23 real section names, and has a
 nullable `section_id` FK on `students`, `teacher_assignments`, and
-`announcements` — but **no route file reads or writes `section_id`
-anywhere.** All ten route files still scope entirely on the VARCHAR
-columns (`students.section`, `teacher_assignments.section`,
-`announcements.target_section`) — roughly 99 references across the
-codebase. `section_id` is populated at seed time (`setup-db.js`'s
-`backfillSectionIds()`) purely so it's ready and verified consistent; the
-app does not consult it for anything yet.
+`announcements`. As of Stage B1, **`routes/attendance.js` reads
+`section_id`** — every scope check in that file goes through
+`sections.adviser_id` via `students.section_id`, and `POST /bulk`'s body is
+keyed on `section_id` directly, not a grade+section VARCHAR pair. **Every
+other route file still scopes entirely on the VARCHAR columns**
+(`students.section`, `teacher_assignments.section`,
+`announcements.target_section`) — attendance is the *one* deliberate
+exception, not the start of a silent migration.
 
-This is deliberate, not an oversight left mid-migration. A full
-VARCHAR → FK cutover touches every route file that scopes by grade/section
-and changes the API contract (`section: "Malikhain"` → `section_id: 13`)
-for no user-facing gain on its own — scoped and explicitly deferred.
-`section_id` is planned to be read in exactly two places going forward:
-attendance scoping (via `sections.adviser_id`, once advisers are assigned
-— see below) and the Class Board. Everything else stays on the VARCHAR
-columns; do not start migrating a third place without checking here first.
+This is still deliberate, still scoped, still not a migration in progress.
+A full VARCHAR → FK cutover touches every remaining route file that scopes
+by grade/section and changes the API contract
+(`section: "Malikhain"` → `section_id: 13`) for no user-facing gain on its
+own. `section_id` was planned to be read in exactly two places:
+**attendance (done)** and the Class Board (not built). Do not start
+migrating a third route to `section_id` without checking here first — that
+would be exactly the scope creep this note exists to prevent.
 
-`sections.adviser_id` is `NULL` for all 23 rows right now — nobody has
-been assigned as a class adviser yet. Attendance adviser-scoping cannot
-work until that's done; this is a data gap, not a code gap.
+`sections.adviser_id` is seeded for **2 of 23** sections: Grade 6 -
+Malikhain → TCH-001, Grade 5 - Masigasig → TCH-002 (a second seeded
+teacher account, added specifically so adviser-scoping could be tested
+against a real non-adviser, not a fabricated one). The other 21 are
+`NULL` — assigning them is an admin UI feature, not seed data, and
+attendance for those 21 sections has no valid adviser until that's built
+or done by hand.
 
 ### React web app — auth, verified end-to-end
 
@@ -478,23 +497,31 @@ at all. Re-checking this shape is part of the still-not-built work above.
 has one of its two original blockers resolved, not both — do not build it
 as fully unblocked.
 
-### Attendance is per day, not per subject — RESOLVED, schema conversion needed
+### Attendance is per day, not per subject — RESOLVED and DONE (Stage B1)
 
 The school's SF9 performance report records attendance **monthly**, as
 Class Days / Days Present / Days Absent — one figure per learner per
-month, not per subject. **The current `attendance` table is per-subject**
-(`UNIQUE (student_id, subject_id, date)`) and does not match this shape —
-it needs converting, not extending. Not done in this pass; docs only.
+month, not per subject. The adviser records it once daily, during
+Homeroom Guidance; subject teachers do not record it at all. **The
+`attendance` table has been rebuilt to match** — `subject_id` (and its FK
+and index) is gone, `UNIQUE KEY uq_attendance` is now `(student_id, date)`,
+dropped outright rather than made nullable, since the table held 0 rows —
+a clean rebuild, not a data migration. Scoping in `routes/attendance.js`
+now runs through `sections.adviser_id`, not `teacher_assignments` — see
+CURRENT STATE's "sections table" note for the read-side detail, and the
+2026-09-04 CHANGELOG entry for the full endpoint-by-endpoint change.
 
 Separately, but from the same answer: **attendance does not feed grade
 computation.** It appears on the report card as its own section, entirely
 apart from the grades section. Any future grade-calculation logic must
 not read from `attendance` — the two are siblings on the report card, not
-inputs to each other.
+inputs to each other. This part is documentation only — there's no grade
+computation built yet for it to wrongly feed into.
 
-This is a different question from the one below (how a *percentage* is
-computed for the parent-facing attendance page) — resolving "per day, not
-per subject" does not resolve that one.
+This was always a different question from the one below (how a
+*percentage* is computed for the parent-facing attendance page) —
+converting the table to per-day did not answer that one, and still
+hasn't.
 
 ### Attendance rate formula — still open, blocks the parent attendance page, not the API
 
@@ -853,7 +880,8 @@ Order matters. Student Records first because everything references students.
 Grades is last in this stage because it is blocked.
 
 - [x] Student Records API — list, view, create, update
-- [x] Attendance API — per day, per subject
+- [x] Attendance API — per day, adviser-scoped (Stage B1 rebuild; was per
+      subject, see BLOCKED / RESOLVED and the 2026-09-04 CHANGELOG entry)
 - [x] Announcements + Memos + Events API
 - [x] Excuse Letters API — **CRUD half only**: submit, mine, list, view, edit built; approve/decline has one of two blockers resolved (record-only, no attendance mutation) and one still open (who approves), see BLOCKED / RESOLVED
 - [x] Contributions API — create, record payment, view status
@@ -1114,6 +1142,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-04 | Attendance rebuilt per day, not per subject (Stage B1) — the answer recorded as "resolved, not built" in the previous entry is now built. `attendance.subject_id` dropped outright (column, FK, index), not made nullable — the table held 0 rows, so this was a clean rebuild, not a data migration; `UNIQUE KEY uq_attendance` is now `(student_id, date)`, was `(student_id, subject_id, date)`. Scoping in `routes/attendance.js` no longer touches `teacher_assignments` at all — replaced with `teacherIsAdviserOfSection(teacherId, sectionId)`, checking `sections.adviser_id` via `students.section_id`. This is the first (and, per the "sections table" CURRENT STATE note, one of only two planned) route to read `section_id` — every other route still scopes on the VARCHAR columns, unchanged, deliberately. `canViewStudent()`'s teacher branch is the same adviser check via a join. All six endpoints changed: `subject_id` is gone from both POST bodies, both list-filter query params, and every SELECT (no more `subjects` JOIN, no more `subject_name`); `POST /bulk` is now the primary path and takes `{ section_id, date, entries }` instead of a `{ grade_level, section }` VARCHAR pair, validating every entry's student actually belongs to that `section_id`; every out-of-scope write's `403` names the constraint explicitly ("You are not the adviser of this student's section." / "...of this section.") — never a bare "Access denied." Explicitly not built, per instruction: no attendance-rate percentage (formula still unconfirmed, `GET /summary` still returns raw counts only) and no 20%-absence promotion-rule logic anywhere, not even as a stub — the school mentioned it but didn't ask for it, and guessing at pass/fail logic is exactly the kind of thing this project's BLOCKED discipline exists to prevent. Two advisers seeded, not one, specifically so adviser-scoping could be tested against a real non-adviser rather than a fabricated third fixture: Grade 6 - Malikhain → TCH-001 (existing), Grade 5 - Masigasig → TCH-002 (new, `Ana Reyes`, deliberately fictional — not a real name from the school's teacher list, created the same way TCH-001 is, in `setup-db.js`'s `buildUserSeedSql()`). The other 21 sections stay `NULL` — assigning them is an admin UI feature, not seed data. Adviser assignment itself lives in `seed.sql`, keyed by `login_id` subquery (`WHERE login_id = 'TCH-001'`), not a hardcoded numeric id, since exact user ids depend on insert order and TCH-002's insert shifts nothing existing (appended after the parents' rows, so admin/TCH-001/both parents keep their original ids 1–4; TCH-002 lands on 5). `test-attendance-flows.js` fully rewritten for the new shape — `npm run test:attendance` — 38 passing (was 33), idempotent, confirmed twice, DB back to baseline (0 attendance rows, 2 students, 5 users) after. Full regression across the other eleven suites afterward: all unchanged from their prior counts (auth 25, students 30, content 47, contributions 38, settings 27, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 41) — confirms nothing leaked outside this module. One real deployment hiccup, not a code bug: the dev server had been running via plain `npm start` (no `--watch`) since an earlier session, so it silently kept serving the pre-rewrite `attendance.js` and the first test run failed against stale code with a stale error message ("subject_id... required") that looked like a real regression until traced to the wrong process. Killed it, restarted via `npm run dev`, re-ran clean. Worth remembering next session: confirm which server process is actually listening before trusting a failing test's error message. |
 | 2026-09-03 | Docs sync for the `sections` table work (merged to `main`) plus a batch of school-visit/DepEd-order answers — no code in this pass. Table count corrected to 20, not 19: `sections` was added on top of the count this file already had right after Restore shipped (`auth_security_state` had already moved it from 18→19 in an earlier entry) — the dispatch for this update assumed the stale "18," which itself was already wrong; verified against `schema.sql` directly (`grep -c "^CREATE TABLE"`) rather than trusted. New "sections table — schema only, nothing reads it yet" subsection added under CURRENT STATE — the load-bearing fact: `section_id` exists and is backfilled, but every route still scopes on the VARCHAR columns (`students.section`, `teacher_assignments.section`, `announcements.target_section`); the FK cutover is scoped and deliberately deferred, not forgotten. `sections.adviser_id` is `NULL` for all 23 rows — attendance adviser-scoping can't work until advisers are assigned; that's a data gap, not a code gap. **BLOCKED section restructured to BLOCKED / RESOLVED**, since several long-standing questions now have real answers: Grades module's four original blockers are all answered (DO 009 s. 2026 — three terms, not four quarters; DO 015 s. 2026 — three components, not five, repeals DO 8 s. 2015; weights keyed by learning area, not grade level, confirming the known `grade_weight_configs` defect; Grade 1 alone uses descriptive grading, Grades 2–6 stay numerical with an adjusted transmutation table — not "1–3 vs. 4–6" as originally framed) — **answered, not built**; `docs/GRADING_SPEC.md` was referenced in the source material for this update as where full detail lives, but that file does not exist — flagged rather than silently linked or silently created, full detail preserved inline instead. Excuse Letters' approve/decline has one of its two original blockers resolved (record-only, attendance rows untouched) and one still open (who approves — the new `sections.adviser_id` is the right mechanism but wasn't confirmed as the answer, and is NULL everywhere regardless) — do not treat the endpoint as fully unblocked. New finding, not previously documented at all: attendance is per **day** on the school's SF9 report (monthly Class Days/Days Present/Days Absent), not per subject like the current `attendance` table (`UNIQUE (student_id, subject_id, date)`) — needs converting, not extending; and attendance does not feed grade computation, it's a separate report-card section. Neither conversion happened in this pass. KNOWN ISSUES' `grade_components.type` row updated to match — no longer "blocked," DO 015 confirms the schema's three-part shape was closer to right than the manuscript, but Examinations' real internal structure (ST1/ST2/TE composite) still has no column. |
 | 2026-08-31 | **UTC in test date helpers.** Found in the same commit as Excuse Letters, but a separate fix, not part of that module's dispatch. `test-attendance-flows.js` and `test-content-flows.js` built dates with local getters (`setDate`/`setFullYear`) but formatted the result via `.toISOString()` — UTC. Between 00:00–08:00 PH, `.toISOString()`'s calendar date is still the previous day, so `tomorrow()` returned *today*, and "Future date rejected" failed even though the app code (already fixed earlier — see the DATE-column entry below) was correct. Affected helpers: `daysAgo`, `tomorrow` (`test-attendance-flows.js`), `daysAgo`, `yearsFromNow` (`test-content-flows.js`). Fixed by formatting from local components (`getFullYear()`/`getMonth()`/`getDate()`) instead, matching the `todayLocal()` pattern already present in `test-attendance-flows.js` — no shared helper module added, each fixture keeps its own local copy, deliberately. **Rule:** test date helpers must never use `.toISOString()`. Run date-sensitive suites at least once between 00:00–08:00 PH — the only window a UTC bug like this can actually surface in; a pass at noon proves nothing. Verified inside that window, not outside it: both suites run at ~00:15 AM PH, confirmed twice each — `npm run test:attendance` 33/33, `npm run test:content` 47/47. `test-contributions-flows.js` and `test-excuses-flows.js` were checked and already correct (their date helpers already used local components) — not touched. |
 | 2026-08-31 | Excuse Letters API — CRUD half only, `routes/excuses.js`, 5 endpoints. `PATCH /:id/review` (approve/decline) is deliberately not built, not stubbed, not commented in — still blocked on the school visit answering who can approve and whether approval touches attendance, see BLOCKED. `parent_id`/`student_id` come from `req.user`, never `req.body` or a URL param; `status` is always `'Pending'` on create; `status`/`teacher_remarks`/`reviewed_by`/`parent_id`/`student_id` sent in a POST or PUT body are silently ignored, not rejected with `400` — a deliberate difference from `routes/users.js`'s PUT (which rejects forbidden fields loudly): the spec for this module called for stripping, not rejecting, and the test suite checks for exactly that ("ignored", not "400"). Teacher list/view scoping reuses the exact `EXISTS`-against-`teacher_assignments` shape `routes/students.js` already uses (matched on the letter's student's `grade_level`+`section`, via a join, since neither column lives on `excuse_letters` itself) — no new scoping pattern invented. `GET /mine` is declared before `GET /:id` — Express matches route definitions in declaration order, and `parseId('mine')` would otherwise fire first and return `400` for every request to that path. Reads out of scope return `404` (anti-enumeration); the one write-scope violation (`PUT` on a letter no longer `Pending`) returns `403` naming the reason explicitly ("This excuse letter has already been reviewed and can no longer be edited."), never a bare "Access denied." `absence_date` validated with `isValidDateFormat`/rejected-if-future via the existing `todayLocalDateString()` in `utils/dateFormat.js` — no new date logic, no UTC. No maximum-age check on `absence_date` — the school hasn't set a submission deadline (a locked answer, not an oversight); duplicate letters for the same date are deliberately allowed, since a parent must be able to resubmit after a decline. `PUT` accepts partial updates (`absence_date`, `reason`, `details` only) — an omitted field keeps the existing DB value, never a computed default. Tests: `scripts/test-excuses-flows.js`, 41 assertions, structured like `test-contributions-flows.js`. Every row-count/list-content assertion is scoped to ids this run created or written as a property check on a `.find()`-scoped record — none of the "assert exact content against a shared table" shape the working agreement now forbids. One fixture (a student + approved parent outside TCH-001's assignment, created through the real `POST /api/users/parents` → approve → login flow, not a raw insert with a fake password hash) does double duty as both "the out-of-scope student" for teacher-scoping checks and "a different parent" for the cross-parent 404 check. The "PUT on a non-Pending letter" test moves a letter out of `Pending` via a direct `UPDATE` (approve/decline has no endpoint to do this through) — flagged as the one honest way to test that guard at all: the alternative was not testing it, which is worse than testing it via a path a real reviewer will eventually replace. Confirmed twice, DB verified back to baseline (`excuse_letters`: 0 rows, `students`: 2, `users`: 4) after. `package.json` was outside that dispatch's file whitelist, so `test:excuses` had no `npm run` alias at first — added in a follow-up correction the same day, approved separately. `npm run test:excuses` — 41 passing. **Manually verified 00:25 AM PH** (inside the UTC failing window, not at noon): POST with today's date accepted, not rejected as future; `absence_date` round-trips as `"2026-08-31"` while `created_at` stays ISO, confirming `dateStrings: ['DATE']` applies to DATE columns only, not TIMESTAMP; partial `PUT` with `details` only preserved `absence_date` and `reason`; teacher sees 1 letter via assignment scoping; parent gets `403` on the teacher-only list. All five passed. Response shape note: `login` returns `token`/`user` at the top level, excuse-letter endpoints wrap in `excuse_letter` — no `data` wrapper anywhere. |

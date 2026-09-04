@@ -143,5 +143,15 @@ INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday
 -- Sample teacher assignment (teacher_id = 2 after admin=1, teacher=2)
 -- __SEED_ASSIGNMENTS__
 
+-- Section advisers (Stage B1, attendance per-day model). Only 2 of 23
+-- sections get one — the other 21 stay NULL; assigning the rest is an
+-- admin UI feature, not seed data. Keyed by login_id/section-name, not a
+-- hardcoded numeric id, since exact user ids depend on insert order.
+UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-001')
+  WHERE grade_level = 6 AND name = 'Malikhain' AND school_year = '2026-2027';
+
+UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-002')
+  WHERE grade_level = 5 AND name = 'Masigasig' AND school_year = '2026-2027';
+
 -- Activity log for initial admin seed
 -- __SEED_ACTIVITY__

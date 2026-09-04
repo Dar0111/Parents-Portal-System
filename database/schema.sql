@@ -133,18 +133,21 @@ CREATE TABLE grade_components (
   INDEX idx_grade_components_grade (grade_id)
 ) ENGINE=InnoDB;
 
+-- Per DAY, not per subject — the section adviser records this once daily
+-- during Homeroom Guidance (confirmed by the school; SF9 records monthly
+-- Class Days/Days Present/Days Absent, not a per-subject figure). Was
+-- (student_id, subject_id, date); subject_id dropped outright, not made
+-- nullable — table held 0 rows, so this is a clean rebuild, not a migration.
 CREATE TABLE attendance (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   student_id INT UNSIGNED NOT NULL,
-  subject_id INT UNSIGNED NOT NULL,
   date DATE NOT NULL,
   status ENUM('Present', 'Absent', 'Late', 'Excused') NOT NULL,
   recorded_by INT UNSIGNED NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_attendance (student_id, subject_id, date),
-  INDEX idx_attendance_student_date (student_id, date),
-  INDEX idx_attendance_subject (subject_id)
+  UNIQUE KEY uq_attendance (student_id, date),
+  INDEX idx_attendance_student_date (student_id, date)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------------
@@ -316,7 +319,6 @@ ALTER TABLE grade_components
 
 ALTER TABLE attendance
   ADD CONSTRAINT fk_attendance_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_attendance_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_attendance_recorded_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE RESTRICT;
 
 ALTER TABLE excuse_letters

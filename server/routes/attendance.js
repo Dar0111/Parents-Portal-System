@@ -18,20 +18,33 @@ function isFutureDate(value) {
   return value > todayLocalDateString();
 }
 
-async function teacherHasAssignment(teacherId, subjectId, gradeLevel, section) {
-  const [rows] = await pool.query(
-    `SELECT 1 FROM teacher_assignments
-     WHERE teacher_id = ? AND subject_id = ? AND grade_level = ? AND section = ?
-     LIMIT 1`,
-    [teacherId, subjectId, gradeLevel, section]
-  );
+// Attendance is per DAY, recorded once by the section ADVISER during
+// Homeroom Guidance — confirmed by the school (SF9 records monthly Class
+// Days/Days Present/Days Absent, not a per-subject figure). Scoping is
+// therefore "is this teacher the adviser of the student's section," via
+// sections.adviser_id — not teacher_assignments (subject-based, and
+// subject teachers don't record attendance at all under this model).
+// teacher_assignments/subject_id are gone from this file entirely.
+//
+// Reads students.section_id — the FK column Stage A added and backfilled.
+// This is the one deliberate exception to "nothing reads section_id yet"
+// (see CLAUDE.md's "sections table" note) — attendance was named there as
+// one of exactly two places planned to use it. Every other route stays on
+// the VARCHAR section columns; do not extend this pattern elsewhere.
+async function teacherIsAdviserOfSection(teacherId, sectionId) {
+  const [rows] = await pool.query('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ? LIMIT 1', [
+    sectionId,
+    teacherId,
+  ]);
   return rows.length > 0;
 }
 
 // Scope check shared by GET /student/:studentId and GET /summary/:studentId.
-// Returns true if the requesting user may see this student's attendance at all
-// (parent: own child only; teacher: assigned to at least one subject for the
-// student's grade/section; admin: unscoped).
+// Returns true if the requesting user may see this student's attendance at
+// all (parent: own child only; teacher: adviser of the student's section;
+// admin: unscoped). Once this passes for a teacher, every attendance row
+// for the student is visible — attendance no longer splits by subject, so
+// there's no narrower per-record filter left to apply downstream.
 async function canViewStudent(user, studentId) {
   if (user.role === 'parent') {
     return studentId === user.student_id;
@@ -39,11 +52,8 @@ async function canViewStudent(user, studentId) {
   if (user.role === 'teacher') {
     const [rows] = await pool.query(
       `SELECT 1 FROM students s
-       WHERE s.id = ?
-         AND EXISTS (
-           SELECT 1 FROM teacher_assignments ta
-           WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
-         )
+       JOIN sections sec ON sec.id = s.section_id
+       WHERE s.id = ? AND sec.adviser_id = ?
        LIMIT 1`,
       [studentId, user.id]
     );
@@ -55,16 +65,15 @@ async function canViewStudent(user, studentId) {
 
 // GET /api/attendance — list, scoped by role
 router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) => {
-  const { student_id, subject_id, grade_level, section, date, from, to, status } = req.query;
+  const { student_id, grade_level, section, date, from, to, status } = req.query;
 
   const conditions = [];
   const params = [];
 
   if (req.user.role === 'teacher') {
     conditions.push(`EXISTS (
-      SELECT 1 FROM teacher_assignments ta
-      WHERE ta.teacher_id = ? AND ta.subject_id = a.subject_id
-        AND ta.grade_level = s.grade_level AND ta.section = s.section
+      SELECT 1 FROM sections sec
+      WHERE sec.id = s.section_id AND sec.adviser_id = ?
     )`);
     params.push(req.user.id);
   }
@@ -76,15 +85,6 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     }
     conditions.push('a.student_id = ?');
     params.push(studentId);
-  }
-
-  if (subject_id !== undefined) {
-    const subjectId = parseId(subject_id);
-    if (subjectId === null) {
-      return res.status(400).json({ success: false, message: 'Invalid subject_id filter.' });
-    }
-    conditions.push('a.subject_id = ?');
-    params.push(subjectId);
   }
 
   if (grade_level !== undefined) {
@@ -135,12 +135,10 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
 
   try {
     const [rows] = await pool.query(
-      `SELECT a.id, a.student_id, a.subject_id, a.date, a.status, a.recorded_by, a.created_at, a.updated_at,
-              sub.name AS subject_name,
+      `SELECT a.id, a.student_id, a.date, a.status, a.recorded_by, a.created_at, a.updated_at,
               s.first_name, s.last_name, s.grade_level, s.section
        FROM attendance a
        JOIN students s ON s.id = a.student_id
-       JOIN subjects sub ON sub.id = a.subject_id
        ${where}
        ORDER BY a.date DESC, s.last_name, s.first_name`,
       params
@@ -160,7 +158,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     return res.status(400).json({ success: false, message: 'Invalid student id.' });
   }
 
-  const { subject_id, from, to, status } = req.query;
+  const { from, to, status } = req.query;
 
   try {
     const canView = await canViewStudent(req.user, studentId);
@@ -170,24 +168,6 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
 
     const conditions = ['a.student_id = ?'];
     const params = [studentId];
-
-    if (req.user.role === 'teacher') {
-      conditions.push(`a.subject_id IN (
-        SELECT ta.subject_id FROM teacher_assignments ta
-        JOIN students s ON s.grade_level = ta.grade_level AND s.section = ta.section
-        WHERE ta.teacher_id = ? AND s.id = ?
-      )`);
-      params.push(req.user.id, studentId);
-    }
-
-    if (subject_id !== undefined) {
-      const subjectId = parseId(subject_id);
-      if (subjectId === null) {
-        return res.status(400).json({ success: false, message: 'Invalid subject_id filter.' });
-      }
-      conditions.push('a.subject_id = ?');
-      params.push(subjectId);
-    }
 
     if (from) {
       if (!isValidDateFormat(from)) {
@@ -213,11 +193,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     }
 
     const [rows] = await pool.query(
-      `SELECT a.*, sub.name AS subject_name
-       FROM attendance a
-       JOIN subjects sub ON sub.id = a.subject_id
-       WHERE ${conditions.join(' AND ')}
-       ORDER BY a.date DESC`,
+      `SELECT a.* FROM attendance a WHERE ${conditions.join(' AND ')} ORDER BY a.date DESC`,
       params
     );
 
@@ -235,7 +211,7 @@ router.get('/summary/:studentId', authenticate, authorize('teacher', 'admin', 'p
     return res.status(400).json({ success: false, message: 'Invalid student id.' });
   }
 
-  const { subject_id, from, to } = req.query;
+  const { from, to } = req.query;
 
   try {
     const canView = await canViewStudent(req.user, studentId);
@@ -245,24 +221,6 @@ router.get('/summary/:studentId', authenticate, authorize('teacher', 'admin', 'p
 
     const conditions = ['a.student_id = ?'];
     const params = [studentId];
-
-    if (req.user.role === 'teacher') {
-      conditions.push(`a.subject_id IN (
-        SELECT ta.subject_id FROM teacher_assignments ta
-        JOIN students s ON s.grade_level = ta.grade_level AND s.section = ta.section
-        WHERE ta.teacher_id = ? AND s.id = ?
-      )`);
-      params.push(req.user.id, studentId);
-    }
-
-    if (subject_id !== undefined) {
-      const subjectId = parseId(subject_id);
-      if (subjectId === null) {
-        return res.status(400).json({ success: false, message: 'Invalid subject_id filter.' });
-      }
-      conditions.push('a.subject_id = ?');
-      params.push(subjectId);
-    }
 
     if (from) {
       if (!isValidDateFormat(from)) {
@@ -298,18 +256,18 @@ router.get('/summary/:studentId', authenticate, authorize('teacher', 'admin', 'p
   }
 });
 
-// POST /api/attendance — record one entry. Teachers are scoped to their own assignments;
-// admin is unscoped (covers a teacher being absent or having left).
+// POST /api/attendance — record one entry for one day. Advisers are scoped
+// to their own section; admin is unscoped (covers an adviser being absent
+// or having left).
 router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) => {
-  const { student_id, subject_id, date, status } = req.body;
+  const { student_id, date, status } = req.body;
 
   const studentId = parseId(student_id);
-  const subjectId = parseId(subject_id);
 
-  if (studentId === null || subjectId === null || !date || !status) {
+  if (studentId === null || !date || !status) {
     return res.status(400).json({
       success: false,
-      message: 'student_id, subject_id, date, and status are required.',
+      message: 'student_id, date, and status are required.',
     });
   }
 
@@ -336,11 +294,14 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     } else {
       // Collapse "student doesn't exist" and "exists but out of scope" into the
       // same 403 — a teacher probing student ids shouldn't be able to tell which.
-      const allowed = student && (await teacherHasAssignment(req.user.id, subjectId, student.grade_level, student.section));
+      // student.section_id can be NULL (VARCHAR section didn't match any seeded
+      // section) — the && short-circuit denies that case too, correctly.
+      const allowed =
+        student && student.section_id && (await teacherIsAdviserOfSection(req.user.id, student.section_id));
       if (!allowed) {
         return res.status(403).json({
           success: false,
-          message: 'You are not assigned to teach this subject for this student\'s class.',
+          message: "You are not the adviser of this student's section.",
         });
       }
     }
@@ -350,22 +311,18 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     }
 
     await pool.query(
-      `INSERT INTO attendance (student_id, subject_id, date, status, recorded_by)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO attendance (student_id, date, status, recorded_by)
+       VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE status = VALUES(status), recorded_by = VALUES(recorded_by)`,
-      [studentId, subjectId, date, status, req.user.id]
+      [studentId, date, status, req.user.id]
     );
 
-    const [rows] = await pool.query(
-      'SELECT * FROM attendance WHERE student_id = ? AND subject_id = ? AND date = ? LIMIT 1',
-      [studentId, subjectId, date]
-    );
+    const [rows] = await pool.query('SELECT * FROM attendance WHERE student_id = ? AND date = ? LIMIT 1', [
+      studentId,
+      date,
+    ]);
 
-    await logActivity(
-      req.user.id,
-      'record_attendance',
-      `Recorded ${status} for student #${studentId}, subject #${subjectId}, ${date}`
-    );
+    await logActivity(req.user.id, 'record_attendance', `Recorded ${status} for student #${studentId}, ${date}`);
 
     return res.status(201).json({ success: true, message: 'Attendance recorded.', attendance: rows[0] });
   } catch (error) {
@@ -374,34 +331,21 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
   }
 });
 
-// POST /api/attendance/bulk — record a whole class for one date. All-or-nothing:
-// every entry is validated before anything is written, then written in one transaction.
+// POST /api/attendance/bulk — record a whole section roster for one date.
+// This is the primary path now: one section, one date, whole roster,
+// matching how the adviser actually takes attendance during Homeroom
+// Guidance. All-or-nothing: every entry is validated before anything is
+// written, then written in one transaction.
 router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, res) => {
-  const { subject_id, grade_level, section, date, entries } = req.body;
+  const { section_id, date, entries } = req.body;
 
-  const subjectId = parseId(subject_id);
+  const sectionId = parseId(section_id);
 
-  if (
-    subjectId === null ||
-    grade_level === undefined ||
-    !section ||
-    !date ||
-    !Array.isArray(entries) ||
-    entries.length === 0
-  ) {
+  if (sectionId === null || !date || !Array.isArray(entries) || entries.length === 0) {
     return res.status(400).json({
       success: false,
-      message: 'subject_id, grade_level, section, date, and a non-empty entries array are required.',
+      message: 'section_id, date, and a non-empty entries array are required.',
     });
-  }
-
-  if (!isValidGradeLevel(grade_level)) {
-    return res.status(400).json({ success: false, message: 'grade_level must be between 1 and 6.' });
-  }
-
-  const trimmedSection = String(section).trim();
-  if (!trimmedSection) {
-    return res.status(400).json({ success: false, message: 'section must not be empty.' });
   }
 
   if (!isValidDateFormat(date)) {
@@ -411,8 +355,6 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
   if (isFutureDate(date)) {
     return res.status(400).json({ success: false, message: 'date cannot be in the future.' });
   }
-
-  const gradeLevelNum = Number(grade_level);
 
   const studentIds = [];
   for (const entry of entries) {
@@ -433,26 +375,24 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
   let conn;
   try {
     if (req.user.role === 'teacher') {
-      const allowed = await teacherHasAssignment(req.user.id, subjectId, gradeLevelNum, trimmedSection);
+      const allowed = await teacherIsAdviserOfSection(req.user.id, sectionId);
       if (!allowed) {
         return res.status(403).json({
           success: false,
-          message: `You are not assigned to teach this subject for Grade ${gradeLevelNum} - ${trimmedSection}.`,
+          message: 'You are not the adviser of this section.',
         });
       }
     }
 
-    const [students] = await pool.query('SELECT id, status, grade_level, section FROM students WHERE id IN (?)', [
-      studentIds,
-    ]);
+    const [students] = await pool.query('SELECT id, status, section_id FROM students WHERE id IN (?)', [studentIds]);
     const studentMap = new Map(students.map((s) => [s.id, s]));
 
     for (const studentId of studentIds) {
       const student = studentMap.get(studentId);
-      if (!student || student.grade_level !== gradeLevelNum || student.section !== trimmedSection) {
+      if (!student || student.section_id !== sectionId) {
         return res.status(400).json({
           success: false,
-          message: `Student #${studentId} is not in Grade ${gradeLevelNum} - ${trimmedSection}.`,
+          message: `Student #${studentId} is not in this section.`,
         });
       }
       if (student.status !== 'active') {
@@ -465,17 +405,16 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
 
     for (const entry of entries) {
       await conn.query(
-        `INSERT INTO attendance (student_id, subject_id, date, status, recorded_by)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO attendance (student_id, date, status, recorded_by)
+         VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE status = VALUES(status), recorded_by = VALUES(recorded_by)`,
-        [entry.student_id, subjectId, date, entry.status, req.user.id]
+        [entry.student_id, date, entry.status, req.user.id]
       );
     }
 
     await conn.commit();
 
-    const [rows] = await pool.query('SELECT * FROM attendance WHERE subject_id = ? AND date = ? AND student_id IN (?)', [
-      subjectId,
+    const [rows] = await pool.query('SELECT * FROM attendance WHERE date = ? AND student_id IN (?)', [
       date,
       studentIds,
     ]);
@@ -483,7 +422,7 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
     await logActivity(
       req.user.id,
       'bulk_record_attendance',
-      `Recorded attendance for ${studentIds.length} students, subject #${subjectId}, Grade ${gradeLevelNum} - ${trimmedSection}, ${date}`
+      `Recorded attendance for ${studentIds.length} students, section #${sectionId}, ${date}`
     );
 
     return res.status(201).json({
@@ -506,8 +445,11 @@ router.post('/bulk', authenticate, authorize('teacher', 'admin'), async (req, re
   }
 });
 
-// PUT /api/attendance/:id — correct an entry. Teachers are scoped to their own
-// assignments (out-of-scope or nonexistent id both return 404); admin is unscoped.
+// PUT /api/attendance/:id — correct an entry. Advisers are scoped to their
+// own section (out-of-scope or nonexistent id both return 404); admin is
+// unscoped. Not routed through teacherIsAdviserOfSection — this starts from
+// an attendance id, not a known section_id, so it joins students/sections
+// directly in one query instead.
 router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res) => {
   const id = parseId(req.params.id);
   if (id === null) {
@@ -525,12 +467,8 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       const [rows] = await pool.query(
         `SELECT a.* FROM attendance a
          JOIN students s ON s.id = a.student_id
-         WHERE a.id = ?
-           AND EXISTS (
-             SELECT 1 FROM teacher_assignments ta
-             WHERE ta.teacher_id = ? AND ta.subject_id = a.subject_id
-               AND ta.grade_level = s.grade_level AND ta.section = s.section
-           )
+         JOIN sections sec ON sec.id = s.section_id
+         WHERE a.id = ? AND sec.adviser_id = ?
          LIMIT 1`,
         [id, req.user.id]
       );
