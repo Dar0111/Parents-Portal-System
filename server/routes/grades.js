@@ -435,6 +435,194 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
   }
 });
 
+// PUT /api/grades/:id/components/:componentId — correct an existing WW/PT
+// entry, then recompute. Nested under the parent grade id (not a flat
+// /components/:componentId) for consistency with the sibling endpoints
+// above and below, and because it gets a real integrity check for free:
+// componentId is matched together with grade_id in one query, so a
+// componentId that belongs to a DIFFERENT grade is indistinguishable from
+// one that doesn't exist at all — 404 either way, the same collapsing
+// loadAuthorizedGrade already does for the parent id.
+// type is deliberately NOT editable here — see the check below.
+router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const gradeId = parseId(req.params.id);
+  if (gradeId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
+  }
+  const componentId = parseId(req.params.componentId);
+  if (componentId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid component id.' });
+  }
+
+  const { type, score, max_score, label, date_recorded } = req.body;
+
+  const touchesAny =
+    type !== undefined || score !== undefined || max_score !== undefined || label !== undefined || date_recorded !== undefined;
+  if (!touchesAny) {
+    return res.status(400).json({ success: false, message: 'At least one field must be provided.' });
+  }
+
+  if (type !== undefined && type !== 'WW' && type !== 'PT') {
+    return res.status(400).json({ success: false, message: "type must be 'WW' or 'PT'." });
+  }
+  if (score !== undefined && !isValidScore(score)) {
+    return res.status(400).json({ success: false, message: 'score must be 0 or greater.' });
+  }
+  if (max_score !== undefined && !isValidMax(max_score)) {
+    return res.status(400).json({ success: false, message: 'max_score must be greater than 0.' });
+  }
+  if (label !== undefined && (!label || !String(label).trim())) {
+    return res.status(400).json({ success: false, message: 'label must not be empty.' });
+  }
+  if (date_recorded !== undefined && date_recorded !== null && !isValidDateFormat(date_recorded)) {
+    return res.status(400).json({ success: false, message: 'date_recorded must be in YYYY-MM-DD format.' });
+  }
+
+  let conn;
+  try {
+    const loaded = await loadAuthorizedGrade(req, gradeId);
+    if (loaded.errorStatus) {
+      return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+    }
+
+    const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
+    if (preflightError) {
+      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    }
+
+    const [componentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
+      componentId,
+      gradeId,
+    ]);
+    const existing = componentRows[0];
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Component not found.' });
+    }
+
+    // Changing WW to PT (or back) moves the score between two separately
+    // -weighted averages — a re-categorization, not a correction. Reject
+    // rather than silently ignore, since a caller sending a different
+    // type almost certainly expects it to take effect.
+    if (type !== undefined && type !== existing.type) {
+      return res.status(400).json({
+        success: false,
+        message: 'type cannot be changed — delete this component and add a new one with the correct type instead.',
+      });
+    }
+
+    const nextScore = score !== undefined ? score : existing.score;
+    const nextMax = max_score !== undefined ? max_score : existing.max_score;
+    const nextLabel = label !== undefined ? label : existing.label;
+    const nextDateRecorded = date_recorded !== undefined ? date_recorded || null : existing.date_recorded;
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    await conn.query('UPDATE grade_components SET score = ?, max_score = ?, label = ?, date_recorded = ? WHERE id = ?', [
+      nextScore,
+      nextMax,
+      nextLabel,
+      nextDateRecorded,
+      componentId,
+    ]);
+
+    const updatedGrade = await recomputeGrade(conn, gradeId);
+
+    await conn.commit();
+
+    const [updatedComponentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [componentId]);
+    await logActivity(req.user.id, 'update_grade_component', `Updated component #${componentId} on grade #${gradeId}`);
+
+    return res.json({
+      success: true,
+      message: 'Component updated.',
+      component: updatedComponentRows[0],
+      grade: updatedGrade,
+    });
+  } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch {
+        // ignore rollback failure — connection is being released regardless
+      }
+    }
+    console.error('Update grade component error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update component.' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+// DELETE /api/grades/:id/components/:componentId — remove a WW/PT entry
+// entirely, then recompute. Deleting the last component of a type is not
+// special-cased: componentPercentage([]) already returns null (see
+// gradeComputation.js), so ww_percentage/pt_percentage — and, if that was
+// the last of the three required inputs, initial_grade and term_grade —
+// revert to NULL automatically on the recompute below, the same as if
+// nothing had ever been entered.
+router.delete('/:id/components/:componentId', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const gradeId = parseId(req.params.id);
+  if (gradeId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
+  }
+  const componentId = parseId(req.params.componentId);
+  if (componentId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid component id.' });
+  }
+
+  let conn;
+  try {
+    const loaded = await loadAuthorizedGrade(req, gradeId);
+    if (loaded.errorStatus) {
+      return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+    }
+
+    const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
+    if (preflightError) {
+      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    }
+
+    const [componentRows] = await pool.query('SELECT id, type FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
+      componentId,
+      gradeId,
+    ]);
+    const existing = componentRows[0];
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Component not found.' });
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    await conn.query('DELETE FROM grade_components WHERE id = ?', [componentId]);
+
+    const updatedGrade = await recomputeGrade(conn, gradeId);
+
+    await conn.commit();
+
+    await logActivity(
+      req.user.id,
+      'delete_grade_component',
+      `Deleted ${existing.type} component #${componentId} from grade #${gradeId}`
+    );
+
+    return res.json({ success: true, message: 'Component deleted.', grade: updatedGrade });
+  } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch {
+        // ignore rollback failure — connection is being released regardless
+      }
+    }
+    console.error('Delete grade component error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete component.' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // PATCH /api/grades/:id/exam — set any subset of ST1/ST2/TE, then
 // recompute. Returns only the recomputed `grade` row — unlike
 // POST /:id/components above, this creates no child resource, it only
@@ -656,6 +844,68 @@ router.patch('/:id/descriptive', authenticate, authorize('teacher', 'admin'), as
   } catch (error) {
     console.error('Update descriptive grade error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update descriptive grade.' });
+  }
+});
+
+// PATCH /api/grades/:id/lock — admin only, unscoped. Toggles is_locked,
+// which every write endpoint above already checks (via
+// preflightGradeWrite) but which nothing could set until now.
+router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => {
+  const gradeId = parseId(req.params.id);
+  if (gradeId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
+  }
+
+  const { is_locked } = req.body;
+  if (typeof is_locked !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'is_locked must be true or false.' });
+  }
+
+  try {
+    const [gradeRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+    const grade = gradeRows[0];
+    if (!grade) {
+      return res.status(404).json({ success: false, message: 'Grade record not found.' });
+    }
+
+    // Admin-only, unscoped by design — locking is a school-wide
+    // finalization boundary (the End-of-Term Block, DO 009 s.2026), not
+    // an individual teacher's discretion. Whether a teacher should be
+    // able to lock their OWN encoding is a genuine open school question,
+    // not decided here — see CLAUDE.md's Grades module note. Do not
+    // widen authorize() below without that answer.
+    //
+    // Deliberately NOT gated on completeness (e.g. "initial_grade IS NOT
+    // NULL"). That check would make every Grade 1 (descriptive-mode) row
+    // PERMANENTLY unlockable, since a descriptive row never populates
+    // initial_grade at all by design (see grades' own dual-mode table
+    // comment in schema.sql) — a bug that would only surface weeks
+    // later, on one grade level, the first time someone tried to lock a
+    // perfectly complete Grade 1 row. Whether an incomplete NUMERICAL
+    // grade should be lockable is an administrative-process question the
+    // school has not answered; the system does not second-guess it here.
+    // A mistaken lock is always reversible via this same endpoint.
+    //
+    // Unlock is NOT harder than lock — no step-up auth, no required
+    // reason, same admin-only PATCH in both directions. Restore's
+    // step-up auth exists because a restore is irreversible; an unlock
+    // is reversible by re-locking, so matching that friction here would
+    // be theatre, not safety. The admin-only gate plus full old/new
+    // logActivity on every toggle (below) is the real safety rail.
+    await pool.query('UPDATE grades SET is_locked = ? WHERE id = ?', [is_locked ? 1 : 0, gradeId]);
+
+    const [updatedRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+
+    await logActivity(
+      req.user.id,
+      'update_grade_lock',
+      `Set is_locked for grade #${gradeId} from ${grade.is_locked} to ${is_locked ? 1 : 0}`
+    );
+
+    return res.json({ success: true, message: 'Grade lock updated.', grade: updatedRows[0] });
+  } catch (error) {
+    console.error('Update grade lock error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update grade lock.' });
   }
 });
 

@@ -1,14 +1,18 @@
 /**
  * Grades API tests — Stage G2b (POST /api/grades, row creation/scoping),
  * Stage G2c (POST /:id/components, PATCH /:id/exam — the first writes
- * that actually compute anything), and Stage G2d (PATCH /:id/descriptive
- * — Grade 1's manual letter grade, the other side of the numerical/
- * descriptive gate). The centerpiece is a full worked example driven
+ * that actually compute anything), Stage G2d (PATCH /:id/descriptive —
+ * Grade 1's manual letter grade, the other side of the numerical/
+ * descriptive gate), and Stage G2e (PUT/DELETE .../components/:componentId,
+ * PATCH /:id/lock). The centerpiece is a full worked example driven
  * through the real HTTP endpoints, step by step, reusing the EXACT
  * numbers from utils/gradeComputation.js's own unit tests
  * (test-grade-computation.js) — a mismatch between that trusted pure
  * math and this wired-up HTTP result would surface as a wiring bug, not
- * a new, unverified expectation.
+ * a new, unverified expectation. Stage G2e's own fixture is built up to
+ * FULL completion (a real non-null Initial Grade and Term Grade) before
+ * any edit/delete runs, so deleting the last WW component demonstrates a
+ * genuine reversion to NULL, not a trivial already-null case.
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
  * Idempotent: every grade row this script creates is tracked and deleted
@@ -760,6 +764,207 @@ async function run() {
       adminDescriptive.status === 200 && adminDescriptive.data?.grade?.descriptive_grade === 'C',
       'Admin succeeds on any grade, unscoped'
     );
+
+    // --- Component edit/delete and lock (Stage G2e) ---
+    // A dedicated fixture, built up to FULL completion (WW+PT+EX all
+    // present, a real non-null Initial Grade and Term Grade) before any
+    // edit/delete runs — so deleting the last WW component later
+    // demonstrates a genuine reversion from a real computed value back
+    // to NULL, not a trivial "was already null, stays null" check.
+    console.log('\nComponent edit/delete and lock (Stage G2e):');
+
+    const editDeleteCreate = await request('POST', '/api/grades', {
+      token: teacherToken,
+      body: { student_id: marwinId, subject_id: mathGrade6Id, term: 2, school_year: schoolYear },
+    });
+    const editDeleteGradeId = editDeleteCreate.data?.grade?.id;
+    if (editDeleteGradeId) createdGradeIds.push(editDeleteGradeId);
+    assert(editDeleteCreate.status === 201, 'Fixture: a fresh grade row for edit/delete/lock tests');
+
+    const wwA = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 40, max_score: 50, label: 'WW1' },
+    });
+    const wwAId = wwA.data?.component?.id;
+
+    const wwB = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 30, max_score: 50, label: 'WW2' },
+    });
+    const wwBId = wwB.data?.component?.id;
+    assert(
+      wwB.status === 201 && num(wwB.data?.grade?.ww_percentage) === 70.0,
+      `Fixture: WW 40/50 + 30/50 -> ww_percentage 70.00 (got ${wwB.data?.grade?.ww_percentage})`
+    );
+
+    const ptFixture = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'PT', score: 90, max_score: 100, label: 'PT1' },
+    });
+    const ptComponentId = ptFixture.data?.component?.id;
+    assert(
+      ptFixture.status === 201 && num(ptFixture.data?.grade?.pt_percentage) === 90.0,
+      `Fixture: PT 90/100 -> pt_percentage 90.00 (got ${ptFixture.data?.grade?.pt_percentage})`
+    );
+
+    await request('PATCH', `/api/grades/${editDeleteGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 80, st1_max: 100, st2_score: 70, st2_max: 100 },
+    });
+    const examComplete = await request('PATCH', `/api/grades/${editDeleteGradeId}/exam`, {
+      token: teacherToken,
+      body: { te_score: 90, te_max: 100 },
+    });
+    assert(
+      examComplete.status === 200 && num(examComplete.data?.grade?.ex_percentage) === 81.0,
+      `Fixture: EX (80/100, 70/100, 90/100) -> ex_percentage 81.00 = (80x0.30)+(70x0.30)+(90x0.40) (got ${examComplete.data?.grade?.ex_percentage})`
+    );
+    assert(
+      num(examComplete.data?.grade?.initial_grade) === 83.3,
+      `Fixture complete: Initial Grade 83.30 = ww_weighted(14.00) + pt_weighted(45.00) + ex_weighted(24.30) (got ${examComplete.data?.grade?.initial_grade})`
+    );
+
+    // --- Edit ---
+    const editScore = await request('PUT', `/api/grades/${editDeleteGradeId}/components/${wwAId}`, {
+      token: teacherToken,
+      body: { score: 45 },
+    });
+    assert(
+      editScore.status === 200 && num(editScore.data?.grade?.ww_percentage) === 75.0,
+      `Edit component score 40->45: ww_percentage recomputes to 75.00 = (45+30)/100 (got ${editScore.data?.grade?.ww_percentage})`
+    );
+    assert(
+      num(editScore.data?.grade?.initial_grade) === 84.3,
+      `Initial Grade recomputes to 84.30 = ww_weighted(15.00) + pt_weighted(45.00) + ex_weighted(24.30) (got ${editScore.data?.grade?.initial_grade})`
+    );
+
+    const editLabelOnly = await request('PUT', `/api/grades/${editDeleteGradeId}/components/${wwAId}`, {
+      token: teacherToken,
+      body: { label: 'WW1 (corrected)', date_recorded: '2026-09-01' },
+    });
+    assert(
+      editLabelOnly.status === 200 && num(editLabelOnly.data?.grade?.ww_percentage) === 75.0,
+      'Editing label/date_recorded only leaves the computation unchanged'
+    );
+    assert(editLabelOnly.data?.component?.label === 'WW1 (corrected)', 'The label actually sent is applied');
+
+    const editTypeChange = await request('PUT', `/api/grades/${editDeleteGradeId}/components/${wwAId}`, {
+      token: teacherToken,
+      body: { type: 'PT' },
+    });
+    assert(editTypeChange.status === 400, 'Changing type on an existing component is rejected');
+
+    const componentWrongGrade = await request('PUT', `/api/grades/${grade1Id}/components/${ptComponentId}`, {
+      token: adminToken,
+      body: { score: 1 },
+    });
+    assert(componentWrongGrade.status === 404, 'componentId belonging to a different grade returns 404');
+
+    const componentNonexistent = await request('PUT', `/api/grades/${editDeleteGradeId}/components/999999`, {
+      token: adminToken,
+      body: { score: 1 },
+    });
+    assert(componentNonexistent.status === 404, 'Nonexistent componentId returns 404');
+
+    // --- Delete ---
+    const deleteOneOfTwo = await request('DELETE', `/api/grades/${editDeleteGradeId}/components/${wwBId}`, {
+      token: teacherToken,
+    });
+    assert(
+      deleteOneOfTwo.status === 200 && num(deleteOneOfTwo.data?.grade?.ww_percentage) === 90.0,
+      `Deleting one of two WW components: ww_percentage recomputes to the remaining one alone, 90.00 = 45/50 (got ${deleteOneOfTwo.data?.grade?.ww_percentage})`
+    );
+
+    const deleteLastWw = await request('DELETE', `/api/grades/${editDeleteGradeId}/components/${wwAId}`, {
+      token: teacherToken,
+    });
+    assert(
+      deleteLastWw.status === 200 &&
+        deleteLastWw.data?.grade?.ww_percentage === null &&
+        deleteLastWw.data?.grade?.initial_grade === null &&
+        deleteLastWw.data?.grade?.term_grade === null,
+      'Deleting the LAST WW component reverts ww_percentage, initial_grade, AND term_grade to NULL — a real reversion from 87.30, not a trivial already-null case'
+    );
+
+    // --- Lock ---
+    console.log('\nLock:');
+
+    const teacherLocks = await request('PATCH', `/api/grades/${editDeleteGradeId}/lock`, {
+      token: teacherToken,
+      body: { is_locked: true },
+    });
+    assert(teacherLocks.status === 403, 'Teacher cannot lock a grade');
+
+    const parentLocks = await request('PATCH', `/api/grades/${editDeleteGradeId}/lock`, {
+      token: parentToken,
+      body: { is_locked: true },
+    });
+    assert(parentLocks.status === 403, 'Parent cannot lock a grade');
+
+    const adminLocks = await request('PATCH', `/api/grades/${editDeleteGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: true },
+    });
+    assert(
+      adminLocks.status === 200 && num(adminLocks.data?.grade?.is_locked) === 1,
+      `Admin locks a grade with initial_grade NULL -> 200, is_locked 1 (got ${adminLocks.data?.grade?.is_locked})`
+    );
+
+    const postOnLocked = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 1, max_score: 1, label: 'Should be 403' },
+    });
+    assert(postOnLocked.status === 403, 'POST /:id/components on a locked grade is 403');
+
+    const examOnLocked = await request('PATCH', `/api/grades/${editDeleteGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 1, st1_max: 1 },
+    });
+    assert(examOnLocked.status === 403, 'PATCH /:id/exam on a locked grade is 403');
+
+    const editOnLocked = await request('PUT', `/api/grades/${editDeleteGradeId}/components/${ptComponentId}`, {
+      token: teacherToken,
+      body: { score: 1 },
+    });
+    assert(editOnLocked.status === 403, 'PUT .../components/:componentId on a locked grade is 403');
+
+    const deleteOnLocked = await request('DELETE', `/api/grades/${editDeleteGradeId}/components/${ptComponentId}`, {
+      token: teacherToken,
+    });
+    assert(deleteOnLocked.status === 403, 'DELETE .../components/:componentId on a locked grade is 403');
+
+    const adminUnlocks = await request('PATCH', `/api/grades/${editDeleteGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: false },
+    });
+    assert(
+      adminUnlocks.status === 200 && num(adminUnlocks.data?.grade?.is_locked) === 0,
+      'Admin unlocks the grade'
+    );
+
+    const postAfterUnlock = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 20, max_score: 20, label: 'After unlock' },
+    });
+    assert(postAfterUnlock.status === 201, 'Writes work again after unlocking');
+
+    // Grade 1 (descriptive) row already exists with initial_grade always
+    // NULL — locking it is exactly the case a naive "initial_grade IS NOT
+    // NULL" completeness gate would have permanently broken.
+    const lockDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/lock`, {
+      token: adminToken,
+      body: { is_locked: true },
+    });
+    assert(
+      lockDescriptive.status === 200 && num(lockDescriptive.data?.grade?.is_locked) === 1,
+      'Locking a Grade 1 descriptive row (initial_grade always NULL) succeeds — no completeness gate blocks it'
+    );
+
+    const descriptiveOnLocked = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: adminToken,
+      body: { descriptive_grade: 'A' },
+    });
+    assert(descriptiveOnLocked.status === 403, 'PATCH /:id/descriptive on a locked grade is 403');
   } finally {
     await cleanup();
   }
