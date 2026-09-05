@@ -1,16 +1,18 @@
 /**
- * Grades API tests — Stage G2b: POST /api/grades only. Creates a shell
- * row (every score/computed column NULL, is_locked 0) — no computation
- * happens here, utils/gradeComputation.js is not touched by this file
- * either. Scoping is the SUBJECT TEACHER's, via teacher_assignments
- * (teacher_id + subject_id + grade_level + section, all four), not
- * sections.adviser_id — a deliberate second scoping authority alongside
- * attendance/excuse-letter review's adviser-based one.
+ * Grades API tests — Stage G2b (POST /api/grades, row creation/scoping)
+ * plus Stage G2c (POST /:id/components, PATCH /:id/exam — the first
+ * writes that actually compute anything). The centerpiece is a full
+ * worked example driven through the real HTTP endpoints, step by step,
+ * reusing the EXACT numbers from utils/gradeComputation.js's own unit
+ * tests (test-grade-computation.js) — a mismatch between that trusted
+ * pure math and this wired-up HTTP result would surface as a wiring bug,
+ * not a new, unverified expectation.
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
  * Idempotent: every grade row this script creates is tracked and deleted
- * in a finally block; the one throwaway inactive-student fixture is
- * deleted the same way — passes on repeat runs with no db:setup.
+ * in a finally block; the throwaway student fixtures (one inactive
+ * Grade 6, one Grade 1 for the descriptive-mode tests) are deleted the
+ * same way — passes on repeat runs with no db:setup.
  *
  * Usage: npm run test:grades
  */
@@ -20,6 +22,16 @@ const BASE = process.env.API_BASE || `http://localhost:${process.env.PORT || 500
 
 let passed = 0;
 let failed = 0;
+
+// mysql2 returns DECIMAL columns as strings (e.g. "90.00"), not numbers —
+// gradeComputation.js's own functions already defensively call Number()
+// on every input for exactly this reason, so the computation itself is
+// unaffected, but a test asserting `=== 90.0` against the raw API
+// response fails on a type mismatch even when the value is correct. null
+// passes through unchanged, so a NULL-boundary assertion still works.
+function num(value) {
+  return value === null || value === undefined ? value : Number(value);
+}
 
 function assert(condition, label, detail = '') {
   if (condition) {
@@ -117,15 +129,31 @@ async function run() {
   const mathGrade6Id = await resolveSubjectId('Mathematics', 6); // TCH-001 IS assigned this
   const scienceGrade6Id = await resolveSubjectId('Science', 6); // TCH-001 is NOT assigned this
   const mathGrade1Id = await resolveSubjectId('Mathematics', 1); // wrong grade level for Marwin (Grade 6)
+  const filipinoGrade6Id = await resolveSubjectId('Filipino', 6); // TCH-001 IS assigned this
+  const englishGrade6Id = await resolveSubjectId('English', 6); // TCH-001 IS assigned this
+  const mapehGrade6Id = await resolveSubjectId('MAPEH', 6); // 20/60/20 weights, TCH-001 NOT assigned
   assert(
-    Number.isInteger(mathGrade6Id) && Number.isInteger(scienceGrade6Id) && Number.isInteger(mathGrade1Id),
-    'Resolve three fixture subject ids (Math G6, Science G6, Math G1)'
+    [mathGrade6Id, scienceGrade6Id, mathGrade1Id, filipinoGrade6Id, englishGrade6Id, mapehGrade6Id].every(
+      Number.isInteger
+    ),
+    'Resolve fixture subject ids (Math G6/G1, Science G6, Filipino G6, English G6, MAPEH G6)'
   );
+
+  async function lookupTransmutedGrade(ig) {
+    const [rows] = await withDb((conn) =>
+      conn.query(
+        'SELECT transmuted_grade FROM transmutation_table WHERE school_year = ? AND ig_min <= ? AND ig_max >= ? LIMIT 1',
+        [schoolYear, ig, ig]
+      )
+    );
+    return rows[0]?.transmuted_grade ?? null;
+  }
 
   const runId = String(Date.now()).slice(-8);
   const schoolYear = '2026-2027';
   const createdGradeIds = [];
   let inactiveStudentId;
+  let grade1StudentFixtureId;
 
   async function cleanup() {
     if (createdGradeIds.length) {
@@ -133,6 +161,9 @@ async function run() {
     }
     if (inactiveStudentId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [inactiveStudentId]));
+    }
+    if (grade1StudentFixtureId) {
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [grade1StudentFixtureId]));
     }
   }
 
@@ -297,6 +328,297 @@ async function run() {
       body: { student_id: marwinId, subject_id: mathGrade6Id, term: 3, school_year: schoolYear },
     });
     assert(unauth.status === 401, 'Unauthenticated POST returns 401');
+
+    // --- G2c: component/exam writes and recomputation ---
+    console.log('\nWorked example (core weights 20/50/30) — same numbers as test-grade-computation.js:');
+
+    // grade1Id (Marwin, Mathematics, term 1) was created above with every
+    // score/computed column NULL and never touched since — reused here as
+    // the target for the full step-by-step worked example.
+
+    const parentComponent = await request('POST', `/api/grades/${grade1Id}/components`, {
+      token: parentToken,
+      body: { type: 'WW', score: 1, max_score: 1, label: 'x' },
+    });
+    assert(parentComponent.status === 403, 'Parent cannot add a grade component');
+
+    const parentExam = await request('PATCH', `/api/grades/${grade1Id}/exam`, {
+      token: parentToken,
+      body: { st1_score: 1, st1_max: 1 },
+    });
+    assert(parentExam.status === 403, 'Parent cannot set exam scores');
+
+    const ww1 = await request('POST', `/api/grades/${grade1Id}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1' },
+    });
+    assert(
+      ww1.status === 201 && num(ww1.data?.grade?.ww_percentage) === 90.0 && num(ww1.data?.grade?.initial_grade) === null,
+      `After WW 45/50: ww_percentage 90.00, initial_grade NULL (got ww_percentage=${ww1.data?.grade?.ww_percentage}, initial_grade=${ww1.data?.grade?.initial_grade})`
+    );
+    assert(
+      ww1.data?.component?.type === 'WW' && num(ww1.data?.component?.score) === 45,
+      'Response includes the new component row'
+    );
+
+    const ww2 = await request('POST', `/api/grades/${grade1Id}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 42, max_score: 50, label: 'Quiz 2' },
+    });
+    assert(
+      ww2.status === 201 && num(ww2.data?.grade?.ww_percentage) === 87.0 && num(ww2.data?.grade?.initial_grade) === null,
+      `After WW 42/50 added: ww_percentage 87.00 (recomputed from BOTH rows, not just the newest), initial_grade NULL (got ww_percentage=${ww2.data?.grade?.ww_percentage})`
+    );
+
+    await request('POST', `/api/grades/${grade1Id}/components`, {
+      token: teacherToken,
+      body: { type: 'PT', score: 88, max_score: 100, label: 'Performance Task 1' },
+    });
+    const pt2 = await request('POST', `/api/grades/${grade1Id}/components`, {
+      token: teacherToken,
+      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 2' },
+    });
+    assert(
+      pt2.status === 201 && num(pt2.data?.grade?.pt_percentage) === 90.0 && num(pt2.data?.grade?.initial_grade) === null,
+      `After PT 88/100, 92/100: pt_percentage 90.00, initial_grade still NULL (WW+PT alone is not enough) (got pt_percentage=${pt2.data?.grade?.pt_percentage}, initial_grade=${pt2.data?.grade?.initial_grade})`
+    );
+
+    const st1 = await request('PATCH', `/api/grades/${grade1Id}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 17, st1_max: 20 },
+    });
+    assert(
+      st1.status === 200 && st1.data?.grade?.ex_percentage === null && st1.data?.grade?.initial_grade === null,
+      `After ST1 17/20: ex_percentage NULL (ST2, TE still missing), initial_grade NULL (got ex_percentage=${st1.data?.grade?.ex_percentage})`
+    );
+
+    const st2 = await request('PATCH', `/api/grades/${grade1Id}/exam`, {
+      token: teacherToken,
+      body: { st2_score: 16, st2_max: 20 },
+    });
+    assert(
+      st2.status === 200 && st2.data?.grade?.ex_percentage === null && st2.data?.grade?.initial_grade === null,
+      `After ST2 16/20: ex_percentage still NULL (TE still missing), initial_grade NULL (got ex_percentage=${st2.data?.grade?.ex_percentage})`
+    );
+
+    const te = await request('PATCH', `/api/grades/${grade1Id}/exam`, {
+      token: teacherToken,
+      body: { te_score: 45, te_max: 50 },
+    });
+    assert(
+      te.status === 200 && num(te.data?.grade?.ex_percentage) === 85.5,
+      `After TE 45/50: ex_percentage 85.50 = (85x0.30)+(80x0.30)+(90x0.40) (got ${te.data?.grade?.ex_percentage})`
+    );
+    assert(
+      num(te.data?.grade?.initial_grade) === 88.05,
+      `Initial Grade now appears: 88.05 = ww_weighted(17.40) + pt_weighted(45.00) + ex_weighted(25.65) (got ${te.data?.grade?.initial_grade})`
+    );
+
+    const expectedTermGradeCore = await lookupTransmutedGrade(88.05);
+    assert(
+      num(te.data?.grade?.term_grade) === expectedTermGradeCore,
+      `term_grade matches the seeded transmutation_table lookup for IG 88.05 (table says ${expectedTermGradeCore}, API returned ${te.data?.grade?.term_grade})`
+    );
+
+    // --- Same raw scores, MAPEH/EPP weights (20/60/20) ---
+    console.log('\nSame raw scores — MAPEH/EPP weights (20/60/20):');
+
+    const mapehCreate = await request('POST', '/api/grades', {
+      token: adminToken, // TCH-001 is not assigned MAPEH — admin only
+      body: { student_id: marwinId, subject_id: mapehGrade6Id, term: 2, school_year: schoolYear },
+    });
+    assert(mapehCreate.status === 201, 'Fixture: MAPEH grade row for the second worked example');
+    const mapehGradeId = mapehCreate.data?.grade?.id;
+    if (mapehGradeId) createdGradeIds.push(mapehGradeId);
+
+    await request('POST', `/api/grades/${mapehGradeId}/components`, {
+      token: adminToken,
+      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1' },
+    });
+    await request('POST', `/api/grades/${mapehGradeId}/components`, {
+      token: adminToken,
+      body: { type: 'WW', score: 42, max_score: 50, label: 'Quiz 2' },
+    });
+    await request('POST', `/api/grades/${mapehGradeId}/components`, {
+      token: adminToken,
+      body: { type: 'PT', score: 88, max_score: 100, label: 'Performance Task 1' },
+    });
+    await request('POST', `/api/grades/${mapehGradeId}/components`, {
+      token: adminToken,
+      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 2' },
+    });
+    await request('PATCH', `/api/grades/${mapehGradeId}/exam`, {
+      token: adminToken,
+      body: { st1_score: 17, st1_max: 20, st2_score: 16, st2_max: 20 },
+    });
+    const mapehFinal = await request('PATCH', `/api/grades/${mapehGradeId}/exam`, {
+      token: adminToken,
+      body: { te_score: 45, te_max: 50 },
+    });
+    assert(
+      num(mapehFinal.data?.grade?.ww_percentage) === 87.0 && num(mapehFinal.data?.grade?.pt_percentage) === 90.0,
+      'Same raw scores under MAPEH weights still produce ww_percentage 87.00, pt_percentage 90.00 (weights only change the WEIGHTED step)'
+    );
+    assert(
+      mapehFinal.status === 200 && num(mapehFinal.data?.grade?.initial_grade) === 88.5,
+      `MAPEH weights (20/60/20): Initial Grade 88.50 = 17.40 + 54.00 + 17.10 (got ${mapehFinal.data?.grade?.initial_grade})`
+    );
+
+    const expectedTermGradeMapeh = await lookupTransmutedGrade(88.5);
+    assert(
+      num(mapehFinal.data?.grade?.term_grade) === expectedTermGradeMapeh,
+      `term_grade matches the seeded transmutation_table lookup for IG 88.50 (table says ${expectedTermGradeMapeh}, API returned ${mapehFinal.data?.grade?.term_grade})`
+    );
+
+    // --- Component validation ---
+    console.log('\nComponent validation:');
+
+    const validationCreate = await request('POST', '/api/grades', {
+      token: teacherToken,
+      body: { student_id: marwinId, subject_id: filipinoGrade6Id, term: 1, school_year: schoolYear },
+    });
+    const validationGradeId = validationCreate.data?.grade?.id;
+    if (validationGradeId) createdGradeIds.push(validationGradeId);
+
+    const negativeScore = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: -5, max_score: 50, label: 'Bad' },
+    });
+    assert(negativeScore.status === 400, 'Negative score rejected');
+
+    const zeroMax = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 5, max_score: 0, label: 'Bad' },
+    });
+    assert(zeroMax.status === 400, 'max_score of 0 rejected');
+
+    const bonusPoints = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 110, max_score: 100, label: 'Bonus points' },
+    });
+    assert(
+      bonusPoints.status === 201 && num(bonusPoints.data?.grade?.ww_percentage) === 110.0,
+      `score > max_score (bonus points) is accepted, not clamped: ww_percentage 110.00 (got ${bonusPoints.data?.grade?.ww_percentage})`
+    );
+
+    // --- Exam edge cases (own grade row, kept separate from the worked example) ---
+    console.log('\nExam edge cases:');
+
+    const examEdgeCreate = await request('POST', '/api/grades', {
+      token: teacherToken,
+      body: { student_id: marwinId, subject_id: englishGrade6Id, term: 1, school_year: schoolYear },
+    });
+    const examEdgeGradeId = examEdgeCreate.data?.grade?.id;
+    if (examEdgeGradeId) createdGradeIds.push(examEdgeGradeId);
+
+    const emptyBody = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: {},
+    });
+    assert(emptyBody.status === 400, 'Empty PATCH /:id/exam body rejected');
+
+    const st1WithoutMax = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 18 },
+    });
+    assert(
+      st1WithoutMax.status === 400,
+      'st1_score without st1_max rejected when no existing st1_max is on the row'
+    );
+
+    const setSt1 = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 18, st1_max: 20 },
+    });
+    assert(
+      setSt1.status === 200 && num(setSt1.data?.grade?.ex_st1) === 18 && num(setSt1.data?.grade?.ex_st1_max) === 20,
+      'ST1 set with both fields together'
+    );
+
+    const clearSt1 = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: null },
+    });
+    assert(
+      clearSt1.status === 200 && clearSt1.data?.grade?.ex_st1 === null && clearSt1.data?.grade?.ex_st1_max === null,
+      'Explicit null on st1_score clears BOTH ex_st1 and ex_st1_max'
+    );
+
+    const conflictingNulls = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: null, st1_max: 20 },
+    });
+    assert(conflictingNulls.status === 400, 'One explicit null + one explicit number for the same sub-test is rejected');
+
+    // --- Descriptive mode + transaction atomicity ---
+    console.log('\nDescriptive mode (Grade 1) + atomicity:');
+
+    const grade1FixtureLrn = `1${runId}`;
+    const createGrade1Student = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: grade1FixtureLrn, first_name: 'Descriptive', last_name: 'Fixture', grade_level: 1, section: 'Matipid' },
+    });
+    grade1StudentFixtureId = createGrade1Student.data?.student?.id;
+
+    const grade1DescriptiveCreate = await request('POST', '/api/grades', {
+      token: adminToken,
+      body: { student_id: grade1StudentFixtureId, subject_id: mathGrade1Id, term: 1, school_year: schoolYear },
+    });
+    const grade1DescriptiveId = grade1DescriptiveCreate.data?.grade?.id;
+    if (grade1DescriptiveId) createdGradeIds.push(grade1DescriptiveId);
+    assert(grade1DescriptiveCreate.status === 201, 'Fixture: a Grade 1 (descriptive-mode) grade row');
+
+    const [componentsBefore] = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id = ?', [grade1DescriptiveId])
+    );
+
+    const descriptiveModeComponent = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
+      token: adminToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Should be rejected' },
+    });
+    assert(
+      descriptiveModeComponent.status === 400,
+      'POST /:id/components on a descriptive-mode (Grade 1) grade is rejected with 400'
+    );
+
+    const descriptiveModeExam = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
+      token: adminToken,
+      body: { st1_score: 10, st1_max: 10 },
+    });
+    assert(
+      descriptiveModeExam.status === 400,
+      'PATCH /:id/exam on a descriptive-mode (Grade 1) grade is rejected with 400'
+    );
+
+    const [componentsAfter] = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id = ?', [grade1DescriptiveId])
+    );
+    assert(
+      componentsBefore[0].c === 0 && componentsAfter[0].c === 0,
+      `A rejected write leaves zero grade_components rows — the pre-flight gate runs before any insert is attempted, not insert-then-rollback (before=${componentsBefore[0].c}, after=${componentsAfter[0].c})`
+    );
+
+    // --- Out-of-scope teacher: 404, not 403 (no GET exists yet) ---
+    console.log('\nOut-of-scope teacher:');
+
+    const outOfScopeGradeId = adminCreates.data?.grade?.id; // Jea, Mathematics, Grade 5 — TCH-001 has no assignment there
+    const outOfScopeComponent = await request('POST', `/api/grades/${outOfScopeGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Should be 404' },
+    });
+    assert(outOfScopeComponent.status === 404, 'Out-of-scope teacher gets 404 on POST /:id/components (no GET exists yet)');
+
+    const outOfScopeExam = await request('PATCH', `/api/grades/${outOfScopeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 10, st1_max: 10 },
+    });
+    assert(outOfScopeExam.status === 404, 'Out-of-scope teacher gets 404 on PATCH /:id/exam (no GET exists yet)');
+
+    const nonexistentGradeComponent = await request('POST', '/api/grades/999999/components', {
+      token: adminToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'x' },
+    });
+    assert(nonexistentGradeComponent.status === 404, 'Nonexistent grade id on POST /:id/components returns 404, even for admin');
   } finally {
     await cleanup();
   }

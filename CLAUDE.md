@@ -53,6 +53,8 @@ to the team.
 | GET | `/api/sections/:id` | all roles — `404` only for a genuinely nonexistent id |
 | PATCH | `/api/sections/:id/adviser` | admin — assigns/clears a section's adviser, one teacher may advise more than one section |
 | POST | `/api/grades` | teacher (subject teacher via `teacher_assignments`), admin (unscoped) — creates a shell row, no computation |
+| POST | `/api/grades/:id/components` | teacher (subject teacher), admin — adds one WW/PT raw score, full recompute; `404` out of scope |
+| PATCH | `/api/grades/:id/exam` | teacher (subject teacher), admin — sets any subset of ST1/ST2/TE, full recompute; `404` out of scope |
 | GET | `/api/attendance` | teacher (section adviser), admin |
 | GET | `/api/attendance/student/:studentId` | teacher (adviser), admin, parent (own child only) |
 | GET | `/api/attendance/summary/:studentId` | teacher (adviser), admin, parent (own child only) — raw counts, no rate |
@@ -111,7 +113,9 @@ remembered API call), so no `db:setup` is needed between runs. Verified by runni
 each twice in a row with no reset: same pass count both times, and the DB
 confirmed back to the seeded 4 users / 2 students / 0 everywhere else (attendance,
 announcements, memos, events, contributions, contribution_records, excuse_letters,
-backups, messages, grades) — plus sections back to exactly 2 of 23 rows with a real
+backups, messages, grades, grade_components — the latter via cascade,
+`fk_grade_components_grade ON DELETE CASCADE`, when a grade row is deleted) —
+plus sections back to exactly 2 of 23 rows with a real
 adviser_id (Malikhain → TCH-001, Masigasig → TCH-002, both untouched by the
 suite) — after. `test:sanitize` is a direct-call unit test — no server or DB
 involved. `test:restore` is the one exception to "runs a real flow end to end":
@@ -119,7 +123,7 @@ it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
 - `npm run test:students` — 30/30
 - `npm run test:sections` — 30/30
-- `npm run test:grades` — 26/26
+- `npm run test:grades` — 56/56
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 47/47
@@ -189,7 +193,25 @@ server/
                                 can't learn a real student's grade level by probing with a wrong
                                 subject_id — see the file's own comment at that check.
                                 grading_mode_configs is deliberately not consulted here; a Grade 1
-                                row and a Grade 5 row are structurally identical at creation
+                                row and a Grade 5 row are structurally identical at creation.
+                                Stage G2c (same day): POST /:id/components (WW/PT) and
+                                PATCH /:id/exam (ST1/ST2/TE, any subset, score+max always paired,
+                                explicit null clears both) — the first writes that actually
+                                compute anything. Preflight order: scope (404) -> grading_mode_configs
+                                (numerical only, else 400; missing row is 409, not 500) ->
+                                is_locked (403) -> grade_weight_configs presence (409) -> THEN the
+                                write, all inside one transaction with recomputeGrade() so a
+                                failure after the insert rolls back the insert too.
+                                recomputeGrade() is the one DB-touching function in this file —
+                                deliberately NOT added to gradeComputation.js, which stays pure by
+                                design; it fetches what the pure functions need (grade_components
+                                rows, the weight row, the transmutation lookup) and calls
+                                gradeComputation.js for every actual calculation. Always full
+                                recompute from source, never incremental. POST /:id/components
+                                returns both `component` and `grade`; PATCH /:id/exam returns only
+                                `grade` — a deliberate asymmetry (the first creates a child
+                                resource, the second only updates columns on the parent), commented
+                                at both handlers so it isn't misread as an oversight.
   routes/attendance.js         record/bulk/correct/list/summary — per DAY (Stage B1), not per subject.
                                 No subject_id anywhere in this file. Scoped by section adviser
                                 (sections.adviser_id via students.section_id), not teacher_assignments —
@@ -259,14 +281,35 @@ server/
                                 by id, never Malikhain/Masigasig), reset to NULL via a direct DB
                                 write in a finally block — never a remembered "restore the seeded
                                 value" step
-  scripts/test-grades-flows.js  HTTP tests — Stage G2b (POST /api/grades only). Subject-teacher
+  scripts/test-grades-flows.js  HTTP tests — Stage G2b (POST /api/grades). Subject-teacher
                                 scoping (assigned-to-section-but-not-subject is a distinct 403 from
                                 fully-out-of-scope), the admin-404/teacher-403 asymmetry for a
                                 nonexistent student (the anti-enumeration property, asserted
                                 explicitly), subject/grade-level mismatch, term/school_year
-                                validation, inactive student, duplicate (409). Every created grade
-                                row and the one throwaway inactive-student fixture are deleted in a
-                                finally block
+                                validation, inactive student, duplicate (409).
+                                Stage G2c (same day): a full worked example driven step-by-step
+                                through the real HTTP endpoints, reusing test-grade-computation.js's
+                                EXACT numbers (WW 87%, PT 90%, EX 85.50% -> IG 88.05 core weights,
+                                IG 88.50 MAPEH weights, both transmuting to TG 90 per the seeded
+                                table, verified against transmutation_table live, not hardcoded) —
+                                asserting the NULL boundary at every intermediate step, and proving
+                                recompute-from-source across two SEPARATE POST calls (not collapsed
+                                into one), which is the one property a pure unit test structurally
+                                cannot exercise. Also: descriptive-mode rejection (400) on both
+                                endpoints, out-of-scope 404 (no GET exists yet), score/max_score
+                                validation (negative, zero max, over-100% unclamped), PATCH /:id/exam
+                                pairing rules (score+max together, explicit null clears both,
+                                conflicting explicit null+number rejected, empty body rejected), and
+                                transaction-atomicity (a rejected write leaves zero grade_components
+                                rows — asserted by row count, not just status code). Found and fixed
+                                a real test-writing gotcha, not a production bug: mysql2 returns
+                                DECIMAL columns as strings ("90.00"), so strict === against a number
+                                literal failed even on correct values — gradeComputation.js's own
+                                Number() coercions already protect the actual computation, so this
+                                was purely a test-assertion fix (a local num() null-safe coercion
+                                helper), not a code change. Every created grade row and the two
+                                throwaway student fixtures (inactive Grade 6, descriptive-mode
+                                Grade 1) are deleted in a finally block
   scripts/test-attendance-flows.js HTTP tests — per-day model (Stage B1): adviser scoping via
                                 sections.adviser_id, bulk section_id validation, all-or-nothing
   scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin
@@ -366,20 +409,23 @@ Grades
 
 **No Expo app.**
 
-Grades now has a route file — `routes/grades.js` exists as of Stage G2b
-(2026-09-05), but with exactly one endpoint (`POST /`, row creation) and
-zero computation. What changed across the day (G1a → G2a → G2b): the
-schema is correctly shaped for DO 009/DO 015 s. 2026 (`grades`,
-`grade_components`, `grade_weight_configs` rebuilt; `transmutation_table`
-and `grading_mode_configs` new), the write-path arithmetic exists as pure,
-unit-tested functions (`utils/gradeComputation.js`), and a teacher can now
-create a grade shell row, correctly scoped. See BLOCKED / RESOLVED →
-Grades module for the full detail, and the 2026-09-05 CHANGELOG entries
-for each stage. **A parent still cannot see a single grade, and a teacher
-cannot enter a single score** — Stages G2c (WW/PT/EX writes) through G2e
-(edit/delete/lock) and G3 (viewing) remain. Stage G1b (the `subjects`
+Grades' route file now has three endpoints — `POST /`, `POST /:id/
+components`, `PATCH /:id/exam` (Stages G2b–G2c, 2026-09-05/06) — and, as
+of G2c, a teacher can actually enter a WW/PT/exam score and watch a real
+Initial Grade and Term Grade appear. What's built across the four stages
+so far (G1a → G2a → G2b → G2c): the schema is correctly shaped for
+DO 009/DO 015 s. 2026, the write-path arithmetic exists as pure,
+unit-tested functions (`utils/gradeComputation.js`), a teacher can create
+a scoped grade shell row, and a teacher can now record WW/PT/exam scores
+against it with full, correct recomputation on every write. See BLOCKED /
+RESOLVED → Grades module for the full detail, and the CHANGELOG entries
+for each stage. **A parent still cannot see a single grade** — no `GET`
+endpoint exists anywhere in this module yet. Stages G2d (Grade 1's
+descriptive write), G2e (component edit/delete, `is_locked`/lock-toggle),
+and G3 (viewing, GA at read time) remain. Stage G1b (the `subjects`
 reseed) is still blocked on Grade 4's learning areas and does not block
-any of G2. Do not read "a route file exists" as "module built." Backup/Restore is fully built —
+any of G2. Do not read "a teacher can enter a score" as "module built" —
+Backup/Restore is fully built —
 5 endpoints, see "RESTORE" below. **Excuse Letters is fully built** — both
 original blockers (who approves, does approval touch attendance) are
 resolved and `PATCH /:id/review` is implemented; see BLOCKED / RESOLVED
@@ -549,7 +595,7 @@ question is answered — that is a documentation change, not a build. Do not
 read a RESOLVED heading as "built"; check the endpoints table and BUILD
 ORDER for that.
 
-### Grades module — schema, computation, and row creation done (G1a, G2a, G2b)
+### Grades module — schema, computation, creation, and first real writes done (G1a–G2c)
 
 Full policy detail lives in `docs/GRADING_SPEC.md` (DO 015 s. 2026 +
 DO 009 s. 2026 + school-visit findings). This section tracks build state
@@ -837,6 +883,99 @@ mine to skip past:
   `server/server.js`, `server/package.json`) — no scope expansion.
 - Mounted at `/api/grades`, between `/api/sections` and
   `/api/attendance`.
+
+**Stage G2c is done (2026-09-06): `POST /:id/components` and
+`PATCH /:id/exam` — the first writes that actually compute anything, and
+the first place `utils/gradeComputation.js`'s pure functions get called
+from real HTTP traffic.** Same plan-then-approve shape as every prior
+Grades stage, 10 questions this time. Both confirmations from the plan
+that mattered most in practice:
+
+- **The missing-`grade_weight_configs` question resolved as a pre-flight
+  gate (`409`), not a "save the raw score anyway and degrade quietly"
+  alternative** — confirmed with an added reason beyond the one in the
+  plan itself: saving the raw score while leaving the computed columns
+  blank would show a teacher their score went in with no grade appearing
+  and no explanation on the row — indistinguishable from the system being
+  broken. A `409` naming the missing config says what's wrong and who
+  fixes it. Order locked: scope -> `grading_mode_configs` -> `is_locked`
+  -> `grade_weight_configs` -> *then* the write -> recompute -> commit,
+  all pre-flight checks running before the transaction opens, so a
+  rejection costs the caller nothing (nothing was ever accepted).
+- **`recomputeGrade()` lives in `routes/grades.js`, not
+  `utils/gradeComputation.js`** — confirmed as the only viable answer,
+  since that module is pure by design (no DB, no HTTP) and recompute
+  needs four DB reads (`grades`, `grade_components` split by type,
+  `grade_weight_configs`, `transmutation_table`). It's the glue: fetch
+  what the pure functions need, call them for every actual calculation,
+  write the result back. Runs on the same transaction connection as the
+  write that triggered it (`pool.getConnection()` -> `beginTransaction()`
+  -> insert/update -> `recomputeGrade(conn, ...)` -> `commit()`, rollback
+  in `catch`, release in `finally`), matching `attendance.js`'s
+  `POST /bulk` shape exactly — a failure after the insert lands rolls
+  back the insert too.
+- **`PATCH /:id/exam` accepts any subset of ST1/ST2/TE.** Score and max
+  are always a pair for a given sub-test: omitting one carries the
+  other forward from the existing row, but ending up with exactly one of
+  the two set is `400`. An explicit `null` on either field clears *both*
+  for that sub-test (a legitimate undo — a wrong exam score entered
+  against the wrong student needs to be undoable). Sending one field as
+  explicit `null` and the other as an explicit non-null number in the
+  *same* request is a genuine contradiction, rejected as its own `400`,
+  never silently resolved by guessing which side the caller meant.
+- **Response shape is a deliberate asymmetry, commented at both
+  handlers so it doesn't read as an oversight**: `POST /:id/components`
+  returns both the new `component` row and the recomputed `grade` row
+  (it creates a real child resource, matching this codebase's
+  create-returns-the-row convention, plus the parent the caller needs to
+  update a live display); `PATCH /:id/exam` returns only `grade` (it
+  creates no child resource, only sets columns on the parent). This is
+  the first endpoint pair in the codebase with the
+  child-create-triggers-parent-recompute shape — a synthesis of two
+  existing precedents, not a copy of one.
+- Out-of-scope on both `:id`-keyed endpoints is `404`, matching G2b's
+  own already-provisional call (no `GET /api/grades` exists yet, so
+  nothing else in the system lets a teacher see a grade row they can't
+  encode) — not re-litigated here, just carried forward.
+- Item-count caps stay documentation-only; `score > max_score` (bonus
+  points) stays unclamped — both G1a/G2a decisions carried forward
+  unchanged, not reconsidered.
+- **Real finding, not a production bug: mysql2 returns `DECIMAL` columns
+  as strings** (`"90.00"`, not `90`). `gradeComputation.js`'s own
+  functions already call `Number(...)` on every input specifically for
+  this reason, so the actual computation was never affected — but the
+  *test suite's* first attempt at strict `===` comparisons against the
+  raw API response failed on type mismatches even where the values were
+  exactly correct (confirmed by the failure output showing "got 90.00"
+  against an expected `90.0`). Fixed with a local, null-safe `num()`
+  coercion helper in `test-grades-flows.js` — a test-assertion fix, not
+  a production-code change. Worth remembering for every future Grades
+  test: any DECIMAL-typed field returned from this API needs the same
+  treatment, or a correct value will read as a failure.
+- Tests: `scripts/test-grades-flows.js` grew from 26 to 56 assertions.
+  Centerpiece: the full worked example driven step-by-step through the
+  real endpoints, reusing `test-grade-computation.js`'s exact numbers —
+  WW 45/50 then 42/50 (asserting `ww_percentage` correct *after each
+  call independently*, the one property a pure unit test cannot exercise
+  at all, since it requires real persistence across two separate
+  requests), PT 88/100 + 92/100, then ST1/ST2/TE one at a time with
+  `initial_grade` asserted `NULL` at every intermediate step and exactly
+  `88.05` only once all three components are complete — then the same
+  raw scores repeated against a MAPEH-subject grade row to get `88.50`
+  instead, proving the weight lookup (not the raw scores) is what
+  changed. `term_grade` checked against a live query of
+  `transmutation_table`, never a hardcoded guess. `npm run test:grades`
+  — 56 passing, confirmed three times in a row with no `db:setup`
+  between runs (the extra run given the fixture complexity this stage
+  added). Full regression across the other thirteen suites afterward:
+  all unchanged from their prior counts (auth 25, students 30, sections
+  30, attendance 38, content 47, contributions 38, settings 26, users 39,
+  backups 39, sanitize 9, messages 39, restore 22, excuses 56), plus
+  `test:grade-computation` still 29/29. `git status` after implementation
+  showed exactly the two whitelisted files changed (`server/routes/
+  grades.js`, `server/scripts/test-grades-flows.js`) — no scope
+  expansion, no `server.js` or `package.json` change needed since G2b
+  already mounted the route and registered the alias.
 
 **Stage G1b — blocked, not started.** Re-seeding `subjects` with the
 school's real per-grade learning areas (GRADING_SPEC §6c) cascades
@@ -1300,18 +1439,19 @@ Grades is last in this stage because it is blocked.
 - [x] System Settings API (admin)
 - [x] User Management API — extend the existing `routes/users.js`
 - [x] Backup/Restore API (admin, `mysqldump` — not a folder copy) — both built, 5 endpoints; see "RESTORE" below
-- [ ] **Grades API — Stages G1a/G2a/G2b done (2026-09-05), G2c–G3
+- [ ] **Grades API — Stages G1a–G2c done (2026-09-05/06), G2d–G3
       remaining.** `grade_weight_configs`/`grades`/`grade_components`
       rebuilt, `transmutation_table`/`grading_mode_configs` added (G1a);
       `utils/gradeComputation.js` (pure functions, 29/29 unit tests) plus
       a G1a schema correction for EX raw-score retention (G2a);
-      `routes/grades.js` now exists — `POST /api/grades` creates a shell
-      row, subject-teacher scoped via `teacher_assignments`, no
-      computation yet (G2b, 26/26 tests) — see BLOCKED / RESOLVED →
+      `POST /api/grades` creates a scoped shell row (G2b);
+      `POST /:id/components` and `PATCH /:id/exam` record WW/PT/exam
+      scores with full recompute through the transmutation table (G2c,
+      `routes/grades.js` — 56/56 tests) — see BLOCKED / RESOLVED →
       Grades module. Stage G1b (`subjects` reseed) is still blocked on
-      Grade 4 confirmation, and does not block G2. Stages G2c (WW/PT/EX
-      writes + full recompute) through G2e (edit/delete/lock) and G3
-      (viewing, GA at read time) are the remaining work
+      Grade 4 confirmation, and does not block G2. Stages G2d (Grade 1's
+      descriptive write) through G2e (edit/delete/lock) and G3 (viewing,
+      GA at read time) are the remaining work
 
 ### Stage 4 — Web pages
 
@@ -1560,6 +1700,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-06 | Grades module Stage G2c — `POST /api/grades/:id/components` and `PATCH /api/grades/:id/exam`, the first writes that actually compute anything and the first place `utils/gradeComputation.js`'s pure functions run against real HTTP traffic. Plan-then-approve dispatch, 10 questions, two confirmations mattered most: (1) a missing `grade_weight_configs` row is a **pre-flight `409`**, checked before any write, not a "save the raw score anyway and degrade quietly" alternative — confirmed with an added reason: a grade row holding a real raw score with blank computed columns and no explanation reads to a teacher as "the system is broken," not "an admin needs to configure something," so rejecting up front with a named reason is strictly better. Preflight order locked: scope (`404`) → `grading_mode_configs` (`400` if descriptive, `409` if unconfigured) → `is_locked` (`403`) → `grade_weight_configs` presence (`409`) → *then* the write → recompute → commit — all checks before the transaction opens, so a rejection costs the caller nothing. (2) `recomputeGrade()` lives in `routes/grades.js`, not `utils/gradeComputation.js` — that module stays pure by design (no DB, no HTTP, per its own header comment), and recompute needs four DB reads (`grades`, `grade_components` split by type, `grade_weight_configs`, `transmutation_table`); `recomputeGrade()` is the glue, fetching what the pure functions need and calling them for every actual calculation, then writing the result back — full recompute from source on every call, never an incremental running total, so an edit or delete in G2e recomputes correctly with no special-casing. Runs on the same transaction connection as the write that triggered it (`pool.getConnection()` → `beginTransaction()` → insert/update → `recomputeGrade(conn, ...)` → `commit()`, rollback in `catch`, release in `finally`), matching `attendance.js`'s `POST /bulk` shape exactly — a failure after the insert lands rolls back the insert too. `PATCH /:id/exam` accepts any subset of ST1/ST2/TE: score and max are always a pair per sub-test (omitting one carries the other forward from the existing row; ending up with exactly one of the two set is `400`); an explicit `null` on either field clears *both* for that sub-test (a legitimate undo); sending one field as explicit `null` and the other as an explicit non-null number in the same request is a genuine contradiction, rejected as its own `400` rather than silently guessed at. Response shape is a deliberate, explicitly-commented asymmetry: `POST /:id/components` returns both the new `component` row and the recomputed `grade` row (it creates a real child resource, matching this codebase's create-returns-the-row convention, plus the parent a caller needs to update a live display); `PATCH /:id/exam` returns only `grade` (no child resource created) — the first endpoint pair in the codebase with the child-create-triggers-parent-recompute shape, a synthesis of two existing precedents rather than a copy of one. Out-of-scope on both endpoints is `404`, carrying forward G2b's already-provisional call (no `GET /api/grades` exists yet). Item-count caps stay documentation-only; `score > max_score` (bonus points) stays unclamped — both carried forward from G1a/G2a, not reconsidered. **Real finding surfaced during testing, confirmed to be a test-writing gotcha and not a production bug:** mysql2 returns `DECIMAL` columns as strings (`"90.00"`, not `90`) — the first 12 HTTP assertions written against computed values all failed on strict `===` against a number literal even though the actual values were exactly correct (the failure output itself showed "got 90.00" against an expected `90.0`). `utils/gradeComputation.js`'s own functions already call `Number(...)` on every input specifically to guard against exactly this, confirmed by tracing the full pipeline — `initialGrade()` sums already-`weighted()`-computed numbers (genuine JS numbers by the time they reach it, never raw DB strings), so the computation itself was never at risk. Fixed with a local, null-safe `num()` coercion helper added to `test-grades-flows.js` — a test-assertion fix, not a route or `gradeComputation.js` change. Tests: `scripts/test-grades-flows.js` grew from 26 to 56 assertions. Centerpiece is a full worked example driven step-by-step through the real endpoints, reusing `test-grade-computation.js`'s exact numbers so any mismatch between the trusted pure math and the wired-up HTTP result would surface as a wiring bug, not a new unverified expectation: WW 45/50 then 42/50 added (asserting `ww_percentage` correct *after each call independently* — 90.00% then 87.00% — the one property a pure unit test structurally cannot exercise, since it requires real persistence across two separate requests, not one collapsed call), PT 88/100 + 92/100 (90.00%), then ST1 17/20, ST2 16/20, TE 45/50 set one at a time via three separate `PATCH` calls with `initial_grade` asserted `NULL` at every intermediate step and appearing as exactly `88.05` only once all three are complete (`ex_percentage` 85.50% = 85×0.30+80×0.30+90×0.40; `initial_grade` 88.05 = 17.40+45.00+25.65). The identical raw scores were then repeated against a fresh MAPEH-subject grade row (admin-only — TCH-001 isn't assigned MAPEH) to get `initial_grade` 88.50 instead (17.40+54.00+17.10), proving the weight lookup — not the raw scores — is what changed. Both `88.05` and `88.50` transmute to `TG 90` per the seeded table (coincidentally, both fall in the 87.70–88.87 band) — checked by a live query against `transmutation_table` in the test itself, never a hardcoded guess, per the explicit instruction to verify this way. Also covered: descriptive-mode rejection (`400`) on both endpoints against a fresh Grade 1 fixture student; out-of-scope teacher `404` on both endpoints against the existing Grade 5 fixture from G2b; negative score and `max_score` of 0 rejected (`400`); `score > max_score` accepted unclamped (110.00%, not capped to 100); empty `PATCH /:id/exam` body rejected; `st1_score` without `st1_max` rejected when no existing max is on the row; explicit `null` clearing both columns; the explicit-null-plus-number conflict rejected; and transaction atomicity — a rejected write (the descriptive-mode case) leaves `grade_components` at a `COUNT(*)` of exactly 0 both before and after, asserted by row count directly, not inferred from the status code alone. Worth noting honestly: because every expected-failure path in this design is a pre-flight check that runs *before* the transaction opens, there is no normal-path scenario that reaches an actual insert-then-rollback — the atomicity test therefore proves "a rejected write never writes," which is the property that matters, rather than literally exercising a mid-transaction rollback, which the pre-flight design makes structurally unreachable through ordinary validation failures. `npm run test:grades` — 56 passing, confirmed three times in a row (one more than usual, given this stage's fixture complexity) with no `db:setup` between runs. Full regression across the other thirteen suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, settings 26, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 56), plus `test:grade-computation` still 29/29. `git status` after implementation showed exactly the two whitelisted files changed (`server/routes/grades.js`, `server/scripts/test-grades-flows.js`) — no scope expansion, and no `server.js`/`package.json` change needed since G2b already mounted the route and registered the `test:grades` alias. Stages G2d (Grade 1's descriptive write, `PATCH /:id/descriptive`) through G2e (component edit/delete, `is_locked`/lock-toggle) and G3 (viewing, GA at read time) remain. |
 | 2026-09-05 | Grades module Stage G2b — `routes/grades.js` exists for the first time, `POST /api/grades` only, mounted between `/api/sections` and `/api/attendance`. Creates a shell row: every score/computed column `NULL`, `is_locked 0`. No computation runs here — `utils/gradeComputation.js` is not imported by this file at all, confirmed at the end by grep, not just by intent. Plan-then-approve dispatch, 8 questions, one finding load-bearing: **scoping is the subject teacher's, via `teacher_assignments` (`teacher_id`+`subject_id`+`grade_level`+`section`, all four)** — a second, deliberate scoping authority alongside `sections.adviser_id` (attendance, excuse-letter review), narrower than `students.js`/`content.js`'s own `EXISTS` pattern (which never checks `subject_id`, since grade/section-level access is enough for those modules but not for grade encoding). Uses `students.section`/`teacher_assignments.section` (VARCHAR), never `section_id` — checked against CLAUDE.md's own "sections table" rule (`section_id` reserved for attendance + the unbuilt Class Board) rather than assumed. **Validation order is security-motivated, stated as an explicit in-code comment so a future session doesn't "optimize" it away:** the `subjects.grade_level !== students.grade_level` mismatch check runs strictly *after* a teacher's scope is resolved — checking it earlier would let an out-of-scope teacher learn a real student's actual grade level just by probing with a deliberately wrong `subject_id` and reading the `400` message, exactly the enumeration the collapsed `403` exists to prevent. **Admin/teacher status-code asymmetry read from `attendance.js`'s actual precedent, not the flatter "POST → 403" phrasing the dispatch used to describe it:** a nonexistent `student_id` is `404` for admin (plain lookup failure) but `403` for a teacher, collapsed together with "exists but out of scope" into one message, since a teacher probing ids shouldn't be able to tell which — this asymmetry was surfaced by reading `attendance.js`'s `POST /` directly rather than taking the dispatch's shorthand literally, and confirmed correct on review. Tested as its own named property, not incidentally: `test-grades-flows.js` explicitly asserts "Teacher with a nonexistent student_id gets 403, NOT 404" so a careless refactor collapsing both roles to the same status can't pass silently. `subject_id` nonexistent → `400` (not `404`), checked before the student is loaded at all, identically for both roles — subjects are unscoped reference data, no role-sensitive leak either way. The out-of-scope `403` message names the subject specifically (`subject.name`, echoed back — the teacher supplied it themselves, so this leaks nothing) but stays generic about grade/section (a real student's grade and section are not that teacher's to learn just by probing). No `grading_mode_configs` consultation anywhere in this endpoint — confirmed, not assumed: a Grade 1 shell row and a Grade 5 shell row are structurally identical at creation, since nothing mode-specific is written until G2c/G2d. Response is the bare `grades` row, no join to student/subject names, matching every other create-endpoint in this codebase (`students.js`, `attendance.js`, `excuses.js` all do the same). `school_year` validated with the same regex + consecutive-year check as `routes/settings.js`'s `validateAcademicYear`, duplicated locally rather than extracted — this is only the second occurrence, extraction deferred to a third, matching `utils/dateFormat.js`'s own precedent. Confirmed before building test fixtures, not assumed: `subjects`' still-wrong placeholder seed data (48 uniform rows, real per-grade lists deferred to G1b) neither breaks nor complicates this endpoint — every placeholder row still carries a real, correct `grade_level`, which is all this endpoint's logic depends on. Tests: `scripts/test-grades-flows.js`, 26 assertions — subject-teacher creates own assignment (201, every score/computed column `NULL`, `is_locked 0`); admin creates unscoped; assigned-to-section-but-not-subject vs. fully-out-of-scope as two distinct `403` cases (the former asserted to name the subject); the admin-404/teacher-403 nonexistent-student asymmetry asserted explicitly; nonexistent `subject_id` → `400`; wrong-grade-level subject → `400` naming both grades (via admin, deliberately — a teacher can't even reach this check without first clearing scope, since `teacher_assignments` requires the *correct* grade_level to match); `term` 0 and 4 → `400`; malformed and non-consecutive `school_year` → `400`; inactive student → `400`; duplicate `(student_id, subject_id, term, school_year)` → `409`; unauthenticated → `401`; parent → `403`. One throwaway fixture (an inactive Grade 6 student, created via the real `POST /api/students` → `PATCH /api/students/:id/status` flow) and every created grade row deleted in a `finally` block. `npm run test:grades` — 26 passing, confirmed twice in a row with no `db:setup` between runs. Full regression across the other thirteen suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, settings 26, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 56), plus `test:grade-computation` still 29/29 — confirms this stage didn't leak outside `routes/grades.js` and its own mount line. `git status` after implementation showed exactly the four whitelisted files changed (`server/routes/grades.js`, `server/scripts/test-grades-flows.js`, `server/server.js`, `server/package.json`) — no scope expansion. Stages G2c (WW/PT/EX writes, full recompute wiring through `utils/gradeComputation.js` and the transmutation lookup) through G2e (component edit/delete, `is_locked`/lock-toggle) and G3 (viewing, GA at read time) remain. |
 | 2026-09-05 | Grades module Stage G2a — the write-path arithmetic, built and unit-tested in complete isolation before any route or HTTP code exists. Two-round dispatch, same shape as G1a: a PLAN ONLY pass answered 9 questions (row creation, exact recompute logic, teacher-assignment scoping, the descriptive-mode gate, edit/delete/lock behavior, staging, ambiguities), and one finding from that plan — not from this dispatch's own build — fed back into the schema before any G2 file was touched. **Schema correction to `grades` (folded into G2a's whitelist, not a separate dispatch):** G1a's original design stored only a derived `ex_percentage` for the Examinations composite, breaking the symmetry its own reasoning depended on — WW/PT retain every raw score via `grade_components`, but EX would have retained nothing, meaning a parent asking "what did my child score on ST1" could never be told the raw number, and a wrong `max_score` entered by a teacher could never be corrected once the source was gone. Fixed while `grades` still held 0 rows (plain `CREATE TABLE` edit via the next `db:setup`, not a live migration): `ex_st1`/`ex_st2`/`ex_te` now hold the **raw score**, with three new columns (`ex_st1_max`/`ex_st2_max`/`ex_te_max`) holding each sub-test's max; `ex_percentage` stays a derived cache computed at write time, never the source of truth. `verify-grading-seed.js` needed no change — it only ever asserted against `transmutation_table`/`grade_weight_configs`/`grading_mode_configs`, never `grades`. New `server/utils/gradeComputation.js` — pure functions only, no DB or HTTP dependency: `componentPercentage()` (WW/PT — `sum(score)/sum(max_score)×100`, well-defined from a single row, `null` only when there are zero rows or every `max_score` sums to 0), `subTestPercentage()` (one EX sub-test), `exPercentage()` (ST1×0.30 + ST2×0.30 + TE×0.40, requiring all three), `weighted()`, `initialGrade()` (sum of the three weighted components, requiring all three), and `roundTo2()`. Every function returns `null` on any missing required input rather than computing a partial number — confirmed on review as "the single most important decision in the module": an Initial Grade computed from only WW, with PT and EX still empty, would read as a real (and likely failing) grade to a parent, so it must never be a number until every required input actually exists. Rounding: half-up (not half-to-even/banker's), to 2 decimals, at **every** stored step — and each step's formula consumes the *already-rounded* prior value, never a hidden higher-precision intermediate — confirmed reasoning: a parent must be able to check the math by hand and have it come out; displayed math that doesn't add up destroys trust faster than a hundredth of a point of theoretical precision loss ever would. `roundTo2()` adds a `Number.EPSILON` nudge before rounding specifically to correct IEEE 754 representation error at exact `.005`-style boundaries — `1.005` is stored in binary floating point very slightly *below* that value, so a naive `Math.round(1.005 * 100) / 100` silently gives `1.00` instead of the mathematically correct `1.01`; verified directly in the test suite, not just reasoned about. A percentage over 100% (bonus points, or a data-entry error indistinguishable from one at this layer) is **deliberately not clamped** anywhere in this module — neither `GRADING_SPEC.md` nor DO 015 mentions a bonus-points cap, and inventing a clamp here would be inventing a grading policy that doesn't exist; if a cap is ever wanted, it belongs in route-level validation (`score <= max_score`) as an explicit, separate policy decision. Scoping decided (not yet built, no route exists): grade encoding is authorized via `teacher_assignments` (`teacher_id`+`subject_id`+`grade_level`+`section`), using `students.section`/`teacher_assignments.section` (VARCHAR) — checked directly against CLAUDE.md's own "sections table" rule that `section_id` is reserved for exactly two routes (attendance, the unbuilt Class Board) rather than assumed — confirming Grades is a **second, deliberate scoping authority** alongside `sections.adviser_id` (attendance, excuse-letter review), not an inconsistency, since DepEd assigns grade encoding to the subject teacher specifically. `404` decided for out-of-scope `:id`-keyed writes (components/exam/descriptive) and `403` for `POST /api/grades` — deliberately the *opposite* choice from Excuse Letters' `PATCH /:id/review`, and the reason is structural, not arbitrary: Excuse Letters chose `403` because an existing `GET` endpoint already showed that teacher the letter, so `404` would have contradicted it; G2 has no `GET /api/grades` at all yet, so nothing else in the system lets a teacher see a grade row they can't encode, making `404` a true "cannot see this" signal here, same as `PUT /api/attendance/:id`. Marked explicitly provisional pending Stage G3, same as Excuse Letters' equivalent note. A missing `grading_mode_configs` row for a given grade/year is decided as a hard `409` naming the gap, not a silent default and not a `500` — a `500` would read as a crash rather than a fixable configuration problem. Two endpoints were added to G2's scope that weren't in the original intended list, both confirmed explicitly rather than built silently or the question silently declined: component edit/delete, and `PATCH /:id/lock` (admin-only) — without a lock toggle, `is_locked` can never fire as a real guard. Deferred to sub-stage G2e, not built here. Tests: `scripts/test-grade-computation.js`, direct-call, no server/DB, matching `test-sanitize-user.js`'s shape exactly. Includes two full worked examples with numbers checkable by hand — the same raw scores (WW: 45/50 + 42/50 → 87.00%; PT: 88/100 + 92/100 → 90.00%; EX: ST1 17/20 → 85.00%, ST2 16/20 → 80.00%, TE 45/50 → 90.00% → EX 85.50%) computed against core weights (20/50/30 → IG **88.05**) and MAPEH/EPP weights (20/60/20 → IG **88.50**) — same inputs, confirmed different outputs under different weights. Every partial-state null case tested explicitly (no components at all, WW only, WW+PT without EX, ST1+ST2 without TE). Rounding boundary tested two ways: `roundTo2(0.125) === 0.13` (half-up; half-to-even would give `0.12` — both `0.125` and `12.5` are exactly representable in binary floating point, isolating the rounding *rule* itself from any representation-error artifact) and `roundTo2(1.005) === 1.01` (the representation-error case the `Number.EPSILON` nudge exists for). Division by zero covered (`max_score` of 0 → `null`, not `Infinity`/`NaN`, both for a single sub-test and for a component list whose `max_score`s all sum to 0). Over-100% covered and asserted as unclamped, flowing through `weighted()` unclamped too. `npm run test:grade-computation` — 29 passing, confirmed twice (deterministic — pure functions, nothing to re-run for in the usual idempotency sense). `npm run db:setup` re-run against the corrected schema; `node scripts/verify-grading-seed.js` — still 11/11, unaffected by the `grades`-table-only correction. Full regression across the other thirteen suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, settings 26, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 56) — confirms the schema correction didn't leak outside the Grades tables. `git status` after implementation showed exactly the two whitelisted new files (`server/utils/gradeComputation.js`, `server/scripts/test-grade-computation.js`) plus the two whitelisted edits (`database/schema.sql`, `server/package.json`) — `verify-grading-seed.js` needed no change, confirmed rather than assumed, and no route file, no `server.js` change, and no HTTP anywhere in this stage, exactly as scoped. Stages G2b (`POST /api/grades` row creation + scoping) through G2e (component edit/delete + `is_locked`/lock-toggle) and G3 (viewing, GA at read time) remain. |
 | 2026-09-05 | Grades module Stage G1a — schema rebuilt for DO 015 s. 2026 / DO 009 s. 2026, no `routes/grades.js` yet. This was a two-round dispatch: a PLAN ONLY pass covering the full module (9 questions: table-by-table defects, proposed DDL, EX sub-component storage, dual-mode grading storage, transmutation lookup mechanics, data-destruction check, endpoint/staging estimate, spec ambiguities, unconfirmed assumptions) was answered in full before a second approval **split the originally single-stage plan in two** — G1a (this entry) and G1b (deferred) — specifically because the plan's own Q6/Q7 finding surfaced two problems (`subjects` reseed cascades through `teacher_assignments`; Grade 4's learning areas are unconfirmed) that applied to only *part* of the work, and bundling them with the rest would have made one commit both mechanical and blocked. `grade_weight_configs` dropped and recreated: re-keyed `(subject_id, school_year)` — not grade band — with `ww_weight`/`pt_weight`/`ex_weight` (renamed from `quiz`/`activity`/`exam` to match DO 015's actual terms) and `CHECK (ww_weight + pt_weight + ex_weight = 100.00)`. **Seeded against the CURRENT `subjects` rows on purpose** — `subjects` itself was explicitly kept out of scope for this stage, so the weight seed is provisional until G1b reseeds both together; `20.00/60.00/20.00` for subjects named `MAPEH`/`EPP`, `20.00/50.00/30.00` for everything else, via one `INSERT ... SELECT` over `subjects` rather than 48 hand-written rows. `grades` dropped and recreated: `quarter ENUM('Q1'-'Q4')` → `term TINYINT CHECK (term BETWEEN 1 AND 3)` — matches this schema's own established convention for small bounded integers (`grade_level` uses the identical shape) rather than continuing the one ENUM outlier the old column was. Gained `ww_percentage`/`ww_weighted`, `pt_percentage`/`pt_weighted`, `ex_st1`/`ex_st2`/`ex_te`/`ex_percentage`/`ex_weighted`, `initial_grade`, `term_grade`, `descriptive_grade` — a comment directly on the table states the dual-mode design explicitly (exactly one of `term_grade`/`descriptive_grade` is ever populated, decided by `grading_mode_configs` at write time, self-describing at read time with no lookup needed) specifically so a future session doesn't "clean up" the nullable pair by dropping or merging them — the KS1 rollout means both columns stay live indefinitely, not as a transitional artifact. Final Grade and General Average are deliberately not columns anywhere — both are pure aggregates of `term_grade` values, to be computed at read time whenever Stage G3 is built, not materialized now. `grade_components` dropped and recreated: `type ENUM('quiz','activity')` → `ENUM('WW','PT')` only, with a comment stating the absence of a `'formative'` value is deliberate (DO 015: formative assessments never feed computation) rather than an oversight. EX's three sub-scores were the plan's first genuinely open design question (`docs/GRADING_SPEC.md` §3 poses it directly: "decide before building") — resolved as three dedicated columns on `grades` (`ex_st1`/`ex_st2`/`ex_te`), not child rows in `grade_components`, reasoning: WW/PT are "N raw scores → one average" (exactly what a child table + aggregation is for), EX is a fixed, positional, government-formula triple that never grows a fourth part, so "is this exam complete" is a `NOT NULL` check on the row itself rather than a child-table query. New `transmutation_table` — 41 rows transcribed verbatim from `docs/GRADING_SPEC.md` §5, `school_year = '2026-2027'` only, verified by the new `scripts/verify-grading-seed.js` to have no gaps or overlaps across the full 0.00–100.00 range at 0.01 precision (walked as consecutive `ig_min = previous ig_max + 0.01` pairs) and to resolve the spec's own explicit boundary case correctly via the real lookup query, not just the raw seed values (IG 70.00 → TG 75, IG 69.99 → TG 74). Lookup is `WHERE school_year = ? AND ig_min <= ? AND ig_max >= ?`; disappearing for SY 2027-2028 needs no code change — a school year with no seeded rows returns nothing from that query, and the application (once Stage G2 exists) reads a missing row as "use the Initial Grade directly," so the data's absence drives the behavior change, never a hardcoded year comparison. New `grading_mode_configs` — one row per `(grade_level, school_year)`, seeded for SY 2026-2027 per Table 12 (Grade 1 `descriptive`, Grades 2–6 `numerical`); a dedicated table rather than a `system_settings` key, since that table's flat allow-listed shape can't express a per-grade-per-year lookup without inventing composite key strings. The plan's *second* genuinely open design question — how Grade 1 computes a letter grade — turned out to have **no answer anywhere in `docs/GRADING_SPEC.md` at all**: a full 41-row numeric transmutation table exists, but zero IG-to-letter threshold mapping. Resolved (confirmed on review, not assumed silently) as a manual teacher judgment call — the teacher picks A–E directly, WW/PT/EX stay informational for Grade 1 and never compute into a letter — reasoning: DO 015 introduces descriptive grading specifically to avoid numerical labeling in KS1, so computing an IG and transmuting it to a letter would be numerical grading wearing a letter costume; the school's own Grade 1 Oral Reading Progress Chart is purely observational; and no KS1 academic awards exist (GRADING_SPEC §7) to need a rankable number. The school has been asked to confirm this directly — if the answer differs, it changes one Stage G2 write handler, not the schema. Real, working code outside the Grades tables also had to change: `routes/settings.js`'s `current_quarter` validator read `grades.quarter`'s ENUM live via `INFORMATION_SCHEMA`, specifically because the quarter-vs-term question was provisional when that code was written (see the 2026-08-27 entry). DO 009 s. 2026 has since settled that as a confirmed DepEd fact, and `grades.term` is a `TINYINT + CHECK` now anyway — nothing left to introspect — so the live-introspection function was deleted outright and replaced with a hardcoded `['1', '2', '3']`; the `system_settings` key itself renamed `current_quarter` → `current_term` (seeded value `'1'`). Folded into this stage rather than dispatched separately, since renaming `grades.quarter` would have broken `test:settings`'s ENUM-sniffing assertion regardless of when the settings fix landed. `scripts/test-settings-flows.js` updated to match — every `Q1`-`Q4` literal replaced with `'1'`-`'3'`, and the source-inspection "does it really read the live ENUM" mechanism test removed outright (there's no mechanism left to verify) rather than left as dead weight. `npm run test:settings` — **26 passing, was 27** — the one-assertion drop is the removed mechanism check, not a regression; confirmed twice in a row with no `db:setup` between runs. Two design decisions explicitly deprioritized rather than built: General Average (computation-chain step, but its only current consumer — Awards — is out of scope) and item-count caps / `is_locked`'s trigger (both documentation-only, not validated in code, for this stage). `npm run db:setup` run clean against the new schema+seed; `node scripts/verify-grading-seed.js` — 11/11 checks passing (41-row count, full-range coverage, zero gaps/overlaps, both explicit boundary values, every weight row summing to 100.00, exactly 6 grading-mode rows with Grade 1 descriptive and Grades 2–6 numerical). Full regression across the other twelve suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 56) — confirms the schema rebuild didn't leak outside the Grades tables and `system_settings`. `git status` after implementation showed exactly the five whitelisted files changed (`database/schema.sql`, `database/seed.sql`, `server/routes/settings.js`, `server/scripts/test-settings-flows.js`) plus the one new file (`server/scripts/verify-grading-seed.js`) — `subjects`, `teacher_assignments`, and `routes/grades.js` untouched, confirming Stage G1b's scope boundary held. Stage G1b (subjects reseed + teacher_assignments replacement, blocked on Grade 4 confirmation with the school) and Stages G2 (grade encoding) / G3 (grade viewing, GA at read time) remain — see BUILD ORDER. |
