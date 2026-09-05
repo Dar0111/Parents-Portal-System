@@ -101,12 +101,17 @@ async function loadAuthorizedGrade(req, gradeId) {
   return { grade };
 }
 
-// Shared preconditions for both write endpoints below, checked in the
-// confirmed order: mode, then lock, then weight-config presence — all
-// BEFORE any write is attempted, so a rejection here costs the caller
-// nothing (nothing was ever accepted, so there is nothing to lose on
-// retry). Returns null when every precondition passes.
-async function preflightGradeWrite(grade) {
+// Shared preconditions for every write endpoint below, checked in the
+// confirmed order: mode, then lock, then (numerical only) weight-config
+// presence — all BEFORE any write is attempted, so a rejection here costs
+// the caller nothing (nothing was ever accepted, so there is nothing to
+// lose on retry). expectedMode is 'numerical' (components, exam) or
+// 'descriptive' (the descriptive endpoint) — a single shared function
+// rather than two near-identical copies, specifically so scope/mode/lock
+// logic can't drift between them: a future fix applied to only one copy
+// would diverge silently, since both would still pass their own tests.
+// Returns null when every precondition passes.
+async function preflightGradeWrite(grade, expectedMode) {
   const [modeRows] = await pool.query(
     'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
     [grade.student_grade_level, grade.school_year]
@@ -118,32 +123,34 @@ async function preflightGradeWrite(grade) {
       errorMessage: `No grading_mode_configs row exists for Grade ${grade.student_grade_level}, school year ${grade.school_year}. An admin must configure the grading mode before this can be recorded.`,
     };
   }
-  if (modeConfig.mode !== 'numerical') {
-    return {
-      errorStatus: 400,
-      errorMessage:
-        'This grade uses descriptive grading — record a letter via PATCH /:id/descriptive instead of component or exam scores.',
-    };
+  if (modeConfig.mode !== expectedMode) {
+    const errorMessage =
+      expectedMode === 'numerical'
+        ? 'This grade uses descriptive grading — record a letter via PATCH /:id/descriptive instead of component or exam scores.'
+        : 'This grade uses numerical grading — record WW/PT/exam scores instead of a descriptive letter.';
+    return { errorStatus: 400, errorMessage };
   }
 
   if (grade.is_locked) {
     return { errorStatus: 403, errorMessage: 'This grade is locked and can no longer be edited.' };
   }
 
-  const [weightRows] = await pool.query(
-    'SELECT 1 FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
-    [grade.subject_id, grade.school_year]
-  );
-  if (!weightRows.length) {
-    // Deliberately not "save the score anyway" — a grade row holding a
-    // real raw score with blank computed columns and no explanation
-    // reads to a teacher as "the system is broken," not "an admin needs
-    // to configure something." Rejecting up front, before any write,
-    // says exactly what is wrong and who fixes it.
-    return {
-      errorStatus: 409,
-      errorMessage: `No grade_weight_configs row exists for this subject and school year (${grade.school_year}). An admin must configure WW/PT/EX weights before this grade can be computed.`,
-    };
+  if (expectedMode === 'numerical') {
+    const [weightRows] = await pool.query(
+      'SELECT 1 FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
+      [grade.subject_id, grade.school_year]
+    );
+    if (!weightRows.length) {
+      // Deliberately not "save the score anyway" — a grade row holding a
+      // real raw score with blank computed columns and no explanation
+      // reads to a teacher as "the system is broken," not "an admin needs
+      // to configure something." Rejecting up front, before any write,
+      // says exactly what is wrong and who fixes it.
+      return {
+        errorStatus: 409,
+        errorMessage: `No grade_weight_configs row exists for this subject and school year (${grade.school_year}). An admin must configure WW/PT/EX weights before this grade can be computed.`,
+      };
+    }
   }
 
   return null;
@@ -383,7 +390,7 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
       return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
     }
 
-    const preflightError = await preflightGradeWrite(loaded.grade);
+    const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
     if (preflightError) {
       return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
     }
@@ -505,7 +512,7 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
     }
     const { grade } = loaded;
 
-    const preflightError = await preflightGradeWrite(grade);
+    const preflightError = await preflightGradeWrite(grade, 'numerical');
     if (preflightError) {
       return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
     }
@@ -587,6 +594,68 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
     return res.status(500).json({ success: false, message: 'Failed to update exam scores.' });
   } finally {
     if (conn) conn.release();
+  }
+});
+
+// PATCH /api/grades/:id/descriptive — Grade 1 (and any grade level whose
+// grading_mode_configs entry is 'descriptive'). The teacher picks a
+// letter directly; nothing is computed. THIS IS A SCHOOL-VISIT ASSUMPTION,
+// NOT A CONFIRMED ANSWER: DO 015 s.2026 defines no Initial-Grade-to-letter
+// mapping at all, and descriptive grading exists specifically to avoid
+// numerical labeling in Key Stage 1 — that reasoning, not a school
+// confirmation, is why this is a manual judgment call rather than a
+// computed one. If the school later says a computation does feed the
+// letter, this endpoint changes; the schema (a single nullable
+// descriptive_grade column) does not need to.
+//
+// No transaction: a single UPDATE touching one column, with no follow-up
+// computation to make atomic with it — unlike POST /:id/components and
+// PATCH /:id/exam, nothing here derives from this write. Reuses the same
+// preflightGradeWrite() as those two endpoints (scope -> mode -> lock),
+// just with expectedMode = 'descriptive' and no weight-config check,
+// which does not apply to a letter grade — the is_locked gate comes along
+// for free by sharing that function, the same way it does for the other
+// two, even though nothing can set is_locked until Stage G2e.
+router.patch('/:id/descriptive', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const gradeId = parseId(req.params.id);
+  if (gradeId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
+  }
+
+  const { descriptive_grade } = req.body;
+  const VALID_LETTERS = ['A', 'B', 'C', 'D', 'E'];
+
+  if (descriptive_grade !== null && !VALID_LETTERS.includes(descriptive_grade)) {
+    return res.status(400).json({
+      success: false,
+      message: 'descriptive_grade must be one of A, B, C, D, E (uppercase), or null to clear.',
+    });
+  }
+
+  try {
+    const loaded = await loadAuthorizedGrade(req, gradeId);
+    if (loaded.errorStatus) {
+      return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+    }
+
+    const preflightError = await preflightGradeWrite(loaded.grade, 'descriptive');
+    if (preflightError) {
+      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    }
+
+    await pool.query('UPDATE grades SET descriptive_grade = ? WHERE id = ?', [descriptive_grade, gradeId]);
+
+    const [updatedRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+    await logActivity(
+      req.user.id,
+      'record_descriptive_grade',
+      `Set descriptive_grade to ${descriptive_grade === null ? 'NULL (cleared)' : descriptive_grade} for grade #${gradeId}`
+    );
+
+    return res.json({ success: true, message: 'Descriptive grade recorded.', grade: updatedRows[0] });
+  } catch (error) {
+    console.error('Update descriptive grade error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update descriptive grade.' });
   }
 });
 

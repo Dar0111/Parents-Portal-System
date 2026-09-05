@@ -1,18 +1,22 @@
 /**
- * Grades API tests — Stage G2b (POST /api/grades, row creation/scoping)
- * plus Stage G2c (POST /:id/components, PATCH /:id/exam — the first
- * writes that actually compute anything). The centerpiece is a full
- * worked example driven through the real HTTP endpoints, step by step,
- * reusing the EXACT numbers from utils/gradeComputation.js's own unit
- * tests (test-grade-computation.js) — a mismatch between that trusted
- * pure math and this wired-up HTTP result would surface as a wiring bug,
- * not a new, unverified expectation.
+ * Grades API tests — Stage G2b (POST /api/grades, row creation/scoping),
+ * Stage G2c (POST /:id/components, PATCH /:id/exam — the first writes
+ * that actually compute anything), and Stage G2d (PATCH /:id/descriptive
+ * — Grade 1's manual letter grade, the other side of the numerical/
+ * descriptive gate). The centerpiece is a full worked example driven
+ * through the real HTTP endpoints, step by step, reusing the EXACT
+ * numbers from utils/gradeComputation.js's own unit tests
+ * (test-grade-computation.js) — a mismatch between that trusted pure
+ * math and this wired-up HTTP result would surface as a wiring bug, not
+ * a new, unverified expectation.
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
  * Idempotent: every grade row this script creates is tracked and deleted
  * in a finally block; the throwaway student fixtures (one inactive
- * Grade 6, one Grade 1 for the descriptive-mode tests) are deleted the
- * same way — passes on repeat runs with no db:setup.
+ * Grade 6, one Grade 1 for the descriptive-mode tests) and the one
+ * throwaway teacher_assignments row (TCH-001 -> Grade 1 Mathematics, for
+ * the "subject teacher succeeds" descriptive test) are deleted the same
+ * way — passes on repeat runs with no db:setup.
  *
  * Usage: npm run test:grades
  */
@@ -87,6 +91,7 @@ async function run() {
   // in the current placeholder subjects seed but has no assignment row.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  const teacherId = teacherLogin.data?.user?.id;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (TCH-001, Grade 6 - Malikhain)');
 
   const parentLogin = await login('13567454', 'Parent@2026');
@@ -154,6 +159,7 @@ async function run() {
   const createdGradeIds = [];
   let inactiveStudentId;
   let grade1StudentFixtureId;
+  let grade1TeacherAssignmentId;
 
   async function cleanup() {
     if (createdGradeIds.length) {
@@ -164,6 +170,9 @@ async function run() {
     }
     if (grade1StudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [grade1StudentFixtureId]));
+    }
+    if (grade1TeacherAssignmentId) {
+      await withDb((conn) => conn.query('DELETE FROM teacher_assignments WHERE id = ?', [grade1TeacherAssignmentId]));
     }
   }
 
@@ -619,6 +628,138 @@ async function run() {
       body: { type: 'WW', score: 10, max_score: 10, label: 'x' },
     });
     assert(nonexistentGradeComponent.status === 404, 'Nonexistent grade id on POST /:id/components returns 404, even for admin');
+
+    // --- Descriptive grading (Stage G2d) ---
+    // Grade 1 is a MANUAL teacher judgment call — an ASSUMPTION, not a
+    // school-confirmed answer. DO 015 s.2026 defines no Initial-Grade-to-
+    // letter mapping at all, and descriptive grading exists specifically
+    // to avoid numerical labeling in Key Stage 1 — that reasoning, not a
+    // school confirmation, is why grade1DescriptiveId's letter is set
+    // directly here rather than computed. If the school later says a
+    // computation feeds the letter, this test (and the endpoint) change;
+    // the schema does not need to.
+    console.log('\nDescriptive grading (Stage G2d):');
+
+    // Fixture: give TCH-001 a real assignment for Grade 1 Mathematics in
+    // the fixture student's section, so "subject teacher succeeds" can be
+    // tested against an actual subject teacher, not just admin.
+    const [assignmentResult] = await withDb((conn) =>
+      conn.query('INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section) VALUES (?, ?, 1, ?)', [
+        teacherId,
+        mathGrade1Id,
+        'Matipid',
+      ])
+    );
+    grade1TeacherAssignmentId = assignmentResult.insertId;
+
+    const teacherSetsA = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: teacherToken,
+      body: { descriptive_grade: 'A' },
+    });
+    assert(
+      teacherSetsA.status === 200 && teacherSetsA.data?.grade?.descriptive_grade === 'A',
+      'Subject teacher sets A on a Grade 1 grade'
+    );
+    assert(
+      teacherSetsA.data?.grade?.ww_percentage === null &&
+        teacherSetsA.data?.grade?.ww_weighted === null &&
+        teacherSetsA.data?.grade?.pt_percentage === null &&
+        teacherSetsA.data?.grade?.pt_weighted === null &&
+        teacherSetsA.data?.grade?.ex_st1 === null &&
+        teacherSetsA.data?.grade?.ex_st1_max === null &&
+        teacherSetsA.data?.grade?.ex_st2 === null &&
+        teacherSetsA.data?.grade?.ex_st2_max === null &&
+        teacherSetsA.data?.grade?.ex_te === null &&
+        teacherSetsA.data?.grade?.ex_te_max === null &&
+        teacherSetsA.data?.grade?.ex_percentage === null &&
+        teacherSetsA.data?.grade?.ex_weighted === null &&
+        teacherSetsA.data?.grade?.initial_grade === null &&
+        teacherSetsA.data?.grade?.term_grade === null,
+      'Every numerical column is still NULL after setting a descriptive grade — the property that matters'
+    );
+
+    for (const letter of ['B', 'C', 'D', 'E']) {
+      const setLetter = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+        token: teacherToken,
+        body: { descriptive_grade: letter },
+      });
+      assert(
+        setLetter.status === 200 && setLetter.data?.grade?.descriptive_grade === letter,
+        `descriptive_grade ${letter} accepted`
+      );
+    }
+
+    const clearDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: teacherToken,
+      body: { descriptive_grade: null },
+    });
+    assert(
+      clearDescriptive.status === 200 && clearDescriptive.data?.grade?.descriptive_grade === null,
+      'descriptive_grade: null clears the column'
+    );
+
+    const lowercase = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: teacherToken,
+      body: { descriptive_grade: 'a' },
+    });
+    assert(
+      lowercase.status === 400 && /uppercase/i.test(lowercase.data?.message || ''),
+      "Lowercase 'a' rejected, message mentions uppercase"
+    );
+
+    const invalidLetter = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: teacherToken,
+      body: { descriptive_grade: 'F' },
+    });
+    assert(invalidLetter.status === 400, "Invalid letter 'F' rejected");
+
+    const missingField = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: teacherToken,
+      body: {},
+    });
+    assert(missingField.status === 400, 'Missing descriptive_grade field rejected');
+
+    const onNumericalGrade = await request('PATCH', `/api/grades/${outOfScopeGradeId}/descriptive`, {
+      token: adminToken,
+      body: { descriptive_grade: 'A' },
+    });
+    assert(
+      onNumericalGrade.status === 400,
+      'PATCH /:id/descriptive against a Grade 5 (numerical) grade is rejected with 400'
+    );
+
+    const componentOnDescriptive = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Should still be rejected' },
+    });
+    assert(
+      componentOnDescriptive.status === 400,
+      'POST /:id/components against the Grade 1 grade is still 400 — the other side of the gate, re-asserted here'
+    );
+
+    const outOfScopeDescriptive = await request('PATCH', `/api/grades/${outOfScopeGradeId}/descriptive`, {
+      token: teacherToken,
+      body: { descriptive_grade: 'A' },
+    });
+    assert(
+      outOfScopeDescriptive.status === 404,
+      'Out-of-scope teacher (TCH-001 has no assignment for Grade 5) gets 404 on PATCH /:id/descriptive'
+    );
+
+    const parentDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: parentToken,
+      body: { descriptive_grade: 'A' },
+    });
+    assert(parentDescriptive.status === 403, 'Parent cannot set a descriptive grade');
+
+    const adminDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+      token: adminToken,
+      body: { descriptive_grade: 'C' },
+    });
+    assert(
+      adminDescriptive.status === 200 && adminDescriptive.data?.grade?.descriptive_grade === 'C',
+      'Admin succeeds on any grade, unscoped'
+    );
   } finally {
     await cleanup();
   }
