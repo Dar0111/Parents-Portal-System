@@ -144,9 +144,22 @@ CREATE TABLE grades (
   -- dedicated columns here rather than three more grade_components rows,
   -- since "is this exam complete" is then a NULL check on this row, not
   -- a child-table query, and the formula never grows a fourth sub-part.
+  -- ex_st1/ex_st2/ex_te hold the RAW score, not a percentage — each
+  -- sub-test's max is a separate column (ex_st1_max/ex_st2_max/ex_te_max)
+  -- so the percentage (score / max x 100) is always re-derivable, exactly
+  -- like WW/PT retain every raw score via grade_components. Storing only
+  -- the derived percentage here (the original G1a design) was a mistake,
+  -- corrected before Stage G2 wrote anything against it: a parent asking
+  -- "what did my child score on ST1" could never be told the raw score,
+  -- and a wrong max_score could never be corrected, once the raw value
+  -- was gone. ex_percentage stays the DERIVED value, computed at write
+  -- time from these six raw columns — it is a cache, not the source.
   ex_st1 DECIMAL(5,2) DEFAULT NULL,
+  ex_st1_max DECIMAL(5,2) DEFAULT NULL,
   ex_st2 DECIMAL(5,2) DEFAULT NULL,
+  ex_st2_max DECIMAL(5,2) DEFAULT NULL,
   ex_te DECIMAL(5,2) DEFAULT NULL,
+  ex_te_max DECIMAL(5,2) DEFAULT NULL,
   ex_percentage DECIMAL(5,2) DEFAULT NULL,
   ex_weighted DECIMAL(5,2) DEFAULT NULL,
 

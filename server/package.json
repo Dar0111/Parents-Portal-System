@@ -17,6 +17,7 @@
     "test:users": "node scripts/test-user-management-flows.js",
     "test:backups": "node scripts/test-backups-flows.js",
     "test:sanitize": "node scripts/test-sanitize-user.js",
+    "test:grade-computation": "node scripts/test-grade-computation.js",
     "test:messages": "node scripts/test-messages-flows.js",
     "test:restore": "node scripts/test-restore-flows.js",
     "test:excuses": "node scripts/test-excuses-flows.js"
