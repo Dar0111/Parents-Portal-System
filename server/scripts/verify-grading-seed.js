@@ -47,8 +47,30 @@ async function run() {
   });
 
   try {
+    // --- Subjects (Stage G1b) ---
+    console.log('Subjects:');
+
+    const EXPECTED_SUBJECT_COUNTS = { 1: 5, 2: 5, 3: 6, 4: 8, 5: 8, 6: 8 };
+
+    const [subjectCountRows] = await conn.query(
+      'SELECT grade_level, COUNT(*) AS c FROM subjects GROUP BY grade_level ORDER BY grade_level'
+    );
+    const subjectCountsByGrade = {};
+    for (const row of subjectCountRows) {
+      subjectCountsByGrade[row.grade_level] = row.c;
+    }
+
+    const totalSubjects = subjectCountRows.reduce((sum, row) => sum + row.c, 0);
+    check(totalSubjects === 40, 'Exactly 40 subjects total', `found ${totalSubjects}`);
+
+    for (const gradeLevel of Object.keys(EXPECTED_SUBJECT_COUNTS).map(Number)) {
+      const expected = EXPECTED_SUBJECT_COUNTS[gradeLevel];
+      const actual = subjectCountsByGrade[gradeLevel] || 0;
+      check(actual === expected, `Grade ${gradeLevel} has ${expected} subjects`, `found ${actual}`);
+    }
+
     // --- Transmutation table ---
-    console.log('Transmutation table:');
+    console.log('\nTransmutation table:');
 
     const [rows] = await conn.query(
       'SELECT ig_min, ig_max, transmuted_grade FROM transmutation_table WHERE school_year = ? ORDER BY ig_min ASC',
@@ -105,11 +127,15 @@ async function run() {
     console.log('\nGrade weight configs:');
 
     const [weightRows] = await conn.query(
-      'SELECT id, subject_id, ww_weight, pt_weight, ex_weight FROM grade_weight_configs WHERE school_year = ?',
+      `SELECT gwc.id, gwc.subject_id, gwc.ww_weight, gwc.pt_weight, gwc.ex_weight,
+              s.name AS subject_name, s.grade_level
+       FROM grade_weight_configs gwc
+       JOIN subjects s ON s.id = gwc.subject_id
+       WHERE gwc.school_year = ?`,
       [SCHOOL_YEAR]
     );
 
-    check(weightRows.length > 0, `At least one grade_weight_configs row seeded for ${SCHOOL_YEAR}`, `found ${weightRows.length}`);
+    check(weightRows.length === 35, 'Exactly 35 weight rows seeded', `found ${weightRows.length}`);
 
     const badWeightRows = weightRows.filter(
       (r) => toCents(r.ww_weight) + toCents(r.pt_weight) + toCents(r.ex_weight) !== 10000
@@ -118,6 +144,39 @@ async function run() {
       badWeightRows.length === 0,
       'Every grade_weight_configs row sums to exactly 100.00',
       badWeightRows.length ? `subject_id(s) ${badWeightRows.map((r) => r.subject_id).join(', ')} do not` : ''
+    );
+
+    // Zero weight rows for any subject at a descriptive-mode grade level —
+    // the durable exclusion (JOIN against grading_mode_configs in seed.sql,
+    // not a hardcoded grade_level comparison) proven from the OUTPUT side,
+    // not just by re-reading the seed SQL's own intent.
+    const [modeByGrade] = await conn.query(
+      'SELECT grade_level, mode FROM grading_mode_configs WHERE school_year = ?',
+      [SCHOOL_YEAR]
+    );
+    const descriptiveGrades = new Set(modeByGrade.filter((r) => r.mode === 'descriptive').map((r) => r.grade_level));
+    const weightRowsOnDescriptiveGrades = weightRows.filter((r) => descriptiveGrades.has(r.grade_level));
+    check(
+      weightRowsOnDescriptiveGrades.length === 0,
+      'Zero weight rows exist for any subject at a descriptive-mode grade level',
+      weightRowsOnDescriptiveGrades.length
+        ? `found rows for grade(s) ${[...new Set(weightRowsOnDescriptiveGrades.map((r) => r.grade_level))].join(', ')}`
+        : ''
+    );
+
+    // MAPEH/EPP carry 20/60/20; every other subject carries 20/50/30.
+    const wrongBucketRows = weightRows.filter((r) => {
+      const isSpecial = r.subject_name === 'MAPEH' || r.subject_name === 'EPP';
+      const expectedPt = isSpecial ? 6000 : 5000;
+      const expectedEx = isSpecial ? 2000 : 3000;
+      return toCents(r.ww_weight) !== 2000 || toCents(r.pt_weight) !== expectedPt || toCents(r.ex_weight) !== expectedEx;
+    });
+    check(
+      wrongBucketRows.length === 0,
+      'MAPEH/EPP carry 20/60/20 and every other subject carries 20/50/30',
+      wrongBucketRows.length
+        ? `subject(s) ${wrongBucketRows.map((r) => `${r.subject_name} (G${r.grade_level})`).join(', ')} do not`
+        : ''
     );
 
     // --- Grading mode configs ---

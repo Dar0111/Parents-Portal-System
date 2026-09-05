@@ -19,92 +19,140 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
   ('logo_url', '');
 
 -- ---------------------------------------------------------------------------
--- DepEd subjects per grade level (G1–G6)
+-- DepEd subjects per grade level (G1-G6) — Stage G1b (2026-09-06). Real
+-- per-grade learning areas, replacing G1a's uniform 8-subject placeholder
+-- list. Transcribed from class programs photographed at the school (SY
+-- 2026-2027) and the school's own SF9 report card — see
+-- docs/GRADING_SPEC.md section 6c, which this transcription matches
+-- verbatim.
+--
+-- GRADE 4 IS INFERRED, NOT CONFIRMED. It was not photographed during the
+-- school visit. Basis for the inference: the SF9 report card prints
+-- exactly eight rows (English, Mathematics, Filipino, Araling Panlipunan,
+-- GMRC, Science, MAPEH, EPP) and is used for the whole intermediate level
+-- (Grades 4-6); Grade 5's photographed program matches those same eight
+-- exactly. If the school later says Grade 4 differs, this is the row to
+-- revisit — do not treat it as equally solid as Grades 1, 2, 3, 5, and 6.
+--
+-- NAMING NOTE: Grade 6's class program shows "ESP" and "TLE" where the
+-- SF9 shows "GMRC" and "EPP" for the identical learning areas. Seeded
+-- here under the SF9 names (GMRC, EPP) — that is what the parent actually
+-- sees on the printed report card. ESP and TLE are the same subjects
+-- under the class-program naming, recorded here so the alternates are
+-- findable, not silently dropped.
+--
+-- Homeroom Guidance and ARAL Program appear on class programs but not on
+-- the report card — they are not graded, and are deliberately excluded.
 -- ---------------------------------------------------------------------------
 
 -- Grade 1
 INSERT INTO subjects (name, grade_level) VALUES
-  ('Mother Tongue', 1),
-  ('Filipino', 1),
-  ('English', 1),
+  ('Makabansa', 1),
   ('Mathematics', 1),
-  ('Araling Panlipunan', 1),
-  ('Edukasyon sa Pagpapakatao', 1),
-  ('MAPEH', 1),
-  ('EPP', 1);
+  ('GMRC', 1),
+  ('Language', 1),
+  ('Reading', 1);
 
 -- Grade 2
 INSERT INTO subjects (name, grade_level) VALUES
-  ('Mother Tongue', 2),
-  ('Filipino', 2),
   ('English', 2),
+  ('GMRC', 2),
+  ('Makabansa', 2),
   ('Mathematics', 2),
-  ('Araling Panlipunan', 2),
-  ('Edukasyon sa Pagpapakatao', 2),
-  ('MAPEH', 2),
-  ('EPP', 2);
+  ('Filipino', 2);
 
 -- Grade 3
 INSERT INTO subjects (name, grade_level) VALUES
-  ('Mother Tongue', 3),
-  ('Filipino', 3),
+  ('GMRC', 3),
   ('English', 3),
+  ('Science', 3),
   ('Mathematics', 3),
-  ('Araling Panlipunan', 3),
-  ('Edukasyon sa Pagpapakatao', 3),
-  ('MAPEH', 3),
-  ('EPP', 3);
+  ('Filipino', 3),
+  ('Makabansa', 3);
 
--- Grade 4
+-- Grade 4 — INFERRED, see the note above. Matches the SF9's eight
+-- intermediate-level rows and Grade 5's photographed program exactly.
 INSERT INTO subjects (name, grade_level) VALUES
-  ('Filipino', 4),
   ('English', 4),
   ('Mathematics', 4),
-  ('Science', 4),
+  ('Filipino', 4),
   ('Araling Panlipunan', 4),
-  ('Edukasyon sa Pagpapakatao', 4),
+  ('GMRC', 4),
+  ('Science', 4),
   ('MAPEH', 4),
   ('EPP', 4);
 
 -- Grade 5
 INSERT INTO subjects (name, grade_level) VALUES
-  ('Filipino', 5),
   ('English', 5),
-  ('Mathematics', 5),
-  ('Science', 5),
+  ('Filipino', 5),
   ('Araling Panlipunan', 5),
-  ('Edukasyon sa Pagpapakatao', 5),
-  ('MAPEH', 5),
-  ('EPP', 5);
+  ('Science', 5),
+  ('GMRC', 5),
+  ('EPP', 5),
+  ('Mathematics', 5),
+  ('MAPEH', 5);
 
--- Grade 6
+-- Grade 6 — SF9 names (GMRC, EPP), not the class-program names (ESP, TLE)
+-- for the same two learning areas. See the naming note above.
 INSERT INTO subjects (name, grade_level) VALUES
-  ('Filipino', 6),
   ('English', 6),
-  ('Mathematics', 6),
-  ('Science', 6),
+  ('Filipino', 6),
   ('Araling Panlipunan', 6),
-  ('Edukasyon sa Pagpapakatao', 6),
+  ('Science', 6),
+  ('GMRC', 6),
+  ('Mathematics', 6),
   ('MAPEH', 6),
   ('EPP', 6);
 
 -- ---------------------------------------------------------------------------
+-- Grading mode per grade level, SY 2026-2027 (Table 12, DO 015 s.2026) —
+-- Grade 1 descriptive, Grades 2-6 numerical. Moved ahead of grade_weight_configs
+-- below (Stage G1b) — the weight seed now JOINs against this table to
+-- decide which grade levels get weight rows at all.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO grading_mode_configs (grade_level, school_year, mode) VALUES
+  (1, '2026-2027', 'descriptive'),
+  (2, '2026-2027', 'numerical'),
+  (3, '2026-2027', 'numerical'),
+  (4, '2026-2027', 'numerical'),
+  (5, '2026-2027', 'numerical'),
+  (6, '2026-2027', 'numerical');
+
+-- ---------------------------------------------------------------------------
 -- Grade weight configs (DO 015 s.2026) — keyed by subject_id, not grade
 -- band (see schema.sql comment on grade_weight_configs). Core learning
--- areas are 20/50/30; EPP and MAPEH are 20/60/20. Must run after the
--- subjects INSERTs above, since it selects their generated ids.
--- PROVISIONAL (G1a only): seeded against the CURRENT subject rows, which
--- are themselves a uniform placeholder list, not yet the school's real
--- per-grade learning areas (see CLAUDE.md's Grades module note). G1b
--- re-seeds subjects and this table together, once Grade 4's learning
--- areas are confirmed with the school.
+-- areas are 20/50/30; EPP and MAPEH are 20/60/20.
+--
+-- Stage G1b (2026-09-06): re-seeded against the real subjects above,
+-- replacing G1a's provisional seed against the placeholder list.
+--
+-- Grade 1 deliberately gets NO weight rows at all — enforced here by the
+-- JOIN against grading_mode_configs (mode = 'numerical'), not by a
+-- hardcoded "WHERE grade_level >= 2". No code path can ever read a
+-- weight row for a descriptive-mode grade (routes/grades.js rejects
+-- numerical writes against one before recomputeGrade() ever runs), so
+-- seeding one would be dead data implying a promise the system doesn't
+-- keep. The JOIN form is deliberate, not the simpler grade_level
+-- comparison: in SY 2027-2028 Grade 2 also becomes descriptive per the
+-- KS1 rollout (see grading_mode_configs's own comment) — a hardcoded
+-- ">= 2" would not fail loudly then, it would quietly reseed weight rows
+-- for a now-descriptive grade with nothing to catch it. Changing one row
+-- in grading_mode_configs is what should drive this, the same way the
+-- transmutation table's disappearance is driven by data absence, not a
+-- hardcoded year — see that table's own comment for the same principle
+-- applied a second time in this file.
 -- ---------------------------------------------------------------------------
 
 INSERT INTO grade_weight_configs (subject_id, school_year, ww_weight, pt_weight, ex_weight)
-SELECT id, '2026-2027', 20.00,
-       CASE WHEN name IN ('MAPEH', 'EPP') THEN 60.00 ELSE 50.00 END,
-       CASE WHEN name IN ('MAPEH', 'EPP') THEN 20.00 ELSE 30.00 END
-FROM subjects;
+SELECT s.id, '2026-2027', 20.00,
+       CASE WHEN s.name IN ('MAPEH', 'EPP') THEN 60.00 ELSE 50.00 END,
+       CASE WHEN s.name IN ('MAPEH', 'EPP') THEN 20.00 ELSE 30.00 END
+FROM subjects s
+JOIN grading_mode_configs gmc
+  ON gmc.grade_level = s.grade_level AND gmc.school_year = '2026-2027'
+WHERE gmc.mode = 'numerical';
 
 -- ---------------------------------------------------------------------------
 -- Adjusted Transmutation Table, SY 2026-2027 ONLY (DO 015 s.2026, Section
@@ -154,19 +202,6 @@ INSERT INTO transmutation_table (school_year, ig_min, ig_max, transmuted_grade) 
   ('2026-2027', 9.35, 14.00, 62),
   ('2026-2027', 4.68, 9.34, 61),
   ('2026-2027', 0.00, 4.67, 60);
-
--- ---------------------------------------------------------------------------
--- Grading mode per grade level, SY 2026-2027 (Table 12, DO 015 s.2026) —
--- Grade 1 descriptive, Grades 2-6 numerical.
--- ---------------------------------------------------------------------------
-
-INSERT INTO grading_mode_configs (grade_level, school_year, mode) VALUES
-  (1, '2026-2027', 'descriptive'),
-  (2, '2026-2027', 'numerical'),
-  (3, '2026-2027', 'numerical'),
-  (4, '2026-2027', 'numerical'),
-  (5, '2026-2027', 'numerical'),
-  (6, '2026-2027', 'numerical');
 
 -- ---------------------------------------------------------------------------
 -- Sections — real names from the school's official teacher list, SY 2026-2027.
