@@ -10,6 +10,7 @@
     "test:auth": "node scripts/test-auth-flows.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
+    "test:grades": "node scripts/test-grades-flows.js",
     "test:attendance": "node scripts/test-attendance-flows.js",
     "test:content": "node scripts/test-content-flows.js",
     "test:contributions": "node scripts/test-contributions-flows.js",
