@@ -8,14 +8,6 @@
 USE parents_portal;
 
 -- ---------------------------------------------------------------------------
--- Grade weight configs (DepEd K-12 elementary)
--- ---------------------------------------------------------------------------
-
-INSERT INTO grade_weight_configs (grade_level_min, grade_level_max, quiz_weight, activity_weight, exam_weight) VALUES
-  (1, 3, 30.00, 50.00, 20.00),
-  (4, 6, 40.00, 40.00, 20.00);
-
--- ---------------------------------------------------------------------------
 -- System settings
 -- ---------------------------------------------------------------------------
 
@@ -23,7 +15,7 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
   ('school_name', 'Captain H. Francisco Elementary School'),
   ('school_address', 'Captain H. Francisco Elementary School, Philippines'),
   ('academic_year', '2026-2027'),
-  ('current_quarter', 'Q1'),
+  ('current_term', '1'),
   ('logo_url', '');
 
 -- ---------------------------------------------------------------------------
@@ -95,6 +87,86 @@ INSERT INTO subjects (name, grade_level) VALUES
   ('Edukasyon sa Pagpapakatao', 6),
   ('MAPEH', 6),
   ('EPP', 6);
+
+-- ---------------------------------------------------------------------------
+-- Grade weight configs (DO 015 s.2026) — keyed by subject_id, not grade
+-- band (see schema.sql comment on grade_weight_configs). Core learning
+-- areas are 20/50/30; EPP and MAPEH are 20/60/20. Must run after the
+-- subjects INSERTs above, since it selects their generated ids.
+-- PROVISIONAL (G1a only): seeded against the CURRENT subject rows, which
+-- are themselves a uniform placeholder list, not yet the school's real
+-- per-grade learning areas (see CLAUDE.md's Grades module note). G1b
+-- re-seeds subjects and this table together, once Grade 4's learning
+-- areas are confirmed with the school.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO grade_weight_configs (subject_id, school_year, ww_weight, pt_weight, ex_weight)
+SELECT id, '2026-2027', 20.00,
+       CASE WHEN name IN ('MAPEH', 'EPP') THEN 60.00 ELSE 50.00 END,
+       CASE WHEN name IN ('MAPEH', 'EPP') THEN 20.00 ELSE 30.00 END
+FROM subjects;
+
+-- ---------------------------------------------------------------------------
+-- Adjusted Transmutation Table, SY 2026-2027 ONLY (DO 015 s.2026, Section
+-- 5). 41 rows, transcribed verbatim from docs/GRADING_SPEC.md — verify
+-- against the official PDF if this table is ever re-transcribed.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO transmutation_table (school_year, ig_min, ig_max, transmuted_grade) VALUES
+  ('2026-2027', 99.50, 100.00, 100),
+  ('2026-2027', 98.32, 99.49, 99),
+  ('2026-2027', 97.14, 98.31, 98),
+  ('2026-2027', 95.96, 97.13, 97),
+  ('2026-2027', 94.78, 95.95, 96),
+  ('2026-2027', 93.60, 94.77, 95),
+  ('2026-2027', 92.42, 93.59, 94),
+  ('2026-2027', 91.24, 92.41, 93),
+  ('2026-2027', 90.06, 91.23, 92),
+  ('2026-2027', 88.88, 90.05, 91),
+  ('2026-2027', 87.70, 88.87, 90),
+  ('2026-2027', 86.52, 87.69, 89),
+  ('2026-2027', 85.34, 86.51, 88),
+  ('2026-2027', 84.16, 85.33, 87),
+  ('2026-2027', 82.98, 84.15, 86),
+  ('2026-2027', 81.80, 82.97, 85),
+  ('2026-2027', 80.62, 81.79, 84),
+  ('2026-2027', 79.44, 80.61, 83),
+  ('2026-2027', 78.26, 79.43, 82),
+  ('2026-2027', 77.08, 78.25, 81),
+  ('2026-2027', 75.90, 77.07, 80),
+  ('2026-2027', 74.72, 75.89, 79),
+  ('2026-2027', 73.54, 74.71, 78),
+  ('2026-2027', 72.36, 73.53, 77),
+  ('2026-2027', 71.18, 72.35, 76),
+  ('2026-2027', 70.00, 71.17, 75),
+  ('2026-2027', 65.34, 69.99, 74),
+  ('2026-2027', 60.67, 65.33, 73),
+  ('2026-2027', 56.01, 60.66, 72),
+  ('2026-2027', 51.34, 56.00, 71),
+  ('2026-2027', 46.67, 51.33, 70),
+  ('2026-2027', 42.01, 46.66, 69),
+  ('2026-2027', 37.34, 42.00, 68),
+  ('2026-2027', 32.68, 37.33, 67),
+  ('2026-2027', 28.01, 32.67, 66),
+  ('2026-2027', 23.35, 28.00, 65),
+  ('2026-2027', 18.68, 23.34, 64),
+  ('2026-2027', 14.01, 18.67, 63),
+  ('2026-2027', 9.35, 14.00, 62),
+  ('2026-2027', 4.68, 9.34, 61),
+  ('2026-2027', 0.00, 4.67, 60);
+
+-- ---------------------------------------------------------------------------
+-- Grading mode per grade level, SY 2026-2027 (Table 12, DO 015 s.2026) —
+-- Grade 1 descriptive, Grades 2-6 numerical.
+-- ---------------------------------------------------------------------------
+
+INSERT INTO grading_mode_configs (grade_level, school_year, mode) VALUES
+  (1, '2026-2027', 'descriptive'),
+  (2, '2026-2027', 'numerical'),
+  (3, '2026-2027', 'numerical'),
+  (4, '2026-2027', 'numerical'),
+  (5, '2026-2027', 'numerical'),
+  (6, '2026-2027', 'numerical');
 
 -- ---------------------------------------------------------------------------
 -- Sections — real names from the school's official teacher list, SY 2026-2027.

@@ -1,11 +1,14 @@
 /**
  * System Settings API tests — allow-list enforcement, per-key validation,
- * PATCH all-or-nothing, and a source check confirming current_quarter's
- * validator actually reads grades.quarter's ENUM rather than a hardcoded list.
+ * PATCH all-or-nothing. current_term (was current_quarter) is now validated
+ * against a hardcoded ['1','2','3'] — the old live INFORMATION_SCHEMA ENUM
+ * introspection was removed once DO 009 s.2026 confirmed three terms as a
+ * settled DepEd fact, not a provisional placeholder (see routes/settings.js
+ * and the Grades module CHANGELOG entry).
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
  * Idempotent: these are fixed seeded rows, not created ones. Original values
- * for academic_year, current_quarter, and logo_url are captured up front and
+ * for academic_year, current_term, and logo_url are captured up front and
  * restored in a finally block, so it passes on repeat runs with no db:setup.
  *
  * Usage: npm run test:settings
@@ -95,7 +98,7 @@ async function run() {
   const originalSettings = await request('GET', '/api/settings', { token: adminToken });
   const original = originalSettings.data?.settings || {};
   assert(
-    typeof original.academic_year === 'string' && typeof original.current_quarter === 'string',
+    typeof original.academic_year === 'string' && typeof original.current_term === 'string',
     'Captured original settings for restore'
   );
 
@@ -187,20 +190,20 @@ async function run() {
     });
     assert(validYear.status === 200 && validYear.data?.value === '2027-2028', 'Valid academic_year accepted');
 
-    const badQuarter = await request('PUT', '/api/settings/current_quarter', {
+    const badTerm = await request('PUT', '/api/settings/current_term', {
       token: adminToken,
-      body: { value: 'Q5' },
+      body: { value: '5' },
     });
     assert(
-      badQuarter.status === 400 && /current_quarter must be one of/.test(badQuarter.data?.message || ''),
-      'current_quarter outside the ENUM rejected, naming the allowed values'
+      badTerm.status === 400 && /current_term must be one of/.test(badTerm.data?.message || ''),
+      'current_term outside 1-3 rejected, naming the allowed values'
     );
 
-    const validQuarter = await request('PUT', '/api/settings/current_quarter', {
+    const validTerm = await request('PUT', '/api/settings/current_term', {
       token: adminToken,
-      body: { value: 'Q3' },
+      body: { value: '3' },
     });
-    assert(validQuarter.status === 200 && validQuarter.data?.value === 'Q3', 'Valid current_quarter accepted');
+    assert(validTerm.status === 200 && validTerm.data?.value === '3', 'Valid current_term accepted');
 
     const emptyLogo = await request('PUT', '/api/settings/logo_url', {
       token: adminToken,
@@ -234,7 +237,7 @@ async function run() {
 
     const patchBadValue = await request('PATCH', '/api/settings', {
       token: adminToken,
-      body: { settings: { academic_year: '2028-2029', current_quarter: 'Q9' } },
+      body: { settings: { academic_year: '2028-2029', current_term: '9' } },
     });
     assert(patchBadValue.status === 400, 'PATCH with one invalid value rejects the whole request');
 
@@ -246,33 +249,13 @@ async function run() {
 
     const patchOk = await request('PATCH', '/api/settings', {
       token: adminToken,
-      body: { settings: { academic_year: '2029-2030', current_quarter: 'Q4' } },
+      body: { settings: { academic_year: '2029-2030', current_term: '2' } },
     });
     assert(
       patchOk.status === 200 &&
         patchOk.data?.settings?.academic_year === '2029-2030' &&
-        patchOk.data?.settings?.current_quarter === 'Q4',
+        patchOk.data?.settings?.current_term === '2',
       'PATCH with all valid keys updates every key'
-    );
-
-    // --- Mechanism check: does current_quarter really read the ENUM? ---
-    console.log('\ncurrent_quarter validator mechanism:');
-
-    // A pure HTTP test can't distinguish "reads the live ENUM" from "hardcoded
-    // to today's ENUM values" — both accept Q1-Q4 and reject Q5 identically
-    // unless the ENUM itself changes, and mutating grades.quarter mid-test-run
-    // was explicitly ruled out. This is a source check instead: it confirms the
-    // shipped code actually queries INFORMATION_SCHEMA for grades.quarter,
-    // rather than just asserting behavior that a hardcoded list would also
-    // produce today.
-    const fs = require('fs');
-    const path = require('path');
-    const settingsSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'settings.js'), 'utf8');
-    assert(
-      /INFORMATION_SCHEMA\.COLUMNS/i.test(settingsSource) &&
-        /TABLE_NAME\s*=\s*'grades'/i.test(settingsSource) &&
-        /COLUMN_NAME\s*=\s*'quarter'/i.test(settingsSource),
-      'current_quarter validator reads grades.quarter live from INFORMATION_SCHEMA, not a hardcoded list'
     );
   } finally {
     // Restore every key this run may have touched, regardless of pass/fail.
@@ -282,7 +265,7 @@ async function run() {
         settings: {
           school_name: original.school_name,
           academic_year: original.academic_year,
-          current_quarter: original.current_quarter,
+          current_term: original.current_term,
           logo_url: original.logo_url,
         },
       },

@@ -87,50 +87,135 @@ CREATE TABLE teacher_assignments (
   INDEX idx_assignments_subject (subject_id)
 ) ENGINE=InnoDB;
 
--- DepEd grade weight configuration (G1-3: 30/50/20, G4-6: 40/40/20)
+-- DepEd component weights, keyed by LEARNING AREA (subject_id), not grade
+-- band. Re-keyed here per DO 015 s. 2026 — the previous grade_level_min/
+-- grade_level_max shape was confirmed wrong: two students in the same
+-- Grade 5 section carry different weights depending on subject (core
+-- learning areas 20/50/30, EPP/TLE and MAPEH 20/60/20). school_year is
+-- included because these weights are themselves a policy artifact that
+-- has already changed once this school year (DO 8 s.2015 -> DO 015
+-- s.2026) — keying by subject_id alone would silently apply a future
+-- reweighting to past, already-computed grades on read.
+-- NOTE: seeded in this stage (G1a) against the CURRENT subject ids —
+-- `subjects` itself is not being touched here, see G1b. This weight seed
+-- is provisional until G1b re-seeds subjects and this table together.
 CREATE TABLE grade_weight_configs (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  grade_level_min TINYINT UNSIGNED NOT NULL,
-  grade_level_max TINYINT UNSIGNED NOT NULL,
-  quiz_weight DECIMAL(5,2) NOT NULL,
-  activity_weight DECIMAL(5,2) NOT NULL,
-  exam_weight DECIMAL(5,2) NOT NULL,
-  UNIQUE KEY uq_grade_weight_range (grade_level_min, grade_level_max)
+  subject_id INT UNSIGNED NOT NULL,
+  school_year VARCHAR(9) NOT NULL,
+  ww_weight DECIMAL(5,2) NOT NULL,
+  pt_weight DECIMAL(5,2) NOT NULL,
+  ex_weight DECIMAL(5,2) NOT NULL,
+  UNIQUE KEY uq_weight_subject_year (subject_id, school_year),
+  CHECK (ww_weight + pt_weight + ex_weight = 100.00)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------------
 -- Grades & attendance
 -- ---------------------------------------------------------------------------
 
+-- Dual-mode: exactly one of term_grade (numerical, Grades 2-6 for SY
+-- 2026-2027) or descriptive_grade (Grade 1, and later Grades 2-3 per the
+-- KS1 rollout) is ever populated on a given row — which one is decided
+-- by grading_mode_configs at WRITE time, keyed on (grade_level,
+-- school_year). At READ time no lookup is needed: whichever of the two
+-- columns is non-NULL on the row already tells you which mode it was
+-- written under. This is deliberate, not incomplete — do NOT "clean up"
+-- by dropping one column or merging them. A later school year moves more
+-- grade levels into descriptive mode (see grading_mode_configs), so both
+-- shapes stay live simultaneously, indefinitely.
+-- Final Grade (average of the 3 term rows) and General Average (average
+-- of Final Grades across subjects) are NOT columns here — both are pure
+-- aggregates of already-stored term_grade values, computed at read time.
 CREATE TABLE grades (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   student_id INT UNSIGNED NOT NULL,
   subject_id INT UNSIGNED NOT NULL,
-  quarter ENUM('Q1', 'Q2', 'Q3', 'Q4') NOT NULL,
+  term TINYINT UNSIGNED NOT NULL CHECK (term BETWEEN 1 AND 3),
   school_year VARCHAR(9) NOT NULL,
-  quiz_avg DECIMAL(5,2) DEFAULT NULL,
-  activity_avg DECIMAL(5,2) DEFAULT NULL,
-  exam_score DECIMAL(5,2) DEFAULT NULL,
-  final_grade DECIMAL(5,2) DEFAULT NULL,
+
+  ww_percentage DECIMAL(5,2) DEFAULT NULL,
+  ww_weighted DECIMAL(5,2) DEFAULT NULL,
+  pt_percentage DECIMAL(5,2) DEFAULT NULL,
+  pt_weighted DECIMAL(5,2) DEFAULT NULL,
+
+  -- EX is a fixed, positional composite (ST1 x0.30 + ST2 x0.30 + TE
+  -- x0.40), not an arbitrary-count aggregate like WW/PT — three
+  -- dedicated columns here rather than three more grade_components rows,
+  -- since "is this exam complete" is then a NULL check on this row, not
+  -- a child-table query, and the formula never grows a fourth sub-part.
+  ex_st1 DECIMAL(5,2) DEFAULT NULL,
+  ex_st2 DECIMAL(5,2) DEFAULT NULL,
+  ex_te DECIMAL(5,2) DEFAULT NULL,
+  ex_percentage DECIMAL(5,2) DEFAULT NULL,
+  ex_weighted DECIMAL(5,2) DEFAULT NULL,
+
+  initial_grade DECIMAL(5,2) DEFAULT NULL,
+  term_grade DECIMAL(5,2) DEFAULT NULL,
+  descriptive_grade ENUM('A', 'B', 'C', 'D', 'E') DEFAULT NULL,
+
   is_locked TINYINT(1) NOT NULL DEFAULT 0,
   acknowledged TINYINT(1) NOT NULL DEFAULT 0,
   acknowledged_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_grade_record (student_id, subject_id, quarter, school_year),
+  UNIQUE KEY uq_grade_record (student_id, subject_id, term, school_year),
   INDEX idx_grades_student (student_id),
   INDEX idx_grades_subject (subject_id)
 ) ENGINE=InnoDB;
 
+-- WW (Written Works) and PT (Performance Tasks) only — an arbitrary
+-- number of raw scores per grade, averaged. Renamed from quiz/activity
+-- to match DO 015's actual terms. Deliberately no 'formative' value:
+-- formative assessments are never included in grade computation (DO 015
+-- s.2026) — if ever tracked, that belongs in a separate, unlinked table,
+-- not a third value here. EX's three sub-scores (ST1/ST2/TE) live as
+-- fixed columns on `grades` instead — see the comment there.
 CREATE TABLE grade_components (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   grade_id INT UNSIGNED NOT NULL,
-  type ENUM('quiz', 'activity') NOT NULL,
+  type ENUM('WW', 'PT') NOT NULL,
   score DECIMAL(5,2) NOT NULL,
   max_score DECIMAL(5,2) NOT NULL,
   label VARCHAR(100) NOT NULL,
   date_recorded DATE DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_grade_components_grade (grade_id)
+) ENGINE=InnoDB;
+
+-- Adjusted Transmutation Table, SY 2026-2027 ONLY (DO 015 s.2026,
+-- Section 5). Seeded as data, not a hardcoded array or CASE expression,
+-- specifically because it is transitional: from SY 2027-2028 onward
+-- (zero-based grading), no row is seeded for that school_year, and a
+-- lookup returning zero rows is read by the application as "use the
+-- Initial Grade directly, no transmutation" — the table disappearing is
+-- what removes the behavior, not a code change keyed on a hardcoded
+-- year. Lookup is inclusive on both bounds (ig_min <= IG <= ig_max), so
+-- the exact boundary values transcribed from the spec resolve correctly
+-- (70.00 -> 75, 69.99 -> 74).
+CREATE TABLE transmutation_table (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  school_year VARCHAR(9) NOT NULL,
+  ig_min DECIMAL(5,2) NOT NULL,
+  ig_max DECIMAL(5,2) NOT NULL,
+  transmuted_grade TINYINT UNSIGNED NOT NULL,
+  UNIQUE KEY uq_transmutation_range (school_year, ig_min, ig_max)
+) ENGINE=InnoDB;
+
+-- Which grade levels use descriptive (letter) vs numerical grading, per
+-- school year — Table 12 of DO 015 s.2026 phases more grade levels into
+-- descriptive grading over time (Grade 1 only in SY 2026-2027; Grades
+-- 1-2 in SY 2027-2028; and so on). Keyed here, not hardcoded, so that
+-- rollout is a seed/data change, not a code change. Read at grade-write
+-- time only, to decide which of grades.term_grade / descriptive_grade a
+-- given write may populate — not needed at read time, see the comment
+-- on `grades`.
+CREATE TABLE grading_mode_configs (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
+  school_year VARCHAR(9) NOT NULL,
+  mode ENUM('descriptive', 'numerical') NOT NULL,
+  UNIQUE KEY uq_grading_mode (grade_level, school_year)
 ) ENGINE=InnoDB;
 
 -- Per DAY, not per subject — the section adviser records this once daily
@@ -309,6 +394,9 @@ ALTER TABLE teacher_assignments
   ADD CONSTRAINT fk_assignments_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_assignments_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_assignments_section FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE;
+
+ALTER TABLE grade_weight_configs
+  ADD CONSTRAINT fk_weight_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
 
 ALTER TABLE grades
   ADD CONSTRAINT fk_grades_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,

@@ -8,7 +8,7 @@ const router = express.Router();
 // The only keys this API will ever read or write. An open key-value write
 // endpoint is a way to smuggle junk into the database — every write is
 // checked against this list before anything touches a query.
-const ALLOWED_KEYS = ['school_name', 'school_address', 'academic_year', 'current_quarter', 'logo_url'];
+const ALLOWED_KEYS = ['school_name', 'school_address', 'academic_year', 'current_term', 'logo_url'];
 
 function validateNonEmpty(fieldName) {
   return (value) => {
@@ -35,32 +35,20 @@ function validateAcademicYear(value) {
   return null;
 }
 
-// current_quarter's accepted values are read live from grades.quarter's ENUM
-// definition instead of a hardcoded list. That ENUM is provisional — CLAUDE.md's
-// Blocked section notes the school hasn't confirmed 4 quarters vs. 3 terms for
-// SY 2026-2027. If it changes, this validator changes with it automatically;
-// a hardcoded list here would be a second place someone has to remember to
-// update in lockstep, and it would silently go stale the moment it didn't.
-async function getQuarterEnumValues() {
-  const [rows] = await pool.query(
-    `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'grades' AND COLUMN_NAME = 'quarter'`
-  );
-  const columnType = rows[0]?.COLUMN_TYPE || '';
-  const match = columnType.match(/^enum\((.*)\)$/i);
-  if (!match) {
-    return [];
-  }
-  return match[1].split(',').map((v) => v.trim().replace(/^'|'$/g, ''));
-}
-
-async function validateCurrentQuarter(value) {
+// current_term's accepted values used to be read live from grades.quarter's
+// ENUM via INFORMATION_SCHEMA, specifically because the quarter-vs-term
+// question was provisional (CLAUDE.md's old Blocked section). DO 009 s.2026
+// has since confirmed three terms, not four quarters — that's a settled
+// DepEd fact now, not a placeholder — so the live-introspection indirection
+// no longer earns its complexity. grades.term is also a TINYINT + CHECK now,
+// not an ENUM, so there is nothing left to introspect anyway.
+function validateCurrentTerm(value) {
+  const allowed = ['1', '2', '3'];
   if (typeof value !== 'string' || !value) {
-    return 'current_quarter must not be empty.';
+    return 'current_term must not be empty.';
   }
-  const allowed = await getQuarterEnumValues();
   if (!allowed.includes(value)) {
-    return `current_quarter must be one of: ${allowed.join(', ')}.`;
+    return `current_term must be one of: ${allowed.join(', ')}.`;
   }
   return null;
 }
@@ -76,13 +64,10 @@ const VALIDATORS = {
   school_name: validateNonEmpty('school_name'),
   school_address: validateNonEmpty('school_address'),
   academic_year: validateAcademicYear,
-  current_quarter: validateCurrentQuarter,
+  current_term: validateCurrentTerm,
   logo_url: validateLogoUrl,
 };
 
-// Every VALIDATORS entry returns either a string|null directly, or (for
-// current_quarter) a Promise<string|null> — awaiting a non-promise value
-// just resolves immediately, so this works uniformly for both.
 async function validateSetting(key, value) {
   return VALIDATORS[key](value);
 }
