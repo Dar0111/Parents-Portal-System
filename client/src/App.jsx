@@ -10,6 +10,7 @@ import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
 import TeacherStudents from './pages/teacher/StudentsPage';
 import TeacherStudentDetail from './pages/teacher/StudentDetailPage';
+import TeacherExcuseLetters from './pages/teacher/ExcuseLettersPage';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="students" element={<TeacherStudents />} />
             <Route path="students/:id" element={<TeacherStudentDetail />} />
+            <Route path="excuse-letters" element={<TeacherExcuseLetters />} />
           </Route>
 
           <Route

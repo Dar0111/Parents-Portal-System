@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (Teacher → Students — the second Stage 4 feature page)
+**Last updated:** 2026-09-07 (Teacher → Excuse Letters — the third Stage 4 feature page)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +20,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 3 of ~75 views (Teacher → Attendance, Students list + detail) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 4 of ~75 views (Teacher → Attendance, Students list + detail, Excuse Letters) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -299,6 +299,39 @@ reason is the wrong trade — so a future session finding the mismatch is
 looking at a decision, not an oversight. Capitalising is a no-op for three of
 the six vocabularies and visibly changes only two ENUMs plus grades'
 locked/unlocked.
+
+**Teacher → Excuse Letters is DONE (2026-09-07)** — queue + review, the first
+Stage 4 write form. Where the sharpest 403/404 split reaches a user: see =
+assigned OR adviser, review = adviser only. The page predicts that before the
+click so the Review button is never a dead end, while the server stays
+authority and the 403 is still handled. **Review is irreversible by API
+design** (403 once a letter leaves Pending, no un-review endpoint), so the
+modal requires an explicit confirmation naming the decision — recorded as
+convention 5e, *confirmation follows reversibility*, stated together with
+Attendance's deliberate lack of one so the two read as one rule. **Measured:
+2m28s** (Attendance 3m14s, Students 1m24s) — recorded with what each page
+involved, since three points neither trend nor form a rate.
+
+**Empty-state copy restructured after review (convention 5f):** a single
+`filtered` boolean meant both "a narrow filter matched nothing" and "the
+status is All", which is the least narrowed state — so an empty result under
+All told the teacher to try a different filter when none would help, and
+"Nothing waiting for review" could surface outside Pending. Now three explicit
+branches keyed on the applied values, making that copy structurally impossible
+elsewhere. Second empty-state copy bug in three pages, hence a rule. Also
+recorded: the originally reported symptom was **a stale module in an open tab
+after HMR** — a hard reload cleared it, no data bug existed, and a hard reload
+is now the first thing to try before treating a browser-review symptom as a
+code defect.
+
+**Three backend gaps recorded, none fixed** (a client dispatch touches no
+server files): **no API creates a `teacher_assignments` row** — an admin
+cannot assign a teacher to a subject/section at all, which **blocks Admin →
+Users and Admin → Sections**; `GET /api/excuse-letters/:id` returns strictly
+less than its own list endpoint (no student join), which is why this page uses
+a modal and never calls it; and `excuse_letters.attachment_url` is dead schema
+— nothing writes it and there is no upload endpoint, so no screen should offer
+an attachment.
 
 **Next:** Stage 4 web pages. The Messages page is unblocked for all three
 roles.
