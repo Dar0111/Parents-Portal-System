@@ -19,8 +19,8 @@ export function AuthProvider({ children }) {
     // rejected account must not render a dashboard just because the JWT
     // it's carrying hasn't expired yet.
     api
-      .get('/auth/me')
-      .then(({ data }) => setUser(data.user))
+      .get('/auth/me', { unwrap: 'user' })
+      .then((me) => setUser(me))
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
         setUser(null);
@@ -29,10 +29,18 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function login(login_id, password) {
-    const { data } = await api.post('/auth/login', { login_id, password });
-    localStorage.setItem(TOKEN_KEY, data.token);
-    setUser(data.user);
-    return data.user;
+    // Multi-key unwrap rather than raw: login returns token + user as two flat
+    // top-level keys, and raw would skip the missing-key guard on the one
+    // screen every user starts from — a renamed `token` would fail here with
+    // no explanation at all.
+    const { token, user: loggedIn } = await api.post(
+      '/auth/login',
+      { login_id, password },
+      { unwrap: ['token', 'user'] }
+    );
+    localStorage.setItem(TOKEN_KEY, token);
+    setUser(loggedIn);
+    return loggedIn;
   }
 
   function logout() {

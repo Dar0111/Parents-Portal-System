@@ -759,14 +759,239 @@ from the reply's text and calls the existing `POST /api/announcements`,
 scoped exactly like any other announcement. No endpoint, no field, no
 linkage — see Stage 4 in BUILD ORDER.
 
-### React web app — auth, verified end-to-end
+### React web app — Stage 4 foundation built, primitives frozen
 
-`client/` builds clean (`npm run build`) and both dev servers run together
-(`server/` on :5000, `client/` on :3000). Verified in the browser: admin
-login (`ADMIN001` / `Admin@2026`) redirects to `/admin`; a wrong password
-shows an inline error without leaving the login page; a pending parent
-account shows the approval-pending message inline; refreshing a logged-in
-session shows the loading spinner with no login-page flash.
+`client/` builds clean (`npm run build`) and lints clean (`oxlint`, two
+pre-existing `AuthContext.jsx` warnings aside). The auth slice still holds;
+on top of it the Stage 4 foundation now exists: role-aware `Shell` with
+nested layout routes, seven shared UI primitives, and a dev-only component
+gallery at `/dev/ui`. **No feature page has been built yet** — see STAGE 4
+FRONTEND CONVENTIONS below for what every one of them inherits.
+
+Auth round-trip re-verified after the foundation landed: admin login
+(`ADMIN001` / `Admin@2026`) redirects to `/admin`; a wrong password shows
+an inline error without leaving the login page; a pending parent account
+shows the approval-pending message inline; refreshing a logged-in session
+shows the loading spinner with no login-page flash.
+
+```
+client/src/
+  api/axios.js            Bearer interceptor; mandatory unwrap on success; 401-only redirect
+  api/extractError.js     { success:false, message } -> string, with an offline case
+  format/grade.jsx        GradeValue + GradeLegend — the NULL-grade rule
+  layout/Shell.jsx        role-aware sidebar, <Outlet/>, page title; exports NavItem
+  layout/nav.js           NAV_BY_ROLE — the built / blocked / unbuilt flags
+  layout/usePageTitle.js  detail pages override the nav-derived title
+  components/             DataTable, Modal, FormField, StatusBadge, EmptyState,
+                          ErrorAlert, LoadingSpinner
+  pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
+```
+
+`/dev/ui` is registered behind `import.meta.env.DEV` and is **verified
+absent from the production bundle** (grepped for strings unique to it after
+a real `npm run build`) — checked, not asserted.
+
+---
+
+## STAGE 4 FRONTEND CONVENTIONS — frozen 2026-09-06
+
+The frontend counterpart to THE AUTH PATTERN IS THE TEMPLATE below. These
+were settled in the foundation dispatch, against the real API, before any
+feature page existed — which is the point: a convention invented by the
+first page gets bent by the second. **Every Stage 4 page inherits all
+seven. Do not invent a new structure.**
+
+### 1. Unwrap — every call declares how to read the response
+
+```js
+api.get('/students', { unwrap: 'students' })              // -> the array
+api.get('/grades/7', { unwrap: ['grade', 'descriptor'] }) // -> { grade, descriptor }
+api.post('/backups/3/restore', body, { raw: true })       // -> the axios response
+```
+
+- **Mandatory.** A success response with neither `unwrap` nor `raw` throws.
+  No inference, no "take the only key", no "singular of the path".
+- **Throws when the named key is absent**, naming what was missing and what
+  did come back. It never returns `undefined` — a backend rename must fail
+  loudly at the call site, not render an empty table. That throw surfaces
+  developer-facing text through `extractError` into an `ErrorAlert`: if a
+  key is missing the page is already broken, and loud beats silent.
+- **Array form** for the multi-key responses (`GET /backups` +
+  `orphaned_files`, `GET /contributions/:id/records` + `contribution`,
+  `GET /grades/:id` + `grade_components` + `descriptor`), so those keep the
+  missing-key guard instead of dropping to `raw`.
+- **`raw` is for exactly two endpoints** — `POST /api/backups/:id/restore`
+  (the one place `success: true` does not mean full success; its caller
+  must read `message`) and the binary `GET /api/backups/:id/download`.
+  **`raw` returns the FULL axios response** — status, headers, data — not
+  the body, unlike `unwrap`, which returns a value from inside the body.
+  The download needs the headers for the filename. This is the one place
+  the two modes hand back different levels of the response.
+
+**Why a path-to-key map cannot work, recorded so it is not re-proposed:**
+`GET /api/attendance` returns `attendance` as an **array** while
+`POST /api/attendance` returns `attendance` as an **object** — same key,
+cardinality varying by method. No path matcher can tell a caller which
+shape arrived. Add that this API has ~30 distinct wrapper keys with no
+derivable rule (`docs/API_REFERENCE.md` section 7), that paths contain
+`:id` so a map needs a route matcher rather than a lookup, and that a map
+duplicates API_REFERENCE.md as a second hand-maintained source of truth —
+and the call site is the only honest place for this knowledge.
+
+### 2. Errors — 401 redirects, 403 never does
+
+- **`401`** clears the token and redirects to `/login`. Correct: the
+  credential or token is genuinely dead.
+- **`403` does NOT redirect, and never should.** In this API a 403 is an
+  *informative refusal* carrying a reason in the body, and that reason must
+  reach the user through `extractError`. Of the twenty places a 403
+  originates, eighteen are route-level scope refusals and one is an
+  `authorize()` role violation — for all nineteen, bouncing to `/login`
+  throws away the reason and, for the role violation, re-logs the user in
+  to the same refusal. The twentieth, `middleware/auth.js`'s `Account is
+  not active.`, is a genuinely dead session and resolves on the next
+  refresh via `AuthContext`'s `/auth/me` check. **Not string-matched** —
+  matching on a message is fragile; the real fix is server-side, see OPEN
+  QUESTIONS.
+- **Reads out of scope return `404`** by design (anti-enumeration);
+  **writes return `403`**. Two documented exceptions return `403` where a
+  read would have 404'd, because a broader `GET` already exposes the
+  resource: excuse-letter review (`PATCH /api/excuse-letters/:id/review`)
+  and the five `:id`-keyed grades writes. A `404` there would contradict
+  what `GET` already shows the same teacher.
+- **Error bodies are uniform**: `{ success: false, message }` — verified
+  across all **342** error responses in `server/routes/`, zero deviations.
+  That is why `extractError` is reliable, and it is the one part of this
+  API's response shape that *is* consistent. The success wrappers are not.
+
+### 3. NULL grades — never a bare dash
+
+`NULL` in Initial Grade, Final Grade or General Average means **"not yet
+computable"** — not missing, not zero. Rendered as a blank, a parent reads
+it as their child's grade having disappeared.
+
+`format/grade.jsx` is the single renderer for every grade-bearing value:
+
+| State | Renders |
+|---|---|
+| a number, including `0` | `0.00` / `88.05`, normal weight |
+| `null`, numerical mode | `— Pending` |
+| `null`, descriptive mode | `— N/A` |
+| failed request | never reaches here — `DataTable`'s error state owns the frame |
+
+**The label is inline text, not only a tooltip.** Tooltips are hover-only
+and do not exist on touch, and the report card is the screen parents are
+most likely to read on a phone — exactly the audience most likely to
+misread a bare dash. The tooltip is kept for the longer explanation on
+desktop; it is never the sole carrier. A real `0.00` is a real grade and
+must stay visually distinct from both null states. The pending-vs-N/A split
+comes from the API's own `grading_mode`, never inferred from the null
+itself. Trade-off accepted knowingly: an inline word costs ~55–70px of
+column width in a dense table; a bare dash plus one legend line was
+rejected because it breaks the moment one table holds both reasons, which a
+teacher's cross-grade-level list can.
+
+### 4. StatusBadge — five vocabularies, one tone map, NO VERDICTS
+
+Five status vocabularies (`users` · `attendance` · `excuse_letters` ·
+`contribution_records` · grades `is_locked`) share one central status→tone
+map. "Pending" means the same thing in three of them, so mapping it once is
+honest. Unknown values fall back to neutral rather than throwing; a `tone`
+prop overrides.
+
+**NO VERDICT VARIANTS. No `PASSED`, no `FAILED`, no `AT RISK`, no `FOR
+RETENTION` — not now, not as a convenience later.** The school stated that
+absence-based failure is at teacher discretion ("possible pang makapasa"),
+so **the system counts and displays, it never concludes.** A badge that
+renders a verdict turns a teacher's judgment call into a system-issued fact
+that a parent will read as final. This is a hard rule, not a default —
+adding one requires the school to have said otherwise first.
+
+### 5. DataTable — presentational, unpaginated, nulls last
+
+- **Never fetches.** The page owns the request and passes
+  `rows`/`loading`/`error`. Loading, error and empty render *inside* the
+  table frame so no page re-implements the three-state dance.
+- **No pagination.** No endpoint in this API accepts `limit`/`offset`/
+  `page` — checked across every route file, zero of them read those params
+  — so every list arrives whole. **Revisit trigger:** the admin
+  `GET /api/users` list once real accounts exist; that is the first list
+  here that could plausibly reach the hundreds.
+- **Nulls sort last in BOTH directions, and the rule sits OUTSIDE the
+  direction multiplier.** Handling emptiness inside the comparator and then
+  multiplying by `-1` flips it to nulls-first on descending — which is the
+  case that matters, since sorting a grades column descending to find top
+  marks would put every ungraded row at the top. Two empties compare equal;
+  `Array#sort` is stable, so they hold their incoming order.
+- mysql2 returns `DECIMAL` as strings (`"90.00"`), so the comparator
+  coerces numerically before falling back to `localeCompare`. The gallery
+  fixture carries `87.50` **and** `100.00` for this: `0.00/87.50/90.00`
+  sort identically under numeric and lexicographic comparison, so they
+  cannot catch a regression — `100.00` can, being numerically largest but
+  lexicographically second-smallest. Do not "tidy" either row away.
+
+### 6. Nav — three states, and flipping the flag is not a follow-up
+
+`layout/nav.js` is the single source of per-role navigation. Three states:
+
+- **built** — a live `NavLink`.
+- **blocked** — `blocked: '<reason>'`, rendered muted with the reason as
+  its tooltip. A stronger claim than unbuilt: the page *cannot be designed
+  yet* because an external question is unanswered. Takes precedence over
+  `built`. Currently exactly one: **Parent → Attendance**, blocked on the
+  attendance rate formula. Teacher attendance encoding is **not** blocked.
+- **unbuilt** — `built: false`, dimmed and non-clickable so it cannot drop
+  the user into the catch-all redirect.
+
+**FLIPPING `built: false` TO `true` IS PART OF WHICHEVER DISPATCH ADDS THAT
+PAGE'S ROUTE — never a follow-up, never a cleanup pass.** A live route
+behind a dimmed nav item is invisible; a flipped flag with no route is a
+dead link. They land together or not at all.
+
+### 7. FormField — four shapes, and only four
+
+```
+1. <FormField label="Name" placeholder="…" />                      -> <input>
+2. <FormField label="Remarks" as="textarea" rows={3} />             -> <textarea>
+3. <FormField label="Status" as="select">{options}</FormField>      -> <select>
+4. <FormField label="Range" render={({ id, describedBy }) => …} />  -> custom
+```
+
+`children` are the children *of the rendered control*, which is what makes
+shape 3 work — a `<select>` needs both `as` and children. They are
+forwarded only when `as !== 'input'`, because `<input>` is a void element
+and React throws if given children. Shape 4 is the escape hatch and
+receives a **single object**, not positional arguments, so adding a third
+piece of wiring later is not a breaking change at twenty call sites.
+
+### Corrections — three claims retired here
+
+These circulated in planning and are **wrong**. None of them ever appeared
+in this file or `docs/PROJECT_PROGRESS.md` — searched, zero hits — so there
+was nothing to delete. They are recorded here so they cannot be re-derived
+from memory.
+
+- **"The first screen builds the shared components," and the ~5h / 2–3h
+  estimate derived from it.** Wrong sequence. **The primitives were built
+  in the foundation dispatch, before any feature page**, precisely so they
+  are shaped by the design system rather than by one page's needs. The
+  estimate that depended on the old sequence is **void, and is not being
+  replaced with another guess — it is pending real measurement from the
+  first feature page (Teacher → Attendance).**
+- **"Backend is 100% complete."** Replace with: *"Ten backend modules
+  complete, 76 endpoints, tests passing. One gap identified
+  (`GET /api/messages/contacts`) and an audit scheduled."*
+- **"36 screens."** Always an estimate, never a count. The real figure is
+  **75 role-facing views** — 33 nav items plus 42 detail/sub views (Teacher
+  23, Parent 19, Admin 33) — behind **~45–50 distinct implementations**,
+  since the report card, the message thread and announcement/memo/event
+  detail are one screen serving three roles, and grade encode,
+  excuse-letter review, contribution roster, student detail and attendance
+  history are each shared between teacher and admin. **The counting rule,
+  recorded so the figures are reproducible:** a substantive form counts as
+  a view whether it ends up a route or a modal; a bare "are you sure?"
+  confirm does not. Without the rule the next session produces a third
+  number. The old ~13-day web estimate derived from 36 is **void**.
 
 ---
 
@@ -1959,11 +2184,40 @@ Grades is last in this stage because it is blocked.
 
 ### Stage 4 — Web pages
 
-- [ ] Parent pages — grades, attendance, records, announcements, messages,
-      excuse letters, contributions. Messages needs `GET /api/messages/contacts`
-      built first — see that section above, not built yet
-- [ ] Teacher pages — same set plus management views
-- [ ] Admin pages — user management, settings, backup/restore
+**Real size: 75 role-facing views behind ~45–50 distinct implementations
+— not the 36 that was estimated.** See STAGE 4 FRONTEND CONVENTIONS
+above for both figures, the counting rule that produced them, and why
+the old ~13-day estimate derived from 36 is void and is not being
+replaced with a new guess.
+
+- [x] **Foundation — done 2026-09-06.** Role-aware `Shell` with nested
+      layout routes, `layout/nav.js` (built/blocked/unbuilt), seven
+      shared primitives (`DataTable`, `Modal`, `FormField`,
+      `StatusBadge`, `EmptyState`, `ErrorAlert`, `LoadingSpinner`),
+      `format/grade.jsx`, mandatory response unwrapping, and a DEV-only
+      component gallery at `/dev/ui`. The seven conventions every page
+      below inherits are frozen — read them before building any screen.
+- [ ] **Teacher → Attendance — the first feature slice.** Chosen first
+      deliberately: teacher screens create the data the parent screens
+      later render, its API is already proven end to end, and it
+      exercises most of the primitives at once. **This is also the page
+      the void build estimate gets re-measured from.**
+- [ ] Remaining teacher pages — students, grades encode, excuse-letter
+      review, announcements, memos, events, contributions, messages
+- [ ] Parent pages — grades, records, announcements, messages, excuse
+      letters, contributions. **Parent → Attendance is BLOCKED**, not
+      merely unbuilt: the attendance rate formula is an unanswered
+      school question, so the page cannot be designed yet. Messages needs
+      `GET /api/messages/contacts`, which is unbuilt — see the next item
+- [ ] Admin pages — user management, sections/adviser assignment,
+      settings, backup/restore
+
+**Backend work interleaved with Stage 4, one dispatch:**
+
+- [ ] `GET /api/messages/contacts` **plus the endpoint audit**, together,
+      after Teacher → Attendance. Small, and better finished while the
+      backend is still fresh than midway through frontend work. The audit
+      already has two confirmed items waiting — see OPEN QUESTIONS.
 
 ### Stage 5 — Mobile (Expo)
 
@@ -2096,6 +2350,46 @@ handled by the team. Do not re-raise it.
   at this school. **Do not add an adviser-based OR clause pre-emptively.**
   If it ever turns out to be real, the fix is one line
   (`sections.adviser_id = teacherId OR EXISTS(...)`).
+
+- **Server-side `401` cleanup — `Account is not active.` should be a
+  `401`, not a `403`.** `middleware/auth.js` returns `403` when an
+  authenticated token belongs to a deactivated account. That is the one
+  403 in the whole API which genuinely means "this session is dead", and
+  it is the reason the client interceptor used to redirect on 403 at all
+  — a blanket rule that was wrong for the other nineteen origins (see
+  STAGE 4 FRONTEND CONVENTIONS §2, now fixed client-side). A token that
+  no longer identifies a usable session **is** an authentication failure,
+  so the honest status is `401`. Not fixed in the Stage 4 foundation
+  dispatch: it is a server file, and the client fix stands on its own.
+  Until it lands, a mid-session deactivation shows `Account is not
+  active.` in an `ErrorAlert` until the next refresh, at which point
+  `AuthContext`'s `/auth/me` check logs the user out. No data renders in
+  the meantime — every call is already 403 — and the backend remains the
+  enforcement point.
+- **Endpoint audit — scheduled, two confirmed items already waiting.**
+  Not a vague "review the API someday"; there are two known findings it
+  must resolve, both surfaced while building the Stage 4 foundation:
+  1. **`GET /api/messages/contacts` is designed but unbuilt** — the full
+     design is recorded in its own section above. It is the only
+     designed-but-unbuilt endpoint in the system: every other row in the
+     endpoints table was verified to map to real code (76 handlers in
+     `server/routes/` plus `/api/health` in `server.js` = the 77 rows
+     that table carries).
+  2. **`docs/API_REFERENCE.md`'s `user` row lists `GET /api/users`, and
+     that is a doc slip.** Verified live this session: the endpoint
+     returns `success, users` only — there is no `user` key alongside the
+     array. The reference doc was not corrected at the time because it
+     was outside that dispatch's whitelist; the correction is the audit's
+     to make, and it now arrives with the answer already in hand.
+- **The four school questions remain unanswered**, gathered here because
+  they are the standing blockers rather than one-off notes: Grade 1's
+  A–E derivation (see the Grades module assumption above), Grade 4's
+  learning areas (seeded as inferred, not confirmed), who may lock a
+  grade (built admin-only), and the attendance rate formula. **Only the
+  last one blocks a screen** — Parent → Attendance, marked `blocked` in
+  `layout/nav.js` with that reason as its tooltip. The other three are
+  answered-by-assumption in code that works today and would change one
+  handler each, not the schema.
 
 ---
 
@@ -2232,6 +2526,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-06 | **Stage 4 foundation — the first frontend work since Stage 2, and the seven conventions every web page now inherits (frozen in CLAUDE.md's new STAGE 4 FRONTEND CONVENTIONS section).** Built foundation-first on purpose, against the real API, before any feature page existed: a convention invented by the first screen gets bent by the second, and the shared primitives would have been shaped by one page's needs instead of the design system's. Plan-then-approve dispatch as usual, then four rounds of review-driven amendment — three real defects were found by Darryl reviewing the rendered gallery, none of which any build or lint step catches, which is the argument for the gallery existing at all. **Routing/layout:** `App.jsx` converted from three flat routes to nested LAYOUT routes — `ProtectedRoute` gates each role, `Shell` renders the chrome once, pages are plain components in its `<Outlet />`. Pages no longer import `Shell` themselves; that pattern would have meant ~36 copies of the layout decision by the end of Stage 4. `Shell` became role-aware, reading `layout/nav.js` (the single source of per-role navigation) and deriving its header title by longest-prefix path match, with a `usePageTitle()` hook for detail views the nav cannot name. Stayed on `<BrowserRouter><Routes>` rather than migrating to `createBrowserRouter` for `useMatches()`/`handle` — same result, real churn. **Seven shared primitives** (`DataTable`, `Modal`, `FormField`, `StatusBadge`, `EmptyState`, `ErrorAlert`, `LoadingSpinner`) plus `format/grade.jsx`, all reviewable in a DEV-only gallery at `/dev/ui` — registered behind `import.meta.env.DEV`, **verified absent from the production bundle** by grepping a real build for strings unique to it, not asserted. **Response unwrapping (§1)** — the biggest thing this dispatch settled and the one the plan originally missed entirely: the foundation shipped `extractError` for the error path while the SUCCESS path (~30 inconsistent wrapper keys, `docs/API_REFERENCE.md` §7) was left undecided, which would have meant the first feature page inventing it. Now mandatory per-call `{ unwrap: 'key' }` / `{ unwrap: ['a','b'] }` / `{ raw: true }`, throwing both when neither is given and when a named key is absent — never `undefined`, so a backend rename fails loudly at the call site instead of rendering an empty table. A path-to-key map was rejected with reasons recorded in-file so it is not re-proposed: paths contain `:id` so it needs a route matcher not a lookup, it duplicates API_REFERENCE.md as a second hand-maintained source of truth, it moves the failure away from the file you have open — and, decisively, `GET /api/attendance` returns `attendance` as an ARRAY while `POST /api/attendance` returns it as an OBJECT, same key, cardinality varying by method, which no path matcher can disambiguate. `raw` is exactly two endpoints (`POST /backups/:id/restore`, the binary `GET /backups/:id/download`) and returns the FULL axios response, not the body — the download needs headers for the filename; noted in-file as the one place the two modes return different levels. Blast radius was two lines: `AuthContext.jsx` holds the only two `api.*` call sites in the client. `/auth/login` uses multi-key unwrap rather than `raw` specifically so it keeps the missing-key guard on the one screen every user starts from. **Both unwrap keys verified against the live API, not trusted from the reference doc** — `POST /auth/login` -> `success, token, user`; `GET /auth/me` -> `success, user`. That check incidentally settled a catalog discrepancy: `GET /api/users` returns `success, users` only, so API_REFERENCE.md's `user` row listing that endpoint is a doc slip — recorded for the scheduled audit, deliberately not fixed here (outside the whitelist). **The 403 redirect (§2) — a real pre-existing bug, found by questioning a claim in my own plan.** The Stage 2 interceptor cleared the token and redirected on `401` **and** `403`. Counting every origin: 18 route-level scope refusals, 1 `authorize()` role violation, 1 genuine dead session (`middleware/auth.js`'s `Account is not active.`) — so the redirect was wrong for **19 of 20**, and in this API a 403 is an *informative refusal* carrying a specific reason (which subject a teacher may not encode, why an excuse letter cannot be reviewed) that was being thrown away, with the user bounced instead of told why. Fixed to `401` alone. No string-matching on the message — fragile, and named as such; the real fix is server-side and is now recorded in OPEN QUESTIONS. Consequences stated rather than papered over: role violations now render an `ErrorAlert` (an improvement — re-login landed the user at the same refusal, a loop with extra steps), and a mid-session deactivation shows its message until the next refresh, when `AuthContext`'s `/auth/me` logs them out; no data renders meanwhile since every call is already 403. Also confirmed while here: **all 342 error responses across `server/routes/` are uniformly `{ success: false, message }`**, zero deviations — which is why `extractError` is a one-liner, and worth stating because the *success* wrappers are the opposite of uniform. **NULL grades (§3)** — `format/grade.jsx` replaces what started as a per-column inline hack in the gallery. `NULL` in Initial/Final Grade or General Average means "not yet computable", never missing and never zero; rendered as a blank a parent reads it as their child's grade having vanished. First version carried the pending-vs-not-applicable distinction in a `title` tooltip, which Darryl correctly rejected: **tooltips are hover-only and do not exist on touch, and the report card is the screen parents are most likely to read on a phone** — the two states would have collapsed into an identical bare dash for the audience most likely to misread it. Now inline text (`— Pending`, `— N/A`) with the tooltip retained for desktop but never the sole carrier; the split comes from the API's own `grading_mode`, never inferred from the null. Trade-off recorded knowingly: ~55-70px of column width per cell in a dense table, accepted because the cheaper bare-dash-plus-legend breaks the moment one table holds both reasons, which a teacher's cross-grade-level list can. **StatusBadge (§4)** — five status vocabularies, one central tone map ("Pending" means the same thing in three of them, so mapping it once is honest), unknown values falling back to neutral. **Recorded as a hard rule: NO VERDICT VARIANTS** — no `PASSED`, `FAILED`, `AT RISK`, `FOR RETENTION`. The school stated absence-based failure is at teacher discretion ("possible pang makapasa"), so the system counts and displays but never concludes; a verdict badge turns a teacher's judgment call into a system-issued fact a parent reads as final. **DataTable (§5)** — presentational, never fetches, owns its own loading/error/empty states so no page re-implements the three-state dance. **No pagination**, because no endpoint in this API accepts `limit`/`offset`/`page` (checked across every route file, zero hits) — building controls for a contract that does not exist; revisit trigger recorded as admin `GET /api/users` once real accounts exist. **Second review-found bug: nulls sorted FIRST in descending.** Emptiness was handled inside `compare()`, whose result was then multiplied by the direction factor, flipping `1` to `-1` — so sorting a grades column descending to find top marks put every ungraded row at the top. Fixed by resolving emptiness in the sort callback, outside the multiplier, with both-empty comparing equal (and `Array#sort` being stable, so they hold their incoming order). **Verified by extracting the real `isEmpty`/`compare`/sort-callback text out of `DataTable.jsx` and running them** — not a retyped copy — plus a negative control confirming the pre-fix logic fails those same assertions, so the test is not vacuous. **Third review-found item, and one where the stated mechanism did not hold:** the gallery had lost its DECIMAL-string discriminator when a fixture row changed to `0.00`, and the proposed fix (add `87.50` alongside `90.00`) would not have discriminated — lexicographic and numeric ordering agree on `0.00/87.50/90.00`, since `'8' < '9'`. Flagged rather than implemented as-asked, and fixed properly by adding `100.00`: numerically the largest value present, lexicographically the second-smallest, so a regression to `localeCompare` visibly moves it from last to second. Both rows are commented in-file with the two orderings written out so neither is tidied away. **Nav (§6)** — three states, not two: `built`, `blocked` (a stronger claim, carrying its reason as a tooltip, taking precedence), `unbuilt` (dimmed and non-clickable so it cannot drop the user into the catch-all redirect). Exactly one blocked item today: **Parent -> Attendance**, on the unanswered attendance rate formula — deliberately distinguished from merely-unbuilt, since teacher attendance encoding is not blocked at all. Recorded as a rule: **flipping `built: false` is part of whichever dispatch adds that page's route, never a follow-up.** **FormField (§7)** — the gallery's `<select>` rendered its `<option>` elements as bare stacked text, because `children` short-circuited the control entirely (`children ?? <Control/>`), making `as` and `children` accidentally mutually exclusive when a `<select>` is precisely the case needing both. Fixed: children are now children *of* the rendered control (forwarded only when `as !== 'input'`, since `<input>` is void and React throws), and a custom control moves to an explicit `render` prop taking a **single object** (`{ id, describedBy }`) rather than positional arguments, so a third piece of wiring later is not a breaking change at twenty call sites. **Three planning claims retired in the freeze**, none of which existed in CLAUDE.md or PROJECT_PROGRESS.md (searched, zero hits) — recorded so they cannot be re-derived from memory: "the first screen builds the shared components" and its ~5h/2-3h estimate (wrong sequence — primitives came first, and the estimate is void, explicitly not replaced with a new guess but marked pending measurement from Teacher -> Attendance); "backend is 100% complete" (replaced with "ten backend modules complete, 76 endpoints, tests passing, one gap identified and an audit scheduled"); and "36 screens" (the real figure is **75 role-facing views** — 33 nav items plus 42 detail/sub views, Teacher 23 / Parent 19 / Admin 33 — behind **~45-50 distinct implementations**, since several screens serve multiple roles; **the counting rule is recorded with the numbers** — a substantive form counts whether route or modal, a bare confirm does not — because without it the next session produces a third figure). Two speculative exports were removed during the dispatch rather than kept "just in case" (`toneForStatus`, `formatGrade`), each noted in-file as exportable the day something actually needs it — the same discipline that kept pagination out of `DataTable`. Verified: `npm run build` clean, `oxlint` clean apart from two pre-existing `AuthContext.jsx` warnings (flagged, not fixed — Stage 2 code, outside this dispatch), gallery confirmed stripped from the production bundle, sort behaviour re-checked in the browser by Darryl (ascending `0.00, 87.50, 90.00, 100.00, Pending, N/A`; descending `100.00, 90.00, 87.50, 0.00, Pending, N/A`). **No server files touched in any round** — this was frontend and docs only, and the one backend defect found (the `Account is not active.` status code) was flagged into OPEN QUESTIONS rather than fixed inline. `git status` matched the agreed whitelist at every checkpoint. **Next: Teacher -> Attendance as the first feature slice, then `GET /api/messages/contacts` plus the endpoint audit as one backend dispatch.** |
 | 2026-09-06 | Class Board — investigated, zero code needed. Docs-only session (no code, no test changes) closing out the school's group-chat request: a group chat was rejected deliberately (thirty parents in one thread see each other's names and messages, the teacher becomes a moderator, minors are involved), and the alternative — a section-scoped announcement, teacher posts, every parent in the section reads, no parent sees another parent — was framed from the start as an extension of Feature 4 (Announcements & Memo Dissemination), not an eleventh feature, specifically so the manuscript's IPO framework and feature count wouldn't need to change. **The investigation (plan-then-approve, 8 questions) found that framing is literally true of the code, not just a documentation convenience: `routes/content.js`'s existing `announcements` endpoints already deliver every stated behaviour, unchanged.** `POST /api/announcements` already requires a teacher to name an exact `target_grade`+`target_section`, checked against `teacher_assignments` via `resolveAnnouncementTarget()`/`teacherHasAssignment()`; `GET /api/announcements`'s parent branch already returns school-wide posts plus the child's own section; `authorize('teacher', 'admin')` already excludes parents from posting; and no endpoint anywhere exposes a section roster to a parent — `GET /api/students` is `authorize('teacher', 'admin')` only, a system-wide guard, not a Class-Board-specific one. Net result: zero new endpoints, zero changes to `routes/content.js`, zero risk to its 47 passing tests, since nothing about it changes. **This correctness of "no code needed" is what this session's docs actually record — the deliverable is the finding, not a build.** Two things the investigation invalidated were corrected rather than left standing: (1) CLAUDE.md's "sections table" note had reserved `announcements.section_id` for the Class Board specifically — that reservation did not pan out and is now stated as "investigated and found unnecessary," not "not built" (still pending). Reasoning recorded: the read side gains nothing (`target_grade`+`target_section` already does the identical scoping job as a two-column match), and the write side was never wired regardless (`POST /api/announcements` never set `section_id`, and `backfillSectionIds()` only runs once at `db:setup` against whatever rows already exist) — so reading it would have silently returned nothing for any announcement created in normal operation. `section_id` is now documented as read in exactly ONE place: attendance scoping. (2) A new "Class Board" section was added recording the finding plus three decisions made explicit rather than left implicit: **parents never reply, permanently** (a visible reply recreates the rejected group chat; a teacher-only-visible reply is structurally identical to a private message — same volume, same burden, just a second parallel inbox — and the Messages module is already the correct channel for a question about a post); **no new column or flag** (a Class Board post is identified by its shape alone — teacher-posted, both `target_grade` and `target_section` set — distinguishing it visually is a Stage 4 rendering decision, not a schema one); and **no link back to the originating message** (a `source_message_id` would turn "reduce repeated PMs" into "build a provenance trail," a different and larger feature nobody asked for). The "Post to class" flow (a teacher publishing a private-message answer to the whole section) is recorded as a pure Stage 4 UI action — pre-fill the composer, call the existing `POST` — not a backend item. **One theoretical edge case recorded in OPEN QUESTIONS, deliberately not fixed pre-emptively:** `teacherHasAssignment()` (the Class Board's posting scope) checks `teacher_assignments` by grade+section only, never `sections.adviser_id` — an adviser with zero subject assignments in their own advisory section would be locked out of posting there. Checked against the school's photographed class programs (Jenny Ann B. Dulce — TLE/English in VI-Malikhain; Girly V. Lacuna — GMRC/English/Math in III-Malinis; Maric D. Carlos — everything in I-Maagap) and found not to occur at this school; the fix, if it ever does, is a one-line `OR` onto the existing check. BUILD ORDER's Announcements line updated to record Class Board as complete under the existing checkbox, not a new one — matching the "extension of Feature 4, not an eleventh feature" framing structurally, not just in prose. Files touched: `CLAUDE.md`, `docs/PROJECT_PROGRESS.md` only. |
 | 2026-09-06 | Grades module Stage G3 — `GET /api/grades`, `GET /api/grades/:id`, `GET /api/grades/student/:studentId`. This is the last Grades stage: a parent can now see a single grade for the first time in the module's history, and the module moves out of CURRENT STATE's "not started" heading entirely. Plan-then-approve dispatch, 11 questions, explicitly required to **resolve** (not merely discuss) a decision G2b had left provisional: whether teacher read-scope should match encode-scope exactly, or be broader — and what that implies for the `404` every `:id`-keyed write endpoint has returned on out-of-scope since G2c. **Resolved as broader — grade+section, any subject, matching `students.js`/`content.js`/`excuse_letters.js`'s own `EXISTS` pattern — not the narrower subject-specific scope Grades' writes use.** Reasoning confirmed on review: Grades' subject-specific write-scope was always the exception in this codebase, not the norm, and a teacher can already see a student's full profile via `students.js` regardless of which specific subject they teach that student — extending the same trust to a read of that student's OTHER grades is not a new grant, it's consistency with what's already visible. **Direct, confirmed consequence: the five `:id`-keyed write endpoints (`POST /:id/components`, `PUT`/`DELETE /:id/components/:componentId`, `PATCH /:id/exam`, `PATCH /:id/descriptive`) now return `403` naming the subject, not `404`, when a teacher is within the new wide view-scope but outside the narrow encode-scope** — the exact reasoning Excuse Letters' `PATCH /:id/review` already applied (a `GET` that already shows the teacher the row makes a `404` on a sibling write self-contradictory, not protective), now met for Grades for the first time since G3 is what finally builds a `GET`. Implemented in three isolated passes specifically so a break would be attributable to one of them, not the combined diff — each passed on its own, then verified together. **PASS 1 — the `loadAuthorizedGrade()` refactor**, touching four already-shipped, already-tested endpoints (five call sites, since `PUT` and `DELETE` on components are separate handlers). Split into two tiers: `teacherCanViewGrade(teacherId, gradeLevel, section)` (new — the wide check) determines `404` (nonexistent id, or outside view-scope entirely — a true "cannot see this" signal, unchanged in spirit from before); the existing `teacherCanEncodeGrade` (subject-specific) now only populates a `canEncode` flag on the return value, checked by a new shared `encodeScopeError(loaded)` called by all five write endpoints immediately after `loadAuthorizedGrade`, answering `403` when `canEncode` is `false`. Admin gets `canEncode: true` unconditionally from `loadAuthorizedGrade` itself, so the new check is a no-op for admin — no behavior change there. Test-writing consequence, not a production concern: the existing "out-of-scope teacher" tests (Jea, Grade 5 — TCH-001 has no `teacher_assignments` row there at all, any subject) were kept as-is and relabeled "different section entirely," since that case fails the wide view-scope check too and correctly stays `404` — proving the refactor didn't accidentally loosen the fully-out-of-scope case while fixing the partially-out-of-scope one. New coverage: a Science grade row for Marwin (TCH-001's own section, Grade 6 - Malikhain, but a subject TCH-001 doesn't teach) exercises all five write endpoints and confirms each now answers `403` naming "Science" — including a check that the scope check fires *before* `PATCH /:id/descriptive`'s mode-mismatch check (`403`, not `400`, even though Science is numerical-mode), proving the new check was inserted at the right point in each handler, not appended after existing logic that might short-circuit first. `npm run test:grades` grew from 96 to 102 (6 new assertions), full 14-suite regression afterward matched every prior count exactly. `git status` showed only the two files this pass touched (`server/routes/grades.js`, `server/scripts/test-grades-flows.js`). **PASS 2 — two new pure lookups in `utils/gradeComputation.js`**, isolated from the routing change entirely: `qualitativeDescriptor(grade)` (GRADING_SPEC Table 11 — a numerical band, checked top-down so a boundary value like exactly 90 lands in the higher band, returning `{descriptor, remarks}`; `null` for missing/undefined/out-of-0-100-range input, the same "never guess a partial result" contract as every function already in this module) and `descriptiveGradeMeaning(letter)` (Table 8 — a lookup object keyed A-E, returning `{descriptor, filipino}`; `null` for anything else). Noted directly in code and tested explicitly, not just observed: Table 8's five English words are the *same words* as Table 11's five numerical bands (A/Advancing through E/Emerging) — DepEd's own letters are named after the qualitative descriptors, not an independent vocabulary, and a dedicated assertion confirms this by calling both functions and comparing, rather than trusting it by eye. `scripts/test-grade-computation.js` grew from 29 to 51 assertions: all 8 explicitly requested band boundaries (90/89/80/79/75/74/65/64), the full-range ends (0, 100) and just-outside them (-1, 100.01), all 5 letters with their Filipino translations, and invalid-letter/null/lowercase rejection. `git status` showed only `server/utils/gradeComputation.js` and `server/scripts/test-grade-computation.js` for this pass. **PASS 3 — the three `GET` endpoints**, built last so both prior passes were already proven independently. `GET /` lists, scoped in the `WHERE` clause itself rather than filtered in JS after the fact: parent forced to `req.user.student_id` (an explicit `?student_id=` for a *different* child is `403`, not silently ignored or silently overridden); teacher via an `EXISTS (... teacher_assignments ... grade_level = s.grade_level AND section = s.section ...)` clause — the SQL expression of the same wide view-scope PASS 1 introduced; admin unscoped. Filters `student_id`/`subject_id`/`term`/`school_year` are all optional with no hidden defaults — providing all four together deterministically resolves to at most one row, the same fields as `uq_grade_record`'s own unique key, closing a lookup gap that has existed since `POST /api/grades` first shipped in G2b with no way to find an existing `grade_id` afterward. Never includes `grade_components` — a list response returning full raw-score history on every row would bloat a payload whose purpose is finding a row, not inspecting one. `GET /:id` does include `grade_components`, plus a new `descriptor` field inferred directly from which of the grades table's own two dual-mode columns (`term_grade`/`descriptive_grade`) is populated — no separate `grading_mode_configs` lookup needed, since the table's own design already guarantees at most one is non-null at a time. Teacher/admin scope reuses `loadAuthorizedGrade` directly (ignoring `canEncode`, irrelevant to a read); parent access is written as a direct, explicit `WHERE g.id = ? AND g.student_id = ?` rather than piggybacked on the teacher-shaped helper, specifically to avoid an accidental-coincidence correctness (a parent's user id happening to return `false` from a `teacher_assignments` lookup for the right *symptom* but the wrong *reason*). `GET /student/:studentId` builds the full report card the dispatch asked for: every subject at the student's grade level, including ones with **zero grade rows at all** — queried from `subjects` directly by `grade_level`, then overlaid with whatever `grades` rows actually exist, so a genuinely missing subject and a not-yet-encoded one are never confused (a dedicated test confirms GMRC, untouched by any Grade 6 fixture in this suite, still appears with `terms: {1: null, 2: null, 3: null}`). Final Grade (average of the three term grades) and General Average (average of Final Grades across subjects) **both follow the identical NULL-until-complete rule Initial Grade already uses (`utils/gradeComputation.js`'s own header comment) — deliberately not a running average, confirmed with a second reason beyond G2a's original one.** Final Grade carries real weight beyond a confusing UI: it determines promotion and is what prints on the SF9, so a parent who sees a number in October would reasonably treat it as settled — by the time the real figure lands in March, the earlier partial number was already a mistake no caveat text can undo. One rule at all three levels of the computation chain (component → IG, term → FG, subject → GA) is also simply more defensible than three separate variations that all solve the same shape of problem differently. General Average was deprioritized in G1a/G2a ("if time allows") and **built now**, not deferred further — it's the direct extension of a computation that already exists at read time, and GRADING_SPEC §4 lists it as the literal last step of the same chain; stopping one step short would have been an arbitrary place to draw the line. For a descriptive-mode student (Grade 1), both FG and GA are genuinely `null` — not "pending," not "incomplete" — since GRADING_SPEC §7 gives KS1 no GA-based awards at all (Character Traits Awards instead); a `grading_mode` field at both the per-subject and top level is how a caller tells "null, still in progress" (numerical, incomplete) apart from "null, does not apply" (descriptive) without guessing from the null alone. `school_year` on this one endpoint defaults to `system_settings.academic_year` when omitted — a deliberate asymmetry with `GET /`'s no-default filters, commented at the handler: a report card is bounded to one school year by what it fundamentally *is*, a search tool is not, and nobody should have to pass the current year explicitly just to see their child's report card. Tests: a dedicated Grade 2 fixture (the smallest numerical-mode grade level, 5 subjects) built via **direct SQL inserts of `term_grade` values, bypassing the WW/PT/EX write path on purpose** — that arithmetic is already proven by the worked examples in earlier stages, so only the FG/GA *aggregation* needed new coverage. Four of five subjects got all three terms inserted at once (`term_grade` 84/90/87 → FG 87.00 each, verified as the exact average by hand); the fifth was built up one term at a time, doubling as both the FG null-with-one/null-with-two/populated-with-three progression AND the exact trigger that flips General Average from `null` to populated once every OTHER subject already has an FG — hand-checked: FG 85.00 = (80+85+90)/3, GA 86.60 = (87.00×4 + 85.00)/5. `npm run test:grades` grew from 102 to 141 (39 new assertions across all three endpoints — role scoping, filter validation, the view/encode disagreement surfacing correctly through `GET` too, the Grade 1 report card, and the FG/GA fixture), confirmed three times in a row with no `db:setup` between runs. `npm run test:grade-computation` — 51 passing (unchanged from PASS 2, confirmed again as part of the full regression). Full regression across the other thirteen suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, settings 26, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 56). DB confirmed back to the seeded baseline (0 `grades`, 0 `grade_components`, 2 `students`) after — checked directly, not assumed from the suite's own `finally` block existing. `git status` after all three passes combined showed exactly the four whitelisted files changed (`server/routes/grades.js`, `server/utils/gradeComputation.js`, `server/scripts/test-grades-flows.js`, `server/scripts/test-grade-computation.js`) — no scope expansion across any of the three passes. **Grades is now fully built** — all ten core features have at least their backend API complete except Grades' own frontend (Stage 4) and Mobile (Stage 5); see BUILD ORDER. |
 | 2026-09-06 | Grades module Stage G2e — `PUT`/`DELETE /api/grades/:id/components/:componentId` and `PATCH /api/grades/:id/lock`, the toggle that finally lets the `is_locked` gate every write endpoint has checked since G2c actually fire. Plan-then-approve dispatch, 10 questions, two confirmed findings the report itself called out as its strongest: the completeness-gate rejection (below) and the reversion trace (below). Component edit stays nested under `/:id/components/:componentId`, not a flat `/components/:componentId`, despite `grade_components.id` already being a unique PK on its own — matching the two sibling endpoints already nested this way and the DB's own ownership model (`grade_id` is a required FK). A `componentId` not belonging to the given grade id (or not existing at all) is `404`, undifferentiated — one `WHERE id = ? AND grade_id = ?` query, the exact collapsing `loadAuthorizedGrade` already does for the parent id. `type` is **not** editable via `PUT` — changing WW to PT moves a score between two separately-weighted averages, a re-categorization rather than a correction; a differing `type` in the body is `400` naming the constraint explicitly ("delete this component and add a new one with the correct type instead"), not silently ignored, since a caller sending a different type almost certainly expects it to take effect. **Deleting the last component of a type required zero new code**: `componentPercentage([])` already returns `null` (from G2a), so `ww_percentage`/`pt_percentage` — and `initial_grade`/`term_grade` with them, if that was the last of the three required inputs — revert to `NULL` automatically on the next `recomputeGrade()` call, the identical code path as "nothing was ever entered." Verified as a genuine reversion, not just traced: the test suite builds a dedicated fixture to **full completion** first (WW 40/50+30/50, PT 90/100, EX 80/100+70/100+90/100 → Initial Grade **83.30**, a real looked-up Term Grade) specifically so deleting its last WW component afterward demonstrates dropping from a real computed value back to `NULL`, not a trivial already-null case — by that point the row had passed through 84.30 (after an edited score) and 90.00%-`ww_percentage`-alone (after deleting one of two WW rows) first. **`PATCH /:id/lock` is admin-only, unscoped — confirmed explicitly, not extended to teacher self-locking.** Locking is a school-wide finalization boundary tied to the End-of-Term Block (DO 009 s.2026), not individual teacher discretion, and nothing the school has said describes a teacher finalizing their own encoding — inventing that now would be exactly the unconfirmed-policy guessing this project has refused to do everywhere else in this module (item-count caps, bonus-point clamping, Grade 1's letter formula). **Recorded as an open school question in OPEN QUESTIONS, explicitly alongside the Grade 1 manual-judgment assumption** — the two sit together in spirit, both proceeding on reasoning rather than a school reply. **Deliberately not gated on completeness — the strongest finding in this stage, and stated as a comment directly on the handler so a future session doesn't add the check back as an "obvious" safety improvement.** A literal `initial_grade IS NOT NULL` check would make every Grade 1 (descriptive-mode) row **permanently** unlockable, since a descriptive row never populates `initial_grade` at all by design (see the `grades` table's own dual-mode comment in `schema.sql`) — a bug that would only surface weeks later, on one grade level, the first time anyone tried to lock a perfectly complete Grade 1 row. Whether an incomplete *numerical* grade should be lockable is a separate administrative-process question the school hasn't answered either; the system doesn't second-guess it — a mistaken lock is always reversible via the same endpoint. Verified directly, not just reasoned: the test suite locks both a Grade 1 descriptive row and a numerical row with `initial_grade` still `NULL`, both succeeding with `200`. **Unlock carries no extra friction versus lock** — no step-up auth, no required reason, the identical admin-only `PATCH` in both directions. Restore's step-up auth exists specifically because a restore is irreversible; an unlock is reversible by re-locking, so matching that friction here would be theatre, not safety — the admin-only gate plus full old-value/new-value `logActivity` on every toggle (`'update_grade_lock'`, a direct copy of `sections.js`'s adviser-PATCH logging shape) is the real safety rail. Both `PUT` and `DELETE` are transaction-wrapped with `recomputeGrade()`, identical shape to `POST /:id/components` — no new transaction design, direct reuse of the pattern established in G2c. Tests: `scripts/test-grades-flows.js` grew from 71 to 96 assertions: edit a component's score with the recomputed `ww_percentage` and `initial_grade` asserted by hand (70.00→75.00, 83.30→84.30), edit label/`date_recorded` only with computation confirmed unchanged, a type-change attempt rejected, componentId/grade-id mismatch and a nonexistent componentId both `404`, delete-one-of-two recomputing to the remaining component alone (90.00%), delete-the-last reverting all three of `ww_percentage`/`initial_grade`/`term_grade` to `NULL` together, teacher/parent locked out of locking, admin succeeding against a `NULL`-`initial_grade` row, all three write endpoints (`components`, `exam`, `descriptive`) confirmed `403` while locked, unlock restoring writes, and the Grade 1-descriptive-lock case explicitly proven not broken. `npm run test:grades` — 96 passing, confirmed three times in a row with no `db:setup` between runs. Full regression across the other thirteen suites afterward: all unchanged from their prior counts (auth 25, students 30, sections 30, attendance 38, content 47, contributions 38, settings 26, users 39, backups 39, sanitize 9, messages 39, restore 22, excuses 56), plus `test:grade-computation` still 29/29. `git status` after implementation showed exactly the two whitelisted files changed (`server/routes/grades.js`, `server/scripts/test-grades-flows.js`) — no scope expansion. **Stage G3 (viewing, GA at read time) is the only Grades work remaining** — a parent still cannot see a single grade anywhere in this system. |
