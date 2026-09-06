@@ -436,3 +436,9 @@ the bottom must equal 76.
 | **Total** | **76** |
 
 Matches the count in `server/routes/` exactly — 3+9+5+3+10+6+4+4+4+8+6+4+5+5 = 76.
+
+**Why CLAUDE.md's table has 77 rows and this says 76 — both are correct.**
+This document counts handlers defined in `server/routes/` only. `GET /api/health`
+is declared directly on the app in `server/server.js`, not in a route file, so
+it is outside that count while still being a real, reachable endpoint. Neither
+number is stale; they are counting two different things.

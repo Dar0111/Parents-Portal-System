@@ -2,10 +2,12 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ProtectedRoute from './auth/ProtectedRoute';
 import { roleHome } from './auth/roles';
+import Shell from './layout/Shell';
 import Login from './pages/Login';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
+import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -13,6 +15,10 @@ function RootRedirect() {
   return <Navigate to={user ? roleHome(user.role) : '/login'} replace />;
 }
 
+// Each role is a LAYOUT route: ProtectedRoute gates it, Shell renders the
+// chrome once, and every page below is a plain component rendered into its
+// <Outlet />. Pages no longer import Shell themselves — that pattern would
+// mean 36 copies of the layout decision by the end of Stage 4.
 export default function App() {
   return (
     <BrowserRouter>
@@ -25,26 +31,42 @@ export default function App() {
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
+                <Shell />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<AdminDashboard />} />
+          </Route>
+
           <Route
             path="/teacher"
             element={
               <ProtectedRoute allowedRoles={['teacher']}>
-                <TeacherDashboard />
+                <Shell />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<TeacherDashboard />} />
+          </Route>
+
           <Route
             path="/parent"
             element={
               <ProtectedRoute allowedRoles={['parent']}>
-                <ParentDashboard />
+                <Shell />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<ParentDashboard />} />
+          </Route>
+
+          {/* Component gallery — dev builds only. import.meta.env.DEV is
+              replaced with `false` in a production build, so neither the route
+              nor the module survives it. Deliberately not role-gated and not
+              in any nav: it exists to review primitives, and shipping an
+              unauthenticated gallery to the server parents use is the thing
+              being avoided here. */}
+          {import.meta.env.DEV ? <Route path="/dev/ui" element={<UiGallery />} /> : null}
 
           <Route path="*" element={<RootRedirect />} />
         </Routes>

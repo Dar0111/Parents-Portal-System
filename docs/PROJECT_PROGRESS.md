@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-06 (Class Board investigation — docs only, no code)
+**Last updated:** 2026-09-06 (Stage 4 foundation — shared UI primitives, routing, and the seven frozen frontend conventions)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +20,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | ❌ | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation done, no feature page yet | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -143,6 +143,63 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 
 ---
 
+## Stage 4 — foundation done, conventions frozen (2026-09-06)
+
+**CLAUDE.md's STAGE 4 FRONTEND CONVENTIONS section is authoritative — read
+it before building any screen.** This is the summary.
+
+Built: nested layout routes (`ProtectedRoute` -> `Shell` -> `<Outlet/>`,
+so pages no longer wrap themselves in `Shell`), a role-aware sidebar from
+`layout/nav.js`, seven shared primitives (`DataTable`, `Modal`,
+`FormField`, `StatusBadge`, `EmptyState`, `ErrorAlert`,
+`LoadingSpinner`), `format/grade.jsx`, mandatory response unwrapping in
+`api/axios.js`, `api/extractError.js`, and a DEV-only component gallery at
+`/dev/ui` (verified absent from production builds). **No feature page
+exists yet.**
+
+The seven conventions every page inherits:
+
+1. **Unwrap** — every call passes `{ unwrap: 'key' }`, `{ unwrap: [...] }`
+   or `{ raw: true }`. Mandatory, throws on a missing key, never returns
+   `undefined`. `raw` is only `POST /backups/:id/restore` and the binary
+   `GET /backups/:id/download`, and it returns the full axios response.
+   A path-to-key map cannot work: `GET /api/attendance` returns
+   `attendance` as an array, `POST` returns it as an object.
+2. **Errors** — `401` clears the token and redirects; **`403` never
+   does**, because a 403 here is an informative refusal carrying a reason
+   the user must see. Reads out of scope are `404` (anti-enumeration),
+   writes are `403`. All 342 error bodies are `{ success: false, message }`.
+3. **NULL grades** — never a bare dash. `— Pending` / `— N/A` as inline
+   text, not a tooltip (tooltips do not exist on touch, and the report
+   card is a phone screen). A real `0.00` stays distinct from both.
+4. **StatusBadge** — five vocabularies, one tone map, and **no verdict
+   variants ever** (no PASSED/FAILED/AT RISK). The school stated
+   absence-based failure is at teacher discretion, so the system counts
+   and displays but never concludes.
+5. **DataTable** — presentational, never fetches, no pagination (no
+   endpoint accepts `limit`/`offset`/`page`). Nulls sort last in both
+   directions, with the rule outside the direction multiplier.
+6. **Nav** — three states: built / blocked / unbuilt. Flipping
+   `built: false` belongs to the dispatch that adds the route.
+7. **FormField** — four shapes: input, textarea, select-with-children,
+   and `render={({ id, describedBy }) => …}`.
+
+**Real Stage 4 size: 75 role-facing views** — 33 nav items plus 42
+detail/sub views (Teacher 23, Parent 19, Admin 33) — behind **~45–50
+distinct implementations**, since several screens serve more than one
+role. **Counting rule** (recorded so the figures are reproducible): a
+substantive form counts as a view whether it ends up a route or a modal;
+a bare "are you sure?" confirm does not. This replaces the old "36
+screens" estimate, and **the ~13-day web estimate derived from it is
+void — not replaced with a new guess, but pending real measurement from
+the first feature page.**
+
+**Next:** Teacher → Attendance (the first feature slice, and where the
+build estimate gets re-measured), then `GET /api/messages/contacts` plus
+the endpoint audit as one backend dispatch.
+
+---
+
 ## What's left, module by module
 
 **Grade Management & Viewing** — API fully done (write path + viewing, all nine stages), no screens yet.
@@ -204,8 +261,14 @@ Expo app (no Expo app exists yet, so this column is ❌ everywhere).
 - [ ] Web pages: submit form (parent), letter list + status (parent), review queue (teacher/admin — adviser-scoped).
 - [ ] Expo screens (Stage 5, not started).
 
-Everything else in the 10 core features has a schema table and nothing
-else — no route file, no queries, no pages, no screens. See the Notes
+**All ten core features now have a complete backend.** Ten backend
+modules complete, 76 endpoints, tests passing — one gap identified
+(`GET /api/messages/contacts`, designed but unbuilt) and an endpoint
+audit scheduled. This supersedes the earlier framing that some features
+had "a schema table and nothing else", and it is deliberately not phrased
+as "the backend is 100% complete": one known gap plus a scheduled audit
+is a more honest statement than a percentage. What every module still
+needs is web pages (Stage 4) and Expo screens (Stage 5) — see the Notes
 column above for the concrete next step per module.
 
 ---
