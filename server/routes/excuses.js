@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
+const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 
 const router = express.Router();
 
@@ -14,53 +15,6 @@ const router = express.Router();
 // the letter documents the reason, nothing more).
 const VALID_STATUSES = ['Pending', 'Approved', 'Declined']; // for ?status= filter validation only
 
-// Teacher READ scope — assigned to teach the student's class, OR adviser of
-// the student's section. Widened to include the adviser leg on 2026-09-06.
-//
-// WHY: review authority in this file is adviser-only (see PATCH /:id/review),
-// but read scope was teacher_assignments-only — so an adviser with no
-// assignment rows could not see the queue they are the ONLY person permitted
-// to act on. TCH-002 (adviser of Grade 5 - Masigasig, zero assignments) was
-// exactly that account. This applies the same decision Stage G3 settled for
-// Grades and 2026-09-06 applied to routes/students.js: read scope is wider
-// than write authority.
-//
-// IMPORTANT — this clause is an EXISTENCE/VISIBILITY filter, not an authority
-// gate. It is used at all three read sites INCLUDING the one inside
-// PATCH /:id/review. That is deliberate and is the opposite of the rule in
-// students.js, where the equivalent clause WAS the write gate and had to stay
-// narrow. Here the authority is the separate adviser query further down that
-// handler ('SELECT 1 FROM sections WHERE id = ? AND adviser_id = ?'), which
-// runs AFTER this and does not move. Leaving this clause narrow inside the
-// review handler is what would keep the bug: an adviser would 404 out before
-// ever reaching the check they would pass.
-//
-// The adviser leg matches s.section_id — the same column attendance and the
-// review check use — so "letters I can see" and "letters I may review" are the
-// same set by construction. A student with a NULL section_id stays invisible
-// to an adviser-only teacher, mirroring the accepted edge case already
-// commented on the review handler.
-//
-// Requires TWO bound params, both the teacher's user id, in this order.
-// Assumes students is aliased `s`.
-//
-// TWIN: routes/students.js has an identical constant (TEACHER_VIEW_SCOPE_SQL).
-// Deliberately duplicated rather than extracted, matching this codebase's own
-// precedent — utils/dateFormat.js was extracted on the THIRD occurrence, and
-// the school_year validator is still duplicated at two. routes/content.js is
-// the extraction trigger: when it gains this clause, move all three into a
-// shared util. That decision is made here so the third occurrence does not
-// have to re-argue it.
-const TEACHER_VIEW_SCOPE_SQL = `(
-      EXISTS (
-        SELECT 1 FROM teacher_assignments ta
-        WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
-      )
-      OR EXISTS (
-        SELECT 1 FROM sections sec
-        WHERE sec.id = s.section_id AND sec.adviser_id = ?
-      )
-    )`;
 
 function isFutureDate(value) {
   return value > todayLocalDateString();
@@ -95,7 +49,7 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
 
   if (req.user.role === 'teacher') {
     conditions.push(TEACHER_VIEW_SCOPE_SQL);
-    params.push(req.user.id, req.user.id);
+    params.push(...teacherViewScopeParams(req.user.id));
   }
 
   if (status !== undefined) {
@@ -177,7 +131,7 @@ router.get('/:id', authenticate, authorize('parent', 'teacher', 'admin'), async 
          WHERE el.id = ?
            AND ${TEACHER_VIEW_SCOPE_SQL}
          LIMIT 1`,
-        [id, req.user.id, req.user.id]
+        [id, ...teacherViewScopeParams(req.user.id)]
       );
       if (!rows.length) {
         return res.status(404).json({ success: false, message: 'Excuse letter not found.' });
@@ -348,7 +302,7 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
          WHERE el.id = ?
            AND ${TEACHER_VIEW_SCOPE_SQL}
          LIMIT 1`,
-        [id, req.user.id, req.user.id]
+        [id, ...teacherViewScopeParams(req.user.id)]
       );
       existing = rows[0];
     }

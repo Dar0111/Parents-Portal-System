@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-06 (Teacher → Attendance — the first Stage 4 feature page)
+**Last updated:** 2026-09-07 (adviser scope completed across content/messages, shared predicate extracted, `GET /api/messages/contacts` built, endpoint audit run)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -250,9 +250,21 @@ state.** The shape recurs on the grades encode screen, where the stakes are
 higher. It is also direct evidence for caveat 3: the measurement excluded the
 step that caught the bug.
 
-**Next:** `GET /api/messages/contacts` plus the endpoint audit as one
-backend dispatch, then `content.js`/`messages.js` adviser scope (the
-former is the extraction trigger for the duplicated scope constant).
+**Backend adviser-scope work is COMPLETE (2026-09-07).** `students.js`,
+`excuses.js`, `content.js` and `messages.js` all now scope teachers as
+"assigned OR section adviser"; the shared predicate lives in
+`server/utils/teacherScope.js`. `content.js` is the one place a WRITE gate
+was widened, deliberately — the Class Board requires an adviser to post to
+their own section. `grades.js` is deliberately excluded: an adviser is not
+automatically entitled to a section's grades, and that needs the school.
+
+**Endpoint audit run 2026-09-07 — all three buckets empty.** CLAUDE.md's
+table, `docs/API_REFERENCE.md` and the actual handlers all agree at 77
+endpoints (78 with `contacts`). No orphans, nothing undocumented, nothing
+documented-but-unbuilt.
+
+**Next:** Stage 4 web pages. The Messages page is now unblocked for all
+three roles.
 
 ---
 
@@ -292,7 +304,7 @@ scope now includes the section adviser (2026-09-06); write scope unchanged.
 - [ ] Expo screens (Stage 5, not started).
 
 **Parent-Teacher Messaging** — API + Socket.io done, no screens yet.
-- [ ] `GET /api/messages/contacts` — design decided, not built. Scoped by the
+- [x] `GET /api/messages/contacts` — **BUILT 2026-09-07.** Wrapper key `contacts`. Active accounts only (a pending parent cannot log in, so listing them offers a conversation that cannot happen — an adviser whose section's only parent is pending therefore sees zero parent contacts, which is correct and asserted as such). Scoped by the
       inverse of `canMessage()`: parent sees their child's teachers (+ subject)
       plus admin; teacher sees their students' parents (+ student name) plus
       other teachers and admin; admin sees everyone. Optional `?search=` within
