@@ -64,13 +64,25 @@ async function run() {
   const adminToken = adminLogin.data?.token;
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
-  // TCH-001 (seeded) is assigned to Grade 6 - Mabini only (Math/English/Filipino).
+  // TCH-001 (seeded) is BOTH assigned to Grade 6 - Malikhain (Math/English/
+  // Filipino) AND its section adviser — so it satisfies either scoping rule and
+  // cannot, on its own, distinguish them. That is what TCH-002 below is for.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
-  assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Mabini)');
+  assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Malikhain)');
 
-  // Marwin Conde (LRN 13567454) is seeded as Grade 6 - Mabini — inside TCH-001's scope.
-  // Jea Mae Bargaso (LRN 1234567) is seeded as Grade 5 - Rizal — outside it.
+  // TCH-002 is adviser of Grade 5 - Masigasig with ZERO teacher_assignments
+  // rows. It is the only fixture in the system that can tell the two scoping
+  // authorities apart: anything it can see, it can see ONLY as an adviser.
+  // Do not give it assignment rows to make some future test more convenient —
+  // that would delete the only account capable of failing these checks.
+  const adviserLogin = await login('TCH-002', 'Teacher@2026');
+  const adviserToken = adviserLogin.data?.token;
+  assert(adviserLogin.status === 200 && adviserToken, 'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig)');
+
+  // Marwin Conde (LRN 13567454) is seeded as Grade 6 - Malikhain — inside TCH-001's scope.
+  // Jea Mae Bargaso (LRN 1234567) is seeded as Grade 5 - Masigasig — outside it,
+  // but inside TCH-002's ADVISER scope.
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
   assert(parentLogin.status === 200 && parentToken, 'Parent login (Marwin, Grade 6 - Mabini)');
@@ -82,7 +94,7 @@ async function run() {
   const adminList = await request('GET', '/api/students', { token: adminToken });
   const jea = adminList.data?.students?.find((s) => s.lrn === '1234567');
   const jeaId = jea?.id;
-  assert(Number.isInteger(jeaId), 'Resolve Jea\'s student id (Grade 5 - Rizal, outside TCH-001 scope)');
+  assert(Number.isInteger(jeaId), 'Resolve Jea\'s student id (Grade 5 - Masigasig, outside TCH-001 scope)');
 
   // Every student created below is tracked here and deleted in the finally
   // block, so a run leaves the DB exactly as it found it.
@@ -223,6 +235,32 @@ async function run() {
     const adminGetAny = await request('GET', `/api/students/${jeaId}`, { token: adminToken });
     assert(adminGetAny.status === 200, 'Admin reads any student');
 
+    // --- Read scope is WIDER than write scope (adviser leg) ---
+    // A teacher sees a student via teacher_assignments OR via being the adviser
+    // of that student's section. Before this, an adviser with no assignments
+    // could record attendance (scoped on sections.adviser_id) for a student
+    // this endpoint would not list — TCH-002 was exactly that account.
+    console.log('\nRead (adviser scope):');
+
+    const adviserList = await request('GET', '/api/students', { token: adviserToken });
+    const adviserListIds = (adviserList.data?.students || []).map((s) => s.id);
+    assert(adviserList.status === 200, 'Adviser-only teacher can list students');
+    assert(
+      adviserListIds.includes(jeaId),
+      'Adviser-only teacher list INCLUDES the student in their advisory section (Jea)'
+    );
+    // The other half of the property: widening must not make everything visible.
+    assert(
+      !adviserListIds.includes(marwinId),
+      'Adviser-only teacher list still EXCLUDES a student they neither teach nor advise (Marwin)'
+    );
+
+    const adviserGetOwnSection = await request('GET', `/api/students/${jeaId}`, { token: adviserToken });
+    assert(adviserGetOwnSection.status === 200, 'Adviser-only teacher reads a student in their advisory section');
+
+    const adviserGetOutside = await request('GET', `/api/students/${marwinId}`, { token: adviserToken });
+    assert(adviserGetOutside.status === 404, 'Adviser-only teacher reading a student outside both scopes returns 404');
+
     // --- Update ---
     console.log('\nUpdate:');
 
@@ -243,6 +281,33 @@ async function run() {
       body: { contact_number: '09170000000' },
     });
     assert(teacherUpdateOutOfScope.status === 404, 'Teacher updating out-of-scope student returns 404');
+
+    // Write scope did NOT move with the read widening. An adviser who can now
+    // GET a student still cannot edit them — and the refusal is 403, not 404,
+    // because a 404 would contradict the 200 that GET /:id just returned to the
+    // same account. Same distinction routes/grades.js draws after Stage G3.
+    const adviserUpdateOwnSection = await request('PUT', `/api/students/${jeaId}`, {
+      token: adviserToken,
+      body: { contact_number: '09170000000' },
+    });
+    assert(
+      adviserUpdateOwnSection.status === 403,
+      `Adviser-only teacher updating a student they can VIEW returns 403, not 404 (got ${adviserUpdateOwnSection.status})`
+    );
+    assert(
+      /assigned to teach/i.test(adviserUpdateOwnSection.data?.message || ''),
+      'That 403 names why editing is refused, not a bare "Access denied."'
+    );
+
+    // Outside BOTH scopes stays 404 — indistinguishable from a nonexistent id.
+    const adviserUpdateOutside = await request('PUT', `/api/students/${marwinId}`, {
+      token: adviserToken,
+      body: { contact_number: '09170000000' },
+    });
+    assert(
+      adviserUpdateOutside.status === 404,
+      'Adviser-only teacher updating a student outside both scopes still returns 404'
+    );
 
     const adminUpdateBadGrade = await request('PUT', `/api/students/${inScopeId}`, {
       token: adminToken,

@@ -11,6 +11,8 @@ function isValidGradeLevel(value) {
   return Number.isInteger(n) && n >= 1 && n <= 6;
 }
 
+// WRITE scope — teacher_assignments only. Used by POST / (create).
+// Deliberately NOT widened to advisers: see TEACHER_VIEW_SCOPE_SQL below.
 async function teacherHasAssignment(teacherId, gradeLevel, section) {
   const [rows] = await pool.query(
     `SELECT 1 FROM teacher_assignments WHERE teacher_id = ? AND grade_level = ? AND section = ? LIMIT 1`,
@@ -18,6 +20,44 @@ async function teacherHasAssignment(teacherId, gradeLevel, section) {
   );
   return rows.length > 0;
 }
+
+// READ scope — WIDER than write scope, by design.
+//
+// A teacher sees a student if EITHER they are assigned to teach that
+// student's class (teacher_assignments) OR they are the adviser of that
+// student's section (sections.adviser_id). This applies the decision Stage G3
+// already settled for Grades: read scope is wider than encode scope, because a
+// teacher needs the full picture for their section, not only the subjects they
+// personally teach. It had simply never been applied here.
+//
+// The concrete gap this closes: every attendance endpoint scopes on
+// sections.adviser_id, so an adviser with no teacher_assignments rows could
+// record attendance for a student this file would not list. TCH-002 (adviser
+// of Grade 5 - Masigasig, zero assignments) was exactly that account.
+//
+// The adviser leg matches on s.section_id — the SAME column attendance scopes
+// on — not the VARCHAR grade_level/section pair, so "students I can list" and
+// "students I can record attendance for" are the same set BY CONSTRUCTION
+// rather than two definitions that happen to agree today. Accepted consequence:
+// a student whose section_id is NULL stays invisible to an adviser-only
+// teacher, mirroring a blind spot attendance already has.
+//
+// Requires TWO bound params, both the teacher's user id, in this order.
+// Assumes the students table is aliased `s`.
+//
+// DO NOT reuse this for a write path. PUT /:id and POST / stay on
+// teacher_assignments alone — widening reads must not make more records
+// editable. See the 403-vs-404 note on PUT /:id.
+const TEACHER_VIEW_SCOPE_SQL = `(
+      EXISTS (
+        SELECT 1 FROM teacher_assignments ta
+        WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
+      )
+      OR EXISTS (
+        SELECT 1 FROM sections sec
+        WHERE sec.id = s.section_id AND sec.adviser_id = ?
+      )
+    )`;
 
 // GET /api/students — list, scoped by role
 router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) => {
@@ -27,11 +67,8 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
   const params = [];
 
   if (req.user.role === 'teacher') {
-    conditions.push(`EXISTS (
-      SELECT 1 FROM teacher_assignments ta
-      WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
-    )`);
-    params.push(req.user.id);
+    conditions.push(TEACHER_VIEW_SCOPE_SQL);
+    params.push(req.user.id, req.user.id);
   }
 
   if (grade_level !== undefined) {
@@ -103,12 +140,9 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
       const [rows] = await pool.query(
         `SELECT s.* FROM students s
          WHERE s.id = ?
-           AND EXISTS (
-             SELECT 1 FROM teacher_assignments ta
-             WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
-           )
+           AND ${TEACHER_VIEW_SCOPE_SQL}
          LIMIT 1`,
-        [id, req.user.id]
+        [id, req.user.id, req.user.id]
       );
       if (!rows.length) {
         return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -222,6 +256,9 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
   try {
     let existing;
     if (req.user.role === 'teacher') {
+      // WRITE scope is teacher_assignments ONLY — deliberately NOT the wider
+      // TEACHER_VIEW_SCOPE_SQL used by the two reads. Widening reads must not
+      // make more records editable.
       const [rows] = await pool.query(
         `SELECT s.* FROM students s
          WHERE s.id = ?
@@ -233,6 +270,28 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
         [id, req.user.id]
       );
       existing = rows[0];
+
+      // Read scope is wider than write scope, so a 404 here would contradict
+      // what GET /api/students/:id already shows this same teacher. Distinguish
+      // the two cases exactly as routes/grades.js does after Stage G3: inside
+      // view-scope but outside write-scope is 403 naming the reason; outside
+      // both is 404 and stays indistinguishable from a nonexistent id.
+      if (!existing) {
+        const [visible] = await pool.query(
+          `SELECT 1 FROM students s
+           WHERE s.id = ?
+             AND ${TEACHER_VIEW_SCOPE_SQL}
+           LIMIT 1`,
+          [id, req.user.id, req.user.id]
+        );
+        if (visible.length) {
+          return res.status(403).json({
+            success: false,
+            message:
+              'You can view this student as the adviser of their section, but editing student records is limited to teachers assigned to teach that class.',
+          });
+        }
+      }
     } else {
       const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
       existing = rows[0];
