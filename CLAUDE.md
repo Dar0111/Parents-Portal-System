@@ -109,6 +109,12 @@ to the team.
 | PATCH | `/api/messages/:id/read` | recipient only — sender or a third party gets `403` |
 | PATCH | `/api/messages/read-all/:userId` | recipient only — marks a whole thread read |
 
+**Full request/response detail for all 76 endpoints — every body field,
+the exact response wrapper key, role-scope codes, and the 404-vs-403
+convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
+the quick list; that document is what Stage 4 screen work should
+actually be read against.
+
 **Backup and Restore both built.** See "RESTORE" below for what shipped and
 what the automated suite deliberately does not cover.
 
