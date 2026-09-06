@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-06 (teacher read scope widened to include the section adviser in `students.js` and `excuses.js`)
+**Last updated:** 2026-09-06 (Teacher → Attendance — the first Stage 4 feature page)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +20,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation done, no feature page yet | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 1 of ~75 views (Teacher → Attendance) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -231,9 +231,28 @@ letters and list students for a section they cannot yet post announcements to
 or message the parents of. Testing across modules in that window shows
 scheduled work in progress, not a bug.
 
-**Next:** Teacher → Attendance (the first feature slice, and where the
-build estimate gets re-measured), then `GET /api/messages/contacts` plus
-the endpoint audit as one backend dispatch.
+**Teacher → Attendance is DONE (2026-09-06)** — encode only; the history
+view is a separate dispatch. **Measured: 3m14s** wall-clock from PLAN
+APPROVED to agent-verified — recorded in CLAUDE.md with four caveats
+(agent execution time not developer-hours; excludes planning and review;
+excludes browser verification; most-favourable case with every primitive
+pre-built). It is one data point and does **not** replace the void
+~13-day estimate.
+
+**A browser review after that measurement found a real bug** — the roster's
+Recorded column (database state) derived its value from the same object the
+Status dropdown writes, so it tracked the dropdown and, on a failed save,
+showed the unsaved value as stored while the database held the old one. Fixed
+by splitting the state (`marks` = selection, `recorded` = database, with the
+fetch as its only writer) and **recorded as a general rule — CLAUDE.md
+convention §5b: a column showing database state must never derive from form
+state.** The shape recurs on the grades encode screen, where the stakes are
+higher. It is also direct evidence for caveat 3: the measurement excluded the
+step that caught the bug.
+
+**Next:** `GET /api/messages/contacts` plus the endpoint audit as one
+backend dispatch, then `content.js`/`messages.js` adviser scope (the
+former is the extraction trigger for the duplicated scope constant).
 
 ---
 

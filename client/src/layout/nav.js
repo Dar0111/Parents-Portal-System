@@ -16,7 +16,7 @@
 // it CANNOT be designed until an external question is answered. Only Parent ->
 // Attendance is blocked today (the attendance rate formula is an unanswered
 // school question — does Excused count as present, is Late penalised). Teacher
-// attendance encoding is not blocked and is plain `built: false`. Shell renders
+// attendance encoding was never blocked and is now built. Shell renders
 // blocked items with the reason as their tooltip; blocked implies not built and
 // takes precedence in that rendering.
 
@@ -24,7 +24,7 @@ export const NAV_BY_ROLE = {
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: 'fa-gauge', built: true },
     { to: '/teacher/students', label: 'Students', icon: 'fa-user-graduate', built: false },
-    { to: '/teacher/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: false },
+    { to: '/teacher/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/teacher/grades', label: 'Grades', icon: 'fa-chart-simple', built: false },
     { to: '/teacher/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: false },
     { to: '/teacher/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: false },
