@@ -92,6 +92,21 @@ async function run() {
   const teacherId = teacherLogin.data?.user?.id;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Malikhain, adviser)');
 
+  // TCH-002 advises Grade 5 - Masigasig and holds ZERO teacher_assignments
+  // rows. It is the only fixture that can tell this file's two authorities
+  // apart: anything it can see, it sees ONLY as an adviser. Before the
+  // 2026-09-06 widening it could not see the excuse-letter queue at all, even
+  // though it is the ONLY account permitted to review letters for that
+  // section. Do not give it assignment rows for convenience — that deletes the
+  // one account capable of failing these checks.
+  const adviserLogin = await login('TCH-002', 'Teacher@2026');
+  const adviserToken = adviserLogin.data?.token;
+  const adviserId = adviserLogin.data?.user?.id;
+  assert(
+    adviserLogin.status === 200 && adviserToken,
+    'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig, no assignments)'
+  );
+
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
   const parentId = parentLogin.data?.user?.id;
@@ -468,6 +483,95 @@ async function run() {
       body: { status: 'Approved' },
     });
     assert(parentAttemptsReview.status === 403, 'Parent cannot use the review endpoint');
+
+    // --- Adviser-only teacher: sees, and can review, their own section ---
+    // The point of the 2026-09-06 widening. Read scope in this file is now
+    // teacher_assignments OR sections.adviser_id; review authority is still
+    // adviser-only and did not move. Before the widening TCH-002 got 404 on
+    // every one of these — it was locked out of the queue it alone may act on.
+    console.log('\nAdviser-only teacher (TCH-002, Grade 5 - Masigasig):');
+
+    // Jea Mae (seeded, Grade 5 - Masigasig) is in TCH-002's advisory section
+    // and in NO teacher's assignment rows. Her seeded parent account (1234567)
+    // is deliberately left at status 'pending' — test:auth depends on that row
+    // being pending, and a crashed run corrupted it once before — so the letter
+    // is inserted directly rather than submitted through the parent API.
+    const jeaRow = await withDb((conn) =>
+      conn.query("SELECT id FROM students WHERE lrn = '1234567' LIMIT 1")
+    );
+    const jeaStudentId = jeaRow?.[0]?.[0]?.id;
+    const jeaParentRow = await withDb((conn) =>
+      conn.query("SELECT id FROM users WHERE login_id = '1234567' LIMIT 1")
+    );
+    const jeaParentId = jeaParentRow?.[0]?.[0]?.id;
+
+    const insertedJeaLetter = await withDb((conn) =>
+      conn.query(
+        `INSERT INTO excuse_letters (student_id, parent_id, absence_date, reason, status)
+         VALUES (?, ?, ?, 'Adviser-scope fixture', 'Pending')`,
+        [jeaStudentId, jeaParentId, daysAgo(3)]
+      )
+    );
+    const jeaLetterId = insertedJeaLetter?.[0]?.insertId;
+    if (jeaLetterId) createdExcuseLetterIds.push(jeaLetterId);
+    assert(Number.isInteger(jeaLetterId), 'Fixture: letter for the adviser-only section (Grade 5 - Masigasig)');
+
+    const adviserList = await request('GET', '/api/excuse-letters', { token: adviserToken });
+    const adviserListIds = (adviserList.data?.excuse_letters || []).map((l) => l.id);
+    assert(adviserList.status === 200, 'Adviser-only teacher can list excuse letters');
+    assert(
+      adviserListIds.includes(jeaLetterId),
+      'Adviser-only teacher list INCLUDES a letter from their advisory section'
+    );
+    // The other half: widening must not become "sees everything".
+    assert(
+      !adviserListIds.includes(outsideLetterId),
+      'Adviser-only teacher list still EXCLUDES a letter they neither teach nor advise'
+    );
+
+    const adviserReadsOwn = await request('GET', `/api/excuse-letters/${jeaLetterId}`, { token: adviserToken });
+    assert(adviserReadsOwn.status === 200, 'Adviser-only teacher reads a letter from their advisory section');
+
+    const adviserReadsOutside = await request('GET', `/api/excuse-letters/${outsideLetterId}`, {
+      token: adviserToken,
+    });
+    assert(adviserReadsOutside.status === 404, 'Adviser-only teacher reading an out-of-scope letter returns 404');
+
+    // Attendance is record-only across ANY approval, whoever approves —
+    // "excuse lang yung bata pero absent pa rin" (the school's own words).
+    const attendanceBeforeAdviser = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS c FROM attendance WHERE student_id = ?', [jeaStudentId])
+    );
+
+    const adviserReviews = await request('PATCH', `/api/excuse-letters/${jeaLetterId}/review`, {
+      token: adviserToken,
+      body: { status: 'Approved', teacher_remarks: 'Confirmed with the parent.' },
+    });
+    assert(
+      adviserReviews.status === 200 && adviserReviews.data?.excuse_letter?.status === 'Approved',
+      'Adviser-only teacher CAN review a letter from their advisory section (was 404 before the widening)'
+    );
+    assert(
+      adviserReviews.data?.excuse_letter?.reviewed_by === adviserId,
+      'reviewed_by records the adviser who actually reviewed it'
+    );
+
+    const attendanceAfterAdviser = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS c FROM attendance WHERE student_id = ?', [jeaStudentId])
+    );
+    assert(
+      attendanceBeforeAdviser?.[0]?.[0]?.c === attendanceAfterAdviser?.[0]?.[0]?.c,
+      'Approval by the adviser leaves the attendance table untouched'
+    );
+
+    const adviserReviewsOutside = await request('PATCH', `/api/excuse-letters/${outsideLetterId}/review`, {
+      token: adviserToken,
+      body: { status: 'Approved' },
+    });
+    assert(
+      adviserReviewsOutside.status === 404,
+      'Adviser-only teacher reviewing an out-of-scope letter returns 404 (outside read scope entirely)'
+    );
 
     // Attendance must be completely untouched by an approval — the whole
     // point of this module. Snapshot before, compare after.
