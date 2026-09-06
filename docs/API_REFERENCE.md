@@ -2,7 +2,7 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**76 endpoints** across 12 route files (14 feature tables below, since
+**77 endpoints** across 12 route files (14 feature tables below, since
 `content.js` holds three separate resources). If this document and the
 code disagree, the code is correct and this file needs fixing — same
 rule as CLAUDE.md.
@@ -49,7 +49,7 @@ it.
   `term_grade`, and `contributions.amount` / `contribution_records.amount`.
   Coerce with `Number()` before doing math or comparisons. See the
   Gotchas section for the one place this is *not* true.
-- **No pagination anywhere.** All 76 endpoints return their complete
+- **No pagination anywhere.** All 77 endpoints return their complete
   filtered result set. There is no `?page=`, `?limit=`, or cursor param
   on any list endpoint in this API.
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
@@ -265,7 +265,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 76.
+the bottom must equal 77.
 
 ### Auth (3) — `/api/auth`
 
@@ -403,10 +403,11 @@ the bottom must equal 76.
 | DELETE | `/:id` | `admin` only | — | message only | row still removed if file already gone |
 | POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `401` on wrong password, `400` on `confirm_filename` mismatch |
 
-### Messages (5) — `/api/messages`
+### Messages (6) — `/api/messages`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
+| GET | `/contacts` | any authenticated | query: `search` (optional) | `contacts` (array) | Who this user may start a conversation with — the inverse of `canMessage()`. **parent** → teachers connected to their own child (assigned to the child's class OR its section adviser) + admins; **teacher** → parents of students in their own scope (assigned OR adviser) + other teachers + admins; **admin** → everyone else. **ACTIVE accounts only** — a pending parent cannot log in, so listing them would offer a conversation that cannot happen. `?search=` filters on contact name and student name **within the already-scoped set**, never an unscoped user search. Row: `{id, name, role, subject, student_name, last_message, last_message_at, unread_count}`; `subject`/`student_name` are `null` where not applicable. Self always excluded. |
 | GET | `/conversations` | any authenticated | — | `conversations` | one row per person messaged, last message + unread count |
 | GET | `/with/:userId` | any authenticated | — | `messages` (thread array) | participant-scoped, not re-checked against current `canMessage()` eligibility |
 | POST | `/` | any authenticated | `receiver_id`*, `body`* | `data` | `403` naming the reason on a `canMessage()` violation; `404` if recipient not found/inactive; emits `new_message` over Socket.io |
@@ -432,10 +433,12 @@ the bottom must equal 76.
 | Excuse Letters | 6 |
 | Settings | 4 |
 | Backups | 5 |
-| Messages | 5 |
-| **Total** | **76** |
+| Messages | 6 |
+| **Total** | **77** |
 
-Matches the count in `server/routes/` exactly — 3+9+5+3+10+6+4+4+4+8+6+4+5+5 = 76.
+Matches the count in `server/routes/` exactly — 3+9+5+3+10+6+4+4+4+8+6+4+5+6 = 77.
+
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agree — nothing documented but unimplemented, nothing implemented but undocumented, and no mount/handler orphans.
 
 **Why CLAUDE.md's table has 77 rows and this says 76 — both are correct.**
 This document counts handlers defined in `server/routes/` only. `GET /api/health`

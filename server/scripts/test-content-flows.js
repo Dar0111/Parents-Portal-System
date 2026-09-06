@@ -88,6 +88,16 @@ async function run() {
   const teacherToken = teacherLogin.data?.token;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Mabini)');
 
+  // TCH-002 advises Grade 5 - Masigasig and holds ZERO teacher_assignments rows.
+  // It is the only fixture that can distinguish "assigned" from "adviser" —
+  // TCH-001 satisfies both, so no test written against it can tell them apart.
+  const adviserLogin = await login('TCH-002', 'Teacher@2026');
+  const adviserToken = adviserLogin.data?.token;
+  assert(
+    adviserLogin.status === 200 && adviserToken,
+    'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig, no assignments)'
+  );
+
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
   assert(parentLogin.status === 200 && parentToken, 'Parent login (Marwin, Grade 6 - Mabini)');
@@ -163,6 +173,60 @@ async function run() {
       body: { title: 'From the teacher', content: 'Posted by TCH-001.', target_grade: 6, target_section: 'Malikhain' },
     });
     assert(teacherOwnClass.status === 201, 'Teacher posts within their own assignment');
+
+    // --- Adviser-only teacher: the Class Board case ---
+    // A section-scoped announcement is how the Class Board is delivered (see
+    // CLAUDE.md). An adviser who cannot post to their own advisory section
+    // cannot deliver it, which is why this widening moves a WRITE gate — the
+    // students.js fix deliberately did not, because nothing there required it.
+    const adviserOwnSection = await request('POST', '/api/announcements', {
+      token: adviserToken,
+      body: {
+        title: 'Adviser posts to own section',
+        content: 'Class Board case.',
+        target_grade: 5,
+        target_section: 'Masigasig',
+      },
+    });
+    if (adviserOwnSection.data?.announcement?.id) {
+      createdAnnouncementIds.push(adviserOwnSection.data.announcement.id);
+    }
+    assert(
+      adviserOwnSection.status === 201,
+      'Adviser-only teacher CAN post to their own advisory section (was 403 before the widening)'
+    );
+
+    // ...and nothing wider. All three of these stayed 403.
+    const adviserOtherSection = await request('POST', '/api/announcements', {
+      token: adviserToken,
+      body: { title: 'nope', content: 'x', target_grade: 6, target_section: 'Malikhain' },
+    });
+    assert(
+      adviserOtherSection.status === 403,
+      'Adviser-only teacher still cannot post to a section they neither teach nor advise'
+    );
+
+    const adviserSchoolWide = await request('POST', '/api/announcements', {
+      token: adviserToken,
+      body: { title: 'nope', content: 'x' },
+    });
+    assert(adviserSchoolWide.status === 403, 'Adviser-only teacher still cannot post school-wide');
+
+    const adviserWholeGrade = await request('POST', '/api/announcements', {
+      token: adviserToken,
+      body: { title: 'nope', content: 'x', target_grade: 5 },
+    });
+    assert(
+      adviserWholeGrade.status === 403,
+      'Adviser-only teacher still cannot post whole-grade, only their own section'
+    );
+
+    const adviserList = await request('GET', '/api/announcements', { token: adviserToken });
+    const adviserListIds = (adviserList.data?.announcements || []).map((a) => a.id);
+    assert(
+      adviserListIds.includes(adviserOwnSection.data?.announcement?.id),
+      'Adviser-only teacher can read back the announcement they posted to their own section'
+    );
     if (teacherOwnClass.data?.announcement?.id) createdAnnouncementIds.push(teacherOwnClass.data.announcement.id);
     const teacherAnnouncementId = teacherOwnClass.data?.announcement?.id;
 
@@ -191,7 +255,7 @@ async function run() {
       body: { title: 'Attempted wrong section', content: 'Should be rejected.', target_grade: 6, target_section: 'Bonifacio' },
     });
     assert(
-      teacherWrongSection.status === 403 && /not assigned to Grade 6 - Bonifacio/.test(teacherWrongSection.data?.message || ''),
+      teacherWrongSection.status === 403 && /not connected to Grade 6 - Bonifacio/.test(teacherWrongSection.data?.message || ''),
       'Teacher posting outside their assignment gets 403 naming the grade/section'
     );
 
@@ -316,7 +380,7 @@ async function run() {
       body: { title: 'Attempted grade 3 event', event_date: daysAgo(1), target_grade: 3 },
     });
     assert(
-      teacherEventWrongGrade.status === 403 && /not assigned to Grade 3/.test(teacherEventWrongGrade.data?.message || ''),
+      teacherEventWrongGrade.status === 403 && /not connected to Grade 3/.test(teacherEventWrongGrade.data?.message || ''),
       'Teacher posting event outside their assigned grade gets 403 naming the grade'
     );
 

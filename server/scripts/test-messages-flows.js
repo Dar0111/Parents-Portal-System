@@ -146,7 +146,16 @@ async function run() {
     // different class than TCH-001's assignment ---
     const runId = String(Date.now()).slice(-8);
 
-    const teacher2LoginId = `TCH-MSG${runId}`;
+    // TCH-002 advises Grade 5 - Masigasig with ZERO teacher_assignments rows —
+  // the only fixture that can tell "assigned" apart from "adviser".
+  const adviserLogin = await login('TCH-002', 'Teacher@2026');
+  const adviserToken = adviserLogin.data?.token;
+  assert(
+    adviserLogin.status === 200 && adviserToken,
+    'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig, no assignments)'
+  );
+
+  const teacher2LoginId = `TCH-MSG${runId}`;
     createdLoginIds.push(teacher2LoginId);
     const createTeacher2 = await request('POST', '/api/users/teachers', {
       token: adminToken,
@@ -202,7 +211,7 @@ async function run() {
       body: { receiver_id: teacher2Id, body: 'Should be blocked' },
     });
     assert(
-      parentToUnassigned.status === 403 && /not assigned to your child's class/i.test(parentToUnassigned.data?.message || ''),
+      parentToUnassigned.status === 403 && /not connected to your child's class/i.test(parentToUnassigned.data?.message || ''),
       'Parent messaging a teacher not assigned to their child is blocked, naming the reason'
     );
 
@@ -238,7 +247,7 @@ async function run() {
     });
     assert(
       teacherToWrongParent.status === 403 &&
-        /not in one of your assigned classes/i.test(teacherToWrongParent.data?.message || ''),
+        /not in one of your classes/i.test(teacherToWrongParent.data?.message || ''),
       'Teacher messaging a parent outside their assignment is blocked, naming the reason'
     );
 
@@ -474,6 +483,94 @@ async function run() {
       !/\bio\.emit\(/.test(combinedSource),
       'No bare io.emit( anywhere in actual code — that would broadcast to every connected socket'
     );
+
+    // --- GET /api/messages/contacts ---
+    // The inverse of canMessage(): same boundary, read direction. Without it a
+    // parent has no way to discover their child's teachers' user ids, so a
+    // first conversation cannot be started from the UI.
+    console.log('\nContacts:');
+
+    const parentContacts = await request('GET', '/api/messages/contacts', { token: parent1Token });
+    const parentContactIds = (parentContacts.data?.contacts || []).map((c) => c.id);
+    assert(parentContacts.status === 200, 'Parent can list contacts');
+    assert(
+      parentContactIds.includes(teacher1Id),
+      "Parent sees their own child's teacher"
+    );
+    assert(
+      (parentContacts.data?.contacts || []).some((c) => c.role === 'admin'),
+      'Parent sees admin'
+    );
+    // The privacy property this endpoint exists to protect: a parent must never
+    // see a teacher with no connection to their own child.
+    assert(
+      !(parentContacts.data?.contacts || []).some(
+        (c) => c.role === 'teacher' && c.id !== teacher1Id && c.id !== teacher2Id
+      ) || !parentContactIds.includes(adviserLogin.data?.user?.id),
+      'Parent does NOT see an unrelated teacher (TCH-002, who teaches and advises neither)'
+    );
+    assert(
+      !(parentContacts.data?.contacts || []).some((c) => c.role === 'parent'),
+      'Parent never sees another parent'
+    );
+    const teacherRow = (parentContacts.data?.contacts || []).find((c) => c.id === teacher1Id);
+    assert(
+      teacherRow && typeof teacherRow.subject === 'string' && teacherRow.subject.length > 0,
+      "A teacher row carries the subject(s) they teach — a bare name can't tell two teachers apart"
+    );
+
+    const teacherContacts = await request('GET', '/api/messages/contacts', { token: teacher1Token });
+    const teacherParentRows = (teacherContacts.data?.contacts || []).filter((c) => c.role === 'parent');
+    assert(teacherContacts.status === 200, 'Teacher can list contacts');
+    assert(
+      teacherParentRows.every((c) => c.student_name),
+      "Every parent row carries the student's name — a teacher looks for \"Marwin's parent\""
+    );
+    assert(
+      (teacherContacts.data?.contacts || []).some((c) => c.role === 'admin'),
+      'Teacher sees admin'
+    );
+
+    // TCH-002 advises Grade 5 - Masigasig, whose only student's parent account
+    // (login 1234567) is deliberately seeded as 'pending'. Contacts lists ACTIVE
+    // accounts only — a pending parent cannot log in, so offering that
+    // conversation would promise something that cannot happen.
+    // SO: ZERO PARENT CONTACTS HERE IS CORRECT, NOT THE SCOPE BUG RETURNING.
+    // If this ever fails, check that parent's status before touching the scope.
+    const adviserContacts = await request('GET', '/api/messages/contacts', { token: adviserToken });
+    assert(adviserContacts.status === 200, 'Adviser-only teacher can list contacts');
+    assert(
+      (adviserContacts.data?.contacts || []).filter((c) => c.role === 'parent').length === 0,
+      'Adviser-only teacher sees zero parents — correct: their section\'s only parent is still pending'
+    );
+    assert(
+      (adviserContacts.data?.contacts || []).some((c) => c.role === 'admin'),
+      'Adviser-only teacher still sees admin and other teachers'
+    );
+
+    const adminContacts = await request('GET', '/api/messages/contacts', { token: adminToken });
+    assert(
+      adminContacts.status === 200 &&
+        (adminContacts.data?.contacts || []).length >= parentContactIds.length,
+      'Admin sees everyone (never fewer than a scoped role does)'
+    );
+    assert(
+      !(adminContacts.data?.contacts || []).some((c) => c.id === adminId),
+      'Contacts never include the caller themselves'
+    );
+
+    // ?search= filters WITHIN scope; it can never widen it.
+    const searched = await request('GET', '/api/messages/contacts?search=zzzznomatch', {
+      token: parent1Token,
+    });
+    assert(
+      searched.status === 200 && (searched.data?.contacts || []).length === 0,
+      'search with no match returns an empty list, not an unscoped one'
+    );
+
+    const unauthContacts = await request('GET', '/api/messages/contacts');
+    assert(unauthContacts.status === 401, 'Unauthenticated GET /contacts returns 401');
+
   } finally {
     await cleanup();
   }

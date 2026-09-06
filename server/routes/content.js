@@ -22,20 +22,64 @@ async function getStudentClass(studentId) {
   return rows[0] || null;
 }
 
+// Assigned to teach that grade+section, OR its adviser.
+//
+// THIS WIDENS A WRITE GATE, deliberately — unlike routes/students.js, where the
+// equivalent widening was confined to reads on purpose. The reason is a stated
+// school requirement rather than symmetry: the Class Board is a section-scoped
+// announcement (teacher posts, every parent in the section reads), and an
+// adviser who cannot post to their own advisory section cannot deliver it. An
+// adviser holding zero subject assignments in their own section was locked out
+// entirely — TCH-002 is exactly that account, which is what moved this edge
+// case from "theoretical" to demonstrated.
+//
+// It stays inside the existing grant and grants nothing new in kind: a teacher
+// still cannot post school-wide (admin-only), still cannot post whole-grade,
+// and still cannot name a section they neither teach nor advise. The only
+// change is that "connected to this section" now means assigned OR adviser,
+// which is the same definition every other module already uses.
+//
+// Matches sections by grade_level + name rather than section_id: there is no
+// student row in a content query to resolve a section_id from, which is also
+// why utils/teacherScope.js's TEACHER_VIEW_SCOPE_SQL cannot be reused here.
 async function teacherHasAssignment(teacherId, gradeLevel, section) {
   const [rows] = await pool.query(
-    'SELECT 1 FROM teacher_assignments WHERE teacher_id = ? AND grade_level = ? AND section = ? LIMIT 1',
+    `SELECT 1 FROM teacher_assignments
+     WHERE teacher_id = ? AND grade_level = ? AND section = ?
+     LIMIT 1`,
     [teacherId, gradeLevel, section]
   );
-  return rows.length > 0;
+  if (rows.length) return true;
+
+  const [adviserRows] = await pool.query(
+    `SELECT 1 FROM sections
+     WHERE grade_level = ? AND name = ? AND adviser_id = ?
+     LIMIT 1`,
+    [gradeLevel, section, teacherId]
+  );
+  return adviserRows.length > 0;
 }
 
+// Any assignment in that grade, OR adviser of any section in it. Events have no
+// target_section column, so this is grade-level by the schema's own design.
+//
+// The adviser leg is NOT a broader class of grant than what already existed:
+// this helper already lets a teacher with a single assignment in one section of
+// a grade post an event to that whole grade. An adviser of one section in the
+// grade is the same relationship expressed the other way, so admitting them is
+// consistency, not expansion.
 async function teacherHasGradeAssignment(teacherId, gradeLevel) {
   const [rows] = await pool.query(
     'SELECT 1 FROM teacher_assignments WHERE teacher_id = ? AND grade_level = ? LIMIT 1',
     [teacherId, gradeLevel]
   );
-  return rows.length > 0;
+  if (rows.length) return true;
+
+  const [adviserRows] = await pool.query(
+    'SELECT 1 FROM sections WHERE grade_level = ? AND adviser_id = ? LIMIT 1',
+    [gradeLevel, teacherId]
+  );
+  return adviserRows.length > 0;
 }
 
 // Resolves + validates the (target_grade, target_section) a writer is allowed to use.
@@ -85,7 +129,8 @@ async function resolveAnnouncementTarget(user, targetGradeInput, targetSectionIn
     return {
       ok: false,
       status: 403,
-      message: `You are not assigned to Grade ${gradeLevel} - ${section}. You may only post announcements to a grade and section you teach.`,
+      // True for both legs (assigned and adviser) without naming the mechanism.
+      message: `You are not connected to Grade ${gradeLevel} - ${section}. You may only post announcements to a section you teach or advise.`,
     };
   }
   return { ok: true, gradeLevel, section };
@@ -119,7 +164,7 @@ async function resolveEventTarget(user, targetGradeInput) {
     return {
       ok: false,
       status: 403,
-      message: `You are not assigned to Grade ${gradeLevel}. You may only post events to a grade you teach.`,
+      message: `You are not connected to Grade ${gradeLevel}. You may only post events to a grade you teach in or advise a section of.`,
     };
   }
   return { ok: true, gradeLevel };
@@ -147,12 +192,19 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
       );
       params.push(student.grade_level, student.section);
     } else if (req.user.role === 'teacher') {
+      // School-wide, plus anything targeting a grade+section this teacher is
+      // assigned to OR advises. The adviser leg mirrors the write gate above so
+      // a teacher can always read back what they are allowed to post.
       conditions.push(`(a.target_grade IS NULL OR EXISTS (
         SELECT 1 FROM teacher_assignments ta
         WHERE ta.teacher_id = ? AND ta.grade_level = a.target_grade
           AND (a.target_section IS NULL OR a.target_section = ta.section)
+      ) OR EXISTS (
+        SELECT 1 FROM sections sec
+        WHERE sec.adviser_id = ? AND sec.grade_level = a.target_grade
+          AND (a.target_section IS NULL OR a.target_section = sec.name)
       ))`);
-      params.push(req.user.id);
+      params.push(req.user.id, req.user.id);
     }
     // admin: no condition
 
@@ -410,10 +462,14 @@ eventsRouter.get('/', authenticate, async (req, res) => {
       conditions.push('(e.target_grade IS NULL OR e.target_grade = ?)');
       params.push(student.grade_level);
     } else if (req.user.role === 'teacher') {
+      // Same two legs as the announcements filter, minus the section match —
+      // the events table has no target_section column.
       conditions.push(`(e.target_grade IS NULL OR EXISTS (
         SELECT 1 FROM teacher_assignments ta WHERE ta.teacher_id = ? AND ta.grade_level = e.target_grade
+      ) OR EXISTS (
+        SELECT 1 FROM sections sec WHERE sec.adviser_id = ? AND sec.grade_level = e.target_grade
       ))`);
-      params.push(req.user.id);
+      params.push(req.user.id, req.user.id);
     }
 
     if (grade_level !== undefined) {
