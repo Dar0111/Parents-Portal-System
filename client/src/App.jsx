@@ -8,6 +8,8 @@ import AdminDashboard from './pages/dashboards/AdminDashboard';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
+import TeacherStudents from './pages/teacher/StudentsPage';
+import TeacherStudentDetail from './pages/teacher/StudentDetailPage';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -49,6 +51,8 @@ export default function App() {
           >
             <Route index element={<TeacherDashboard />} />
             <Route path="attendance" element={<TeacherAttendance />} />
+            <Route path="students" element={<TeacherStudents />} />
+            <Route path="students/:id" element={<TeacherStudentDetail />} />
           </Route>
 
           <Route

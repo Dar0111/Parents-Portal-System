@@ -116,11 +116,11 @@ export default function UiGallery() {
           </Row>
           <Row label="grades (is_locked)">
             <div className="flex flex-wrap gap-2">
-              <StatusBadge status="locked" label="Locked" />
-              <StatusBadge status="unlocked" label="Unlocked" />
+              <StatusBadge status="locked" />
+              <StatusBadge status="unlocked" />
             </div>
           </Row>
-          <Row label="unknown value falls back to neutral / tone prop overrides the map">
+          <Row label="`label` is still available for when display text must differ from the value — is_locked is a boolean, so `locked`/`unlocked` are invented at the call site; it is not needed just for capitalisation">
             <div className="flex flex-wrap gap-2">
               <StatusBadge status="Something New" />
               <StatusBadge status="Pending" tone="danger" />

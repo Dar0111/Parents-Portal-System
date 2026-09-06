@@ -43,6 +43,28 @@ const STATUS_TONE = {
   unlocked: 'info',
 };
 
+// DISPLAY CASING ONLY — see CLAUDE.md convention 5d. Re-cases the rendered
+// text and nothing else: toneForStatus below still keys on the LOWERCASED
+// value, and the caller's `status` (which came straight from the API and may
+// go straight back to it) is never mutated.
+//
+// This exists because the schema is inconsistent and deliberately not being
+// normalised: attendance / excuse_letters / contribution_records ENUMs are
+// already capitalised, users.status and students.status are not, and grades'
+// locked/unlocked are strings a caller invents from a boolean. Capitalising
+// here is how that stops being visible on every screen, instead of a migration
+// touching real data for a cosmetic reason.
+//
+// TWIN: client/src/pages/teacher/StudentDetailPage.jsx has an identical
+// helper. Duplicated at two on purpose, matching this codebase's own precedent
+// (utils/dateFormat.js was extracted at the THIRD occurrence; the school_year
+// validator is still duplicated at two). A third occurrence is the trigger to
+// move both into a shared client/src/format/text.js — decided now so it is not
+// re-argued then.
+function titleCase(value) {
+  return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
 // Intentionally not exported: nothing outside this file needs a tone without
 // a badge yet. Export it the day something actually does.
 function toneForStatus(status) {
@@ -59,7 +81,7 @@ export default function StatusBadge({ status, tone, label, className = '' }) {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${resolved} ${className}`}
     >
-      {label || status}
+      {label || titleCase(status)}
     </span>
   );
 }
