@@ -48,6 +48,20 @@ async function teacherHasAssignment(teacherId, gradeLevel, section) {
 // DO NOT reuse this for a write path. PUT /:id and POST / stay on
 // teacher_assignments alone — widening reads must not make more records
 // editable. See the 403-vs-404 note on PUT /:id.
+//
+// TWIN: routes/excuses.js has an identical constant (same name). Deliberately
+// duplicated rather than extracted, matching this codebase's own precedent —
+// utils/dateFormat.js was extracted on the THIRD occurrence, and the
+// school_year validator is still duplicated at two. routes/content.js is the
+// extraction trigger: when it gains this clause, move all three into a shared
+// util. That decision is recorded now so the third occurrence does not have to
+// re-argue it.
+//
+// Note the two files use this constant differently, and the difference is not
+// an inconsistency: HERE it is the read gate and writes must stay narrow;
+// in excuses.js it is an existence filter used at all three read sites
+// INCLUDING the one inside PATCH /:id/review, because that file's authority
+// gate is a separate adviser query that runs after it.
 const TEACHER_VIEW_SCOPE_SQL = `(
       EXISTS (
         SELECT 1 FROM teacher_assignments ta
