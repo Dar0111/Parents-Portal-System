@@ -60,16 +60,44 @@ async function teacherCanEncodeGrade(teacherId, subjectId, gradeLevel, section) 
   return rows.length > 0;
 }
 
-// Loads an existing grade row by id and confirms the requester may act on
-// it, for the two :id-keyed write endpoints below (components, exam).
-// Out-of-scope is 404 here, NOT 403 — this is deliberately provisional
-// and different from POST / above (which uses 403, since it names a new
-// target explicitly). No GET /api/grades exists yet, so nothing else in
-// the system lets a teacher see a grade row they can't encode; 404 is a
-// true "cannot see this" signal, same as PUT /api/attendance/:id. If
-// Stage G3 ever gives teachers broader read access to grades than their
-// subject-specific encode-scope, this needs the same reconsideration
-// Excuse Letters' review endpoint got — see CLAUDE.md's Grades module note.
+// Wide VIEW scope for grades — any teacher_assignments row matching
+// grade_level+section, regardless of subject. Matches the EXISTS pattern
+// students.js/content.js/excuse_letters.js already use for "is this
+// teacher associated with this student's class at all" — deliberately
+// broader than teacherCanEncodeGrade's subject-specific check above.
+// Grades' subject-specific WRITE scope was always the exception in this
+// codebase, not the norm; this read-side check restores the norm. See
+// loadAuthorizedGrade's own comment below for the full G3 resolution.
+async function teacherCanViewGrade(teacherId, gradeLevel, section) {
+  const [rows] = await pool.query(
+    `SELECT 1 FROM teacher_assignments
+     WHERE teacher_id = ? AND grade_level = ? AND section = ?
+     LIMIT 1`,
+    [teacherId, gradeLevel, section]
+  );
+  return rows.length > 0;
+}
+
+// Loads an existing grade row by id and resolves BOTH scope tiers a
+// requester can have. THE G3 RESOLUTION of a provisional decision made in
+// G2b: out-of-scope used to be a flat 404 everywhere, justified only
+// because no GET existed yet to contradict it (see the CHANGELOG for that
+// stage). Stage G3 added GET endpoints scoped to the WIDE view-scope
+// below — broader than the NARROW encode-scope teacherCanEncodeGrade
+// checks — so the two tiers can now genuinely disagree: a teacher can see
+// a row via GET that they cannot act on via a write. That's the exact
+// precondition that made Excuse Letters' PATCH /:id/review choose 403
+// over 404, and it now applies here too.
+//
+// 404 here means "cannot see this at all" — nonexistent id, or outside
+// the WIDE view-scope entirely (a true "cannot see this" signal, matching
+// PUT /api/attendance/:id). A caller who fails only the NARROW
+// encode-scope check gets back { grade, canEncode: false } instead of an
+// error — every :id-keyed WRITE endpoint below must check that itself
+// (via encodeScopeError()) and answer 403 naming the subject, since a GET
+// already showed them the row and a 404 there would make the two
+// endpoints contradict each other on one resource. GET endpoints never
+// look at canEncode at all — view-scope alone is sufficient to read.
 async function loadAuthorizedGrade(req, gradeId) {
   const [rows] = await pool.query(
     `SELECT g.*, s.grade_level AS student_grade_level, s.section AS student_section,
@@ -86,19 +114,39 @@ async function loadAuthorizedGrade(req, gradeId) {
     return { errorStatus: 404, errorMessage: 'Grade record not found.' };
   }
 
-  if (req.user.role !== 'admin') {
-    const allowed = await teacherCanEncodeGrade(
-      req.user.id,
-      grade.subject_id,
-      grade.student_grade_level,
-      grade.student_section
-    );
-    if (!allowed) {
-      return { errorStatus: 404, errorMessage: 'Grade record not found.' };
-    }
+  if (req.user.role === 'admin') {
+    return { grade, canEncode: true };
   }
 
-  return { grade };
+  const canView = await teacherCanViewGrade(req.user.id, grade.student_grade_level, grade.student_section);
+  if (!canView) {
+    return { errorStatus: 404, errorMessage: 'Grade record not found.' };
+  }
+
+  const canEncode = await teacherCanEncodeGrade(
+    req.user.id,
+    grade.subject_id,
+    grade.student_grade_level,
+    grade.student_section
+  );
+
+  return { grade, canEncode };
+}
+
+// Applied by every :id-keyed WRITE endpoint immediately after
+// loadAuthorizedGrade — admin always passes (loadAuthorizedGrade already
+// gives admin canEncode: true unconditionally). A teacher inside
+// view-scope but outside the narrow encode-scope gets 403 naming the
+// subject, never 404 — see loadAuthorizedGrade's own comment for why. GET
+// endpoints never call this; view-scope alone is sufficient to read.
+function encodeScopeError(loaded) {
+  if (loaded.canEncode) {
+    return null;
+  }
+  return {
+    errorStatus: 403,
+    errorMessage: `You are not assigned to teach ${loaded.grade.subject_name} for this student's grade level and section.`,
+  };
 }
 
 // Shared preconditions for every write endpoint below, checked in the
@@ -227,6 +275,371 @@ async function recomputeGrade(conn, gradeId) {
   const [updatedRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
   return updatedRows[0];
 }
+
+// mysql2 returns DECIMAL columns as strings (e.g. "90.00") — see the
+// identical gotcha noted in test-grades-flows.js. Converted to a real
+// Number the moment a grade row is read for report-card assembly, so
+// every downstream average/comparison is arithmetic, never string
+// concatenation.
+function numOrNull(value) {
+  return value === null || value === undefined ? null : Number(value);
+}
+
+// One term's entry in the report-card response (Q3/Q7). Mirrors the
+// grades table's own dual-mode design — term_grade and descriptive_grade
+// are both always present, whichever one is non-null tells you the
+// mode — rather than inventing a different shape per mode. `descriptor`
+// is Table 11's qualitative band for a numerical term_grade, or Table 8's
+// letter meaning for a descriptive_grade — GRADING_SPEC §6b: "the parent
+// dashboard should show the numeric grade AND the descriptor." Returns
+// null for a term with no grade row at all — genuinely absent, not
+// merely incomplete; see the subject-level comment below for why that
+// distinction matters here.
+function buildTermEntry(gradeRow, mode) {
+  if (!gradeRow) {
+    return null;
+  }
+  const termGrade = numOrNull(gradeRow.term_grade);
+  const descriptor =
+    mode === 'numerical' ? gc.qualitativeDescriptor(termGrade) : gc.descriptiveGradeMeaning(gradeRow.descriptive_grade);
+  return {
+    grade_id: gradeRow.id,
+    term_grade: termGrade,
+    descriptive_grade: gradeRow.descriptive_grade,
+    descriptor,
+    is_locked: !!gradeRow.is_locked,
+  };
+}
+
+// Final Grade = average of the three term grades — NULL until all three
+// exist, the SAME rule as Initial Grade (utils/gradeComputation.js's own
+// header comment), deliberately NOT a running average. A partial FG
+// carries real weight beyond a merely confusing UI: it determines
+// promotion and is what prints on the SF9, so a parent who sees a number
+// in October would reasonably treat it as settled — by the time the real
+// figure lands in March, showing the earlier partial number was already
+// a mistake no caveat text can undo. One rule at all three levels of the
+// computation chain (component -> IG, term -> FG, subject -> GA) is also
+// simply more defensible than three separate variations. Not applicable
+// at all for a descriptive-mode subject — see the subject-builder below.
+function computeFinalGrade(terms, mode) {
+  if (mode !== 'numerical') {
+    return { final_grade: null, final_grade_descriptor: null };
+  }
+  const termGrades = [terms[1]?.term_grade, terms[2]?.term_grade, terms[3]?.term_grade];
+  if (termGrades.some((value) => value === null || value === undefined)) {
+    return { final_grade: null, final_grade_descriptor: null };
+  }
+  const fg = gc.roundTo2((termGrades[0] + termGrades[1] + termGrades[2]) / 3);
+  return { final_grade: fg, final_grade_descriptor: gc.qualitativeDescriptor(fg) };
+}
+
+// General Average = average of Final Grades across every subject at this
+// grade level — the same NULL-until-complete rule one level higher, per
+// the same reasoning as computeFinalGrade above. Not built as a priority
+// in G2a; built now because it is the direct extension of a computation
+// that already exists at read time, GRADING_SPEC §4 lists it as the last
+// step of the same chain, and stopping one step short would be an
+// arbitrary place to draw the line. Never computed for a descriptive-mode
+// grade level — GA is a numerical concept; KS1 uses Character Traits
+// Awards instead (GRADING_SPEC §7), not a GA-based one.
+function computeGeneralAverage(subjectReport, mode) {
+  if (mode !== 'numerical' || subjectReport.length === 0) {
+    return { general_average: null, general_average_descriptor: null };
+  }
+  const finalGrades = subjectReport.map((subject) => subject.final_grade);
+  if (finalGrades.some((value) => value === null || value === undefined)) {
+    return { general_average: null, general_average_descriptor: null };
+  }
+  const ga = gc.roundTo2(finalGrades.reduce((sum, value) => sum + value, 0) / finalGrades.length);
+  return { general_average: ga, general_average_descriptor: gc.qualitativeDescriptor(ga) };
+}
+
+// GET /api/grades — list, scoped by role, never includes grade_components
+// (see GET /:id for that — a list response returning full raw-score
+// history on every row would bloat a payload whose purpose is FINDING a
+// row, not inspecting one). Filters: student_id, subject_id, term,
+// school_year — all optional, no hidden defaults, unlike
+// GET /student/:studentId below. Providing all four together
+// deterministically resolves to at most one row, matching
+// uq_grade_record's own unique key — this is how a teacher finds an
+// existing grade_id at all, a gap that has existed since POST / first
+// shipped in G2b with no way to look one up afterward.
+//
+// Role scope is baked into the WHERE clause itself, not filtered in JS
+// after the fact: parent is forced to their own child (an explicit
+// student_id for a DIFFERENT child is a real, named violation, 403, not
+// silently ignored); teacher uses the WIDE view-scope (grade+section, any
+// subject — the G3 resolution, see loadAuthorizedGrade's comment above);
+// admin is unscoped.
+router.get('/', authenticate, authorize('teacher', 'admin', 'parent'), async (req, res) => {
+  const { student_id, subject_id, term, school_year } = req.query;
+
+  const conditions = [];
+  const params = [];
+
+  if (req.user.role === 'parent') {
+    if (student_id !== undefined && parseId(student_id) !== req.user.student_id) {
+      return res.status(403).json({ success: false, message: 'You may only view grades for your own child.' });
+    }
+    conditions.push('g.student_id = ?');
+    params.push(req.user.student_id);
+  } else {
+    if (req.user.role === 'teacher') {
+      conditions.push(
+        'EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section)'
+      );
+      params.push(req.user.id);
+    }
+    if (student_id !== undefined) {
+      const studentId = parseId(student_id);
+      if (studentId === null) {
+        return res.status(400).json({ success: false, message: 'student_id must be a positive integer.' });
+      }
+      conditions.push('g.student_id = ?');
+      params.push(studentId);
+    }
+  }
+
+  if (subject_id !== undefined) {
+    const subjectId = parseId(subject_id);
+    if (subjectId === null) {
+      return res.status(400).json({ success: false, message: 'subject_id must be a positive integer.' });
+    }
+    conditions.push('g.subject_id = ?');
+    params.push(subjectId);
+  }
+
+  if (term !== undefined) {
+    if (!isValidTerm(term)) {
+      return res.status(400).json({ success: false, message: 'term must be 1, 2, or 3.' });
+    }
+    conditions.push('g.term = ?');
+    params.push(Number(term));
+  }
+
+  if (school_year !== undefined) {
+    if (!isValidSchoolYear(school_year)) {
+      return res.status(400).json({
+        success: false,
+        message: 'school_year must match YYYY-YYYY with consecutive years (e.g. 2026-2027).',
+      });
+    }
+    conditions.push('g.school_year = ?');
+    params.push(school_year);
+  }
+
+  try {
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const [rows] = await pool.query(
+      `SELECT g.*, s.first_name, s.last_name, s.grade_level AS student_grade_level, s.section AS student_section,
+              sub.name AS subject_name
+       FROM grades g
+       JOIN students s ON s.id = g.student_id
+       JOIN subjects sub ON sub.id = g.subject_id
+       ${whereClause}
+       ORDER BY g.school_year DESC, g.term ASC, sub.name ASC`,
+      params
+    );
+
+    return res.json({ success: true, grades: rows });
+  } catch (error) {
+    console.error('List grades error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to list grades.' });
+  }
+});
+
+// GET /api/grades/:id — one grade record WITH its full grade_components
+// history (the detail view — see GET / above for why the list omits it).
+// Teacher/admin scope reuses loadAuthorizedGrade's wide view-scope check
+// directly (canEncode is irrelevant to a read, so it's simply ignored
+// here). Parent access is NOT routed through loadAuthorizedGrade — that
+// function's non-admin branch is teacher-shaped (teacher_assignments by
+// grade+section), and a parent's user id has no meaningful relationship
+// to that table; piggybacking would happen to return false for the right
+// reason today, for the wrong reason, so a parent's own-child check is
+// written directly instead: a plain, explicit comparison against
+// req.user.student_id.
+router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async (req, res) => {
+  const gradeId = parseId(req.params.id);
+  if (gradeId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
+  }
+
+  try {
+    let grade;
+
+    if (req.user.role === 'parent') {
+      const [rows] = await pool.query(
+        `SELECT g.*, s.first_name, s.last_name, s.grade_level AS student_grade_level, s.section AS student_section,
+                sub.name AS subject_name
+         FROM grades g
+         JOIN students s ON s.id = g.student_id
+         JOIN subjects sub ON sub.id = g.subject_id
+         WHERE g.id = ? AND g.student_id = ?
+         LIMIT 1`,
+        [gradeId, req.user.student_id]
+      );
+      grade = rows[0];
+      if (!grade) {
+        return res.status(404).json({ success: false, message: 'Grade record not found.' });
+      }
+    } else {
+      const loaded = await loadAuthorizedGrade(req, gradeId);
+      if (loaded.errorStatus) {
+        return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+      }
+      grade = loaded.grade;
+    }
+
+    const [components] = await pool.query(
+      'SELECT * FROM grade_components WHERE grade_id = ? ORDER BY date_recorded ASC, id ASC',
+      [gradeId]
+    );
+
+    // Inferred from which of the two dual-mode columns is populated,
+    // rather than a separate grading_mode_configs lookup — the grades
+    // table's own design already guarantees at most one is non-null at a
+    // time (schema.sql's own comment), so this is a direct read, not a
+    // guess. Neither set (an empty shell row) -> null, correctly.
+    const numericGrade = numOrNull(grade.term_grade);
+    const descriptor =
+      numericGrade !== null ? gc.qualitativeDescriptor(numericGrade) : gc.descriptiveGradeMeaning(grade.descriptive_grade);
+
+    return res.json({ success: true, grade, grade_components: components, descriptor });
+  } catch (error) {
+    console.error('Get grade error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch grade record.' });
+  }
+});
+
+// GET /api/grades/student/:studentId — the full report card (Q3): every
+// subject at the student's grade level (including one with ZERO grade
+// rows at all yet — a missing subject and an unencoded one are different
+// things, and this response must be able to tell a caller apart which is
+// which), each with per-term data, a computed Final Grade (or null, see
+// computeFinalGrade), and a top-level General Average (or null, see
+// computeGeneralAverage). grading_mode appears at both the student level
+// and would be identical per-subject (mode is keyed by grade_level+
+// school_year, never per-subject, so no student ever mixes modes across
+// subjects) — this is how a caller distinguishes "null, still in
+// progress" (numerical, incomplete) from "null, does not apply"
+// (descriptive — GRADING_SPEC §7, KS1 has no GA-based awards at all).
+//
+// school_year DEFAULTS to system_settings.academic_year when omitted —
+// deliberately different from GET /'s no-default filters above. GET / is
+// a flexible search tool; this endpoint is inherently bounded to one
+// school year by what it IS (a report card), so nobody should have to
+// pass the current year explicitly just to see it. An explicit
+// ?school_year= still overrides, e.g. to look back at a prior year.
+router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'parent'), async (req, res) => {
+  const studentId = parseId(req.params.studentId);
+  if (studentId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid student id.' });
+  }
+
+  try {
+    const [studentRows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
+    const student = studentRows[0];
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+
+    if (req.user.role === 'parent') {
+      if (studentId !== req.user.student_id) {
+        return res.status(404).json({ success: false, message: 'Student not found.' });
+      }
+    } else if (req.user.role === 'teacher') {
+      const canView = await teacherCanViewGrade(req.user.id, student.grade_level, student.section);
+      if (!canView) {
+        return res.status(404).json({ success: false, message: 'Student not found.' });
+      }
+    }
+
+    let schoolYear = req.query.school_year;
+    if (schoolYear === undefined) {
+      const [settingRows] = await pool.query(
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
+      );
+      schoolYear = settingRows[0]?.setting_value;
+      if (!schoolYear) {
+        return res.status(500).json({ success: false, message: 'academic_year is not configured in system settings.' });
+      }
+    } else if (!isValidSchoolYear(schoolYear)) {
+      return res.status(400).json({
+        success: false,
+        message: 'school_year must match YYYY-YYYY with consecutive years (e.g. 2026-2027).',
+      });
+    }
+
+    const [modeRows] = await pool.query(
+      'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
+      [student.grade_level, schoolYear]
+    );
+    const modeConfig = modeRows[0];
+    if (!modeConfig) {
+      return res.status(409).json({
+        success: false,
+        message: `No grading_mode_configs row exists for Grade ${student.grade_level}, school year ${schoolYear}. An admin must configure the grading mode before a report card can be generated.`,
+      });
+    }
+    const mode = modeConfig.mode;
+
+    const [subjects] = await pool.query('SELECT id, name FROM subjects WHERE grade_level = ? ORDER BY name ASC', [
+      student.grade_level,
+    ]);
+
+    const [gradeRows] = await pool.query('SELECT * FROM grades WHERE student_id = ? AND school_year = ?', [
+      studentId,
+      schoolYear,
+    ]);
+    const gradesBySubject = {};
+    for (const row of gradeRows) {
+      if (!gradesBySubject[row.subject_id]) {
+        gradesBySubject[row.subject_id] = {};
+      }
+      gradesBySubject[row.subject_id][row.term] = row;
+    }
+
+    const subjectReport = subjects.map((subject) => {
+      const byTerm = gradesBySubject[subject.id] || {};
+      const terms = {
+        1: buildTermEntry(byTerm[1], mode),
+        2: buildTermEntry(byTerm[2], mode),
+        3: buildTermEntry(byTerm[3], mode),
+      };
+      const { final_grade, final_grade_descriptor } = computeFinalGrade(terms, mode);
+      return {
+        subject_id: subject.id,
+        subject_name: subject.name,
+        terms,
+        final_grade,
+        final_grade_descriptor,
+      };
+    });
+
+    const { general_average, general_average_descriptor } = computeGeneralAverage(subjectReport, mode);
+
+    return res.json({
+      success: true,
+      student: {
+        id: student.id,
+        first_name: student.first_name,
+        last_name: student.last_name,
+        grade_level: student.grade_level,
+        section: student.section,
+      },
+      school_year: schoolYear,
+      grading_mode: mode,
+      subjects: subjectReport,
+      general_average,
+      general_average_descriptor,
+    });
+  } catch (error) {
+    console.error('Get student report card error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch student report card.' });
+  }
+});
 
 // POST /api/grades — creates a shell row only: every score and computed
 // column stays NULL, is_locked 0. No computation happens here at all —
@@ -389,6 +802,10 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
     if (loaded.errorStatus) {
       return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
     }
+    const scopeError = encodeScopeError(loaded);
+    if (scopeError) {
+      return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
+    }
 
     const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
     if (preflightError) {
@@ -484,6 +901,10 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
     if (loaded.errorStatus) {
       return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
     }
+    const scopeError = encodeScopeError(loaded);
+    if (scopeError) {
+      return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
+    }
 
     const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
     if (preflightError) {
@@ -576,6 +997,10 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
     const loaded = await loadAuthorizedGrade(req, gradeId);
     if (loaded.errorStatus) {
       return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+    }
+    const scopeError = encodeScopeError(loaded);
+    if (scopeError) {
+      return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
 
     const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
@@ -697,6 +1122,10 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
     const loaded = await loadAuthorizedGrade(req, gradeId);
     if (loaded.errorStatus) {
       return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+    }
+    const scopeError = encodeScopeError(loaded);
+    if (scopeError) {
+      return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
     const { grade } = loaded;
 
@@ -824,6 +1253,10 @@ router.patch('/:id/descriptive', authenticate, authorize('teacher', 'admin'), as
     const loaded = await loadAuthorizedGrade(req, gradeId);
     if (loaded.errorStatus) {
       return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
+    }
+    const scopeError = encodeScopeError(loaded);
+    if (scopeError) {
+      return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
 
     const preflightError = await preflightGradeWrite(loaded.grade, 'descriptive');

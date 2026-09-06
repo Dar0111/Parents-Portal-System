@@ -164,6 +164,8 @@ async function run() {
   let inactiveStudentId;
   let grade1StudentFixtureId;
   let grade1TeacherAssignmentId;
+  let gaStudentFixtureId;
+  const gaGradeIds = [];
 
   async function cleanup() {
     if (createdGradeIds.length) {
@@ -177,6 +179,12 @@ async function run() {
     }
     if (grade1TeacherAssignmentId) {
       await withDb((conn) => conn.query('DELETE FROM teacher_assignments WHERE id = ?', [grade1TeacherAssignmentId]));
+    }
+    if (gaGradeIds.length) {
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [gaGradeIds]));
+    }
+    if (gaStudentFixtureId) {
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [gaStudentFixtureId]));
     }
   }
 
@@ -611,27 +619,94 @@ async function run() {
       `A rejected write leaves zero grade_components rows — the pre-flight gate runs before any insert is attempted, not insert-then-rollback (before=${componentsBefore[0].c}, after=${componentsAfter[0].c})`
     );
 
-    // --- Out-of-scope teacher: 404, not 403 (no GET exists yet) ---
-    console.log('\nOut-of-scope teacher:');
+    // --- Out-of-scope teacher: fully out of scope (different section) stays 404 ---
+    // TCH-001 has NO teacher_assignments row at all for Grade 5 - Masigasig
+    // (any subject) — fails the WIDE view-scope check too, so this stays
+    // 404 even after the G3 two-tier refactor. This is exactly the
+    // "cannot see this at all" branch loadAuthorizedGrade's 404 exists for.
+    console.log('\nOut-of-scope teacher (different section entirely):');
 
     const outOfScopeGradeId = adminCreates.data?.grade?.id; // Jea, Mathematics, Grade 5 — TCH-001 has no assignment there
     const outOfScopeComponent = await request('POST', `/api/grades/${outOfScopeGradeId}/components`, {
       token: teacherToken,
       body: { type: 'WW', score: 10, max_score: 10, label: 'Should be 404' },
     });
-    assert(outOfScopeComponent.status === 404, 'Out-of-scope teacher gets 404 on POST /:id/components (no GET exists yet)');
+    assert(outOfScopeComponent.status === 404, 'Fully out-of-scope teacher gets 404 on POST /:id/components (fails wide view-scope too)');
 
     const outOfScopeExam = await request('PATCH', `/api/grades/${outOfScopeGradeId}/exam`, {
       token: teacherToken,
       body: { st1_score: 10, st1_max: 10 },
     });
-    assert(outOfScopeExam.status === 404, 'Out-of-scope teacher gets 404 on PATCH /:id/exam (no GET exists yet)');
+    assert(outOfScopeExam.status === 404, 'Fully out-of-scope teacher gets 404 on PATCH /:id/exam (fails wide view-scope too)');
 
     const nonexistentGradeComponent = await request('POST', '/api/grades/999999/components', {
       token: adminToken,
       body: { type: 'WW', score: 10, max_score: 10, label: 'x' },
     });
     assert(nonexistentGradeComponent.status === 404, 'Nonexistent grade id on POST /:id/components returns 404, even for admin');
+
+    // --- G3 resolution: view-scope vs encode-scope disagreement -> 403 ---
+    // TCH-001 IS assigned Grade 6 - Malikhain (Math/English/Filipino), so a
+    // Science grade for Marwin (same section, different subject) passes
+    // the WIDE view-scope check even though TCH-001 doesn't teach
+    // Science — the exact case that makes the two tiers disagree. This is
+    // the resolution of the G2b-provisional decision: 403 naming the
+    // subject, not 404, since a GET would now show this teacher the row.
+    // Tested across all five :id-keyed write endpoints, since each has its
+    // own separate call site for the shared encodeScopeError() check.
+    console.log('\nView-scope vs encode-scope disagreement (G3 resolution):');
+
+    const scienceGradeCreate = await request('POST', '/api/grades', {
+      token: adminToken, // TCH-001 is not assigned Science — admin creates it
+      body: { student_id: marwinId, subject_id: scienceGrade6Id, term: 1, school_year: schoolYear },
+    });
+    const scienceGradeId = scienceGradeCreate.data?.grade?.id;
+    if (scienceGradeId) createdGradeIds.push(scienceGradeId);
+    assert(scienceGradeCreate.status === 201, 'Fixture: a Science grade row for Marwin (Grade 6 - Malikhain), created by admin');
+
+    const viewScopeComponent = await request('POST', `/api/grades/${scienceGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Should be 403, not 404' },
+    });
+    assert(
+      viewScopeComponent.status === 403 && /not assigned to teach Science/i.test(viewScopeComponent.data?.message || ''),
+      `POST /:id/components: view-scope-but-not-encode-scope gets 403 naming the subject, NOT 404 (got ${viewScopeComponent.status})`
+    );
+
+    const viewScopePut = await request('PUT', `/api/grades/${scienceGradeId}/components/999999`, {
+      token: teacherToken,
+      body: { score: 1 },
+    });
+    assert(
+      viewScopePut.status === 403 && /not assigned to teach Science/i.test(viewScopePut.data?.message || ''),
+      `PUT .../components/:componentId: same disagreement, 403 before the component lookup even runs (got ${viewScopePut.status})`
+    );
+
+    const viewScopeDelete = await request('DELETE', `/api/grades/${scienceGradeId}/components/999999`, {
+      token: teacherToken,
+    });
+    assert(
+      viewScopeDelete.status === 403 && /not assigned to teach Science/i.test(viewScopeDelete.data?.message || ''),
+      `DELETE .../components/:componentId: same disagreement, 403 (got ${viewScopeDelete.status})`
+    );
+
+    const viewScopeExam = await request('PATCH', `/api/grades/${scienceGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 10, st1_max: 10 },
+    });
+    assert(
+      viewScopeExam.status === 403 && /not assigned to teach Science/i.test(viewScopeExam.data?.message || ''),
+      `PATCH /:id/exam: same disagreement, 403 (got ${viewScopeExam.status})`
+    );
+
+    const viewScopeDescriptive = await request('PATCH', `/api/grades/${scienceGradeId}/descriptive`, {
+      token: teacherToken,
+      body: { descriptive_grade: 'A' },
+    });
+    assert(
+      viewScopeDescriptive.status === 403 && /not assigned to teach Science/i.test(viewScopeDescriptive.data?.message || ''),
+      `PATCH /:id/descriptive: scope check runs BEFORE the mode check — 403 naming the subject, not 400 for mode mismatch (got ${viewScopeDescriptive.status})`
+    );
 
     // --- Descriptive grading (Stage G2d) ---
     // Grade 1 is a MANUAL teacher judgment call — an ASSUMPTION, not a
@@ -965,6 +1040,262 @@ async function run() {
       body: { descriptive_grade: 'A' },
     });
     assert(descriptiveOnLocked.status === 403, 'PATCH /:id/descriptive on a locked grade is 403');
+
+    // --- Stage G3: GET endpoints ---
+    console.log('\nGET /api/grades (list, scoped):');
+
+    const unauthList = await request('GET', '/api/grades');
+    assert(unauthList.status === 401, 'Unauthenticated GET / returns 401');
+
+    const badTermFilter = await request('GET', '/api/grades?term=5', { token: adminToken });
+    assert(badTermFilter.status === 400, 'GET / with invalid term filter (5) returns 400');
+
+    const badSchoolYearFilter = await request('GET', '/api/grades?school_year=2026', { token: adminToken });
+    assert(badSchoolYearFilter.status === 400, 'GET / with malformed school_year filter returns 400');
+
+    const fourFilters = await request(
+      'GET',
+      `/api/grades?student_id=${marwinId}&subject_id=${mathGrade6Id}&term=1&school_year=${schoolYear}`,
+      { token: adminToken }
+    );
+    assert(
+      fourFilters.status === 200 && fourFilters.data?.grades?.length === 1 && fourFilters.data.grades[0].id === grade1Id,
+      `All four filters together return exactly the one matching row, keyed on the same fields as uq_grade_record (got ${fourFilters.data?.grades?.length} rows)`
+    );
+
+    const listNoComponents = await request('GET', '/api/grades', { token: adminToken });
+    assert(
+      listNoComponents.status === 200 &&
+        listNoComponents.data?.grades?.length > 0 &&
+        listNoComponents.data.grades.every((row) => row.grade_components === undefined),
+      'GET / list response never includes grade_components on any row'
+    );
+
+    const teacherList = await request('GET', '/api/grades', { token: teacherToken });
+    const teacherListIds = (teacherList.data?.grades || []).map((row) => row.id);
+    assert(
+      teacherList.status === 200 && teacherListIds.includes(scienceGradeId) && !teacherListIds.includes(outOfScopeGradeId),
+      'Teacher unfiltered GET / includes view-scope rows (Science, same section, different subject) but excludes fully out-of-scope rows (Jea, different section)'
+    );
+
+    const parentList = await request('GET', '/api/grades', { token: parentToken });
+    assert(
+      parentList.status === 200 &&
+        parentList.data?.grades?.length > 0 &&
+        parentList.data.grades.every((row) => row.student_id === marwinId),
+      'Parent unfiltered GET / returns only rows for their own child'
+    );
+
+    const parentExplicitOtherStudent = await request('GET', `/api/grades?student_id=${jeaId}`, { token: parentToken });
+    assert(parentExplicitOtherStudent.status === 403, 'Parent explicitly requesting a different student_id via GET / gets 403');
+
+    console.log('\nGET /api/grades/:id (detail, with components):');
+
+    const invalidIdGet = await request('GET', '/api/grades/abc', { token: adminToken });
+    assert(invalidIdGet.status === 400, 'GET /:id with a non-numeric id returns 400');
+
+    const nonexistentIdGet = await request('GET', '/api/grades/999999', { token: adminToken });
+    assert(nonexistentIdGet.status === 404, 'GET /:id with a nonexistent id returns 404');
+
+    const grade1Detail = await request('GET', `/api/grades/${grade1Id}`, { token: adminToken });
+    assert(grade1Detail.status === 200 && grade1Detail.data?.grade?.id === grade1Id, 'GET /:id returns the grade record');
+    assert(
+      Array.isArray(grade1Detail.data?.grade_components) && grade1Detail.data.grade_components.length > 0,
+      'GET /:id includes grade_components as a non-empty array (this grade has real WW/PT rows)'
+    );
+    assert(
+      grade1Detail.data?.descriptor?.descriptor === 'Advancing',
+      `GET /:id includes the qualitative descriptor for a numerical term_grade (TG 90 -> Advancing) (got ${grade1Detail.data?.descriptor?.descriptor})`
+    );
+
+    const teacherViewsScience = await request('GET', `/api/grades/${scienceGradeId}`, { token: teacherToken });
+    assert(
+      teacherViewsScience.status === 200 && teacherViewsScience.data?.grade?.id === scienceGradeId,
+      'Teacher within view-scope (same section) sees a Science grade via GET /:id even though they do not teach it — 200, not 404'
+    );
+
+    const teacherViewsOutOfScope = await request('GET', `/api/grades/${outOfScopeGradeId}`, { token: teacherToken });
+    assert(teacherViewsOutOfScope.status === 404, 'Teacher fully out of scope (different section) gets 404 on GET /:id');
+
+    const parentViewsOwn = await request('GET', `/api/grades/${grade1Id}`, { token: parentToken });
+    assert(
+      parentViewsOwn.status === 200 && parentViewsOwn.data?.grade?.id === grade1Id,
+      "Parent sees their own child's grade via GET /:id"
+    );
+
+    const parentViewsOther = await request('GET', `/api/grades/${outOfScopeGradeId}`, { token: parentToken });
+    assert(parentViewsOther.status === 404, "Parent requesting another child's grade via GET /:id gets 404");
+
+    console.log('\nGET /api/grades/student/:studentId (full report card):');
+
+    const marwinReportCard = await request('GET', `/api/grades/student/${marwinId}`, { token: adminToken });
+    assert(
+      marwinReportCard.status === 200 && marwinReportCard.data?.school_year === schoolYear,
+      `GET /student/:studentId without ?school_year defaults to system_settings.academic_year (${schoolYear}) (got ${marwinReportCard.data?.school_year})`
+    );
+    assert(
+      Array.isArray(marwinReportCard.data?.subjects) && marwinReportCard.data.subjects.length === 8,
+      `Report card lists all 8 Grade 6 subjects (got ${marwinReportCard.data?.subjects?.length})`
+    );
+    const gmrcEntry = marwinReportCard.data?.subjects?.find((s) => s.subject_name === 'GMRC');
+    assert(
+      gmrcEntry &&
+        gmrcEntry.terms?.[1] === null &&
+        gmrcEntry.terms?.[2] === null &&
+        gmrcEntry.terms?.[3] === null &&
+        gmrcEntry.final_grade === null,
+      'A subject with zero grade rows (GMRC) still appears on the report card, fully empty — not silently missing'
+    );
+
+    const parentReportCard = await request('GET', `/api/grades/student/${marwinId}`, { token: parentToken });
+    assert(
+      parentReportCard.status === 200 && parentReportCard.data?.student?.id === marwinId,
+      "Parent sees their own child's full report card"
+    );
+
+    const parentOtherReportCard = await request('GET', `/api/grades/student/${jeaId}`, { token: parentToken });
+    assert(parentOtherReportCard.status === 404, "Parent requesting another student's report card gets 404");
+
+    const teacherReportCardOutOfScope = await request('GET', `/api/grades/student/${jeaId}`, { token: teacherToken });
+    assert(
+      teacherReportCardOutOfScope.status === 404,
+      "Teacher fully out of scope gets 404 on GET /student/:studentId for a different section's student"
+    );
+
+    const adminReportCardJea = await request('GET', `/api/grades/student/${jeaId}`, { token: adminToken });
+    assert(adminReportCardJea.status === 200, "Admin sees any student's report card, unscoped");
+
+    const invalidStudentIdGet = await request('GET', '/api/grades/student/abc', { token: adminToken });
+    assert(invalidStudentIdGet.status === 400, 'GET /student/:studentId with a non-numeric id returns 400');
+
+    const nonexistentStudentGet = await request('GET', '/api/grades/student/999999', { token: adminToken });
+    assert(nonexistentStudentGet.status === 404, 'GET /student/:studentId with a nonexistent student returns 404');
+
+    // --- Grade 1 (descriptive mode): FG/GA genuinely inapplicable, not "incomplete" ---
+    const grade1ReportCard = await request('GET', `/api/grades/student/${grade1StudentFixtureId}`, { token: adminToken });
+    assert(
+      grade1ReportCard.status === 200 && grade1ReportCard.data?.grading_mode === 'descriptive',
+      'Grade 1 report card: grading_mode is descriptive'
+    );
+    const grade1MathEntry = grade1ReportCard.data?.subjects?.find((s) => s.subject_id === mathGrade1Id);
+    assert(
+      grade1MathEntry?.terms?.[1]?.descriptive_grade === 'C' && grade1MathEntry?.terms?.[1]?.term_grade === null,
+      `Grade 1 Mathematics term 1 shows letter C, term_grade null (got descriptive_grade=${grade1MathEntry?.terms?.[1]?.descriptive_grade}, term_grade=${grade1MathEntry?.terms?.[1]?.term_grade})`
+    );
+    assert(
+      grade1MathEntry?.terms?.[1]?.descriptor?.descriptor === 'Connecting',
+      `Letter C resolves to descriptor Connecting on the report card (got ${grade1MathEntry?.terms?.[1]?.descriptor?.descriptor})`
+    );
+    assert(
+      grade1MathEntry?.final_grade === null,
+      'Grade 1 subject final_grade is null — not applicable for descriptive mode, not "incomplete"'
+    );
+    assert(
+      grade1ReportCard.data?.general_average === null,
+      'Grade 1 general_average is null — GA does not apply to descriptive mode'
+    );
+
+    // --- Final Grade / General Average: NULL-until-complete at BOTH levels ---
+    console.log('\nFinal Grade / General Average (NULL until every term / every subject exists):');
+
+    const gaFixtureLrn = `2${runId}`;
+    const createGaStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: gaFixtureLrn, first_name: 'GA', last_name: 'Fixture', grade_level: 2, section: 'Test-GA' },
+    });
+    gaStudentFixtureId = createGaStudent.data?.student?.id;
+    assert(createGaStudent.status === 201, 'Fixture: a fresh Grade 2 student for FG/GA aggregation tests');
+
+    const [grade2Subjects] = await withDb((conn) =>
+      conn.query('SELECT id, name FROM subjects WHERE grade_level = 2 ORDER BY name ASC')
+    );
+    assert(grade2Subjects.length === 5, `Fixture: Grade 2 has exactly 5 subjects (got ${grade2Subjects.length})`);
+
+    // 4 of the 5 subjects: all three terms inserted directly (term_grade
+    // 84, 90, 87 -> FG 87.00 each) — bypassing the WW/PT/EX write path on
+    // purpose, since that arithmetic is already proven by the worked
+    // examples above; only the FG/GA AGGREGATION is under test here.
+    for (const subject of grade2Subjects.slice(0, 4)) {
+      for (const [term, termGrade] of [
+        [1, 84],
+        [2, 90],
+        [3, 87],
+      ]) {
+        const [result] = await withDb((conn) =>
+          conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, ?, ?, ?)', [
+            gaStudentFixtureId,
+            subject.id,
+            term,
+            schoolYear,
+            termGrade,
+          ])
+        );
+        gaGradeIds.push(result.insertId);
+      }
+    }
+
+    // The 5th subject is built up ONE TERM AT A TIME — this doubles as the
+    // Final Grade null-with-one/null-with-two/populated-with-three
+    // progression, and the last insert is also what flips General Average
+    // from null to populated (every OTHER subject already has an FG).
+    const fifthSubject = grade2Subjects[4];
+
+    const [term1Insert] = await withDb((conn) =>
+      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 1, ?, 80)', [
+        gaStudentFixtureId,
+        fifthSubject.id,
+        schoolYear,
+      ])
+    );
+    gaGradeIds.push(term1Insert.insertId);
+
+    const oneTermReport = await request('GET', `/api/grades/student/${gaStudentFixtureId}`, { token: adminToken });
+    const oneTermEntry = oneTermReport.data?.subjects?.find((s) => s.subject_id === fifthSubject.id);
+    assert(
+      oneTermReport.status === 200 && oneTermEntry?.final_grade === null,
+      `Final Grade is null with only 1 of 3 terms present (got ${oneTermEntry?.final_grade})`
+    );
+    assert(
+      oneTermReport.data?.general_average === null,
+      'General Average is null while any subject (this one) still lacks a Final Grade'
+    );
+
+    const [term2Insert] = await withDb((conn) =>
+      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, 85)', [
+        gaStudentFixtureId,
+        fifthSubject.id,
+        schoolYear,
+      ])
+    );
+    gaGradeIds.push(term2Insert.insertId);
+
+    const twoTermReport = await request('GET', `/api/grades/student/${gaStudentFixtureId}`, { token: adminToken });
+    const twoTermEntry = twoTermReport.data?.subjects?.find((s) => s.subject_id === fifthSubject.id);
+    assert(
+      twoTermReport.status === 200 && twoTermEntry?.final_grade === null,
+      `Final Grade is still null with 2 of 3 terms present (got ${twoTermEntry?.final_grade})`
+    );
+    assert(twoTermReport.data?.general_average === null, 'General Average still null with 2 of 3 terms on the last subject');
+
+    const [term3Insert] = await withDb((conn) =>
+      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 3, ?, 90)', [
+        gaStudentFixtureId,
+        fifthSubject.id,
+        schoolYear,
+      ])
+    );
+    gaGradeIds.push(term3Insert.insertId);
+
+    const completeReport = await request('GET', `/api/grades/student/${gaStudentFixtureId}`, { token: adminToken });
+    const completeEntry = completeReport.data?.subjects?.find((s) => s.subject_id === fifthSubject.id);
+    assert(
+      completeReport.status === 200 && num(completeEntry?.final_grade) === 85.0,
+      `Final Grade populates once all 3 terms exist: 85.00 = (80+85+90)/3 by hand (got ${completeEntry?.final_grade})`
+    );
+    assert(
+      num(completeReport.data?.general_average) === 86.6,
+      `General Average populates once every subject has a Final Grade: 86.60 = (87.00x4 + 85.00)/5 by hand (got ${completeReport.data?.general_average})`
+    );
   } finally {
     await cleanup();
   }

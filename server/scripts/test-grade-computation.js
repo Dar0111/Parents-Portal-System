@@ -13,6 +13,8 @@ const {
   exPercentage,
   weighted,
   initialGrade,
+  qualitativeDescriptor,
+  descriptiveGradeMeaning,
 } = require('../utils/gradeComputation');
 
 let passed = 0;
@@ -140,6 +142,87 @@ assert(bonusPct === 105.0, `subTestPercentage(105, 100) = 105.00, not clamped to
 
 const bonusWeighted = weighted(bonusPct, 30.0);
 assert(bonusWeighted === 31.5, `A >100% percentage flows through weighted() unclamped too (got ${bonusWeighted})`);
+
+// --- Qualitative descriptor (Table 11) — every band boundary ---
+console.log('\nQualitative descriptor (Table 11) — band boundaries:');
+
+assert(
+  qualitativeDescriptor(90).descriptor === 'Advancing' && qualitativeDescriptor(90).remarks === 'Passed',
+  'qualitativeDescriptor(90) = Advancing/Passed (floor of the top band)'
+);
+assert(
+  qualitativeDescriptor(89).descriptor === 'Benchmarking' && qualitativeDescriptor(89).remarks === 'Passed',
+  'qualitativeDescriptor(89) = Benchmarking/Passed (just below 90)'
+);
+assert(
+  qualitativeDescriptor(80).descriptor === 'Benchmarking' && qualitativeDescriptor(80).remarks === 'Passed',
+  'qualitativeDescriptor(80) = Benchmarking/Passed (floor of that band)'
+);
+assert(
+  qualitativeDescriptor(79).descriptor === 'Connecting' && qualitativeDescriptor(79).remarks === 'Passed',
+  'qualitativeDescriptor(79) = Connecting/Passed (just below 80)'
+);
+assert(
+  qualitativeDescriptor(75).descriptor === 'Connecting' && qualitativeDescriptor(75).remarks === 'Passed',
+  'qualitativeDescriptor(75) = Connecting/Passed (floor of the passing band)'
+);
+assert(
+  qualitativeDescriptor(74).descriptor === 'Developing' && qualitativeDescriptor(74).remarks === 'Failed',
+  'qualitativeDescriptor(74) = Developing/Failed (just below the passing floor)'
+);
+assert(
+  qualitativeDescriptor(65).descriptor === 'Developing' && qualitativeDescriptor(65).remarks === 'Failed',
+  'qualitativeDescriptor(65) = Developing/Failed (floor of that band)'
+);
+assert(
+  qualitativeDescriptor(64).descriptor === 'Emerging' && qualitativeDescriptor(64).remarks === 'Failed',
+  'qualitativeDescriptor(64) = Emerging/Failed (just below 65)'
+);
+assert(
+  qualitativeDescriptor(0).descriptor === 'Emerging' && qualitativeDescriptor(100).descriptor === 'Advancing',
+  'qualitativeDescriptor covers both ends of the full 0-100 range'
+);
+assert(qualitativeDescriptor(null) === null, 'qualitativeDescriptor(null) is null, not a guess');
+assert(qualitativeDescriptor(undefined) === null, 'qualitativeDescriptor(undefined) is null');
+assert(qualitativeDescriptor(-1) === null, 'qualitativeDescriptor(-1) is null — Table 11 defines no band below 0');
+assert(qualitativeDescriptor(100.01) === null, 'qualitativeDescriptor(100.01) is null — Table 11 defines no band above 100');
+
+// --- Descriptive letter meaning (Table 8) — all five letters, English + Filipino ---
+console.log('\nDescriptive letter meaning (Table 8):');
+
+assert(
+  descriptiveGradeMeaning('A').descriptor === 'Advancing' && descriptiveGradeMeaning('A').filipino === 'Namumukod-tangi',
+  "descriptiveGradeMeaning('A') = Advancing / Namumukod-tangi"
+);
+assert(
+  descriptiveGradeMeaning('B').descriptor === 'Benchmarking' && descriptiveGradeMeaning('B').filipino === 'Napamamalas',
+  "descriptiveGradeMeaning('B') = Benchmarking / Napamamalas"
+);
+assert(
+  descriptiveGradeMeaning('C').descriptor === 'Connecting' && descriptiveGradeMeaning('C').filipino === 'Natutungo',
+  "descriptiveGradeMeaning('C') = Connecting / Natutungo"
+);
+assert(
+  descriptiveGradeMeaning('D').descriptor === 'Developing' && descriptiveGradeMeaning('D').filipino === 'Napauunlad',
+  "descriptiveGradeMeaning('D') = Developing / Napauunlad"
+);
+assert(
+  descriptiveGradeMeaning('E').descriptor === 'Emerging' && descriptiveGradeMeaning('E').filipino === 'Nagsisimula',
+  "descriptiveGradeMeaning('E') = Emerging / Nagsisimula"
+);
+// The same five English words as Table 11's numerical descriptors above —
+// confirmed directly, not just asserted by eye reading the two tables.
+assert(
+  ['A', 'B', 'C', 'D', 'E'].every((letter) =>
+    [qualitativeDescriptor(90), qualitativeDescriptor(89), qualitativeDescriptor(79), qualitativeDescriptor(74), qualitativeDescriptor(64)].some(
+      (band) => band.descriptor === descriptiveGradeMeaning(letter).descriptor
+    )
+  ),
+  "Table 8's five letter descriptors are the exact same words as Table 11's five numerical bands"
+);
+assert(descriptiveGradeMeaning('F') === null, "descriptiveGradeMeaning('F') is null — not a valid letter");
+assert(descriptiveGradeMeaning(null) === null, 'descriptiveGradeMeaning(null) is null');
+assert(descriptiveGradeMeaning('a') === null, "descriptiveGradeMeaning('a') is null — lowercase is not a valid key");
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

@@ -114,6 +114,47 @@ function initialGrade(wwWeighted, ptWeighted, exWeighted) {
   return roundTo2(wwWeighted + ptWeighted + exWeighted);
 }
 
+// Table 11 (GRADING_SPEC §6b) — the qualitative descriptor and pass/fail
+// remark a parent sees printed next to a NUMERICAL grade (term_grade or
+// final_grade) on the SF9. Bands are inclusive on both ends; checked from
+// the top down so a boundary value (e.g. exactly 90) lands in the higher
+// band. Returns null for a null/undefined input — the same "don't guess"
+// contract as every other function in this module — and for anything
+// outside 0-100, since Table 11 defines no band for it and this function
+// must not invent one silently.
+function qualitativeDescriptor(grade) {
+  if (grade === null || grade === undefined) {
+    return null;
+  }
+  const value = Number(grade);
+  if (Number.isNaN(value) || value < 0 || value > 100) {
+    return null;
+  }
+  if (value >= 90) return { descriptor: 'Advancing', remarks: 'Passed' };
+  if (value >= 80) return { descriptor: 'Benchmarking', remarks: 'Passed' };
+  if (value >= 75) return { descriptor: 'Connecting', remarks: 'Passed' };
+  if (value >= 65) return { descriptor: 'Developing', remarks: 'Failed' };
+  return { descriptor: 'Emerging', remarks: 'Failed' };
+}
+
+// Table 8 (GRADING_SPEC §6) — what a Grade 1 DESCRIPTIVE letter means, in
+// English and Filipino. Notice the English words are the SAME words as
+// Table 11's numerical descriptors (Advancing/Benchmarking/...) — DepEd's
+// own letters are named after the qualitative bands, not an independent
+// vocabulary; this is not a coincidence this module invented. Returns
+// null for anything other than the five valid letters — same "don't
+// guess" contract as the rest of this module.
+const DESCRIPTIVE_GRADE_MEANINGS = {
+  A: { descriptor: 'Advancing', filipino: 'Namumukod-tangi' },
+  B: { descriptor: 'Benchmarking', filipino: 'Napamamalas' },
+  C: { descriptor: 'Connecting', filipino: 'Natutungo' },
+  D: { descriptor: 'Developing', filipino: 'Napauunlad' },
+  E: { descriptor: 'Emerging', filipino: 'Nagsisimula' },
+};
+function descriptiveGradeMeaning(letter) {
+  return DESCRIPTIVE_GRADE_MEANINGS[letter] || null;
+}
+
 module.exports = {
   roundTo2,
   componentPercentage,
@@ -121,4 +162,6 @@ module.exports = {
   exPercentage,
   weighted,
   initialGrade,
+  qualitativeDescriptor,
+  descriptiveGradeMeaning,
 };
