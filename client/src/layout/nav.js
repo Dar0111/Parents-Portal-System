@@ -23,7 +23,7 @@
 export const NAV_BY_ROLE = {
   teacher: [
     { to: '/teacher', label: 'Dashboard', icon: 'fa-gauge', built: true },
-    { to: '/teacher/students', label: 'Students', icon: 'fa-user-graduate', built: false },
+    { to: '/teacher/students', label: 'Students', icon: 'fa-user-graduate', built: true },
     { to: '/teacher/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/teacher/grades', label: 'Grades', icon: 'fa-chart-simple', built: false },
     { to: '/teacher/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: false },

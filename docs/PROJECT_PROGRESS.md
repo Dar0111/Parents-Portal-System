@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (adviser scope completed across content/messages, shared predicate extracted, `GET /api/messages/contacts` built, endpoint audit run)
+**Last updated:** 2026-09-07 (Teacher → Students — the second Stage 4 feature page)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +20,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 1 of ~75 views (Teacher → Attendance) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 3 of ~75 views (Teacher → Attendance, Students list + detail) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -263,8 +263,45 @@ table, `docs/API_REFERENCE.md` and the actual handlers all agree at 77
 endpoints (78 with `contacts`). No orphans, nothing undocumented, nothing
 documented-but-unbuilt.
 
-**Next:** Stage 4 web pages. The Messages page is now unblocked for all
-three roles.
+**Teacher → Students is DONE (2026-09-07)** — list + detail route, read
+only. First screen where the widened read scope is visible to a user:
+TCH-002, an adviser with zero subject assignments, lists and opens its
+advisory section's student. No Edit affordance, because `PUT` is
+assignments-only and a button an adviser cannot honour is a dead end.
+**Measured: 1m24s** against Attendance's 3m14s — recorded side by side, not
+as a series: two points are not a rate, and the two pages are not comparable
+(Attendance added a helper, a write path and bulk submit; Students is
+read-only against endpoints already exercised).
+
+**Two findings recorded, not fixed** (a client dispatch touches no server
+files): `GET /api/students` returns the full personal row — address, contact
+number, birthday — on a LIST, and the LRN in it doubles as the parent's
+login_id; and `docs/API_REFERENCE.md`'s scope labels are stale for every read
+widened on 2026-09-06/07, with no legend code existing for "assigned OR
+adviser". The latter needs its own backend-docs dispatch. Neither was caught
+by the 2026-09-07 audit, which diffed endpoint existence — a presence diff
+cannot see a scope column drift stale, a stated limitation rather than a
+failure.
+
+**New rule recorded — CLAUDE.md convention §5c:** the LRN is half a
+credential (a parent's login_id IS the child's LRN), so no screen shows one
+except to a teacher or admin acting on that student, and no LRN goes in a
+URL, query string, or error message.
+
+**And convention §5d — display casing is presentation only.** `StatusBadge`
+capitalises its rendered label while the tone lookup keeps keying on the
+lowercased value; nothing about matching, storage or what is sent to the API
+changes. It exists because the schema itself disagrees: `attendance`,
+`excuse_letters` and `contribution_records` ENUMs are capitalised while
+`users.status` and `students.status` are not. **That inconsistency is
+deliberately NOT normalised** — a migration touching real rows for a cosmetic
+reason is the wrong trade — so a future session finding the mismatch is
+looking at a decision, not an oversight. Capitalising is a no-op for three of
+the six vocabularies and visibly changes only two ENUMs plus grades'
+locked/unlocked.
+
+**Next:** Stage 4 web pages. The Messages page is unblocked for all three
+roles.
 
 ---
 
