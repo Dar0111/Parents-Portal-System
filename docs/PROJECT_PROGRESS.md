@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (Teacher → Excuse Letters — the third Stage 4 feature page)
+**Last updated:** 2026-09-07 (Teacher → Announcements, Memos, Events — three pages)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +20,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 4 of ~75 views (Teacher → Attendance, Students list + detail, Excuse Letters) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 7 of ~75 views (Teacher → Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -333,8 +333,27 @@ a modal and never calls it; and `excuse_letters.attachment_url` is dead schema
 — nothing writes it and there is no upload endpoint, so no screen should offer
 an attachment.
 
-**Next:** Stage 4 web pages. The Messages page is unblocked for all three
-roles.
+**Teacher → Announcements, Memos, Events are DONE (2026-09-07)** — three page
+files, not one component. The dispatch premise was that they are
+near-identical; they are not, and **Memos is admin-only for every write**, so a
+teacher's Memos page is a read-only list with no compose control at all.
+Announcements **is the Class Board** — no separate affordance, because a
+teacher's only legal target is an exact section, so every announcement they
+post already is one; the later "Post to class" from Messages pre-fills this
+same form and must not build a second composer. Delete confirms (hard DELETE,
+no undo), edit does not. **Measured: 3m36s — not comparable to the previous
+three, being three pages.**
+
+**One finding merged rather than logged twice: `teacher_assignments` is
+invisible to the API in both directions.** No endpoint creates one (so an
+admin cannot assign a teacher to a subject — **blocks Admin → Users and Admin
+→ Sections**) and none reads one (so `useTeacherTargets` reconstructs a
+teacher's valid targets from sections + students). The reconstruction cannot
+see a section with zero students — acceptable, because such a section has no
+parents to announce to. One endpoint closes both holes.
+
+**Next:** Stage 4 web pages — teacher grades encode, contributions, messages.
+The Messages page is unblocked for all three roles.
 
 ---
 
