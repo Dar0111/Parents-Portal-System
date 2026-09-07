@@ -35,7 +35,7 @@ export const NAV_BY_ROLE = {
   ],
   parent: [
     { to: '/parent', label: 'Dashboard', icon: 'fa-gauge', built: true },
-    { to: '/parent/grades', label: 'Grades', icon: 'fa-chart-simple', built: false },
+    { to: '/parent/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
     {
       to: '/parent/attendance',
       label: 'Attendance',

@@ -7,8 +7,8 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (Parent → Announcements, Memos, Events — first
-parent-facing pages, first dispatch with no write affordance)
+**Last updated:** 2026-09-07 (Parent → Grades — the report card, and the first
+feature page to consume `GradeValue`)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -21,7 +21,7 @@ parent-facing pages, first dispatch with no write affordance)
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 12 of ~75 views — Teacher: Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread · Parent: Announcements, Memos, Events (all read-only) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 13 of ~75 views — Teacher: Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread · Parent: Grades, Announcements, Memos, Events (all read-only) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -497,6 +497,114 @@ line, correct today and wrong the day Parent → Messages lands, so **it belongs
 to that dispatch, not a cleanup pass.** It is the harmless direction of the
 error: an over-broad notice fails safe where an absent one does not.
 
+**Parent → Grades is DONE (2026-09-07)** — the report card, and **the first
+feature page to consume `GradeValue`**. Convention 3 was frozen into the Stage 4
+foundation on 2026-09-06 and sat with no caller through five feature dispatches;
+this is the page it was written for. One page file, one route, one nav flip, plus
+the `ParentDashboard` copy fix folded in.
+
+**One request — and the two endpoints NOT called are the more interesting half.**
+`GET /api/grades/student/:studentId`, six-key unwrap (this endpoint has no
+`grade`/`grades` wrapper at all, verified live rather than read off
+API_REFERENCE). `GET /` is declined because it returns bare grade rows with no
+subject-coverage overlay, so a subject with zero grade rows would silently
+vanish — the exact confusion the report-card endpoint exists to remove.
+`GET /:id` is **deferred, not rejected**: it exists and is correctly
+parent-scoped, and it would add the WW/PT component breakdown — but **whether a
+parent should see individual raw assessment scores rather than the term grade the
+SF9 prints is a school policy question nobody has asked**, and building it would
+answer that question by shipping. `grade_id` is already on every term entry, so
+the follow-up needs no new endpoint.
+
+**This page skips its request when `student_id` is null — the opposite of the
+parent content pages, and the difference is structural.** Those endpoints take
+no student id, so the server derives the child and skipping would hide real posts
+behind a stale `AuthContext`. Here the id goes IN the path the client builds, and
+`parseId(null)` answers `400 "Invalid student id."` — verified live — a
+developer-facing string that would reach a parent as though the app were broken.
+`loading` clears in the same turn as the skip. Proven in the browser, and the
+proof does not depend on the Network tab: the error branch and the empty branch
+are mutually exclusive, so seeing the link-slash copy at all means the request
+never left.
+
+**5c is enforced by SOURCING, not by discipline.** The header renders from the
+report payload's own `student` object, asserted live to be exactly
+`{ id, first_name, last_name, grade_level, section }` — **no `lrn` key in it to
+leak**. `/auth/me` does carry `lrn` and `login_id` (for a parent, the same
+credential twice) and is read for the path id and nothing else. Route is
+`/parent/grades` with no `:id`, since a parent has one child.
+
+**4 held against a live temptation.** The API sends
+`{ descriptor: 'Advancing', remarks: 'Passed' }` on every populated Final Grade
+and General Average. Only `descriptor` renders — never `remarks`, never through
+`StatusBadge`, and **never as a colour keyed on the band**, since tinting
+"Emerging" red is a verdict written in CSS. **Browser review produced better
+proof than any assertion did:** seven subjects read `Advancing` and Mathematics
+read `Benchmarking`, because 89.67 sits in the 80-89 band — the descriptor is
+genuinely looked up per subject, and "Passed" appeared nowhere on a screen the
+API had sent it to eight times. `is_locked` is on every term entry and is not
+rendered: a parent cannot act on it, and it reads as either "final" (a promise
+an admin can undo) or "hidden from you" (false).
+
+**Finding C — `GradeValue` has no branch for a descriptive A–E letter**, and it
+is recorded rather than fixed. `formatGrade('A')` is `NaN → null → "— N/A"`, the
+string meaning "does not apply", on the one value that does. Outside the
+primitive's contract rather than a bug inside it, so the letter is handled
+locally and `format/grade.jsx` was not touched — the same rule that kept
+`onRowClick` out of `DataTable`. **That branch is UNVERIFIED**: no Grade 1
+student exists in the seed, so it was written from the handler's shape and never
+exercised. Recorded as unverified deliberately — an entry claiming "verified"
+when the fixture could not fail is worse than no entry.
+
+**5f's obvious empty state is structurally unreachable, and that is the
+finding.** `subjects` comes from the `subjects` table by `grade_level`, and the
+seeded curriculum is 5/5/6/8/8/8, so a linked parent always has rows. **A "no
+grades yet" empty state would be dead code that, if it ever fired, would hide a
+real all-`Pending` report card** — the worst failure available on this screen.
+Verified before any fixture existed: with `grades` at 0 rows the endpoint returns
+8 subjects, all terms null, FG null, GA null — the normal state today, rendering
+as eight rows of "— Pending", not as an empty state.
+
+**No filters, each declined for its own reason.** `student_id` is fixed (naming
+another child is `403`, so the control's only other value is a refusal);
+`subject_id`/`term` would filter eight visible rows and the endpoint does not
+accept `term`; `school_year` is accepted and defaults to
+`system_settings.academic_year`, but the seed holds one year and **no endpoint
+lists the years that exist**, so a picker either generates 400s or invents data.
+
+**Verified: 32 live API checks, all passing**, plus a **24-row fixture chain
+built through the real write API** (admin shells, then components and exam as
+TCH-001 for the three subjects it actually teaches). Arithmetic hand-checked at
+both levels — Mathematics 89/91/89 → FG **89.67**, mean of eight FGs → GA
+**90.21** — and NULL-until-complete proven rather than assumed at both: English
+with 2 of 3 terms kept `final_grade: null`, and GA stayed null with 7 of 8
+subjects done. **Three browser states, with a DB flip between each**, because
+every interesting state of this page is a state of the DATA. 5h satisfied by
+opening it as `13567454`; SSR plus a negative control (a removed `useMemo`
+reproducing `ReferenceError`) is the backstop, not the proof. Teardown by direct
+SQL — **there is no `DELETE /api/grades/:id` anywhere in the API**, now flagged —
+with both tables confirmed back at 0. Build clean; `oxlint` 17 → 18, the single
+addition being the usual fetch advisory.
+
+**Measured: 37m26s — seventh data point, and read the split first: ~24m agent
+work, ~13m of the clock running idle waiting for browser-review replies.** That
+idle time is real elapsed time a dispatch cannot proceed through, but it is a
+different cost from building or verifying and scales with how many states need a
+human eye. **The carry-forward is why a report card costs three browser states
+where an announcements list cost one:** every interesting state here is a
+database configuration of the same component with no input to drive it, so it can
+only be walked by writing rows and deleting them — and **every remaining Parent
+page has that shape**, being read-only views of teacher-authored data.
+
+**Two findings flagged, neither fixed — no server file touched.** No
+`DELETE /api/grades/:id` (so a grade row created against the wrong student or
+term is uncorrectable except by hand; the likely shape is admin-only and refused
+once `is_locked` is set, but that needs deciding rather than patching), and
+`GradeValue`'s missing letter state above. **API_REFERENCE was checked and left
+alone** — its grades parent rows match the live responses, so unlike the
+content/students scope labels, no correction was owed. **5g's inverse is still
+deliberately untouched** and still belongs to Parent → Messages.
+
 **Next:** Stage 4 web pages — teacher grades encode and contributions, then the
 remaining Parent set (Attendance stays **blocked** on the rate formula) and Admin.
 
@@ -504,11 +612,19 @@ remaining Parent set (Attendance stays **blocked** on the rate formula) and Admi
 
 ## What's left, module by module
 
-**Grade Management & Viewing** — API fully done (write path + viewing, all nine stages), no screens yet.
-- [ ] Web pages: parent report-card view (per subject, per term, Final
-      Grade, General Average, qualitative descriptor), teacher encoding
-      grid (WW/PT/exam scores or the Grade 1 letter, per section), admin
-      lock/unlock control.
+**Grade Management & Viewing** — API fully done (write path + viewing, all nine stages); the parent report card is the one screen built.
+- [x] **Parent report-card view — DONE 2026-09-07.** Per subject, per term,
+      Final Grade, General Average, qualitative descriptor. First consumer of
+      `GradeValue`. Read-only; the component breakdown (`GET /:id`'s WW/PT raw
+      scores) is deliberately **deferred**, not missing — whether a parent
+      should see individual assessment scores rather than the term grade the
+      SF9 prints is an unanswered school question.
+- [ ] Web pages: teacher encoding grid (WW/PT/exam scores or the Grade 1
+      letter, per section), admin lock/unlock control.
+- [ ] Not fixed, flagged: there is **no `DELETE /api/grades/:id`**, so a grade
+      row created against the wrong student or term is uncorrectable except by
+      direct SQL. Likely shape is admin-only and refused once `is_locked` is
+      set — needs deciding, not patching.
 - [ ] Expo screens (Stage 5, not started).
 - [ ] Open, not blocking: Grade 1's manual-letter model and teacher
       self-locking are both recorded as open school questions, not
