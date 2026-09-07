@@ -7,8 +7,16 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (Parent → Grades — the report card, and the first
-feature page to consume `GradeValue`)
+**Last updated:** 2026-09-07 (Grade 1 descriptive fixture seeded — persistence
+was the gap, not coverage)
+
+**Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
+baseline. Do not repeat the live counts here. After a clean `db:setup` the
+demo Grade 1 path exists: Nino Alcantara (LRN `1090001`, Grade 1 - Mabait),
+parent Rosa (`1090001` / `Parent@2026`, active), teacher TCH-003 (Lito
+Bautista — adviser of Mabait AND assigned all five Grade 1 subjects).
+TCH-002 stays assignment-less. Letters on the card are illustrative fixture
+data, not a computed result.
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -36,8 +44,9 @@ scoped), everything else still scopes on VARCHAR, deliberately. **A
 Sections API (2026-09-05) is now the management interface for the table
 itself** — `GET /`, `GET /:id` (unscoped, all roles), `PATCH /:id/adviser`
 (admin only) — a separate thing from that VARCHAR→`section_id` migration,
-not a third route joining it; this is what lets an admin assign the 21
-still-`NULL` sections without a direct DB write. Not one of the original
+not a third route joining it; this is what lets an admin assign still-NULL
+sections without a direct DB write (how many are NULL is in CLAUDE.md's
+Seeded baseline). Not one of the original
 10 core features. **The
 school-visit answers have started arriving.** Grades' original four
 blockers are all answered (DO 009/DO 015 s. 2026 — see CLAUDE.md's
@@ -351,7 +360,14 @@ admin cannot assign a teacher to a subject — **blocks Admin → Users and Admi
 → Sections**) and none reads one (so `useTeacherTargets` reconstructs a
 teacher's valid targets from sections + students). The reconstruction cannot
 see a section with zero students — acceptable, because such a section has no
-parents to announce to. One endpoint closes both holes.
+parents to announce to. One endpoint closes both holes. **Consequence 4 (configuration, recorded
+with the Grade 1 fixture, not solved there):** no endpoint exposes
+`grading_mode` for a grade level on its own. A Teacher → Grades encode
+screen would have to call the report-card endpoint, attempt a write and
+parse the 400, or hardcode "Grade 1 is descriptive" — all three unsatisfying.
+Same pattern as 1–3: the API does not expose configuration a client needs
+to render correctly. Whether the fix is one endpoint or four is for whoever
+closes this.
 
 **Teacher → Messages is DONE (2026-09-07)** — conversation list + thread, and
 the first Stage 4 page using Socket.io. Added `socket.io-client` pinned to
@@ -551,10 +567,12 @@ is recorded rather than fixed. `formatGrade('A')` is `NaN → null → "— N/A"
 string meaning "does not apply", on the one value that does. Outside the
 primitive's contract rather than a bug inside it, so the letter is handled
 locally and `format/grade.jsx` was not touched — the same rule that kept
-`onRowClick` out of `DataTable`. **That branch is UNVERIFIED**: no Grade 1
-student exists in the seed, so it was written from the handler's shape and never
-exercised. Recorded as unverified deliberately — an entry claiming "verified"
-when the fixture could not fail is worse than no entry.
+`onRowClick` out of `DataTable`. **The seed now has a Grade 1 student** (Nino,
+LRN `1090001`, parent active — CLAUDE.md Seeded baseline), so the fixture that
+blocked verification is gone. **The local UI branch is still unverified in a
+browser** — the fixture dispatch is seed + tests, no client file. Open
+`/parent/grades` as `1090001` / `Parent@2026` to retire it. Do not add a fifth
+state to `GradeValue` until that pass has been seen on screen.
 
 **5f's obvious empty state is structurally unreachable, and that is the
 finding.** `subjects` comes from the `subjects` table by `grade_level`, and the
@@ -607,6 +625,17 @@ deliberately untouched** and still belongs to Parent → Messages.
 
 **Next:** Stage 4 web pages — teacher grades encode and contributions, then the
 remaining Parent set (Attendance stays **blocked** on the rate formula) and Admin.
+Teacher encode is blocked on discovery, not on the page itself: see CLAUDE.md
+KNOWN ISSUES consequence 4 (`grading_mode` is not exposed). Do not hardcode
+Grade 1.
+
+**Grade 1 descriptive fixture seeded (2026-09-07)** — persistence was the gap,
+not coverage. `test:grades` already covered the write path on a throwaway
+Matipid student. What the demo needed was a row that survives `db:setup`.
+TCH-003 / Mabait / LRN 1090001 / partial letters (A/B/C on Mathematics, D/E
+on Reading with term 3 blank, three subjects untouched). Letters are
+illustrative, not computed. The grades suite asserts that card read-only and
+must not write on it. Live counts: CLAUDE.md Seeded baseline.
 
 ---
 

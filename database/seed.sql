@@ -240,7 +240,12 @@ INSERT INTO sections (name, grade_level, school_year) VALUES
 
 INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday, gender, address, status) VALUES
   ('13567454', 'Marwin', 'Conde', 6, 'Malikhain', '2014-03-15', 'male', 'Pateros, Metro Manila', 'active'),
-  ('1234567', 'Jea Mae', 'Bargaso', 5, 'Masigasig', '2015-07-22', 'female', 'Pateros, Metro Manila', 'active');
+  ('1234567', 'Jea Mae', 'Bargaso', 5, 'Masigasig', '2015-07-22', 'female', 'Pateros, Metro Manila', 'active'),
+  -- Grade 1 descriptive-path fixture (demo 2026-09-18). Fictional name,
+  -- not a real learner. Section is Mabait, NOT Matipid: test-grades-flows.js
+  -- creates a throwaway Grade 1 student in Matipid every run and deletes it,
+  -- so the demo student must not share that section.
+  ('1090001', 'Nino', 'Alcantara', 1, 'Mabait', '2019-08-12', 'male', 'Pateros, Metro Manila', 'active');
 
 -- Password hashes for users are inserted by scripts/setup-db.js after bcrypt hashing.
 -- Placeholder markers below are replaced programmatically:
@@ -250,15 +255,46 @@ INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday
 -- Sample teacher assignment (teacher_id = 2 after admin=1, teacher=2)
 -- __SEED_ASSIGNMENTS__
 
--- Section advisers (Stage B1, attendance per-day model). Only 2 of 23
--- sections get one — the other 21 stay NULL; assigning the rest is an
--- admin UI feature, not seed data. Keyed by login_id/section-name, not a
--- hardcoded numeric id, since exact user ids depend on insert order.
+-- Section advisers. Three of 23 sections get one — the rest stay NULL;
+-- assigning those is an admin UI feature, not seed data. Keyed by
+-- login_id/section-name, not a hardcoded numeric id. See CLAUDE.md
+-- CURRENT STATE → Seeded baseline for the live counts.
 UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-001')
   WHERE grade_level = 6 AND name = 'Malikhain' AND school_year = '2026-2027';
 
 UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-002')
   WHERE grade_level = 5 AND name = 'Masigasig' AND school_year = '2026-2027';
+
+UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-003')
+  WHERE grade_level = 1 AND name = 'Mabait' AND school_year = '2026-2027';
+
+-- ---------------------------------------------------------------------------
+-- Grade 1 partial descriptive card for Nino (LRN 1090001).
+--
+-- These letters are ILLUSTRATIVE FIXTURE DATA, not a computed result.
+-- Grade 1 as a manual A-E judgment is an ASSUMPTION (DO 015 defines no
+-- IG-to-letter mapping). Nothing in this INSERT derives a letter from
+-- scores; if the school later says a computation feeds the letter, one
+-- write handler changes (PATCH /:id/descriptive), not this seed and not
+-- the schema.
+--
+-- Partial on purpose so Parent → Grades can show three states on one
+-- screen: letters (Mathematics, all three terms), Pending (Reading term
+-- 3 blank; Makabansa/GMRC/Language untouched), and N/A (Final Grade and
+-- General Average, inapplicable in descriptive mode).
+-- ---------------------------------------------------------------------------
+INSERT INTO grades (student_id, subject_id, term, school_year, descriptive_grade)
+SELECT st.id, s.id, v.term, '2026-2027', v.letter
+FROM students st
+JOIN subjects s ON s.grade_level = 1
+JOIN (
+  SELECT 'Mathematics' AS subject_name, 1 AS term, 'A' AS letter
+  UNION ALL SELECT 'Mathematics', 2, 'B'
+  UNION ALL SELECT 'Mathematics', 3, 'C'
+  UNION ALL SELECT 'Reading', 1, 'D'
+  UNION ALL SELECT 'Reading', 2, 'E'
+) v ON v.subject_name = s.name
+WHERE st.lrn = '1090001';
 
 -- Activity log for initial admin seed
 -- __SEED_ACTIVITY__

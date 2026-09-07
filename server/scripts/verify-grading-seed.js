@@ -195,6 +195,93 @@ async function run() {
     const numericalGrades = modeRows.filter((r) => r.grade_level >= 2 && r.grade_level <= 6);
     const allNumerical = numericalGrades.length === 5 && numericalGrades.every((r) => r.mode === 'numerical');
     check(allNumerical, 'Grades 2-6 are all numerical');
+
+    // --- Grade 1 descriptive fixture (persistent seed, not per-test) ---
+    console.log('\nGrade 1 descriptive fixture:');
+
+    const [g1Students] = await conn.query(
+      "SELECT id, lrn, first_name, last_name, grade_level, section FROM students WHERE grade_level = 1"
+    );
+    check(g1Students.length === 1, 'Exactly one Grade 1 student is seeded', `found ${g1Students.length}`);
+
+    const g1 = g1Students[0];
+    check(g1?.lrn === '1090001' && g1?.section === 'Mabait', 'That student is LRN 1090001 in section Mabait', g1 ? `${g1.lrn} / ${g1.section}` : 'no row');
+
+    const [mabait] = await conn.query(
+      "SELECT id, adviser_id FROM sections WHERE grade_level = 1 AND name = 'Mabait' AND school_year = ? LIMIT 1",
+      [SCHOOL_YEAR]
+    );
+    check(mabait[0]?.adviser_id != null, 'Grade 1 - Mabait has a non-NULL adviser_id');
+
+    const [adviser] = await conn.query('SELECT id, login_id FROM users WHERE id = ? LIMIT 1', [mabait[0]?.adviser_id]);
+    check(adviser[0]?.login_id === 'TCH-003', 'That adviser is TCH-003, not TCH-002', adviser[0]?.login_id || 'none');
+
+    const [g1Subjects] = await conn.query("SELECT id, name FROM subjects WHERE grade_level = 1 ORDER BY name");
+    check(g1Subjects.length === 5, 'Grade 1 still has 5 subjects', `found ${g1Subjects.length}`);
+
+    const [g1Assignments] = await conn.query(
+      `SELECT subject_id FROM teacher_assignments
+       WHERE teacher_id = ? AND grade_level = 1 AND section = 'Mabait'`,
+      [adviser[0]?.id]
+    );
+    const assignedSubjectIds = new Set(g1Assignments.map((r) => r.subject_id));
+    const allFiveAssigned = g1Subjects.every((s) => assignedSubjectIds.has(s.id)) && g1Assignments.length === 5;
+    check(allFiveAssigned, 'TCH-003 is assigned all five Grade 1 subjects in Mabait', `assignments=${g1Assignments.length}`);
+
+    const [g1Parent] = await conn.query(
+      "SELECT id, status, role, student_id FROM users WHERE login_id = '1090001' LIMIT 1"
+    );
+    check(
+      g1Parent[0]?.role === 'parent' && g1Parent[0]?.status === 'active' && g1Parent[0]?.student_id === g1?.id,
+      'An active parent account is linked to the Grade 1 student'
+    );
+
+    const [g1Grades] = await conn.query(
+      `SELECT g.id, g.term, g.descriptive_grade, g.term_grade, g.initial_grade, s.name AS subject_name
+       FROM grades g
+       JOIN subjects s ON s.id = g.subject_id
+       WHERE g.student_id = ? AND g.school_year = ?`,
+      [g1?.id, SCHOOL_YEAR]
+    );
+    check(g1Grades.length === 5, 'Exactly 5 grade rows for the Grade 1 student (partial card)', `found ${g1Grades.length}`);
+
+    const allLetters = g1Grades.every(
+      (r) => r.descriptive_grade != null && r.term_grade == null && r.initial_grade == null
+    );
+    check(
+      allLetters,
+      'Every seeded Grade 1 grade row stores a letter and leaves numerical columns NULL — not a computed result',
+      g1Grades.map((r) => `${r.subject_name} T${r.term}=${r.descriptive_grade}/${r.term_grade}`).join(', ')
+    );
+
+    function lettersFor(name) {
+      return g1Grades
+        .filter((r) => r.subject_name === name)
+        .sort((a, b) => a.term - b.term)
+        .map((r) => `${r.term}:${r.descriptive_grade}`);
+    }
+    check(
+      lettersFor('Mathematics').join(',') === '1:A,2:B,3:C',
+      'Mathematics has all three terms lettered (A/B/C)',
+      lettersFor('Mathematics').join(',')
+    );
+    check(
+      lettersFor('Reading').join(',') === '1:D,2:E',
+      'Reading has terms 1-2 lettered and term 3 blank (Pending)',
+      lettersFor('Reading').join(',')
+    );
+    const untouched = ['GMRC', 'Language', 'Makabansa'].every((name) => lettersFor(name).length === 0);
+    check(untouched, 'GMRC, Language, and Makabansa have zero grade rows (Pending)');
+
+    const gradeIds = g1Grades.map((r) => r.id);
+    if (gradeIds.length) {
+      const [components] = await conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id IN (?)', [
+        gradeIds,
+      ]);
+      check(components[0].c === 0, 'Zero grade_components on the descriptive fixture — no WW/PT path');
+    } else {
+      check(false, 'Zero grade_components on the descriptive fixture — no WW/PT path', 'no grade rows to check');
+    }
   } finally {
     await conn.end();
   }

@@ -50,15 +50,44 @@ INSERT INTO users (login_id, password, role, status, name, email, contact_number
 INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by, approved_by) VALUES
   ('TCH-002', '${teacherHash}', 'teacher', 'active', 'Ana Reyes', 'areyes@chfes.edu.ph', '09170000004', NULL, 1, NULL);
 
+-- Grade 1 adviser + subject teacher. A NEW account, not TCH-002: that
+-- account's whole value is being assignment-less (test-messages asserts
+-- it sees zero parent contacts because Jea's parent is pending; adding
+-- an active Grade 1 parent under TCH-002 would flip that assertion and
+-- its own comment would send the next reader hunting a scope bug).
+-- Grades encode-scope is teacher_assignments only — an adviser with no
+-- assignment rows cannot encode a letter — so TCH-003 gets all five
+-- Grade 1 subjects in Mabait. Deliberately NOT Matipid: the grades
+-- suite raw-inserts (TCH-001, Grade 1 Mathematics, Matipid) and would
+-- collide on uq_teacher_assignment if a seeded row used that tuple.
+INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by, approved_by) VALUES
+  ('TCH-003', '${teacherHash}', 'teacher', 'active', 'Lito Bautista', 'lbautista@chfes.edu.ph', '09170000005', NULL, 1, NULL);
+
+UPDATE students SET created_by = (SELECT id FROM users WHERE login_id = 'TCH-003')
+  WHERE lrn = '1090001';
+
+INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by, approved_by) VALUES
+  ('1090001', '${parentHash}', 'parent', 'active', 'Rosa Alcantara', 'rosa.a@email.com', '09170000006',
+   (SELECT id FROM students WHERE lrn = '1090001'),
+   (SELECT id FROM (SELECT id FROM users WHERE login_id = 'TCH-003') AS tch003),
+   1);
+
 INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section)
 SELECT 2, s.id, s.grade_level, 'Malikhain'
 FROM subjects s
 WHERE s.grade_level = 6 AND s.name IN ('Mathematics', 'English', 'Filipino');
 
+INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section)
+SELECT u.id, s.id, s.grade_level, 'Mabait'
+FROM users u
+CROSS JOIN subjects s
+WHERE u.login_id = 'TCH-003' AND s.grade_level = 1;
+
 INSERT INTO activity_logs (user_id, action, description) VALUES
   (1, 'seed', 'Initial admin account seeded'),
   (2, 'seed', 'Sample teacher account seeded'),
-  (1, 'seed', 'Second sample teacher account seeded (adviser, Grade 5 - Masigasig)');
+  (1, 'seed', 'Second sample teacher account seeded (adviser, Grade 5 - Masigasig)'),
+  (1, 'seed', 'Third sample teacher account seeded (adviser + subject teacher, Grade 1 - Mabait)');
 `;
 }
 
@@ -163,9 +192,12 @@ async function main() {
     console.log('\nDatabase setup complete.\n');
     console.log('Default accounts:');
     console.log('  Admin:   ADMIN001  / Admin@2026');
-    console.log('  Teacher: TCH-001   / Teacher@2026');
-    console.log('  Parent:  13567454  / Parent@2026  (active — Marwin)');
+    console.log('  Teacher: TCH-001   / Teacher@2026  (Grade 6 - Malikhain)');
+    console.log('  Teacher: TCH-002   / Teacher@2026  (adviser-only, Grade 5 - Masigasig)');
+    console.log('  Teacher: TCH-003   / Teacher@2026  (Grade 1 - Mabait, all five subjects)');
+    console.log('  Parent:  13567454  / Parent@2026  (active — Marwin, Grade 6 numerical)');
     console.log('  Parent:  1234567   / Parent@2026  (pending — Jea, for approval flow testing)');
+    console.log('  Parent:  1090001   / Parent@2026  (active — Nino, Grade 1 descriptive)');
   } catch (error) {
     console.error('Database setup failed:', error.message);
     process.exit(1);
