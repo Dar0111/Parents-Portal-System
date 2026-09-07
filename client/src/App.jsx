@@ -16,6 +16,7 @@ import TeacherMemos from './pages/teacher/MemosPage';
 import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
+import TeacherGrades from './pages/teacher/GradesPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAnnouncements from './pages/parent/AnnouncementsPage';
 import ParentMemos from './pages/parent/MemosPage';
@@ -60,6 +61,7 @@ export default function App() {
             }
           >
             <Route index element={<TeacherDashboard />} />
+            <Route path="grades" element={<TeacherGrades />} />
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="students" element={<TeacherStudents />} />
             <Route path="students/:id" element={<TeacherStudentDetail />} />
