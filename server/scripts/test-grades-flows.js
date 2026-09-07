@@ -17,10 +17,16 @@
  *
  * Idempotent: every grade row this script creates is tracked and deleted
  * in a finally block; the throwaway student fixtures (one inactive
- * Grade 6, one Grade 1 for the descriptive-mode tests) and the one
- * throwaway teacher_assignments row (TCH-001 -> Grade 1 Mathematics, for
- * the "subject teacher succeeds" descriptive test) are deleted the same
- * way — passes on repeat runs with no db:setup.
+ * Grade 6, one Grade 1 for the descriptive-mode WRITE tests) and the one
+ * throwaway teacher_assignments row (TCH-001 -> Grade 1 Mathematics in
+ * Matipid, for the "subject teacher succeeds" descriptive test) are
+ * deleted the same way — passes on repeat runs with no db:setup.
+ *
+ * The seeded Grade 1 student (LRN 1090001, Mabait) is READ-ONLY here.
+ * Do not POST/PATCH/DELETE grades against that student: a suite that
+ * writes and deletes on the demo fixture is a suite that can break the
+ * demo. The throwaway Matipid student remains the write target; the
+ * seeded card is asserted as the seed left it.
  *
  * Usage: npm run test:grades
  */
@@ -1194,6 +1200,63 @@ async function run() {
       grade1ReportCard.data?.general_average === null,
       'Grade 1 general_average is null — GA does not apply to descriptive mode'
     );
+
+    // Seeded Grade 1 card (Nino / 1090001 / Mabait). READ-ONLY.
+    // The throwaway Matipid student above is still the write target for
+    // PATCH /:id/descriptive. Writing to this student would make the
+    // suite able to break the 2026-09-18 demo the fixture exists for.
+    console.log('\nSeeded Grade 1 fixture (read-only — do not write):');
+
+    const g1ParentLogin = await login('1090001', 'Parent@2026');
+    const g1ParentToken = g1ParentLogin.data?.token;
+    const g1StudentId = g1ParentLogin.data?.user?.student_id;
+    assert(
+      g1ParentLogin.status === 200 && Number.isInteger(g1StudentId),
+      'Seeded Grade 1 parent (1090001) can log in — the account is active, not pending'
+    );
+
+    const seededCard = await request('GET', `/api/grades/student/${g1StudentId}`, { token: g1ParentToken });
+    assert(
+      seededCard.status === 200 && seededCard.data?.grading_mode === 'descriptive',
+      `Seeded report card: grading_mode is descriptive (got ${seededCard.data?.grading_mode})`
+    );
+    assert(
+      Array.isArray(seededCard.data?.subjects) && seededCard.data.subjects.length === 5,
+      `Seeded report card has 5 Grade 1 subjects (got ${seededCard.data?.subjects?.length})`
+    );
+
+    const mathCard = seededCard.data?.subjects?.find((s) => s.subject_name === 'Mathematics');
+    assert(
+      mathCard?.terms?.[1]?.descriptive_grade === 'A' &&
+        mathCard?.terms?.[2]?.descriptive_grade === 'B' &&
+        mathCard?.terms?.[3]?.descriptive_grade === 'C' &&
+        mathCard?.terms?.[1]?.term_grade === null &&
+        mathCard?.final_grade === null,
+      'Mathematics is fully lettered A/B/C, term_grade null, final_grade null (N/A, not incomplete)'
+    );
+
+    const readingCard = seededCard.data?.subjects?.find((s) => s.subject_name === 'Reading');
+    assert(
+      readingCard?.terms?.[1]?.descriptive_grade === 'D' &&
+        readingCard?.terms?.[2]?.descriptive_grade === 'E' &&
+        readingCard?.terms?.[3] === null,
+      'Reading has terms 1-2 lettered and term 3 null — the Pending cell on a descriptive card'
+    );
+
+    const untouchedNames = ['GMRC', 'Language', 'Makabansa'];
+    const untouchedEmpty = untouchedNames.every((name) => {
+      const entry = seededCard.data?.subjects?.find((s) => s.subject_name === name);
+      return entry && entry.terms?.[1] === null && entry.terms?.[2] === null && entry.terms?.[3] === null;
+    });
+    assert(untouchedEmpty, 'GMRC, Language, and Makabansa are fully empty (Pending), not missing from the card');
+
+    assert(
+      seededCard.data?.general_average === null && seededCard.data?.general_average_descriptor === null,
+      'Seeded Grade 1 general_average is null — inapplicable, not pending'
+    );
+
+    const g1ParentOther = await request('GET', `/api/grades/student/${marwinId}`, { token: g1ParentToken });
+    assert(g1ParentOther.status === 404, 'Grade 1 parent requesting Marwin\'s report card gets 404');
 
     // --- Final Grade / General Average: NULL-until-complete at BOTH levels ---
     console.log('\nFinal Grade / General Average (NULL until every term / every subject exists):');
