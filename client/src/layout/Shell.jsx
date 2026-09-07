@@ -3,6 +3,9 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { navForRole, navTitleForPath } from './nav';
 import { PageTitleContext } from './usePageTitle';
+import SocketProvider from '../realtime/SocketProvider';
+import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
+import LiveStatus from '../realtime/LiveStatus';
 
 const ROLE_LABEL = {
   admin: 'Admin',
@@ -15,8 +18,26 @@ const ROLE_LABEL = {
 // blocked one cannot be designed until a school question is answered, and its
 // tooltip carries that reason. Exported so the dev gallery can show all three
 // side by side without logging in as three different roles.
-export function NavItem({ item, onNavigate }) {
+export function NavItem({ item, onNavigate, badge = 0 }) {
   const base = 'flex items-center gap-3 rounded-lg px-3 py-2 transition';
+
+  // The badge renders ONLY on a built item. A count on a dimmed, unclickable
+  // nav entry would be worse than no count: it announces something the user
+  // cannot go and read. Parent and Admin Messages are built: false today, so
+  // their unread counts are deliberately invisible until those pages land —
+  // at which point flipping `built` makes the badge appear with no change
+  // here. See the unread note in Shell below.
+  const withBadge = (label) =>
+    badge > 0 ? (
+      <>
+        <span className="flex-1">{label}</span>
+        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      </>
+    ) : (
+      label
+    );
 
   if (item.blocked) {
     return (
@@ -59,12 +80,30 @@ export function NavItem({ item, onNavigate }) {
       }
     >
       <i className={`fa-solid ${item.icon} w-4 text-center`} />
-      {item.label}
+      {withBadge(item.label)}
     </NavLink>
   );
 }
 
+// The socket lives here, not in a page: a teacher reading Students should still
+// have their unread badge update, and a per-page hook would open one connection
+// per mounting page. Shell renders exactly while a user is logged in, which is
+// exactly the socket's lifetime.
 export default function Shell() {
+  const { user } = useAuth();
+  // The badge is only fetched for a role whose Messages page actually exists.
+  const messagesBuilt = Boolean(navForRole(user?.role).find((i) => i.to.endsWith('/messages'))?.built);
+
+  return (
+    <SocketProvider>
+      <UnreadProvider enabled={messagesBuilt}>
+        <ShellChrome />
+      </UnreadProvider>
+    </SocketProvider>
+  );
+}
+
+function ShellChrome() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,6 +117,7 @@ export default function Shell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const items = navForRole(user?.role);
+  const { unread } = useUnread();
   const title =
     customTitle || navTitleForPath(user?.role, location.pathname) || "Parent's Portal";
 
@@ -89,7 +129,12 @@ export default function Shell() {
   const nav = (
     <nav className="space-y-0.5 px-2 pb-4 text-sm">
       {items.map((item) => (
-        <NavItem key={item.to} item={item} onNavigate={() => setMobileNavOpen(false)} />
+        <NavItem
+          key={item.to}
+          item={item}
+          onNavigate={() => setMobileNavOpen(false)}
+          badge={item.to.endsWith('/messages') ? unread : 0}
+        />
       ))}
     </nav>
   );
@@ -154,7 +199,21 @@ export default function Shell() {
           </div>
         </header>
 
-        <main className="min-w-0 flex-1 p-4 sm:p-6">
+        <main className="min-w-0 flex-1 space-y-4 p-4 sm:p-6">
+          {/* CONVENTION 5g, and specifically WHERE the notice belongs: the
+              unread badge in the sidebar depends on the live channel and is
+              visible on EVERY page, so the notice that the channel is down has
+              to be visible on every page too. Confining it to the Messages
+              pages — where it started — left a teacher on Students or Grades
+              with a badge that had silently stopped updating and nothing to
+              say so, which is 5g's own failure mode one level out. */}
+          <LiveStatus
+            // A full reload rather than a per-page refetch: Shell cannot know
+            // what the routed page fetches, and a Refresh that silently
+            // refreshed only the badge would be its own small lie. Reloading
+            // re-runs every fetch on the page and re-attempts the socket.
+            onRefresh={() => window.location.reload()}
+          />
           <PageTitleContext.Provider value={titleContext}>
             <Outlet />
           </PageTitleContext.Provider>

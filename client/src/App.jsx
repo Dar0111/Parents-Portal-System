@@ -14,6 +14,8 @@ import TeacherExcuseLetters from './pages/teacher/ExcuseLettersPage';
 import TeacherAnnouncements from './pages/teacher/AnnouncementsPage';
 import TeacherMemos from './pages/teacher/MemosPage';
 import TeacherEvents from './pages/teacher/EventsPage';
+import TeacherMessages from './pages/teacher/MessagesPage';
+import TeacherMessageThread from './pages/teacher/MessageThreadPage';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -61,6 +63,8 @@ export default function App() {
             <Route path="announcements" element={<TeacherAnnouncements />} />
             <Route path="memos" element={<TeacherMemos />} />
             <Route path="events" element={<TeacherEvents />} />
+            <Route path="messages" element={<TeacherMessages />} />
+            <Route path="messages/:userId" element={<TeacherMessageThread />} />
           </Route>
 
           <Route
