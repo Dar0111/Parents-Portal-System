@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (Teacher → Announcements, Memos, Events — three pages)
+**Last updated:** 2026-09-07 (Teacher → Messages — first Socket.io page)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +20,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 7 of ~75 views (Teacher → Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 9 of ~75 views (Teacher → Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -352,8 +352,57 @@ teacher's valid targets from sections + students). The reconstruction cannot
 see a section with zero students — acceptable, because such a section has no
 parents to announce to. One endpoint closes both holes.
 
-**Next:** Stage 4 web pages — teacher grades encode, contributions, messages.
-The Messages page is unblocked for all three roles.
+**Teacher → Messages is DONE (2026-09-07)** — conversation list + thread, and
+the first Stage 4 page using Socket.io. Added `socket.io-client` pinned to
+4.8.3 (first new runtime dependency since the foundation) and touched
+`Shell.jsx` for the first time, for the unread badge.
+
+**The socket is a latency optimisation, not the delivery path** — REST persists
+before emitting, and an emit into an empty room is a no-op, so an offline
+recipient loses nothing. **New convention 5g: when a live channel fails, say so
+— never fake liveness.** The UI shows "Live updates paused" with a Refresh
+action and deliberately does NOT poll, because polling would disguise a state
+the user should know about, and a parent-teacher channel that looks delivered
+and is not is the one failure this module cannot afford.
+
+No optimistic append (a sent message appears only after the server confirms);
+unread is server-derived and cleared by a request, never decremented locally.
+**The nav badge renders only on a BUILT item** — live for Teacher today,
+automatically live for Parent and Admin when their pages land, so neither
+dispatch should build its own. **Measured: 4m4s**, not comparable to the
+previous four — first transport rather than another CRUD surface.
+
+**A browser review caught a blank-page defect before commit** — `Shell.jsx`
+used `useEffect` without importing it, so Shell threw and every route for all
+three roles rendered blank. Build passed, lint passed, server suites passed.
+**Recorded as convention 5h: build and lint prove the code compiles, not that
+the page renders — a page is not done until it has been opened.** Second such
+defect in seven pages (the attendance Recorded column was the first); both were
+in code that ran, so nothing automated had anything to fail on. `oxlint` does
+have `eslint(no-undef)` and it would have caught this, but it is not in the
+default `correctness` category — noted, deliberately not enabled here.
+
+**Two further browser-review findings, fixed before commit.** The unread badge
+never cleared — the thread page issued `read-all` and the server was correct,
+but `Shell` had no signal to refetch, so the badge was only right on a full
+reload. Fixed by **building the signal** (`realtime/UnreadProvider.jsx`,
+`{ unread, refresh }`), never by decrementing locally. And the "Live updates
+paused" strip lived only on the Messages pages while the badge it relates to
+lives in `Shell` on every page — **convention 5g failing one level out from
+where it was written**. 5g now states WHERE the notice belongs: wherever
+anything depending on the channel is shown, not only on the page that owns the
+feature.
+
+**The reported WebSocket console error was not a defect.** The Network tab
+showed websocket connected at `101`; real-time delivery was working and the
+strip was correctly hidden. The cause is **React StrictMode's dev-only
+double-invoked effects** closing the first socket while it is still connecting —
+not a transport problem, and deliberately not worked around, since the cleanup
+is correct and StrictMode exists to surface exactly this. Recorded in 5h with a
+falsifiable prediction so nobody chases it again.
+
+**Next:** Stage 4 web pages — teacher grades encode and contributions, then the
+Parent and Admin sets.
 
 ---
 
