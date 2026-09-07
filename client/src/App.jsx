@@ -16,6 +16,9 @@ import TeacherMemos from './pages/teacher/MemosPage';
 import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
+import ParentAnnouncements from './pages/parent/AnnouncementsPage';
+import ParentMemos from './pages/parent/MemosPage';
+import ParentEvents from './pages/parent/EventsPage';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -76,6 +79,9 @@ export default function App() {
             }
           >
             <Route index element={<ParentDashboard />} />
+            <Route path="announcements" element={<ParentAnnouncements />} />
+            <Route path="memos" element={<ParentMemos />} />
+            <Route path="events" element={<ParentEvents />} />
           </Route>
 
           {/* Component gallery — dev builds only. import.meta.env.DEV is

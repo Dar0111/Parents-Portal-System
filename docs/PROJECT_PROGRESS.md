@@ -7,7 +7,8 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-07 (Teacher → Messages — first Socket.io page)
+**Last updated:** 2026-09-07 (Parent → Announcements, Memos, Events — first
+parent-facing pages, first dispatch with no write affordance)
 
 > **Build order:** Database → Auth → Backend APIs → React Web → Expo
 
@@ -20,7 +21,7 @@
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 9 of ~75 views (Teacher → Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 12 of ~75 views — Teacher: Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread · Parent: Announcements, Memos, Events (all read-only) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -401,8 +402,103 @@ not a transport problem, and deliberately not worked around, since the cleanup
 is correct and StrictMode exists to surface exactly this. Recorded in 5h with a
 falsifiable prediction so nobody chases it again.
 
+**Parent → Announcements, Memos, Events are DONE (2026-09-07)** — the first
+parent-facing feature pages, and the first Stage 4 dispatch with **no write
+affordance anywhere**. Every write on all three routers is teacher/admin-only,
+so a parent never reaches a handler: `authorize()` answers `403 "Access
+denied."` first — verified live for all nine POST/PUT/DELETE combinations.
+That generic refusal is exactly why the control must not exist rather than be
+shown and handled; a scope refusal explains itself, `"Access denied."` does not.
+
+**Full text opens in a Modal, not a detail route, because no `GET /:id` exists
+on any of the three routers** — verified live, `404 "Route not found."` from
+`server.js`'s fallback, not a scope refusal. The stronger form of the Excuse
+Letters decision (there `GET /:id` exists and returns strictly less; here it
+does not exist). Costs no request either way: each list row is already
+`SELECT *` and carries every column the modal renders.
+
+**Audience labels are derived from the target columns' nullness**, never from
+`user.grade_level`/`user.section` — which `/auth/me` does return, so the
+alternative was available and declined: naming "Grade 6 - Malikhain" teaches a
+parent the routing model for nothing they can act on. Announcements has **three**
+cases (school-wide / whole-grade / own section — collapsing whole-grade would be
+wrong for an admin post the API permits); Events has **two**, because that table
+has no `target_section` column.
+
+**One filter across three pages, and each absence is a decision.** Announcements:
+none — `grade_level`/`section` are AND-ed onto the target columns, so the filter
+could only HIDE the school's own posts. Memos: none available — that endpoint
+accepts no query params, and `?grade_level=1` returns `200` unfiltered where the
+same param `400`s on its two siblings. Events: **Upcoming vs All on `from`
+alone**, inclusive (`event_date >= ?`, so today counts — verified with a fixture
+dated today), built from `todayLocalDateString()`, never `toISOString()`, and
+**omitted entirely** rather than sent empty when the range is All.
+
+**Convention 5f's branch count differs per page — three, two, one — and that is
+a finding about the endpoints, not an inconsistency.** Verified by nulling the
+parent's `student_id`: announcements and events return `200` with **zero rows**
+(the handlers short-circuit on `getStudentClass()` returning null — not an
+error, so the page must not render one) while **memos still returns every row**,
+having no parent branch at all. `student_id` restored and confirmed.
+`user.student_id` chooses the empty COPY and never gates the request — skipping
+a fetch because an account "looks unlinked" would hide real posts behind a
+stale `AuthContext`.
+
+**5b, 5e and 5g do not apply to these pages, and saying so is a finding**: 5b
+needs an input that writes record state (the Events select is query state), 5e
+decides whether a write needs confirmation and there is no write, and nothing on
+these pages is channel-fed. **5c applies most sharply** — `/auth/me` returns
+`lrn` AND `login_id`, which for a parent are the same credential under two
+names; neither is rendered, and no id goes in a URL.
+
+**No primitive gained a prop.** `onRowClick` declined (title cell is a
+`<button>`, the Students-page pattern) and `defaultSort` declined (the API
+returns `event_date DESC`, wrong for Upcoming, so the page sorts the array it
+owns — `DataTable`'s sort starts `null`, so that order holds until a header
+click). Modal scrolling is a page-level wrapper, not a Modal prop.
+
+**Verified in three layers.** Build clean, `oxlint` 14 → 17 (three
+`set-state-in-effect` fetch advisories, one per page, same as every other page)
+— confirmed by listing findings per file rather than trusting the total.
+**The baseline was 14, not the 13 the Messages entry recorded**: that count
+predated the same dispatch's `UnreadProvider.jsx`, which carries two of its
+own. Corrected so the next dispatch does not inherit the off-by-one.
+**Convention 5h's render proof run inside the clock for the first time** — all
+three pages SSR-rendered in `MemoryRouter` + `AuthProvider`, **with a negative
+control**: removing `useState` from an import reproduced `ReferenceError` while
+`npm run build` still succeeded, demonstrating 5h's claim again rather than
+restating it. Then **35 live API checks against 9 fixtures**, all passing,
+including **isolation asserted in both directions** — Grade 5 - Masigasig posts
+are absent from the parent's announcements, from Upcoming events, and from All
+events, so widening the range does not widen the scope. All fixtures deleted;
+all three tables back to 0 rows.
+
+**Measured: 13m14s — sixth data point, and the jump is not about the pages.**
+Cheapest dispatch of the six by what was built (three read-only pages, no new
+primitive, helper, dependency, write path or layout change); most expensive by
+the clock, and the whole gap is verification. **This is the first point measured
+with 5h inside the window** — 5h was written after Messages' 4m4s was recorded —
+so **the five earlier points are not comparable to anything measured from here
+on.** A seventh point compares to this baseline, not to Messages.
+
+**Six backend findings flagged, none fixed — no server file touched.** Four are
+new: no `GET /:id` on the three routers; memos ignoring unrecognised params
+where its siblings `400`; `posted_by` a bare integer no non-admin client can
+resolve (`GET /api/users/:id` is admin-only), so **no parent page can say who
+posted an announcement**; and `/auth/me` returning one credential under two
+names. The other two — `attachment_url` dead schema and API_REFERENCE's stale
+scope labels — stay recorded and untouched.
+
+**Convention 5g's inverse is now live and deliberately left alone.**
+`LiveStatus` renders in `Shell` ungated while `UnreadProvider` is gated, so
+Parent — pages, no Messages page, correctly no badge — could see a "Live updates
+paused" strip about a channel nothing on their screen uses. Gating it is one
+line, correct today and wrong the day Parent → Messages lands, so **it belongs
+to that dispatch, not a cleanup pass.** It is the harmless direction of the
+error: an over-broad notice fails safe where an absent one does not.
+
 **Next:** Stage 4 web pages — teacher grades encode and contributions, then the
-Parent and Admin sets.
+remaining Parent set (Attendance stays **blocked** on the rate formula) and Admin.
 
 ---
 
