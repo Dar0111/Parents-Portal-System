@@ -472,9 +472,12 @@ includes the section adviser (2026-09-06); review authority unchanged
 - [ ] Expo screens (Stage 5, not started).
 
 **All ten core features now have a complete backend.** Ten backend
-modules complete, 76 endpoints, tests passing — one gap identified
-(`GET /api/messages/contacts`, designed but unbuilt) and an endpoint
-audit scheduled. This supersedes the earlier framing that some features
+modules complete, **78 endpoints** (77 handlers in `server/routes/` plus
+`GET /api/health` mounted in `server.js`), 673 tests across 15 suites, all
+passing — one gap identified (`teacher_assignments` has no create or read
+endpoint) and the endpoint audit **run on 2026-09-07 with all three buckets
+empty**. `GET /api/messages/contacts`, previously the outstanding gap here,
+shipped the same day. This supersedes the earlier framing that some features
 had "a schema table and nothing else", and it is deliberately not phrased
 as "the backend is 100% complete": one known gap plus a scheduled audit
 is a more honest statement than a percentage. What every module still

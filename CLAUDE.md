@@ -13,13 +13,29 @@ Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 20 tables |
+| Database | `parents_portal` — 22 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
 The four other team members handle the manuscript and data gathering.
 **Darryl codes.** Do not assign manuscript work to Darryl or coding tasks
 to the team.
+
+> **One number, one place.** The table count above was wrong for weeks while
+> two other places in this same file said something different — the front
+> matter said 20, the `schema.sql` entry said 22 (correct), and BUILD ORDER
+> still said 18. **This document is the source of truth, so a figure repeated
+> in more than one part of it is a liability, not redundancy.** That is exactly
+> the failure the "endpoints, not percentages" rule at the bottom exists to
+> prevent, and it happened here anyway, inside the file that records the rule.
+>
+> Same applies to endpoint counts. Two numbers are both correct and mean
+> different things: **`docs/API_REFERENCE.md` counts 77** handlers defined in
+> `server/routes/`, and **the endpoints table below has 78 rows** because
+> `GET /api/health` is mounted directly in `server.js`. State which you mean.
+>
+> Dated CHANGELOG entries are exempt — they record what was true on their date
+> and must not be back-edited. It is present-tense claims that have to agree.
 
 ---
 
@@ -2636,7 +2652,8 @@ at the end of each session.
 
 ### Stage 1 — Foundation ✅ DONE
 
-- [x] Database schema — 18 tables
+- [x] Database schema — 22 tables (was 18 when Stage 1 closed; the Grades
+      rebuild and `auth_security_state` added the rest)
 - [x] Seed data
 - [x] Auth backend — login, JWT, RBAC, approve/reject
 - [x] Auth tests
