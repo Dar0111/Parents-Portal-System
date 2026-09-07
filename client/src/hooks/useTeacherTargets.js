@@ -30,6 +30,17 @@ import { useAuth } from '../auth/AuthContext';
 // recorded in CLAUDE.md: no endpoint exposes teacher_assignments, which is the
 // same missing endpoint that stops an admin assigning a teacher to a subject at
 // all. One fix closes both.
+//
+// DO NOT REUSE THIS HOOK FOR GRADES. Announcements/events write gates are
+// assigned-OR-adviser (this union). Grades view and encode are
+// teacher_assignments only — sections.adviser_id is deliberately unused
+// there, and CLAUDE.md says widening it would be inventing school policy.
+// TCH-002 is the proof: this hook offers Grade 5 - Masigasig (advisory);
+// GET /api/grades/student/:id for that section's student answers 404.
+// Teacher → Grades builds its class list from GET /students alone, then
+// treats a report-card 404 as "not the subject teacher," rather than
+// calling this hook. The next page that reaches for "where may this
+// teacher act" must read the route's own scope, not assume this union.
 
 export default function useTeacherTargets() {
   const { user } = useAuth();
