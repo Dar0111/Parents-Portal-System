@@ -11,6 +11,7 @@
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
     "test:assignments": "node scripts/test-assignments-flows.js",
+    "test:grading-modes": "node scripts/test-grading-modes-flows.js",
     "test:grades": "node scripts/test-grades-flows.js",
     "test:attendance": "node scripts/test-attendance-flows.js",
     "test:content": "node scripts/test-content-flows.js",

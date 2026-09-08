@@ -30,8 +30,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 81** handlers defined in
-> `server/routes/`, and **the endpoints table below has 82 rows** because
+> different things: **`docs/API_REFERENCE.md` counts 83** handlers defined in
+> `server/routes/`, and **the endpoints table below has 84 rows** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 >
 > Dated CHANGELOG entries are exempt — they record what was true on their date
@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-08 (Assignments + Subjects API; audited against the code)
+**Last verified:** 2026-09-08 (admin-prerequisites items 2–3; audited against the code)
 
 ### Seeded baseline
 
@@ -92,6 +92,7 @@ return the database to this table, not to a remembered older snapshot.
 | GET | `/api/assignments` | teacher (own rows only), admin (anyone) — teacher naming another `teacher_id` is `403`, not `404` (anti-enumeration does not apply; `/api/messages/contacts` already lists teachers by name) |
 | POST | `/api/assignments` | admin — `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for the current `academic_year`; duplicate is `409` |
 | DELETE | `/api/assignments/:id` | admin — does **not** refuse when grades exist; a scope change removes future authority, never past records |
+| GET | `/api/grading-modes` | authenticated — `grade_level` required (1–6); `school_year` optional, defaults to `system_settings.academic_year`; missing config is `409` (same status both `grades.js` readers already use). Not a `system_settings` key. Wrapper `grading_mode` is an **object** here; the report card uses the same key as a **string** |
 | GET | `/api/grades` | teacher (wide view-scope: grade+section, any subject), admin (unscoped), parent (own child only) — filters `student_id`/`subject_id`/`term`/`school_year`, all optional, no hidden defaults; never includes `grade_components` |
 | GET | `/api/grades/:id` | teacher (wide view-scope), admin, parent (own child) — includes `grade_components` and a qualitative/letter `descriptor`; `404` on out-of-scope or nonexistent |
 | GET | `/api/grades/student/:studentId` | teacher (wide view-scope), admin, parent (own child) — full report card: every subject at the grade level (including ones with zero grade rows), all three terms, computed Final Grade and General Average; `school_year` defaults to `system_settings.academic_year` when omitted |
@@ -102,6 +103,7 @@ return the database to this table, not to a remembered older snapshot.
 | PUT | `/api/grades/:id/components/:componentId` | teacher (subject teacher), admin — corrects score/max_score/label/date_recorded, full recompute; `type` not editable; `403`/`404` same distinction as above, or `404` for a mismatched componentId |
 | DELETE | `/api/grades/:id/components/:componentId` | teacher (subject teacher), admin — removes a component, full recompute; `403`/`404` same distinction as above, or `404` for a mismatched componentId |
 | PATCH | `/api/grades/:id/lock` | admin only, unscoped — toggles `is_locked`; no completeness gate, no extra friction on unlock |
+| DELETE | `/api/grades/:id` | admin only, unscoped — hard delete; `403` when locked (`This grade is locked and cannot be deleted.`), `404` when missing; `logActivity` `'delete_grade'`; `grade_components` cascade |
 | GET | `/api/attendance` | teacher (section adviser), admin |
 | GET | `/api/attendance/student/:studentId` | teacher (adviser), admin, parent (own child only) |
 | GET | `/api/attendance/summary/:studentId` | teacher (adviser), admin, parent (own child only) — raw counts, no rate |
@@ -158,7 +160,7 @@ a new send; and the subjects-reseed CASCADE is the **opposite** case
 (destroying `subjects.id` wiped assignments *and* grades). Do not add a
 grades-exist guard on `DELETE /api/assignments/:id`.
 
-**Full request/response detail for all 81 endpoints — every body field,
+**Full request/response detail for all 83 endpoints — every body field,
 the exact response wrapper key, role-scope codes, and the 404-vs-403
 convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
 the quick list; that document is what Stage 4 screen work should
@@ -167,7 +169,7 @@ actually be read against.
 **Backup and Restore both built.** See "RESTORE" below for what shipped and
 what the automated suite deliberately does not cover.
 
-**Tests:** fifteen suites. The fourteen HTTP suites are idempotent — every row they
+**Tests:** sixteen suites. The fifteen HTTP suites are idempotent — every row they
 create is tracked and deleted in a `finally` block (or, for Settings, restored to
 its original value; for Sections, the two NULL-adviser test sections are reset to
 NULL and the throwaway teacher fixture deleted, via a direct DB write, not a
@@ -183,7 +185,8 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:students` — 39/39
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — 41/41
-- `npm run test:grades` — 149/149
+- `npm run test:grading-modes` — 13/13
+- `npm run test:grades` — 165/165
 - `npm run test:auth` — 25/25
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 53/53
@@ -196,7 +199,7 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:restore` — 22/22
 - `npm run test:excuses` — 67/67
 
-`node scripts/verify-grading-seed.js` is not one of the fifteen suites
+`node scripts/verify-grading-seed.js` is not one of the sixteen suites
 above — it's a direct-DB verification script (no server, no HTTP, no
 `assert()` harness), checking the Grades seed (transmutation table,
 weights, modes, Grade 1 descriptive fixture) is internally consistent.
@@ -204,7 +207,7 @@ Run it after `db:setup`, before trusting the seed. Pass count lives in
 the script's own output, not here.
 
 `npm run test:grade-computation` (Stage G2a, extended in G3 with the
-qualitative/letter descriptor lookups) is also not one of the fifteen
+qualitative/letter descriptor lookups) is also not one of the sixteen
 suites above — it's a direct-call unit test of `utils/gradeComputation.js`,
 no server, no DB, matching `test:sanitize`'s shape. 51/51 passing,
 deterministic (pure functions).
@@ -217,7 +220,7 @@ server/
                                 shares the same server, not a second one — app.listen() replaced
                                 with httpServer.listen()); mounts /api/auth, /api/users,
                                 /api/students, /api/sections, /api/subjects, /api/assignments,
-                                /api/grades, /api/attendance, /api/announcements, /api/memos,
+                                /api/grades, /api/grading-modes, /api/attendance, /api/announcements, /api/memos,
                                 /api/events, /api/contributions, /api/settings, /api/backups,
                                 /api/messages
   socket.js                    initSocket(httpServer) — JWT auth at connection time, one room per user
@@ -362,6 +365,24 @@ server/
                                 system_settings.academic_year when omitted — a deliberate asymmetry
                                 with GET /'s no-default filters, commented at the handler: a report
                                 card is bounded to one year by what it IS, a search tool is not.
+                                DELETE /:id (2026-09-08): admin-only, unscoped, same authority as
+                                PATCH /:id/lock. 403 when locked ("cannot be deleted", not the
+                                write-path "can no longer be edited" wording). logActivity
+                                'delete_grade'. grade_components cascade via
+                                fk_grade_components_grade. Nino's five seeded rows are not a
+                                write target — tests use a throwaway student + shell.
+  routes/gradingModes.js       GET /api/grading-modes (2026-09-08). Separate router so the
+                                path is not eaten by GET /api/grades/:id. Any authenticated
+                                role. grade_level required 1–6; school_year optional,
+                                defaults to system_settings.academic_year (500 if that
+                                setting is missing — same as the report card). Missing
+                                grading_mode_configs row is 409 with the write-preflight
+                                wording copied exactly, not 404 and not an empty success.
+                                Not a system_settings key. Wrapper grading_mode is an
+                                OBJECT { grade_level, school_year, mode } — the report card
+                                uses the same key as a STRING; do not flatten. Third copy
+                                of the YYYY-YYYY check (settings + grades); extract on a
+                                fourth place, not here.
   routes/attendance.js         record/bulk/correct/list/summary — per DAY (Stage B1), not per subject.
                                 No subject_id anywhere in this file. Scoped by section adviser
                                 (sections.adviser_id via students.section_id), not teacher_assignments —
@@ -452,6 +473,11 @@ server/
                                 409, inactive/non-teacher 400, DELETE assignment leaves a
                                 Jea Science grade row intact. Seeded assignment rows are
                                 never deleted. 41/41, confirmed twice, no db:setup between
+  scripts/test-grading-modes-flows.js HTTP tests — GET /api/grading-modes. Read-only
+                                against seeded configs (Grade 1 descriptive, Grades 5/6
+                                numerical). Missing-config 409 asserted against
+                                2027-2028, which the seed has no rows for — does not
+                                mutate grading_mode_configs. 13/13, confirmed twice.
   scripts/test-grades-flows.js  HTTP tests — Stage G2b (POST /api/grades). Subject-teacher
                                 scoping (assigned-to-section-but-not-subject is a distinct 403 from
                                 fully-out-of-scope), the admin-404/teacher-403 asymmetry for a
@@ -2759,7 +2785,8 @@ imply," not just "does this one anticipated symptom show up."
 | No `Download Statement` export | — | Promised in manuscript Figure 19. Build a CSV export from `contribution_records`, or remove it from the paper. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |
 | A new page file arriving via HMR can leave a stale module in an open tab | Vite dev server | **Try a hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip on 2026-09-07: Teacher → Excuse Letters' "All statuses" filter appeared to return nothing, and the investigation proved the request, the endpoint contract, the empty-state branches and `FormField`'s controlled select were all correct — the running tab was serving a stale module. A hard reload cleared it and there was no data bug. The analysis was not wasted (it found a real copy defect alongside), but the reload should have come first. |
-| **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed; 3–4 and the client consumers remain.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. `useTeacherTargets` still reconstructs from sections+students until a client dispatch switches it — the hole (empty section invisible) is now optional, not the only path. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records — same as message history surviving a `canMessage()` change, opposite of the subjects-reseed CASCADE. **Still open, consumers or later items, not a second assignments endpoint:** Consequence 3 — `GET /api/messages/contacts` still cannot distinguish "no students" from "every parent pending"; the assignments read is the signal, Messages has not consumed it. Consequence 4 — no `GET /api/grading-modes` yet (admin-prerequisites item 2, not started; not a settings key). Teacher → Grades encode-scope prediction and the existing-row `ensureShell` hole are now closable via `GET /assignments`; that page has not been switched. `DELETE /api/grades/:id` is still missing (item 3, not started). |
+| **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). Teacher → Grades still learns mode from the report card until a client dispatch switches it — that switch is NOW POSSIBLE, not a missing endpoint. Encode-scope prediction and `useTeacherTargets` reconstruction likewise moved to NOW POSSIBLE. |
+| **`GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending"** | `server/routes/messages.js` | ACTIVE accounts only — correct, a pending parent cannot log in. The empty list is still indistinguishable between those two causes, so the UI's *"No parents yet. A parent appears here once an admin approves their account."* is a known imprecision. **`GET /api/assignments` does not close this.** Assignments are subject-section rows, not parent-account state. TCH-002 is the proof: adviser of Grade 5 - Masigasig, zero assignment rows, and that section's only parent is seeded `pending`. An assignments read would still be empty while students (and pending parents) exist. Closing this needs a signal about parents-of-students-in-scope, not about what a teacher is assigned to teach. Do not treat it as closed by association with item 1. |
 | `GET /api/excuse-letters/:id` returns strictly LESS than its own list endpoint | `server/routes/excuses.js` | The list runs `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section`; the detail runs `SELECT el.*` with **no student join at all**. So a detail route would render `student_id: 2` and need a second call to `/students/:id` just to show a name, while a list row already carries everything the detail has plus the student. Teacher → Excuse Letters therefore uses a modal from the list and never calls `GET /:id` — but the oddity is worth knowing before someone builds a detail route on it later and wonders why the name is missing. Flagged, not fixed. |
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
 | `GET /api/students` returns the full personal row on a LIST | `server/routes/students.js` | The list `SELECT` includes `birthday`, `gender`, `address`, `contact_number` for every student in scope — verified live against the real payload. Not an authorization hole (the teacher may open each of those students individually), but a roster has no reason to carry home addresses, and **the `LRN` in that payload doubles as the parent's `login_id`** — see convention §5c. Consequence for the client: the list page renders only name / LRN / class / status and leaves the rest to the detail view. Consequence if this is ever narrowed server-side: `GET /:id` adds only `section_id`, `created_by`, `updated_at` over the list, so a slimmer list response would cost the detail view nothing it does not already fetch. Flagged from a client dispatch, not fixed. |
@@ -2770,8 +2797,23 @@ imply," not just "does this one anticipated symptom show up."
 | `posted_by` is a bare integer on all three content tables, unresolvable by any non-admin client | `server/routes/content.js` | None of the three list queries joins `users`, so a row carries `posted_by: 2` and nothing else — and `GET /api/users/:id` is `authorize('admin')`, so a teacher or parent cannot turn that integer into a name even with a second request. Consequence: **no parent-facing page can say who posted an announcement**, which is the one attribution a parent would plausibly want ("is this from the school or from my child's teacher?"). The parent pages answer that question indirectly, via the audience label derived from the target columns, and deliberately do not render the integer. The fix is a `LEFT JOIN users` on the three list queries, same shape `excuse_letters`' list already uses for student names — a backend dispatch, not a client one. |
 | `/auth/me` returns `lrn` AND `login_id` for a parent — the same credential, twice | `server/routes/auth.js` | For a parent these two fields hold the identical value (the child's LRN **is** the parent's login id — a locked decision), so the payload every client page holds in `AuthContext` carries a live credential under two names. Not a leak in itself: it is the account's own session reading its own row. But it doubles the surface convention 5c has to police, and 5c's rule ("no screen displays an LRN except to a teacher or admin acting on that student") has to be applied to both keys, not just the obviously-named one — which is exactly the aliased-name failure mode `sanitizeUser` was hardened for on the password column. The three parent pages render neither. Consider returning one, or neither, since no client needs it. Flagged, not fixed. |
 | `backups` has no `status` column | `schema.sql` | Deliberate, not missing: a row is only ever inserted after the dump succeeds, so every row is definitionally "Completed" — the UI hardcodes that string. Revisit only if backup generation becomes asynchronous (a pending/failed state visible before the job finishes) — that's the trigger, not before. |
-| **There is no `DELETE /api/grades/:id`** — a grade row cannot be removed through the API at all | `server/routes/grades.js` | The module has eight write endpoints and none of them deletes a `grades` row. `DELETE /:id/components/:componentId` removes a *component*, and deleting the last one correctly reverts the computed columns to `NULL` (Stage G2e) — but the shell row itself is permanent once created. **Consequence for anyone testing Grades: teardown is direct SQL.** `DELETE FROM grades WHERE student_id = ?` is what the Parent → Grades verification used; `grade_components` cascades via `fk_grade_components_grade`. **Whether this SHOULD exist is a real question, not an oversight to patch:** a grade row created against the wrong student or the wrong term is currently uncorrectable except by hand, while `is_locked` exists precisely to make finalised grades immutable — so an unrestricted delete would undercut it. The likely shape is admin-only and refused once `is_locked` is set, mirroring `PATCH /:id/lock`'s own authority. Flagged, not fixed. |
 | `GradeValue` has no branch for a descriptive A–E letter | `client/src/format/grade.jsx` | Its header names four states — a number, `null` in numerical mode, `null` in descriptive mode, and a failed request — and **a letter is not one of them**. `formatGrade('A')` is `Number('A') → NaN → null`, so a real Grade 1 term grade of `A` renders as `"— N/A"`, the string meaning "this does not apply", on the one value that does. This is outside the primitive's stated contract rather than a bug inside it. **Two local `TermCell` copies now exist** (Parent → Grades and Teacher → Grades); extract at three. Teacher → Grades was instructed not to add a fifth state to the primitive inside the largest encode screen in Stage 4 — that is the "shaped by one page" failure the foundation dispatch existed to prevent. **The trigger to fix the primitive is the third copy**, not a rushed fifth state. Parent letter rendering as `1090001` / `Parent@2026` is still the browser pass that retires Finding C on the parent card. |
+
+---
+
+## NOW POSSIBLE — client consumers (API exists; pages have not switched)
+
+Server dispatch. Do not change Teacher → Grades (or any other page) here.
+The next **client** dispatch should pick these up rather than inheriting a
+workaround whose reason has expired.
+
+- **Teacher → Grades still does not call `GET /assignments`.** Encode-scope is predicted by attempting a write (`POST /api/grades`) and remembering the 403 for the session, because no read existed when the page shipped. One does now. The existing-row `ensureShell` hole (discovery skipped when a grade row already exists for that subject) is the same consumer. Switch the page to `GET /api/assignments`; do not keep probing.
+- **Teacher → Grades still learns `grading_mode` from `GET /grades/student/:id`.** `GET /api/grading-modes` exists (item 2). Switching avoids needing a roster student to learn the mode. The report-card call remains the right source for the subject list and term grid.
+- **`useTeacherTargets` still reconstructs from `GET /sections` ∪ `GET /students`.** Optional switch to `GET /assignments`. The empty-section hole (a section with zero students is invisible) is now optional, not the only path.
+
+**Not on this list:** the contacts empty-cause. `GET /assignments` does not
+tell "no parents exist" from "all parents pending." That stays in KNOWN
+ISSUES.
 
 ---
 
@@ -3084,12 +3126,15 @@ replaced with a new guess.
       round-trip. **`TermCell` copied locally, `GradeValue` untouched**
       (second copy; extract at three). **No lock control** — admin-only,
       would 403 at middleware. **§5e: no confirmation** — encoding is
-      repeatable; confirmation would not undo a wrongly-created shell (no
-      `DELETE /api/grades/:id`). **Science dead-end:** copy names Record/Edit
+      repeatable; confirmation would not undo a wrongly-created shell
+      (`DELETE /api/grades/:id` did not exist yet; it does now, admin-only).
+      **Science dead-end:** copy names Record/Edit
       as the discovery click (not picking the subject). Session-memory after
       the first encode 403, marking the picker "(not yours)" before any
-      score input is shown. Encode-scope cannot be predicted because
-      **no endpoint reads `teacher_assignments`**. **Hole, not fixed:**
+      score input is shown. Encode-scope was not predicted because **no
+      endpoint read `teacher_assignments` then.** `GET /assignments` exists
+      now (2026-09-08); this page has not switched — see NOW POSSIBLE.
+      **Hole, not fixed (same consumer):**
       discovery works only when the student has no existing grade row for
       that subject. **Alert XOR** after browser review. **No unsaved-changes
       warning** — every score is its own request. Verified live on throwaways
@@ -3108,22 +3153,24 @@ replaced with a new guess.
       is the page that closes the `LiveStatus` inverse defect recorded in
       convention 5g
 - [ ] Admin pages — user management, sections/adviser assignment,
-      settings, backup/restore. **No longer blocked on a missing
-      assignments write** — `POST`/`DELETE /api/assignments` shipped
-      2026-09-08. Still waiting on items 2–3 (`GET /api/grading-modes`,
-      `DELETE /api/grades/:id`) before some admin grade screens.
+      settings, backup/restore. **No longer blocked on missing assignments
+      write or missing grade delete / grading-mode read** — items 1–3 of
+      the admin-prerequisites plan all shipped 2026-09-08. Remaining work
+      is the screens themselves. Teacher → Grades encode-scope prediction
+      is a client switch (NOW POSSIBLE), not an admin-page blocker.
 
 **Backend work interleaved with Stage 4:**
 
 - [x] Assignments + Subjects API — **DONE 2026-09-08.** `GET /api/subjects`,
-      `GET`/`POST`/`DELETE /api/assignments`. 41/41. Items 2
-      (`GET /api/grading-modes`) and 3 (`DELETE /api/grades/:id`) are
-      **not started** — stop rule: do not begin them until this suite
-      is green, which it now is; report before starting either.
-- [ ] `GET /api/messages/contacts` **plus the endpoint audit**, together,
-      after Teacher → Attendance. Small, and better finished while the
-      backend is still fresh than midway through frontend work. The audit
-      already has two confirmed items waiting — see OPEN QUESTIONS.
+      `GET`/`POST`/`DELETE /api/assignments`. 41/41.
+- [x] `GET /api/grading-modes` — **DONE 2026-09-08.** Item 2. Missing config
+      is `409`. Not a settings key. 13/13, confirmed twice. Wrapper
+      `grading_mode` is an object; the report card uses the same key as a
+      string.
+- [x] `DELETE /api/grades/:id` — **DONE 2026-09-08.** Item 3. Admin-only,
+      `403` when locked, `404` when missing, `logActivity` `'delete_grade'`.
+      `test:grades` 165/165. Nino's five seeded rows untouched.
+- [x] `GET /api/messages/contacts` **plus the endpoint audit** — done 2026-09-07.
 
 ### Stage 5 — Mobile (Expo)
 
@@ -3553,6 +3600,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-08 | **Admin-prerequisites items 2 and 3, after item 1 was committed alone.** Item 2: `GET /api/grading-modes` in its own router (`routes/gradingModes.js`) so the path is not eaten by `GET /api/grades/:id`. Any authenticated role. `grade_level` required 1–6; `school_year` optional, defaults to `system_settings.academic_year`. Missing `grading_mode_configs` row is **409** with the write-preflight wording copied exactly — matching both existing readers in `grades.js`, not a settings key, not 404, not an empty success. Wrapper `grading_mode` is an **object** `{ grade_level, school_year, mode }`; the report card uses the same key as a **string** — recorded so nobody flattens it. Third copy of the YYYY-YYYY check; extract on a fourth place. `npm run test:grading-modes` — 13/13, confirmed twice; the 409 is asserted against `2027-2028`, which the seed has no rows for. Item 3: `DELETE /api/grades/:id`, admin-only, unscoped, same authority as `PATCH /:id/lock`. Teacher/parent get middleware `403 Access denied.`; missing id `404 "Grade record not found."`; locked row `403 "This grade is locked and cannot be deleted."` (not the edit wording). `logActivity` `'delete_grade'`. Components cascade. Tests use a throwaway student + shell; **Nino's five seeded rows stay at 5**. `npm run test:grades` — 165/165 (was 149), confirmed twice. No client files. **Reclassification, not a page change:** Teacher → Grades still predicts encode scope by attempting a write, because no read existed. `GET /assignments` exists now — moved out of KNOWN ISSUES into NOW POSSIBLE so the next client dispatch picks it up rather than inheriting a workaround whose reason has expired. Same list: mode discovery can switch off the report-card call onto `GET /grading-modes`; `useTeacherTargets` reconstruction is optional. **Contacts empty-cause stays in KNOWN ISSUES.** `GET /assignments` does not tell "no parents exist" from "all parents pending" — TCH-002 is adviser of Masigasig with zero assignment rows and a pending parent; assignments are not parent-account state. |
 | 2026-09-08 | **Assignments + Subjects API — item 1 of the admin-prerequisites plan, shipped alone.** Four handlers in `routes/assignments.js`: `GET /api/subjects` (any authenticated, unscoped 40-row curriculum, optional `?grade_level=`), `GET /api/assignments` (teacher own-only, admin anyone), `POST /api/assignments` (admin), `DELETE /api/assignments/:id` (admin). **`grade_level` comes from the subject row, never `req.body`** — same rule as `role` and `student_id`. POST resolves `section` against `sections` (name + subject's grade + `academic_year`) and stores `section_id` on this row only; that is a write on `teacher_assignments`, not a new `section_id` reader elsewhere. Duplicate is `409`. Teacher/inactive/non-teacher targets are `400` naming the check. **DELETE does not refuse when grades exist** — there is no `grades` → `teacher_assignments` FK, so the delete cannot touch grade rows, and mid-year reassignment must not wipe SF9 data. Recorded as one principle with two siblings: message history survives a `canMessage()` change; the subjects-reseed CASCADE is the opposite (destroying `subjects.id` wiped assignments *and* grades). A scope change removes future authority, never past records. **Teacher naming another `teacher_id` on GET is `403`, not `404`** — stated in the file: anti-enumeration does not apply because `GET /api/messages/contacts` already lists every teacher this caller may see, by name. A 404 would hide nothing and cost clarity. Wrapper keys `subjects` / `assignments` / `assignment`. `npm run test:assignments` — 41/41, confirmed twice, no `db:setup` between; TCH-003's five Mabait rows and Nino's five Grade 1 grades untouched; TCH-002 empty-list invariant restored after the mid-suite POST. No client files. **Items 2 (`GET /api/grading-modes`) and 3 (`DELETE /api/grades/:id`) not started** — stop rule. |
 | 2026-09-07 | **Teacher → Grades browser review — two defects, one hole recorded not fixed.** (1) `saveError` and `saveMessage` were independent slots; a successful exam save left the green strip, then a client-side "Label is required." on Add score set the red without clearing it — both visible, two operations, no way to tell which landed. Fixed: XOR render (error wins), every writer including validation early-returns clears the other, `closePanel` clears both. Splitting them under exam vs add-score was rejected as the same bug in a different shape. (2) Copy said "picking a subject you do not teach will mark it here"; the code marks only after Record/Edit `POST /` 403. Selecting Science loaded the roster (view-scope GET) with Record still enabled — not a missed 403, a claim the code did not honour. Copy now names Record/Edit. **New convention 5i** next to 5h: explanatory copy is a claim about behaviour; overstating it costs a review round chasing a bug that does not exist. **Existing-row hole recorded, not fixed:** `ensureShell` skips POST when a grade row already exists, so discovery works only for students with no row for that subject — most of a real mid-term class. Do not probe on subject change (no `DELETE /api/grades/:id`). Assignments endpoint retires it. **No unsaved-changes warning** on this page (every score is its own request); Attendance bulk-submit recorded as the open question that would warrant one. Browser re-test passed (Science + Araling Panlipunan marked, alert XOR, IG Pending without WW). **Carlo Fixture torn down** (`student_id=16` LRN `61990001`, `grade_id=33` + PT component) — students back to 3, `grade_components` 0. No server files. |
 | 2026-09-07 | **Teacher -> Grades — viewing + encoding, one page.** Route `/teacher/grades`, `built: false -> true` with the route. The teacher does not choose a mode: after a class is picked, `GET /api/grades/student/:id` on one roster student supplies `grading_mode` and the subject list (consequence 4 option 1). Empty roster copy names the empty class ("no students, nothing to grade"), not undiscoverable mode. **Do not reuse `useTeacherTargets`** — assigned-OR-adviser vs assignments-only; comment now lives in the hook because TCH-002 would be offered Masigasig. **No client-side IG preview** — a copy of `gradeComputation.js` would drift; IG/TG come from the server after save. **`TermCell` copied from Parent → Grades, `GradeValue` untouched** (second copy; extract at three). **No lock button** — admin-only, 403 at middleware. **§5e: no confirmation** — encoding is repeatable; confirmation would not undo a wrongly-created shell (no `DELETE /api/grades/:id`). **Science dead-end:** copy next to the subject selector plus session-memory after the first `POST /` 403, marking the picker "(not yours)" before any score input is shown. Encode-scope cannot be predicted because no endpoint reads `teacher_assignments` — that endpoint is what retires this, not a client filter. Verified live: throwaway `student_id=14` LRN `61001990` G6 Malikhain, `grade_id=31`, IG **88.05** / TG **90** from the real write path; Science POST 403 *before* scores; throwaway `student_id=15` LRN `11001990` G1 Mabait, `grade_id=32`, letter B, numerical columns null; Nino's 5 rows and Marwin's 0 untouched. SQL teardown: `DELETE FROM grades WHERE student_id IN (14, 15)` then those student rows; baseline restored (7 users / 3 students / 5 grades / 0 components / 8 assignments). SSR + negative control (`useEffect` not defined). `npm run build` clean; `oxlint` 18 → 21, three fetch-effect advisories. **No Cursor browser** — open `/teacher/grades` as TCH-001 / TCH-002 / TCH-003. No server files. |

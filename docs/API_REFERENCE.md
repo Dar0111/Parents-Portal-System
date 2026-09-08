@@ -2,7 +2,7 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**81 endpoints** across 13 route files (16 feature tables below, since
+**83 endpoints** across 14 route files (17 feature tables below, since
 `content.js` holds three separate resources and `assignments.js` holds
 two). If this document and the
 code disagree, the code is correct and this file needs fixing — same
@@ -50,7 +50,7 @@ it.
   `term_grade`, and `contributions.amount` / `contribution_records.amount`.
   Coerce with `Number()` before doing math or comparisons. See the
   Gotchas section for the one place this is *not* true.
-- **No pagination anywhere.** All 81 endpoints return their complete
+- **No pagination anywhere.** All 83 endpoints return their complete
   filtered result set. There is no `?page=`, `?limit=`, or cursor param
   on any list endpoint in this API.
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
@@ -66,7 +66,7 @@ it.
 
 ## 3. Gotchas — things you will otherwise find by debugging
 
-These are the specific findings from reading all twelve route files side
+These are the specific findings from reading all fourteen route files side
 by side. Nothing here is guessed — every line traces to a specific file.
 
 - **`~30` distinct response wrapper keys, plus 4 shapes with no single
@@ -229,12 +229,13 @@ what to expect on the wire.
 | `subjects` | array of `{id, name, grade_level}` | `GET /subjects` — **same key name, different row shape** from the report-card `subjects` array inside `GET /grades/student/:studentId` |
 | `assignments` | array | `GET /assignments` |
 | `assignment` | object | `POST /assignments` |
+| `grading_mode` | object `{ grade_level, school_year, mode }` | `GET /grading-modes` — **same key name, different shape** from the STRING on `GET /grades/student/:studentId` |
 | `grade` | object | `GET /grades/:id`, `POST /grades`, `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId`, `DELETE /grades/:id/components/:componentId`, `PATCH /grades/:id/exam`, `PATCH /grades/:id/descriptive`, `PATCH /grades/:id/lock` |
 | `grades` | array | `GET /grades` |
 | `grade_components` | array | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `descriptor` | object or `null` | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `component` | object | `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId` (secondary key, alongside `grade`) |
-| `student`, `school_year`, `grading_mode`, `subjects`, `general_average`, `general_average_descriptor` | 6 flat top-level keys, no `grade`/`grades` key at all | `GET /grades/student/:studentId` only |
+| `student`, `school_year`, `grading_mode`, `subjects`, `general_average`, `general_average_descriptor` | 6 flat top-level keys, no `grade`/`grades` key at all; `grading_mode` here is a **string** (`numerical`\|`descriptive`) | `GET /grades/student/:studentId` only — see `GET /grading-modes` above for the object shape of the same key |
 | `attendance` | object (single-record endpoints) **or** array (list endpoints) — same key name, cardinality depends on which endpoint | `GET /attendance`, `GET /attendance/student/:studentId`, `POST /attendance`, `POST /attendance/bulk`, `PUT /attendance/:id` |
 | `summary` | object | `GET /attendance/summary/:studentId` |
 | `announcement` | object | `POST /announcements`, `PUT /announcements/:id` |
@@ -263,7 +264,7 @@ what to expect on the wire.
 **No payload at all** (message only) — the four hard-deletes
 (`DELETE /announcements/:id`, `DELETE /memos/:id`, `DELETE /events/:id`,
 `DELETE /contributions/:id`), `DELETE /backups/:id`,
-`DELETE /assignments/:id`,
+`DELETE /assignments/:id`, `DELETE /grades/:id`,
 `PUT /users/parents/:id/reject`, `PUT /auth/change-password`.
 
 **Not JSON at all on success** —
@@ -331,7 +332,7 @@ the bottom must equal 81.
 | POST | `/` | `admin` | `teacher_id`*, `subject_id`*, `section`* | `assignment` | `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for current `academic_year`; duplicate → `409`; inactive/non-teacher → `400` |
 | DELETE | `/:id` | `admin` | — | message only | does **not** refuse when grades exist; a scope change removes future authority, never past records |
 
-### Grades (10) — `/api/grades`
+### Grades (11) — `/api/grades`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
@@ -345,6 +346,13 @@ the bottom must equal 81.
 | PATCH | `/:id/exam` | `teacher(subject)`, `admin` | any subset of `st1_score`/`st1_max`/`st2_score`/`st2_max`/`te_score`/`te_max` (score+max always paired; explicit `null` clears both) | `grade` | same `403`/`404` split |
 | PATCH | `/:id/descriptive` | `teacher(subject)`, `admin` | `descriptive_grade`* (`A`-`E` or `null`) | `grade` | same `403`/`404` split |
 | PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split |
+| DELETE | `/:id` | `admin` only | — | message only | unscoped; `403` when locked (`This grade is locked and cannot be deleted.`); `404` when missing; `grade_components` cascade |
+
+### Grading modes (1) — `/api/grading-modes`
+
+| Method | Path | Roles | Request body | Response key | Notes |
+|---|---|---|---|---|---|
+| GET | `/` | `all` | query: `grade_level`* (1–6), `school_year` (optional; defaults to `system_settings.academic_year`) | `grading_mode` (**object** `{ grade_level, school_year, mode }`) | missing config → `409` (same status both `grades.js` readers use); not a `system_settings` key; same wrapper key as the report card's **string** `grading_mode` — do not flatten |
 
 ### Attendance (6) — `/api/attendance`
 

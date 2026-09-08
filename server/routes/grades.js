@@ -1342,4 +1342,44 @@ router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => 
   }
 });
 
+// DELETE /api/grades/:id — admin only, unscoped. Same authority as
+// PATCH /:id/lock: a school-wide correction (wrong student, wrong term),
+// not a teacher undoing their own encoding. loadAuthorizedGrade is the
+// teacher-scoped loader and is the wrong tool here — a missing row is
+// 404 for admin the same way lock is.
+//
+// Locked rows are 403, not 404 and not the write-path "can no longer be
+// edited" wording. Unlock first, then delete — the lock is what makes
+// a finalised grade immutable; an unrestricted delete would undercut it.
+// grade_components cascade via fk_grade_components_grade; no extra DELETE.
+router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
+  const gradeId = parseId(req.params.id);
+  if (gradeId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
+  }
+
+  try {
+    const [gradeRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+    const grade = gradeRows[0];
+    if (!grade) {
+      return res.status(404).json({ success: false, message: 'Grade record not found.' });
+    }
+
+    if (grade.is_locked) {
+      return res.status(403).json({
+        success: false,
+        message: 'This grade is locked and cannot be deleted.',
+      });
+    }
+
+    await pool.query('DELETE FROM grades WHERE id = ?', [gradeId]);
+    await logActivity(req.user.id, 'delete_grade', `Deleted grade #${gradeId}`);
+
+    return res.json({ success: true, message: 'Grade record deleted.' });
+  } catch (error) {
+    console.error('Delete grade error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete grade.' });
+  }
+});
+
 module.exports = router;
