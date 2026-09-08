@@ -2,8 +2,9 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**77 endpoints** across 12 route files (14 feature tables below, since
-`content.js` holds three separate resources). If this document and the
+**81 endpoints** across 13 route files (16 feature tables below, since
+`content.js` holds three separate resources and `assignments.js` holds
+two). If this document and the
 code disagree, the code is correct and this file needs fixing — same
 rule as CLAUDE.md.
 
@@ -49,7 +50,7 @@ it.
   `term_grade`, and `contributions.amount` / `contribution_records.amount`.
   Coerce with `Number()` before doing math or comparisons. See the
   Gotchas section for the one place this is *not* true.
-- **No pagination anywhere.** All 77 endpoints return their complete
+- **No pagination anywhere.** All 81 endpoints return their complete
   filtered result set. There is no `?page=`, `?limit=`, or cursor param
   on any list endpoint in this API.
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
@@ -183,6 +184,11 @@ read-scope vs. `subject` write-scope) and Excuse Letters' review endpoint
 `404`/`403` per row only where it isn't obvious from the Role column
 alone.
 
+**One deliberate read-side 403:** `GET /api/assignments?teacher_id=` of
+another teacher is `403`, not `404`. Anti-enumeration does not apply —
+`GET /api/messages/contacts` already lists every teacher this caller may
+see, by name. A 404 would hide nothing and cost clarity. Do not "fix" it.
+
 ---
 
 ## 6. Socket.io
@@ -220,6 +226,9 @@ what to expect on the wire.
 | `students` | array | `GET /students` |
 | `section` | object | `GET /sections/:id`, `PATCH /sections/:id/adviser` |
 | `sections` | array | `GET /sections` |
+| `subjects` | array of `{id, name, grade_level}` | `GET /subjects` — **same key name, different row shape** from the report-card `subjects` array inside `GET /grades/student/:studentId` |
+| `assignments` | array | `GET /assignments` |
+| `assignment` | object | `POST /assignments` |
 | `grade` | object | `GET /grades/:id`, `POST /grades`, `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId`, `DELETE /grades/:id/components/:componentId`, `PATCH /grades/:id/exam`, `PATCH /grades/:id/descriptive`, `PATCH /grades/:id/lock` |
 | `grades` | array | `GET /grades` |
 | `grade_components` | array | `GET /grades/:id` (secondary key, alongside `grade`) |
@@ -254,6 +263,7 @@ what to expect on the wire.
 **No payload at all** (message only) — the four hard-deletes
 (`DELETE /announcements/:id`, `DELETE /memos/:id`, `DELETE /events/:id`,
 `DELETE /contributions/:id`), `DELETE /backups/:id`,
+`DELETE /assignments/:id`,
 `PUT /users/parents/:id/reject`, `PUT /auth/change-password`.
 
 **Not JSON at all on success** —
@@ -265,7 +275,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 77.
+the bottom must equal 81.
 
 ### Auth (3) — `/api/auth`
 
@@ -306,6 +316,20 @@ the bottom must equal 77.
 | GET | `/` | `all` | query: `grade_level`, `school_year` | `sections` | unscoped reference data |
 | GET | `/:id` | `all` | — | `section` | `404` only for a genuinely nonexistent id |
 | PATCH | `/:id/adviser` | `admin` | `adviser_id`* (positive integer or `null`) | `section` | |
+
+### Subjects (1) — `/api/subjects`
+
+| Method | Path | Roles | Request body | Response key | Notes |
+|---|---|---|---|---|---|
+| GET | `/` | `all` | query: `grade_level` (optional, 1–6) | `subjects` | unscoped reference data; no `GET /:id`; inventory is seeded, not managed through this API |
+
+### Assignments (3) — `/api/assignments`
+
+| Method | Path | Roles | Request body | Response key | Notes |
+|---|---|---|---|---|---|
+| GET | `/` | `teacher` (own rows only), `admin` | query: `teacher_id` (optional; admin anyone, teacher forced to self) | `assignments` | teacher naming another `teacher_id` → `403` (not `404` — contacts already lists teachers; see §5) |
+| POST | `/` | `admin` | `teacher_id`*, `subject_id`*, `section`* | `assignment` | `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for current `academic_year`; duplicate → `409`; inactive/non-teacher → `400` |
+| DELETE | `/:id` | `admin` | — | message only | does **not** refuse when grades exist; a scope change removes future authority, never past records |
 
 ### Grades (10) — `/api/grades`
 
@@ -424,6 +448,8 @@ the bottom must equal 77.
 | Users | 9 |
 | Students | 5 |
 | Sections | 3 |
+| Subjects | 1 |
+| Assignments | 3 |
 | Grades | 10 |
 | Attendance | 6 |
 | Announcements | 4 |
@@ -434,13 +460,13 @@ the bottom must equal 77.
 | Settings | 4 |
 | Backups | 5 |
 | Messages | 6 |
-| **Total** | **77** |
+| **Total** | **81** |
 
-Matches the count in `server/routes/` exactly — 3+9+5+3+10+6+4+4+4+8+6+4+5+6 = 77.
+Matches the count in `server/routes/` exactly — 3+9+5+3+1+3+10+6+4+4+4+8+6+4+5+6 = 81.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agree — nothing documented but unimplemented, nothing implemented but undocumented, and no mount/handler orphans.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. The four assignments/subjects handlers (2026-09-08) bring the live count to 81 / 82 with `/api/health`. Re-run the existence diff after items 2–3.
 
-**Why CLAUDE.md's table has 77 rows and this says 76 — both are correct.**
+**Why CLAUDE.md's table has 82 rows and this says 81 — both are correct.**
 This document counts handlers defined in `server/routes/` only. `GET /api/health`
 is declared directly on the app in `server/server.js`, not in a route file, so
 it is outside that count while still being a real, reachable endpoint. Neither
