@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
 
+// Three sizes, lg (max-w-2xl) is the ceiling. Teacher → Contributions'
+// roster was the first Stage 4 content to hit it — the page cut columns
+// rather than adding xl. A second page hitting this ceiling is the
+// trigger to reconsider the scale, not a one-page extension.
+
 const SIZES = {
   sm: 'max-w-sm',
   md: 'max-w-lg',
