@@ -25,8 +25,9 @@
  * The seeded Grade 1 student (LRN 1090001, Mabait) is READ-ONLY here.
  * Do not POST/PATCH/DELETE grades against that student: a suite that
  * writes and deletes on the demo fixture is a suite that can break the
- * demo. The throwaway Matipid student remains the write target; the
- * seeded card is asserted as the seed left it.
+ * demo. The throwaway Matipid student remains the write target for
+ * descriptive tests; DELETE /:id uses its own throwaway student + shell.
+ * The seeded card is asserted as the seed left it (count stays 5).
  *
  * Usage: npm run test:grades
  */
@@ -172,6 +173,7 @@ async function run() {
   let grade1TeacherAssignmentId;
   let gaStudentFixtureId;
   const gaGradeIds = [];
+  let deleteStudentFixtureId;
 
   async function cleanup() {
     if (createdGradeIds.length) {
@@ -191,6 +193,9 @@ async function run() {
     }
     if (gaStudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [gaStudentFixtureId]));
+    }
+    if (deleteStudentFixtureId) {
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [deleteStudentFixtureId]));
     }
   }
 
@@ -1359,6 +1364,123 @@ async function run() {
       num(completeReport.data?.general_average) === 86.6,
       `General Average populates once every subject has a Final Grade: 86.60 = (87.00x4 + 85.00)/5 by hand (got ${completeReport.data?.general_average})`
     );
+
+    // --- DELETE /api/grades/:id (admin-only hard delete) ---
+    // Throwaway student + shell only. Nino's five seeded rows (LRN
+    // 1090001) are read-only — a suite that deletes them can break the
+    // demo the fixture exists for.
+    console.log('\nDELETE /api/grades/:id:');
+
+    async function ninoGradeCount() {
+      const [rows] = await withDb((conn) =>
+        conn.query(
+          "SELECT COUNT(*) AS n FROM grades g JOIN students s ON s.id = g.student_id WHERE s.lrn = '1090001'"
+        )
+      );
+      return Number(rows[0].n);
+    }
+
+    assert((await ninoGradeCount()) === 5, "Nino's five seeded grade rows are intact before DELETE tests");
+
+    const deleteFixtureLrn = `7${runId}`;
+    const createDeleteStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: deleteFixtureLrn,
+        first_name: 'Delete',
+        last_name: 'Fixture',
+        grade_level: 6,
+        section: 'Malikhain',
+      },
+    });
+    deleteStudentFixtureId = createDeleteStudent.data?.student?.id;
+    assert(createDeleteStudent.status === 201 && Number.isInteger(deleteStudentFixtureId), 'Fixture: throwaway student for grade DELETE');
+
+    const deleteShell = await request('POST', '/api/grades', {
+      token: adminToken,
+      body: {
+        student_id: deleteStudentFixtureId,
+        subject_id: mathGrade6Id,
+        term: 1,
+        school_year: schoolYear,
+      },
+    });
+    const deleteGradeId = deleteShell.data?.grade?.id;
+    if (deleteGradeId) createdGradeIds.push(deleteGradeId);
+    assert(deleteShell.status === 201 && Number.isInteger(deleteGradeId), 'Fixture: shell grade for DELETE');
+
+    const deleteComponent = await request('POST', `/api/grades/${deleteGradeId}/components`, {
+      token: adminToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Cascade check' },
+    });
+    assert(deleteComponent.status === 201, 'Fixture: one WW component so CASCADE can be asserted');
+
+    const [componentsBeforeDelete] = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS n FROM grade_components WHERE grade_id = ?', [deleteGradeId])
+    );
+    assert(Number(componentsBeforeDelete[0].n) === 1, 'One component row exists before deleting the grade');
+
+    const teacherDeletes = await request('DELETE', `/api/grades/${deleteGradeId}`, { token: teacherToken });
+    assert(
+      teacherDeletes.status === 403 && teacherDeletes.data?.message === 'Access denied.',
+      `Teacher DELETE is 403 Access denied (got ${teacherDeletes.status} ${teacherDeletes.data?.message})`
+    );
+
+    const parentDeletes = await request('DELETE', `/api/grades/${deleteGradeId}`, { token: parentToken });
+    assert(parentDeletes.status === 403, 'Parent DELETE is 403');
+
+    const badIdDelete = await request('DELETE', '/api/grades/abc', { token: adminToken });
+    assert(badIdDelete.status === 400, 'Non-numeric grade id is 400');
+
+    const missingDelete = await request('DELETE', '/api/grades/999999', { token: adminToken });
+    assert(
+      missingDelete.status === 404 && missingDelete.data?.message === 'Grade record not found.',
+      `Missing grade id is 404 (got ${missingDelete.status} ${missingDelete.data?.message})`
+    );
+
+    const lockThenDelete = await request('PATCH', `/api/grades/${deleteGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: true },
+    });
+    assert(lockThenDelete.status === 200, 'Admin locks the throwaway grade before the locked-delete check');
+
+    const lockedDelete = await request('DELETE', `/api/grades/${deleteGradeId}`, { token: adminToken });
+    assert(
+      lockedDelete.status === 403 &&
+        lockedDelete.data?.message === 'This grade is locked and cannot be deleted.',
+      `Locked grade DELETE is 403 naming delete, not the edit wording (got ${lockedDelete.status} ${lockedDelete.data?.message})`
+    );
+
+    const unlockThenDelete = await request('PATCH', `/api/grades/${deleteGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: false },
+    });
+    assert(unlockThenDelete.status === 200, 'Admin unlocks so the row can be deleted');
+
+    const adminDeletes = await request('DELETE', `/api/grades/${deleteGradeId}`, { token: adminToken });
+    assert(
+      adminDeletes.status === 200 &&
+        adminDeletes.data?.success === true &&
+        adminDeletes.data?.message === 'Grade record deleted.' &&
+        adminDeletes.data?.grade === undefined,
+      `Admin DELETE returns message only (got ${adminDeletes.status} ${JSON.stringify(adminDeletes.data)})`
+    );
+
+    const idx = createdGradeIds.indexOf(deleteGradeId);
+    if (idx !== -1) createdGradeIds.splice(idx, 1);
+
+    const getAfterDelete = await request('GET', `/api/grades/${deleteGradeId}`, { token: adminToken });
+    assert(getAfterDelete.status === 404, 'GET /:id after DELETE is 404');
+
+    const [componentsAfterDelete] = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS n FROM grade_components WHERE grade_id = ?', [deleteGradeId])
+    );
+    assert(
+      Number(componentsAfterDelete[0].n) === 0,
+      `grade_components cascade with the parent row (got ${componentsAfterDelete[0].n})`
+    );
+
+    assert((await ninoGradeCount()) === 5, "Nino's five seeded grade rows are untouched after DELETE tests");
   } finally {
     await cleanup();
   }
