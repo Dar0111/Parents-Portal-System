@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-08 (admin-prerequisites items 2–3; audited against the code)
+**Last verified:** 2026-09-08 (Teacher → Contributions landed after admin-prerequisites items 1–3; Teacher web role complete. Modal compose focus steal fixed in the primitive the same day.)
 
 ### Seeded baseline
 
@@ -692,7 +692,9 @@ client/
   src/auth/AuthContext.jsx     login/logout/user/loading — see note below
   src/auth/ProtectedRoute.jsx  role-gated route wrapper
   src/pages/Login.jsx          Login ID + password, no role dropdown
-  src/pages/dashboards/        AdminDashboard, TeacherDashboard, ParentDashboard — empty
+  src/pages/dashboards/        AdminDashboard still the Stage 2 placeholder;
+                               TeacherDashboard and ParentDashboard derive
+                               "Open now" from navForRole
   src/layout/Shell.jsx         sidebar, header, logout
 ```
 
@@ -951,9 +953,10 @@ client/src/
   components/             DataTable, Modal, FormField, StatusBadge, EmptyState,
                           ErrorAlert, LoadingSpinner
   pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
-  pages/teacher/          8 pages: Attendance, Students (+ detail), Excuse Letters,
-                          Announcements, Memos, Events, Messages (+ thread),
-                          Grades (view + encode, one page)
+  pages/teacher/          9 pages — **Teacher web role complete:** Attendance,
+                          Students (+ detail), Excuse Letters, Announcements,
+                          Memos, Events, Messages (+ thread), Grades (view +
+                          encode, one page), Contributions (list + roster modal)
   pages/parent/           4 pages, all READ ONLY: Grades, Announcements, Memos,
                           Events. Every write on all four routers is
                           teacher/admin-only, so a parent gets
@@ -1392,14 +1395,19 @@ notice fails safe where an absent one does not.
 **A Stage 4 page is not done until it has been opened in a browser.** This is a
 stated limit of the verification chain, not a preference.
 
-**Two of the seven teacher pages shipped with a defect that every automated
-step passed**, and both were in code that ran — so there was nothing for a
-build, a lint, or a server test suite to fail on:
+**Opening it is not the same as using it.** A render proves the component
+mounts. Typing a full word proves the input works. That is the same rule
+finding its own limit, not a separate convention.
+
+**Four browser-only defects**, all in code that ran — so there was nothing for
+a build, a lint, or a server test suite to fail on:
 
 | Page | Defect | Why nothing caught it |
 |---|---|---|
 | Attendance | The Recorded column derived its value from form state, so it tracked the dropdown instead of the database (§5b) | Every request and response was correct. The bug was entirely in what was rendered |
 | Messages | `useEffect` used in `Shell.jsx` without importing it — **every route for every role rendered blank** | A bundler resolves *imports*, not undefined identifiers; the reference only throws when the component renders |
+| Contributions | Alert pair — success and error strips both visible after sequential actions | Each write was correct in isolation. Opening the page does not sequence two writes |
+| Every Modal compose | Title/Amount (and Announcements Title, Events Title, Excuse Letters remarks, Messages search) lose focus after one or two characters | `Modal` re-focused the dialog panel whenever `onClose` changed identity. SSR does not run effects. **The 2026-09-07 reviews of Announcements, Events, Excuse Letters and Messages were not wrong — they were shallow in the same place: nobody typed more than two characters into those fields.** |
 
 **What each step actually proves:**
 
@@ -1424,11 +1432,25 @@ build, a lint, or a server test suite to fail on:
 is not available, an SSR render of the component reaches the same failure: hooks
 are *called* during render even though their callbacks are skipped, so a missing
 hook import throws under `renderToStaticMarkup` exactly as it does in a browser.
-That is how this bug was confirmed fixed, with a negative control reproducing
-the original `ReferenceError` before restoring the import.
+That is how the Messages blank-page bug was confirmed fixed, with a negative
+control reproducing the original `ReferenceError` before restoring the import.
+
+**SSR cannot catch the fourth defect.** `renderToStaticMarkup` does not run
+effects. The Modal focus steal lived in an effect: it bundled two concerns
+with different lifetimes — "focus the panel when the dialog opens" (a one-time
+event) and "respond to the current `onClose`" (a value that changes freely).
+Every Stage 4 compose page passes a function declared in the page body, so
+`onClose` is a new reference on every keystroke, and putting it in that
+effect's dependency array re-triggered the focus. **This shape is not
+Modal-specific.** Any effect that mixes a one-time action with a
+frequently-changing dependency will misfire the same way. Stabilising
+`onClose` at one call site would hide it for that page and leave it for the
+next four. The fix is in `Modal`: focus on `open` only; keep `onClose`
+current via a ref for Escape.
 
 **Practical consequence for a dispatch:** "build clean, lint clean" is a
 necessary report, never a sufficient one. Say what was rendered and by whom.
+If the page has a text field, say that a full word was typed into it.
 
 **A recurring console error you can ignore — and why it is recorded rather than
 fixed.** In development you will see, once per page load:
@@ -1527,6 +1549,16 @@ forwarded only when `as !== 'input'`, because `<input>` is a void element
 and React throws if given children. Shape 4 is the escape hatch and
 receives a **single object**, not positional arguments, so adding a third
 piece of wiring later is not a breaking change at twenty call sites.
+
+### 7b. Modal sizes — three, and `lg` is the ceiling
+
+`sm` / `md` / `lg` (`max-w-sm` / `max-w-lg` / `max-w-2xl`). There is no
+`xl`. **Teacher → Contributions' roster (2026-09-08) is the first Stage 4
+content to hit that ceiling.** The page dropped a column and a second
+action button rather than adding a size for one caller — the same
+"primitive shaped by one page" failure the foundation dispatch existed
+to prevent. **A second page that cannot fit `lg` is the trigger to
+reconsider the scale, not this one.**
 
 ### Corrections — three claims retired here
 
@@ -1747,6 +1779,24 @@ computation.
 | **Parent** Announcements/Memos/Events | **13m14s** | 3 pages, all read-only — first 5h render proof inside the clock |
 | **Parent** Grades | **37m26s** (~24m agent, ~13m review wait) | **1 page.** First `GradeValue` consumer, 24-row fixture chain, three browser states |
 | **Teacher** Grades | **20m** | **1 page.** View + encode, numerical and descriptive, no client IG preview, session-memory for encode 403s, two throwaway students SQL-torn down |
+
+**Ninth data point — Teacher → Contributions, 2026-09-08: ~40 minutes**
+(10:58 PLAN APPROVED → 11:38 verified). **Almost all agent work; no
+browser-review wait in this window.** Split recorded because Parent → Grades
+made idle a real cost: here idle is ~0. Same four caveats; still not a rate.
+Last Teacher page.
+
+| Dispatch | Time | What it involved |
+|---|---|---|
+| Attendance | 3m14s | 1 page. New date helper, write path, bulk submit, pre-fill + in-place update |
+| Students | 1m24s | 2 views. Read-only, endpoints already exercised, no new helper |
+| Excuse Letters | 2m28s | 1 page. First write form, modal with confirmation, permission prediction, 3 fixtures |
+| Announcements/Memos/Events | 3m36s | 3 pages + a shared hook. Two compose forms, one read-only page |
+| Messages | 4m4s | 2 views + the first Socket.io client, first new runtime dependency, first shared-layout change |
+| **Parent** Announcements/Memos/Events | **13m14s** | 3 pages, all read-only — first 5h render proof inside the clock |
+| **Parent** Grades | **37m26s** (~24m agent, ~13m review wait) | **1 page.** First `GradeValue` consumer, 24-row fixture chain, three browser states |
+| **Teacher** Grades | **20m** | **1 page.** View + encode, numerical and descriptive, no client IG preview, session-memory for encode 403s, two throwaway students SQL-torn down |
+| **Teacher** Contributions | **~40m** (~40m agent, ~0m idle) | **1 page**, last Teacher. List + compose + roster modal, assignments-only (not `useTeacherTargets`), dashboard derived from nav, consequence 5 + removal list recorded. Live HTTP on three accounts + SSR |
 
 **Do not replace the void estimate with a projection derived from these.**
 The old estimate is void, these dispatches have differed in kind more than
@@ -2785,8 +2835,10 @@ imply," not just "does this one anticipated symptom show up."
 | No `Download Statement` export | — | Promised in manuscript Figure 19. Build a CSV export from `contribution_records`, or remove it from the paper. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |
 | A new page file arriving via HMR can leave a stale module in an open tab | Vite dev server | **Try a hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip on 2026-09-07: Teacher → Excuse Letters' "All statuses" filter appeared to return nothing, and the investigation proved the request, the endpoint contract, the empty-state branches and `FormField`'s controlled select were all correct — the running tab was serving a stale module. A hard reload cleared it and there was no data bug. The analysis was not wasted (it found a real copy defect alongside), but the reload should have come first. |
-| **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). Teacher → Grades still learns mode from the report card until a client dispatch switches it — that switch is NOW POSSIBLE, not a missing endpoint. Encode-scope prediction and `useTeacherTargets` reconstruction likewise moved to NOW POSSIBLE. |
+| **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). Teacher → Grades still learns mode from the report card until a client dispatch switches it — that switch is NOW POSSIBLE, not a missing endpoint. Encode-scope prediction and `useTeacherTargets` reconstruction likewise moved to NOW POSSIBLE. **Consequence 5 is not closed by that API:** `content.js` writes include the adviser; `contributions.js` does not. TCH-002 can announce to Masigasig and cannot POST a Grade 5 fee. GET /assignments exposes rows; it does not widen contributions write scope. A fee is money (DepEd Order 19 s. 2008). Do not widen. School question. Surfaced by Teacher → Contributions (2026-09-08). |
 | **`GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending"** | `server/routes/messages.js` | ACTIVE accounts only — correct, a pending parent cannot log in. The empty list is still indistinguishable between those two causes, so the UI's *"No parents yet. A parent appears here once an admin approves their account."* is a known imprecision. **`GET /api/assignments` does not close this.** Assignments are subject-section rows, not parent-account state. TCH-002 is the proof: adviser of Grade 5 - Masigasig, zero assignment rows, and that section's only parent is seeded `pending`. An assignments read would still be empty while students (and pending parents) exist. Closing this needs a signal about parents-of-students-in-scope, not about what a teacher is assigned to teach. Do not treat it as closed by association with item 1. |
+| **Contributions module may be struck (DO 19 s. 2008) — drop the tables, do not leave them** | `contributions` + `contribution_records` | The adviser has not decided. Empty unused tables are how the counts drifted, and the DDL is in git. A "removed" feature with a live POST still mounted is a UI lie. **Do not remove anything now.** If it is struck, drop both tables (and their FKs), do not leave them. Removal would touch: `client/src/pages/teacher/ContributionsPage.jsx`, `App.jsx` route, `nav.js` teacher item **and delete** parent/admin items (do not leave `built: false`), `server/routes/contributions.js`, `server.js` mount, `test-contributions-flows.js`, `package.json` `test:contributions`, `schema.sql` both tables + FKs, `seed.sql` (0 rows today), this file's endpoints/files/BUILD ORDER/feature 7/baseline/Download Statement/this list **and the 409-message row below**, `docs/PROJECT_PROGRESS.md`, `docs/API_REFERENCE.md` Contributions + wrapper keys + grade-only gotcha. Leave StatusBadge Paid/Pending. Manuscript is the team's. |
+| **DELETE `/api/contributions/:id` 409 tells the teacher to do something impossible** | `server/routes/contributions.js` | The refusal is real (`COUNT(*)` on `contribution_records` > 0 → `409`), and the first sentence is honest. The second is not: *"Clear the payment records first if you need to remove it."* There is no `DELETE` for `contribution_records` — only `PATCH` Paid/Pending, which `ON DUPLICATE KEY UPDATE`s the row, never removes it. Marking Pending again does not unlock delete. **Consequence: once any student is marked, the contribution is permanently undeletable through the API**, and the error message hides that by naming a remedy that does not exist. The Teacher page already says the server will refuse if anyone has been marked; that is more honest than the 409 string. Flagged from Teacher → Contributions browser review (2026-09-08), handler not changed — backend string. If the module is struck this goes with it. If it stays, the gap needs either a record `DELETE` or an honest message. |
 | `GET /api/excuse-letters/:id` returns strictly LESS than its own list endpoint | `server/routes/excuses.js` | The list runs `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section`; the detail runs `SELECT el.*` with **no student join at all**. So a detail route would render `student_id: 2` and need a second call to `/students/:id` just to show a name, while a list row already carries everything the detail has plus the student. Teacher → Excuse Letters therefore uses a modal from the list and never calls `GET /:id` — but the oddity is worth knowing before someone builds a detail route on it later and wonders why the name is missing. Flagged, not fixed. |
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
 | `GET /api/students` returns the full personal row on a LIST | `server/routes/students.js` | The list `SELECT` includes `birthday`, `gender`, `address`, `contact_number` for every student in scope — verified live against the real payload. Not an authorization hole (the teacher may open each of those students individually), but a roster has no reason to carry home addresses, and **the `LRN` in that payload doubles as the parent's `login_id`** — see convention §5c. Consequence for the client: the list page renders only name / LRN / class / status and leaves the rest to the detail view. Consequence if this is ever narrowed server-side: `GET /:id` adds only `section_id`, `created_by`, `updated_at` over the list, so a slimmer list response would cost the detail view nothing it does not already fetch. Flagged from a client dispatch, not fixed. |
@@ -2803,13 +2855,14 @@ imply," not just "does this one anticipated symptom show up."
 
 ## NOW POSSIBLE — client consumers (API exists; pages have not switched)
 
-Server dispatch. Do not change Teacher → Grades (or any other page) here.
 The next **client** dispatch should pick these up rather than inheriting a
-workaround whose reason has expired.
+workaround whose reason has expired. Landing Teacher → Contributions did
+**not** switch any of them.
 
 - **Teacher → Grades still does not call `GET /assignments`.** Encode-scope is predicted by attempting a write (`POST /api/grades`) and remembering the 403 for the session, because no read existed when the page shipped. One does now. The existing-row `ensureShell` hole (discovery skipped when a grade row already exists for that subject) is the same consumer. Switch the page to `GET /api/assignments`; do not keep probing.
 - **Teacher → Grades still learns `grading_mode` from `GET /grades/student/:id`.** `GET /api/grading-modes` exists (item 2). Switching avoids needing a roster student to learn the mode. The report-card call remains the right source for the subject list and term grid.
 - **`useTeacherTargets` still reconstructs from `GET /sections` ∪ `GET /students`.** Optional switch to `GET /assignments`. The empty-section hole (a section with zero students is invisible) is now optional, not the only path.
+- **Teacher → Contributions still builds compose grades from `GET /students`.** Too wide (TCH-002 sees Jea); Post is the assignment check. `GET /assignments` exists; switch the compose list to it. Do not invent an empty state from students (`[]` is the same for TCH-001 with nothing posted and TCH-002 with nothing to post).
 
 **Not on this list:** the contacts empty-cause. `GET /assignments` does not
 tell "no parents exist" from "all parents pending." That stays in KNOWN
@@ -3145,7 +3198,16 @@ replaced with a new guess.
       baseline. **No Cursor browser in this dispatch** — SSR + negative
       control + live HTTP; open `/teacher/grades` as TCH-001 / TCH-002 /
       TCH-003 to finish 5h.
-- [ ] Remaining teacher pages — contributions
+- [x] **Teacher → Contributions — DONE 2026-09-08.** Last Teacher Stage 4 page:
+      list, compose, edit, delete, payment roster in a Modal (not a `:id`
+      route). Seven of eight endpoints are teacher-reachable (`GET /my-records`
+      is parent only). Scope is grade-level `teacher_assignments` only — the
+      adviser is not included (consequence 5; do not widen; school question).
+      Amount override skipped. Roster review: Section dropped, one action
+      control (in-flight button stays visible and disabled). Modal `lg` is
+      the ceiling — first Stage 4 content to hit it; a second page is the
+      trigger to widen the scale. **Teacher web role is complete.** Remaining
+      Stage 4 work is parent pages (Attendance still blocked) and admin pages.
 - [ ] Remaining parent pages — records, messages, excuse
       letters, contributions. **Parent → Attendance is BLOCKED**, not
       merely unbuilt: the attendance rate formula is an unanswered
@@ -3504,6 +3566,17 @@ handled by the team. Do not re-raise it.
   starts on `feature/<module>`, never on `main`. (Missed on 2026-08-31 —
   Excuse Letters was written on `main` and moved to a branch after the
   fact.)
+- **After any merge to `main`, report `git log --oneline -1` and confirm
+  that commit is the one this dispatch produced.** `git status` being
+  clean does not prove the work landed. Teacher → Contributions (2026-09-08)
+  was written, browser-verified, and reported ready to commit; it was
+  never committed. The next dispatch needed a clean tree, so the work was
+  stashed, admin-prerequisites merged, and the stash was never reapplied.
+  Both then believed the Teacher role was complete for two dispatches.
+  A stash is how finished work becomes invisible. This is the second time
+  state has gone missing between dispatches — the first was leftover DB
+  state from a crashed test run. A stash left from a finished page is
+  not a WIP parking lot; check it the same way.
 
 When Darryl corrects a wrong assumption, accept it and move on. The `.md`
 and `.sql` files describe the real system; the manuscript describes the
@@ -3600,6 +3673,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-08 | **Modal stole focus on every keystroke — fourth browser-only defect, fixed in the primitive.** Compose Title/Amount lost focus after one or two characters. Cause: `useEffect(..., [open, onClose])` mixed a one-time action (focus the panel when the dialog opens) with a frequently-changing value (`onClose`, a new function every render at every Stage 4 call site). Every change to the second re-triggered the first. Focus now depends on `open` only; `onClose` is kept current via a ref for Escape. Backdrop and the X still read `onClose` from the render they belong to. **Not a Contributions-only bug.** Announcements, Events, Excuse Letters remarks, and Messages contact search all shipped the same shape on 2026-09-07 and all passed browser review — nobody typed more than two characters into those fields. The reviews were not wrong; they were shallow in the same place. §5h now says opening a page is not the same as using it: a render proves the component mounts, typing a full word proves the input works. Verified by driving input (negative control: old effect steals focus; then a full word in Announcements Title, Events Title, Excuse Letters remarks, Messages search, Contributions Title, and `150.50` in Amount). `npm run build` / oxlint after. Call sites untouched. |
+| 2026-09-08 | **Teacher → Contributions — the last Teacher Stage 4 page. Teacher web role is complete.** Written and browser-verified earlier the same day, then stashed so admin-prerequisites could run on a clean tree; landed here after items 1–3. Re-verified on this landing against current main: the page does not call the six handlers that shipped since the stash (`GET /subjects`, `GET`/`POST`/`DELETE /assignments`, `GET /grading-modes`, `DELETE /grades/:id`); TCH-001 POST Grade 6 `201` then DELETE, TCH-002 POST Grade 5 `403` naming assignment. `GET /assignments` existed by then; this page still builds compose grades from `GET /students` (too wide) — NOW POSSIBLE, not switched in this landing. Route `/teacher/contributions`, `built: false -> true` with the route. The "probably read-only like Memos" framing was wrong: seven of eight endpoints are teacher-reachable (`GET /my-records` is the parent-only one). **Scope is grade-level `teacher_assignments` only — advisers are not included.** `content.js` writes were widened; `contributions.js` was not. TCH-002 can announce to Masigasig and cannot POST a Grade 5 fee. Recorded as **consequence 5** of the `teacher_assignments` finding: same root (widened module by module), not a fifth separate oddity. **Whether contributions SHOULD include the adviser is a school question, not a consistency patch** — a fee is money, DepEd Order 19 s. 2008 (No Collection Policy). Do not widen. Compose grades come from distinct `grade_level` on `GET /students` (too wide; TCH-002 sees Jea); **Post is the assignment check**, not picking the grade (§5i). **No third empty state from GET /students** — TCH-002's empty list and TCH-001's empty list are the same `[]`; inventing "you cannot post" from a different endpoint would misread TCH-001 on the day they have posted nothing (§5f). Roster in a **Modal**, not a `:id` route — one fewer file if the module is removed. Removal list recorded in KNOWN ISSUES: **drop the tables**, do not leave them (empty unused tables drifted counts; a removed feature with a live POST is a UI lie). Skip amount override. Skip CSV. **§5b:** Recorded badge from last `GET /:id/records` only. **§5e:** no confirm on Paid/Pending (`ON DUPLICATE KEY UPDATE`); confirm DELETE, name the title. First PATCH inserts a record row; after that DELETE is 409 forever (no record-delete endpoint). `useTeacherTargets` comment now names Contributions as the second assignments-only module. `TeacherDashboard` derives "Open now" from `navForRole('teacher')` like ParentDashboard — last Teacher page, a stale "No modules built yet" would be its parting impression. No Cursor browser in this dispatch — live HTTP + SSR; open `/teacher/contributions` as TCH-001 / TCH-002 / TCH-003 to finish 5h. Hard reload if HMR looks wrong. Live HTTP: TCH-001 POST Grade 6 `201`, TCH-002 POST Grade 5 `403` naming assignment, TCH-002 GET TCH-001 roster `404`, Marwin on the Grade 6 roster, Paid then Pending, DELETE `409` naming 1 record, TCH-003 Grade 1 roster = Nino Mabait, unused DELETE `200`. SQL teardown; `contributions` and `contribution_records` back to 0. SSR rendered ContributionsPage + TeacherDashboard (copy asserted). `npm run build` clean; `oxlint` 21 → 22, the one addition being the usual fetch-effect advisory. **Browser review (pre-commit):** DELETE 409 renders the server's wording and the modal stays open — verified. The second sentence (*"Clear the payment records first…"*) names a remedy that does not exist (no `DELETE` on `contribution_records`; Pending does not remove the row). Once any student is marked, the contribution is permanently undeletable through the API. Flagged in KNOWN ISSUES, handler not changed. **Roster then approved and landed:** Section dropped; one action (Mark paid when Pending, Mark pending when Paid); in-flight button stays visible and disabled because `recorded` has not updated yet (§5b). Never-recorded and explicit Pending look identical — API `COALESCE` to Pending; stated in the page. Modal `lg` is already the max; no `xl` added. **Convention 7b:** first Stage 4 content to hit Modal's width ceiling; a second page is the trigger to reconsider the scale. Comment on `Modal.jsx` names that, no size added. **Teacher web role is complete.** No server files. |
 | 2026-09-08 | **Admin-prerequisites items 2 and 3, after item 1 was committed alone.** Item 2: `GET /api/grading-modes` in its own router (`routes/gradingModes.js`) so the path is not eaten by `GET /api/grades/:id`. Any authenticated role. `grade_level` required 1–6; `school_year` optional, defaults to `system_settings.academic_year`. Missing `grading_mode_configs` row is **409** with the write-preflight wording copied exactly — matching both existing readers in `grades.js`, not a settings key, not 404, not an empty success. Wrapper `grading_mode` is an **object** `{ grade_level, school_year, mode }`; the report card uses the same key as a **string** — recorded so nobody flattens it. Third copy of the YYYY-YYYY check; extract on a fourth place. `npm run test:grading-modes` — 13/13, confirmed twice; the 409 is asserted against `2027-2028`, which the seed has no rows for. Item 3: `DELETE /api/grades/:id`, admin-only, unscoped, same authority as `PATCH /:id/lock`. Teacher/parent get middleware `403 Access denied.`; missing id `404 "Grade record not found."`; locked row `403 "This grade is locked and cannot be deleted."` (not the edit wording). `logActivity` `'delete_grade'`. Components cascade. Tests use a throwaway student + shell; **Nino's five seeded rows stay at 5**. `npm run test:grades` — 165/165 (was 149), confirmed twice. No client files. **Reclassification, not a page change:** Teacher → Grades still predicts encode scope by attempting a write, because no read existed. `GET /assignments` exists now — moved out of KNOWN ISSUES into NOW POSSIBLE so the next client dispatch picks it up rather than inheriting a workaround whose reason has expired. Same list: mode discovery can switch off the report-card call onto `GET /grading-modes`; `useTeacherTargets` reconstruction is optional. **Contacts empty-cause stays in KNOWN ISSUES.** `GET /assignments` does not tell "no parents exist" from "all parents pending" — TCH-002 is adviser of Masigasig with zero assignment rows and a pending parent; assignments are not parent-account state. |
 | 2026-09-08 | **Assignments + Subjects API — item 1 of the admin-prerequisites plan, shipped alone.** Four handlers in `routes/assignments.js`: `GET /api/subjects` (any authenticated, unscoped 40-row curriculum, optional `?grade_level=`), `GET /api/assignments` (teacher own-only, admin anyone), `POST /api/assignments` (admin), `DELETE /api/assignments/:id` (admin). **`grade_level` comes from the subject row, never `req.body`** — same rule as `role` and `student_id`. POST resolves `section` against `sections` (name + subject's grade + `academic_year`) and stores `section_id` on this row only; that is a write on `teacher_assignments`, not a new `section_id` reader elsewhere. Duplicate is `409`. Teacher/inactive/non-teacher targets are `400` naming the check. **DELETE does not refuse when grades exist** — there is no `grades` → `teacher_assignments` FK, so the delete cannot touch grade rows, and mid-year reassignment must not wipe SF9 data. Recorded as one principle with two siblings: message history survives a `canMessage()` change; the subjects-reseed CASCADE is the opposite (destroying `subjects.id` wiped assignments *and* grades). A scope change removes future authority, never past records. **Teacher naming another `teacher_id` on GET is `403`, not `404`** — stated in the file: anti-enumeration does not apply because `GET /api/messages/contacts` already lists every teacher this caller may see, by name. A 404 would hide nothing and cost clarity. Wrapper keys `subjects` / `assignments` / `assignment`. `npm run test:assignments` — 41/41, confirmed twice, no `db:setup` between; TCH-003's five Mabait rows and Nino's five Grade 1 grades untouched; TCH-002 empty-list invariant restored after the mid-suite POST. No client files. **Items 2 (`GET /api/grading-modes`) and 3 (`DELETE /api/grades/:id`) not started** — stop rule. |
 | 2026-09-07 | **Teacher → Grades browser review — two defects, one hole recorded not fixed.** (1) `saveError` and `saveMessage` were independent slots; a successful exam save left the green strip, then a client-side "Label is required." on Add score set the red without clearing it — both visible, two operations, no way to tell which landed. Fixed: XOR render (error wins), every writer including validation early-returns clears the other, `closePanel` clears both. Splitting them under exam vs add-score was rejected as the same bug in a different shape. (2) Copy said "picking a subject you do not teach will mark it here"; the code marks only after Record/Edit `POST /` 403. Selecting Science loaded the roster (view-scope GET) with Record still enabled — not a missed 403, a claim the code did not honour. Copy now names Record/Edit. **New convention 5i** next to 5h: explanatory copy is a claim about behaviour; overstating it costs a review round chasing a bug that does not exist. **Existing-row hole recorded, not fixed:** `ensureShell` skips POST when a grade row already exists, so discovery works only for students with no row for that subject — most of a real mid-term class. Do not probe on subject change (no `DELETE /api/grades/:id`). Assignments endpoint retires it. **No unsaved-changes warning** on this page (every score is its own request); Attendance bulk-submit recorded as the open question that would warrant one. Browser re-test passed (Science + Araling Panlipunan marked, alert XOR, IG Pending without WW). **Carlo Fixture torn down** (`student_id=16` LRN `61990001`, `grade_id=33` + PT component) — students back to 3, `grade_components` 0. No server files. |

@@ -30,7 +30,7 @@ export const NAV_BY_ROLE = {
     { to: '/teacher/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
     { to: '/teacher/memos', label: 'Memos', icon: 'fa-file-lines', built: true },
     { to: '/teacher/events', label: 'Events', icon: 'fa-calendar-days', built: true },
-    { to: '/teacher/contributions', label: 'Contributions', icon: 'fa-peso-sign', built: false },
+    { to: '/teacher/contributions', label: 'Contributions', icon: 'fa-peso-sign', built: true },
     { to: '/teacher/messages', label: 'Messages', icon: 'fa-comments', built: true },
   ],
   parent: [

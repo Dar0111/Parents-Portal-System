@@ -14,7 +14,8 @@ import { useAuth } from '../auth/AuthContext';
 // set. So this is extracted at two, and the rule is not broken — it does not
 // apply to this shape.
 //
-// TWO REQUESTS, because no endpoint returns a teacher's assignments:
+// TWO REQUESTS — this hook has not switched to GET /api/assignments
+// (NOW POSSIBLE, 2026-09-08). It still reconstructs:
 //   1. GET /api/sections   -> filter adviser_id === me   -> sections I advise
 //   2. GET /api/students   -> distinct (grade, section)  -> sections I can see
 // (2)'s scope predicate is exactly "assigned OR adviser", which is the same
@@ -26,21 +27,27 @@ import { useAuth } from '../auth/AuthContext';
 // is invisible to (2), so a teacher assigned to an empty section is not offered
 // it even though POST would accept the post. Acceptable today because a section
 // with no learners has no parents to announce to — the post would have no
-// audience, so it is a gap with no victim. The CAUSE is what matters and is
-// recorded in CLAUDE.md: no endpoint exposes teacher_assignments, which is the
-// same missing endpoint that stops an admin assigning a teacher to a subject at
-// all. One fix closes both.
+// audience, so it is a gap with no victim. Switching this hook to
+// GET /api/assignments is what closes that hole; the endpoint exists.
 //
-// DO NOT REUSE THIS HOOK FOR GRADES. Announcements/events write gates are
-// assigned-OR-adviser (this union). Grades view and encode are
-// teacher_assignments only — sections.adviser_id is deliberately unused
-// there, and CLAUDE.md says widening it would be inventing school policy.
-// TCH-002 is the proof: this hook offers Grade 5 - Masigasig (advisory);
-// GET /api/grades/student/:id for that section's student answers 404.
+// DO NOT REUSE THIS HOOK FOR GRADES OR CONTRIBUTIONS. Both are the
+// assignments-only modules; this hook is assigned-OR-adviser. Grades view
+// and encode are teacher_assignments only — sections.adviser_id is
+// deliberately unused there, and CLAUDE.md says widening it would be
+// inventing school policy. Contributions writes (`teacherHasGradeAssignment`
+// in routes/contributions.js) are also assignments-only, grade-level, no
+// adviser clause — content.js writes WERE widened; this one was not.
+// Whether a fee SHOULD include the adviser is a school question (a fee is
+// money; DepEd Order 19 s. 2008), not a consistency patch. Do not widen it.
+// TCH-002 is the proof for both: this hook offers Grade 5 - Masigasig
+// (advisory); GET /api/grades/student/:id for that section's student
+// answers 404, and POST /api/contributions for Grade 5 answers 403.
 // Teacher → Grades builds its class list from GET /students alone, then
-// treats a report-card 404 as "not the subject teacher," rather than
-// calling this hook. The next page that reaches for "where may this
-// teacher act" must read the route's own scope, not assume this union.
+// treats a report-card 404 as "not the subject teacher." Teacher →
+// Contributions builds compose grades from GET /students too (too wide —
+// TCH-002 sees Jea) and lets Post be the assignment check. The next page
+// that reaches for "where may this teacher act" must read the route's own
+// scope, not assume this union.
 
 export default function useTeacherTargets() {
   const { user } = useAuth();

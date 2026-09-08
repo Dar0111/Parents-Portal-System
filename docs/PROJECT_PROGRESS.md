@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-08 (admin-prerequisites items 2–3: `GET /grading-modes`, `DELETE /grades/:id`)
+**Last updated:** 2026-09-08 (Teacher → Contributions landed; Teacher web role complete. Modal compose focus steal fixed in the primitive. Admin-prerequisites items 1–3 already on main.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -28,7 +28,7 @@ data, not a computed result.
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + 14 of ~75 views — Teacher: Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread, Grades · Parent: Grades, Announcements, Memos, Events (all read-only) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + Teacher web role **complete** (Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread, Grades, Contributions) · Parent: Grades, Announcements, Memos, Events (all read-only). Remaining: parent (Attendance blocked) + admin | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -362,9 +362,15 @@ day after item 1 was committed: `GET /api/grading-modes` (missing config
 is 409, not a settings key) and `DELETE /api/grades/:id` (admin-only, 403
 when locked). **Teacher → Grades still does not call `GET /assignments`**
 — that is NOW POSSIBLE, a client dispatch, not a missing endpoint.
-**Contacts empty-cause stays open:** `GET /assignments` does not tell "no
-parents exist" from "all parents pending." TCH-002 is adviser of
-Masigasig with zero assignment rows and a pending parent.
+**Teacher → Contributions likewise still builds compose grades from
+`GET /students`** (too wide; TCH-002 sees Jea); Post is the assignment
+check. Same NOW POSSIBLE list. **Contacts empty-cause stays open:**
+`GET /assignments` does not tell "no parents exist" from "all parents
+pending." TCH-002 is adviser of Masigasig with zero assignment rows and a
+pending parent. **Consequence 5 is not closed by that API:** `content.js`
+writes include the adviser; `contributions.js` does not. TCH-002 can
+announce to Masigasig and cannot POST a Grade 5 fee. A fee is money
+(DepEd Order 19 s. 2008). Do not widen. School question.
 
 **Teacher → Messages is DONE (2026-09-07)** — conversation list + thread, and
 the first Stage 4 page using Socket.io. Added `socket.io-client` pinned to
@@ -673,8 +679,27 @@ browser-review wait in this window. Same four caveats, still not a rate:
 first Stage 4 page that both views and writes grades, against nine
 endpoints, dual-mode, no client-side computation.
 
-**Next:** Stage 4 web pages — teacher contributions, then the remaining
-Parent set (Attendance stays **blocked** on the rate formula) and Admin.
+**Teacher → Contributions is DONE (2026-09-08)** — last Teacher Stage 4 page.
+Seven of eight endpoints teacher-reachable. Grade-level assignments-only
+(adviser not included — consequence 5; school question; do not widen).
+Roster in a modal. Amount override skipped. Roster review: Section dropped,
+one action control. Modal `lg` is the ceiling (convention 7b). `TeacherDashboard`
+now derives from `navForRole`. **Teacher web role is complete.**
+
+**Modal focus steal, fixed 2026-09-08 in the primitive.** Compose fields lost
+focus after one or two characters because `Modal`'s effect mixed "focus on
+open" with "current onClose". Same shape on Announcements, Events, Excuse
+Letters remarks, and Messages search — all passed 2026-09-07 browser review
+without anyone typing a full word. §5h: opening a page is not using it.
+Call sites untouched.
+
+**Measured: ~40m — ninth data point (~40m agent, ~0m idle).** Same four
+caveats, still not a rate. Last Teacher page: list + compose + roster
+modal, assignments-only, dashboard derived from nav, consequence 5 and
+the removal list recorded.
+
+**Next:** remaining Parent pages (Attendance stays **blocked** on the rate
+formula) and Admin.
 
 **Grade 1 descriptive fixture seeded (2026-09-07)** — persistence was the gap,
 not coverage. `test:grades` already covered the write path on a throwaway
@@ -741,10 +766,11 @@ scope now includes the section adviser (2026-09-06); write scope unchanged.
 - [ ] Web pages: conversation list, thread view, compose (live via Socket.io).
 - [ ] Expo screens (Stage 5, not started).
 
-**Contribution/Fees Monitoring** — API done, no screens yet.
-- [ ] Web pages: fee list, roster/mark-paid grid (teacher/admin), parent's own payment status view.
+**Contribution/Fees Monitoring** — API done. Teacher page built 2026-09-08.
+- [x] **Teacher list + roster — DONE 2026-09-08.** Last Teacher page. Modal roster, not a `:id` route. Amount override skipped. Adviser gap recorded (consequence 5), not widened.
+- [ ] Web pages: parent's own payment status view; admin.
 - [ ] Expo screens (Stage 5, not started).
-- [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision.
+- [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision. Module may be struck (DO 19); if so, drop the tables — see CLAUDE.md KNOWN ISSUES. **DELETE 409 names a remedy that does not exist** (no `DELETE` on `contribution_records`): once any student is marked, the contribution is permanently undeletable through the API. Flagged, handler not changed.
 
 **System Settings Management (Admin)** — API done, no screens yet.
 - [ ] Admin web screen: settings form (school info, academic year, current quarter, logo).
