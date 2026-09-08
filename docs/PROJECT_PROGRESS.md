@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-08 (Teacher → Contributions landed; Teacher web role complete. Admin-prerequisites items 1–3 already on main.)
+**Last updated:** 2026-09-08 (Teacher → Contributions landed; Teacher web role complete. Modal compose focus steal fixed in the primitive. Admin-prerequisites items 1–3 already on main.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -685,6 +685,13 @@ Seven of eight endpoints teacher-reachable. Grade-level assignments-only
 Roster in a modal. Amount override skipped. Roster review: Section dropped,
 one action control. Modal `lg` is the ceiling (convention 7b). `TeacherDashboard`
 now derives from `navForRole`. **Teacher web role is complete.**
+
+**Modal focus steal, fixed 2026-09-08 in the primitive.** Compose fields lost
+focus after one or two characters because `Modal`'s effect mixed "focus on
+open" with "current onClose". Same shape on Announcements, Events, Excuse
+Letters remarks, and Messages search — all passed 2026-09-07 browser review
+without anyone typing a full word. §5h: opening a page is not using it.
+Call sites untouched.
 
 **Measured: ~40m — ninth data point (~40m agent, ~0m idle).** Same four
 caveats, still not a rate. Last Teacher page: list + compose + roster
