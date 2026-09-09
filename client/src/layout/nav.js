@@ -13,12 +13,12 @@
 //
 // `blocked: '<reason>'` is a STRONGER statement than `built: false` and the two
 // must not be conflated: unbuilt means nobody has written it yet, blocked means
-// it CANNOT be designed until an external question is answered. Only Parent ->
-// Attendance is blocked today (the attendance rate formula is an unanswered
-// school question — does Excused count as present, is Late penalised). Teacher
-// attendance encoding was never blocked and is now built. Shell renders
-// blocked items with the reason as their tooltip; blocked implies not built and
-// takes precedence in that rendering.
+// it CANNOT be designed until an external question is answered. Parent ->
+// Attendance was the only blocked item; it is no longer blocked because the
+// page shows raw counts, not a rate (the formula is still unanswered — see
+// CLAUDE.md). Teacher attendance encoding was never blocked and is now built.
+// Shell renders blocked items with the reason as their tooltip; blocked implies
+// not built and takes precedence in that rendering.
 
 export const NAV_BY_ROLE = {
   teacher: [
@@ -36,13 +36,7 @@ export const NAV_BY_ROLE = {
   parent: [
     { to: '/parent', label: 'Dashboard', icon: 'fa-gauge', built: true },
     { to: '/parent/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
-    {
-      to: '/parent/attendance',
-      label: 'Attendance',
-      icon: 'fa-clipboard-user',
-      built: false,
-      blocked: 'Attendance rate formula unanswered — see CLAUDE.md OPEN QUESTIONS',
-    },
+    { to: '/parent/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/parent/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: true },
     { to: '/parent/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
     { to: '/parent/memos', label: 'Memos', icon: 'fa-file-lines', built: true },
