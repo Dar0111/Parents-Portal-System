@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-09 (Parent → Attendance landed. Parent web role is complete. The page shows raw counts and a day list, never a percentage; the rate formula is still unanswered. Remaining Stage 4 work is admin screens.)
+**Last verified:** 2026-09-09 (Admin → Users landed. Parent and Teacher web roles are complete. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -692,9 +692,7 @@ client/
   src/auth/AuthContext.jsx     login/logout/user/loading — see note below
   src/auth/ProtectedRoute.jsx  role-gated route wrapper
   src/pages/Login.jsx          Login ID + password, no role dropdown
-  src/pages/dashboards/        AdminDashboard still the Stage 2 placeholder;
-                               TeacherDashboard and ParentDashboard derive
-                               "Open now" from navForRole
+  src/pages/dashboards/        All three derive "Open now" from navForRole
   src/layout/Shell.jsx         sidebar, header, logout
 ```
 
@@ -930,7 +928,8 @@ Teacher: Attendance, Students (+ detail), Excuse Letters, Announcements,
 Memos, Events, Messages (+ thread), Grades (view + encode), Contributions.
 Parent: Grades, Excuse Letters (submit + edit while Pending), Announcements,
 Memos, Events, Contributions (read-only `my-records`), Messages (+ thread),
-Attendance (raw counts + day list, no rate). See STAGE 4 FRONTEND CONVENTIONS below
+Attendance (raw counts + day list, no rate). **Admin → Users is the first
+admin feature page.** See STAGE 4 FRONTEND CONVENTIONS below
 for what every one of them inherits. (This line used to read "no feature page
 has been built yet" and stayed that way through five dispatches; corrected
 2026-09-07.)
@@ -975,6 +974,13 @@ client/src/
                           Excuse Letters skips POST then (an unlinked POST is
                           a 500, flagged not fixed) and still GETs /mine.
                           ParentDashboard is derived from nav — no edit.
+  pages/admin/            Users (2026-09-09) — first admin feature page.
+                          Pending queue from GET /users/parents/pending;
+                          directory from GET /users. Never POST /users/parents
+                          (teacher-only, 403 Access denied.). No :id route
+                          (§5c). Approve/reject confirm and name the decision
+                          (§5e); deactivate does not. AdminDashboard derives
+                          from nav like the other two.
 ```
 
 `/dev/ui` is registered behind `import.meta.env.DEV` and is **verified
@@ -1816,6 +1822,32 @@ nav). `Shell.jsx` untouched — the Messages `built` flag closes the 5g inverse.
 | **Teacher** Grades | **20m** | **1 page.** View + encode, numerical and descriptive, no client IG preview, session-memory for encode 403s, two throwaway students SQL-torn down |
 | **Teacher** Contributions | **~40m** (~40m agent, ~0m idle) | **1 page**, last Teacher. List + compose + roster modal |
 | **Parent** Excuse Letters / Messages / Contributions | **~35m** (~23m agent, ~12m idle MySQL) | **3 pages** (4 files: excuse + messages list + thread + contributions). Submit/edit, Teacher-shaped fetch, my-records only. 5g inverse closed by the built flag |
+
+**Eleventh data point — Parent → Attendance, 2026-09-09: ~75 minutes**
+(~50m agent, ~25m idle sandbox/oxlint). Same four caveats; compare to the
+sixth point onward. Unblocked by never rendering a rate.
+
+**Twelfth data point — Admin → Users, 2026-09-09: ~50 minutes.** Almost
+all agent work; browser 5h inside the clock (typed a full word in Search
+and in Create teacher Login ID / Name). Same four caveats; still not a
+rate. First admin page. `AdminDashboard` derived from nav (the Stage 2
+placeholder would have been its first impression). Two lists, two
+payloads; never `POST /users/parents`.
+
+| Dispatch | Time | What it involved |
+|---|---|---|
+| Attendance | 3m14s | 1 page. New date helper, write path, bulk submit, pre-fill + in-place update |
+| Students | 1m24s | 2 views. Read-only, endpoints already exercised, no new helper |
+| Excuse Letters | 2m28s | 1 page. First write form, modal with confirmation, permission prediction, 3 fixtures |
+| Announcements/Memos/Events | 3m36s | 3 pages + a shared hook. Two compose forms, one read-only page |
+| Messages | 4m4s | 2 views + the first Socket.io client, first new runtime dependency, first shared-layout change |
+| **Parent** Announcements/Memos/Events | **13m14s** | 3 pages, all read-only — first 5h render proof inside the clock |
+| **Parent** Grades | **37m26s** (~24m agent, ~13m review wait) | **1 page.** First `GradeValue` consumer, 24-row fixture chain, three browser states |
+| **Teacher** Grades | **20m** | **1 page.** View + encode, numerical and descriptive, no client IG preview, session-memory for encode 403s, two throwaway students SQL-torn down |
+| **Teacher** Contributions | **~40m** (~40m agent, ~0m idle) | **1 page**, last Teacher. List + compose + roster modal |
+| **Parent** Excuse Letters / Messages / Contributions | **~35m** (~23m agent, ~12m idle MySQL) | **3 pages** |
+| **Parent** Attendance | **~75m** (~50m agent, ~25m idle sandbox) | **1 page.** Raw counts, no rate. Month vs All |
+| **Admin** Users | **~50m** | **1 page**, first admin. Pending queue + directory + create/edit/status. Dashboard derived from nav |
 
 **Do not replace the void estimate with a projection derived from these.**
 The old estimate is void, these dispatches have differed in kind more than
@@ -3249,7 +3281,13 @@ replaced with a new guess.
       `GET /attendance/student/:studentId`. Skip both when unlinked.
       Month vs All (Events pattern). Four counts + recorded days;
       `StatusBadge` on day rows. Teacher history is a later page.
-- [ ] Admin pages — user management, sections/adviser assignment,
+- [x] **Admin → Users — DONE 2026-09-09.** First admin feature page.
+      Route `/admin/users`, `built: false → true` with the route.
+      Pending queue + directory + create teacher + edit +
+      activate/deactivate. Never `POST /users/parents`. No `:id` route.
+      `AdminDashboard` derives from nav. Remaining admin screens below.
+- [ ] Admin pages remaining — students, sections/adviser assignment,
+      grades, attendance, excuses, content, contributions, messages,
       settings, backup/restore. **No longer blocked on missing assignments
       write or missing grade delete / grading-mode read** — items 1–3 of
       the admin-prerequisites plan all shipped 2026-09-08. Remaining work
@@ -3708,6 +3746,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-09 | **Admin → Users — first admin Stage 4 page.** Route `/admin/users`, `built: false → true` with the route (convention 6). `AdminDashboard` derives "Open now" from `navForRole('admin')` like Teacher/Parent — the Stage 2 "No modules built yet." placeholder would have been the first thing an admin saw. Whitelist held: no server, no `Shell.jsx`. **Never `POST /users/parents`** — `authorize('teacher')` answers `403 "Access denied."`; no parent-create control. Two lists, two payloads: `GET /users/parents/pending` (`unwrap: 'parents'`) for the queue (student name, class, `created_by_name`; approve/reject only here); `GET /users` (`unwrap: 'users'`) for the directory. **Do not call `GET /:id`** (list is already `SELECT *`). No `:id` route (§5c — `login_id` is a credential; parent login ids are LRNs and they render here because this is an admin acting on the account). §5e: approve/reject leave pending forever (`400` after) → confirm, name the decision ("Approve this parent account? This cannot be returned to pending afterward."); reject requires reason. `PATCH /:id/status` is reversible → no confirm. Create teacher has no DELETE (undo is deactivate) → no confirm. §5b: `load()` is the only writer of `pending`/`users`. Self-deactivate: hide the control. Last-active-admin: do not predict from the filtered list; handle the `400`. Filters omit `role`/`status`/`search` when empty (`All` would `400`). XOR success/error strips. Approve unwrap `'user'`; reject unwrap `'message'` (no `user` key); create/status/PUT unwrap `'user'`. **Do not write on seeded parent `1234567` (Jea)** — `test:auth` depends on `pending`. `GET /users ?search=` matches `users.name` and `users.login_id` only, not the child's name — searching "Marwin" against Ashley Geguiera is a genuine empty; placeholder says "Name or login ID". Reset-without-loading-true flashed "No users yet" for one frame (applied cleared, users still `[]`); `setLoading(true)` before `setApplied`. Verified: SSR UsersPage + AdminDashboard (`Open now: Users. The remaining…`) with a negative control (`useState is not defined` on a throwaway). Live HTTP **29/29**: teacher/parent GET `/users` 403, admin POST `/parents` 403, list no password key, create teacher, PUT rejects `role`, PUT name, self-deactivate 400, deactivate/activate throwaway, throwaway student+parent approve, second approve 400. SQL teardown: users 7, students 3, Jea still pending, Nino grades 5. Browser as `ADMIN001`: dashboard lists Users; pending queue has Jea / Review; directory 7 rows; self has Edit no Deactivate; typed **Marwin** (empty, correct) then Reset; Create teacher full words `TCH-099` / `Carlo Demo` kept focus, cancelled; Review on Jea → Approve → Continue showed named confirm → Go back → Cancel; Jea still pending. §5h: Search + compose typing, not just a render. `npm run build` clean earlier in the dispatch; oxlint UsersPage carries the usual fetch-effect advisory (27 → 28). Throwaway harnesses deleted. Remaining Stage 4 work is the other admin screens. **MEASURED BUILD TIME, twelfth data point: ~50m.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Attendance — unblocked by never rendering a rate.** Route `/parent/attendance`, `blocked` dropped, `built: true` with the route (convention 6). Two calls, same `from`/`to`: `GET /attendance/summary/:studentId` (`unwrap: 'summary'`) and `GET /attendance/student/:studentId` (`unwrap: 'attendance'`). Skip both when `user.student_id` is null (`parseId(null)` is `400 "Invalid student id."`). Month vs All (Events pattern, `todayLocalDateString()`, never `toISOString()`). Four counts + Recorded days; `StatusBadge` on day rows. Copy names recorded days, not Class Days, and says Late/Excused stay separate. No rate, no `(Present/total)*100`. Do not call `GET /api/attendance` (403 Access denied.). Teacher history is a later page. Whitelist held: no server, no `Shell.jsx`, no `ParentDashboard.jsx` (Open now derives from nav). No `GradeValue`. Verified: SSR AttendancePage + ParentDashboard (`Open now: Grades, Attendance, Excuse Letters, …`) with a negative control (`useState is not defined` on a throwaway broken copy, not by mutating the real page). Live HTTP **26/26**: parent `GET /student/2` 404, parent `GET /` 403 Access denied., `parseId('null')` 400, TCH-001 bulk today Present + last-month Absent, month summary Present 1 / Absent 0 / no rate key, all summary Present 1 / Absent 1 / total 2, Nino `GET` Marwin 404 and own list empty, Nino grades stayed 5. SQL teardown: `attendance` back to 0. Browser as `13567454`: dashboard lists Attendance; month shows Present 1 / Recorded days 1 / 2026-09-09 Present; All shows Absent 1 / Recorded days 2 / 2026-08-15 Absent; no LRN on the page; no percentage. §5h: no text field — opening the page is the proof, not a typing pass. `npm run build` clean; `oxlint` 26 → 27, the one addition being the usual fetch-effect advisory on AttendancePage. Throwaway harnesses deleted. Remaining Stage 4 work is admin. **MEASURED BUILD TIME, eleventh data point: ~75m (~50m agent, ~25m idle sandbox/oxlint).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Excuse Letters, Messages, Contributions.** Three page files (plus a thread route), whitelist held: no `Shell.jsx`, no server, no `Modal.jsx`, no `ParentDashboard.jsx`. Routes `/parent/excuse-letters`, `/parent/messages`, `/parent/messages/:userId`, `/parent/contributions`; three `built: false → true` flips with the routes (convention 6). Attendance stays **blocked**. **Excuse Letters is not a Teacher mirror.** Teacher reviews (irreversible); parent submits and edits while Pending. §5e: no confirmation on submit — `PUT` while Pending is the correction and there is no DELETE/withdraw. Skip POST when `user.student_id` is null (unlinked INSERT hits `NOT NULL` and is a **500**, flagged not fixed). `GET /mine` still runs. Default filter All, client-side (the endpoint accepts no query). No attachment. No `GET /:id`. **Messages copies how the Teacher list actually fetches** — table = `GET /conversations`; contacts only in the New-message picker. Contacts already carry last message and unread; a merge would show people the parent has never spoken to as conversations. Groups are Teachers + Admin (no Parents group). `:userId` is `users.id`, never an LRN. Send unwrap is `data`. Thread copied from Teacher with `/parent/messages` back link; extract at Admin. Flipping parent Messages `built: true` closes the 5g LiveStatus inverse with **no Shell change** (`UnreadProvider enabled={messagesBuilt}`; LiveStatus already ungated). Admin still has the inverse. **Contributions is read-only `GET /my-records` only.** Do not call `GET /`, `GET /:id`, or `GET /:id/records` (roster has LRNs, §5c). Skip the request when unlinked — `[]` is the same for unlinked and "no fees", so skipping is how empty copy names the cause (§5f). No Pay button. Payment-at-school copy. Parent POST contribution / GET roster → `403 "Access denied."`. ParentDashboard needed no edit (Open now derives from nav). Verified: SSR of all four pages + ParentDashboard (Open now includes the three, not Attendance) with a negative control (`useState is not defined` on a throwaway, not by mutating a real page). Live HTTP **46/46**: Marwin/Nino POST excuse 201, PUT Pending, cross-parent GET `:id` 404, parent list 403 Access denied, TCH-001 review then parent PUT 403; TCH-001 G6 fee + Marwin Paid, TCH-003 G1 fee, isolation on `my-records`; Marwin contacts TCH-001+admin not TCH-003, conversations did not invent TCH-003, send wrapper `data`, Marwin→TCH-003 403 connected wording, parent→parent 403; Nino's five grade rows stayed 5. SQL teardown: `excuse_letters`/`messages`/`contributions`/`contribution_records` back to 0. `npm run build` clean; `oxlint` 22 → 26, four new fetch-effect advisories (the same class every page carries). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/excuse-letters`, `/parent/messages`, `/parent/contributions` as `13567454` and `1090001`. Type a full word in Excuse reason/details and Messages search/body (5h); Contributions has no inputs. Hard reload if HMR looks wrong. **MEASURED BUILD TIME, tenth data point: ~35m (~23m agent, ~12m idle MYSQL80/UAC).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-08 | **Modal stole focus on every keystroke — fourth browser-only defect, fixed in the primitive.** Compose Title/Amount lost focus after one or two characters. Cause: `useEffect(..., [open, onClose])` mixed a one-time action (focus the panel when the dialog opens) with a frequently-changing value (`onClose`, a new function every render at every Stage 4 call site). Every change to the second re-triggered the first. Focus now depends on `open` only; `onClose` is kept current via a ref for Escape. Backdrop and the X still read `onClose` from the render they belong to. **Not a Contributions-only bug.** Announcements, Events, Excuse Letters remarks, and Messages contact search all shipped the same shape on 2026-09-07 and all passed browser review — nobody typed more than two characters into those fields. The reviews were not wrong; they were shallow in the same place. §5h now says opening a page is not the same as using it: a render proves the component mounts, typing a full word proves the input works. Verified by driving input (negative control: old effect steals focus; then a full word in Announcements Title, Events Title, Excuse Letters remarks, Messages search, Contributions Title, and `150.50` in Amount). `npm run build` / oxlint after. Call sites untouched. |

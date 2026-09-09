@@ -5,6 +5,7 @@ import { roleHome } from './auth/roles';
 import Shell from './layout/Shell';
 import Login from './pages/Login';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
+import AdminUsers from './pages/admin/UsersPage';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
@@ -56,6 +57,7 @@ export default function App() {
             }
           >
             <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
           </Route>
 
           <Route

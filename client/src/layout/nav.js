@@ -46,7 +46,7 @@ export const NAV_BY_ROLE = {
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', icon: 'fa-gauge', built: true },
-    { to: '/admin/users', label: 'Users', icon: 'fa-users-gear', built: false },
+    { to: '/admin/users', label: 'Users', icon: 'fa-users-gear', built: true },
     { to: '/admin/students', label: 'Students', icon: 'fa-user-graduate', built: false },
     { to: '/admin/sections', label: 'Sections', icon: 'fa-layer-group', built: false },
     { to: '/admin/grades', label: 'Grades', icon: 'fa-chart-simple', built: false },
