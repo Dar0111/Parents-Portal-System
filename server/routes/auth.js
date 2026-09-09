@@ -139,4 +139,68 @@ router.put('/change-password', authenticate, async (req, res) => {
   }
 });
 
+// PUT /api/auth/contact — any authenticated user updates their own
+// contact_number. Identity (name, LRN/login_id, role, student_id, email)
+// is school-owned: sending those fields is 400, same loud-reject as
+// PUT /api/users/:id, not a silent ignore. Id comes from req.user
+// (authenticate re-reads the DB row), never the body.
+const CONTACT_FORBIDDEN_FIELDS = [
+  'name',
+  'email',
+  'login_id',
+  'lrn',
+  'role',
+  'student_id',
+  'password',
+  'status',
+];
+
+router.put('/contact', authenticate, async (req, res) => {
+  const body = req.body || {};
+  const sentForbidden = CONTACT_FORBIDDEN_FIELDS.filter((field) => body[field] !== undefined);
+  if (sentForbidden.length) {
+    return res.status(400).json({
+      success: false,
+      message: `Cannot change ${sentForbidden.join(', ')} through this endpoint.`,
+    });
+  }
+
+  if (body.contact_number === undefined) {
+    return res.status(400).json({ success: false, message: 'contact_number is required.' });
+  }
+
+  const nextContact = String(body.contact_number).trim();
+  if (!nextContact) {
+    return res.status(400).json({ success: false, message: 'contact_number must not be empty.' });
+  }
+  if (nextContact.length > 20) {
+    return res.status(400).json({
+      success: false,
+      message: 'contact_number must be at most 20 characters.',
+    });
+  }
+
+  try {
+    await pool.query('UPDATE users SET contact_number = ? WHERE id = ?', [nextContact, req.user.id]);
+    await logActivity(req.user.id, 'update_contact', 'Contact number updated');
+
+    // Re-fetch via login_id so the JOIN student fields stay on the row —
+    // a bare SELECT * after this UPDATE would drop lrn / student names
+    // that GET /me already returns.
+    const user = await fetchUserByLoginId(req.user.login_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Contact number updated.',
+      user: sanitizeUser(user),
+    });
+  } catch (error) {
+    console.error('Update contact error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update contact number.' });
+  }
+});
+
 module.exports = router;

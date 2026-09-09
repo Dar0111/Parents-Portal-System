@@ -195,6 +195,82 @@ async function run() {
       }
     }
 
+    // --- Own contact number (parent Settings) ---
+    // Seeded parent 13567454 is 09170000003. Restore via a direct UPDATE in
+    // finally so a failed assertion cannot leave the demo account dirty.
+    // Do not write on pending parent 1234567 (Jea) — test:auth itself
+    // depends on that row staying pending; this block does not touch it.
+    console.log('\nContact number:');
+
+    const noAuthContact = await request('PUT', '/api/auth/contact', {
+      body: { contact_number: '09171111111' },
+    });
+    assert(noAuthContact.status === 401, 'Unauthenticated contact update rejected');
+
+    const forbiddenContact = await request('PUT', '/api/auth/contact', {
+      token: parentToken,
+      body: { contact_number: '09171111111', name: 'Hacker', lrn: '000', role: 'admin' },
+    });
+    assert(
+      forbiddenContact.status === 400 && String(forbiddenContact.data?.message || '').includes('name'),
+      'Forbidden identity fields rejected'
+    );
+
+    const missingContact = await request('PUT', '/api/auth/contact', {
+      token: parentToken,
+      body: {},
+    });
+    assert(missingContact.status === 400, 'Missing contact_number rejected');
+
+    const emptyContact = await request('PUT', '/api/auth/contact', {
+      token: parentToken,
+      body: { contact_number: '   ' },
+    });
+    assert(emptyContact.status === 400, 'Blank contact_number rejected');
+
+    const tooLongContact = await request('PUT', '/api/auth/contact', {
+      token: parentToken,
+      body: { contact_number: '1'.repeat(21) },
+    });
+    assert(tooLongContact.status === 400, 'Contact number over 20 characters rejected');
+
+    try {
+      const updatedContact = await request('PUT', '/api/auth/contact', {
+        token: parentToken,
+        body: { contact_number: '09171111111' },
+      });
+      assert(
+        updatedContact.status === 200 && updatedContact.data?.user?.contact_number === '09171111111',
+        'Parent updates own contact'
+      );
+      assert(
+        !Object.keys(updatedContact.data?.user || {}).some((k) => k.toLowerCase().includes('password')),
+        'Updated user has no password key'
+      );
+      assert(
+        updatedContact.data?.user?.student_first_name === 'Marwin',
+        'Contact update keeps student JOIN fields'
+      );
+
+      const meAfterContact = await request('GET', '/api/auth/me', { token: parentToken });
+      assert(
+        meAfterContact.data?.user?.contact_number === '09171111111',
+        'GET /me reflects new contact'
+      );
+    } finally {
+      await withDb((conn) =>
+        conn.query(
+          `UPDATE users SET contact_number = '09170000003' WHERE login_id = '13567454' LIMIT 1`
+        )
+      );
+    }
+
+    const restoredContact = await request('GET', '/api/auth/me', { token: parentToken });
+    assert(
+      restoredContact.data?.user?.contact_number === '09170000003',
+      'Seeded parent contact restored'
+    );
+
     // --- Admin creates teacher ---
     console.log('\nAccount creation:');
 

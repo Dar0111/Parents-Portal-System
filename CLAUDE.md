@@ -30,8 +30,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 83** handlers defined in
-> `server/routes/`, and **the endpoints table below has 84 rows** because
+> different things: **`docs/API_REFERENCE.md` counts 84** handlers defined in
+> `server/routes/`, and **the endpoints table below has 85 rows** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 >
 > Dated CHANGELOG entries are exempt — they record what was true on their date
@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-09 (Admin → Users landed. Parent and Teacher web roles are complete. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-09 (Parent → Settings landed. Parent and Teacher web roles are complete. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -71,6 +71,7 @@ return the database to this table, not to a remembered older snapshot.
 | POST | `/api/auth/login` | Public |
 | GET | `/api/auth/me` | Authenticated |
 | PUT | `/api/auth/change-password` | Authenticated |
+| PUT | `/api/auth/contact` | Authenticated — own `contact_number` only; identity fields in the body rejected with 400 |
 | POST | `/api/users/teachers` | admin |
 | POST | `/api/users/parents` | teacher |
 | GET | `/api/users/parents/pending` | admin |
@@ -160,7 +161,7 @@ a new send; and the subjects-reseed CASCADE is the **opposite** case
 (destroying `subjects.id` wiped assignments *and* grades). Do not add a
 grades-exist guard on `DELETE /api/assignments/:id`.
 
-**Full request/response detail for all 83 endpoints — every body field,
+**Full request/response detail for all 84 endpoints — every body field,
 the exact response wrapper key, role-scope codes, and the 404-vs-403
 convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
 the quick list; that document is what Stage 4 screen work should
@@ -187,7 +188,7 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:assignments` — 41/41
 - `npm run test:grading-modes` — 13/13
 - `npm run test:grades` — 165/165
-- `npm run test:auth` — 25/25
+- `npm run test:auth` — 35/35
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 53/53
 - `npm run test:contributions` — 38/38
@@ -235,7 +236,7 @@ server/
                                 is possible; TIMESTAMP/DATETIME columns unaffected
   middleware/auth.js           authenticate + authorize; authenticate also checks
                                 auth_security_state.token_valid_after against the JWT's iat
-  routes/auth.js               login, me, change-password
+  routes/auth.js               login, me, change-password, contact
   routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
   routes/students.js           list/view/create/update, teacher scoped to own assignments
   routes/sections.js           GET /, GET /:id (all roles, unscoped reference data — no per-role
@@ -689,7 +690,7 @@ client/
   vite.config.js                dev server pinned to port 3000 (matches server's CORS_ORIGIN default)
   src/App.jsx                  routes: /login, /admin, /teacher, /parent
   src/api/axios.js             baseURL from VITE_API_BASE_URL, Bearer interceptor, 401/403 handling
-  src/auth/AuthContext.jsx     login/logout/user/loading — see note below
+  src/auth/AuthContext.jsx     login/logout/refresh/user/loading — see note below
   src/auth/ProtectedRoute.jsx  role-gated route wrapper
   src/pages/Login.jsx          Login ID + password, no role dropdown
   src/pages/dashboards/        All three derive "Open now" from navForRole
@@ -928,7 +929,8 @@ Teacher: Attendance, Students (+ detail), Excuse Letters, Announcements,
 Memos, Events, Messages (+ thread), Grades (view + encode), Contributions.
 Parent: Grades, Excuse Letters (submit + edit while Pending), Announcements,
 Memos, Events, Contributions (read-only `my-records`), Messages (+ thread),
-Attendance (raw counts + day list, no rate). **Admin → Users is the first
+Attendance (raw counts + day list, no rate), Settings (password + contact;
+identity locked). **Admin → Users is the first
 admin feature page.** See STAGE 4 FRONTEND CONVENTIONS below
 for what every one of them inherits. (This line used to read "no feature page
 has been built yet" and stayed that way through five dispatches; corrected
@@ -958,7 +960,7 @@ client/src/
                           Students (+ detail), Excuse Letters, Announcements,
                           Memos, Events, Messages (+ thread), Grades (view +
                           encode, one page), Contributions (list + roster modal)
-  pages/parent/           8 pages (Attendance added 2026-09-09). Content
+  pages/parent/           9 pages (Settings added 2026-09-09). Content
                           (Announcements/Memos/Events) and Grades stay
                           read-only. Excuse Letters submits and edits while
                           Pending (no confirmation — PUT while Pending is the
@@ -969,11 +971,16 @@ client/src/
                           GET /, GET /:id, or the roster (LRNs). Attendance
                           is read-only counts + day list (no rate, not Class
                           Days); Month vs All; same from/to on summary and
-                          student list. Grades, Contributions, and Attendance
+                          student list. Settings is password + contact only
+                          — child name, LRN/login_id, grade, section, guardian
+                          name, and email are locked. Never GET /api/settings
+                          (school key-value) or PUT /api/users/:id (admin).
+                          Grades, Contributions, and Attendance
                           skip their request when `user.student_id` is null;
                           Excuse Letters skips POST then (an unlinked POST is
                           a 500, flagged not fixed) and still GETs /mine.
-                          ParentDashboard is derived from nav — no edit.
+                          Settings still allows password + contact when
+                          unlinked. ParentDashboard is derived from nav — no edit.
   pages/admin/            Users (2026-09-09) — first admin feature page.
                           Pending queue from GET /users/parents/pending;
                           directory from GET /users. Never POST /users/parents
@@ -1188,6 +1195,12 @@ a student identifier — it is one of the two factors of a real account.
 - Searching *by* LRN is fine — the value is typed by an authorized user into a
   field and sent as a body/query the page controls, not published by us into a
   location that persists.
+
+**Exception — Parent → Settings (2026-09-09).** The parent's `login_id` IS the
+LRN, and this is the account screen, so the value is shown **locked** (not in
+a URL, not as a second `lrn` field). It is their own credential on their own
+account, not a third-party roster leak. Do not copy this onto Grades,
+Attendance, Excuse Letters, Contributions, or Messages.
 
 This is also why `GET /api/students` returning the full personal row on a LIST
 matters more than it first appears (see the finding recorded below): it is not
@@ -1834,6 +1847,13 @@ rate. First admin page. `AdminDashboard` derived from nav (the Stage 2
 placeholder would have been its first impression). Two lists, two
 payloads; never `POST /users/parents`.
 
+**Thirteenth data point — Parent → Settings, 2026-09-09.** New
+`PUT /api/auth/contact` plus the page. Identity locked; password and
+contact only. `AuthContext.refresh()` added. SSR + negative control +
+`test:auth` 35/35 inside the clock. No Cursor browser — type a full word
+in contact and in the password fields as `13567454` to finish 5h. Same
+four caveats; compare to the sixth point onward.
+
 | Dispatch | Time | What it involved |
 |---|---|---|
 | Attendance | 3m14s | 1 page. New date helper, write path, bulk submit, pre-fill + in-place update |
@@ -1848,6 +1868,7 @@ payloads; never `POST /users/parents`.
 | **Parent** Excuse Letters / Messages / Contributions | **~35m** (~23m agent, ~12m idle MySQL) | **3 pages** |
 | **Parent** Attendance | **~75m** (~50m agent, ~25m idle sandbox) | **1 page.** Raw counts, no rate. Month vs All |
 | **Admin** Users | **~50m** | **1 page**, first admin. Pending queue + directory + create/edit/status. Dashboard derived from nav |
+| **Parent** Settings | **this dispatch** | **1 page** + `PUT /api/auth/contact`. Identity locked; password + contact. `refresh()` on AuthContext |
 
 **Do not replace the void estimate with a projection derived from these.**
 The old estimate is void, these dispatches have differed in kind more than
@@ -2901,7 +2922,7 @@ imply," not just "does this one anticipated symptom show up."
 | **No `GET /:id` on announcements, memos or events — all three routers have list/create/update/delete and no read-one** | `server/routes/content.js` | Verified live from a parent session: `GET /api/announcements/52`, `/api/memos/13` and `/api/events/47` all answer `404 "Route not found."` — `server.js`'s app-level fallback, not a scope refusal, because no handler is registered at that path. Consequence for the client: a detail ROUTE is impossible without fetching the whole collection and filtering in JS, so Parent → Announcements/Memos/Events open full text in a Modal from the row instead. That costs nothing today (each list row is `SELECT a.*` / `SELECT *` / `SELECT e.*`, so it already carries every column a detail view would show) — which is the stronger version of the Excuse Letters oddity, where `GET /:id` exists and returns strictly LESS than its list. **The trigger to build these: a shareable link to one post.** A parent forwarding "have you seen this announcement" has no URL to send, and no modal can give them one. Flagged from a client dispatch, not fixed. |
 | `GET /api/memos` accepts no query parameters and silently ignores unknown ones | `server/routes/content.js` | Verified live: `GET /api/memos?grade_level=1` returns `200` with the full, unfiltered list, while the same param on `/api/announcements` and `/api/events` is validated and `400`s on a bad value. So the three sibling routers in one file disagree about whether an unrecognised filter is an error or a no-op. Low severity — memos are school-wide by schema design, so there is genuinely nothing to filter — but a client that assumes "same file, same conventions" will guess wrong, and the parent Memos page's single empty-state branch (convention 5f) is a direct consequence. Flagged, not fixed. |
 | `posted_by` is a bare integer on all three content tables, unresolvable by any non-admin client | `server/routes/content.js` | None of the three list queries joins `users`, so a row carries `posted_by: 2` and nothing else — and `GET /api/users/:id` is `authorize('admin')`, so a teacher or parent cannot turn that integer into a name even with a second request. Consequence: **no parent-facing page can say who posted an announcement**, which is the one attribution a parent would plausibly want ("is this from the school or from my child's teacher?"). The parent pages answer that question indirectly, via the audience label derived from the target columns, and deliberately do not render the integer. The fix is a `LEFT JOIN users` on the three list queries, same shape `excuse_letters`' list already uses for student names — a backend dispatch, not a client one. |
-| `/auth/me` returns `lrn` AND `login_id` for a parent — the same credential, twice | `server/routes/auth.js` | For a parent these two fields hold the identical value (the child's LRN **is** the parent's login id — a locked decision), so the payload every client page holds in `AuthContext` carries a live credential under two names. Not a leak in itself: it is the account's own session reading its own row. But it doubles the surface convention 5c has to police, and 5c's rule ("no screen displays an LRN except to a teacher or admin acting on that student") has to be applied to both keys, not just the obviously-named one — which is exactly the aliased-name failure mode `sanitizeUser` was hardened for on the password column. The three parent pages render neither. Consider returning one, or neither, since no client needs it. Flagged, not fixed. |
+| `/auth/me` returns `lrn` AND `login_id` for a parent — the same credential, twice | `server/routes/auth.js` | For a parent these two fields hold the identical value (the child's LRN **is** the parent's login id — a locked decision), so the payload every client page holds in `AuthContext` carries a live credential under two names. Not a leak in itself: it is the account's own session reading its own row. But it doubles the surface convention 5c has to police, and 5c's rule ("no screen displays an LRN except to a teacher or admin acting on that student") has to be applied to both keys, not just the obviously-named one — which is exactly the aliased-name failure mode `sanitizeUser` was hardened for on the password column. Parent pages render neither, **except Parent → Settings**, which shows `login_id` once as a locked Login ID (the LRN) — the §5c exception recorded there. It does not also render `lrn`. Consider returning one, or neither, since no other client needs it. Flagged, not fixed. |
 | `backups` has no `status` column | `schema.sql` | Deliberate, not missing: a row is only ever inserted after the dump succeeds, so every row is definitionally "Completed" — the UI hardcodes that string. Revisit only if backup generation becomes asynchronous (a pending/failed state visible before the job finishes) — that's the trigger, not before. |
 | `GradeValue` has no branch for a descriptive A–E letter | `client/src/format/grade.jsx` | Its header names four states — a number, `null` in numerical mode, `null` in descriptive mode, and a failed request — and **a letter is not one of them**. `formatGrade('A')` is `Number('A') → NaN → null`, so a real Grade 1 term grade of `A` renders as `"— N/A"`, the string meaning "this does not apply", on the one value that does. This is outside the primitive's stated contract rather than a bug inside it. **Two local `TermCell` copies now exist** (Parent → Grades and Teacher → Grades); extract at three. Teacher → Grades was instructed not to add a fifth state to the primitive inside the largest encode screen in Stage 4 — that is the "shaped by one page" failure the foundation dispatch existed to prevent. **The trigger to fix the primitive is the third copy**, not a rushed fifth state. Parent letter rendering as `1090001` / `Parent@2026` is still the browser pass that retires Finding C on the parent card. |
 
@@ -3286,6 +3307,14 @@ replaced with a new guess.
       Pending queue + directory + create teacher + edit +
       activate/deactivate. Never `POST /users/parents`. No `:id` route.
       `AdminDashboard` derives from nav. Remaining admin screens below.
+- [x] **Parent → Settings — DONE 2026-09-09.** Route `/parent/settings`,
+      `built: true` with the route (convention 6). Locked child name, LRN
+      (login_id), grade/section, guardian name, email. Writes:
+      `PUT /api/auth/change-password` and `PUT /api/auth/contact` only.
+      Never `GET /api/settings` or `PUT /api/users/:id`. Unlinked accounts
+      still change password and contact. `AuthContext.refresh()` after
+      contact save. ParentDashboard needed no edit. **Parent web role is
+      complete.** Remaining Stage 4 work is admin screens.
 - [ ] Admin pages remaining — students, sections/adviser assignment,
       grades, attendance, excuses, content, contributions, messages,
       settings, backup/restore. **No longer blocked on missing assignments
@@ -3746,6 +3775,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-09 | **Parent → Settings — last Parent Stage 4 page. Parent web role is complete.** Route `/parent/settings`, `built: true` with the route (convention 6). **New endpoint `PUT /api/auth/contact`** in `routes/auth.js` (not a parent-only users self-route): `authenticate` only, `req.user.id` from the DB, body `contact_number` required, trim, non-empty, max 20 (schema VARCHAR). Forbidden in the body (`name`, `email`, `login_id`, `lrn`, `role`, `student_id`, `password`, `status`) → `400` naming them, same loud-reject as `PUT /api/users/:id`. Response `user` via `sanitizeUser` + `fetchUserByLoginId` so student JOIN fields stay. `logActivity` `'update_contact'`. Never `GET /api/settings` (school key-value) and never `PUT /api/users/:id` (admin). Page locks child name, LRN/`login_id`, grade/section, guardian name, email; writes are change-password (`unwrap: 'message'`) and contact (`unwrap: 'user'` then `refresh()`). Unlinked still changes password and contact. §5c exception recorded: this is the one parent screen that shows the LRN, locked, not in a URL. §5b: stored number from last `/me`; draft is `null` until typing. §5e: no confirm (both writes reversible). XOR strips. `AuthContext.refresh()` added. ParentDashboard needed no edit. `npm run test:auth` 25 → **35/35**, confirmed twice; Marwin contact restored in `finally` via direct UPDATE (seeded `09170000003`); Jea untouched. SSR SettingsPage + ParentDashboard (`Open now: … Settings`) with a negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint 28 unchanged (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/settings` as `13567454` and `1090001`. Type a full word in contact and in the password fields (5h). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, thirteenth data point.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Admin → Users — first admin Stage 4 page.** Route `/admin/users`, `built: false → true` with the route (convention 6). `AdminDashboard` derives "Open now" from `navForRole('admin')` like Teacher/Parent — the Stage 2 "No modules built yet." placeholder would have been the first thing an admin saw. Whitelist held: no server, no `Shell.jsx`. **Never `POST /users/parents`** — `authorize('teacher')` answers `403 "Access denied."`; no parent-create control. Two lists, two payloads: `GET /users/parents/pending` (`unwrap: 'parents'`) for the queue (student name, class, `created_by_name`; approve/reject only here); `GET /users` (`unwrap: 'users'`) for the directory. **Do not call `GET /:id`** (list is already `SELECT *`). No `:id` route (§5c — `login_id` is a credential; parent login ids are LRNs and they render here because this is an admin acting on the account). §5e: approve/reject leave pending forever (`400` after) → confirm, name the decision ("Approve this parent account? This cannot be returned to pending afterward."); reject requires reason. `PATCH /:id/status` is reversible → no confirm. Create teacher has no DELETE (undo is deactivate) → no confirm. §5b: `load()` is the only writer of `pending`/`users`. Self-deactivate: hide the control. Last-active-admin: do not predict from the filtered list; handle the `400`. Filters omit `role`/`status`/`search` when empty (`All` would `400`). XOR success/error strips. Approve unwrap `'user'`; reject unwrap `'message'` (no `user` key); create/status/PUT unwrap `'user'`. **Do not write on seeded parent `1234567` (Jea)** — `test:auth` depends on `pending`. `GET /users ?search=` matches `users.name` and `users.login_id` only, not the child's name — searching "Marwin" against Ashley Geguiera is a genuine empty; placeholder says "Name or login ID". Reset-without-loading-true flashed "No users yet" for one frame (applied cleared, users still `[]`); `setLoading(true)` before `setApplied`. Verified: SSR UsersPage + AdminDashboard (`Open now: Users. The remaining…`) with a negative control (`useState is not defined` on a throwaway). Live HTTP **29/29**: teacher/parent GET `/users` 403, admin POST `/parents` 403, list no password key, create teacher, PUT rejects `role`, PUT name, self-deactivate 400, deactivate/activate throwaway, throwaway student+parent approve, second approve 400. SQL teardown: users 7, students 3, Jea still pending, Nino grades 5. Browser as `ADMIN001`: dashboard lists Users; pending queue has Jea / Review; directory 7 rows; self has Edit no Deactivate; typed **Marwin** (empty, correct) then Reset; Create teacher full words `TCH-099` / `Carlo Demo` kept focus, cancelled; Review on Jea → Approve → Continue showed named confirm → Go back → Cancel; Jea still pending. §5h: Search + compose typing, not just a render. `npm run build` clean earlier in the dispatch; oxlint UsersPage carries the usual fetch-effect advisory (27 → 28). Throwaway harnesses deleted. Remaining Stage 4 work is the other admin screens. **MEASURED BUILD TIME, twelfth data point: ~50m.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Attendance — unblocked by never rendering a rate.** Route `/parent/attendance`, `blocked` dropped, `built: true` with the route (convention 6). Two calls, same `from`/`to`: `GET /attendance/summary/:studentId` (`unwrap: 'summary'`) and `GET /attendance/student/:studentId` (`unwrap: 'attendance'`). Skip both when `user.student_id` is null (`parseId(null)` is `400 "Invalid student id."`). Month vs All (Events pattern, `todayLocalDateString()`, never `toISOString()`). Four counts + Recorded days; `StatusBadge` on day rows. Copy names recorded days, not Class Days, and says Late/Excused stay separate. No rate, no `(Present/total)*100`. Do not call `GET /api/attendance` (403 Access denied.). Teacher history is a later page. Whitelist held: no server, no `Shell.jsx`, no `ParentDashboard.jsx` (Open now derives from nav). No `GradeValue`. Verified: SSR AttendancePage + ParentDashboard (`Open now: Grades, Attendance, Excuse Letters, …`) with a negative control (`useState is not defined` on a throwaway broken copy, not by mutating the real page). Live HTTP **26/26**: parent `GET /student/2` 404, parent `GET /` 403 Access denied., `parseId('null')` 400, TCH-001 bulk today Present + last-month Absent, month summary Present 1 / Absent 0 / no rate key, all summary Present 1 / Absent 1 / total 2, Nino `GET` Marwin 404 and own list empty, Nino grades stayed 5. SQL teardown: `attendance` back to 0. Browser as `13567454`: dashboard lists Attendance; month shows Present 1 / Recorded days 1 / 2026-09-09 Present; All shows Absent 1 / Recorded days 2 / 2026-08-15 Absent; no LRN on the page; no percentage. §5h: no text field — opening the page is the proof, not a typing pass. `npm run build` clean; `oxlint` 26 → 27, the one addition being the usual fetch-effect advisory on AttendancePage. Throwaway harnesses deleted. Remaining Stage 4 work is admin. **MEASURED BUILD TIME, eleventh data point: ~75m (~50m agent, ~25m idle sandbox/oxlint).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Excuse Letters, Messages, Contributions.** Three page files (plus a thread route), whitelist held: no `Shell.jsx`, no server, no `Modal.jsx`, no `ParentDashboard.jsx`. Routes `/parent/excuse-letters`, `/parent/messages`, `/parent/messages/:userId`, `/parent/contributions`; three `built: false → true` flips with the routes (convention 6). Attendance stays **blocked**. **Excuse Letters is not a Teacher mirror.** Teacher reviews (irreversible); parent submits and edits while Pending. §5e: no confirmation on submit — `PUT` while Pending is the correction and there is no DELETE/withdraw. Skip POST when `user.student_id` is null (unlinked INSERT hits `NOT NULL` and is a **500**, flagged not fixed). `GET /mine` still runs. Default filter All, client-side (the endpoint accepts no query). No attachment. No `GET /:id`. **Messages copies how the Teacher list actually fetches** — table = `GET /conversations`; contacts only in the New-message picker. Contacts already carry last message and unread; a merge would show people the parent has never spoken to as conversations. Groups are Teachers + Admin (no Parents group). `:userId` is `users.id`, never an LRN. Send unwrap is `data`. Thread copied from Teacher with `/parent/messages` back link; extract at Admin. Flipping parent Messages `built: true` closes the 5g LiveStatus inverse with **no Shell change** (`UnreadProvider enabled={messagesBuilt}`; LiveStatus already ungated). Admin still has the inverse. **Contributions is read-only `GET /my-records` only.** Do not call `GET /`, `GET /:id`, or `GET /:id/records` (roster has LRNs, §5c). Skip the request when unlinked — `[]` is the same for unlinked and "no fees", so skipping is how empty copy names the cause (§5f). No Pay button. Payment-at-school copy. Parent POST contribution / GET roster → `403 "Access denied."`. ParentDashboard needed no edit (Open now derives from nav). Verified: SSR of all four pages + ParentDashboard (Open now includes the three, not Attendance) with a negative control (`useState is not defined` on a throwaway, not by mutating a real page). Live HTTP **46/46**: Marwin/Nino POST excuse 201, PUT Pending, cross-parent GET `:id` 404, parent list 403 Access denied, TCH-001 review then parent PUT 403; TCH-001 G6 fee + Marwin Paid, TCH-003 G1 fee, isolation on `my-records`; Marwin contacts TCH-001+admin not TCH-003, conversations did not invent TCH-003, send wrapper `data`, Marwin→TCH-003 403 connected wording, parent→parent 403; Nino's five grade rows stayed 5. SQL teardown: `excuse_letters`/`messages`/`contributions`/`contribution_records` back to 0. `npm run build` clean; `oxlint` 22 → 26, four new fetch-effect advisories (the same class every page carries). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/excuse-letters`, `/parent/messages`, `/parent/contributions` as `13567454` and `1090001`. Type a full word in Excuse reason/details and Messages search/body (5h); Contributions has no inputs. Hard reload if HMR looks wrong. **MEASURED BUILD TIME, tenth data point: ~35m (~23m agent, ~12m idle MYSQL80/UAC).** Same four caveats; compare to the sixth point onward. |

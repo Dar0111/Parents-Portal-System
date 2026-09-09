@@ -28,6 +28,7 @@ import ParentExcuseLetters from './pages/parent/ExcuseLettersPage';
 import ParentMessages from './pages/parent/MessagesPage';
 import ParentMessageThread from './pages/parent/MessageThreadPage';
 import ParentContributions from './pages/parent/ContributionsPage';
+import ParentSettings from './pages/parent/SettingsPage';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -100,6 +101,7 @@ export default function App() {
             <Route path="contributions" element={<ParentContributions />} />
             <Route path="messages" element={<ParentMessages />} />
             <Route path="messages/:userId" element={<ParentMessageThread />} />
+            <Route path="settings" element={<ParentSettings />} />
           </Route>
 
           {/* Component gallery — dev builds only. import.meta.env.DEV is

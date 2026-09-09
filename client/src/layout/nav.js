@@ -43,6 +43,7 @@ export const NAV_BY_ROLE = {
     { to: '/parent/events', label: 'Events', icon: 'fa-calendar-days', built: true },
     { to: '/parent/contributions', label: 'Contributions', icon: 'fa-peso-sign', built: true },
     { to: '/parent/messages', label: 'Messages', icon: 'fa-comments', built: true },
+    { to: '/parent/settings', label: 'Settings', icon: 'fa-gear', built: true },
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', icon: 'fa-gauge', built: true },

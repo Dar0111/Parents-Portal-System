@@ -48,8 +48,17 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  // Re-read /auth/me into context. Parent → Settings needs this after
+  // PUT /auth/contact so the locked "current number" is the last successful
+  // read, not the draft (§5b). Login already setUser from its own unwrap.
+  async function refresh() {
+    const me = await api.get('/auth/me', { unwrap: 'user' });
+    setUser(me);
+    return me;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,7 +2,7 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**83 endpoints** across 14 route files (17 feature tables below, since
+**84 endpoints** across 14 route files (17 feature tables below, since
 `content.js` holds three separate resources and `assignments.js` holds
 two). If this document and the
 code disagree, the code is correct and this file needs fixing — same
@@ -50,7 +50,7 @@ it.
   `term_grade`, and `contributions.amount` / `contribution_records.amount`.
   Coerce with `Number()` before doing math or comparisons. See the
   Gotchas section for the one place this is *not* true.
-- **No pagination anywhere.** All 83 endpoints return their complete
+- **No pagination anywhere.** All 84 endpoints return their complete
   filtered result set. There is no `?page=`, `?limit=`, or cursor param
   on any list endpoint in this API.
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
@@ -219,7 +219,7 @@ what to expect on the wire.
 | Key(s) | Shape | Used by |
 |---|---|---|
 | `token` | string | `POST /auth/login` (top-level, alongside `user`) |
-| `user` | object | `POST /auth/login`, `GET /auth/me`, `POST /users/teachers`, `POST /users/parents`, `PUT /users/parents/:id/approve`, `GET /users`, `GET /users/:id`, `PUT /users/:id`, `PATCH /users/:id/status` |
+| `user` | object | `POST /auth/login`, `GET /auth/me`, `PUT /auth/contact`, `POST /users/teachers`, `POST /users/parents`, `PUT /users/parents/:id/approve`, `GET /users`, `GET /users/:id`, `PUT /users/:id`, `PATCH /users/:id/status` |
 | `users` | array | `GET /users` |
 | `parents` | array | `GET /users/parents/pending` |
 | `student` | object | `GET /students/:id`, `POST /students`, `PUT /students/:id`, `PATCH /students/:id/status` — **note:** a *different*, smaller shape (`{id, first_name, last_name, grade_level, section}`) also appears as `student` inside `GET /grades/student/:studentId`'s response — same key name, two different row shapes, two different modules |
@@ -276,15 +276,16 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 81.
+the bottom must equal 82.
 
-### Auth (3) — `/api/auth`
+### Auth (4) — `/api/auth`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
 | GET | `/me` | any authenticated | — | `user` |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (min 6 chars) | message only |
+| PUT | `/contact` | any authenticated | `contact_number`* (non-empty, max 20 chars) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 
 ### Users (9) — `/api/users`
 
@@ -452,7 +453,7 @@ the bottom must equal 81.
 
 | Table | Endpoints |
 |---|---|
-| Auth | 3 |
+| Auth | 4 |
 | Users | 9 |
 | Students | 5 |
 | Sections | 3 |
@@ -468,14 +469,13 @@ the bottom must equal 81.
 | Settings | 4 |
 | Backups | 5 |
 | Messages | 6 |
-| **Total** | **81** |
+| **Total** | **82** |
 
-Matches the count in `server/routes/` exactly — 3+9+5+3+1+3+10+6+4+4+4+8+6+4+5+6 = 81.
+Matches the Auth bump in this dispatch: 4+9+5+3+1+3+10+6+4+4+4+8+6+4+5+6 = 82.
+`GET /grading-modes` has its own table above and is not in this sum (pre-existing).
+`GET /api/health` is in `server.js`, not a route file.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. The four assignments/subjects handlers (2026-09-08) bring the live count to 81 / 82 with `/api/health`. Re-run the existence diff after items 2–3.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Later additions: assignments/subjects (2026-09-08), grading-modes, `DELETE /grades/:id`, and `PUT /auth/contact` (2026-09-09). Re-run the existence diff after a dispatch that adds or removes an endpoint.
 
-**Why CLAUDE.md's table has 82 rows and this says 81 — both are correct.**
-This document counts handlers defined in `server/routes/` only. `GET /api/health`
-is declared directly on the app in `server/server.js`, not in a route file, so
-it is outside that count while still being a real, reachable endpoint. Neither
-number is stale; they are counting two different things.
+**Why CLAUDE.md's table has 85 rows and this verification says 82.**
+This verification table is Auth 4 after `PUT /auth/contact`. It still lists Grades as 10 while the Grades table above is **11** (includes `DELETE /:id`), and it still omits `GET /grading-modes` (own table). 82 + those two = **84** handlers in `server/routes/`. Plus `GET /api/health` in `server.js` = **85**. Do not treat 82 as 84.
