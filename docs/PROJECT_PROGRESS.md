@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-08 (Teacher → Contributions landed; Teacher web role complete. Modal compose focus steal fixed in the primitive. Admin-prerequisites items 1–3 already on main.)
+**Last updated:** 2026-09-09 (Parent → Excuse Letters, Messages, Contributions. Parent web role complete except Attendance, which stays blocked.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -28,7 +28,7 @@ data, not a computed result.
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + Teacher web role **complete** (Attendance, Students list + detail, Excuse Letters, Announcements, Memos, Events, Messages list + thread, Grades, Contributions) · Parent: Grades, Announcements, Memos, Events (all read-only). Remaining: parent (Attendance blocked) + admin | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + Teacher web role **complete** · Parent: Grades, Excuse Letters, Announcements, Memos, Events, Contributions, Messages (+ thread). **Parent → Attendance blocked** on the rate formula. Remaining: admin | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -515,13 +515,10 @@ posted an announcement**; and `/auth/me` returning one credential under two
 names. The other two — `attachment_url` dead schema and API_REFERENCE's stale
 scope labels — stay recorded and untouched.
 
-**Convention 5g's inverse is now live and deliberately left alone.**
-`LiveStatus` renders in `Shell` ungated while `UnreadProvider` is gated, so
-Parent — pages, no Messages page, correctly no badge — could see a "Live updates
-paused" strip about a channel nothing on their screen uses. Gating it is one
-line, correct today and wrong the day Parent → Messages lands, so **it belongs
-to that dispatch, not a cleanup pass.** It is the harmless direction of the
-error: an over-broad notice fails safe where an absent one does not.
+**Convention 5g's inverse is closed for Parent (2026-09-09)** by flipping
+Messages `built: true`. No `Shell.jsx` change — `UnreadProvider` is already
+gated on that flag; `LiveStatus` stays ungated. **Admin still has the inverse**
+and that belongs to Admin → Messages.
 
 **Parent → Grades is DONE (2026-09-07)** — the report card, and **the first
 feature page to consume `GradeValue`**. Convention 3 was frozen into the Stage 4
@@ -631,8 +628,8 @@ term is uncorrectable except by hand; the likely shape is admin-only and refused
 once `is_locked` is set, but that needs deciding rather than patching), and
 `GradeValue`'s missing letter state above. **API_REFERENCE was checked and left
 alone** — its grades parent rows match the live responses, so unlike the
-content/students scope labels, no correction was owed. **5g's inverse is still
-deliberately untouched** and still belongs to Parent → Messages.
+content/students scope labels, no correction was owed. **5g's inverse closed
+2026-09-09** with Parent → Messages (`built: true`, no Shell change).
 
 **Teacher → Grades is DONE (2026-09-07)** — viewing + encoding, one page
 at `/teacher/grades`. The teacher does not choose a mode: after a class is
@@ -698,8 +695,23 @@ caveats, still not a rate. Last Teacher page: list + compose + roster
 modal, assignments-only, dashboard derived from nav, consequence 5 and
 the removal list recorded.
 
-**Next:** remaining Parent pages (Attendance stays **blocked** on the rate
-formula) and Admin.
+**Parent → Excuse Letters, Messages, Contributions is DONE (2026-09-09).**
+Three page files. Excuse Letters submits and edits while Pending (no
+confirmation — PUT is the correction). Messages copies the Teacher list
+fetch (conversations for the table, contacts for the picker — no merge).
+Contributions is `GET /my-records` only. The Messages `built` flag closes
+the 5g LiveStatus inverse; `Shell.jsx` untouched. ParentDashboard needed
+no edit. Live HTTP 46/46; SQL teardown restored `excuse_letters` /
+`messages` / `contributions` / `contribution_records` to 0; Nino's five
+grades untouched. SSR + negative control. `npm run build` clean; `oxlint`
+22 → 26. **No Cursor browser** — open the three routes as `13567454` and
+`1090001`. Type a full word in Excuse and Messages fields.
+
+**Measured: ~35m — tenth data point (~23m agent, ~12m idle MYSQL80/UAC).**
+Same four caveats; compare to the sixth point onward.
+
+**Next:** Parent → Attendance stays **blocked** on the rate formula. Admin
+pages.
 
 **Grade 1 descriptive fixture seeded (2026-09-07)** — persistence was the gap,
 not coverage. `test:grades` already covered the write path on a throwaway
@@ -755,7 +767,7 @@ scope now includes the section adviser (2026-09-06); write scope unchanged.
       no new endpoint, purely a frontend affordance.
 - [ ] Expo screens (Stage 5, not started).
 
-**Parent-Teacher Messaging** — API + Socket.io done, no screens yet.
+**Parent-Teacher Messaging** — API + Socket.io done. Teacher and Parent web pages built.
 - [x] `GET /api/messages/contacts` — **BUILT 2026-09-07.** Wrapper key `contacts`. Active accounts only (a pending parent cannot log in, so listing them offers a conversation that cannot happen — an adviser whose section's only parent is pending therefore sees zero parent contacts, which is correct and asserted as such). Scoped by the
       inverse of `canMessage()`: parent sees their child's teachers (+ subject)
       plus admin; teacher sees their students' parents (+ student name) plus
@@ -763,12 +775,17 @@ scope now includes the section adviser (2026-09-06); write scope unchanged.
       scope only — never unscoped. Includes last message + unread count inline
       so the frontend needs one call. Build alongside the web page below, not
       before — see CLAUDE.md's "GET /api/messages/contacts" section.
-- [ ] Web pages: conversation list, thread view, compose (live via Socket.io).
+- [x] **Teacher conversation list + thread — DONE 2026-09-07.**
+- [x] **Parent conversation list + thread — DONE 2026-09-09.** Copies the
+      Teacher fetch: table = `GET /conversations`; contacts = New-message
+      picker only, no merge. `built: true` closes the 5g LiveStatus inverse.
+- [ ] Web pages: admin.
 - [ ] Expo screens (Stage 5, not started).
 
-**Contribution/Fees Monitoring** — API done. Teacher page built 2026-09-08.
+**Contribution/Fees Monitoring** — API done. Teacher page built 2026-09-08. Parent page built 2026-09-09.
 - [x] **Teacher list + roster — DONE 2026-09-08.** Last Teacher page. Modal roster, not a `:id` route. Amount override skipped. Adviser gap recorded (consequence 5), not widened.
-- [ ] Web pages: parent's own payment status view; admin.
+- [x] **Parent my-records — DONE 2026-09-09.** `GET /my-records` only. No Pay button. Skip fetch when unlinked.
+- [ ] Web pages: admin.
 - [ ] Expo screens (Stage 5, not started).
 - [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision. Module may be struck (DO 19); if so, drop the tables — see CLAUDE.md KNOWN ISSUES. **DELETE 409 names a remedy that does not exist** (no `DELETE` on `contribution_records`): once any student is marked, the contribution is permanently undeletable through the API. Flagged, handler not changed.
 
@@ -780,10 +797,13 @@ scope now includes the section adviser (2026-09-06); write scope unchanged.
 - [ ] One deliberate manual end-to-end restore test, together, with `db:setup` ready — not yet scheduled.
 
 **Excuse Letter Submission & Management** — API fully done
-(submit/mine/list/view/edit/review), no screens yet. Teacher read scope now
+(submit/mine/list/view/edit/review). Teacher read scope now
 includes the section adviser (2026-09-06); review authority unchanged
 (adviser-only).
-- [ ] Web pages: submit form (parent), letter list + status (parent), review queue (teacher/admin — adviser-scoped).
+- [x] **Teacher review queue — DONE 2026-09-07.**
+- [x] **Parent submit + list — DONE 2026-09-09.** Edit while Pending, no
+      confirmation (§5e). Skip POST when unlinked (that POST is a 500).
+- [ ] Web pages: admin review.
 - [ ] Expo screens (Stage 5, not started).
 
 **All ten core features now have a complete backend.** Ten backend

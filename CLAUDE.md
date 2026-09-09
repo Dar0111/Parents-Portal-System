@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-08 (Teacher → Contributions landed after admin-prerequisites items 1–3; Teacher web role complete. Modal compose focus steal fixed in the primitive the same day.)
+**Last verified:** 2026-09-09 (Parent → Excuse Letters, Messages, Contributions. Parent web role complete except Attendance, which stays blocked. LiveStatus inverse closed by the Messages `built` flag, no `Shell.jsx` change.)
 
 ### Seeded baseline
 
@@ -927,11 +927,13 @@ on top of it the Stage 4 foundation now exists: role-aware `Shell` with
 nested layout routes, seven shared UI primitives, and a dev-only component
 gallery at `/dev/ui`. **Teacher and Parent feature pages now exist** —
 Teacher: Attendance, Students (+ detail), Excuse Letters, Announcements,
-Memos, Events, Messages (+ thread), Grades (view + encode). Parent:
-Grades, Announcements, Memos, Events (all read-only). See STAGE 4 FRONTEND
-CONVENTIONS below for what every one of them inherits. (This line used to
-read "no feature page has been built yet" and stayed that way through five
-dispatches; corrected 2026-09-07.)
+Memos, Events, Messages (+ thread), Grades (view + encode), Contributions.
+Parent: Grades, Excuse Letters (submit + edit while Pending), Announcements,
+Memos, Events, Contributions (read-only `my-records`), Messages (+ thread).
+Parent → Attendance stays **blocked**. See STAGE 4 FRONTEND CONVENTIONS below
+for what every one of them inherits. (This line used to read "no feature page
+has been built yet" and stayed that way through five dispatches; corrected
+2026-09-07.)
 
 Auth round-trip re-verified after the foundation landed: admin login
 (`ADMIN001` / `Admin@2026`) redirects to `/admin`; a wrong password shows
@@ -957,17 +959,20 @@ client/src/
                           Students (+ detail), Excuse Letters, Announcements,
                           Memos, Events, Messages (+ thread), Grades (view +
                           encode, one page), Contributions (list + roster modal)
-  pages/parent/           4 pages, all READ ONLY: Grades, Announcements, Memos,
-                          Events. Every write on all four routers is
-                          teacher/admin-only, so a parent gets
-                          `403 "Access denied."` from the middleware — no
-                          compose/edit/delete affordance exists on any of them.
-                          Content: full text opens in a Modal, NOT a detail
-                          route, because no `GET /:id` exists on any of the
-                          three routers. Grades: one call to
-                          GET /api/grades/student/:studentId, no filters, and
-                          the only page in the client that skips its request
-                          entirely when `user.student_id` is null
+  pages/parent/           7 pages (4 files added 2026-09-09). Content
+                          (Announcements/Memos/Events) and Grades stay
+                          read-only. Excuse Letters submits and edits while
+                          Pending (no confirmation — PUT while Pending is the
+                          correction; no DELETE/withdraw). Messages copies
+                          Teacher's fetch: table = GET /conversations,
+                          contacts = New-message picker only, no merge.
+                          Contributions calls GET /my-records only — never
+                          GET /, GET /:id, or the roster (LRNs). Grades and
+                          Contributions skip their request when
+                          `user.student_id` is null; Excuse Letters skips
+                          POST then (an unlinked POST is a 500, flagged not
+                          fixed) and still GETs /mine. ParentDashboard is
+                          derived from nav — no edit in this dispatch.
 ```
 
 `/dev/ui` is registered behind `import.meta.env.DEV` and is **verified
@@ -1368,27 +1373,16 @@ the badge would be its own small lie.
 say the channel is down, and is it saying so everywhere something channel-fed
 is rendered.
 
-**THE INVERSE IS NOW LIVE AND IS DELIBERATELY LEFT ALONE — read this before
-"fixing" it.** 5g's fix moved `LiveStatus` into `Shell`, above the routed page,
-so the notice reaches every page the badge does. `Shell` renders for all three
-roles and `LiveStatus` is **not** gated on anything, while `UnreadProvider` is
-(`enabled={messagesBuilt}`). So as of Parent → Announcements/Memos/Events
-(2026-09-07) there is a role with pages, no Messages page, no badge — and a
-"Live updates paused" strip that would refer to a channel **nothing on their
-screen consumes**. Verified: parent Messages is still `built: false`, so the
-badge request is genuinely skipped and no count renders; only the strip is
-over-broad.
-
-**Not fixed in that dispatch, on purpose, and the reason is the convention
-itself.** Gating the strip on `messagesBuilt` is a one-line change that would
-be correct today and wrong the day Parent → Messages lands — at which point
-somebody has to remember to ungate it, which is the same
-flip-the-flag-later failure convention 6 exists to forbid. **So it belongs to
-the Parent → Messages dispatch, which needs the gate removed anyway**, not to a
-cleanup pass. Until then a parent may see one strip that overstates what is
-paused. That is the harmless direction of this error: 5g's whole argument is
-that a channel dying silently is worse than one saying so, and an over-broad
-notice fails safe where an absent one does not.
+**THE INVERSE IS CLOSED FOR PARENT (2026-09-09) — by flipping the Messages
+`built` flag, not by touching `Shell.jsx`.** 5g's fix moved `LiveStatus` into
+`Shell`, above the routed page, so the notice reaches every page the badge
+does. `UnreadProvider` is gated (`enabled={messagesBuilt}`); `LiveStatus` is
+not. Parent → Messages landing with `built: true` turns the badge request on
+for that role, so the strip now names a channel something on their screen
+consumes. Gating `LiveStatus` was never done — it would have been the
+flip-the-flag-later failure convention 6 forbids. **Admin still has the
+inverse** (pages unbuilt, Messages `built: false`, ungated strip) and that
+belongs to Admin → Messages, the same way this belonged here.
 
 ### 5h. Build and lint prove the code compiles, not that the page renders
 
@@ -1519,15 +1513,14 @@ the copy true.
 
 **A badge renders only on a BUILT item.** The Messages unread count lives on
 the nav item in `Shell.jsx`, which renders for all three roles — so once it
-existed it would have appeared on Parent and Admin too, both of which are
-`built: false` today. A count on a dimmed, unclickable entry is worse than no
-count: it announces something the user cannot go and read. `useUnreadMessages`
-therefore skips the request entirely unless that role's Messages item is built.
+existed it would have appeared on Parent and Admin too. A count on a dimmed,
+unclickable entry is worse than no count: it announces something the user
+cannot go and read. `UnreadProvider` therefore skips the request entirely
+unless that role's Messages item is built.
 
-**Live today for TEACHER only.** Parent and Admin get the badge automatically
-the day their Messages pages land and their `built` flags flip — no change to
-`Shell.jsx` is needed, and neither dispatch should build its own badge or
-wonder why one is missing.
+**Live today for TEACHER and PARENT.** Admin gets the badge automatically
+the day its Messages page lands and its `built` flag flips — no change to
+`Shell.jsx` is needed, and that dispatch should not build its own badge.
 
 **FLIPPING `built: false` TO `true` IS PART OF WHICHEVER DISPATCH ADDS THAT
 PAGE'S ROUTE — never a follow-up, never a cleanup pass.** A live route
@@ -1797,6 +1790,28 @@ Last Teacher page.
 | **Parent** Grades | **37m26s** (~24m agent, ~13m review wait) | **1 page.** First `GradeValue` consumer, 24-row fixture chain, three browser states |
 | **Teacher** Grades | **20m** | **1 page.** View + encode, numerical and descriptive, no client IG preview, session-memory for encode 403s, two throwaway students SQL-torn down |
 | **Teacher** Contributions | **~40m** (~40m agent, ~0m idle) | **1 page**, last Teacher. List + compose + roster modal, assignments-only (not `useTeacherTargets`), dashboard derived from nav, consequence 5 + removal list recorded. Live HTTP on three accounts + SSR |
+
+**Tenth data point — Parent → Excuse Letters, Messages, Contributions, 2026-09-09:
+~35 minutes** (12:01 PLAN APPROVED → ~12:36 verified). **~23m agent, ~12m idle
+waiting for MYSQL80** (service was Stopped; UAC to start it). Same four
+caveats; still not a rate. Compare to the sixth point onward (5h inside the
+clock), not to Teacher Messages' 4m4s. Three page files, not one component;
+Messages copies the Teacher list fetch (conversations for the table, contacts
+for the picker — no merge). `ParentDashboard` needed no edit (derived from
+nav). `Shell.jsx` untouched — the Messages `built` flag closes the 5g inverse.
+
+| Dispatch | Time | What it involved |
+|---|---|---|
+| Attendance | 3m14s | 1 page. New date helper, write path, bulk submit, pre-fill + in-place update |
+| Students | 1m24s | 2 views. Read-only, endpoints already exercised, no new helper |
+| Excuse Letters | 2m28s | 1 page. First write form, modal with confirmation, permission prediction, 3 fixtures |
+| Announcements/Memos/Events | 3m36s | 3 pages + a shared hook. Two compose forms, one read-only page |
+| Messages | 4m4s | 2 views + the first Socket.io client, first new runtime dependency, first shared-layout change |
+| **Parent** Announcements/Memos/Events | **13m14s** | 3 pages, all read-only — first 5h render proof inside the clock |
+| **Parent** Grades | **37m26s** (~24m agent, ~13m review wait) | **1 page.** First `GradeValue` consumer, 24-row fixture chain, three browser states |
+| **Teacher** Grades | **20m** | **1 page.** View + encode, numerical and descriptive, no client IG preview, session-memory for encode 403s, two throwaway students SQL-torn down |
+| **Teacher** Contributions | **~40m** (~40m agent, ~0m idle) | **1 page**, last Teacher. List + compose + roster modal |
+| **Parent** Excuse Letters / Messages / Contributions | **~35m** (~23m agent, ~12m idle MySQL) | **3 pages** (4 files: excuse + messages list + thread + contributions). Submit/edit, Teacher-shaped fetch, my-records only. 5g inverse closed by the built flag |
 
 **Do not replace the void estimate with a projection derived from these.**
 The old estimate is void, these dispatches have differed in kind more than
@@ -2837,10 +2852,11 @@ imply," not just "does this one anticipated symptom show up."
 | A new page file arriving via HMR can leave a stale module in an open tab | Vite dev server | **Try a hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip on 2026-09-07: Teacher → Excuse Letters' "All statuses" filter appeared to return nothing, and the investigation proved the request, the endpoint contract, the empty-state branches and `FormField`'s controlled select were all correct — the running tab was serving a stale module. A hard reload cleared it and there was no data bug. The analysis was not wasted (it found a real copy defect alongside), but the reload should have come first. |
 | **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). Teacher → Grades still learns mode from the report card until a client dispatch switches it — that switch is NOW POSSIBLE, not a missing endpoint. Encode-scope prediction and `useTeacherTargets` reconstruction likewise moved to NOW POSSIBLE. **Consequence 5 is not closed by that API:** `content.js` writes include the adviser; `contributions.js` does not. TCH-002 can announce to Masigasig and cannot POST a Grade 5 fee. GET /assignments exposes rows; it does not widen contributions write scope. A fee is money (DepEd Order 19 s. 2008). Do not widen. School question. Surfaced by Teacher → Contributions (2026-09-08). |
 | **`GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending"** | `server/routes/messages.js` | ACTIVE accounts only — correct, a pending parent cannot log in. The empty list is still indistinguishable between those two causes, so the UI's *"No parents yet. A parent appears here once an admin approves their account."* is a known imprecision. **`GET /api/assignments` does not close this.** Assignments are subject-section rows, not parent-account state. TCH-002 is the proof: adviser of Grade 5 - Masigasig, zero assignment rows, and that section's only parent is seeded `pending`. An assignments read would still be empty while students (and pending parents) exist. Closing this needs a signal about parents-of-students-in-scope, not about what a teacher is assigned to teach. Do not treat it as closed by association with item 1. |
-| **Contributions module may be struck (DO 19 s. 2008) — drop the tables, do not leave them** | `contributions` + `contribution_records` | The adviser has not decided. Empty unused tables are how the counts drifted, and the DDL is in git. A "removed" feature with a live POST still mounted is a UI lie. **Do not remove anything now.** If it is struck, drop both tables (and their FKs), do not leave them. Removal would touch: `client/src/pages/teacher/ContributionsPage.jsx`, `App.jsx` route, `nav.js` teacher item **and delete** parent/admin items (do not leave `built: false`), `server/routes/contributions.js`, `server.js` mount, `test-contributions-flows.js`, `package.json` `test:contributions`, `schema.sql` both tables + FKs, `seed.sql` (0 rows today), this file's endpoints/files/BUILD ORDER/feature 7/baseline/Download Statement/this list **and the 409-message row below**, `docs/PROJECT_PROGRESS.md`, `docs/API_REFERENCE.md` Contributions + wrapper keys + grade-only gotcha. Leave StatusBadge Paid/Pending. Manuscript is the team's. |
+| **Contributions module may be struck (DO 19 s. 2008) — drop the tables, do not leave them** | `contributions` + `contribution_records` | The adviser has not decided. Empty unused tables are how the counts drifted, and the DDL is in git. A "removed" feature with a live POST still mounted is a UI lie. **Do not remove anything now.** If it is struck, drop both tables (and their FKs), do not leave them. Removal would touch: `client/src/pages/teacher/ContributionsPage.jsx`, `client/src/pages/parent/ContributionsPage.jsx`, `App.jsx` routes, `nav.js` teacher item **and delete** parent/admin items (do not leave `built: false`), `server/routes/contributions.js`, `server.js` mount, `test-contributions-flows.js`, `package.json` `test:contributions`, `schema.sql` both tables + FKs, `seed.sql` (0 rows today), this file's endpoints/files/BUILD ORDER/feature 7/baseline/Download Statement/this list **and the 409-message row below**, `docs/PROJECT_PROGRESS.md`, `docs/API_REFERENCE.md` Contributions + wrapper keys + grade-only gotcha. Leave StatusBadge Paid/Pending. Manuscript is the team's. |
 | **DELETE `/api/contributions/:id` 409 tells the teacher to do something impossible** | `server/routes/contributions.js` | The refusal is real (`COUNT(*)` on `contribution_records` > 0 → `409`), and the first sentence is honest. The second is not: *"Clear the payment records first if you need to remove it."* There is no `DELETE` for `contribution_records` — only `PATCH` Paid/Pending, which `ON DUPLICATE KEY UPDATE`s the row, never removes it. Marking Pending again does not unlock delete. **Consequence: once any student is marked, the contribution is permanently undeletable through the API**, and the error message hides that by naming a remedy that does not exist. The Teacher page already says the server will refuse if anyone has been marked; that is more honest than the 409 string. Flagged from Teacher → Contributions browser review (2026-09-08), handler not changed — backend string. If the module is struck this goes with it. If it stays, the gap needs either a record `DELETE` or an honest message. |
 | `GET /api/excuse-letters/:id` returns strictly LESS than its own list endpoint | `server/routes/excuses.js` | The list runs `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section`; the detail runs `SELECT el.*` with **no student join at all**. So a detail route would render `student_id: 2` and need a second call to `/students/:id` just to show a name, while a list row already carries everything the detail has plus the student. Teacher → Excuse Letters therefore uses a modal from the list and never calls `GET /:id` — but the oddity is worth knowing before someone builds a detail route on it later and wonders why the name is missing. Flagged, not fixed. |
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
+| Unlinked `POST /api/excuse-letters` is a **500**, not a 400 | `server/routes/excuses.js` | `student_id` is NOT NULL and the handler inserts `req.user.student_id` with no null check. Parent → Excuse Letters skips POST when unlinked so the 500 is unreachable from that page. Flagged 2026-09-09, handler not changed. |
 | `GET /api/students` returns the full personal row on a LIST | `server/routes/students.js` | The list `SELECT` includes `birthday`, `gender`, `address`, `contact_number` for every student in scope — verified live against the real payload. Not an authorization hole (the teacher may open each of those students individually), but a roster has no reason to carry home addresses, and **the `LRN` in that payload doubles as the parent's `login_id`** — see convention §5c. Consequence for the client: the list page renders only name / LRN / class / status and leaves the rest to the detail view. Consequence if this is ever narrowed server-side: `GET /:id` adds only `section_id`, `created_by`, `updated_at` over the list, so a slimmer list response would cost the detail view nothing it does not already fetch. Flagged from a client dispatch, not fixed. |
 | `docs/API_REFERENCE.md` scope labels are stale for every widened read | `docs/API_REFERENCE.md` §4 + the Students/Excuse-Letters/Announcements/Events/Messages tables | The 2026-09-06 students fix and the 2026-09-07 content/messages fixes widened teacher READ scope to "assigned OR section adviser", but those dispatch whitelists did not include API_REFERENCE. Its rows still say `teacher(wide)`, and the legend defines `wide` as "exact grade + section match, any subject (`teacher_assignments`, grade+section only)" — narrower than what those endpoints now do. **There is no legend code for "assigned OR adviser", which is why four modules are mislabelled with one that means something else.** Needs its own backend-docs dispatch: add the code, then relabel. **Note on why the 2026-09-07 audit did not catch this and was not wrong to miss it:** that audit was a three-way diff of endpoint EXISTENCE, and a presence diff structurally cannot see a scope column drifting stale. "All three buckets empty" was true and remains true. Recorded as a stated limitation of that audit, not a correction to it. |
 | `Login.jsx` does not use `extractError` | `client/src/pages/Login.jsx:31` | Falls back to `'Login failed. Please try again.'` when there is no `err.response` — **the same message a wrong password produces**. `extractError` already returns a distinct offline message for exactly that case; this file predates it. **Why it matters beyond tidiness: a dead server and a wrong password are indistinguishable to the user**, so someone hitting it during the parent demo would go hunting for a credentials problem that does not exist, in front of an audience, while the real fault is that the API is down. Small fix, fold into a later client dispatch. |
@@ -3208,12 +3224,18 @@ replaced with a new guess.
       the ceiling — first Stage 4 content to hit it; a second page is the
       trigger to widen the scale. **Teacher web role is complete.** Remaining
       Stage 4 work is parent pages (Attendance still blocked) and admin pages.
-- [ ] Remaining parent pages — records, messages, excuse
-      letters, contributions. **Parent → Attendance is BLOCKED**, not
-      merely unbuilt: the attendance rate formula is an unanswered
-      school question, so the page cannot be designed yet. Parent → Messages
-      is the page that closes the `LiveStatus` inverse defect recorded in
-      convention 5g
+- [x] **Parent → Excuse Letters, Messages, Contributions — DONE 2026-09-09.**
+      Three page files, not one component. Excuse Letters: submit + edit
+      while Pending, no confirmation (§5e — PUT is the correction; no
+      DELETE/withdraw), skip POST when unlinked (that POST is a 500, not
+      a 400). Messages: copies Teacher's fetch — table is
+      `GET /conversations`, contacts are the New-message picker only, no
+      merge. Thread is a copy with `/parent/messages` back link; extract
+      at Admin. Flipping `built: true` closes the 5g LiveStatus inverse
+      with no `Shell.jsx` change. Contributions: `GET /my-records` only,
+      skip fetch when unlinked, no Pay button. ParentDashboard derived
+      from nav, no edit. **Parent → Attendance stays BLOCKED** on the
+      attendance rate formula.
 - [ ] Admin pages — user management, sections/adviser assignment,
       settings, backup/restore. **No longer blocked on missing assignments
       write or missing grade delete / grading-mode read** — items 1–3 of
@@ -3673,6 +3695,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-09 | **Parent → Excuse Letters, Messages, Contributions.** Three page files (plus a thread route), whitelist held: no `Shell.jsx`, no server, no `Modal.jsx`, no `ParentDashboard.jsx`. Routes `/parent/excuse-letters`, `/parent/messages`, `/parent/messages/:userId`, `/parent/contributions`; three `built: false → true` flips with the routes (convention 6). Attendance stays **blocked**. **Excuse Letters is not a Teacher mirror.** Teacher reviews (irreversible); parent submits and edits while Pending. §5e: no confirmation on submit — `PUT` while Pending is the correction and there is no DELETE/withdraw. Skip POST when `user.student_id` is null (unlinked INSERT hits `NOT NULL` and is a **500**, flagged not fixed). `GET /mine` still runs. Default filter All, client-side (the endpoint accepts no query). No attachment. No `GET /:id`. **Messages copies how the Teacher list actually fetches** — table = `GET /conversations`; contacts only in the New-message picker. Contacts already carry last message and unread; a merge would show people the parent has never spoken to as conversations. Groups are Teachers + Admin (no Parents group). `:userId` is `users.id`, never an LRN. Send unwrap is `data`. Thread copied from Teacher with `/parent/messages` back link; extract at Admin. Flipping parent Messages `built: true` closes the 5g LiveStatus inverse with **no Shell change** (`UnreadProvider enabled={messagesBuilt}`; LiveStatus already ungated). Admin still has the inverse. **Contributions is read-only `GET /my-records` only.** Do not call `GET /`, `GET /:id`, or `GET /:id/records` (roster has LRNs, §5c). Skip the request when unlinked — `[]` is the same for unlinked and "no fees", so skipping is how empty copy names the cause (§5f). No Pay button. Payment-at-school copy. Parent POST contribution / GET roster → `403 "Access denied."`. ParentDashboard needed no edit (Open now derives from nav). Verified: SSR of all four pages + ParentDashboard (Open now includes the three, not Attendance) with a negative control (`useState is not defined` on a throwaway, not by mutating a real page). Live HTTP **46/46**: Marwin/Nino POST excuse 201, PUT Pending, cross-parent GET `:id` 404, parent list 403 Access denied, TCH-001 review then parent PUT 403; TCH-001 G6 fee + Marwin Paid, TCH-003 G1 fee, isolation on `my-records`; Marwin contacts TCH-001+admin not TCH-003, conversations did not invent TCH-003, send wrapper `data`, Marwin→TCH-003 403 connected wording, parent→parent 403; Nino's five grade rows stayed 5. SQL teardown: `excuse_letters`/`messages`/`contributions`/`contribution_records` back to 0. `npm run build` clean; `oxlint` 22 → 26, four new fetch-effect advisories (the same class every page carries). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/excuse-letters`, `/parent/messages`, `/parent/contributions` as `13567454` and `1090001`. Type a full word in Excuse reason/details and Messages search/body (5h); Contributions has no inputs. Hard reload if HMR looks wrong. **MEASURED BUILD TIME, tenth data point: ~35m (~23m agent, ~12m idle MYSQL80/UAC).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-08 | **Modal stole focus on every keystroke — fourth browser-only defect, fixed in the primitive.** Compose Title/Amount lost focus after one or two characters. Cause: `useEffect(..., [open, onClose])` mixed a one-time action (focus the panel when the dialog opens) with a frequently-changing value (`onClose`, a new function every render at every Stage 4 call site). Every change to the second re-triggered the first. Focus now depends on `open` only; `onClose` is kept current via a ref for Escape. Backdrop and the X still read `onClose` from the render they belong to. **Not a Contributions-only bug.** Announcements, Events, Excuse Letters remarks, and Messages contact search all shipped the same shape on 2026-09-07 and all passed browser review — nobody typed more than two characters into those fields. The reviews were not wrong; they were shallow in the same place. §5h now says opening a page is not the same as using it: a render proves the component mounts, typing a full word proves the input works. Verified by driving input (negative control: old effect steals focus; then a full word in Announcements Title, Events Title, Excuse Letters remarks, Messages search, Contributions Title, and `150.50` in Amount). `npm run build` / oxlint after. Call sites untouched. |
 | 2026-09-08 | **Teacher → Contributions — the last Teacher Stage 4 page. Teacher web role is complete.** Written and browser-verified earlier the same day, then stashed so admin-prerequisites could run on a clean tree; landed here after items 1–3. Re-verified on this landing against current main: the page does not call the six handlers that shipped since the stash (`GET /subjects`, `GET`/`POST`/`DELETE /assignments`, `GET /grading-modes`, `DELETE /grades/:id`); TCH-001 POST Grade 6 `201` then DELETE, TCH-002 POST Grade 5 `403` naming assignment. `GET /assignments` existed by then; this page still builds compose grades from `GET /students` (too wide) — NOW POSSIBLE, not switched in this landing. Route `/teacher/contributions`, `built: false -> true` with the route. The "probably read-only like Memos" framing was wrong: seven of eight endpoints are teacher-reachable (`GET /my-records` is the parent-only one). **Scope is grade-level `teacher_assignments` only — advisers are not included.** `content.js` writes were widened; `contributions.js` was not. TCH-002 can announce to Masigasig and cannot POST a Grade 5 fee. Recorded as **consequence 5** of the `teacher_assignments` finding: same root (widened module by module), not a fifth separate oddity. **Whether contributions SHOULD include the adviser is a school question, not a consistency patch** — a fee is money, DepEd Order 19 s. 2008 (No Collection Policy). Do not widen. Compose grades come from distinct `grade_level` on `GET /students` (too wide; TCH-002 sees Jea); **Post is the assignment check**, not picking the grade (§5i). **No third empty state from GET /students** — TCH-002's empty list and TCH-001's empty list are the same `[]`; inventing "you cannot post" from a different endpoint would misread TCH-001 on the day they have posted nothing (§5f). Roster in a **Modal**, not a `:id` route — one fewer file if the module is removed. Removal list recorded in KNOWN ISSUES: **drop the tables**, do not leave them (empty unused tables drifted counts; a removed feature with a live POST is a UI lie). Skip amount override. Skip CSV. **§5b:** Recorded badge from last `GET /:id/records` only. **§5e:** no confirm on Paid/Pending (`ON DUPLICATE KEY UPDATE`); confirm DELETE, name the title. First PATCH inserts a record row; after that DELETE is 409 forever (no record-delete endpoint). `useTeacherTargets` comment now names Contributions as the second assignments-only module. `TeacherDashboard` derives "Open now" from `navForRole('teacher')` like ParentDashboard — last Teacher page, a stale "No modules built yet" would be its parting impression. No Cursor browser in this dispatch — live HTTP + SSR; open `/teacher/contributions` as TCH-001 / TCH-002 / TCH-003 to finish 5h. Hard reload if HMR looks wrong. Live HTTP: TCH-001 POST Grade 6 `201`, TCH-002 POST Grade 5 `403` naming assignment, TCH-002 GET TCH-001 roster `404`, Marwin on the Grade 6 roster, Paid then Pending, DELETE `409` naming 1 record, TCH-003 Grade 1 roster = Nino Mabait, unused DELETE `200`. SQL teardown; `contributions` and `contribution_records` back to 0. SSR rendered ContributionsPage + TeacherDashboard (copy asserted). `npm run build` clean; `oxlint` 21 → 22, the one addition being the usual fetch-effect advisory. **Browser review (pre-commit):** DELETE 409 renders the server's wording and the modal stays open — verified. The second sentence (*"Clear the payment records first…"*) names a remedy that does not exist (no `DELETE` on `contribution_records`; Pending does not remove the row). Once any student is marked, the contribution is permanently undeletable through the API. Flagged in KNOWN ISSUES, handler not changed. **Roster then approved and landed:** Section dropped; one action (Mark paid when Pending, Mark pending when Paid); in-flight button stays visible and disabled because `recorded` has not updated yet (§5b). Never-recorded and explicit Pending look identical — API `COALESCE` to Pending; stated in the page. Modal `lg` is already the max; no `xl` added. **Convention 7b:** first Stage 4 content to hit Modal's width ceiling; a second page is the trigger to reconsider the scale. Comment on `Modal.jsx` names that, no size added. **Teacher web role is complete.** No server files. |
 | 2026-09-08 | **Admin-prerequisites items 2 and 3, after item 1 was committed alone.** Item 2: `GET /api/grading-modes` in its own router (`routes/gradingModes.js`) so the path is not eaten by `GET /api/grades/:id`. Any authenticated role. `grade_level` required 1–6; `school_year` optional, defaults to `system_settings.academic_year`. Missing `grading_mode_configs` row is **409** with the write-preflight wording copied exactly — matching both existing readers in `grades.js`, not a settings key, not 404, not an empty success. Wrapper `grading_mode` is an **object** `{ grade_level, school_year, mode }`; the report card uses the same key as a **string** — recorded so nobody flattens it. Third copy of the YYYY-YYYY check; extract on a fourth place. `npm run test:grading-modes` — 13/13, confirmed twice; the 409 is asserted against `2027-2028`, which the seed has no rows for. Item 3: `DELETE /api/grades/:id`, admin-only, unscoped, same authority as `PATCH /:id/lock`. Teacher/parent get middleware `403 Access denied.`; missing id `404 "Grade record not found."`; locked row `403 "This grade is locked and cannot be deleted."` (not the edit wording). `logActivity` `'delete_grade'`. Components cascade. Tests use a throwaway student + shell; **Nino's five seeded rows stay at 5**. `npm run test:grades` — 165/165 (was 149), confirmed twice. No client files. **Reclassification, not a page change:** Teacher → Grades still predicts encode scope by attempting a write, because no read existed. `GET /assignments` exists now — moved out of KNOWN ISSUES into NOW POSSIBLE so the next client dispatch picks it up rather than inheriting a workaround whose reason has expired. Same list: mode discovery can switch off the report-card call onto `GET /grading-modes`; `useTeacherTargets` reconstruction is optional. **Contacts empty-cause stays in KNOWN ISSUES.** `GET /assignments` does not tell "no parents exist" from "all parents pending" — TCH-002 is adviser of Masigasig with zero assignment rows and a pending parent; assignments are not parent-account state. |

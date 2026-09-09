@@ -22,6 +22,10 @@ import ParentGrades from './pages/parent/GradesPage';
 import ParentAnnouncements from './pages/parent/AnnouncementsPage';
 import ParentMemos from './pages/parent/MemosPage';
 import ParentEvents from './pages/parent/EventsPage';
+import ParentExcuseLetters from './pages/parent/ExcuseLettersPage';
+import ParentMessages from './pages/parent/MessagesPage';
+import ParentMessageThread from './pages/parent/MessageThreadPage';
+import ParentContributions from './pages/parent/ContributionsPage';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -85,9 +89,13 @@ export default function App() {
           >
             <Route index element={<ParentDashboard />} />
             <Route path="grades" element={<ParentGrades />} />
+            <Route path="excuse-letters" element={<ParentExcuseLetters />} />
             <Route path="announcements" element={<ParentAnnouncements />} />
             <Route path="memos" element={<ParentMemos />} />
             <Route path="events" element={<ParentEvents />} />
+            <Route path="contributions" element={<ParentContributions />} />
+            <Route path="messages" element={<ParentMessages />} />
+            <Route path="messages/:userId" element={<ParentMessageThread />} />
           </Route>
 
           {/* Component gallery — dev builds only. import.meta.env.DEV is
