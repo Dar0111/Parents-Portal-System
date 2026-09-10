@@ -140,9 +140,13 @@ async function run() {
         birthday: inScopeBirthday,
       },
     });
-    assert(createInScope.status === 201, 'Teacher creates student inside own assignment (Grade 6 - Mabini)');
+    assert(createInScope.status === 201, 'Teacher creates student inside own assignment (Grade 6 - Malikhain)');
     const inScopeId = createInScope.data?.student?.id;
     if (createInScope.status === 201 && inScopeId) createdStudentIds.push(inScopeId);
+    assert(
+      createInScope.data?.student?.section_id != null,
+      `in-scope Malikhain create stores non-null section_id (got ${createInScope.data?.student?.section_id})`
+    );
     // Same class of regression as attendance.date/events.event_date/
     // contributions.due_date — a DATE column round-tripping through
     // mysql2 without dateStrings: ['DATE'] would come back shifted a
@@ -167,6 +171,8 @@ async function run() {
       'Teacher creating student outside own assignment (Grade 3 - Aguinaldo) is rejected'
     );
 
+    // Mabini is fictional. Duplicate-LRN must fire BEFORE section resolve,
+    // or this is 400 "no section named Mabini" instead of 409.
     const createDuplicate = await request('POST', '/api/students', {
       token: adminToken,
       body: {
@@ -191,6 +197,25 @@ async function run() {
     });
     assert(createBadGrade.status === 400, 'grade_level outside 1-6 rejected');
 
+    const createInventedSection = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `8${uniqueSuffix}`,
+        first_name: 'Invented',
+        last_name: 'Section',
+        grade_level: 5,
+        section: 'Rizal',
+      },
+    });
+    assert(
+      createInventedSection.status === 400,
+      'Admin cannot invent a section name (Grade 5 - Rizal is fictional)'
+    );
+    assert(
+      /Rizal/.test(createInventedSection.data?.message || ''),
+      'That 400 names the unmatched section'
+    );
+
     const createByAdminAnywhere = await request('POST', '/api/students', {
       token: adminToken,
       body: {
@@ -198,12 +223,16 @@ async function run() {
         first_name: 'AdminCreated',
         last_name: 'Student',
         grade_level: 5,
-        section: 'Rizal',
+        section: 'Masigasig',
       },
     });
-    assert(createByAdminAnywhere.status === 201, 'Admin creates student in any grade/section');
+    assert(createByAdminAnywhere.status === 201, 'Admin creates student in any real grade/section');
     const adminCreatedId = createByAdminAnywhere.data?.student?.id;
     if (createByAdminAnywhere.status === 201 && adminCreatedId) createdStudentIds.push(adminCreatedId);
+    assert(
+      createByAdminAnywhere.data?.student?.section_id != null,
+      `admin Masigasig create stores non-null section_id (got ${createByAdminAnywhere.data?.student?.section_id})`
+    );
 
     // --- Read: list + single, scoped ---
     console.log('\nRead (scoping):');
