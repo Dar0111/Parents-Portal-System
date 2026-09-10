@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-10 (Teacher → Settings landed. Parent and Teacher web roles are complete. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-10 (Teacher → Students enroll + pending parent. Parent and Teacher web roles are complete as nav. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -83,7 +83,7 @@ return the database to this table, not to a remembered older snapshot.
 | PATCH | `/api/users/:id/status` | admin — active/inactive only, self and last-active-admin blocked |
 | GET | `/api/students` | teacher (assigned OR adviser of the student's section), admin |
 | GET | `/api/students/:id` | teacher (assigned OR adviser), admin, parent (own child only) |
-| POST | `/api/students` | teacher (own assignment only), admin |
+| POST | `/api/students` | teacher (own assignment only), admin — stores `section_id`; duplicate LRN `409` before section resolve; missing year `409`; unmatched section `400` |
 | PUT | `/api/students/:id` | teacher (own assignment only — `403` naming the reason if adviser-visible but unassigned, `404` if outside both), admin |
 | PATCH | `/api/students/:id/status` | admin |
 | GET | `/api/sections` | all roles — unscoped reference data, no per-role filtering |
@@ -183,7 +183,7 @@ different row, deleted in `finally`). `test:sanitize` is a direct-call unit test
 involved. `test:restore` is the one exception to "runs a real flow end to end":
 it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
-- `npm run test:students` — 39/39
+- `npm run test:students` — 43/43
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — 41/41
 - `npm run test:grading-modes` — 13/13
@@ -238,7 +238,12 @@ server/
                                 auth_security_state.token_valid_after against the JWT's iat
   routes/auth.js               login, me, change-password, contact
   routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
-  routes/students.js           list/view/create/update, teacher scoped to own assignments
+  routes/students.js           list/view/create/update, teacher scoped to own assignments.
+                                POST / writes section_id (resolve sections by name +
+                                grade_level + academic_year, same shape as POST
+                                /assignments — a write, not a fifth reader). Duplicate
+                                LRN 409 before that resolve. PUT still does not set
+                                section_id.
   routes/sections.js           GET /, GET /:id (all roles, unscoped reference data — no per-role
                                 filtering), PATCH /:id/adviser (admin only, assigns/clears
                                 adviser_id — the only mutable field). No POST/DELETE, the 23
@@ -458,7 +463,12 @@ server/
                                 (Lito Bautista, Grade 1 - Mabait adviser + all five subjects).
                                 Counts: Seeded baseline.
   scripts/test-auth-flows.js   HTTP tests
-  scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle
+  scripts/test-student-flows.js HTTP tests — scoping, validation, lifecycle.
+                                Duplicate LRN still posts fictional Mabini
+                                (409 must fire before section resolve). Admin
+                                "any section" is Masigasig, not Rizal. In-scope
+                                Malikhain create asserts non-null section_id.
+                                43/43.
   scripts/test-sections-flows.js HTTP tests — 23-row fixed inventory, admin-only PATCH, role/status
                                 validation on adviser_id, one teacher advising two sections. Every
                                 mutation runs against 2 currently-NULL-adviser sections (resolved
@@ -756,6 +766,19 @@ the teacher READ scope in `routes/students.js`, `routes/excuses.js` and
 `routes/messages.js` — the last three all via the one shared constant in
 `utils/teacherScope.js`.**
 
+**`POST /api/students` writes `section_id` on insert (2026-09-10)** — same
+shape as `POST /assignments`: resolve `sections` by name + grade_level +
+`system_settings.academic_year`, store the id. Duplicate-LRN `409` runs
+before that resolve (the suite posts Marwin's LRN with fictional `Mabini`;
+resolving first would turn that `409` into a `400`). Missing year is `409`
+(same wording family as assignments). Unmatched section is `400` naming it.
+**Do not insert with NULL `section_id`.** This is not a fifth reader for
+scoping and it is not a VARCHAR→FK cutover — attendance and the three
+teacher READ scopes still read it; this write exists so those readers stay
+honest for a newly enrolled student. `PUT /api/students/:id` still does
+not set `section_id` (no Edit this dispatch); a later section change via
+PUT would orphan attendance again.
+
 The note has now forced this check four times, and the fourth is the one where
 it earned its keep by producing a *distinction* rather than a rubber stamp:
 **`routes/content.js` was widened for advisers in the same dispatch and did NOT
@@ -954,11 +977,11 @@ client/src/
   layout/Shell.jsx        role-aware sidebar, <Outlet/>, page title; exports NavItem
   layout/nav.js           NAV_BY_ROLE — the built / blocked / unbuilt flags
   layout/usePageTitle.js  detail pages override the nav-derived title
-  components/             DataTable, Modal, FormField, StatusBadge, EmptyState,
-                          ErrorAlert, LoadingSpinner
+  components/             DataTable, Modal, FormField, PasswordField, StatusBadge,
+                          EmptyState, ErrorAlert, LoadingSpinner
   pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
-  pages/teacher/          10 pages — **Teacher web role complete:** Attendance,
-                          Students (+ detail), Excuse Letters, Announcements,
+  pages/teacher/          10 pages — **Teacher web role complete as nav:** Attendance,
+                          Students (+ detail, enroll wizard + create parent 2026-09-10), Excuse Letters, Announcements,
                           Memos, Events, Messages (+ thread), Grades (view +
                           encode, one page), Contributions (list + roster modal),
                           Settings (2026-09-10 — copy of Parent Settings; locked
@@ -1886,6 +1909,18 @@ page; dated Contributions CHANGELOG stays. `TeacherDashboard.jsx`'s
 "last Teacher page" comment is the same stale claim and is out of
 whitelist — left. After this lands every teacher nav entry is built, so
 the remaining-pages sentence drops on its own.
+
+**Fifteenth data point — Teacher enroll + pending parent, 2026-09-10.**
+Same four caveats; compare to the sixth point onward. Not a new page and
+not a nav flip — a hole on Teacher → Students. Server `section_id` on
+`POST /students`, PasswordField extract at the third copy, enroll wizard
++ detail create-parent. Verification inside the clock: `test:students`
+43/43 twice, live HTTP 21/21, SSR + negative control, `npm run build`.
+
+| Dispatch | Time | What it involved |
+|---|---|---|
+| **Teacher** Settings | **~20m** | **1 page**, copy of Parent Settings. Nav add, not flip |
+| **Teacher** Students enroll | **this dispatch** | Hole on an existing page. `section_id` on POST, PasswordField extract, wizard + detail create-parent |
 
 **Do not replace the void estimate with a projection derived from these.**
 The old estimate is void, these dispatches have differed in kind more than
@@ -2934,6 +2969,8 @@ imply," not just "does this one anticipated symptom show up."
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
 | Unlinked `POST /api/excuse-letters` is a **500**, not a 400 | `server/routes/excuses.js` | `student_id` is NOT NULL and the handler inserts `req.user.student_id` with no null check. Parent → Excuse Letters skips POST when unlinked so the 500 is unreachable from that page. Flagged 2026-09-09, handler not changed. |
 | `GET /api/students` returns the full personal row on a LIST | `server/routes/students.js` | The list `SELECT` includes `birthday`, `gender`, `address`, `contact_number` for every student in scope — verified live against the real payload. Not an authorization hole (the teacher may open each of those students individually), but a roster has no reason to carry home addresses, and **the `LRN` in that payload doubles as the parent's `login_id`** — see convention §5c. Consequence for the client: the list page renders only name / LRN / class / status and leaves the rest to the detail view. Consequence if this is ever narrowed server-side: `GET /:id` adds only `section_id`, `created_by`, `updated_at` over the list, so a slimmer list response would cost the detail view nothing it does not already fetch. Flagged from a client dispatch, not fixed. |
+| **`PUT /api/students/:id` still does not set `section_id`** | `server/routes/students.js` | `POST /` writes it (2026-09-10). A later section change via PUT would orphan attendance again (adviser scope keys on `students.section_id`). No Edit this dispatch. |
+| **`POST /api/users/parents` has no assignment check** | `server/routes/users.js` | Any teacher who knows an LRN can create the pending parent. Teacher → Students does not widen that hole: wizard step 2 only after a successful enroll; detail LRN is locked from `student.lrn`. TCH-002 still sees Create parent on Jea and gets `409`. Do not hide the button behind assignments (that invents a narrower UI than the API). Do not add the check in a client-only dispatch. |
 | `docs/API_REFERENCE.md` scope labels are stale for every widened read | `docs/API_REFERENCE.md` §4 + the Students/Excuse-Letters/Announcements/Events/Messages tables | The 2026-09-06 students fix and the 2026-09-07 content/messages fixes widened teacher READ scope to "assigned OR section adviser", but those dispatch whitelists did not include API_REFERENCE. Its rows still say `teacher(wide)`, and the legend defines `wide` as "exact grade + section match, any subject (`teacher_assignments`, grade+section only)" — narrower than what those endpoints now do. **There is no legend code for "assigned OR adviser", which is why four modules are mislabelled with one that means something else.** Needs its own backend-docs dispatch: add the code, then relabel. **Note on why the 2026-09-07 audit did not catch this and was not wrong to miss it:** that audit was a three-way diff of endpoint EXISTENCE, and a presence diff structurally cannot see a scope column drifting stale. "All three buckets empty" was true and remains true. Recorded as a stated limitation of that audit, not a correction to it. |
 | `Login.jsx` does not use `extractError` | `client/src/pages/Login.jsx:31` | Falls back to `'Login failed. Please try again.'` when there is no `err.response` — **the same message a wrong password produces**. `extractError` already returns a distinct offline message for exactly that case; this file predates it. **Why it matters beyond tidiness: a dead server and a wrong password are indistinguishable to the user**, so someone hitting it during the parent demo would go hunting for a credentials problem that does not exist, in front of an audience, while the real fault is that the API is down. Small fix, fold into a later client dispatch. |
 | **No `GET /:id` on announcements, memos or events — all three routers have list/create/update/delete and no read-one** | `server/routes/content.js` | Verified live from a parent session: `GET /api/announcements/52`, `/api/memos/13` and `/api/events/47` all answer `404 "Route not found."` — `server.js`'s app-level fallback, not a scope refusal, because no handler is registered at that path. Consequence for the client: a detail ROUTE is impossible without fetching the whole collection and filtering in JS, so Parent → Announcements/Memos/Events open full text in a Modal from the row instead. That costs nothing today (each list row is `SELECT a.*` / `SELECT *` / `SELECT e.*`, so it already carries every column a detail view would show) — which is the stronger version of the Excuse Letters oddity, where `GET /:id` exists and returns strictly LESS than its list. **The trigger to build these: a shareable link to one post.** A parent forwarding "have you seen this announcement" has no URL to send, and no modal can give them one. Flagged from a client dispatch, not fixed. |
@@ -3162,13 +3199,18 @@ replaced with a new guess.
       estimate was to be re-measured from, and that measurement needs
       reading with its caveats before being used for anything.
 - [x] **Teacher → Students — DONE 2026-09-07.** List plus a detail route
-      (`/teacher/students/:id`), **read only** — no create, no edit, no
-      embedded attendance history, all deliberately out of scope. Proves the
-      widened read scope in the UI: `TCH-002`, an adviser with zero subject
-      assignments, sees and opens its advisory section's student. No Edit
-      affordance anywhere, because `PUT` is `teacher_assignments`-only and a
-      button an adviser-only teacher cannot honour is a dead end the UI would
-      have invented.
+      (`/teacher/students/:id`). Originally read only. **Enroll + pending
+      parent 2026-09-10 — same checkbox, not a new one, no new nav item
+      (convention 6 does not apply).** Wizard on the list: `POST /students`
+      then optional `POST /users/parents` (`unwrap: ['user', 'message']`).
+      Class picker is `GET /assignments`, not `useTeacherTargets`. TCH-002
+      (`[]`) gets muted copy that advising is not enough, not an Enroll
+      button. After enroll `201` there is no back-to-step-1. Create parent
+      is always shown on detail; LRN locked from `student.lrn`; `409` is
+      "already has a parent." Still no Edit — `PUT` is
+      `teacher_assignments`-only. `POST /users/parents` still has no
+      assignment check; `PUT` still does not set `section_id` — both in
+      KNOWN ISSUES. Present-tense Teacher web role complete as nav stays.
 - [x] **Teacher → Excuse Letters — DONE 2026-09-07.** Queue plus review
       action. **Where the codebase's sharpest 403/404 split first reaches a
       user**: read scope is assigned OR adviser, review authority is adviser
@@ -3812,6 +3854,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-10 | **Teacher enroll + pending parent — hole on Teacher → Students, not a new nav item.** Convention 6 does not apply. Branch `feature/teacher-enroll-parent`. Admin → Users already has the pending queue; **never `POST /users/parents` as admin** (`403 Access denied.`). Never wrote on Jea `1234567`. Never touched Nino's five grades. **`POST /api/students` now stores `section_id`** — local duplicate of `currentAcademicYear()` (extract on a third copy, not here); resolve `sections` by name + grade_level + academic_year; missing year `409`; unmatched section `400` naming it; **do not insert NULL `section_id`**. Duplicate-LRN `409` stays **before** section resolve (suite still posts Marwin's LRN with fictional Mabini). Admin "any section" retargeted **Rizal → Masigasig**. In-scope Malikhain create asserts non-null `section_id`. **Write of `section_id` on insert, not a fifth reader** — sections-table note updated. `PUT` still does not set `section_id`. **PasswordField** extracted at the third copy (Teacher Settings + Parent Settings + create-parent); FormField shape 4 + `controlClass`; Admin → Users and Login left alone. **List wizard:** `GET /assignments` (`unwrap: 'assignments'`), distinct grade+section pairs, no `teacher_id`, no `useTeacherTargets`. Enroll button only when options exist; TCH-002 muted *"Enrolling a student is limited to classes you are assigned to teach. Advising a section is not enough."* After enroll `201` (`unwrap: 'student'`) no back-to-step-1; Skip closes the wizard. Parent unwrap `['user', 'message']` — copy the server sentence, do not hardcode it. Confirm names LRN + class / guardian + LRN; Go back on step 2 returns to the parent form. Mid-flight: `closeOnBackdrop={!saving}` **and** `onClose` no-op (Escape always calls `onCloseRef`). **Detail:** Create parent always shown; LRN locked from `student.lrn`; `409` is already-has-a-parent. Still no Edit. Client password match + length ≥ 6; do not default `Parent@2026`. LRN `maxLength={12}`; contact `maxLength={20}`. **API hole recorded, not closed:** `POST /users/parents` has no assignment check. Do not hide the button behind assignments. `npm run test:students` **43/43**, confirmed twice. Live HTTP **21/21**: TCH-001 Malikhain `201` + `section_id` set; TCH-002 Masigasig `403` naming assignment; TCH-001 create parent `201` pending; duplicate LRN / duplicate parent `409`; admin pending includes throwaway; Jea still pending; admin POST parents `403 Access denied.`; Nino grades 5. SQL teardown: users 7, students 3. SSR StudentsPage + StudentDetailPage + SettingsPage (extract) with a negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint **28 unchanged** (list/detail already carried the fetch-effect advisory). Throwaway harnesses deleted. **TCH-001 password was still `Temp@2026`** from the Settings review that claimed a restore — restored to `Teacher@2026` so the seeded credential holds. **No Cursor browser** — open `/teacher/students` as TCH-001 (full word in LRN / name / password; confirm Go back = no POST) and TCH-002 (no Enroll button, muted copy). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, fifteenth data point.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-10 | **Teacher → Settings — copy of Parent Settings, not a new page. Teacher web role is complete.** Route `/teacher/settings`. Nav is **add, not flip** — teacher nav ended at Messages; `{ to: '/teacher/settings', label: 'Settings', icon: 'fa-gear', built: true }` lands with the route (convention 6). Three sections, not two cards: locked identity (name, Teacher ID = `user.login_id` — TCH-001, not an LRN, email) + contact + password. Confirm new password kept. Stay logged in after password — Parent does not `logout()`; `PUT /auth/change-password` does not invalidate JWTs; success shows the server message and clears Current / New / Confirm. Same two APIs (`PUT /auth/contact` unwrap `'user'` then `refresh()`; `PUT /auth/change-password` unwrap `'message'`). Never `GET /api/settings` (school key-value; still 200 for a teacher) and never `PUT /api/users/:id` (teacher gets `403 "Access denied."`). No server files. §5b: stored contact from last `/me`; draft is `null` until typing. §5e split after browser review: contact stays no-confirm (stored number is on screen). Password fields have per-field show/hide (fa-eye / fa-eye-slash). Change password stays disabled until Confirm new password has a value. Password opens a Modal that names the action (*Change your password?*) — Go back keeps the fields and sends no PUT; *Yes, change password* is the only write. A warning sentence is not a confirmation step. Parent Settings password UX matched the same day (confirm Modal, per-field show/hide, grey until Confirm; contact stays no-confirm). Locked parent identity unchanged. Do not change 13567454 password (Parent@2026). **Do not change TCH-001's password again in a live check** — `Teacher@2026` was restored after a review change to `Temp@2026`. §5c: Teacher ID is not an LRN; no student LRN on the page; no `:id` route. XOR strips. `TeacherDashboard` needed no edit — Open now derives from nav; remaining-pages sentence drops because every non-dashboard item is `built`. Present-tense "Teacher web role is complete" was stale from Contributions until this page; dated Contributions CHANGELOG stays. `TeacherDashboard.jsx` header comment is the same stale claim — out of whitelist, left. Live HTTP **29/29** against `127.0.0.1`: TCH-001 contact 09170000099 then restored `09170000002`; forbidden `name` 400; GET `/api/settings` 200 (page does not call it); PUT `/users/:id` 403; wrong `current_password` 401; TCH-001 password unchanged (`Teacher@2026` still logs in); parent PUT contact still 200; TCH-002 / TCH-003 have Teacher IDs and no child; Jea still pending; Nino grades still 5. SSR SettingsPage + TeacherDashboard (`Open now: … Settings.` — no remaining sentence) with a negative control (`useState is not defined` on a throwaway, not the real page). `npm run build` clean; oxlint **28 unchanged** (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/teacher/settings` as TCH-001 / TCH-002 / TCH-003. Type **`09170000099`** in Contact (full number, keep focus), Save, header still Maria Santos, revert to `09170000002`. Type **`Teacher@2026`** and **`Temp@2026`** as full words in the password fields → Change password → modal → **Go back** (no PUT). Do not confirm a real change. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, fourteenth data point: ~20m (~18m agent, ~2m idle oxlint).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Settings — last Parent Stage 4 page. Parent web role is complete.** Route `/parent/settings`, `built: true` with the route (convention 6). **New endpoint `PUT /api/auth/contact`** in `routes/auth.js` (not a parent-only users self-route): `authenticate` only, `req.user.id` from the DB, body `contact_number` required, trim, non-empty, max 20 (schema VARCHAR). Forbidden in the body (`name`, `email`, `login_id`, `lrn`, `role`, `student_id`, `password`, `status`) → `400` naming them, same loud-reject as `PUT /api/users/:id`. Response `user` via `sanitizeUser` + `fetchUserByLoginId` so student JOIN fields stay. `logActivity` `'update_contact'`. Never `GET /api/settings` (school key-value) and never `PUT /api/users/:id` (admin). Page locks child name, LRN/`login_id`, grade/section, guardian name, email; writes are change-password (`unwrap: 'message'`) and contact (`unwrap: 'user'` then `refresh()`). Unlinked still changes password and contact. §5c exception recorded: this is the one parent screen that shows the LRN, locked, not in a URL. §5b: stored number from last `/me`; draft is `null` until typing. §5e: no confirm (both writes reversible). XOR strips. `AuthContext.refresh()` added. ParentDashboard needed no edit. `npm run test:auth` 25 → **35/35**, confirmed twice; Marwin contact restored in `finally` via direct UPDATE (seeded `09170000003`); Jea untouched. SSR SettingsPage + ParentDashboard (`Open now: … Settings`) with a negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint 28 unchanged (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/settings` as `13567454` and `1090001`. Type a full word in contact and in the password fields (5h). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, thirteenth data point.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Admin → Users — first admin Stage 4 page.** Route `/admin/users`, `built: false → true` with the route (convention 6). `AdminDashboard` derives "Open now" from `navForRole('admin')` like Teacher/Parent — the Stage 2 "No modules built yet." placeholder would have been the first thing an admin saw. Whitelist held: no server, no `Shell.jsx`. **Never `POST /users/parents`** — `authorize('teacher')` answers `403 "Access denied."`; no parent-create control. Two lists, two payloads: `GET /users/parents/pending` (`unwrap: 'parents'`) for the queue (student name, class, `created_by_name`; approve/reject only here); `GET /users` (`unwrap: 'users'`) for the directory. **Do not call `GET /:id`** (list is already `SELECT *`). No `:id` route (§5c — `login_id` is a credential; parent login ids are LRNs and they render here because this is an admin acting on the account). §5e: approve/reject leave pending forever (`400` after) → confirm, name the decision ("Approve this parent account? This cannot be returned to pending afterward."); reject requires reason. `PATCH /:id/status` is reversible → no confirm. Create teacher has no DELETE (undo is deactivate) → no confirm. §5b: `load()` is the only writer of `pending`/`users`. Self-deactivate: hide the control. Last-active-admin: do not predict from the filtered list; handle the `400`. Filters omit `role`/`status`/`search` when empty (`All` would `400`). XOR success/error strips. Approve unwrap `'user'`; reject unwrap `'message'` (no `user` key); create/status/PUT unwrap `'user'`. **Do not write on seeded parent `1234567` (Jea)** — `test:auth` depends on `pending`. `GET /users ?search=` matches `users.name` and `users.login_id` only, not the child's name — searching "Marwin" against Ashley Geguiera is a genuine empty; placeholder says "Name or login ID". Reset-without-loading-true flashed "No users yet" for one frame (applied cleared, users still `[]`); `setLoading(true)` before `setApplied`. Verified: SSR UsersPage + AdminDashboard (`Open now: Users. The remaining…`) with a negative control (`useState is not defined` on a throwaway). Live HTTP **29/29**: teacher/parent GET `/users` 403, admin POST `/parents` 403, list no password key, create teacher, PUT rejects `role`, PUT name, self-deactivate 400, deactivate/activate throwaway, throwaway student+parent approve, second approve 400. SQL teardown: users 7, students 3, Jea still pending, Nino grades 5. Browser as `ADMIN001`: dashboard lists Users; pending queue has Jea / Review; directory 7 rows; self has Edit no Deactivate; typed **Marwin** (empty, correct) then Reset; Create teacher full words `TCH-099` / `Carlo Demo` kept focus, cancelled; Review on Jea → Approve → Continue showed named confirm → Go back → Cancel; Jea still pending. §5h: Search + compose typing, not just a render. `npm run build` clean earlier in the dispatch; oxlint UsersPage carries the usual fetch-effect advisory (27 → 28). Throwaway harnesses deleted. Remaining Stage 4 work is the other admin screens. **MEASURED BUILD TIME, twelfth data point: ~50m.** Same four caveats; compare to the sixth point onward. |

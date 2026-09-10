@@ -2,8 +2,9 @@ import { useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField, { controlClass } from '../../components/FormField';
+import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
+import PasswordField from '../../components/PasswordField';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -37,10 +38,8 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // so a misclick while typing a test value is how the demo credential
 // changes with nothing on screen to put it back. Parent Settings now
 // matches this password UX (confirm modal, per-field show/hide, grey
-// until Confirm). PasswordField is still duplicated — extract at three.
-//
-// Extract at three — Parent is copy 1, this is copy 2. Admin Settings
-// (school GET /api/settings) is a different page.
+// until Confirm). PasswordField lives in components/PasswordField.jsx
+// (extracted when Teacher → Students became the third copy).
 //
 // Show/hide is per field, not one toggle for all three. Change password
 // stays uncolored until Confirm new password has a value — the last
@@ -55,45 +54,6 @@ function Field({ label, value, empty = 'Not recorded' }) {
         {value ? value : <span className="text-slate-400">{empty}</span>}
       </dd>
     </div>
-  );
-}
-
-function PasswordField({
-  label,
-  value,
-  onChange,
-  autoComplete,
-  hint,
-  revealed,
-  onToggleReveal,
-}) {
-  return (
-    <FormField
-      label={label}
-      hint={hint}
-      render={({ id, describedBy }) => (
-        <div className="relative">
-          <input
-            id={id}
-            type={revealed ? 'text' : 'password'}
-            value={value}
-            onChange={onChange}
-            autoComplete={autoComplete}
-            aria-describedby={describedBy}
-            className={`${controlClass} pr-10`}
-          />
-          <button
-            type="button"
-            onClick={onToggleReveal}
-            aria-label={revealed ? 'Hide password' : 'Show password'}
-            aria-pressed={revealed}
-            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition hover:text-slate-600"
-          >
-            <i className={`fa-solid ${revealed ? 'fa-eye-slash' : 'fa-eye'}`} />
-          </button>
-        </div>
-      )}
-    />
   );
 }
 

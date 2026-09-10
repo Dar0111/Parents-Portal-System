@@ -4,11 +4,21 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Modal from '../../components/Modal';
+import PasswordField from '../../components/PasswordField';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
-// One student record, read only.
+// One student record. Still no Edit — PUT /api/students/:id is
+// teacher_assignments-only and answers 403 to a teacher who can view but
+// not write. An Edit button shown to an adviser-only teacher would be a
+// dead end this UI invented. Create parent is always shown: the API has
+// no assignment check on POST /users/parents, and hiding the button
+// behind assignments would invent a narrower UI than the API. TCH-002
+// still sees it on Jea and gets 409 (already linked). "Already has a
+// parent" is that 409 — do not probe, do not invent a flag on GET.
 //
 // A separate route rather than a modal on the list: a student record is a
 // destination — deep-linkable, back-buttonable, and reachable later from the
@@ -16,10 +26,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // reusing a row handed over by the list, so a direct URL load works with no
 // list in memory.
 //
-// NO EDIT AFFORDANCE, deliberately. Read scope here is assigned OR adviser,
-// but PUT /api/students/:id is teacher_assignments-only and answers 403 to a
-// teacher who can view but not write. An Edit button shown to an adviser-only
-// teacher would be a dead end this UI invented.
 // WHEN EDITING IS BUILT: the button's visibility must key on the
 // assigned-vs-adviser distinction, not merely on "is a teacher". That is the
 // same 403-vs-404 split from routes/students.js surfacing in the UI for the
@@ -46,6 +52,14 @@ function Field({ label, value }) {
   );
 }
 
+const EMPTY_PARENT = {
+  name: '',
+  password: '',
+  confirmPassword: '',
+  email: '',
+  contact_number: '',
+};
+
 export default function StudentDetailPage() {
   const { id } = useParams();
 
@@ -53,6 +67,16 @@ export default function StudentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notInScope, setNotInScope] = useState(false);
+
+  const [saveError, setSaveError] = useState(null);
+  const [saveMessage, setSaveMessage] = useState(null);
+
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [parent, setParent] = useState(EMPTY_PARENT);
+  const [revealed, setRevealed] = useState({ password: false, confirm: false });
 
   // Falls back to a neutral title until the record loads, so the header never
   // flashes an id or an empty string.
@@ -86,6 +110,71 @@ export default function StudentDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  function openCreate() {
+    setParent(EMPTY_PARENT);
+    setConfirming(false);
+    setFormError(null);
+    setRevealed({ password: false, confirm: false });
+    setSaveError(null);
+    setSaveMessage(null);
+    setOpen(true);
+  }
+
+  function closeCreate() {
+    if (saving) return;
+    setOpen(false);
+    setConfirming(false);
+    setFormError(null);
+    setParent(EMPTY_PARENT);
+    setRevealed({ password: false, confirm: false });
+  }
+
+  function requestCreate(event) {
+    event.preventDefault();
+    setFormError(null);
+    if (!parent.name.trim() || !parent.password) {
+      setFormError('Guardian name and password are required.');
+      return;
+    }
+    if (parent.password.length < 6) {
+      setFormError('New password must be at least 6 characters.');
+      return;
+    }
+    if (parent.password !== parent.confirmPassword) {
+      setFormError('New password and confirmation do not match.');
+      return;
+    }
+    setConfirming(true);
+  }
+
+  async function submitCreate() {
+    if (!student?.lrn) return;
+    setSaving(true);
+    setFormError(null);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      const body = {
+        lrn: student.lrn,
+        password: parent.password,
+        name: parent.name.trim(),
+      };
+      if (parent.email.trim()) body.email = parent.email.trim();
+      if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();
+
+      const { message } = await api.post('/users/parents', body, { unwrap: ['user', 'message'] });
+      setSaveMessage(message);
+      setOpen(false);
+      setConfirming(false);
+      setParent(EMPTY_PARENT);
+    } catch (err) {
+      setFormError(extractError(err));
+      setConfirming(false);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const backLink = (
     <Link
@@ -127,6 +216,15 @@ export default function StudentDetailPage() {
     <div className="space-y-4">
       {backLink}
 
+      {saveError ? (
+        <ErrorAlert message={saveError} />
+      ) : saveMessage ? (
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <i className="fa-solid fa-circle-check text-emerald-600" />
+          <p className="text-sm text-emerald-800">{saveMessage}</p>
+        </div>
+      ) : null}
+
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
           <div>
@@ -137,7 +235,16 @@ export default function StudentDetailPage() {
               Grade {student.grade_level} - {student.section}
             </p>
           </div>
-          <StatusBadge status={student.status} />
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={student.status} />
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
+            >
+              Create parent account
+            </button>
+          </div>
         </div>
 
         {/* Shown: what a teacher needs to identify a learner and contact their
@@ -159,6 +266,108 @@ export default function StudentDetailPage() {
           </div>
         </dl>
       </div>
+
+      <Modal
+        open={open}
+        onClose={closeCreate}
+        closeOnBackdrop={!saving}
+        title={confirming ? 'Create this parent account?' : 'Create parent account'}
+        size="md"
+        footer={
+          confirming ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (saving) return;
+                  setConfirming(false);
+                }}
+                disabled={saving}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                onClick={submitCreate}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              >
+                {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+                Yes, create parent account
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={closeCreate}
+                disabled={saving}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="detail-parent-form"
+                disabled={saving || !parent.confirmPassword.trim()}
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              >
+                Continue
+              </button>
+            </>
+          )
+        }
+      >
+        {formError ? <ErrorAlert message={formError} /> : null}
+
+        {confirming ? (
+          <p className="text-sm text-slate-600">
+            Create a pending parent account for {parent.name.trim()} (login ID {student.lrn})?
+            An admin must approve it before they can log in. You cannot un-create it.
+          </p>
+        ) : (
+          <form id="detail-parent-form" onSubmit={requestCreate} className="space-y-3">
+            <FormField label="Login ID (child's LRN)" value={student.lrn} disabled />
+            <FormField
+              label="Guardian name"
+              value={parent.name}
+              onChange={(e) => setParent((prev) => ({ ...prev, name: e.target.value }))}
+              required
+            />
+            <PasswordField
+              label="Password"
+              value={parent.password}
+              onChange={(e) => setParent((prev) => ({ ...prev, password: e.target.value }))}
+              autoComplete="new-password"
+              hint="At least 6 characters."
+              revealed={revealed.password}
+              onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
+            />
+            <PasswordField
+              label="Confirm password"
+              value={parent.confirmPassword}
+              onChange={(e) => setParent((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+              autoComplete="new-password"
+              revealed={revealed.confirm}
+              onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
+            />
+            <FormField
+              label="Email"
+              type="email"
+              value={parent.email}
+              onChange={(e) => setParent((prev) => ({ ...prev, email: e.target.value }))}
+            />
+            <FormField
+              label="Contact number"
+              value={parent.contact_number}
+              onChange={(e) => setParent((prev) => ({ ...prev, contact_number: e.target.value }))}
+              maxLength={20}
+              hint="Up to 20 characters."
+            />
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

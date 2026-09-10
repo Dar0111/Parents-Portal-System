@@ -2,8 +2,9 @@ import { useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField, { controlClass } from '../../components/FormField';
+import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
+import PasswordField from '../../components/PasswordField';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -37,7 +38,8 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // Show/hide is per field. Change password stays uncolored until Confirm
 // new password has a value.
 //
-// PasswordField is copied from Teacher Settings — extract at three.
+// PasswordField lives in components/PasswordField.jsx (extracted when
+// Teacher → Students became the third copy).
 
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
@@ -47,45 +49,6 @@ function Field({ label, value, empty = 'Not recorded' }) {
         {value ? value : <span className="text-slate-400">{empty}</span>}
       </dd>
     </div>
-  );
-}
-
-function PasswordField({
-  label,
-  value,
-  onChange,
-  autoComplete,
-  hint,
-  revealed,
-  onToggleReveal,
-}) {
-  return (
-    <FormField
-      label={label}
-      hint={hint}
-      render={({ id, describedBy }) => (
-        <div className="relative">
-          <input
-            id={id}
-            type={revealed ? 'text' : 'password'}
-            value={value}
-            onChange={onChange}
-            autoComplete={autoComplete}
-            aria-describedby={describedBy}
-            className={`${controlClass} pr-10`}
-          />
-          <button
-            type="button"
-            onClick={onToggleReveal}
-            aria-label={revealed ? 'Hide password' : 'Show password'}
-            aria-pressed={revealed}
-            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition hover:text-slate-600"
-          >
-            <i className={`fa-solid ${revealed ? 'fa-eye-slash' : 'fa-eye'}`} />
-          </button>
-        </div>
-      )}
-    />
   );
 }
 

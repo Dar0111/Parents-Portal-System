@@ -23,6 +23,14 @@ async function teacherHasAssignment(teacherId, gradeLevel, section) {
   return rows.length > 0;
 }
 
+// Duplicated from routes/assignments.js. Extract on a third copy, not here.
+async function currentAcademicYear() {
+  const [rows] = await pool.query(
+    "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
+  );
+  return rows[0]?.setting_value || null;
+}
+
 
 // GET /api/students — list, scoped by role
 router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) => {
@@ -161,20 +169,47 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       }
     }
 
+    // Duplicate-LRN 409 MUST run before section resolve. test-student-flows.js
+    // posts Marwin's LRN with fictional section 'Mabini'; resolving first would
+    // turn that 409 into a 400. A write of section_id on insert (same shape as
+    // POST /assignments) — not a fifth reader for scoping.
     const [existing] = await pool.query('SELECT id FROM students WHERE lrn = ? LIMIT 1', [trimmedLrn]);
     if (existing.length) {
       return res.status(409).json({ success: false, message: 'A student with this LRN already exists.' });
     }
 
+    const schoolYear = await currentAcademicYear();
+    if (!schoolYear) {
+      return res.status(409).json({
+        success: false,
+        message: 'academic_year is not configured. An admin must set it before students can be created.',
+      });
+    }
+
+    const [sectionRows] = await pool.query(
+      `SELECT id FROM sections
+       WHERE name = ? AND grade_level = ? AND school_year = ?
+       LIMIT 1`,
+      [trimmedSection, gradeLevelNum, schoolYear]
+    );
+    const sectionRow = sectionRows[0];
+    if (!sectionRow) {
+      return res.status(400).json({
+        success: false,
+        message: `No section named "${trimmedSection}" exists at Grade ${gradeLevelNum} for ${schoolYear}.`,
+      });
+    }
+
     const [result] = await pool.query(
-      `INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday, gender, address, contact_number, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, birthday, gender, address, contact_number, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         trimmedLrn,
         first_name,
         last_name,
         gradeLevelNum,
         trimmedSection,
+        sectionRow.id,
         birthday || null,
         gender || null,
         address || null,
@@ -276,6 +311,11 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       address: address !== undefined ? address || null : existing.address,
       contact_number: contact_number !== undefined ? contact_number || null : existing.contact_number,
     };
+
+    // section_id is NOT updated here. POST / sets it from the VARCHAR pair +
+    // academic_year; PUT still writes only the VARCHAR columns. A later
+    // section change via this endpoint would orphan attendance again
+    // (adviser scope keys on students.section_id). No Edit this dispatch.
 
     await pool.query(
       `UPDATE students
