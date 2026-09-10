@@ -19,6 +19,7 @@ import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
 import TeacherGrades from './pages/teacher/GradesPage';
 import TeacherContributions from './pages/teacher/ContributionsPage';
+import TeacherSettings from './pages/teacher/SettingsPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAttendance from './pages/parent/AttendancePage';
 import ParentAnnouncements from './pages/parent/AnnouncementsPage';
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="events" element={<TeacherEvents />} />
             <Route path="messages" element={<TeacherMessages />} />
             <Route path="messages/:userId" element={<TeacherMessageThread />} />
+            <Route path="settings" element={<TeacherSettings />} />
           </Route>
 
           <Route

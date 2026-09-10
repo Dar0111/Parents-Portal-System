@@ -41,7 +41,7 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-09 (Parent → Settings landed. Parent and Teacher web roles are complete. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-10 (Teacher → Settings landed. Parent and Teacher web roles are complete. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -926,7 +926,8 @@ on top of it the Stage 4 foundation now exists: role-aware `Shell` with
 nested layout routes, seven shared UI primitives, and a dev-only component
 gallery at `/dev/ui`. **Teacher and Parent feature pages now exist** —
 Teacher: Attendance, Students (+ detail), Excuse Letters, Announcements,
-Memos, Events, Messages (+ thread), Grades (view + encode), Contributions.
+Memos, Events, Messages (+ thread), Grades (view + encode), Contributions,
+Settings (password + contact; identity locked).
 Parent: Grades, Excuse Letters (submit + edit while Pending), Announcements,
 Memos, Events, Contributions (read-only `my-records`), Messages (+ thread),
 Attendance (raw counts + day list, no rate), Settings (password + contact;
@@ -956,10 +957,13 @@ client/src/
   components/             DataTable, Modal, FormField, StatusBadge, EmptyState,
                           ErrorAlert, LoadingSpinner
   pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
-  pages/teacher/          9 pages — **Teacher web role complete:** Attendance,
+  pages/teacher/          10 pages — **Teacher web role complete:** Attendance,
                           Students (+ detail), Excuse Letters, Announcements,
                           Memos, Events, Messages (+ thread), Grades (view +
-                          encode, one page), Contributions (list + roster modal)
+                          encode, one page), Contributions (list + roster modal),
+                          Settings (2026-09-10 — copy of Parent Settings; locked
+                          identity + contact + password; password confirm Modal;
+                          nav was add, not flip)
   pages/parent/           9 pages (Settings added 2026-09-09). Content
                           (Announcements/Memos/Events) and Grades stay
                           read-only. Excuse Letters submits and edits while
@@ -973,8 +977,11 @@ client/src/
                           Days); Month vs All; same from/to on summary and
                           student list. Settings is password + contact only
                           — child name, LRN/login_id, grade, section, guardian
-                          name, and email are locked. Never GET /api/settings
-                          (school key-value) or PUT /api/users/:id (admin).
+                          name, and email are locked. Password confirm Modal,
+                          per-field show/hide, grey until Confirm (matched
+                          Teacher 2026-09-10). Contact stays no-confirm.
+                          Never GET /api/settings (school key-value) or
+                          PUT /api/users/:id (admin).
                           Grades, Contributions, and Attendance
                           skip their request when `user.student_id` is null;
                           Excuse Letters skips POST then (an unlinked POST is
@@ -1869,6 +1876,16 @@ four caveats; compare to the sixth point onward.
 | **Parent** Attendance | **~75m** (~50m agent, ~25m idle sandbox) | **1 page.** Raw counts, no rate. Month vs All |
 | **Admin** Users | **~50m** | **1 page**, first admin. Pending queue + directory + create/edit/status. Dashboard derived from nav |
 | **Parent** Settings | **this dispatch** | **1 page** + `PUT /api/auth/contact`. Identity locked; password + contact. `refresh()` on AuthContext |
+| **Teacher** Settings | **~20m** (~18m agent, ~2m idle oxlint) | **1 page**, copy of Parent Settings. Nav add, not flip. Stay logged in after password |
+
+**Fourteenth data point — Teacher → Settings, 2026-09-10: ~20 minutes**
+(~18m agent, ~2m idle oxlint). Same four caveats; compare to the sixth
+point onward. Copy of Parent Settings, not a new page. Present-tense
+"Teacher web role is complete" was stale from Contributions until this
+page; dated Contributions CHANGELOG stays. `TeacherDashboard.jsx`'s
+"last Teacher page" comment is the same stale claim and is out of
+whitelist — left. After this lands every teacher nav entry is built, so
+the remaining-pages sentence drops on its own.
 
 **Do not replace the void estimate with a projection derived from these.**
 The old estimate is void, these dispatches have differed in kind more than
@@ -3313,8 +3330,28 @@ replaced with a new guess.
       `PUT /api/auth/change-password` and `PUT /api/auth/contact` only.
       Never `GET /api/settings` or `PUT /api/users/:id`. Unlinked accounts
       still change password and contact. `AuthContext.refresh()` after
-      contact save. ParentDashboard needed no edit. **Parent web role is
+      contact save. Password UX matched Teacher Settings 2026-09-10:
+      confirm Modal, per-field show/hide, Change password grey until
+      Confirm. Contact stays no-confirm. Locked identity unchanged.
+      ParentDashboard needed no edit. **Parent web role is
       complete.** Remaining Stage 4 work is admin screens.
+- [x] **Teacher → Settings — DONE 2026-09-10.** Copy of Parent Settings,
+      not a new page. Nav is **add, not flip** — teacher nav ended at
+      Messages; `{ to: '/teacher/settings', label: 'Settings', icon:
+      'fa-gear', built: true }` lands with the route (convention 6).
+      Three sections: locked identity (name, Teacher ID = `login_id` —
+      this is TCH-001, not an LRN, email) + contact + password. Confirm
+      new password kept. Stay logged in after password — Parent does not
+      `logout()`; `PUT /auth/change-password` does not invalidate JWTs.
+      Never `GET /api/settings` or `PUT /api/users/:id`. Password confirm
+      Modal after browser review (contact stays no-confirm). Parent
+      Settings password UX matched the same day. No server files.
+      `TeacherDashboard` needed no edit — Open now comes from nav, and
+      the remaining-pages sentence drops because every non-dashboard
+      item is now `built`. **Teacher web role is complete.** Remaining
+      Stage 4 work is admin screens. `TeacherDashboard.jsx`'s header
+      comment still says this was the last Teacher page — out of
+      whitelist, left.
 - [ ] Admin pages remaining — students, sections/adviser assignment,
       grades, attendance, excuses, content, contributions, messages,
       settings, backup/restore. **No longer blocked on missing assignments
@@ -3775,6 +3812,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-10 | **Teacher → Settings — copy of Parent Settings, not a new page. Teacher web role is complete.** Route `/teacher/settings`. Nav is **add, not flip** — teacher nav ended at Messages; `{ to: '/teacher/settings', label: 'Settings', icon: 'fa-gear', built: true }` lands with the route (convention 6). Three sections, not two cards: locked identity (name, Teacher ID = `user.login_id` — TCH-001, not an LRN, email) + contact + password. Confirm new password kept. Stay logged in after password — Parent does not `logout()`; `PUT /auth/change-password` does not invalidate JWTs; success shows the server message and clears Current / New / Confirm. Same two APIs (`PUT /auth/contact` unwrap `'user'` then `refresh()`; `PUT /auth/change-password` unwrap `'message'`). Never `GET /api/settings` (school key-value; still 200 for a teacher) and never `PUT /api/users/:id` (teacher gets `403 "Access denied."`). No server files. §5b: stored contact from last `/me`; draft is `null` until typing. §5e split after browser review: contact stays no-confirm (stored number is on screen). Password fields have per-field show/hide (fa-eye / fa-eye-slash). Change password stays disabled until Confirm new password has a value. Password opens a Modal that names the action (*Change your password?*) — Go back keeps the fields and sends no PUT; *Yes, change password* is the only write. A warning sentence is not a confirmation step. Parent Settings password UX matched the same day (confirm Modal, per-field show/hide, grey until Confirm; contact stays no-confirm). Locked parent identity unchanged. Do not change 13567454 password (Parent@2026). **Do not change TCH-001's password again in a live check** — `Teacher@2026` was restored after a review change to `Temp@2026`. §5c: Teacher ID is not an LRN; no student LRN on the page; no `:id` route. XOR strips. `TeacherDashboard` needed no edit — Open now derives from nav; remaining-pages sentence drops because every non-dashboard item is `built`. Present-tense "Teacher web role is complete" was stale from Contributions until this page; dated Contributions CHANGELOG stays. `TeacherDashboard.jsx` header comment is the same stale claim — out of whitelist, left. Live HTTP **29/29** against `127.0.0.1`: TCH-001 contact 09170000099 then restored `09170000002`; forbidden `name` 400; GET `/api/settings` 200 (page does not call it); PUT `/users/:id` 403; wrong `current_password` 401; TCH-001 password unchanged (`Teacher@2026` still logs in); parent PUT contact still 200; TCH-002 / TCH-003 have Teacher IDs and no child; Jea still pending; Nino grades still 5. SSR SettingsPage + TeacherDashboard (`Open now: … Settings.` — no remaining sentence) with a negative control (`useState is not defined` on a throwaway, not the real page). `npm run build` clean; oxlint **28 unchanged** (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/teacher/settings` as TCH-001 / TCH-002 / TCH-003. Type **`09170000099`** in Contact (full number, keep focus), Save, header still Maria Santos, revert to `09170000002`. Type **`Teacher@2026`** and **`Temp@2026`** as full words in the password fields → Change password → modal → **Go back** (no PUT). Do not confirm a real change. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, fourteenth data point: ~20m (~18m agent, ~2m idle oxlint).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Settings — last Parent Stage 4 page. Parent web role is complete.** Route `/parent/settings`, `built: true` with the route (convention 6). **New endpoint `PUT /api/auth/contact`** in `routes/auth.js` (not a parent-only users self-route): `authenticate` only, `req.user.id` from the DB, body `contact_number` required, trim, non-empty, max 20 (schema VARCHAR). Forbidden in the body (`name`, `email`, `login_id`, `lrn`, `role`, `student_id`, `password`, `status`) → `400` naming them, same loud-reject as `PUT /api/users/:id`. Response `user` via `sanitizeUser` + `fetchUserByLoginId` so student JOIN fields stay. `logActivity` `'update_contact'`. Never `GET /api/settings` (school key-value) and never `PUT /api/users/:id` (admin). Page locks child name, LRN/`login_id`, grade/section, guardian name, email; writes are change-password (`unwrap: 'message'`) and contact (`unwrap: 'user'` then `refresh()`). Unlinked still changes password and contact. §5c exception recorded: this is the one parent screen that shows the LRN, locked, not in a URL. §5b: stored number from last `/me`; draft is `null` until typing. §5e: no confirm (both writes reversible). XOR strips. `AuthContext.refresh()` added. ParentDashboard needed no edit. `npm run test:auth` 25 → **35/35**, confirmed twice; Marwin contact restored in `finally` via direct UPDATE (seeded `09170000003`); Jea untouched. SSR SettingsPage + ParentDashboard (`Open now: … Settings`) with a negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint 28 unchanged (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/settings` as `13567454` and `1090001`. Type a full word in contact and in the password fields (5h). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, thirteenth data point.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Admin → Users — first admin Stage 4 page.** Route `/admin/users`, `built: false → true` with the route (convention 6). `AdminDashboard` derives "Open now" from `navForRole('admin')` like Teacher/Parent — the Stage 2 "No modules built yet." placeholder would have been the first thing an admin saw. Whitelist held: no server, no `Shell.jsx`. **Never `POST /users/parents`** — `authorize('teacher')` answers `403 "Access denied."`; no parent-create control. Two lists, two payloads: `GET /users/parents/pending` (`unwrap: 'parents'`) for the queue (student name, class, `created_by_name`; approve/reject only here); `GET /users` (`unwrap: 'users'`) for the directory. **Do not call `GET /:id`** (list is already `SELECT *`). No `:id` route (§5c — `login_id` is a credential; parent login ids are LRNs and they render here because this is an admin acting on the account). §5e: approve/reject leave pending forever (`400` after) → confirm, name the decision ("Approve this parent account? This cannot be returned to pending afterward."); reject requires reason. `PATCH /:id/status` is reversible → no confirm. Create teacher has no DELETE (undo is deactivate) → no confirm. §5b: `load()` is the only writer of `pending`/`users`. Self-deactivate: hide the control. Last-active-admin: do not predict from the filtered list; handle the `400`. Filters omit `role`/`status`/`search` when empty (`All` would `400`). XOR success/error strips. Approve unwrap `'user'`; reject unwrap `'message'` (no `user` key); create/status/PUT unwrap `'user'`. **Do not write on seeded parent `1234567` (Jea)** — `test:auth` depends on `pending`. `GET /users ?search=` matches `users.name` and `users.login_id` only, not the child's name — searching "Marwin" against Ashley Geguiera is a genuine empty; placeholder says "Name or login ID". Reset-without-loading-true flashed "No users yet" for one frame (applied cleared, users still `[]`); `setLoading(true)` before `setApplied`. Verified: SSR UsersPage + AdminDashboard (`Open now: Users. The remaining…`) with a negative control (`useState is not defined` on a throwaway). Live HTTP **29/29**: teacher/parent GET `/users` 403, admin POST `/parents` 403, list no password key, create teacher, PUT rejects `role`, PUT name, self-deactivate 400, deactivate/activate throwaway, throwaway student+parent approve, second approve 400. SQL teardown: users 7, students 3, Jea still pending, Nino grades 5. Browser as `ADMIN001`: dashboard lists Users; pending queue has Jea / Review; directory 7 rows; self has Edit no Deactivate; typed **Marwin** (empty, correct) then Reset; Create teacher full words `TCH-099` / `Carlo Demo` kept focus, cancelled; Review on Jea → Approve → Continue showed named confirm → Go back → Cancel; Jea still pending. §5h: Search + compose typing, not just a render. `npm run build` clean earlier in the dispatch; oxlint UsersPage carries the usual fetch-effect advisory (27 → 28). Throwaway harnesses deleted. Remaining Stage 4 work is the other admin screens. **MEASURED BUILD TIME, twelfth data point: ~50m.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Attendance — unblocked by never rendering a rate.** Route `/parent/attendance`, `blocked` dropped, `built: true` with the route (convention 6). Two calls, same `from`/`to`: `GET /attendance/summary/:studentId` (`unwrap: 'summary'`) and `GET /attendance/student/:studentId` (`unwrap: 'attendance'`). Skip both when `user.student_id` is null (`parseId(null)` is `400 "Invalid student id."`). Month vs All (Events pattern, `todayLocalDateString()`, never `toISOString()`). Four counts + Recorded days; `StatusBadge` on day rows. Copy names recorded days, not Class Days, and says Late/Excused stay separate. No rate, no `(Present/total)*100`. Do not call `GET /api/attendance` (403 Access denied.). Teacher history is a later page. Whitelist held: no server, no `Shell.jsx`, no `ParentDashboard.jsx` (Open now derives from nav). No `GradeValue`. Verified: SSR AttendancePage + ParentDashboard (`Open now: Grades, Attendance, Excuse Letters, …`) with a negative control (`useState is not defined` on a throwaway broken copy, not by mutating the real page). Live HTTP **26/26**: parent `GET /student/2` 404, parent `GET /` 403 Access denied., `parseId('null')` 400, TCH-001 bulk today Present + last-month Absent, month summary Present 1 / Absent 0 / no rate key, all summary Present 1 / Absent 1 / total 2, Nino `GET` Marwin 404 and own list empty, Nino grades stayed 5. SQL teardown: `attendance` back to 0. Browser as `13567454`: dashboard lists Attendance; month shows Present 1 / Recorded days 1 / 2026-09-09 Present; All shows Absent 1 / Recorded days 2 / 2026-08-15 Absent; no LRN on the page; no percentage. §5h: no text field — opening the page is the proof, not a typing pass. `npm run build` clean; `oxlint` 26 → 27, the one addition being the usual fetch-effect advisory on AttendancePage. Throwaway harnesses deleted. Remaining Stage 4 work is admin. **MEASURED BUILD TIME, eleventh data point: ~75m (~50m agent, ~25m idle sandbox/oxlint).** Same four caveats; compare to the sixth point onward. |

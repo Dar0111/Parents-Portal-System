@@ -2,7 +2,8 @@ import { useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormField, { controlClass } from '../../components/FormField';
+import Modal from '../../components/Modal';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -26,8 +27,17 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // §5b: the "current number" line renders user.contact_number from the last
 // /auth/me (AuthContext). The input writes `draft` only. refresh() is the
 // only writer of the stored value after a successful PUT.
-// §5e: both writes are reversible (change password again; change the
-// number again). No confirmation.
+// Stay logged in after a successful password PUT. PUT /auth/change-password
+// does not invalidate JWTs.
+//
+// §5e: contact stays no-confirm — the stored number is on screen, so a
+// wrong save is a visible one-click fix. Password gets an explicit
+// confirmation that names the action, matching Teacher Settings
+// (2026-09-10). A warning sentence is not a confirmation step.
+// Show/hide is per field. Change password stays uncolored until Confirm
+// new password has a value.
+//
+// PasswordField is copied from Teacher Settings — extract at three.
 
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
@@ -37,6 +47,45 @@ function Field({ label, value, empty = 'Not recorded' }) {
         {value ? value : <span className="text-slate-400">{empty}</span>}
       </dd>
     </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  hint,
+  revealed,
+  onToggleReveal,
+}) {
+  return (
+    <FormField
+      label={label}
+      hint={hint}
+      render={({ id, describedBy }) => (
+        <div className="relative">
+          <input
+            id={id}
+            type={revealed ? 'text' : 'password'}
+            value={value}
+            onChange={onChange}
+            autoComplete={autoComplete}
+            aria-describedby={describedBy}
+            className={`${controlClass} pr-10`}
+          />
+          <button
+            type="button"
+            onClick={onToggleReveal}
+            aria-label={revealed ? 'Hide password' : 'Show password'}
+            aria-pressed={revealed}
+            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition hover:text-slate-600"
+          >
+            <i className={`fa-solid ${revealed ? 'fa-eye-slash' : 'fa-eye'}`} />
+          </button>
+        </div>
+      )}
+    />
   );
 }
 
@@ -68,9 +117,19 @@ export default function ParentSettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [confirmingPassword, setConfirmingPassword] = useState(false);
+  const [revealed, setRevealed] = useState({
+    current: false,
+    next: false,
+    confirm: false,
+  });
 
   const [saveError, setSaveError] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
+
+  function toggleRevealed(key) {
+    setRevealed((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   const contactDirty = contactValue.trim() !== storedContact.trim();
   const linked = user?.student_id != null;
@@ -99,7 +158,7 @@ export default function ParentSettingsPage() {
     }
   }
 
-  async function savePassword(e) {
+  function requestPasswordChange(e) {
     e.preventDefault();
     setSaveError(null);
     setSaveMessage(null);
@@ -117,6 +176,12 @@ export default function ParentSettingsPage() {
       return;
     }
 
+    setConfirmingPassword(true);
+  }
+
+  async function savePassword() {
+    setSaveError(null);
+    setSaveMessage(null);
     setPasswordSaving(true);
     try {
       const message = await api.put(
@@ -127,8 +192,11 @@ export default function ParentSettingsPage() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setConfirmingPassword(false);
+      setRevealed({ current: false, next: false, confirm: false });
       setSaveMessage(message);
     } catch (err) {
+      setConfirmingPassword(false);
       setSaveError(extractError(err));
     } finally {
       setPasswordSaving(false);
@@ -207,38 +275,76 @@ export default function ParentSettingsPage() {
 
       <section className="max-w-md space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Password</h2>
-        <form onSubmit={savePassword} className="space-y-3">
-          <FormField
+        <form onSubmit={requestPasswordChange} className="space-y-3">
+          <PasswordField
             label="Current password"
-            type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             autoComplete="current-password"
+            revealed={revealed.current}
+            onToggleReveal={() => toggleRevealed('current')}
           />
-          <FormField
+          <PasswordField
             label="New password"
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             autoComplete="new-password"
             hint="At least 6 characters."
+            revealed={revealed.next}
+            onToggleReveal={() => toggleRevealed('next')}
           />
-          <FormField
+          <PasswordField
             label="Confirm new password"
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
+            revealed={revealed.confirm}
+            onToggleReveal={() => toggleRevealed('confirm')}
           />
           <button
             type="submit"
-            disabled={passwordSaving}
+            disabled={passwordSaving || !confirmPassword.trim()}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {passwordSaving ? 'Saving…' : 'Change password'}
+            Change password
           </button>
         </form>
       </section>
+
+      <Modal
+        open={confirmingPassword}
+        onClose={() => {
+          if (!passwordSaving) setConfirmingPassword(false);
+        }}
+        title="Change your password?"
+        size="sm"
+        closeOnBackdrop={!passwordSaving}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirmingPassword(false)}
+              disabled={passwordSaving}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+            >
+              Go back
+            </button>
+            <button
+              type="button"
+              onClick={savePassword}
+              disabled={passwordSaving}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+            >
+              {passwordSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              Yes, change password
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          You will stay logged in on this device. Use the new password the next time you log in.
+        </p>
+      </Modal>
     </div>
   );
 }
