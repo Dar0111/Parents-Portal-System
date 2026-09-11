@@ -298,6 +298,10 @@ async function run() {
       body: { contact_number: '09171234567' },
     });
     assert(teacherUpdateInScope.status === 200, 'Teacher updates in-scope student');
+    assert(
+      teacherUpdateInScope.data?.student?.section_id === createInScope.data?.student?.section_id,
+      'Contact-only PUT leaves a non-null section_id unchanged'
+    );
     // birthday omitted from the PUT body — falls back to existing.birthday,
     // already a plain string post-fix, so it must survive unchanged.
     assert(
@@ -343,6 +347,132 @@ async function run() {
       body: { grade_level: 0 },
     });
     assert(adminUpdateBadGrade.status === 400, 'Update with invalid grade_level rejected');
+    assert(
+      /between 1 and 6/i.test(adminUpdateBadGrade.data?.message || ''),
+      'grade_level: 0 is the range 400, not the class-change refusal'
+    );
+
+    // Must match CLASS_CHANGE_REFUSED in routes/students.js.
+    const CLASS_CHANGE_REFUSED =
+      "Changing a student's class is not supported. Nothing else in this request was saved; other fields can be updated without sending a different grade_level or section.";
+
+    const inScopeSectionId = createInScope.data?.student?.section_id;
+    const matchingClassPut = await request('PUT', `/api/students/${inScopeId}`, {
+      token: adminToken,
+      body: { grade_level: 6, section: 'Malikhain', contact_number: '09179990001' },
+    });
+    assert(matchingClassPut.status === 200, 'Matching class PUT succeeds');
+    assert(
+      Number(matchingClassPut.data?.student?.grade_level) === 6 &&
+        matchingClassPut.data?.student?.section === 'Malikhain',
+      'Matching class PUT leaves grade_level and section unchanged'
+    );
+    assert(
+      matchingClassPut.data?.student?.contact_number === '09179990001',
+      'Matching class PUT still saves other fields'
+    );
+    assert(
+      matchingClassPut.data?.student?.section_id === inScopeSectionId,
+      'Matching class PUT does not overwrite a non-null section_id'
+    );
+
+    const beforeGradeChange = matchingClassPut.data?.student;
+    const changeGradeLevel = await request('PUT', `/api/students/${inScopeId}`, {
+      token: adminToken,
+      body: { grade_level: 5, contact_number: '09179990099' },
+    });
+    assert(changeGradeLevel.status === 400, 'Differing grade_level is 400, not applied');
+    assert(
+      changeGradeLevel.data?.message === CLASS_CHANGE_REFUSED,
+      'Differing grade_level 400 names the refusal and that nothing else was saved'
+    );
+    const afterGradeChange = await request('GET', `/api/students/${inScopeId}`, { token: adminToken });
+    assert(
+      Number(afterGradeChange.data?.student?.grade_level) === 6 &&
+        afterGradeChange.data?.student?.section === 'Malikhain' &&
+        afterGradeChange.data?.student?.section_id === inScopeSectionId &&
+        afterGradeChange.data?.student?.contact_number === beforeGradeChange?.contact_number,
+      'Refused grade_level change leaves VARCHAR, section_id, and other fields untouched'
+    );
+
+    const changeSection = await request('PUT', `/api/students/${inScopeId}`, {
+      token: adminToken,
+      body: { section: 'Masigasig', contact_number: '09179990099' },
+    });
+    assert(changeSection.status === 400, 'Differing section is 400, not applied');
+    assert(
+      changeSection.data?.message === CLASS_CHANGE_REFUSED,
+      'Differing section 400 names the refusal and that nothing else was saved'
+    );
+    const afterSectionChange = await request('GET', `/api/students/${inScopeId}`, { token: adminToken });
+    assert(
+      Number(afterSectionChange.data?.student?.grade_level) === 6 &&
+        afterSectionChange.data?.student?.section === 'Malikhain' &&
+        afterSectionChange.data?.student?.section_id === inScopeSectionId &&
+        afterSectionChange.data?.student?.contact_number === beforeGradeChange?.contact_number,
+      'Refused section change leaves VARCHAR, section_id, and other fields untouched'
+    );
+
+    // NULL section_id cannot come from POST (refused since 2026-09-10). Direct
+    // SQL only. Seed has zero such rows — these fixtures exist so resolve-on-NULL
+    // is tested, not because the live database needed a repair.
+    const malikhainSectionId = await withDb(async (conn) => {
+      const [rows] = await conn.query(
+        `SELECT sec.id FROM sections sec
+         JOIN system_settings ss ON ss.setting_key = 'academic_year'
+         WHERE sec.name = 'Malikhain' AND sec.grade_level = 6 AND sec.school_year = ss.setting_value
+         LIMIT 1`
+      );
+      return rows[0]?.id ?? null;
+    });
+    assert(Number.isInteger(malikhainSectionId), 'Resolve Malikhain sections.id for the NULL-FK fixture');
+
+    const nullSidId = await withDb(async (conn) => {
+      const [result] = await conn.query(
+        `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
+         VALUES (?, 'NullSid', 'Malikhain', 6, 'Malikhain', NULL, 1)`,
+        [`TNUL${uniqueSuffix}`]
+      );
+      return result.insertId;
+    });
+    if (nullSidId) createdStudentIds.push(nullSidId);
+
+    const resolveNull = await request('PUT', `/api/students/${nullSidId}`, {
+      token: adminToken,
+      body: { grade_level: 6, section: 'Malikhain' },
+    });
+    assert(resolveNull.status === 200, 'Matching PUT on a NULL section_id resolves and succeeds');
+    assert(
+      resolveNull.data?.student?.section_id === malikhainSectionId,
+      `NULL section_id resolves to Malikhain sections.id (got ${resolveNull.data?.student?.section_id})`
+    );
+
+    const unmatchedNullId = await withDb(async (conn) => {
+      const [result] = await conn.query(
+        `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
+         VALUES (?, 'Unmatched', 'Mabini', 6, 'Mabini', NULL, 1)`,
+        [`TMAB${uniqueSuffix}`]
+      );
+      return result.insertId;
+    });
+    if (unmatchedNullId) createdStudentIds.push(unmatchedNullId);
+
+    const resolveMiss = await request('PUT', `/api/students/${unmatchedNullId}`, {
+      token: adminToken,
+      body: { grade_level: 6, section: 'Mabini', contact_number: '09178880001' },
+    });
+    assert(
+      resolveMiss.status === 200,
+      'Matching PUT whose VARCHAR matches no sections row still succeeds (does not 400 the rest of the form)'
+    );
+    assert(
+      resolveMiss.data?.student?.contact_number === '09178880001',
+      'Resolve miss still saves other fields'
+    );
+    assert(
+      resolveMiss.data?.student?.section_id == null,
+      `Resolve miss leaves section_id NULL (got ${resolveMiss.data?.student?.section_id})`
+    );
 
     // --- Status (admin only, no hard delete) ---
     console.log('\nStatus:');

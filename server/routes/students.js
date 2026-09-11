@@ -12,6 +12,12 @@ function isValidGradeLevel(value) {
   return Number.isInteger(n) && n >= 1 && n <= 6;
 }
 
+// First sentence is the refusal; second is the consequence (§5i). The whole
+// request is refused, so other fields in the same body did not save. Does not
+// promise a transfer route and does not imply a class change will work later.
+const CLASS_CHANGE_REFUSED =
+  "Changing a student's class is not supported. Nothing else in this request was saved; other fields can be updated without sending a different grade_level or section.";
+
 // WRITE scope — teacher_assignments only. Used by POST / (create).
 // Deliberately NOT widened to advisers: see TEACHER_VIEW_SCOPE_SQL in
 // utils/teacherScope.js, which is the READ scope and must not be used here.
@@ -236,7 +242,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
   }
 });
 
-// PUT /api/students/:id — update. LRN is immutable — it doubles as a parent's login_id.
+// PUT /api/students/:id — update. LRN is immutable (it doubles as a parent's login_id).
 router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res) => {
   const id = parseId(req.params.id);
   if (id === null) {
@@ -312,15 +318,48 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       contact_number: contact_number !== undefined ? contact_number || null : existing.contact_number,
     };
 
-    // section_id is NOT updated here. POST / sets it from the VARCHAR pair +
-    // academic_year; PUT still writes only the VARCHAR columns. A later
-    // section change via this endpoint would orphan attendance again
-    // (adviser scope keys on students.section_id). No Edit this dispatch.
+    // Class change is refused, not applied. Attendance authority keys on
+    // students.section_id; rewriting the VARCHAR pair (or the FK) would move
+    // who may record without a school answer. Omitted class fields copy from
+    // existing, so a contact-only PUT still matches and succeeds.
+    // isValidGradeLevel already rejected grade_level: 0 above — different
+    // cause, different message; do not collapse that check into this one.
+    if (
+      Number(updated.grade_level) !== Number(existing.grade_level) ||
+      String(updated.section) !== String(existing.section)
+    ) {
+      return res.status(400).json({ success: false, message: CLASS_CHANGE_REFUSED });
+    }
+
+    // Gate, not a repair. Seed + POST already keep section_id non-null;
+    // PUT was the one remaining writer that could create a VARCHAR/FK
+    // disagreement. Resolve only when the stored FK is NULL — never overwrite
+    // a non-null section_id (that rewrite would move attendance authority,
+    // the exact write this handler exists to refuse). Same sections lookup
+    // POST / uses. A miss leaves NULL so a student whose VARCHAR matches no
+    // sections row stays editable; a 400 here would make that row permanently
+    // uneditable, because resolve runs even on a contact-only body.
+    let sectionIdToWrite = existing.section_id;
+    if (sectionIdToWrite == null) {
+      const schoolYear = await currentAcademicYear();
+      if (schoolYear) {
+        const [sectionRows] = await pool.query(
+          `SELECT id FROM sections
+           WHERE name = ? AND grade_level = ? AND school_year = ?
+           LIMIT 1`,
+          [updated.section, updated.grade_level, schoolYear]
+        );
+        if (sectionRows[0]) {
+          sectionIdToWrite = sectionRows[0].id;
+        }
+      }
+    }
 
     await pool.query(
       `UPDATE students
        SET first_name = ?, last_name = ?, grade_level = ?, section = ?,
-           birthday = ?, gender = ?, address = ?, contact_number = ?
+           birthday = ?, gender = ?, address = ?, contact_number = ?,
+           section_id = ?
        WHERE id = ?`,
       [
         updated.first_name,
@@ -331,6 +370,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
         updated.gender,
         updated.address,
         updated.contact_number,
+        sectionIdToWrite,
         id,
       ]
     );

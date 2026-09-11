@@ -41,10 +41,10 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-12 (Grade 1 parent-modal judgment sentence
-removed. Parent content modals render `posted_by_name`. `GET /auth/me`
-has no `lrn` key — absent, not null. Parent and Teacher web roles are
-complete as nav. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-12 (`PUT /api/students/:id` refuses a class
+change and writes `section_id` only when NULL — a gate, not a repair.
+Zero `section_id` NULLs in the live DB. Parent and Teacher web roles
+are complete as nav. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -87,7 +87,7 @@ return the database to this table, not to a remembered older snapshot.
 | GET | `/api/students` | teacher (assigned OR adviser of the student's section), admin |
 | GET | `/api/students/:id` | teacher (assigned OR adviser), admin, parent (own child only) |
 | POST | `/api/students` | teacher (own assignment only), admin — stores `section_id`; duplicate LRN `409` before section resolve; missing year `409`; unmatched section `400` |
-| PUT | `/api/students/:id` | teacher (own assignment only — `403` naming the reason if adviser-visible but unassigned, `404` if outside both), admin |
+| PUT | `/api/students/:id` | teacher (own assignment only — `403` naming the reason if adviser-visible but unassigned, `404` if outside both), admin — class change `400`; matching PUT writes `section_id` only when NULL |
 | PATCH | `/api/students/:id/status` | admin |
 | GET | `/api/sections` | all roles — unscoped reference data, no per-role filtering |
 | GET | `/api/sections/:id` | all roles — `404` only for a genuinely nonexistent id |
@@ -186,7 +186,7 @@ different row, deleted in `finally`). `test:sanitize` is a direct-call unit test
 involved. `test:restore` is the one exception to "runs a real flow end to end":
 it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
-- `npm run test:students` — 43/43
+- `npm run test:students` — 61/61
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — 41/41
 - `npm run test:grading-modes` — 13/13
@@ -248,8 +248,10 @@ server/
                                 POST / writes section_id (resolve sections by name +
                                 grade_level + academic_year, same shape as POST
                                 /assignments — a write, not a fifth reader). Duplicate
-                                LRN 409 before that resolve. PUT still does not set
-                                section_id.
+                                LRN 409 before that resolve. PUT refuses a
+                                class change (400) and writes section_id only
+                                when the stored FK is NULL (same resolve as
+                                POST; a miss leaves NULL).
   routes/sections.js           GET /, GET /:id (all roles, unscoped reference data — no per-role
                                 filtering), PATCH /:id/adviser (admin only, assigns/clears
                                 adviser_id — the only mutable field). No POST/DELETE, the 23
@@ -787,9 +789,10 @@ resolving first would turn that `409` into a `400`). Missing year is `409`
 **Do not insert with NULL `section_id`.** This is not a fifth reader for
 scoping and it is not a VARCHAR→FK cutover — attendance and the three
 teacher READ scopes still read it; this write exists so those readers stay
-honest for a newly enrolled student. `PUT /api/students/:id` still does
-not set `section_id` (no Edit this dispatch); a later section change via
-PUT would orphan attendance again.
+honest for a newly enrolled student. `PUT /api/students/:id` writes
+`section_id` only when the stored FK is NULL (same resolve as POST). A
+class change is `400` — refused, not applied. Never overwrites a
+non-null FK.
 
 The note has now forced this check four times, and the fourth is the one where
 it earned its keep by producing a *distinction* rather than a rubber stamp:
@@ -2984,7 +2987,7 @@ imply," not just "does this one anticipated symptom show up."
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
 | **Unlinked `POST /api/excuse-letters` is 409 — closed 2026-09-11.** | `server/routes/excuses.js` | Guard before the INSERT `try`: `req.user.student_id == null` → 409. **Not a 400.** The body is valid; `student_id` does not come from it. Same family as `POST /api/students` with no `academic_year` ("An admin must set it before students can be created.") and a missing `grading_mode_configs` row ("An admin must configure the grading mode before this can be recorded."). A 400 would tell a parent to fix a request they cannot fix, and would look like the three validation 400s directly above this guard. Message names **school office**, not "An admin" — those precedents are admin-facing config errors; this one is parent-facing, and Parent → Excuse Letters already says "school office" (§5i). **API correctness, not a fixed demo defect.** The page already hides Submit when unlinked, so no parent could reach the old 500 from the UI. A future session must not read this closed row as "the parent-facing 500 is gone." |
 | `GET /api/students` returns the full personal row on a LIST | `server/routes/students.js` | The list `SELECT` includes `birthday`, `gender`, `address`, `contact_number` for every student in scope — verified live against the real payload. Not an authorization hole (the teacher may open each of those students individually), but a roster has no reason to carry home addresses, and **the `LRN` in that payload doubles as the parent's `login_id`** — see convention §5c. Consequence for the client: the list page renders only name / LRN / class / status and leaves the rest to the detail view. Consequence if this is ever narrowed server-side: `GET /:id` adds only `section_id`, `created_by`, `updated_at` over the list, so a slimmer list response would cost the detail view nothing it does not already fetch. Flagged from a client dispatch, not fixed. |
-| **`PUT /api/students/:id` still does not set `section_id`** | `server/routes/students.js` | `POST /` writes it (2026-09-10). A later section change via PUT would orphan attendance again (adviser scope keys on `students.section_id`). No Edit this dispatch. |
+| **`PUT /api/students/:id` writes `section_id` when NULL — closed 2026-09-12.** | `server/routes/students.js` | **A gate, not a repair.** Live DB had **zero** `section_id` NULLs and zero VARCHAR/FK disagreements (`backfillSectionIds()` filled the seed; POST has refused NULL since 2026-09-10). PUT was the one remaining writer that could create a disagreement. Class change (differing `grade_level`/`section`) is `400` — whole request refused. Matching PUT resolves `section_id` only when it is NULL; a miss leaves NULL so a student whose VARCHAR matches no `sections` row stays editable. Never overwrites a non-null FK. Do not read "resolve-on-NULL" as "there were NULLs to resolve." Transfer stays an OPEN QUESTION — this is not one. |
 | **`POST /api/users/parents` has no assignment check** | `server/routes/users.js` | Any teacher who knows an LRN can create the pending parent. Teacher → Students does not widen that hole: wizard step 2 only after a successful enroll; detail LRN is locked from `student.lrn`. TCH-002 still sees Create parent on Jea and gets `409`. Do not hide the button behind assignments (that invents a narrower UI than the API). Do not add the check in a client-only dispatch. |
 | `docs/API_REFERENCE.md` scope labels are stale for every widened read | `docs/API_REFERENCE.md` §4 + the Students/Excuse-Letters/Announcements/Events/Messages tables | The 2026-09-06 students fix and the 2026-09-07 content/messages fixes widened teacher READ scope to "assigned OR section adviser", but those dispatch whitelists did not include API_REFERENCE. Its rows still say `teacher(wide)`, and the legend defines `wide` as "exact grade + section match, any subject (`teacher_assignments`, grade+section only)" — narrower than what those endpoints now do. **There is no legend code for "assigned OR adviser", which is why four modules are mislabelled with one that means something else.** Needs its own backend-docs dispatch: add the code, then relabel. **Note on why the 2026-09-07 audit did not catch this and was not wrong to miss it:** that audit was a three-way diff of endpoint EXISTENCE, and a presence diff structurally cannot see a scope column drifting stale. "All three buckets empty" was true and remains true. Recorded as a stated limitation of that audit, not a correction to it. |
 | `Login.jsx` does not use `extractError` | `client/src/pages/Login.jsx:31` | Falls back to `'Login failed. Please try again.'` when there is no `err.response` — **the same message a wrong password produces**. `extractError` already returns a distinct offline message for exactly that case; this file predates it. **Why it matters beyond tidiness: a dead server and a wrong password are indistinguishable to the user**, so someone hitting it during the parent demo would go hunting for a credentials problem that does not exist, in front of an audience, while the real fault is that the API is down. Small fix, fold into a later client dispatch. |
@@ -3275,8 +3278,9 @@ replaced with a new guess.
       is always shown on detail; LRN locked from `student.lrn`; `409` is
       "already has a parent." Still no Edit — `PUT` is
       `teacher_assignments`-only. `POST /users/parents` still has no
-      assignment check; `PUT` still does not set `section_id` — both in
-      KNOWN ISSUES. Present-tense Teacher web role complete as nav stays.
+      assignment check. `PUT /api/students/:id` refuses a class change
+      (`400`) and writes `section_id` only when NULL (closed 2026-09-12).
+      Present-tense Teacher web role complete as nav stays.
 - [x] **Teacher → Excuse Letters — DONE 2026-09-07.** Queue plus review
       action. **Where the codebase's sharpest 403/404 split first reaches a
       user**: read scope is assigned OR adviser, review authority is adviser
@@ -3610,6 +3614,19 @@ handled by the team. Do not re-raise it.
   grading exists to avoid numerical labeling in KS1) is what justifies
   it, not a school reply. If the school later says a computation feeds
   the letter, `PATCH /:id/descriptive` changes, not the schema.
+- **Who owns old attendance after a student changes section?** PUT
+  `/api/students/:id` now refuses a class change (`400`). That is a
+  gate, not a transfer. Attendance *rows* key on `student_id` (history
+  would follow the child); *who may record* keys on
+  `students.section_id`. Rewriting the FK without a school answer would
+  move that authority — the exact write the gate exists to refuse. Do
+  not add a transfer endpoint until this is answered. This is now one
+  of exactly **three** unanswered school questions, and two of the three
+  are attendance: (1) how the Grade 1 A–E letter is produced (manual
+  judgment or computed); (2) whether Late and Excused count toward the
+  attendance rate; (3) this one. **2 and 3 will likely be answered in
+  the same conversation.** Everything else on the old school-questions
+  list has since been answered.
 - **Should a teacher be able to lock their own grade encoding?**
   `PATCH /api/grades/:id/lock` is admin-only as built (Stage G2e) —
   locking is treated as a school-wide finalization boundary tied to the
@@ -3776,15 +3793,18 @@ handled by the team. Do not re-raise it.
      array. The reference doc was not corrected at the time because it
      was outside that dispatch's whitelist; the correction is the audit's
      to make, and it now arrives with the answer already in hand.
-- **The four school questions remain unanswered**, gathered here because
-  they are the standing open items rather than one-off notes: Grade 1's
-  A–E derivation (see the Grades module assumption above), Grade 4's
-  learning areas (seeded as inferred, not confirmed), who may lock a
-  grade (built admin-only), and the attendance rate formula. **None
+- **The standing school questions are now three, not four**, gathered
+  here because they are the unanswered items rather than one-off notes:
+  (1) how the Grade 1 A–E letter is produced (manual judgment or
+  computed); (2) whether Late and Excused count toward the attendance
+  rate; (3) who owns old attendance after a transfer. **2 and 3 are
+  both attendance and will likely be answered in the same
+  conversation.** Everything else on the old list (Grade 4's learning
+  areas, who may lock a grade) has since been answered. **None
   currently block a screen.** Parent → Attendance shipped without a
-  percentage (raw counts only). The other three are answered-by-assumption
-  in code that works today and would change one handler each, not the
-  schema.
+  percentage (raw counts only). PUT refuses a class change rather than
+  guessing at (3). Grade 1's letter write is answered-by-assumption in
+  code that works today and would change one handler, not the schema.
 
 ---
 
@@ -3932,6 +3952,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-12 | **`PUT /api/students/:id` is a class-change gate, not a NULL repair.** Server only. Live query before this dispatch: **zero** `section_id` NULLs, **zero** VARCHAR/FK disagreements — `backfillSectionIds()` filled the seed, and POST has refused NULL since 2026-09-10. The comments at `teacherScope.js:18` and `attendance.js:297` describe a state the code handles, not a row in this database. PUT was the one remaining writer that could create a disagreement; this closes it before anything does. **Do not read "resolve-on-NULL" as "there were NULLs to resolve."** Differing `grade_level`/`section` is `400` with two sentences (§5i): *"Changing a student's class is not supported. Nothing else in this request was saved; other fields can be updated without sending a different grade_level or section."* Matching class (including omitted fields copying from existing) succeeds. Resolves `section_id` only when the stored FK is NULL — same `sections` lookup POST uses; a miss leaves NULL so a student whose VARCHAR matches no `sections` row stays editable (a 400 there would make that row permanently uneditable, because resolve runs even on a contact-only body). Never overwrites a non-null FK — rewriting it to "fix" a disagreement would move attendance authority with no school answer. `grade_level: 0` stays the existing `isValidGradeLevel` 400, before the class-match check. No transaction (still one UPDATE). Teacher write scope stays `teacher_assignments` VARCHAR. Transfer is an OPEN QUESTION, not this endpoint — attendance *rows* follow `student_id`; *who may record* keys on `students.section_id`. Standing school questions are now three, and two of them are attendance (rate formula + this). `npm run test:students` 43 → **61/61**, confirmed twice, `API_BASE=http://127.0.0.1:5000`, no `db:setup`. Also `test:attendance` **38/38** and `test:excuses` **70/70** — both read `section_id` through helpers this dispatch now writes to. Throwaway SQL INSERT for the NULL-FK and unmatched-VARCHAR cases (POST cannot create NULL). Not Jea, not Rosa, not Nino's five grades, not Marwin's class. Flag, not fixed: suite BASE still falls back to `localhost` (ECONNRESET on Node fetch here). No client files — no screen can reach this path. Whitelist: `routes/students.js`, `test-student-flows.js`, `CLAUDE.md`, `docs/API_REFERENCE.md` PUT notes only (stale `teacher(wide)` untouched), `docs/PROJECT_PROGRESS.md`. **MEASURED BUILD TIME: ~35m (~30m agent, ~5m idle EADDRINUSE watch restart / ECONNRESET retry).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Grade 1 parent-modal judgment sentence removed.** One string in `client/src/pages/parent/GradesPage.jsx`. The letter is the teacher's judgment / not computed from WW/PT/EX stated an unconfirmed assumption as fact (DO 015 has no IG-to-letter mapping; school has not confirmed). **Silence, not replacement copy** — a format restatement ("Grade 1 uses a letter instead of a number") was proposed and declined; it would fill the space without answering the tap. Comment next to the letter records UNCONFIRMED + do-not-re-add (including hedge/tooltip) without a school answer. Letter itself, `GET /:id` hedge, and no empty WW/PT/Exam sections stay. `GradeLegend` on the card stays (different claim: why N/A). Dated 2026-09-11 CHANGELOG stays history. Present-tense NOW POSSIBLE + BUILD ORDER corrected in this file; `docs/PROJECT_PROGRESS.md` dropped "judgment copy". No server, no `format/grade.jsx`, no teacher page. `npm run build` clean; oxlint **28 unchanged**. SSR GradesPage + negative control (`useState is not defined` on a throwaway). Throwaway harness deleted. **No Cursor browser.** Open `/parent/grades` as `1090001`, tap Mathematics, confirm the letter with nothing under it. Do not write on Nino's five seeded rows. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, eighteenth data point: ~10m (~10m agent, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Parent Announcements / Memos / Events render `posted_by_name`.** Same three pages, no new nav (convention 6 N/A). Modal metadata line only, not a DataTable column. Copy is `Posted by {name}` as its own segment on all three — Events' first span is `event_date`, so "Posted {date} by {name}" cannot be consistent; saying "Posted" twice on announcements/memos is the cheaper cost. No `"Unknown"` fallback (a broken INNER JOIN must show itself). Bare `posted_by` stays on the row (teacher pages authorize edits with it). **NOW POSSIBLE split, not closed** — Teacher pages still do not render the name. Present-tense KNOWN ISSUES closed-2026-09-11 row updated in the same file; dated CHANGELOG 2026-09-11 stays history. **Team product decision, not a school answer.** If the school later objects, the modal line goes; the API field stays. Whitelist held: three parent pages + these two docs. No server, no `Modal.jsx`, no teacher pages, no `App.jsx`/`nav.js`. `npm run build` clean; oxlint **28 unchanged** (same fetch-effect advisories the three pages already carried). SSR all three + negative control (`useState is not defined` on a throwaway). Throwaway harnesses deleted. **No Cursor browser — §5h pending.** Live fixtures created through the real API, not SQL, and **left in the database for the browser check** (do not delete before review): announcement **id 17** (TCH-001 / Maria Santos, **Grade 6 - Malikhain**, not school-wide), memo **id 5** (ADMIN001 / Principal Admin, school-wide by schema), event **id 14** (TCH-001 / Maria Santos, `target_grade` 6, `event_date` 2026-09-20 so Upcoming shows it). Parent `13567454` GET sees all three with `posted_by_name`. Jea `1234567` still pending; Nino grades still 5. Open `/parent/announcements`, `/parent/memos`, `/parent/events` as `13567454` and open one item on each. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, seventeenth data point: ~38m (~32m agent, ~6m idle oxlint / Node-fetch ECONNRESET).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Drop `lrn` from `/auth/me`.** `fetchUserByLoginId()` no longer SELECTs `s.lrn`. Login, `GET /me`, and `PUT /contact` all use that helper — the third caller was the one the plan almost missed. A parent's `login_id` IS the child's LRN (§5c), so the key was the same credential twice. **Absent, not null:** teacher/admin used to carry `lrn: null` from the LEFT JOIN; `'lrn' in user` is now false for every role. The four JOIN columns stay (`student_first_name`, `student_last_name`, `grade_level`, `section`) — trimming one too many blanks Parent → Settings with every server assert still green. Refetch comment at the contact handler no longer says "would drop lrn / student names." `sanitizeUser` untouched (present-tense CLAUDE.md already correct; 2026-08-29 CHANGELOG is history). `npm run test:auth` 35 → **39/39**, confirmed twice, `API_BASE=http://127.0.0.1:5000`, no `db:setup`. Cheap TCH-001 `'lrn' not in` on login (the LEFT-JOIN-null shape). Parent helper on login + `/me`; `'lrn' not in` on `PUT /contact` too. Live `/me` bodies: parent `13567454` has `login_id` + four JOIN fields, no `lrn`; TCH-001 / ADMIN001 JOIN fields null, no `lrn` key. SSR Settings as that parent: child's name **Marwin Conde**, class **Grade 6 — Malikhain**, Login ID **13567454**. No Cursor browser. Flag, not fixed: suite BASE still falls back to `localhost` (ECONNRESET on Node fetch here); `routes/users.js` still JOINs `s.lrn` on create-parent / pending / approve. Whitelist: `routes/auth.js`, `test-auth-flows.js`, `GradesPage.jsx` (comment only), `CLAUDE.md`, `docs/API_REFERENCE.md` auth shapes only (stale `teacher(wide)` untouched), `docs/PROJECT_PROGRESS.md`. No `users.js`, no Settings JSX. **MEASURED BUILD TIME: ~35m (~work vs idle split in the session report).** Same four caveats; compare to the sixth point onward. |

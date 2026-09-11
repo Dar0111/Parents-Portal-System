@@ -321,7 +321,7 @@ the bottom must equal 82.
 | GET | `/` | `teacher(wide)`, `admin` | query: `grade_level`, `section`, `status`, `search` | `students` | |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `student` | `404` out-of-scope |
 | POST | `/` | `teacher(wide)`, `admin` | `lrn`*, `first_name`*, `last_name`*, `grade_level`*, `section`*, `birthday`, `gender`, `address`, `contact_number` | `student` | teacher out-of-scope → `403` |
-| PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section`, `birthday`, `gender`, `address`, `contact_number` (any subset) | `student` | `404` out-of-scope |
+| PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section`, `birthday`, `gender`, `address`, `contact_number` (any subset) | `student` | `404` out-of-scope. Differing `grade_level`/`section` → `400` (whole request refused). Matching class may set `section_id` when it is NULL (same resolve as POST); unmatched resolve does not fail the PUT |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `student` | |
 
 ### Sections (3) — `/api/sections`
