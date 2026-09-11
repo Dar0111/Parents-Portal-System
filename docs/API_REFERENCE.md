@@ -370,27 +370,27 @@ the bottom must equal 82.
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `all` (scoped by audience — school-wide + own grade/section) | query: `category`, `grade_level`, `section` | `announcements` | |
-| POST | `/` | `teacher(wide)`, `admin` | `title`*, `content`*, `category`, `target_grade`, `target_section`, `attachment_url` | `announcement` | teacher omitting `target_grade`/`target_section` → `403` |
-| PUT | `/:id` | `author`, `admin` | `title`, `content`, `category`, `target_grade`, `target_section`, `attachment_url` (any subset) | `announcement` | non-author → `403` |
+| GET | `/` | `all` (scoped by audience — school-wide + own grade/section) | query: `category`, `grade_level`, `section` | `announcements` | each row includes `posted_by` (numeric user id) **and** `posted_by_name` (`users.name` string). No `GET /:id`. |
+| POST | `/` | `teacher(wide)`, `admin` | `title`*, `content`*, `category`, `target_grade`, `target_section`, `attachment_url` | `announcement` | teacher omitting `target_grade`/`target_section` → `403`. Same `posted_by` + `posted_by_name` as the list. |
+| PUT | `/:id` | `author`, `admin` | `title`, `content`, `category`, `target_grade`, `target_section`, `attachment_url` (any subset) | `announcement` | non-author → `403`. Same `posted_by` + `posted_by_name`; edit does not rewrite the poster. |
 | DELETE | `/:id` | `author`, `admin` | — | message only | non-author → `403`; hard delete |
 
 ### Memos (4) — `/api/memos`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `all` — no targeting, school-wide by schema design | — | `memos` | |
-| POST | `/` | `admin` only | `title`*, `content`*, `attachment_url` | `memo` | |
-| PUT | `/:id` | `admin` only | `title`, `content`, `attachment_url` (any subset) | `memo` | |
+| GET | `/` | `all` — no targeting, school-wide by schema design | — | `memos` | each row includes `posted_by` (numeric user id) **and** `posted_by_name` (`users.name` string). No `GET /:id`. |
+| POST | `/` | `admin` only | `title`*, `content`*, `attachment_url` | `memo` | Same `posted_by` + `posted_by_name` as the list. |
+| PUT | `/:id` | `admin` only | `title`, `content`, `attachment_url` (any subset) | `memo` | Same `posted_by` + `posted_by_name`; edit does not rewrite the poster. |
 | DELETE | `/:id` | `admin` only | — | message only | hard delete |
 
 ### Events (4) — `/api/events`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `all` (scoped by audience — school-wide + own grade; no section column) | query: `grade_level`, `from`, `to` | `events` | |
-| POST | `/` | `teacher(grade)`, `admin` | `title`*, `description`, `event_date`*, `target_grade` | `event` | teacher omitting `target_grade` → `403`; `event_date` >1 year ahead → `400` |
-| PUT | `/:id` | `author`, `admin` | `title`, `description`, `event_date`, `target_grade` (any subset) | `event` | non-author → `403` |
+| GET | `/` | `all` (scoped by audience — school-wide + own grade; no section column) | query: `grade_level`, `from`, `to` | `events` | each row includes `posted_by` (numeric user id) **and** `posted_by_name` (`users.name` string). No `GET /:id`. |
+| POST | `/` | `teacher(grade)`, `admin` | `title`*, `description`, `event_date`*, `target_grade` | `event` | teacher omitting `target_grade` → `403`; `event_date` >1 year ahead → `400`. Same `posted_by` + `posted_by_name` as the list. |
+| PUT | `/:id` | `author`, `admin` | `title`, `description`, `event_date`, `target_grade` (any subset) | `event` | non-author → `403`. Same `posted_by` + `posted_by_name`; edit does not rewrite the poster. |
 | DELETE | `/:id` | `author`, `admin` | — | message only | non-author → `403`; hard delete |
 
 ### Contributions (8) — `/api/contributions`

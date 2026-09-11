@@ -225,7 +225,18 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const [rows] = await pool.query(`SELECT a.* FROM announcements a ${where} ORDER BY a.created_at DESC`, params);
+    // posted_by stays — PUT/DELETE authorize on the numeric id. posted_by_name
+    // is display-only (users.name). INNER JOIN: posted_by is NOT NULL with
+    // ON DELETE RESTRICT, so a missing poster cannot exist. Written longhand
+    // at all nine returning SELECTs (3 list + 3 POST + 3 PUT); load-existing
+    // for PUT/DELETE stays SELECT * and is not returned to a caller.
+    const [rows] = await pool.query(
+      `SELECT a.*, u.name AS posted_by_name
+       FROM announcements a
+       INNER JOIN users u ON u.id = a.posted_by
+       ${where} ORDER BY a.created_at DESC`,
+      params
+    );
 
     return res.json({ success: true, announcements: rows });
   } catch (error) {
@@ -253,7 +264,13 @@ announcementsRouter.post('/', authenticate, authorize('teacher', 'admin'), async
       [title, content, category || null, target.gradeLevel, target.section, attachment_url || null, req.user.id]
     );
 
-    const [rows] = await pool.query('SELECT * FROM announcements WHERE id = ? LIMIT 1', [result.insertId]);
+    const [rows] = await pool.query(
+      `SELECT a.*, u.name AS posted_by_name
+       FROM announcements a
+       INNER JOIN users u ON u.id = a.posted_by
+       WHERE a.id = ? LIMIT 1`,
+      [result.insertId]
+    );
     await logActivity(req.user.id, 'create_announcement', `Posted announcement "${title}"`);
 
     return res.status(201).json({ success: true, message: 'Announcement posted.', announcement: rows[0] });
@@ -303,7 +320,13 @@ announcementsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), asy
       [nextTitle, nextContent, nextCategory, target.gradeLevel, target.section, nextAttachment, id]
     );
 
-    const [updated] = await pool.query('SELECT * FROM announcements WHERE id = ? LIMIT 1', [id]);
+    const [updated] = await pool.query(
+      `SELECT a.*, u.name AS posted_by_name
+       FROM announcements a
+       INNER JOIN users u ON u.id = a.posted_by
+       WHERE a.id = ? LIMIT 1`,
+      [id]
+    );
     await logActivity(req.user.id, 'update_announcement', `Updated announcement "${nextTitle}" (#${id})`);
 
     return res.json({ success: true, message: 'Announcement updated.', announcement: updated[0] });
@@ -350,7 +373,15 @@ const memosRouter = express.Router();
 
 memosRouter.get('/', authenticate, async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM memos ORDER BY created_at DESC');
+    // m.* is the same column set SELECT * used to return (id, title, content,
+    // attachment_url, posted_by, created_at). Alias required so the JOIN
+    // cannot collide posted_by with u.id.
+    const [rows] = await pool.query(
+      `SELECT m.*, u.name AS posted_by_name
+       FROM memos m
+       INNER JOIN users u ON u.id = m.posted_by
+       ORDER BY m.created_at DESC`
+    );
     return res.json({ success: true, memos: rows });
   } catch (error) {
     console.error('List memos error:', error);
@@ -370,7 +401,13 @@ memosRouter.post('/', authenticate, authorize('admin'), async (req, res) => {
       [title, content, attachment_url || null, req.user.id]
     );
 
-    const [rows] = await pool.query('SELECT * FROM memos WHERE id = ? LIMIT 1', [result.insertId]);
+    const [rows] = await pool.query(
+      `SELECT m.*, u.name AS posted_by_name
+       FROM memos m
+       INNER JOIN users u ON u.id = m.posted_by
+       WHERE m.id = ? LIMIT 1`,
+      [result.insertId]
+    );
     await logActivity(req.user.id, 'create_memo', `Posted memo "${title}"`);
 
     return res.status(201).json({ success: true, message: 'Memo posted.', memo: rows[0] });
@@ -409,7 +446,13 @@ memosRouter.put('/:id', authenticate, authorize('admin'), async (req, res) => {
       id,
     ]);
 
-    const [updated] = await pool.query('SELECT * FROM memos WHERE id = ? LIMIT 1', [id]);
+    const [updated] = await pool.query(
+      `SELECT m.*, u.name AS posted_by_name
+       FROM memos m
+       INNER JOIN users u ON u.id = m.posted_by
+       WHERE m.id = ? LIMIT 1`,
+      [id]
+    );
     await logActivity(req.user.id, 'update_memo', `Updated memo "${nextTitle}" (#${id})`);
 
     return res.json({ success: true, message: 'Memo updated.', memo: updated[0] });
@@ -495,7 +538,13 @@ eventsRouter.get('/', authenticate, async (req, res) => {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const [rows] = await pool.query(`SELECT e.* FROM events e ${where} ORDER BY e.event_date DESC`, params);
+    const [rows] = await pool.query(
+      `SELECT e.*, u.name AS posted_by_name
+       FROM events e
+       INNER JOIN users u ON u.id = e.posted_by
+       ${where} ORDER BY e.event_date DESC`,
+      params
+    );
 
     return res.json({ success: true, events: rows });
   } catch (error) {
@@ -528,7 +577,13 @@ eventsRouter.post('/', authenticate, authorize('teacher', 'admin'), async (req, 
       [title, description || null, event_date, target.gradeLevel, req.user.id]
     );
 
-    const [rows] = await pool.query('SELECT * FROM events WHERE id = ? LIMIT 1', [result.insertId]);
+    const [rows] = await pool.query(
+      `SELECT e.*, u.name AS posted_by_name
+       FROM events e
+       INNER JOIN users u ON u.id = e.posted_by
+       WHERE e.id = ? LIMIT 1`,
+      [result.insertId]
+    );
     await logActivity(req.user.id, 'create_event', `Posted event "${title}" on ${event_date}`);
 
     return res.status(201).json({ success: true, message: 'Event posted.', event: rows[0] });
@@ -586,7 +641,13 @@ eventsRouter.put('/:id', authenticate, authorize('teacher', 'admin'), async (req
       id,
     ]);
 
-    const [updated] = await pool.query('SELECT * FROM events WHERE id = ? LIMIT 1', [id]);
+    const [updated] = await pool.query(
+      `SELECT e.*, u.name AS posted_by_name
+       FROM events e
+       INNER JOIN users u ON u.id = e.posted_by
+       WHERE e.id = ? LIMIT 1`,
+      [id]
+    );
     await logActivity(req.user.id, 'update_event', `Updated event "${nextTitle}" (#${id})`);
 
     return res.json({ success: true, message: 'Event updated.', event: updated[0] });

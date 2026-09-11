@@ -69,6 +69,17 @@ function yearsFromNow(n) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// posted_by is an ownership credential (PUT/DELETE compare it to req.user.id).
+// posted_by_name is display-only. Both must land on every returned row.
+// Expected id/name come from POST /auth/login, not from the content JOIN.
+function assertPoster(row, user, label) {
+  assert(
+    row != null && row.posted_by === user.id && row.posted_by_name === user.name,
+    label,
+    `posted_by=${row?.posted_by} posted_by_name=${JSON.stringify(row?.posted_by_name)} (expected ${user.id} / ${JSON.stringify(user.name)})`
+  );
+}
+
 async function run() {
   console.log(`\nParents Portal — Announcements/Memos/Events API Tests (${BASE})\n`);
 
@@ -81,11 +92,13 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  const adminUser = adminLogin.data?.user;
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 (seeded) is assigned Grade 6 - Mabini only.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  const teacherUser = teacherLogin.data?.user;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Mabini)');
 
   // TCH-002 advises Grade 5 - Masigasig and holds ZERO teacher_assignments rows.
@@ -173,6 +186,11 @@ async function run() {
       body: { title: 'From the teacher', content: 'Posted by TCH-001.', target_grade: 6, target_section: 'Malikhain' },
     });
     assert(teacherOwnClass.status === 201, 'Teacher posts within their own assignment');
+    assertPoster(
+      teacherOwnClass.data?.announcement,
+      teacherUser,
+      'POST announcement carries posted_by id and posted_by_name'
+    );
 
     // --- Adviser-only teacher: the Class Board case ---
     // A section-scoped announcement is how the Class Board is delivered (see
@@ -274,6 +292,14 @@ async function run() {
     assert(parentIds.includes(adminSchoolWide.data.announcement.id), 'Parent sees school-wide announcement');
     assert(parentIds.includes(adminG6Mabini.data.announcement.id), "Parent sees announcement targeting Marwin's class");
     assert(!parentIds.includes(adminG5Rizal.data.announcement.id), "Parent does not see Jea's class announcement");
+    const parentTeacherPost = (parentList.data?.announcements || []).find(
+      (a) => a.id === teacherOwnClass.data.announcement.id
+    );
+    assertPoster(
+      parentTeacherPost,
+      teacherUser,
+      'GET announcements list row carries posted_by id and posted_by_name'
+    );
 
     const teacherList = await request('GET', '/api/announcements', { token: teacherToken });
     const teacherIds = (teacherList.data?.announcements || []).map((a) => a.id);
@@ -305,6 +331,11 @@ async function run() {
       adminEditsTeacherPost.status === 200 && adminEditsTeacherPost.data?.announcement?.title === 'Edited by admin',
       "Admin can edit a teacher's announcement"
     );
+    assertPoster(
+      adminEditsTeacherPost.data?.announcement,
+      teacherUser,
+      'PUT announcement keeps posted_by id and posted_by_name (admin edit does not rewrite the poster)'
+    );
 
     const nonAuthorDelete = await request('DELETE', `/api/announcements/${adminG6Mabini.data.announcement.id}`, {
       token: teacherToken,
@@ -327,6 +358,7 @@ async function run() {
     assert(adminCreatesMemo.status === 201, 'Admin creates a memo');
     const memoId = adminCreatesMemo.data?.memo?.id;
     if (memoId) createdMemoIds.push(memoId);
+    assertPoster(adminCreatesMemo.data?.memo, adminUser, 'POST memo carries posted_by id and posted_by_name');
 
     const teacherEditsMemo = await request('PUT', `/api/memos/${memoId}`, {
       token: teacherToken,
@@ -340,12 +372,15 @@ async function run() {
     const parentReadsMemo = await request('GET', '/api/memos', { token: parentToken });
     const memoIds = (parentReadsMemo.data?.memos || []).map((m) => m.id);
     assert(parentReadsMemo.status === 200 && memoIds.includes(memoId), 'Parent can read memos');
+    const parentMemo = (parentReadsMemo.data?.memos || []).find((m) => m.id === memoId);
+    assertPoster(parentMemo, adminUser, 'GET memos list row carries posted_by id and posted_by_name');
 
     const adminEditsMemo = await request('PUT', `/api/memos/${memoId}`, {
       token: adminToken,
       body: { title: 'No classes Friday (updated)' },
     });
     assert(adminEditsMemo.status === 200, 'Admin edits a memo');
+    assertPoster(adminEditsMemo.data?.memo, adminUser, 'PUT memo keeps posted_by id and posted_by_name');
 
     // --- Events: write scoping, date bounds ---
     console.log('\nEvents — write scoping and dates:');
@@ -359,6 +394,11 @@ async function run() {
     });
     assert(teacherEventOwnGrade.status === 201, 'Teacher posts event within their assigned grade');
     if (teacherEventOwnGrade.data?.event?.id) createdEventIds.push(teacherEventOwnGrade.data.event.id);
+    assertPoster(
+      teacherEventOwnGrade.data?.event,
+      teacherUser,
+      'POST event carries posted_by id and posted_by_name'
+    );
     assert(
       teacherEventOwnGrade.data?.event?.event_date === ownGradeEventDate,
       `event_date round-trips exactly as sent (sent ${ownGradeEventDate}, got ${teacherEventOwnGrade.data?.event?.event_date})`
@@ -419,6 +459,14 @@ async function run() {
     assert(parentEventIds.includes(teacherEventOwnGrade.data.event.id), "Parent sees event targeting Marwin's grade");
     assert(parentEventIds.includes(adminEventSchoolWide.data.event.id), 'Parent sees school-wide event');
     assert(!parentEventIds.includes(adminEventG5.data.event.id), "Parent does not see Grade 5 event");
+    const parentTeacherEvent = (parentEvents.data?.events || []).find(
+      (e) => e.id === teacherEventOwnGrade.data.event.id
+    );
+    assertPoster(
+      parentTeacherEvent,
+      teacherUser,
+      'GET events list row carries posted_by id and posted_by_name'
+    );
 
     const teacherEvents = await request('GET', '/api/events', { token: teacherToken });
     const teacherEventIds = (teacherEvents.data?.events || []).map((e) => e.id);
@@ -438,6 +486,11 @@ async function run() {
       body: { title: 'Grade 6 field trip (rescheduled)' },
     });
     assert(authorEventEdit.status === 200, 'Author edits their own event');
+    assertPoster(
+      authorEventEdit.data?.event,
+      teacherUser,
+      'PUT event keeps posted_by id and posted_by_name'
+    );
     // The actual regression this guards: PUT omits event_date entirely, so
     // the handler falls back to the existing row's value. Before the fix,
     // that fallback (toDateString(existing.event_date)) re-serialized a JS
