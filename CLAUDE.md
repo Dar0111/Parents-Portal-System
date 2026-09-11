@@ -41,7 +41,9 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-10 (Teacher → Students enroll + pending parent. Parent and Teacher web roles are complete as nav. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-11 (Parent → Grades component breakdown landed.
+Parent and Teacher web roles are complete as nav. Remaining Stage 4 work
+is the other admin screens.)
 
 ### Seeded baseline
 
@@ -951,7 +953,7 @@ gallery at `/dev/ui`. **Teacher and Parent feature pages now exist** —
 Teacher: Attendance, Students (+ detail), Excuse Letters, Announcements,
 Memos, Events, Messages (+ thread), Grades (view + encode), Contributions,
 Settings (password + contact; identity locked).
-Parent: Grades, Excuse Letters (submit + edit while Pending), Announcements,
+Parent: Grades (report card + term breakdown modal), Excuse Letters (submit + edit while Pending), Announcements,
 Memos, Events, Contributions (read-only `my-records`), Messages (+ thread),
 Attendance (raw counts + day list, no rate), Settings (password + contact;
 identity locked). **Admin → Users is the first
@@ -989,7 +991,9 @@ client/src/
                           nav was add, not flip)
   pages/parent/           9 pages (Settings added 2026-09-09). Content
                           (Announcements/Memos/Events) and Grades stay
-                          read-only. Excuse Letters submits and edits while
+                          read-only. Grades is still term/FG/GA only —
+                          WW/PT/Exam drill-in is the next dispatch (team,
+                          2026-09-11), not built. Excuse Letters submits and edits while
                           Pending (no confirmation — PUT while Pending is the
                           correction; no DELETE/withdraw). Messages copies
                           Teacher's fetch: table = GET /conversations,
@@ -2997,20 +3001,70 @@ workaround whose reason has expired. Landing Teacher → Contributions did
 tell "no parents exist" from "all parents pending." That stays in KNOWN
 ISSUES.
 
+### Parent grade breakdown — BUILT 2026-09-11
+
+Manuscript Figure 17 called this "Student Record." It is **Grades**, not
+Feature 3. There is no Parent → Students nav. One account = one child.
+
+**Team product decision (Darryl + team, 2026-09-11), not a school answer.**
+Parents see WW / PT / Exam raw scores under a term so they can tell
+*where* a mark came from, not only the SF9 number. That closes the
+2026-09-07 deferral ("school policy question nobody has asked"). **The
+school has still not been asked.** If they later forbid raw scores, this
+modal goes; `GET /api/grades/:id` stays.
+
+`GET /:id` is `parent(own)`, `404` out of scope. Tap a term with
+`grade_id` → Modal. Unwrap `['grade', 'grade_components', 'descriptor']`.
+`GET /` is still not called (no subject overlay). No new endpoint. No
+new nav (convention 6 N/A).
+
+| Label | Source |
+|---|---|
+| Written Works | `grade_components` `type === 'WW'` — `label`, `score`/`max_score`, `date_recorded` |
+| Performance Tasks | same, `type === 'PT'` |
+| Examinations | `grade.ex_st1`/`ex_st1_max`, `ex_st2`/`ex_st2_max`, `ex_te`/`ex_te_max` |
+
+**Term grade stays. Initial Grade is not on the parent card and is not
+in the modal** — putting it there would introduce a number the parent
+has never seen, and it is the number that raises "why isn't this 90?"
+(transmutation). Weights omitted for the same reason.
+
+Numerical empty is **three per-section copies**, not one: "No written
+works recorded yet" / performance tasks / examination scores. A single
+"nothing recorded" becomes a lie the moment any one of the three exists
+(§5f).
+
+**Grade 1:** letter is the term grade. Still `GET /:id` (hedge — if
+informational scores ever land, they surface). **No empty WW/PT/Exam
+sections** — the write path `400`s numerical encodes on descriptive
+mode, so empty tables would say "scores missing" about something that
+cannot have scores (§5f / §5i). Copy: the letter is the teacher's
+judgment, not computed from WW/PT/EX. **That sentence states an
+ASSUMPTION as fact** (DO 015 has no IG-to-letter mapping; the school
+has not confirmed manual A–E). Find it in `GradesPage.jsx` next to the
+sentence — if the school later says a computation feeds the letter,
+that line is the first user-facing thing that becomes wrong.
+
+§5b: clear `detail` before every `GET /:id`. Header comes from the card
+tap (`selected`), so a failed open cannot show another term's scores
+under this subject. Pending / null cell: not a button, no request.
+
+**Do not show:** rank, class average, "Passing", "Need attention",
+`descriptor.remarks` (`Passed`), IG, weights.
+
 ---
 
 ## SAFE TO BUILD NOW — done
 
 Excuse Letters is fully built — `submit`, `mine`, `list`, `view`, `edit`,
 and `review` (`PATCH /:id/review`, approve/decline) — see the endpoints
-table and `routes/excuses.js` in Files that exist. Grades is also fully
+table and `routes/excuses.js` in Files that exist. Grades API is fully
 built — write path plus `GET /`, `GET /:id`, `GET /student/:studentId`
-(Stage G3, 2026-09-06) — see the Grades module note below. Nothing in the
-system is currently in the "unblocked but unbuilt" state this section
-used to track; the next backend work waits on Stage 4 web pages, or
-further school-visit answers for the still-open Grades policy gaps
-(`grade_weight_configs` re-keying, the ST1/ST2/TE composite column,
-`grades.quarter` naming — see BLOCKED / RESOLVED).
+(Stage G3, 2026-09-06). **Parent grade breakdown is built** (2026-09-11,
+team product decision — the school has still not been asked). Remaining
+Grades *policy* gaps (`grade_weight_configs` re-keying, ST1/ST2/TE
+composite, `grades.quarter` naming) are still school-visit items — see
+BLOCKED / RESOLVED. Admin screens wait.
 
 ---
 
@@ -3273,10 +3327,10 @@ replaced with a new guess.
       returns bare grade rows with no subject-coverage overlay, so a subject
       with zero grade rows would silently vanish — the exact confusion the
       report-card endpoint was built to remove; `GET /:id` exists and is
-      correctly parent-scoped but would add the WW/PT component breakdown,
-      **deferred because whether a parent should see individual raw assessment
-      scores is a school policy question nobody has asked** and building it
-      would answer it by shipping. **This page SKIPS the request when
+      correctly parent-scoped but would add the WW/PT component breakdown.
+      **That deferral closed 2026-09-11 (team, not a school visit) and the
+      modal landed the same day** — see NOW POSSIBLE → Parent grade
+      breakdown (BUILT). Same page, no new nav. **This page SKIPS the request when
       `student_id` is null**, the opposite of the parent content pages, and the
       difference is structural rather than drift: those endpoints take no
       student id, so the server derives the child and skipping would hide real
@@ -3394,13 +3448,19 @@ replaced with a new guess.
       Stage 4 work is admin screens. `TeacherDashboard.jsx`'s header
       comment still says this was the last Teacher page — out of
       whitelist, left.
+- [x] **Parent → Grades breakdown — DONE 2026-09-11.** Same page, no new
+      nav. Tap term with `grade_id` → Modal, `GET /:id`. Grade 1: letter
+      + judgment copy, no empty WW/PT/Exam sections. IG not shown (not
+      on the card). Team decision; school still not asked. Spec: NOW
+      POSSIBLE → Parent grade breakdown (BUILT).
 - [ ] Admin pages remaining — students, sections/adviser assignment,
       grades, attendance, excuses, content, contributions, messages,
       settings, backup/restore. **No longer blocked on missing assignments
       write or missing grade delete / grading-mode read** — items 1–3 of
       the admin-prerequisites plan all shipped 2026-09-08. Remaining work
-      is the screens themselves. Teacher → Grades encode-scope prediction
-      is a client switch (NOW POSSIBLE), not an admin-page blocker.
+      is the screens themselves.
+      Teacher → Grades encode-scope prediction is a client switch (NOW
+      POSSIBLE), not an admin-page blocker.
 
 **Backend work interleaved with Stage 4:**
 
@@ -3854,6 +3914,8 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-11 | **Parent → Grades component breakdown — built.** Same `/parent/grades`, no new nav (convention 6 N/A). Tap a term with `grade_id` → Modal, `GET /:id`, unwrap `['grade','grade_components','descriptor']`. `GET /` still not called. **Team product decision, not a school answer.** The 2026-09-07 deferral was an unanswered school question; 2026-09-11 is Darryl + team asking for transparency (where a mark came from). **The school has still not been asked.** If they later forbid raw scores, this modal goes; the endpoint stays. **Spec corrections shipped, not built-to:** Initial Grade is not on the parent card and is not in the modal (that number is exactly "why isn't this 90?"). Grade 1: still `GET /:id` (hedge), **no empty WW/PT/Exam sections** — write path `400`s numerical encodes on descriptive mode. Copy: the letter is the teacher's judgment, not computed from WW/PT/EX. **That sentence states an ASSUMPTION** (DO 015 has no IG-to-letter mapping; school has not confirmed). Comment sits next to the sentence in `GradesPage.jsx`. Numerical empty is three per-section copies, not one. §5b: clear `detail` before every fetch; header from the card tap so a failed open cannot show another term's scores. Pending / null cell is not a button. Never `remarks: Passed`. Never rank / Passing / Need attention. Whitelist held: `GradesPage.jsx` + these two docs. No server, no `App.jsx`/`nav.js`/`Shell.jsx`/`format/grade.jsx`. Live HTTP **37/37** against `127.0.0.1`: Marwin Math encoded through the real write path (IG 88.05 / TG 90, 4 components); English shell 0 components; parent own `GET /:id` 200 both; Marwin → Nino grade `404` "Grade record not found."; parent `POST /grades` `403 Access denied.`; Nino letter A, components 0, Nino grades stayed 5; Jea `1234567` still cannot log in. Admin `DELETE` teardown after the HTTP pass: Marwin 0, Nino 5. **Re-created afterward for the browser pass** — Marwin Mathematics term 1 `grade_id=134` (IG 88.05 / TG 90) and English term 1 shell `grade_id=135`. Delete those two after review; do not touch Nino's five. SSR GradesPage + negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint **28 unchanged** (same fetch-effect advisory the page already carried). Throwaway harnesses deleted. **No Cursor browser in this dispatch.** Four states driven over HTTP: scored term, shell, letter, Pending (`grade_id` absent — GMRC T1 on Nino). Open `/parent/grades` as `13567454` (tap Math 90; tap English Pending-with-row; Science T1 is a true Pending cell and must not fire a request) and `1090001` (tap Mathematics A — letter, no empty WW/PT/Exam; GMRC T1 must not fire). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, sixteenth data point: ~20m (~19m agent, ~1m oxlint).** Same four caveats; compare to the sixth point onward. |
+| 2026-09-11 | **Docs only — Parent grade breakdown is the next dispatch.** Team (not a school visit): parents should see WW / PT / Exam raw scores under a term grade for transparency, so they can tell where a mark came from rather than only the SF9 number. Closes the 2026-09-07 deferral on `GET /api/grades/:id` ("school policy question nobody has asked"). **Not built in this entry.** Manuscript Figure 17 labelled it Student Record; it is Grades, not Feature 3 — no Parent → Students nav. Teacher class-rank / "Passing" / "Need attention" stay out (convention 4). Full spec in NOW POSSIBLE → Parent grade breakdown. Branch after enroll is on `main`: `feature/parent-grade-breakdown`. Admin screens wait. |
 | 2026-09-10 | **Teacher enroll + pending parent — hole on Teacher → Students, not a new nav item.** Convention 6 does not apply. Branch `feature/teacher-enroll-parent`. Admin → Users already has the pending queue; **never `POST /users/parents` as admin** (`403 Access denied.`). Never wrote on Jea `1234567`. Never touched Nino's five grades. **`POST /api/students` now stores `section_id`** — local duplicate of `currentAcademicYear()` (extract on a third copy, not here); resolve `sections` by name + grade_level + academic_year; missing year `409`; unmatched section `400` naming it; **do not insert NULL `section_id`**. Duplicate-LRN `409` stays **before** section resolve (suite still posts Marwin's LRN with fictional Mabini). Admin "any section" retargeted **Rizal → Masigasig**. In-scope Malikhain create asserts non-null `section_id`. **Write of `section_id` on insert, not a fifth reader** — sections-table note updated. `PUT` still does not set `section_id`. **PasswordField** extracted at the third copy (Teacher Settings + Parent Settings + create-parent); FormField shape 4 + `controlClass`; Admin → Users and Login left alone. **List wizard:** `GET /assignments` (`unwrap: 'assignments'`), distinct grade+section pairs, no `teacher_id`, no `useTeacherTargets`. Enroll button only when options exist; TCH-002 muted *"Enrolling a student is limited to classes you are assigned to teach. Advising a section is not enough."* After enroll `201` (`unwrap: 'student'`) no back-to-step-1; Skip closes the wizard. Parent unwrap `['user', 'message']` — copy the server sentence, do not hardcode it. Confirm names LRN + class / guardian + LRN; Go back on step 2 returns to the parent form. Mid-flight: `closeOnBackdrop={!saving}` **and** `onClose` no-op (Escape always calls `onCloseRef`). **Detail:** Create parent always shown; LRN locked from `student.lrn`; `409` is already-has-a-parent. Still no Edit. Client password match + length ≥ 6; do not default `Parent@2026`. LRN `maxLength={12}`; contact `maxLength={20}`. **API hole recorded, not closed:** `POST /users/parents` has no assignment check. Do not hide the button behind assignments. `npm run test:students` **43/43**, confirmed twice. Live HTTP **21/21**: TCH-001 Malikhain `201` + `section_id` set; TCH-002 Masigasig `403` naming assignment; TCH-001 create parent `201` pending; duplicate LRN / duplicate parent `409`; admin pending includes throwaway; Jea still pending; admin POST parents `403 Access denied.`; Nino grades 5. SQL teardown: users 7, students 3. SSR StudentsPage + StudentDetailPage + SettingsPage (extract) with a negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint **28 unchanged** (list/detail already carried the fetch-effect advisory). Throwaway harnesses deleted. **TCH-001 password was still `Temp@2026`** from the Settings review that claimed a restore — restored to `Teacher@2026` so the seeded credential holds. **No Cursor browser** — open `/teacher/students` as TCH-001 (full word in LRN / name / password; confirm Go back = no POST) and TCH-002 (no Enroll button, muted copy). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, fifteenth data point.** Same four caveats; compare to the sixth point onward. |
 | 2026-09-10 | **Teacher → Settings — copy of Parent Settings, not a new page. Teacher web role is complete.** Route `/teacher/settings`. Nav is **add, not flip** — teacher nav ended at Messages; `{ to: '/teacher/settings', label: 'Settings', icon: 'fa-gear', built: true }` lands with the route (convention 6). Three sections, not two cards: locked identity (name, Teacher ID = `user.login_id` — TCH-001, not an LRN, email) + contact + password. Confirm new password kept. Stay logged in after password — Parent does not `logout()`; `PUT /auth/change-password` does not invalidate JWTs; success shows the server message and clears Current / New / Confirm. Same two APIs (`PUT /auth/contact` unwrap `'user'` then `refresh()`; `PUT /auth/change-password` unwrap `'message'`). Never `GET /api/settings` (school key-value; still 200 for a teacher) and never `PUT /api/users/:id` (teacher gets `403 "Access denied."`). No server files. §5b: stored contact from last `/me`; draft is `null` until typing. §5e split after browser review: contact stays no-confirm (stored number is on screen). Password fields have per-field show/hide (fa-eye / fa-eye-slash). Change password stays disabled until Confirm new password has a value. Password opens a Modal that names the action (*Change your password?*) — Go back keeps the fields and sends no PUT; *Yes, change password* is the only write. A warning sentence is not a confirmation step. Parent Settings password UX matched the same day (confirm Modal, per-field show/hide, grey until Confirm; contact stays no-confirm). Locked parent identity unchanged. Do not change 13567454 password (Parent@2026). **Do not change TCH-001's password again in a live check** — `Teacher@2026` was restored after a review change to `Temp@2026`. §5c: Teacher ID is not an LRN; no student LRN on the page; no `:id` route. XOR strips. `TeacherDashboard` needed no edit — Open now derives from nav; remaining-pages sentence drops because every non-dashboard item is `built`. Present-tense "Teacher web role is complete" was stale from Contributions until this page; dated Contributions CHANGELOG stays. `TeacherDashboard.jsx` header comment is the same stale claim — out of whitelist, left. Live HTTP **29/29** against `127.0.0.1`: TCH-001 contact 09170000099 then restored `09170000002`; forbidden `name` 400; GET `/api/settings` 200 (page does not call it); PUT `/users/:id` 403; wrong `current_password` 401; TCH-001 password unchanged (`Teacher@2026` still logs in); parent PUT contact still 200; TCH-002 / TCH-003 have Teacher IDs and no child; Jea still pending; Nino grades still 5. SSR SettingsPage + TeacherDashboard (`Open now: … Settings.` — no remaining sentence) with a negative control (`useState is not defined` on a throwaway, not the real page). `npm run build` clean; oxlint **28 unchanged** (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/teacher/settings` as TCH-001 / TCH-002 / TCH-003. Type **`09170000099`** in Contact (full number, keep focus), Save, header still Maria Santos, revert to `09170000002`. Type **`Teacher@2026`** and **`Temp@2026`** as full words in the password fields → Change password → modal → **Go back** (no PUT). Do not confirm a real change. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, fourteenth data point: ~20m (~18m agent, ~2m idle oxlint).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-09 | **Parent → Settings — last Parent Stage 4 page. Parent web role is complete.** Route `/parent/settings`, `built: true` with the route (convention 6). **New endpoint `PUT /api/auth/contact`** in `routes/auth.js` (not a parent-only users self-route): `authenticate` only, `req.user.id` from the DB, body `contact_number` required, trim, non-empty, max 20 (schema VARCHAR). Forbidden in the body (`name`, `email`, `login_id`, `lrn`, `role`, `student_id`, `password`, `status`) → `400` naming them, same loud-reject as `PUT /api/users/:id`. Response `user` via `sanitizeUser` + `fetchUserByLoginId` so student JOIN fields stay. `logActivity` `'update_contact'`. Never `GET /api/settings` (school key-value) and never `PUT /api/users/:id` (admin). Page locks child name, LRN/`login_id`, grade/section, guardian name, email; writes are change-password (`unwrap: 'message'`) and contact (`unwrap: 'user'` then `refresh()`). Unlinked still changes password and contact. §5c exception recorded: this is the one parent screen that shows the LRN, locked, not in a URL. §5b: stored number from last `/me`; draft is `null` until typing. §5e: no confirm (both writes reversible). XOR strips. `AuthContext.refresh()` added. ParentDashboard needed no edit. `npm run test:auth` 25 → **35/35**, confirmed twice; Marwin contact restored in `finally` via direct UPDATE (seeded `09170000003`); Jea untouched. SSR SettingsPage + ParentDashboard (`Open now: … Settings`) with a negative control (`useState is not defined` on a throwaway). `npm run build` clean; oxlint 28 unchanged (SettingsPage has no fetch-effect). Throwaway harnesses deleted. **No Cursor browser** — open `/parent/settings` as `13567454` and `1090001`. Type a full word in contact and in the password fields (5h). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, thirteenth data point.** Same four caveats; compare to the sixth point onward. |
