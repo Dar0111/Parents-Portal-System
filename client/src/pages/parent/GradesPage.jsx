@@ -33,8 +33,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // (convention 5c — no LRN, and grade_id is not a shareable destination).
 //
 // THE CHILD ID COMES FROM useAuth() AND IS USED FOR THE PATH, NOTHING ELSE.
-// /auth/me also returns lrn, login_id, student_first_name, student_last_name,
-// grade_level and section — none of them are read here. The header is sourced
+// /auth/me also returns login_id, student_first_name, student_last_name,
+// grade_level and section — none of them are read here. There is no lrn
+// key (a parent's login_id IS the child's LRN). The header is sourced
 // from the report payload's own `student` object instead, and that is what
 // makes convention 5c STRUCTURAL rather than a matter of remembering: that
 // object is exactly { id, first_name, last_name, grade_level, section } with

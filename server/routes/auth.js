@@ -10,7 +10,7 @@ const router = express.Router();
 
 async function fetchUserByLoginId(loginId) {
   const [rows] = await pool.query(
-    `SELECT u.*, s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name,
+    `SELECT u.*, s.first_name AS student_first_name, s.last_name AS student_last_name,
             s.grade_level, s.section
      FROM users u
      LEFT JOIN students s ON s.id = u.student_id
@@ -185,8 +185,9 @@ router.put('/contact', authenticate, async (req, res) => {
     await logActivity(req.user.id, 'update_contact', 'Contact number updated');
 
     // Re-fetch via login_id so the JOIN student fields stay on the row —
-    // a bare SELECT * after this UPDATE would drop lrn / student names
-    // that GET /me already returns.
+    // a bare SELECT * after this UPDATE would drop student names / grade /
+    // section that GET /me already returns. login_id is the one copy of
+    // the LRN; this helper does not SELECT s.lrn.
     const user = await fetchUserByLoginId(req.user.login_id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });

@@ -143,6 +143,19 @@ by side. Nothing here is guessed — every line traces to a specific file.
   (`:id`, `:studentId`, `:componentId`, `:userId`) is a numeric id
   validated by `parseId()`. A generic "fetch resource by id" client
   helper written against the rest of this API will not work here.
+- **`user` on login / `GET /auth/me` / `PUT /auth/contact` has no `lrn`
+  key.** All three come from `fetchUserByLoginId()`, which LEFT JOINs
+  `students` for `student_first_name`, `student_last_name`,
+  `grade_level`, and `section` only. A parent's `login_id` IS the
+  child's LRN, so selecting `s.lrn` duplicated the credential. After
+  this the key is **absent, not `null`**. Teacher and admin rows used
+  to carry `lrn: null` from the LEFT JOIN; `'lrn' in user` is now
+  false for every role — a different answer than `user.lrn == null`.
+  Parent still has the four JOIN fields populated. `PUT /contact` still
+  **rejects** `lrn` in the request body (`400`) — that is a forbidden
+  identity field, not a response key. Other user payloads (create
+  parent, pending queue, approve) still JOIN `s.lrn`; those are admin
+  / teacher acting on a student, not the session.
 
 ---
 

@@ -25,6 +25,25 @@ function assert(condition, label, detail = '') {
   }
 }
 
+// login, GET /me, and PUT /contact all come from fetchUserByLoginId. A
+// parent's login_id IS the child's LRN, so s.lrn is not selected — the key
+// must be absent, not null. The four JOIN columns are the regression
+// guard: trimming one too many blanks Parent → Settings with every other
+// assert still green.
+function assertParentCredentialShape(user, label) {
+  assert(
+    user != null &&
+      user.login_id === '13567454' &&
+      !Object.hasOwn(user, 'lrn') &&
+      user.student_first_name === 'Marwin' &&
+      user.student_last_name === 'Conde' &&
+      Number(user.grade_level) === 6 &&
+      user.section === 'Malikhain',
+    label,
+    `keys=${JSON.stringify(Object.keys(user || {}))} lrn=${JSON.stringify(user?.lrn)} first=${JSON.stringify(user?.student_first_name)} last=${JSON.stringify(user?.student_last_name)} grade=${JSON.stringify(user?.grade_level)} section=${JSON.stringify(user?.section)}`
+  );
+}
+
 async function request(method, path, { token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -128,6 +147,10 @@ async function run() {
 
     const teacherLogin = await login('TCH-001', 'Teacher@2026');
     assert(teacherLogin.status === 200 && teacherLogin.data?.user?.role === 'teacher', 'Teacher login');
+    assert(
+      !Object.hasOwn(teacherLogin.data?.user || {}, 'lrn'),
+      'Teacher login has no lrn key'
+    );
     const teacherToken = teacherLogin.data?.token;
 
     const parentActive = await login('13567454', 'Parent@2026');
@@ -135,6 +158,7 @@ async function run() {
       parentActive.status === 200 && parentActive.data?.user?.role === 'parent',
       'Active parent login (Marwin LRN)'
     );
+    assertParentCredentialShape(parentActive.data?.user, 'Parent login carries login_id, JOIN fields, and no lrn');
     const parentToken = parentActive.data?.token;
 
     const parentPending = await login('1234567', 'Parent@2026');
@@ -166,6 +190,7 @@ async function run() {
 
     const me = await request('GET', '/api/auth/me', { token: parentToken });
     assert(me.status === 200 && me.data?.user?.login_id === '13567454', 'GET /api/auth/me');
+    assertParentCredentialShape(me.data?.user, 'GET /me carries login_id, JOIN fields, and no lrn');
 
     const noAuth = await request('GET', '/api/auth/me');
     assert(noAuth.status === 401, 'Unauthenticated /me rejected');
@@ -250,6 +275,10 @@ async function run() {
       assert(
         updatedContact.data?.user?.student_first_name === 'Marwin',
         'Contact update keeps student JOIN fields'
+      );
+      assert(
+        !Object.hasOwn(updatedContact.data?.user || {}, 'lrn'),
+        'Contact update user has no lrn key'
       );
 
       const meAfterContact = await request('GET', '/api/auth/me', { token: parentToken });
