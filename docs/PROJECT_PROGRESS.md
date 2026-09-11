@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-12 (Parent content modals render `posted_by_name`. `GET /auth/me` has no `lrn` key — absent, not null. Parent grade breakdown built. Enroll 2026-09-10. Admin screens wait.)
+**Last updated:** 2026-09-12 (Grade 1 parent-modal judgment sentence removed. Parent content modals render `posted_by_name`. `GET /auth/me` has no `lrn` key — absent, not null. Parent grade breakdown built. Enroll 2026-09-10. Admin screens wait.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -545,7 +545,7 @@ product decision, not a school-visit answer** — the school has still not been
 asked. If they later forbid raw scores, the modal goes; the endpoint stays.
 Same Parent → Grades page, no new nav. Tap a term with `grade_id` → Modal.
 Initial Grade is not on the parent card and is not in the modal. Grade 1:
-letter + judgment copy, no empty WW/PT/Exam sections (write path forbids
+letter, no empty WW/PT/Exam sections (write path forbids
 components on a descriptive row). Full spec: CLAUDE.md NOW POSSIBLE → Parent
 grade breakdown (BUILT). Do not add Parent → Students (Figure 17's name is
 Grades, not Feature 3). Rank / "Passing" / "Need attention" stay out

@@ -215,19 +215,12 @@ function BreakdownBody({ mode, detail }) {
           />
         </div>
         {/*
-          ASSUMPTION, not a school-confirmed answer. DO 015 defines no
-          Initial-Grade-to-letter mapping, so the system treats A–E as a
-          manual teacher judgment (PATCH /:id/descriptive). The school has
-          not confirmed that. This sentence states that assumption to a
-          parent as fact — the best available reading, and it should ship
-          — but if the school later says a computation feeds the letter,
-          THIS is the first user-facing line that becomes wrong. Find it
-          here, not only in CLAUDE.md.
+          UNCONFIRMED (OPEN QUESTIONS: manual A–E vs a computation;
+          DO 015 defines no IG-to-letter mapping). A sentence stating
+          that assumption as fact was removed 2026-09-12 and must not
+          be re-added in any form — including a hedged or tooltip
+          version — without a school answer.
         */}
-        <p className="text-sm text-slate-600">
-          This letter is the teacher&apos;s judgment for the term — it is not
-          computed from written works, performance tasks, or exams.
-        </p>
         {/* Hedge: GET /:id still ran. If informational WW/PT/EX ever land
             on a descriptive row, show them. Do not render empty sections
             — the write path 400s numerical encodes on descriptive mode,

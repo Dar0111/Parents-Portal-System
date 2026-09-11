@@ -41,10 +41,10 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-12 (Parent content modals render `posted_by_name`.
-`GET /auth/me` has no `lrn` key — absent, not null. Parent and Teacher
-web roles are complete as nav. Remaining Stage 4 work is the other
-admin screens.)
+**Last verified:** 2026-09-12 (Grade 1 parent-modal judgment sentence
+removed. Parent content modals render `posted_by_name`. `GET /auth/me`
+has no `lrn` key — absent, not null. Parent and Teacher web roles are
+complete as nav. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -3050,12 +3050,12 @@ works recorded yet" / performance tasks / examination scores. A single
 informational scores ever land, they surface). **No empty WW/PT/Exam
 sections** — the write path `400`s numerical encodes on descriptive
 mode, so empty tables would say "scores missing" about something that
-cannot have scores (§5f / §5i). Copy: the letter is the teacher's
-judgment, not computed from WW/PT/EX. **That sentence states an
-ASSUMPTION as fact** (DO 015 has no IG-to-letter mapping; the school
-has not confirmed manual A–E). Find it in `GradesPage.jsx` next to the
-sentence — if the school later says a computation feeds the letter,
-that line is the first user-facing thing that becomes wrong.
+cannot have scores (§5f / §5i). **The judgment sentence is gone
+(2026-09-12).** It stated an unconfirmed assumption as fact. Silence
+is the honest state until the school answers how the letter is
+produced; do not fill the gap with format restatement. The comment
+next to the letter records the removal so a future session does not
+re-add it (including a hedge or tooltip).
 
 §5b: clear `detail` before every `GET /:id`. Header comes from the card
 tap (`selected`), so a failed open cannot show another term's scores
@@ -3467,10 +3467,10 @@ replaced with a new guess.
       comment still says this was the last Teacher page — out of
       whitelist, left.
 - [x] **Parent → Grades breakdown — DONE 2026-09-11.** Same page, no new
-      nav. Tap term with `grade_id` → Modal, `GET /:id`. Grade 1: letter
-      + judgment copy, no empty WW/PT/Exam sections. IG not shown (not
-      on the card). Team decision; school still not asked. Spec: NOW
-      POSSIBLE → Parent grade breakdown (BUILT).
+      nav. Tap term with `grade_id` → Modal, `GET /:id`. Grade 1: letter,
+      no empty WW/PT/Exam sections (judgment copy removed 2026-09-12).
+      IG not shown (not on the card). Team decision; school still not
+      asked. Spec: NOW POSSIBLE → Parent grade breakdown (BUILT).
 - [ ] Admin pages remaining — students, sections/adviser assignment,
       grades, attendance, excuses, content, contributions, messages,
       settings, backup/restore. **No longer blocked on missing assignments
@@ -3932,6 +3932,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-12 | **Grade 1 parent-modal judgment sentence removed.** One string in `client/src/pages/parent/GradesPage.jsx`. The letter is the teacher's judgment / not computed from WW/PT/EX stated an unconfirmed assumption as fact (DO 015 has no IG-to-letter mapping; school has not confirmed). **Silence, not replacement copy** — a format restatement ("Grade 1 uses a letter instead of a number") was proposed and declined; it would fill the space without answering the tap. Comment next to the letter records UNCONFIRMED + do-not-re-add (including hedge/tooltip) without a school answer. Letter itself, `GET /:id` hedge, and no empty WW/PT/Exam sections stay. `GradeLegend` on the card stays (different claim: why N/A). Dated 2026-09-11 CHANGELOG stays history. Present-tense NOW POSSIBLE + BUILD ORDER corrected in this file; `docs/PROJECT_PROGRESS.md` dropped "judgment copy". No server, no `format/grade.jsx`, no teacher page. `npm run build` clean; oxlint **28 unchanged**. SSR GradesPage + negative control (`useState is not defined` on a throwaway). Throwaway harness deleted. **No Cursor browser.** Open `/parent/grades` as `1090001`, tap Mathematics, confirm the letter with nothing under it. Do not write on Nino's five seeded rows. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, eighteenth data point: ~10m (~10m agent, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Parent Announcements / Memos / Events render `posted_by_name`.** Same three pages, no new nav (convention 6 N/A). Modal metadata line only, not a DataTable column. Copy is `Posted by {name}` as its own segment on all three — Events' first span is `event_date`, so "Posted {date} by {name}" cannot be consistent; saying "Posted" twice on announcements/memos is the cheaper cost. No `"Unknown"` fallback (a broken INNER JOIN must show itself). Bare `posted_by` stays on the row (teacher pages authorize edits with it). **NOW POSSIBLE split, not closed** — Teacher pages still do not render the name. Present-tense KNOWN ISSUES closed-2026-09-11 row updated in the same file; dated CHANGELOG 2026-09-11 stays history. **Team product decision, not a school answer.** If the school later objects, the modal line goes; the API field stays. Whitelist held: three parent pages + these two docs. No server, no `Modal.jsx`, no teacher pages, no `App.jsx`/`nav.js`. `npm run build` clean; oxlint **28 unchanged** (same fetch-effect advisories the three pages already carried). SSR all three + negative control (`useState is not defined` on a throwaway). Throwaway harnesses deleted. **No Cursor browser — §5h pending.** Live fixtures created through the real API, not SQL, and **left in the database for the browser check** (do not delete before review): announcement **id 17** (TCH-001 / Maria Santos, **Grade 6 - Malikhain**, not school-wide), memo **id 5** (ADMIN001 / Principal Admin, school-wide by schema), event **id 14** (TCH-001 / Maria Santos, `target_grade` 6, `event_date` 2026-09-20 so Upcoming shows it). Parent `13567454` GET sees all three with `posted_by_name`. Jea `1234567` still pending; Nino grades still 5. Open `/parent/announcements`, `/parent/memos`, `/parent/events` as `13567454` and open one item on each. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, seventeenth data point: ~38m (~32m agent, ~6m idle oxlint / Node-fetch ECONNRESET).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Drop `lrn` from `/auth/me`.** `fetchUserByLoginId()` no longer SELECTs `s.lrn`. Login, `GET /me`, and `PUT /contact` all use that helper — the third caller was the one the plan almost missed. A parent's `login_id` IS the child's LRN (§5c), so the key was the same credential twice. **Absent, not null:** teacher/admin used to carry `lrn: null` from the LEFT JOIN; `'lrn' in user` is now false for every role. The four JOIN columns stay (`student_first_name`, `student_last_name`, `grade_level`, `section`) — trimming one too many blanks Parent → Settings with every server assert still green. Refetch comment at the contact handler no longer says "would drop lrn / student names." `sanitizeUser` untouched (present-tense CLAUDE.md already correct; 2026-08-29 CHANGELOG is history). `npm run test:auth` 35 → **39/39**, confirmed twice, `API_BASE=http://127.0.0.1:5000`, no `db:setup`. Cheap TCH-001 `'lrn' not in` on login (the LEFT-JOIN-null shape). Parent helper on login + `/me`; `'lrn' not in` on `PUT /contact` too. Live `/me` bodies: parent `13567454` has `login_id` + four JOIN fields, no `lrn`; TCH-001 / ADMIN001 JOIN fields null, no `lrn` key. SSR Settings as that parent: child's name **Marwin Conde**, class **Grade 6 — Malikhain**, Login ID **13567454**. No Cursor browser. Flag, not fixed: suite BASE still falls back to `localhost` (ECONNRESET on Node fetch here); `routes/users.js` still JOINs `s.lrn` on create-parent / pending / approve. Whitelist: `routes/auth.js`, `test-auth-flows.js`, `GradesPage.jsx` (comment only), `CLAUDE.md`, `docs/API_REFERENCE.md` auth shapes only (stale `teacher(wide)` untouched), `docs/PROJECT_PROGRESS.md`. No `users.js`, no Settings JSX. **MEASURED BUILD TIME: ~35m (~work vs idle split in the session report).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-11 | **`posted_by_name` on announcements / memos / events.** Server only. Nine returning SELECTs (3 list + 3 POST + 3 PUT) INNER JOIN `users` and add `posted_by_name` (`users.name`) alongside the bare `posted_by` id — ownership checks at 278/328/553/611 keep the numeric id. INNER because NOT NULL + `ON DELETE RESTRICT`; no `"Unknown"` fallback. Memos aliased `m` so `m.*` matches the old `SELECT *` column set. Early parent empty-array returns (188, 460) untouched. No `GET /:id` invented (separate KNOWN ISSUES row). PUT/DELETE load-existing stay `SELECT *`. Never JOIN `login_id` (§5c). **NO page renders it yet.** `npm run test:content` 53 → **62/62**, confirmed twice, no `db:setup`. Live against `http://127.0.0.1:5000`: parent and teacher GET one of each; both fields present (announcement/event `posted_by: 2` / `Maria Santos`; memo `posted_by: 1` / `Principal Admin`). Throwaways deleted. Flag, not fixed: suite BASE still falls back to `localhost` (ECONNRESET on Node fetch here). No client files. Whitelist: `routes/content.js`, `test-content-flows.js`, `CLAUDE.md`, `docs/API_REFERENCE.md` content shapes only (stale `teacher(wide)` untouched), `docs/PROJECT_PROGRESS.md`. **MEASURED BUILD TIME: ~30m (~28m agent, ~2m idle restarting the listener on :5000).** Same four caveats; compare to the sixth point onward. |
