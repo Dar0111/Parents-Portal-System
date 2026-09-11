@@ -49,10 +49,12 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // sorting and never mutates, so a header click still works, and its third
 // click clears back to this order rather than to the API's.
 //
-// NOT RENDERED: `posted_by` (bare integer, no join, GET /api/users/:id is
-// admin-only) and `lrn`/`login_id` from the auth payload (the same value, and
-// half of a real credential — convention 5c). The events table has no
-// attachment column at all.
+// NOT RENDERED: `posted_by` (numeric id, still on the row for teacher
+// edit authorization). The name is posted_by_name, INNER JOINed
+// 2026-09-11 (71d23f9); this page renders it in the modal only
+// (2026-09-12). `/auth/me` no longer returns `lrn` (a582bd8, 2026-09-12).
+// `login_id` is still the LRN and is still not rendered here
+// (convention 5c). The events table has no attachment column at all.
 //
 // AUDIENCE LABELS COME FROM target_grade's NULLNESS, never from
 // user.grade_level, which /auth/me does return. Two cases here rather than
@@ -219,6 +221,8 @@ export default function ParentEventsPage() {
             <span>{reading?.event_date}</span>
             <span aria-hidden="true">·</span>
             <span>{reading ? audienceLabel(reading) : null}</span>
+            <span aria-hidden="true">·</span>
+            <span>Posted by {reading?.posted_by_name}</span>
           </div>
           {/* description is NULLABLE in the schema, so an empty modal body is a
               real possibility and gets said out loud rather than rendering a

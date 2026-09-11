@@ -32,10 +32,12 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // to a student sees all memos and zero announcements/events. That asymmetry is
 // why this page has exactly ONE empty branch and those two have two and three.
 //
-// NOT RENDERED: `attachment_url` (column exists, nothing uploads, so an
-// affordance would promise a feature that does not exist) and `posted_by` (a
-// bare integer with no join, and GET /api/users/:id is admin-only, so it
-// cannot be resolved to a name).
+// NOT RENDERED: `attachment_url` (column exists, nothing uploads).
+// `posted_by` is still on the row and is still not shown (teacher pages
+// authorize edits with the numeric id). The name is posted_by_name,
+// INNER JOINed 2026-09-11 (71d23f9); this page renders it in the modal
+// only (2026-09-12). Only admins POST memos, so the value is always an
+// admin; it is still rendered — same line as the other two pages.
 
 export default function ParentMemosPage() {
   usePageTitle('Memos');
@@ -119,9 +121,11 @@ export default function ParentMemosPage() {
         size="lg"
       >
         <div className="max-h-[70vh] overflow-y-auto">
-          <p className="mb-3 text-xs text-slate-500">
-            Posted {String(reading?.created_at).slice(0, 10)}
-          </p>
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>Posted {String(reading?.created_at).slice(0, 10)}</span>
+            <span aria-hidden="true">·</span>
+            <span>Posted by {reading?.posted_by_name}</span>
+          </div>
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
             {reading?.content}
           </p>
