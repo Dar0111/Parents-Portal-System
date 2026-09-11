@@ -18,6 +18,8 @@
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
+const { hashPassword } = require('../utils/password');
+
 const BASE = process.env.API_BASE || `http://localhost:${process.env.PORT || 5000}`;
 
 let passed = 0;
@@ -210,6 +212,56 @@ async function run() {
     assert(
       submit.data?.excuse_letter?.absence_date === absenceDate,
       `absence_date round-trips exactly as sent (sent ${absenceDate}, got ${submit.data?.excuse_letter?.absence_date})`
+    );
+
+    // Unlinked parent: student_id NULL. Cannot be produced by
+    // POST /users/parents (that path always sets student_id from the LRN).
+    // INSERT, not UPDATE on a seeded parent — a killed run must not leave
+    // a live account with a nulled student_id. login_id is dashed and
+    // not all-numeric so the pre-delete cannot collide with a real LRN.
+    const UNLINKED_LOGIN_ID = 'TEST-UNLINKED-1';
+    const UNLINKED_PASSWORD = 'UnlinkedExc-T1x';
+    const UNLINKED_MESSAGE =
+      'This account is not linked to a student record yet. The school office must link it before excuse letters can be submitted.';
+    let unlinkedParentId = null;
+    await withDb(async (conn) => {
+      await conn.query('DELETE FROM users WHERE login_id = ?', [UNLINKED_LOGIN_ID]);
+      const hashed = await hashPassword(UNLINKED_PASSWORD);
+      const [inserted] = await conn.query(
+        `INSERT INTO users (login_id, password, role, status, name, student_id)
+         VALUES (?, ?, 'parent', 'active', 'Unlinked Throwaway', NULL)`,
+        [UNLINKED_LOGIN_ID, hashed]
+      );
+      unlinkedParentId = inserted.insertId;
+    });
+    createdLoginIds.push(UNLINKED_LOGIN_ID);
+
+    const unlinkedLogin = await login(UNLINKED_LOGIN_ID, UNLINKED_PASSWORD);
+    const unlinkedToken = unlinkedLogin.data?.token;
+    assert(
+      unlinkedLogin.status === 200 && unlinkedToken && Number.isInteger(unlinkedParentId),
+      'Fixture: throwaway unlinked parent (TEST-UNLINKED-1, student_id NULL) logs in'
+    );
+
+    const unlinkedPost = await request('POST', '/api/excuse-letters', {
+      token: unlinkedToken,
+      body: { absence_date: absenceDate, reason: 'Fever', details: 'Should never be inserted.' },
+    });
+    assert(
+      unlinkedPost.status === 409 &&
+        unlinkedPost.data?.success === false &&
+        unlinkedPost.data?.message === UNLINKED_MESSAGE,
+      'Unlinked parent POST with a valid body returns 409 naming the school office',
+      `status ${unlinkedPost.status}, body ${JSON.stringify(unlinkedPost.data)}`
+    );
+
+    const leftoverLetters = await withDb(async (conn) => {
+      const [rows] = await conn.query('SELECT id FROM excuse_letters WHERE parent_id = ?', [unlinkedParentId]);
+      return rows;
+    });
+    assert(
+      leftoverLetters.length === 0,
+      'Unlinked POST inserts no excuse_letters row for the throwaway parent_id'
     );
 
     const spoofedFields = await request('POST', '/api/excuse-letters', {

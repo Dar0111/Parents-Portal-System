@@ -154,6 +154,7 @@ router.get('/:id', authenticate, authorize('parent', 'teacher', 'admin'), async 
 // POST /api/excuse-letters — parent only. parent_id/student_id come from
 // the authenticated user, never the body; status is always 'Pending' on
 // create. attachment_url is not accepted — upload isn't built, stays NULL.
+// Unlinked parent (users.student_id NULL) is 409 before the INSERT.
 router.post('/', authenticate, authorize('parent'), async (req, res) => {
   const { absence_date, reason, details } = req.body;
 
@@ -170,6 +171,33 @@ router.post('/', authenticate, authorize('parent'), async (req, res) => {
 
   if (isFutureDate(absence_date)) {
     return res.status(400).json({ success: false, message: 'absence_date cannot be in the future.' });
+  }
+
+  // Precondition, not a query failure: refuse before try so a NULL
+  // student_id never reaches the NOT NULL INSERT (that was a 500 via
+  // ER_BAD_NULL_ERROR in the generic catch). logActivity names
+  // student_id too and is unreachable once this returns — no second fix.
+  //
+  // Test null/undefined (`== null`), not falsy. students.id is
+  // AUTO_INCREMENT so there is no 0 today, but a falsy check is wrong
+  // the first day there is one.
+  //
+  // authenticate re-reads the user row on every request, so a parent
+  // linked by the school office mid-session clears this guard on their
+  // next request with no re-login.
+  //
+  // 409, not 400: the body is valid; student_id does not come from it.
+  // Same family as POST /api/students with no academic_year, and a
+  // missing grading_mode_configs row. A 400 would tell a parent to
+  // fix a request they cannot fix. "school office" (not "An admin")
+  // matches Parent → Excuse Letters' own unlinked copy — §5i, even
+  // though no caller renders this string yet.
+  if (req.user.student_id == null) {
+    return res.status(409).json({
+      success: false,
+      message:
+        'This account is not linked to a student record yet. The school office must link it before excuse letters can be submitted.',
+    });
   }
 
   try {
