@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import ErrorAlert from '../../components/ErrorAlert';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import Modal from '../../components/Modal';
 import GradeValue, { GradeLegend } from '../../format/grade';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -15,20 +18,19 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // generic refusal with no reason in it. That is precisely why none of them may
 // be offered on screen: a scope refusal at least explains itself, a role
 // refusal does not. Same anti-dead-end rule as the Students page's absent Edit
-// button. The only interactive elements on this page are DataTable's two sort
-// headers.
+// button. Interactive elements: DataTable's two sort headers, and a term cell
+// that has a grade_id (opens the breakdown modal). Pending / null terms are
+// not buttons and must not fire a request.
 //
-// ONE REQUEST, ONE ENDPOINT: GET /api/grades/student/:studentId. The other two
-// GETs are deliberately not called. GET / returns bare grade rows with no
-// subject-coverage overlay, so a subject with zero grade rows would simply not
-// appear — the exact confusion this endpoint was built to remove, since it
-// selects from `subjects` by grade_level and overlays whatever grades exist.
-// GET /:id (which DOES exist and is correctly parent-scoped) would give the
-// WW/PT component breakdown, and that is deferred: whether a parent should see
-// individual raw assessment scores rather than the term grade the SF9 prints
-// is a SCHOOL POLICY QUESTION NOBODY HAS ASKED, and building it would answer
-// it by shipping. The follow-up stays cheap — grade_id is already on every
-// term entry in this payload, so it needs no new endpoint and no lookup.
+// TWO READS. The card is GET /api/grades/student/:studentId (six-key unwrap).
+// GET / is still not called: it returns bare grade rows with no subject-
+// coverage overlay, so a subject with zero grade rows would vanish. GET /:id
+// is called only when a parent taps a term that already has a grade_id —
+// team product decision 2026-09-11 (transparency: where a mark came from),
+// not a school-visit answer. The school has still not been asked. If they
+// later forbid raw scores, this modal goes; the endpoint stays. Unwrap
+// ['grade', 'grade_components', 'descriptor']. Modal, not a :id route
+// (convention 5c — no LRN, and grade_id is not a shareable destination).
 //
 // THE CHILD ID COMES FROM useAuth() AND IS USED FOR THE PATH, NOTHING ELSE.
 // /auth/me also returns lrn, login_id, student_first_name, student_last_name,
@@ -59,7 +61,11 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // CSS. The band word itself is DepEd's own SF9 vocabulary and a deterministic
 // restatement of the number, not a judgement the system formed;
 // routes/grades.js quotes GRADING_SPEC §6b directly — "the parent dashboard
-// should show the numeric grade AND the descriptor".
+// should show the numeric grade AND the descriptor". The modal follows the
+// same rule. Initial Grade and component weights are deliberately omitted:
+// IG is not on this card, and showing it would introduce the exact number
+// that raises "why isn't this 90?" (transmutation). The modal answers where
+// the scores came from, not how DepEd turns them into a term grade.
 //
 // is_locked is on every term entry and is NOT rendered. A parent cannot act on
 // it, and it reads either as "final" — a promise the system should not make,
@@ -77,17 +83,13 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // string meaning "this doesn't apply", on the one value that does. That is
 // outside GradeValue's stated contract rather than a bug inside it, so the
 // letter is handled locally here and format/grade.jsx is left untouched. Close
-// the gap in GradeValue the day a descriptive page is actually built.
-//
-// THE DESCRIPTIVE BRANCH BELOW IS UNVERIFIED. No Grade 1 student exists in the
-// seed, so no descriptive report card can be produced without a fixture chain
-// of student + parent user + approval + descriptive grade rows. It is written
-// from the handler's shape, not exercised. Do not record it as verified: an
-// entry claiming "verified" when the fixture could not fail is worse than no
-// entry (same discipline as the ?status=all audit item).
+// the gap in GradeValue the day a third TermCell copy would force the extract
+// (still two: this page and Teacher → Grades).
 const NULL_IS_PENDING = 'numerical';
 
-function TermCell({ entry, mode }) {
+const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
+
+function TermDisplay({ entry, mode }) {
   if (mode === 'descriptive') {
     if (!entry?.descriptive_grade) {
       return <GradeValue value={null} mode={NULL_IS_PENDING} />;
@@ -108,6 +110,166 @@ function TermCell({ entry, mode }) {
   return <GradeValue value={entry?.term_grade} mode={mode} />;
 }
 
+function TermCell({ entry, mode, onOpen }) {
+  const inner = <TermDisplay entry={entry} mode={mode} />;
+  if (!entry?.grade_id || !onOpen) return inner;
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(entry)}
+      className="-mx-1 rounded px-1 text-right hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+    >
+      {inner}
+    </button>
+  );
+}
+
+function ScorePair({ score, max }) {
+  if (score == null && max == null) {
+    return <span className="text-sm text-slate-400">Not yet recorded</span>;
+  }
+  return (
+    <span className="tabular-nums text-sm text-slate-900">
+      {score}/{max}
+    </span>
+  );
+}
+
+function ComponentList({ title, rows, empty }) {
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="mt-1 text-sm text-slate-500">{empty}</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-slate-100">
+          {rows.map((row) => (
+            <li key={row.id} className="flex items-baseline justify-between gap-3 py-1.5">
+              <div className="min-w-0">
+                <p className="text-sm text-slate-800">{row.label}</p>
+                {row.date_recorded ? (
+                  <p className="text-xs text-slate-400">{row.date_recorded}</p>
+                ) : null}
+              </div>
+              <ScorePair score={row.score} max={row.max_score} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ExamList({ grade }) {
+  const lines = [
+    { key: 'st1', label: 'ST1', score: grade?.ex_st1, max: grade?.ex_st1_max },
+    { key: 'st2', label: 'ST2', score: grade?.ex_st2, max: grade?.ex_st2_max },
+    { key: 'te', label: 'TE', score: grade?.ex_te, max: grade?.ex_te_max },
+  ];
+  const anyRecorded = lines.some((line) => line.score != null || line.max != null);
+
+  return (
+    <section>
+      <h3 className="text-sm font-semibold text-slate-900">Examinations</h3>
+      {!anyRecorded ? (
+        <p className="mt-1 text-sm text-slate-500">No examination scores recorded yet</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-slate-100">
+          {lines.map((line) => (
+            <li key={line.key} className="flex items-baseline justify-between gap-3 py-1.5">
+              <p className="text-sm text-slate-800">{line.label}</p>
+              <ScorePair score={line.score} max={line.max} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function BreakdownBody({ mode, detail }) {
+  const grade = detail.grade;
+  const components = detail.grade_components || [];
+  const ww = components.filter((row) => row.type === 'WW');
+  const pt = components.filter((row) => row.type === 'PT');
+  const hasExam =
+    grade.ex_st1 != null ||
+    grade.ex_st2 != null ||
+    grade.ex_te != null ||
+    grade.ex_st1_max != null ||
+    grade.ex_st2_max != null ||
+    grade.ex_te_max != null;
+  const hasRecordedBreakdown = ww.length > 0 || pt.length > 0 || hasExam;
+
+  if (mode === 'descriptive') {
+    return (
+      <div className="space-y-3">
+        <div>
+          <TermDisplay
+            entry={{
+              descriptive_grade: grade.descriptive_grade,
+              descriptor: detail.descriptor,
+            }}
+            mode="descriptive"
+          />
+        </div>
+        {/*
+          ASSUMPTION, not a school-confirmed answer. DO 015 defines no
+          Initial-Grade-to-letter mapping, so the system treats A–E as a
+          manual teacher judgment (PATCH /:id/descriptive). The school has
+          not confirmed that. This sentence states that assumption to a
+          parent as fact — the best available reading, and it should ship
+          — but if the school later says a computation feeds the letter,
+          THIS is the first user-facing line that becomes wrong. Find it
+          here, not only in CLAUDE.md.
+        */}
+        <p className="text-sm text-slate-600">
+          This letter is the teacher&apos;s judgment for the term — it is not
+          computed from written works, performance tasks, or exams.
+        </p>
+        {/* Hedge: GET /:id still ran. If informational WW/PT/EX ever land
+            on a descriptive row, show them. Do not render empty sections
+            — the write path 400s numerical encodes on descriptive mode,
+            so empty tables would say "scores missing" about something
+            that cannot have scores (§5f / §5i). */}
+        {hasRecordedBreakdown ? (
+          <div className="space-y-4 border-t border-slate-100 pt-3">
+            {ww.length > 0 ? (
+              <ComponentList title="Written Works" rows={ww} empty="" />
+            ) : null}
+            {pt.length > 0 ? (
+              <ComponentList title="Performance Tasks" rows={pt} empty="" />
+            ) : null}
+            {hasExam ? <ExamList grade={grade} /> : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <GradeValue value={grade.term_grade} mode={mode} />
+        {detail.descriptor?.descriptor ? (
+          <span className="ml-1.5 text-xs text-slate-500">{detail.descriptor.descriptor}</span>
+        ) : null}
+      </div>
+      <ComponentList
+        title="Written Works"
+        rows={ww}
+        empty="No written works recorded yet"
+      />
+      <ComponentList
+        title="Performance Tasks"
+        rows={pt}
+        empty="No performance tasks recorded yet"
+      />
+      <ExamList grade={grade} />
+    </div>
+  );
+}
+
 export default function ParentGradesPage() {
   usePageTitle('Grades');
   const { user } = useAuth();
@@ -115,6 +277,17 @@ export default function ParentGradesPage() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Card cells render from `report` only (last successful student GET).
+  // Modal body renders from `detail` only (last successful GET /:id).
+  // selected is the tap target from the CARD — header source even when
+  // the fetch fails, so a 404 cannot show another term's scores under
+  // this subject's name (§5b).
+  const [selected, setSelected] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState(null);
+  const detailSeq = useRef(0);
 
   const studentId = user?.student_id ?? null;
 
@@ -171,6 +344,41 @@ export default function ParentGradesPage() {
     load();
   }, [load]);
 
+  const openTerm = useCallback(async (entry, subjectName, term) => {
+    if (!entry?.grade_id) return;
+    const seq = ++detailSeq.current;
+    setSelected({ gradeId: entry.grade_id, subjectName, term });
+    // Clear BEFORE the fetch. A failed open that kept the previous term's
+    // components would put one subject's scores under another's header —
+    // §5b in its worst form.
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
+    try {
+      const data = await api.get(`/grades/${entry.grade_id}`, { unwrap: DETAIL_UNWRAP });
+      if (detailSeq.current !== seq) return;
+      setDetail(data);
+    } catch (err) {
+      if (detailSeq.current !== seq) return;
+      setDetailError(extractError(err));
+    } finally {
+      if (detailSeq.current === seq) setDetailLoading(false);
+    }
+  }, []);
+
+  const closeBreakdown = useCallback(() => {
+    detailSeq.current += 1;
+    setSelected(null);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }, []);
+
+  const retryDetail = useCallback(() => {
+    if (!selected) return;
+    openTerm({ grade_id: selected.gradeId }, selected.subjectName, selected.term);
+  }, [openTerm, selected]);
+
   const student = report?.student ?? null;
   const mode = report?.grading_mode ?? 'numerical';
   const subjects = report?.subjects ?? [];
@@ -217,19 +425,37 @@ export default function ParentGradesPage() {
         key: 'term1',
         header: 'Term 1',
         align: 'right',
-        render: (row) => <TermCell entry={row.terms[1]} mode={mode} />,
+        render: (row) => (
+          <TermCell
+            entry={row.terms[1]}
+            mode={mode}
+            onOpen={(entry) => openTerm(entry, row.subject_name, 1)}
+          />
+        ),
       },
       {
         key: 'term2',
         header: 'Term 2',
         align: 'right',
-        render: (row) => <TermCell entry={row.terms[2]} mode={mode} />,
+        render: (row) => (
+          <TermCell
+            entry={row.terms[2]}
+            mode={mode}
+            onOpen={(entry) => openTerm(entry, row.subject_name, 2)}
+          />
+        ),
       },
       {
         key: 'term3',
         header: 'Term 3',
         align: 'right',
-        render: (row) => <TermCell entry={row.terms[3]} mode={mode} />,
+        render: (row) => (
+          <TermCell
+            entry={row.terms[3]}
+            mode={mode}
+            onOpen={(entry) => openTerm(entry, row.subject_name, 3)}
+          />
+        ),
       },
       {
         key: 'final_grade',
@@ -257,7 +483,7 @@ export default function ParentGradesPage() {
         ),
       },
     ],
-    [mode]
+    [mode, openTerm]
   );
 
   return (
@@ -289,7 +515,7 @@ export default function ParentGradesPage() {
           emptyMessage={empty.message}
         />
 
-        {/* Both flags come from the API's grading_mode, never from inspecting
+        {/* Both flags come from the API's own grading_mode, never from inspecting
             a null. A numerical report card can only ever show Pending. A
             descriptive one can show both: an unrecorded letter is Pending,
             while Final Grade and General Average are genuinely N/A, since
@@ -324,6 +550,19 @@ export default function ParentGradesPage() {
           ) : null}
         </div>
       ) : null}
+
+      <Modal
+        open={Boolean(selected)}
+        onClose={closeBreakdown}
+        title={selected ? `${selected.subjectName} · Term ${selected.term}` : 'Grade'}
+        size="lg"
+      >
+        <div className="max-h-[70vh] overflow-y-auto">
+          {detailLoading ? <LoadingSpinner size="sm" label="Loading scores…" /> : null}
+          {detailError ? <ErrorAlert message={detailError} onRetry={retryDetail} /> : null}
+          {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
+        </div>
+      </Modal>
     </div>
   );
 }
