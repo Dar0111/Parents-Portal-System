@@ -12,8 +12,8 @@ import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher student list. Enroll (POST /students, assignments-only) plus a
 // wizard step to create the pending parent. No Edit, no attendance history.
-// Detail still has no Edit — PUT is teacher_assignments-only, and an
-// adviser-only teacher would 403.
+// Detail Edit is assignments-only — PUT is teacher_assignments-only, and an
+// adviser-only teacher sees muted copy rather than a button that 403s.
 //
 // Read scope is assigned OR section adviser (utils/teacherScope.js), so an
 // adviser holding no subject assignments still sees their advisory section —

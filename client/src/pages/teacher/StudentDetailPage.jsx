@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
@@ -11,14 +11,16 @@ import PasswordField from '../../components/PasswordField';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
-// One student record. Still no Edit — PUT /api/students/:id is
-// teacher_assignments-only and answers 403 to a teacher who can view but
-// not write. An Edit button shown to an adviser-only teacher would be a
-// dead end this UI invented. Create parent is always shown: the API has
-// no assignment check on POST /users/parents, and hiding the button
-// behind assignments would invent a narrower UI than the API. TCH-002
-// still sees it on Jea and gets 409 (already linked). "Already has a
-// parent" is that 409 — do not probe, do not invent a flag on GET.
+// One student record. Edit is shown only when this student's class
+// (grade_level + section, never section_id) appears in GET /assignments
+// — the same write-scope signal StudentsPage uses for Enroll. Do not
+// reuse useTeacherTargets (assigned-OR-adviser is the READ scope). Do
+// not probe PUT. An adviser-only teacher gets muted copy, not a button
+// that 403s. Create parent stays always shown: the API has no assignment
+// check on POST /users/parents, and hiding it would invent a narrower UI
+// than the API. TCH-002 still sees it on Jea and gets 409 (already
+// linked). "Already has a parent" is that 409 — do not probe, do not
+// invent a flag on GET.
 //
 // A separate route rather than a modal on the list: a student record is a
 // destination — deep-linkable, back-buttonable, and reachable later from the
@@ -26,10 +28,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // reusing a row handed over by the list, so a direct URL load works with no
 // list in memory.
 //
-// WHEN EDITING IS BUILT: the button's visibility must key on the
-// assigned-vs-adviser distinction, not merely on "is a teacher". That is the
-// same 403-vs-404 split from routes/students.js surfacing in the UI for the
-// first time — the API tells you which one you are only by refusing.
+// Two Modals, not one with a mode. Create parent is two-phase and
+// irreversible. Edit is one-phase and reversible. Sharing open /
+// confirming / formError is how a page grows a mode enum nobody can read.
 
 // DISPLAY CASING ONLY — see CLAUDE.md convention 5d. Applied at the value, not
 // inside Field: capitalising an address or an LRN would be wrong, so only the
@@ -52,11 +53,37 @@ function Field({ label, value }) {
   );
 }
 
+function assignmentMatchesStudent(row, student) {
+  return (
+    Number(row.grade_level) === Number(student.grade_level) && String(row.section) === String(student.section)
+  );
+}
+
+function draftFrom(row) {
+  return {
+    first_name: row.first_name || '',
+    last_name: row.last_name || '',
+    birthday: row.birthday || '',
+    gender: row.gender || '',
+    address: row.address || '',
+    contact_number: row.contact_number || '',
+  };
+}
+
 const EMPTY_PARENT = {
   name: '',
   password: '',
   confirmPassword: '',
   email: '',
+  contact_number: '',
+};
+
+const EMPTY_EDIT = {
+  first_name: '',
+  last_name: '',
+  birthday: '',
+  gender: '',
+  address: '',
   contact_number: '',
 };
 
@@ -67,6 +94,7 @@ export default function StudentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notInScope, setNotInScope] = useState(false);
+  const [assignments, setAssignments] = useState([]);
 
   const [saveError, setSaveError] = useState(null);
   const [saveMessage, setSaveMessage] = useState(null);
@@ -77,6 +105,11 @@ export default function StudentDetailPage() {
   const [formError, setFormError] = useState(null);
   const [parent, setParent] = useState(EMPTY_PARENT);
   const [revealed, setRevealed] = useState({ password: false, confirm: false });
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [draft, setDraft] = useState(EMPTY_EDIT);
 
   // Falls back to a neutral title until the record loads, so the header never
   // flashes an id or an empty string.
@@ -110,6 +143,28 @@ export default function StudentDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Same fetch shape as StudentsPage Enroll: own effect, unwrap assignments,
+  // no teacher_id, catch → []. A failed call looks like adviser-only.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/assignments', { unwrap: 'assignments' })
+      .then((rows) => {
+        if (!cancelled) setAssignments(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setAssignments([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const canEdit = useMemo(
+    () => (student ? assignments.some((row) => assignmentMatchesStudent(row, student)) : false),
+    [assignments, student]
+  );
 
   function openCreate() {
     setParent(EMPTY_PARENT);
@@ -176,6 +231,61 @@ export default function StudentDetailPage() {
     }
   }
 
+  function openEdit() {
+    if (!student) return;
+    setDraft(draftFrom(student));
+    setEditError(null);
+    setSaveError(null);
+    setSaveMessage(null);
+    setEditOpen(true);
+  }
+
+  function closeEdit() {
+    if (savingEdit) return;
+    setEditOpen(false);
+    setEditError(null);
+    setDraft(EMPTY_EDIT);
+  }
+
+  async function submitEdit(event) {
+    event.preventDefault();
+    if (!student) return;
+    setEditError(null);
+    if (!draft.first_name.trim() || !draft.last_name.trim()) {
+      setEditError('First name and last name are required.');
+      return;
+    }
+    setSavingEdit(true);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      // Omit grade_level, section, lrn, status. A matching class pair works
+      // today and is one more way to trip the 400 later. Omitting cannot.
+      const { student: updated, message } = await api.put(
+        `/students/${student.id}`,
+        {
+          first_name: draft.first_name.trim(),
+          last_name: draft.last_name.trim(),
+          birthday: draft.birthday.trim(),
+          gender: draft.gender,
+          address: draft.address.trim(),
+          contact_number: draft.contact_number.trim(),
+        },
+        { unwrap: ['student', 'message'] }
+      );
+      // §5b: the card reads `student`. Writers are load() and this success
+      // path. Never copy draft onto the record.
+      setStudent(updated);
+      setSaveMessage(message);
+      setEditOpen(false);
+      setDraft(EMPTY_EDIT);
+    } catch (err) {
+      setEditError(extractError(err));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   const backLink = (
     <Link
       to="/teacher/students"
@@ -237,6 +347,20 @@ export default function StudentDetailPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={student.status} />
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={openEdit}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              >
+                Edit
+              </button>
+            ) : (
+              <p className="max-w-sm text-sm text-slate-500">
+                Editing a student is limited to classes you are assigned to teach. Advising a
+                section is not enough.
+              </p>
+            )}
             <button
               type="button"
               onClick={openCreate}
@@ -266,6 +390,100 @@ export default function StudentDetailPage() {
           </div>
         </dl>
       </div>
+
+      <Modal
+        open={editOpen}
+        onClose={closeEdit}
+        closeOnBackdrop={!savingEdit}
+        title="Edit student"
+        size="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeEdit}
+              disabled={savingEdit}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="detail-edit-form"
+              disabled={savingEdit}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+            >
+              {savingEdit ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              Save
+            </button>
+          </>
+        }
+      >
+        <div className="max-h-[70vh] overflow-y-auto">
+          {editError ? <ErrorAlert message={editError} /> : null}
+
+          <form id="detail-edit-form" onSubmit={submitEdit} className="space-y-3">
+            <FormField label="LRN" value={student.lrn} disabled />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                label="First name"
+                value={draft.first_name}
+                onChange={(e) => setDraft((prev) => ({ ...prev, first_name: e.target.value }))}
+                required
+              />
+              <FormField
+                label="Last name"
+                value={draft.last_name}
+                onChange={(e) => setDraft((prev) => ({ ...prev, last_name: e.target.value }))}
+                required
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField label="Grade level" value={`Grade ${student.grade_level}`} disabled />
+              <FormField label="Section" value={student.section} disabled />
+            </div>
+            {/* §5i: the fact plus the reason. Do not name a transfer route,
+                imply one is coming, or tell them to ask someone. The school
+                question behind a move is unanswered. */}
+            <p className="text-sm text-slate-500">
+              A student's class cannot be changed here. The system does not support moving a
+              student between classes.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                label="Birthday"
+                type="date"
+                value={draft.birthday}
+                onChange={(e) => setDraft((prev) => ({ ...prev, birthday: e.target.value }))}
+              />
+              <FormField
+                label="Gender"
+                as="select"
+                value={draft.gender}
+                onChange={(e) => setDraft((prev) => ({ ...prev, gender: e.target.value }))}
+              >
+                <option value="">Not recorded</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </FormField>
+            </div>
+            <FormField
+              label="Address"
+              as="textarea"
+              rows={2}
+              value={draft.address}
+              onChange={(e) => setDraft((prev) => ({ ...prev, address: e.target.value }))}
+            />
+            <FormField
+              label="Contact number"
+              value={draft.contact_number}
+              onChange={(e) => setDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+              maxLength={20}
+              hint="Up to 20 characters."
+            />
+          </form>
+        </div>
+      </Modal>
 
       <Modal
         open={open}
