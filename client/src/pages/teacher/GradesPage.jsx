@@ -12,9 +12,12 @@ import { todayLocalDateString } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher grades — viewing + encoding, one page. The teacher does not choose
-// a mode; grading_mode comes from GET /api/grades/student/:id after a class
-// is picked (one roster student), never from a Grade-1 hardcoded check and
-// never by parsing a 400 as a feature flag.
+// a mode; grading_mode comes from GET /api/grading-modes keyed on the
+// selected class's grade_level (unwrap 'grading_mode', an OBJECT —
+// { grade_level, school_year, mode }). Read .mode. Do not flatten. Do not
+// default to 'numerical' — a missing config is 409, a pending load is a
+// spinner. The report card still supplies the subject list and term grid
+// (GET /grades/student/:id); it is no longer the mode source.
 //
 // Scope, read from the route file rather than assumed:
 //   VIEW   teacher_assignments, grade+section, any subject (wide)
@@ -23,29 +26,20 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //   TCH-002 Grade 5 - Masigasig, a class it cannot grade — that hook is
 //   assigned-OR-adviser; this page is assignments-only. Class list comes
 //   from GET /students (which IS the wider union), then a report-card 404
-//   is "not the subject teacher." Do not "fix" that by calling the hook.
+//   is "not the subject teacher" (notSubjectTeacher). That 404 is not
+//   encode-scope memory and can coexist with a loaded-empty assignments
+//   array. Do not "fix" that by calling the hook.
 //
-// Encode-scope CANNOT be predicted. No endpoint reads teacher_assignments
-// (CLAUDE.md KNOWN ISSUES). Do not fake a subject filter. The honest
-// substitutes, both recorded here so the assignments endpoint is what
-// retires them rather than a client heuristic being re-derived:
-//   1. Copy next to the subject selector: you can VIEW every subject on
-//      the class card; you can ENCODE only subjects you teach. This
-//      screen cannot tell those apart in advance. Discovery is on
-//      Record/Edit, not on picking the subject — the copy must say that.
-//   2. Opening the encode form calls ensureShell (POST / if no grade_id)
-//      BEFORE any score input is shown. 403 "You are not assigned to
-//      teach ${subject}..." remembers that subject_id for the session and
-//      marks the picker "(not yours)". Discovery is on the click, never
-//      after typing.
+// Encode-scope is predicted from GET /assignments (own rows, no teacher_id).
+// Match is grade_level + section + subject_id together. Four states:
+// not-loaded, error, loaded [], loaded rows. A failed call is never []
+// and never suffixes "(not yours)" — that would turn a network failure
+// into a permissions fact. A loaded [] (TCH-002) is a genuine empty list.
 //
-// HOLE, not fixed here: ensureShell skips POST when a grade row already
-// exists for that student+subject+term, so encode-scope is not discovered
-// until a later write. Record-time discovery therefore only works for
-// students with no existing row for that subject. A real mid-term class
-// is mostly the other case. The assignments endpoint is what retires
-// this; do not probe with a POST on subject change — there is no
-// DELETE /api/grades/:id, so a probe would leave a shell behind.
+// ensureShell still creates the shell row encoding writes into (or
+// returns the existing recorded row, or recovers a 409). It does not
+// discover encode scope. An existing grade_id skips POST because the
+// row is already there, not because scope is unknown.
 //
 // No client-side Initial Grade preview. A "if you save now, IG would be…"
 // number is a copy of gradeComputation.js that would drift the first time
@@ -64,7 +58,8 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // §5e: encoding is repeatable (null clears a letter or exam pair; DELETE
 // component recomputes). No confirmation. Confirmation would not undo a
-// wrongly-created shell — there is no DELETE /api/grades/:id.
+// wrongly-created shell — DELETE /api/grades/:id is admin-only; a teacher
+// cannot remove a shell they created by mistake.
 //
 // No unsaved-changes warning. Every score is its own request (Add score
 // writes immediately; exam scores save on their own button). There is no
@@ -217,7 +212,15 @@ export default function TeacherGradesPage() {
   const [notSubjectTeacher, setNotSubjectTeacher] = useState(false);
 
   const [subjectId, setSubjectId] = useState(null);
-  const [refusedSubjectIds, setRefusedSubjectIds] = useState(() => new Set());
+
+  // Own assignment rows. null = not loaded (or failed — see assignmentsError).
+  // [] = loaded empty. Never treat a failed call as [].
+  const [assignments, setAssignments] = useState(null);
+  const [assignmentsError, setAssignmentsError] = useState(null);
+
+  const [gradingMode, setGradingMode] = useState(null);
+  const [gradingModeLoading, setGradingModeLoading] = useState(false);
+  const [gradingModeError, setGradingModeError] = useState(null);
 
   // student_id -> grade row from GET /grades. The ONLY writer is
   // loadRecorded(). Roster "Recorded" columns read this, never drafts.
@@ -272,10 +275,26 @@ export default function TeacherGradesPage() {
   );
 
   const subjects = report?.subjects ?? [];
-  const mode = report?.grading_mode ?? 'numerical';
+  const mode = gradingMode?.mode ?? null;
   const year = report?.school_year || schoolYear;
   const selectedSubject = subjects.find((s) => s.subject_id === subjectId) || null;
-  const subjectRefused = subjectId != null && refusedSubjectIds.has(subjectId);
+  const assignmentsLoaded = Array.isArray(assignments);
+
+  const canEncodeSubject = useCallback(
+    (id) => {
+      if (!assignmentsLoaded || !selectedClass || id == null) return false;
+      return assignments.some(
+        (row) =>
+          Number(row.grade_level) === Number(selectedClass.grade_level) &&
+          String(row.section) === String(selectedClass.section) &&
+          Number(row.subject_id) === Number(id)
+      );
+    },
+    [assignments, assignmentsLoaded, selectedClass]
+  );
+
+  const canEncode = canEncodeSubject(subjectId);
+  const subjectUnassigned = assignmentsLoaded && subjectId != null && !canEncode;
 
   const loadStudents = useCallback(async () => {
     setStudentsLoading(true);
@@ -308,6 +327,23 @@ export default function TeacherGradesPage() {
     loadStudents();
   }, [loadStudents]);
 
+  const loadAssignments = useCallback(async () => {
+    setAssignmentsError(null);
+    try {
+      const rows = await api.get('/assignments', { unwrap: 'assignments' });
+      setAssignments(rows);
+    } catch (err) {
+      setAssignmentsError(
+        `Could not load your subject assignments. ${extractError(err)}`
+      );
+      setAssignments(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAssignments();
+  }, [loadAssignments]);
+
   const closePanel = useCallback(() => {
     setEncodingStudent(null);
     setDetail(null);
@@ -321,30 +357,59 @@ export default function TeacherGradesPage() {
     setSaveMessage(null);
   }, []);
 
-  const markRefused = useCallback((id) => {
-    setRefusedSubjectIds((current) => {
-      const next = new Set(current);
-      next.add(id);
-      return next;
-    });
-    closePanel();
-  }, [closePanel]);
-
   const handleEncodeError = useCallback(
     (err) => {
-      if (isEncodeRefusal(err) && subjectId != null) {
-        markRefused(subjectId);
+      if (isEncodeRefusal(err)) {
+        closePanel();
       }
       showSaveError(extractError(err));
       return isEncodeRefusal(err);
     },
-    [markRefused, subjectId]
+    [closePanel]
   );
 
-  // Discover grading_mode + the class subject list from ONE roster student.
-  // An empty roster never reaches this — there is no student id to ask, and
-  // guessing numerical would be inventing a mode. Copy for that case names
-  // the empty class, not configuration.
+  const classGradeLevel = selectedClass?.grade_level ?? null;
+
+  // Mode from GET /grading-modes, keyed on the class grade_level. No roster
+  // student. Do not default a missing row to numerical.
+  useEffect(() => {
+    let cancelled = false;
+
+    setGradingMode(null);
+    setGradingModeError(null);
+
+    if (classGradeLevel == null) {
+      setGradingModeLoading(false);
+      return undefined;
+    }
+
+    setGradingModeLoading(true);
+    api
+      .get('/grading-modes', {
+        unwrap: 'grading_mode',
+        params: { grade_level: classGradeLevel },
+      })
+      .then((row) => {
+        if (cancelled) return;
+        setGradingMode(row);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setGradingModeError(extractError(err));
+        setGradingMode(null);
+      })
+      .finally(() => {
+        if (!cancelled) setGradingModeLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [classGradeLevel]);
+
+  // Subject list + term grid from ONE roster student. Mode is no longer
+  // taken from this payload. An empty roster never reaches this — there is
+  // no student id to ask. Copy for that case names the empty class.
   useEffect(() => {
     let cancelled = false;
 
@@ -443,10 +508,8 @@ export default function TeacherGradesPage() {
 
   async function ensureShell(student) {
     const existing = recorded.get(student.id);
-    // HOLE: an existing row skips POST, so a teacher who can VIEW this
-    // subject but not encode it gets the form and is refused only on the
-    // first score write. Discovery at Record works only when there is no
-    // grade_id yet. Do not "fix" with a probe POST — no DELETE for shells.
+    // Existing row: the shell is already there. Scope was decided from
+    // GET /assignments before this click, not by this POST.
     if (existing?.id) return existing;
 
     try {
@@ -457,7 +520,6 @@ export default function TeacherGradesPage() {
       );
     } catch (err) {
       if (isEncodeRefusal(err)) {
-        markRefused(subjectId);
         showSaveError(extractError(err));
         return null;
       }
@@ -474,7 +536,7 @@ export default function TeacherGradesPage() {
   }
 
   async function openEncode(student) {
-    if (subjectRefused) return;
+    if (!canEncode) return;
     clearSaveFeedback();
     setShellLoading(true);
     try {
@@ -702,7 +764,14 @@ export default function TeacherGradesPage() {
         header: '',
         align: 'right',
         render: (row) => {
-          if (subjectRefused) {
+          if (!assignmentsLoaded) {
+            return (
+              <button type="button" className={btnSecondary} disabled>
+                Record
+              </button>
+            );
+          }
+          if (!canEncode) {
             return <span className="text-xs text-slate-400">Not yours</span>;
           }
           const stored = recorded.get(row.id);
@@ -786,7 +855,7 @@ export default function TeacherGradesPage() {
               {subjects.map((s) => (
                 <option key={s.subject_id} value={s.subject_id}>
                   {s.subject_name}
-                  {refusedSubjectIds.has(s.subject_id) ? ' (not yours)' : ''}
+                  {assignmentsLoaded && !canEncodeSubject(s.subject_id) ? ' (not yours)' : ''}
                 </option>
               ))}
             </FormField>
@@ -808,16 +877,24 @@ export default function TeacherGradesPage() {
         ) : null}
       </div>
 
-      {report && subjects.length ? (
+      {report && subjects.length && assignmentsLoaded ? (
         <p className="text-sm text-slate-600">
-          You can view every subject on this class card. You can encode only the
-          subjects you teach. This screen cannot tell those apart until you
-          click Record (or Edit) and the server refuses — that marks the
-          subject here for the rest of the session, and does not open a form.
+          You can view every subject on this class card. You can encode the ones
+          you are assigned to teach — those are unmarked in the list. A subject
+          marked “(not yours)” cannot be encoded from here.
         </p>
       ) : null}
 
-      {subjectRefused ? (
+      {assignmentsError ? (
+        <ErrorAlert
+          message={assignmentsError}
+          onRetry={loadAssignments}
+        />
+      ) : null}
+
+      {gradingModeError ? <ErrorAlert message={gradingModeError} /> : null}
+
+      {subjectUnassigned ? (
         <ErrorAlert
           message={`You are not assigned to teach ${selectedSubject?.subject_name || 'this subject'} for this class. Pick a subject you teach to encode.`}
         />
@@ -832,7 +909,7 @@ export default function TeacherGradesPage() {
 
       {reportError ? <ErrorAlert message={reportError} /> : null}
 
-      {reportLoading ? (
+      {reportLoading || gradingModeLoading ? (
         <LoadingSpinner className="py-16" label="Loading subjects…" />
       ) : !roster.length ? (
         <EmptyState
@@ -846,7 +923,9 @@ export default function TeacherGradesPage() {
           title="Grades are the subject teacher's job"
           message="You can see this class as its adviser, but encoding grades is limited to teachers assigned to a subject here."
         />
-      ) : report ? (
+      ) : gradingModeError ? (
+        null
+      ) : report && mode ? (
         <>
           <DataTable
             columns={columns}

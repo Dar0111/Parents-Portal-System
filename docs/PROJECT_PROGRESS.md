@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-12 (Teacher → Students Edit. Visibility from `GET /assignments`, no PUT probe. Remaining Stage 4 work is the other admin screens.)
+**Last updated:** 2026-09-12 (Teacher → Grades encode-scope from `GET /assignments`, mode from `GET /grading-modes`. Remaining Stage 4 work is the other admin screens.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -368,11 +368,11 @@ rows. **DELETE does not refuse when grades exist** — a scope change
 removes future authority, never past records. Items 2–3 shipped the same
 day after item 1 was committed: `GET /api/grading-modes` (missing config
 is 409, not a settings key) and `DELETE /api/grades/:id` (admin-only, 403
-when locked). **Teacher → Grades still does not call `GET /assignments`**
-— that is NOW POSSIBLE, a client dispatch, not a missing endpoint.
-**Teacher → Contributions likewise still builds compose grades from
-`GET /students`** (too wide; TCH-002 sees Jea); Post is the assignment
-check. Same NOW POSSIBLE list. **Contacts empty-cause stays open:**
+when locked). **Teacher → Grades switched 2026-09-12** — encode-scope from
+`GET /assignments`, mode from `GET /grading-modes`. **Teacher →
+Contributions still builds compose grades from `GET /students`** (too
+wide; TCH-002 sees Jea); Post is the assignment check. That stays NOW
+POSSIBLE. **Contacts empty-cause stays open:**
 `GET /assignments` does not tell "no parents exist" from "all parents
 pending." TCH-002 is adviser of Masigasig with zero assignment rows and a
 pending parent. **Consequence 5 is not closed by that API:** `content.js`
@@ -652,25 +652,16 @@ content/students scope labels, no correction was owed. **5g's inverse closed
 
 **Teacher → Grades is DONE (2026-09-07)** — viewing + encoding, one page
 at `/teacher/grades`. The teacher does not choose a mode: after a class is
-picked, `GET /api/grades/student/:id` on one roster student supplies
-`grading_mode` and the subject list (consequence 4 option 1). Empty roster
-copy names the empty class, not undiscoverable mode. **Do not reuse
-`useTeacherTargets`** — assigned-OR-adviser vs assignments-only; comment now
-lives in the hook because TCH-002 would be offered Masigasig. **No
-client-side IG preview** — trust the round-trip. **`TermCell` copied from
-Parent → Grades, `GradeValue` untouched** (second copy; extract at three).
-**No lock button** — admin-only, 403 at middleware. **§5e: no confirmation**
-— encoding is repeatable; confirmation would not undo a wrongly-created
-shell (`DELETE /api/grades/:id` did not exist yet; it does now, admin-only).
-**Science dead-end:** copy next to the subject selector names Record/Edit
-as the discovery click, not picking the subject. Session-memory after the
-first encode 403, before any score input is shown. Encode-scope was not
-predicted because no endpoint read `teacher_assignments` then.
-`GET /assignments` exists now; this page has not switched — see CLAUDE.md
-NOW POSSIBLE. **Hole, not fixed (same consumer):** discovery works only
-for students with no existing row for that subject. **Alert XOR** (error wins; `closePanel` clears both). **No
-unsaved-changes warning** — every score is its own request; Attendance
-bulk-submit is the open question that would warrant one.
+picked, `GET /api/grades/student/:id` on one roster student supplies the
+subject list and term grid. **`grading_mode` and encode-scope switched
+2026-09-12:** mode from `GET /grading-modes` (object; no `?? 'numerical'`);
+encode-scope from `GET /assignments` before any click. Empty roster copy
+names the empty class. **Do not reuse `useTeacherTargets`** —
+assigned-OR-adviser vs assignments-only. **No client-side IG preview.**
+**`TermCell` copied from Parent → Grades.** **No lock button.** **§5e: no
+confirmation** — `DELETE /api/grades/:id` is admin-only. `ensureShell`
+still creates the shell; it no longer discovers scope. **Alert XOR**
+(error wins; `closePanel` clears both). **No unsaved-changes warning.**
 
 Verified live on throwaways, then SQL-torn down: `student_id=14` LRN
 `61001990` Grade 6 - Malikhain, `grade_id=31`, IG **88.05** / TG **90**;
@@ -814,10 +805,9 @@ must not write on it. Live counts: CLAUDE.md Seeded baseline.
       2026-09-11 in conversation; the modal is approved. Grade 1: no empty
       WW/PT/Exam sections. IG not shown.
 - [x] **Teacher encode — DONE 2026-09-07.** One page, both modes, no client
-      IG preview, no lock button, no confirmation. Encode-scope 403s are
-      remembered for the session rather than predicted. `GET /assignments`
-      exists now (2026-09-08); this page has not switched — see CLAUDE.md
-      NOW POSSIBLE. Empty class copy names the empty class.
+      IG preview, no lock button, no confirmation. **Switched 2026-09-12:**
+      encode-scope from `GET /assignments` (unassigned marked before click);
+      mode from `GET /grading-modes`. Empty class copy names the empty class.
 - [ ] Web pages: admin lock/unlock control (and admin delete of an unlocked
       wrong-student / wrong-term shell — `DELETE /api/grades/:id` exists).
 - [ ] Expo screens (Stage 5, not started).
