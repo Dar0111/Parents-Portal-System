@@ -7,7 +7,8 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-12 (Teacher → Grades encode-scope from `GET /assignments`, mode from `GET /grading-modes`. Remaining Stage 4 work is the other admin screens.)
+**Last updated:** 2026-09-12 (Teacher → Attendance records. Nav 11 → 12.
+Remaining Stage 4 work is the other admin screens.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -241,8 +242,9 @@ letters and list students for a section they cannot yet post announcements to
 or message the parents of. Testing across modules in that window shows
 scheduled work in progress, not a bug.
 
-**Teacher → Attendance is DONE (2026-09-06)** — encode only; the history
-view is a separate dispatch. **Measured: 3m14s** wall-clock from PLAN
+**Teacher → Attendance is DONE (2026-09-06)** — encode only; history
+landed as its own page 2026-09-12 (`/teacher/attendance-records`, add
+not flip, read only). **Measured: 3m14s** wall-clock from PLAN
 APPROVED to agent-verified — recorded in CLAUDE.md with four caveats
 (agent execution time not developer-hours; excludes planning and review;
 excludes browser verification; most-favourable case with every primitive
@@ -838,11 +840,14 @@ section adviser (2026-09-06); write scope unchanged. Teacher Edit built
 - [ ] Admin list/detail/enroll. Student DELETE.
 - [ ] Expo screens (Stage 5, not started).
 
-**Attendance Monitoring** — API done. Teacher encode and Parent view built.
+**Attendance Monitoring** — API done. Teacher encode, Teacher records, and Parent view built.
 - [x] **Teacher encode — DONE 2026-09-06.** Per-day, adviser-scoped, bulk submit.
+- [x] **Teacher records — DONE 2026-09-12.** Separate page, sibling route,
+      add not flip. Read only. `GET /attendance` range, never `date`.
+      Correction path is the encode screen.
 - [x] **Parent view — DONE 2026-09-09.** Raw counts + day list, no rate.
-      Month vs All. Skip when unlinked. Teacher history is a later page.
-- [ ] Web pages: teacher history, admin attendance.
+      Month vs All. Skip when unlinked.
+- [ ] Web pages: admin attendance.
 - [ ] Expo screens (Stage 5, not started).
 
 **Announcements & Memo Dissemination** — API done (Class Board included — see Notes above, investigated 2026-09-06, zero new code). Teacher and Parent pages built 2026-09-07.
@@ -902,9 +907,8 @@ found all three buckets empty at 77; later additions include
 assignments/subjects, `GET /grading-modes`, `DELETE /grades/:id`, and
 `PUT /auth/contact` (2026-09-09). What every module still needs is
 remaining admin web pages (Stage 4) and Expo screens (Stage 5) — see the
-Notes column above for the concrete next step per module. Teacher → Grades
-encode-scope prediction is NOW POSSIBLE (client dispatch), not a missing
-endpoint.
+Notes column above for the concrete next step per module. Teacher → Grades encode-scope switched 2026-09-12. Remaining Stage 4
+work is the other admin screens.
 
 ---
 

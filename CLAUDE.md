@@ -41,9 +41,8 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-12 (Teacher → Grades encode-scope from
-`GET /assignments`, mode from `GET /grading-modes`. Remaining Stage 4
-work is the other admin screens.)
+**Last verified:** 2026-09-12 (Teacher → Attendance records. Nav 11 → 12.
+Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -962,7 +961,7 @@ pre-existing `AuthContext.jsx` warnings aside). The auth slice still holds;
 on top of it the Stage 4 foundation now exists: role-aware `Shell` with
 nested layout routes, seven shared UI primitives, and a dev-only component
 gallery at `/dev/ui`. **Teacher and Parent feature pages now exist** —
-Teacher: Attendance, Students (+ detail), Excuse Letters, Announcements,
+Teacher: Attendance, Attendance records, Students (+ detail), Excuse Letters, Announcements,
 Memos, Events, Messages (+ thread), Grades (view + encode), Contributions,
 Settings (password + contact; identity locked).
 Parent: Grades (report card + term breakdown modal), Excuse Letters (submit + edit while Pending), Announcements,
@@ -994,8 +993,8 @@ client/src/
   components/             DataTable, Modal, FormField, PasswordField, StatusBadge,
                           EmptyState, ErrorAlert, LoadingSpinner
   pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
-  pages/teacher/          10 pages — **Teacher web role complete as nav:** Attendance,
-                          Students (+ detail, enroll wizard + create parent 2026-09-10, Edit 2026-09-12), Excuse Letters, Announcements,
+  pages/teacher/          **12 nav items** — Attendance, Attendance records
+                          (2026-09-12, add not flip), Students (+ detail, enroll wizard + create parent 2026-09-10, Edit 2026-09-12), Excuse Letters, Announcements,
                           Memos, Events, Messages (+ thread), Grades (view +
                           encode, one page), Contributions (list + roster modal),
                           Settings (2026-09-10 — copy of Parent Settings; locked
@@ -2745,7 +2744,8 @@ folds Late into Present, and never drops Excused from a denominator.
 `summary.total` is recorded days, not SF9 Class Days. The school question
 (does Late count toward "present"? is Excused in the denominator?) is
 still unanswered — do not guess at either, and do not add a % on the
-client. Teacher attendance history remains a later page, not this one.
+client. Teacher attendance history is `/teacher/attendance-records`
+(2026-09-12), not this parent page.
 
 ---
 
@@ -3260,15 +3260,25 @@ replaced with a new guess.
       component gallery at `/dev/ui`. The seven conventions every page
       below inherits are frozen — read them before building any screen.
 - [x] **Teacher → Attendance — DONE 2026-09-06.** The first Stage 4
-      feature page. **Encode only** — the attendance HISTORY view is a
-      separate later dispatch and was deliberately kept out of scope.
-      Adviser-scoped via `sections.adviser_id`; roster fetched with
-      `?status=active` so the bulk endpoint's inactive-student `400` is
-      unreachable rather than handled; pre-fill plus in-place update via
-      `ON DUPLICATE KEY`; unset rows omitted rather than defaulted to
-      Present. See MEASURED BUILD TIME above — this is the page the void
-      estimate was to be re-measured from, and that measurement needs
-      reading with its caveats before being used for anything.
+      feature page. Encode only — history is a separate page (see the
+      next checkbox). Adviser-scoped via `sections.adviser_id`; roster
+      fetched with `?status=active` so the bulk endpoint's inactive-student
+      `400` is unreachable rather than handled; pre-fill plus in-place
+      update via `ON DUPLICATE KEY`; unset rows omitted rather than
+      defaulted to Present. See MEASURED BUILD TIME above — this is the
+      page the void estimate was to be re-measured from, and that
+      measurement needs reading with its caveats before being used for
+      anything.
+- [x] **Teacher → Attendance records — DONE 2026-09-12.** Separate page,
+      sibling route `/teacher/attendance-records`, not a tab on encode.
+      Nav is **add, not flip** — no unbuilt history row existed; item
+      born `built: true` with the route (convention 6). Read only.
+      `GET /attendance` with `grade_level` + `section.name` + optional
+      `from`/`to`. Never send `date`. Section list copies encode
+      (`GET /sections` filtered on `adviser_id`). Do not use
+      `GET /assignments` or `useTeacherTargets`. Correction path is
+      the encode screen (`POST /bulk` ON DUPLICATE KEY). Encode-page
+      comment left untouched.
 - [x] **Teacher → Students — DONE 2026-09-07.** List plus a detail route
       (`/teacher/students/:id`). Originally read only. **Enroll + pending
       parent 2026-09-10 — same checkbox, not a new one, no new nav item
@@ -3429,7 +3439,8 @@ replaced with a new guess.
       `from`/`to`: `GET /attendance/summary/:studentId` and
       `GET /attendance/student/:studentId`. Skip both when unlinked.
       Month vs All (Events pattern). Four counts + recorded days;
-      `StatusBadge` on day rows. Teacher history is a later page.
+      `StatusBadge` on day rows. Teacher history is Attendance records
+      (2026-09-12), not this page.
 - [x] **Admin → Users — DONE 2026-09-09.** First admin feature page.
       Route `/admin/users`, `built: false → true` with the route.
       Pending queue + directory + create teacher + edit +
@@ -4010,6 +4021,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-12 | **Teacher → Attendance records — sibling page, not a tab on encode.** Branch `feature/teacher-attendance-history`. Route `/teacher/attendance-records` (never `/teacher/attendance/history` — that prefix would read as a tab; `navTitleForPath` longest-prefix needs `${item.to}/`, so `attendance-records` does not steal the encode title). Nav is **add, not flip** — no unbuilt history row existed; `{ to: '/teacher/attendance-records', label: 'Attendance records', icon: 'fa-clock-rotate-left', built: true }` lands with the route (convention 6). **Read only.** `GET /attendance` (`unwrap: 'attendance'`) with `grade_level` + `section.name` + optional `from`/`to`. **Never send `date`** — that branch swallows the range. Section list copies encode (`GET /sections` filtered on `adviser_id`), auto-selects `mine[0]`. Not `GET /assignments`, not `useTeacherTargets`. No `PUT /:id`. Correction is the encode screen (`POST /bulk` ON DUPLICATE KEY, §5e). Encode-page comment left untouched — "history is a separate page" stays true without a path that can rot. §5i sentence always first on every return, not gated on a loaded section: *"To change a mark, open Attendance and pick that date."* (Attendance is a `Link` to `/teacher/attendance`). Slightly odd above the spinner and the no-advisory empty — accepted so it cannot disappear in the states where a teacher is looking for where to go. Three empty branches; `canReset` is its own value; Reset clears From/To only, not the section. No LRN (not in SELECT). `recorded_by` not rendered (`GET /users/:id` is admin-only). No NOW POSSIBLE bullet invented. `TeacherDashboard` / `Shell.jsx` / `AttendancePage.jsx` untouched. Whitelist: new page, `App.jsx`, `nav.js`, these two docs. No server. `npm run build` clean; oxlint **30 → 31**, one new fetch-effect advisory on `AttendanceRecordsPage.jsx:100` (`load()` — same class every page carries). SSR AttendanceRecordsPage + negative control (`useState is not defined` on a throwaway). Throwaway harnesses deleted. **Fixture left:** Marwin (`student_id` 1) in Grade 6 - Malikhain (`section_id` 22) — **id 17** `2026-09-11` Present, **id 18** `2026-09-04` Absent. Range `from=to=2026-09-11` returns 17 only. TCH-002 Masigasig is the empty contrast (0 rows, no fixture). Confirm deletion of 17 and 18 after review — seeded `attendance` is 0. Never wrote on Jea `1234567`, Rosa, or Nino's five. Users 7. **No Cursor browser** — hard reload. TCH-001 `/teacher/attendance-records`: sentence always visible; both dates; range that excludes one; Reset. TCH-002: "No attendance recorded for this section yet." Opening + range is 5h (no required typing). Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-second data point: ~65m (~50m agent, ~15m idle oxlint/SSR/ECONNRESET).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Teacher → Grades encode-scope + mode — retires the POST 403 probe.** Branch `feature/teacher-grades-assignments`. Same page, no new nav (convention 6 N/A). `GET /assignments` (`unwrap: 'assignments'`, no `teacher_id`) predicts encode scope: match is `Number(grade_level)` + `String(section)` + `Number(subject_id)`. Four assignment states — not-loaded / error / `[]` / rows. A failed call is never `[]` and never suffixes “(not yours)”. `GET /grading-modes` (`unwrap: 'grading_mode'`, the object) supplies `mode` from the class `grade_level`. Do not flatten. Do not `?? 'numerical'` — 409 surfaces the server message. Report card still supplies the subject list and term grid. `notSubjectTeacher` (report 404) stays. `ensureShell` still creates the shell; it no longer discovers scope. Header comment 14–65 rewritten; admin-only `DELETE /:id` noted. §5i copy names unmarked vs “(not yours)” up front. §5b `recorded`/`detail` untouched. Do not reuse `useTeacherTargets`. Whitelist: `GradesPage.jsx`, these two docs. No server, no `App.jsx`/`nav.js`, no `API_REFERENCE.md`, no `useTeacherTargets.js`. `npm run build` clean; oxlint **28 → 30**, two new fetch-effect advisories on the assignments and grading-modes effects (same class every page carries). SSR GradesPage + negative control (`useState is not defined` on a throwaway). Throwaway harness deleted. **Fixture:** Marwin Mathematics term 1 shell — `grade_id=136` created then admin-deleted (Marwin 0, Nino 5). Recreated as **`grade_id=137`** (subject 38, 0 components, no scores) and left for the browser case-3 check. **Confirm deletion of 137 after the check** — a leftover on Marwin changes Parent → Grades. Never wrote on Nino's five. Jea still pending. **No Cursor browser** — open `/teacher/grades` as TCH-001 (Science first — “(not yours)” before any click; Mathematics Edit on 137), TCH-002 (Masigasig / Jea — `notSubjectTeacher`), TCH-003 (Mabait / Nino — descriptive, do not write). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-first data point: ~40m (~35m agent, ~5m idle build/oxlint/SSR).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Teacher → Students Edit — hole on the detail page, not a new nav item.** Convention 6 N/A. Branch `feature/teacher-student-edit`. Visibility from `GET /assignments` (`unwrap: 'assignments'`, no `teacher_id`) — same fetch shape as Enroll. Match is `Number(grade_level)` + `String(section)` together; never `section_id`. Do not reuse `useTeacherTargets`. Do not probe PUT. Adviser-only (TCH-002 / Jea id 2): muted *"Editing a student is limited to classes you are assigned to teach. Advising a section is not enough."* Two Modals — Create parent stays two-phase irreversible; Edit is one-phase, no confirm (§5e — PUT is reversible). Six writable fields; LRN / grade / section locked alongside. Class hint: *"A student's class cannot be changed here. The system does not support moving a student between classes."* — reason, not a transfer route (§5i). PUT body omits class. §5b: `student` from PUT `unwrap: ['student', 'message']`, never from the draft; `load()` is the other writer. `StudentsPage.jsx` comment only (approved expansion): "Detail still has no Edit" → assignments-only. Never wrote on Jea `1234567`, Rosa, or Nino's five grades. Marwin (id 1) may be edited in browser review and must be restored (`Marwin` / `Conde` / `2014-03-15` / `male` / `Pateros, Metro Manila` / contact `null`). Whitelist: `StudentDetailPage.jsx`, `StudentsPage.jsx` (comment), these two docs. No server, no `App.jsx`/`nav.js`, no `API_REFERENCE.md`. `npm run build` clean; oxlint **28 unchanged** (StudentDetailPage already carried the fetch-effect advisory). SSR StudentDetailPage + negative control (`useParams is not defined` on a throwaway). Throwaway harness deleted. **No Cursor browser** — open `/teacher/students/1` as TCH-001 (Edit, type a full word, restore) and `/teacher/students/2` as TCH-002 (no Edit, muted copy). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twentieth data point: ~16m (~13m agent, ~3m idle build/oxlint/SSR).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Teacher → Memos renders `posted_by_name`.** One page, no new nav (convention 6 N/A). Column in the middle (Memo / Posted by / Posted). Header `Posted by`, cell is `{row.posted_by_name}` alone — a column header is a label, not the parent modal's sentence. Sortable: `posted_by_name` is never null (INNER JOIN on `posted_by` NOT NULL + `ON DELETE RESTRICT`), so DataTable's nulls-last path has no case here — said on the column, not only in the plan. Header comment gained one sentence: a name does not unlock a control. Empty states unchanged. **DECISION, not leftover:** Announcements and Events deliberately do not render the field (Actions already says mine/theirs; four columns already). NOW POSSIBLE row stays open for that reason, not as unfinished work. No `useAuth`. Whitelist held: `MemosPage.jsx` + these two docs. No server, no parent page, no Announcements/Events, no `App.jsx`/`nav.js`. `npm run build` clean; oxlint **28 unchanged** (same fetch-effect advisory the page already carried). SSR MemosPage + negative control (`useState is not defined` on a throwaway). Throwaway harness deleted. **No second admin exists** — seed is one (`ADMIN001` / Principal Admin); there is no create-admin endpoint. Two memos from that account, left in the database: **id 8** (T1 fixture A — class schedule) and **id 9** (T1 fixture B — PTA meeting), both `posted_by: 1` / `Principal Admin`. Sort cannot prove two names. Open `/teacher/memos` as TCH-001 and confirm both names render. Hard reload if HMR looks wrong. Jea still pending; Nino grades still 5; users still 7. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, nineteenth data point: ~18m (~15m agent, ~3m idle build/oxlint/SSR retry).** Same four caveats; compare to the sixth point onward. |

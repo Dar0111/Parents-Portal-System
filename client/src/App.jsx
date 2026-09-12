@@ -9,6 +9,7 @@ import AdminUsers from './pages/admin/UsersPage';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
+import TeacherAttendanceRecords from './pages/teacher/AttendanceRecordsPage';
 import TeacherStudents from './pages/teacher/StudentsPage';
 import TeacherStudentDetail from './pages/teacher/StudentDetailPage';
 import TeacherExcuseLetters from './pages/teacher/ExcuseLettersPage';
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="grades" element={<TeacherGrades />} />
             <Route path="contributions" element={<TeacherContributions />} />
             <Route path="attendance" element={<TeacherAttendance />} />
+            <Route path="attendance-records" element={<TeacherAttendanceRecords />} />
             <Route path="students" element={<TeacherStudents />} />
             <Route path="students/:id" element={<TeacherStudentDetail />} />
             <Route path="excuse-letters" element={<TeacherExcuseLetters />} />

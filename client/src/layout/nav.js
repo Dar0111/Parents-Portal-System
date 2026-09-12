@@ -25,6 +25,7 @@ export const NAV_BY_ROLE = {
     { to: '/teacher', label: 'Dashboard', icon: 'fa-gauge', built: true },
     { to: '/teacher/students', label: 'Students', icon: 'fa-user-graduate', built: true },
     { to: '/teacher/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
+    { to: '/teacher/attendance-records', label: 'Attendance records', icon: 'fa-clock-rotate-left', built: true },
     { to: '/teacher/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
     { to: '/teacher/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: true },
     { to: '/teacher/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
