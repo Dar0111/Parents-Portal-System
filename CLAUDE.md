@@ -41,10 +41,12 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-12 (`PUT /api/students/:id` refuses a class
-change and writes `section_id` only when NULL — a gate, not a repair.
-Zero `section_id` NULLs in the live DB. Parent and Teacher web roles
-are complete as nav. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-12 (docs pass: seven school answers from
+2026-09-11 recorded — team conversation, not a visit or a written
+reply; three school questions remain; Contributions added as
+unconfirmed. Earlier same day: `PUT /api/students/:id` is a
+class-change gate. Parent and Teacher web roles complete as nav.
+Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -2981,7 +2983,7 @@ imply," not just "does this one anticipated symptom show up."
 | A new page file arriving via HMR can leave a stale module in an open tab | Vite dev server | **Try a hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip on 2026-09-07: Teacher → Excuse Letters' "All statuses" filter appeared to return nothing, and the investigation proved the request, the endpoint contract, the empty-state branches and `FormField`'s controlled select were all correct — the running tab was serving a stale module. A hard reload cleared it and there was no data bug. The analysis was not wasted (it found a real copy defect alongside), but the reload should have come first. |
 | **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). Teacher → Grades still learns mode from the report card until a client dispatch switches it — that switch is NOW POSSIBLE, not a missing endpoint. Encode-scope prediction and `useTeacherTargets` reconstruction likewise moved to NOW POSSIBLE. **Consequence 5 is not closed by that API:** `content.js` writes include the adviser; `contributions.js` does not. TCH-002 can announce to Masigasig and cannot POST a Grade 5 fee. GET /assignments exposes rows; it does not widen contributions write scope. A fee is money (DepEd Order 19 s. 2008). Do not widen. School question. Surfaced by Teacher → Contributions (2026-09-08). |
 | **`GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending"** | `server/routes/messages.js` | ACTIVE accounts only — correct, a pending parent cannot log in. The empty list is still indistinguishable between those two causes, so the UI's *"No parents yet. A parent appears here once an admin approves their account."* is a known imprecision. **`GET /api/assignments` does not close this.** Assignments are subject-section rows, not parent-account state. TCH-002 is the proof: adviser of Grade 5 - Masigasig, zero assignment rows, and that section's only parent is seeded `pending`. An assignments read would still be empty while students (and pending parents) exist. Closing this needs a signal about parents-of-students-in-scope, not about what a teacher is assigned to teach. Do not treat it as closed by association with item 1. |
-| **Contributions module may be struck (DO 19 s. 2008) — drop the tables, do not leave them** | `contributions` + `contribution_records` | The adviser has not decided. Empty unused tables are how the counts drifted, and the DDL is in git. A "removed" feature with a live POST still mounted is a UI lie. **Do not remove anything now.** If it is struck, drop both tables (and their FKs), do not leave them. Removal would touch: `client/src/pages/teacher/ContributionsPage.jsx`, `client/src/pages/parent/ContributionsPage.jsx`, `App.jsx` routes, `nav.js` teacher item **and delete** parent/admin items (do not leave `built: false`), `server/routes/contributions.js`, `server.js` mount, `test-contributions-flows.js`, `package.json` `test:contributions`, `schema.sql` both tables + FKs, `seed.sql` (0 rows today), this file's endpoints/files/BUILD ORDER/feature 7/baseline/Download Statement/this list **and the 409-message row below**, `docs/PROJECT_PROGRESS.md`, `docs/API_REFERENCE.md` Contributions + wrapper keys + grade-only gotcha. Leave StatusBadge Paid/Pending. Manuscript is the team's. |
+| **Contributions module may be struck (DO 19 s. 2008) — drop the tables, do not leave them** | `contributions` + `contribution_records` | The adviser has not decided. The principal has separately been *reported* as saying collection is no longer allowed — unconfirmed, a different person, a different statement; nobody has checked whether the two agree. See OPEN QUESTIONS → Contributions. **Do not collapse this row and that bullet into one "struck" claim.** Empty unused tables are how the counts drifted, and the DDL is in git. A "removed" feature with a live POST still mounted is a UI lie. **Do not remove anything now.** If it is struck, drop both tables (and their FKs), do not leave them. Removal would touch: `client/src/pages/teacher/ContributionsPage.jsx`, `client/src/pages/parent/ContributionsPage.jsx`, `App.jsx` routes, `nav.js` teacher item **and delete** parent/admin items (do not leave `built: false`), `server/routes/contributions.js`, `server.js` mount, `test-contributions-flows.js`, `package.json` `test:contributions`, `schema.sql` both tables + FKs, `seed.sql` (0 rows today), this file's endpoints/files/BUILD ORDER/feature 7/baseline/Download Statement/this list **and the 409-message row below**, `docs/PROJECT_PROGRESS.md`, `docs/API_REFERENCE.md` Contributions + wrapper keys + grade-only gotcha. Leave StatusBadge Paid/Pending. Manuscript is the team's. |
 | **DELETE `/api/contributions/:id` 409 tells the teacher to do something impossible** | `server/routes/contributions.js` | The refusal is real (`COUNT(*)` on `contribution_records` > 0 → `409`), and the first sentence is honest. The second is not: *"Clear the payment records first if you need to remove it."* There is no `DELETE` for `contribution_records` — only `PATCH` Paid/Pending, which `ON DUPLICATE KEY UPDATE`s the row, never removes it. Marking Pending again does not unlock delete. **Consequence: once any student is marked, the contribution is permanently undeletable through the API**, and the error message hides that by naming a remedy that does not exist. The Teacher page already says the server will refuse if anyone has been marked; that is more honest than the 409 string. Flagged from Teacher → Contributions browser review (2026-09-08), handler not changed — backend string. If the module is struck this goes with it. If it stays, the gap needs either a record `DELETE` or an honest message. |
 | `GET /api/excuse-letters/:id` returns strictly LESS than its own list endpoint | `server/routes/excuses.js` | The list runs `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section`; the detail runs `SELECT el.*` with **no student join at all**. So a detail route would render `student_id: 2` and need a second call to `/students/:id` just to show a name, while a list row already carries everything the detail has plus the student. Teacher → Excuse Letters therefore uses a modal from the list and never calls `GET /:id` — but the oddity is worth knowing before someone builds a detail route on it later and wonders why the name is missing. Flagged, not fixed. |
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
@@ -3021,12 +3023,13 @@ ISSUES.
 Manuscript Figure 17 called this "Student Record." It is **Grades**, not
 Feature 3. There is no Parent → Students nav. One account = one child.
 
-**Team product decision (Darryl + team, 2026-09-11), not a school answer.**
-Parents see WW / PT / Exam raw scores under a term so they can tell
-*where* a mark came from, not only the SF9 number. That closes the
-2026-09-07 deferral ("school policy question nobody has asked"). **The
-school has still not been asked.** If they later forbid raw scores, this
-modal goes; `GET /api/grades/:id` stays.
+**Answered 2026-09-11 (team conversation, not a school visit or a
+written reply).** Parents should see WW / PT / Exam raw scores under
+a term so they can tell *where* a mark came from, not only the SF9
+number. That closes the 2026-09-07 deferral. **The modal is
+approved** — do not remove it as an unapproved feature.
+`GET /api/grades/:id` stays. Not a documented policy letter; do not
+cite it in the manuscript as one. Do not re-ask it.
 
 `GET /:id` is `parent(own)`, `404` out of scope. Tap a term with
 `grade_id` → Modal. Unwrap `['grade', 'grade_components', 'descriptor']`.
@@ -3075,11 +3078,12 @@ Excuse Letters is fully built — `submit`, `mine`, `list`, `view`, `edit`,
 and `review` (`PATCH /:id/review`, approve/decline) — see the endpoints
 table and `routes/excuses.js` in Files that exist. Grades API is fully
 built — write path plus `GET /`, `GET /:id`, `GET /student/:studentId`
-(Stage G3, 2026-09-06). **Parent grade breakdown is built** (2026-09-11,
-team product decision — the school has still not been asked). Remaining
-Grades *policy* gaps (`grade_weight_configs` re-keying, ST1/ST2/TE
-composite, `grades.quarter` naming) are still school-visit items — see
-BLOCKED / RESOLVED. Admin screens wait.
+(Stage G3, 2026-09-06). **Parent grade breakdown is built** (2026-09-11;
+parents-see-raw-scores answered 2026-09-11 in conversation — see OPEN
+QUESTIONS). Remaining Grades *policy* items that used to sit here
+(three terms, both modes, three components, weights keyed by
+`(subject_id, school_year)`, admin-only lock) are answered and already
+built — see OPEN QUESTIONS. Admin screens wait.
 
 ---
 
@@ -3473,8 +3477,9 @@ replaced with a new guess.
 - [x] **Parent → Grades breakdown — DONE 2026-09-11.** Same page, no new
       nav. Tap term with `grade_id` → Modal, `GET /:id`. Grade 1: letter,
       no empty WW/PT/Exam sections (judgment copy removed 2026-09-12).
-      IG not shown (not on the card). Team decision; school still not
-      asked. Spec: NOW POSSIBLE → Parent grade breakdown (BUILT).
+      IG not shown (not on the card). Parents-see-raw-scores answered
+      2026-09-11 in conversation; the modal is approved. Spec: NOW
+      POSSIBLE → Parent grade breakdown (BUILT).
 - [ ] Admin pages remaining — students, sections/adviser assignment,
       grades, attendance, excuses, content, contributions, messages,
       settings, backup/restore. **No longer blocked on missing assignments
@@ -3577,10 +3582,112 @@ handled by the team. Do not re-raise it.
 
 ## OPEN QUESTIONS
 
+School questions and engineering questions are different. A school
+conversation does not answer an engineering row. **Do not trim them
+the same way.**
+
+### School questions — still open (three)
+
+- **Grade 1 descriptive grading — how is the A–E letter produced?**
+  Manual teacher judgment, or computed? Still unanswered. The write
+  path proceeds as a manual pick (`PATCH /api/grades/:id/descriptive`)
+  because DO 015 defines no Initial-Grade-to-letter formula — that is
+  an assumption, not a confirmation. The parent modal is silent on
+  why the letter is a letter (judgment copy removed 2026-09-12). If
+  the school later says a computation feeds the letter, that endpoint
+  changes, not the schema.
+
+- **Attendance rate — do Late and Excused count toward the rate?**
+  Still unanswered. Does Late count as present? Is Excused in the
+  denominator? Parent → Attendance (`/parent/attendance`) shows raw
+  counts only — Present / Absent / Late / Excused and recorded days.
+  It never renders a percentage. `GET /api/attendance/summary/:studentId`
+  returns counts, no rate. Do not guess at either, and do not add a %
+  on the client. Longer note: BLOCKED / RESOLVED → Attendance rate
+  formula. **This and the transfer question below are both attendance
+  and will likely be answered in one conversation.**
+
+- **Who owns old attendance after a mid-year section transfer?**
+  Still unanswered. PUT `/api/students/:id` refuses a class change
+  (`400`). That is a gate, not a transfer. Attendance *rows* key on
+  `student_id` (history would follow the child); *who may record*
+  keys on `students.section_id`. Rewriting the FK without an answer
+  would move that authority — the exact write the gate exists to
+  refuse. Do not add a transfer endpoint until this is answered.
+
+### School questions — answered 2026-09-11
+
+These seven were answered by the team on 2026-09-11, **in conversation,
+not from a school visit or a written reply.** Do not cite them in the
+manuscript as documented school policy. Do not re-ask them.
+
+- **Four quarters vs three terms → three terms.** Already built:
+  `grades.term` is `TINYINT CHECK (term BETWEEN 1 AND 3)`;
+  `system_settings.current_term` allow-listed `['1','2','3']`
+  (Stage G1a / DO 009 s. 2026).
+
+- **Numerical vs descriptive for Grades 1–3 → both modes.** Already
+  built: `grading_mode_configs` — Grade 1 `descriptive`, Grades 2–6
+  `numerical` for SY 2026-2027. Numerical writes are G2c
+  (`POST /:id/components`, `PATCH /:id/exam`); Grade 1 letter is
+  `PATCH /:id/descriptive` (G2d). How the letter is *produced* is
+  still open (the bullet above).
+
+- **Three vs five grade components → three.** Already built: Written
+  Works, Performance Tasks, Examinations. `grade_components.type` is
+  `ENUM('WW','PT')`; EX is three raw-score columns on `grades`
+  (`ex_st1`/`ex_st2`/`ex_te` plus maxes), not a third enum value.
+
+- **Grade weights and their key → by learning area, not grade band.**
+  Already built: `grade_weight_configs` keyed `(subject_id, school_year)`
+  with `ww_weight`/`pt_weight`/`ex_weight` (CHECK sums to 100.00).
+  35 rows for numerical-mode subjects (core 20/50/30, MAPEH/EPP
+  20/60/20). Grade 1 has zero weight rows because the seed JOINs
+  `grading_mode_configs` where `mode = 'numerical'`. **Not keyed by
+  grade band** — that was the old, wrong shape.
+
+- **Who may lock a grade → admin only.** Already built:
+  `PATCH /api/grades/:id/lock` is `authorize('admin')` (Stage G2e).
+  Do not widen `authorize()` on that endpoint.
+
+- **Do all parents know the child's LRN? → yes.** The LRN is on the
+  child's old school id and does not change from Grade 1 to Grade 6.
+  Login design stays: parent `login_id` IS the child's LRN.
+
+- **Should parents see raw scores (WW / PT / Exam)? → yes, for
+  transparency.** Already built: Parent → Grades term modal,
+  `GET /api/grades/:id`. The modal is approved — do not remove it
+  as an unapproved feature. The endpoint stays either way.
+
+### School questions — unconfirmed (not a decision)
+
+- **Contributions — is collection still allowed?** The principal has
+  reportedly said collecting contributions is no longer allowed.
+  That has **not** been confirmed in writing, and the exact scope
+  is unclear: whether it forbids collection entirely, forbids
+  systematising it, or covers only certain fee types. **This is a
+  question, not a decision.** Do not mark the module deprecated.
+  Do not add a deprecation notice to any page. Do not change BUILD
+  ORDER. Until the scope is confirmed in writing, do not spend a
+  dispatch on Contributions.
+
+  Feature 7 is one of the ten approved manuscript features. It has
+  three nav items across three roles (Teacher and Parent built;
+  Admin unbuilt). Removing it would need a written reason
+  defensible at the November panel.
+
+  **Different person, different statement:** KNOWN ISSUES records
+  that the *adviser* has not decided whether the module is struck
+  under DO 19 s. 2008. This item records what the *principal*
+  reportedly said. Nobody has checked whether those two agree.
+  Do not collapse them into one "struck" claim.
+
+### Engineering, manuscript, and logistics
+
+These are not answered by a school conversation. Do not trim them
+alongside the seven above.
+
 - Adviser response to the 5 revision requests
-- School answers on grading (see Blocked, above)
-- Do all parents actually know their child's LRN? If not, the login design
-  needs rethinking.
 - Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
   Undecided. Blocks the Figure 1 hardware requirements in the manuscript.
 - `Manage Templates` (Figure 23) — undefined in the manuscript. Likely means
@@ -3607,32 +3714,6 @@ handled by the team. Do not re-raise it.
   that fires on every logout regardless of form state is one a teacher
   stops reading. Decide on Attendance specifically; do not copy a blanket
   `beforeunload` onto every encode screen.
-- **Grade 1 descriptive grading — is a manual teacher judgment call the
-  right model?** Proceeding on this as an assumption (see BLOCKED /
-  RESOLVED → Grades module), not a school confirmation: DO 015 defines
-  no Initial-Grade-to-letter formula, and the reasoning (descriptive
-  grading exists to avoid numerical labeling in KS1) is what justifies
-  it, not a school reply. If the school later says a computation feeds
-  the letter, `PATCH /:id/descriptive` changes, not the schema.
-- **Who owns old attendance after a student changes section?** PUT
-  `/api/students/:id` now refuses a class change (`400`). That is a
-  gate, not a transfer. Attendance *rows* key on `student_id` (history
-  would follow the child); *who may record* keys on
-  `students.section_id`. Rewriting the FK without a school answer would
-  move that authority — the exact write the gate exists to refuse. Do
-  not add a transfer endpoint until this is answered. This is now one
-  of exactly **three** unanswered school questions, and two of the three
-  are attendance: (1) how the Grade 1 A–E letter is produced (manual
-  judgment or computed); (2) whether Late and Excused count toward the
-  attendance rate; (3) this one. **2 and 3 will likely be answered in
-  the same conversation.** Everything else on the old school-questions
-  list has since been answered.
-- **Should a teacher be able to lock their own grade encoding?**
-  `PATCH /api/grades/:id/lock` is admin-only as built (Stage G2e) —
-  locking is treated as a school-wide finalization boundary tied to the
-  End-of-Term Block, not individual teacher discretion, but nothing the
-  school has actually said confirms or rules out teacher self-locking.
-  Confirm before ever widening `authorize()` on that endpoint.
 - **Class Board: an adviser with no subject assignment in their own
   section — NO LONGER THEORETICAL. This entry previously described it as
   theoretical; that description was wrong and is corrected here.**
@@ -3793,18 +3874,6 @@ handled by the team. Do not re-raise it.
      array. The reference doc was not corrected at the time because it
      was outside that dispatch's whitelist; the correction is the audit's
      to make, and it now arrives with the answer already in hand.
-- **The standing school questions are now three, not four**, gathered
-  here because they are the unanswered items rather than one-off notes:
-  (1) how the Grade 1 A–E letter is produced (manual judgment or
-  computed); (2) whether Late and Excused count toward the attendance
-  rate; (3) who owns old attendance after a transfer. **2 and 3 are
-  both attendance and will likely be answered in the same
-  conversation.** Everything else on the old list (Grade 4's learning
-  areas, who may lock a grade) has since been answered. **None
-  currently block a screen.** Parent → Attendance shipped without a
-  percentage (raw counts only). PUT refuses a class change rather than
-  guessing at (3). Grade 1's letter write is answered-by-assumption in
-  code that works today and would change one handler, not the schema.
 
 ---
 
@@ -3952,6 +4021,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-12 | **Docs only — school answers from 2026-09-11 recorded.** No code changed, no suite ran, no screen moved. Seven questions answered by the team **in conversation** (not a visit, not a written reply), each with a pointer to the build: three terms (`grades.term` CHECK 1–3), both modes (`grading_mode_configs`), three components (WW/PT + EX columns), weights keyed `(subject_id, school_year)` not grade band, lock admin-only (`PATCH /:id/lock`), parents know the LRN, parents should see raw scores. Three school questions remain (Grade 1 A–E production; Late/Excused vs the attendance rate — now its own bullet; who owns old attendance after a transfer). Contributions added as an **unconfirmed** OPEN QUESTION (principal report) and pointed at the existing KNOWN ISSUES DO 19 row (adviser has not decided) — different people, do not collapse. Present-tense raw-scores "school has still not been asked / if they forbid this modal goes" rewritten; dated 2026-09-11 CHANGELOG stays history. OPEN QUESTIONS split into school vs engineering so the twelve engineering/manuscript rows are not trimmed alongside the seven. Flag, not fixed (out of whitelist): `GradesPage.jsx` header still says the school has not been asked and the modal goes if they forbid raw scores. Whitelist: `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. |
 | 2026-09-12 | **`PUT /api/students/:id` is a class-change gate, not a NULL repair.** Server only. Live query before this dispatch: **zero** `section_id` NULLs, **zero** VARCHAR/FK disagreements — `backfillSectionIds()` filled the seed, and POST has refused NULL since 2026-09-10. The comments at `teacherScope.js:18` and `attendance.js:297` describe a state the code handles, not a row in this database. PUT was the one remaining writer that could create a disagreement; this closes it before anything does. **Do not read "resolve-on-NULL" as "there were NULLs to resolve."** Differing `grade_level`/`section` is `400` with two sentences (§5i): *"Changing a student's class is not supported. Nothing else in this request was saved; other fields can be updated without sending a different grade_level or section."* Matching class (including omitted fields copying from existing) succeeds. Resolves `section_id` only when the stored FK is NULL — same `sections` lookup POST uses; a miss leaves NULL so a student whose VARCHAR matches no `sections` row stays editable (a 400 there would make that row permanently uneditable, because resolve runs even on a contact-only body). Never overwrites a non-null FK — rewriting it to "fix" a disagreement would move attendance authority with no school answer. `grade_level: 0` stays the existing `isValidGradeLevel` 400, before the class-match check. No transaction (still one UPDATE). Teacher write scope stays `teacher_assignments` VARCHAR. Transfer is an OPEN QUESTION, not this endpoint — attendance *rows* follow `student_id`; *who may record* keys on `students.section_id`. Standing school questions are now three, and two of them are attendance (rate formula + this). `npm run test:students` 43 → **61/61**, confirmed twice, `API_BASE=http://127.0.0.1:5000`, no `db:setup`. Also `test:attendance` **38/38** and `test:excuses` **70/70** — both read `section_id` through helpers this dispatch now writes to. Throwaway SQL INSERT for the NULL-FK and unmatched-VARCHAR cases (POST cannot create NULL). Not Jea, not Rosa, not Nino's five grades, not Marwin's class. Flag, not fixed: suite BASE still falls back to `localhost` (ECONNRESET on Node fetch here). No client files — no screen can reach this path. Whitelist: `routes/students.js`, `test-student-flows.js`, `CLAUDE.md`, `docs/API_REFERENCE.md` PUT notes only (stale `teacher(wide)` untouched), `docs/PROJECT_PROGRESS.md`. **MEASURED BUILD TIME: ~35m (~30m agent, ~5m idle EADDRINUSE watch restart / ECONNRESET retry).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Grade 1 parent-modal judgment sentence removed.** One string in `client/src/pages/parent/GradesPage.jsx`. The letter is the teacher's judgment / not computed from WW/PT/EX stated an unconfirmed assumption as fact (DO 015 has no IG-to-letter mapping; school has not confirmed). **Silence, not replacement copy** — a format restatement ("Grade 1 uses a letter instead of a number") was proposed and declined; it would fill the space without answering the tap. Comment next to the letter records UNCONFIRMED + do-not-re-add (including hedge/tooltip) without a school answer. Letter itself, `GET /:id` hedge, and no empty WW/PT/Exam sections stay. `GradeLegend` on the card stays (different claim: why N/A). Dated 2026-09-11 CHANGELOG stays history. Present-tense NOW POSSIBLE + BUILD ORDER corrected in this file; `docs/PROJECT_PROGRESS.md` dropped "judgment copy". No server, no `format/grade.jsx`, no teacher page. `npm run build` clean; oxlint **28 unchanged**. SSR GradesPage + negative control (`useState is not defined` on a throwaway). Throwaway harness deleted. **No Cursor browser.** Open `/parent/grades` as `1090001`, tap Mathematics, confirm the letter with nothing under it. Do not write on Nino's five seeded rows. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, eighteenth data point: ~10m (~10m agent, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-12 | **Parent Announcements / Memos / Events render `posted_by_name`.** Same three pages, no new nav (convention 6 N/A). Modal metadata line only, not a DataTable column. Copy is `Posted by {name}` as its own segment on all three — Events' first span is `event_date`, so "Posted {date} by {name}" cannot be consistent; saying "Posted" twice on announcements/memos is the cheaper cost. No `"Unknown"` fallback (a broken INNER JOIN must show itself). Bare `posted_by` stays on the row (teacher pages authorize edits with it). **NOW POSSIBLE split, not closed** — Teacher pages still do not render the name. Present-tense KNOWN ISSUES closed-2026-09-11 row updated in the same file; dated CHANGELOG 2026-09-11 stays history. **Team product decision, not a school answer.** If the school later objects, the modal line goes; the API field stays. Whitelist held: three parent pages + these two docs. No server, no `Modal.jsx`, no teacher pages, no `App.jsx`/`nav.js`. `npm run build` clean; oxlint **28 unchanged** (same fetch-effect advisories the three pages already carried). SSR all three + negative control (`useState is not defined` on a throwaway). Throwaway harnesses deleted. **No Cursor browser — §5h pending.** Live fixtures created through the real API, not SQL, and **left in the database for the browser check** (do not delete before review): announcement **id 17** (TCH-001 / Maria Santos, **Grade 6 - Malikhain**, not school-wide), memo **id 5** (ADMIN001 / Principal Admin, school-wide by schema), event **id 14** (TCH-001 / Maria Santos, `target_grade` 6, `event_date` 2026-09-20 so Upcoming shows it). Parent `13567454` GET sees all three with `posted_by_name`. Jea `1234567` still pending; Nino grades still 5. Open `/parent/announcements`, `/parent/memos`, `/parent/events` as `13567454` and open one item on each. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, seventeenth data point: ~38m (~32m agent, ~6m idle oxlint / Node-fetch ECONNRESET).** Same four caveats; compare to the sixth point onward. |

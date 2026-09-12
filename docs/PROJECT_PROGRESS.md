@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-12 (`PUT /api/students/:id` refuses a class change and writes `section_id` only when NULL — a gate, not a repair. Grade 1 parent-modal judgment sentence removed. Parent content modals render `posted_by_name`. `GET /auth/me` has no `lrn` key — absent, not null. Parent grade breakdown built. Enroll 2026-09-10. Admin screens wait.)
+**Last updated:** 2026-09-12 (docs pass: seven school answers from 2026-09-11 recorded — team conversation, not a visit or a written reply; three school questions remain; Contributions unconfirmed. Parent grade breakdown modal is approved. `PUT /api/students/:id` is a class-change gate. Admin screens wait.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -540,10 +540,11 @@ the `ParentDashboard` copy fix folded in.
 API_REFERENCE). `GET /` is declined because it returns bare grade rows with no
 subject-coverage overlay, so a subject with zero grade rows would silently
 vanish — the exact confusion the report-card endpoint exists to remove.
-`GET /:id` was deferred as a school question (2026-09-07). **Team closed that
-question 2026-09-11 and the modal landed the same day.** This is a **team
-product decision, not a school-visit answer** — the school has still not been
-asked. If they later forbid raw scores, the modal goes; the endpoint stays.
+`GET /:id` was deferred as a school question (2026-09-07). **Answered
+2026-09-11 (team conversation, not a school visit or a written reply):**
+parents should see raw scores for transparency. **The modal is approved**
+— do not remove it as an unapproved feature. The endpoint stays. Not a
+documented policy letter; do not cite it in the manuscript as one.
 Same Parent → Grades page, no new nav. Tap a term with `grade_id` → Modal.
 Initial Grade is not on the parent card and is not in the modal. Grade 1:
 letter, no empty WW/PT/Exam sections (write path forbids
@@ -804,8 +805,8 @@ must not write on it. Live counts: CLAUDE.md Seeded baseline.
       Final Grade, General Average, qualitative descriptor. First consumer of
       `GradeValue`. Read-only.
 - [x] **Parent term breakdown — DONE 2026-09-11.** Tap a term with
-      `grade_id` → Modal, `GET /:id`. Team product decision, not a school
-      answer — the school has still not been asked. Grade 1: no empty
+      `grade_id` → Modal, `GET /:id`. Parents-see-raw-scores answered
+      2026-09-11 in conversation; the modal is approved. Grade 1: no empty
       WW/PT/Exam sections. IG not shown.
 - [x] **Teacher encode — DONE 2026-09-07.** One page, both modes, no client
       IG preview, no lock button, no confirmation. Encode-scope 403s are
@@ -878,7 +879,7 @@ section adviser (2026-09-06); write scope unchanged. Edit still unbuilt
 - [x] **Parent my-records — DONE 2026-09-09.** `GET /my-records` only. No Pay button. Skip fetch when unlinked.
 - [ ] Web pages: admin.
 - [ ] Expo screens (Stage 5, not started).
-- [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision. Module may be struck (DO 19); if so, drop the tables — see CLAUDE.md KNOWN ISSUES. **DELETE 409 names a remedy that does not exist** (no `DELETE` on `contribution_records`): once any student is marked, the contribution is permanently undeletable through the API. Flagged, handler not changed.
+- [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision. Module may be struck (DO 19 — adviser has not decided); the principal has separately been *reported* as saying collection is no longer allowed (unconfirmed). Different people — see CLAUDE.md OPEN QUESTIONS → Contributions and KNOWN ISSUES. Do not collapse. If struck, drop the tables. **DELETE 409 names a remedy that does not exist** (no `DELETE` on `contribution_records`): once any student is marked, the contribution is permanently undeletable through the API. Flagged, handler not changed.
 
 **System Settings Management (Admin)** — API done, no screens yet.
 - [ ] Admin web screen: settings form (school info, academic year, current quarter, logo).
