@@ -14,40 +14,58 @@ import { useAuth } from '../auth/AuthContext';
 // set. So this is extracted at two, and the rule is not broken — it does not
 // apply to this shape.
 //
-// TWO REQUESTS — this hook has not switched to GET /api/assignments
-// (NOW POSSIBLE, 2026-09-08). It still reconstructs:
-//   1. GET /api/sections   -> filter adviser_id === me   -> sections I advise
-//   2. GET /api/students   -> distinct (grade, section)  -> sections I can see
-// (2)'s scope predicate is exactly "assigned OR adviser", which is the same
-// union the write gates use, so it is very nearly sufficient on its own; (1) is
-// what covers an advisory section whose students are not visible for any other
-// reason. The union is the answer.
+// TWO CONSUMERS: AnnouncementsPage (sections) and EventsPage (grades).
 //
-// KNOWN GAP, recorded rather than worked around: a section with ZERO students
-// is invisible to (2), so a teacher assigned to an empty section is not offered
-// it even though POST would accept the post. Acceptable today because a section
-// with no learners has no parents to announce to — the post would have no
-// audience, so it is a gap with no victim. Switching this hook to
-// GET /api/assignments is what closes that hole; the endpoint exists.
+// TWO REQUESTS — the union is still assigned OR adviser. This is NOT
+// assignments-only.
+//   1. GET /api/sections     -> filter adviser_id === me  -> sections I advise
+//   2. GET /api/assignments  -> distinct (grade, section) -> sections I teach
+// Leg 1 stays because GET /assignments has no adviser rows. TCH-002
+// (adviser of Masigasig, zero assignments) still gets that section from (1).
+// GET /assignments returns one row per subject; three subjects in one class
+// collapse to one { grade_level, name } via the same Map key as before
+// (`${grade}|${section}`).
+//
+// WHAT THIS CLOSED: a section with ZERO students, or whose students are all
+// INACTIVE, was invisible to the old leg 2. GET /students defaults to
+// active-only (this hook never sent ?status=), so an assigned teacher was
+// not offered a class the API would accept — same hole, two causes, and the
+// header used to name only the empty one. Both are visible now because
+// assignments do not depend on the roster.
+// A section with no (active) students has no parents to reach; that is a
+// compose-copy question on AnnouncementsPage, not a fetch one. Events
+// cannot show that proof: they are grade-wide, and a second empty Grade 6
+// assignment does not add a grade TCH-001 already has via Malikhain.
 //
 // DO NOT REUSE THIS HOOK FOR GRADES OR CONTRIBUTIONS. Both are the
-// assignments-only modules; this hook is assigned-OR-adviser. Grades view
-// and encode are teacher_assignments only — sections.adviser_id is
-// deliberately unused there, and CLAUDE.md says widening it would be
-// inventing school policy. Contributions writes (`teacherHasGradeAssignment`
-// in routes/contributions.js) are also assignments-only, grade-level, no
+// assignments-only modules; this hook is assigned-OR-adviser. The warning
+// is about SCOPE, not about which endpoint either one happens to call —
+// it stays true after the next endpoint change too.
+//
+// Grades view and encode are teacher_assignments only — sections.adviser_id
+// is deliberately unused there, and CLAUDE.md says widening it would be
+// inventing school policy. Teacher → Grades (2026-09-12) reads
+// GET /assignments directly for encode-scope and GET /grading-modes for
+// mode. It does NOT use this hook. Same assignments endpoint, different
+// grant: Grades needs subject-specific rows; this hook collapses them to a
+// section list and unions the adviser. Reusing the hook would still offer
+// TCH-002 Masigasig, which Grades cannot encode.
+//
+// Contributions writes (`teacherHasGradeAssignment` in
+// routes/contributions.js) are also assignments-only, grade-level, no
 // adviser clause — content.js writes WERE widened; this one was not.
 // Whether a fee SHOULD include the adviser is a school question (a fee is
 // money; DepEd Order 19 s. 2008), not a consistency patch. Do not widen it.
+// Teacher → Contributions still builds compose grades from GET /students
+// (too wide — TCH-002 sees Jea) and lets Post be the assignment check.
+// That is a leftover NOW POSSIBLE item, not a reason to point this hook
+// at fees.
+//
 // TCH-002 is the proof for both: this hook offers Grade 5 - Masigasig
 // (advisory); GET /api/grades/student/:id for that section's student
 // answers 404, and POST /api/contributions for Grade 5 answers 403.
-// Teacher → Grades builds its class list from GET /students alone, then
-// treats a report-card 404 as "not the subject teacher." Teacher →
-// Contributions builds compose grades from GET /students too (too wide —
-// TCH-002 sees Jea) and lets Post be the assignment check. The next page
-// that reaches for "where may this teacher act" must read the route's own
-// scope, not assume this union.
+// The next page that reaches for "where may this teacher act" must read
+// the route's own scope, not assume this union.
 
 export default function useTeacherTargets() {
   const { user } = useAuth();
@@ -61,9 +79,9 @@ export default function useTeacherTargets() {
 
     Promise.all([
       api.get('/sections', { unwrap: 'sections' }),
-      api.get('/students', { unwrap: 'students' }),
+      api.get('/assignments', { unwrap: 'assignments' }),
     ])
-      .then(([allSections, students]) => {
+      .then(([allSections, assignments]) => {
         if (cancelled) return;
 
         const byKey = new Map();
@@ -72,10 +90,10 @@ export default function useTeacherTargets() {
             byKey.set(`${s.grade_level}|${s.name}`, { grade_level: s.grade_level, name: s.name });
           }
         }
-        for (const st of students) {
-          byKey.set(`${st.grade_level}|${st.section}`, {
-            grade_level: st.grade_level,
-            name: st.section,
+        for (const row of assignments) {
+          byKey.set(`${row.grade_level}|${row.section}`, {
+            grade_level: row.grade_level,
+            name: row.section,
           });
         }
 

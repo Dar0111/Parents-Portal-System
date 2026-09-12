@@ -400,7 +400,14 @@ export default function AnnouncementsPage() {
             // Names the AUDIENCE rather than a feature name. A teacher cannot
             // post school-wide or whole-grade (both admin-only, 403), so those
             // options are not offered at all.
-            hint="Parents of this section will see this post. Teachers can only post to their own sections."
+            // The empty-audience sentence is GENERAL, not a warning about the
+            // currently selected section. useTeacherTargets returns no
+            // enrollment count, so "only when this section is empty" is not
+            // knowable without a third call (GET /students) — the call this
+            // dispatch retired. An assigned empty / all-inactive section is
+            // now in the picker; saying only "parents will see this" would
+            // be vacuously true in the way that misleads (§5i).
+            hint="Parents of this section will see this post. A section with no students has no parents to reach. Teachers can only post to their own sections."
           >
             <option value="">Select a section…</option>
             {sections.map((s) => (

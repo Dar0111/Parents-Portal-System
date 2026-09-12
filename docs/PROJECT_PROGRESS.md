@@ -7,8 +7,8 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-13 (Teacher → Messages Announce to a class.
-Remaining Stage 4 work is the other admin screens.)
+**Last updated:** 2026-09-13 (`useTeacherTargets` assigned leg is
+`GET /assignments`. Remaining Stage 4 work is the other admin screens.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -373,10 +373,16 @@ removes future authority, never past records. Items 2–3 shipped the same
 day after item 1 was committed: `GET /api/grading-modes` (missing config
 is 409, not a settings key) and `DELETE /api/grades/:id` (admin-only, 403
 when locked). **Teacher → Grades switched 2026-09-12** — encode-scope from
-`GET /assignments`, mode from `GET /grading-modes`. **Teacher →
-Contributions still builds compose grades from `GET /students`** (too
-wide; TCH-002 sees Jea); Post is the assignment check. That stays NOW
-POSSIBLE. **Contacts empty-cause stays open:**
+`GET /assignments`, mode from `GET /grading-modes`. **`useTeacherTargets`
+switched 2026-09-13** — assigned leg is `GET /assignments` (distinct
+grade+section), not `GET /students`; advisory `GET /sections` stays.
+Empty / all-inactive assigned sections now appear in the Announcements
+picker. Events cannot show that proof (grade-wide; TCH-001 already has
+Grade 6). **Teacher → Contributions still builds compose grades from
+`GET /students`** (too wide; TCH-002 sees Jea); Post is the assignment
+check. That stays NOW POSSIBLE — the last 2026-09-08 expired workaround.
+`posted_by_name` is a decision row, not leftover work. Do not write that
+NOW POSSIBLE is empty. **Contacts empty-cause stays open:**
 `GET /assignments` does not tell "no parents exist" from "all parents
 pending." TCH-002 is adviser of Masigasig with zero assignment rows and a
 pending parent. **Consequence 5 is not closed by that API:** `content.js`
