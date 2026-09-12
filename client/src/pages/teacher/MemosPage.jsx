@@ -17,6 +17,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // The page says so plainly instead, because a list with no controls and no
 // explanation reads as unfinished rather than as intentional.
 //
+// Posted by is attribution only. A name does not unlock a control —
+// writes stay admin-only; this is not the start of an Actions column.
+//
 // Memos also have NO targeting columns at all — no target_grade, no
 // target_section — so they are school-wide by schema design and there is
 // nothing to filter by. GET /api/memos accepts no query parameters.
@@ -56,6 +59,14 @@ export default function MemosPage() {
           <div className="line-clamp-2 max-w-2xl text-xs text-slate-500">{row.content}</div>
         </div>
       ),
+    },
+    {
+      key: 'posted_by_name',
+      header: 'Posted by',
+      sortable: true,
+      // Never null: INNER JOIN on posted_by NOT NULL + ON DELETE RESTRICT
+      // (71d23f9). DataTable's nulls-last path has no case to get wrong here.
+      render: (row) => row.posted_by_name,
     },
     {
       key: 'created_at',

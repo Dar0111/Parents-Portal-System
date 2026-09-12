@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-12 (docs pass: seven school answers from 2026-09-11 recorded — team conversation, not a visit or a written reply; three school questions remain; Contributions unconfirmed. Parent grade breakdown modal is approved. `PUT /api/students/:id` is a class-change gate. Admin screens wait.)
+**Last updated:** 2026-09-12 (Teacher → Memos renders `posted_by_name`. Announcements and Events deliberately do not. Parent content modals already do. Remaining Stage 4 work is the other admin screens.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -520,8 +520,10 @@ pages, no new nav. Copy is `Posted by {name}` as its own segment — Events'
 first span is `event_date`, so combining date and name cannot be consistent
 across the three. No `"Unknown"` fallback. **Team product decision, not a
 school answer** — if the school later objects, the modal line goes; the API
-field stays. Teacher pages still do not render it (NOW POSSIBLE split, not
-closed).
+field stays. **Teacher → Memos renders it as a column (2026-09-12).**
+Teacher → Announcements and Events deliberately do not — DECISION, not
+leftover (Actions already says mine/theirs; those pages already have four
+columns). Do not close the NOW POSSIBLE row as though all three shipped.
 
 **Convention 5g's inverse is closed for Parent (2026-09-09)** by flipping
 Messages `built: true`. No `Shell.jsx` change — `UnreadProvider` is already
@@ -850,9 +852,9 @@ section adviser (2026-09-06); write scope unchanged. Edit still unbuilt
 - [ ] Expo screens (Stage 5, not started).
 
 **Announcements & Memo Dissemination** — API done (Class Board included — see Notes above, investigated 2026-09-06, zero new code). Teacher and Parent pages built 2026-09-07.
-- [x] **Teacher Announcements, Memos, Events — DONE 2026-09-07.**
-- [x] **Parent Announcements, Memos, Events — DONE 2026-09-07.** `posted_by_name` in the modal 2026-09-12. Teacher pages still do not render it.
-- [ ] Web pages: admin content. Teacher `posted_by_name` (NOW POSSIBLE).
+- [x] **Teacher Announcements, Memos, Events — DONE 2026-09-07.** `posted_by_name` column on Memos only, 2026-09-12. Announcements and Events deliberately do not.
+- [x] **Parent Announcements, Memos, Events — DONE 2026-09-07.** `posted_by_name` in the modal 2026-09-12.
+- [ ] Web pages: admin content. Teacher Announcements/Events `posted_by_name` is a DECISION not to render, not a leftover.
 - [ ] Stage 4 UI note: a "Post to class" action on a message thread view
       (teacher-only) that pre-fills the announcement composer from a
       reply's text and calls the existing `POST /api/announcements` —
