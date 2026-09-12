@@ -7,8 +7,9 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-13 (`useTeacherTargets` assigned leg is
-`GET /assignments`. Remaining Stage 4 work is the other admin screens.)
+**Last updated:** 2026-09-13 (`GET /api/messages/contacts` carries
+`student_grade_level` and `student_section`. NO client reads them yet.
+Remaining Stage 4 work is the other admin screens.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -361,7 +362,7 @@ teacher's only legal target is an exact section, so every announcement they
 post already is one; **"Announce to a class" from the message thread
 opens this same form (2026-09-13)** and must not build a second composer.
 Draft only — never the incoming message. **Section is not preselected**
-(contacts has `student_name` only; see CLAUDE.md KNOWN ISSUES). Delete confirms (hard DELETE,
+(server now carries class on contacts; **NO client reads it yet**). Delete confirms (hard DELETE,
 no undo), edit does not. **Measured: 3m36s — not comparable to the previous
 three, being three pages.**
 
@@ -382,7 +383,12 @@ Grade 6). **Teacher → Contributions still builds compose grades from
 `GET /students`** (too wide; TCH-002 sees Jea); Post is the assignment
 check. That stays NOW POSSIBLE — the last 2026-09-08 expired workaround.
 `posted_by_name` is a decision row, not leftover work. Do not write that
-NOW POSSIBLE is empty. **Contacts empty-cause stays open:**
+NOW POSSIBLE is empty. **Contacts now carry class (2026-09-13) —
+NO client reads it yet.** `student_grade_level` / `student_section` on
+parent rows. The "Announce to a class" client half is a NOW POSSIBLE
+item: take class from contacts before navigating; class is only
+meaningful when `student_name` is non-null; contacts does not list
+every postable section. **Contacts empty-cause stays open:**
 `GET /assignments` does not tell "no parents exist" from "all parents
 pending." TCH-002 is adviser of Masigasig with zero assignment rows and a
 pending parent. **Consequence 5 is not closed by that API:** `content.js`
@@ -865,10 +871,10 @@ section adviser (2026-09-06); write scope unchanged. Teacher Edit built
 - [x] **Teacher → Messages "Announce to a class" — DONE 2026-09-13.**
       Thread control. Opens the existing Announcements compose with the
       unsent draft via `location.state`. Never copies the incoming
-      message. **Section is not preselected** — `GET /contacts` has
-      `student_name` only (CLAUDE.md KNOWN ISSUES; server dispatch).
-      Button cannot say "this class." No new endpoint, no second
-      composer, no nav change.
+      message. **Section is not preselected** — `GET /contacts` now
+      carries `student_grade_level` / `student_section`; **NO client
+      reads them yet.** Button cannot say "this class." No new
+      endpoint, no second composer, no nav change.
 - [ ] Expo screens (Stage 5, not started).
 
 **Parent-Teacher Messaging** — API + Socket.io done. Teacher and Parent web pages built.
@@ -877,11 +883,15 @@ section adviser (2026-09-06); write scope unchanged. Teacher Edit built
       plus admin; teacher sees their students' parents (+ student name) plus
       other teachers and admin; admin sees everyone. Optional `?search=` within
       scope only — never unscoped. Includes last message + unread count inline
-      so the frontend needs one call. Build alongside the web page below, not
-      before — see CLAUDE.md's "GET /api/messages/contacts" section.
+      so the frontend needs one call. **2026-09-13:** parent rows also carry
+      `student_grade_level` and `student_section` (the child's class).
+      Teacher/admin rows null. **NO client reads them yet.** Conversations
+      and `GET /with/:userId` still have no class. See CLAUDE.md's
+      "GET /api/messages/contacts" section.
 - [x] **Teacher conversation list + thread — DONE 2026-09-07.**
       "Announce to a class" on the thread 2026-09-13 (see Announcements
-      checkbox above). Section not preselected.
+      checkbox above). Section not preselected — contacts now carry
+      class; **NO client reads it yet.**
 - [x] **Parent conversation list + thread — DONE 2026-09-09.** Copies the
       Teacher fetch: table = `GET /conversations`; contacts = New-message
       picker only, no merge. `built: true` closes the 5g LiveStatus inverse.

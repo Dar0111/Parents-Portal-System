@@ -518,6 +518,11 @@ async function run() {
       teacherRow && typeof teacherRow.subject === 'string' && teacherRow.subject.length > 0,
       "A teacher row carries the subject(s) they teach — a bare name can't tell two teachers apart"
     );
+    // LEFT JOIN: a teacher has no student_id, so child-derived fields are null.
+    assert(
+      teacherRow.student_grade_level == null && teacherRow.student_section == null,
+      'Parent seeing a teacher: student_grade_level and student_section are null'
+    );
 
     const teacherContacts = await request('GET', '/api/messages/contacts', { token: teacher1Token });
     const teacherParentRows = (teacherContacts.data?.contacts || []).filter((c) => c.role === 'parent');
@@ -525,6 +530,22 @@ async function run() {
     assert(
       teacherParentRows.every((c) => c.student_name),
       "Every parent row carries the student's name — a teacher looks for \"Marwin's parent\""
+    );
+    // Seeded parent 13567454 / Marwin, Grade 6 - Malikhain. Read only — do not
+    // write on that class. Prefix: these are the CHILD's class, not the user's.
+    const marwinParent = (teacherContacts.data?.contacts || []).find((c) => c.id === parent1Id);
+    assert(
+      marwinParent &&
+        Number(marwinParent.student_grade_level) === 6 &&
+        marwinParent.student_section === 'Malikhain',
+      "TCH-001's parent contact for Marwin carries student_grade_level 6 and student_section Malikhain"
+    );
+    const teacherAdminRow = (teacherContacts.data?.contacts || []).find((c) => c.role === 'admin');
+    assert(
+      teacherAdminRow &&
+        teacherAdminRow.student_grade_level == null &&
+        teacherAdminRow.student_section == null,
+      'Teacher seeing admin: student_grade_level and student_section are null'
     );
     assert(
       (teacherContacts.data?.contacts || []).some((c) => c.role === 'admin'),

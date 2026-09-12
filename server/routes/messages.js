@@ -201,6 +201,8 @@ router.get('/contacts', authenticate, async (req, res) => {
       `SELECT
          u.id, u.name, u.role,
          st.student_name,
+         st.grade_level AS student_grade_level,
+         st.section AS student_section,
          subj.subject_names AS subject,
          lm.body AS last_message,
          lm.created_at AS last_message_at,
@@ -208,7 +210,8 @@ router.get('/contacts', authenticate, async (req, res) => {
           WHERE m2.receiver_id = ? AND m2.sender_id = u.id AND m2.read_status = 0) AS unread_count
        FROM users u
        LEFT JOIN (
-         SELECT s.id, CONCAT(s.first_name, ' ', s.last_name) AS student_name
+         SELECT s.id, CONCAT(s.first_name, ' ', s.last_name) AS student_name,
+                s.grade_level, s.section
          FROM students s
        ) st ON st.id = u.student_id
        LEFT JOIN (
