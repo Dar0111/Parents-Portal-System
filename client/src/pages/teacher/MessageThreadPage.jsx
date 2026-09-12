@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -24,10 +24,18 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // thread stays readable after a teacher's assignment changes — but POST would
 // 403. When that happens the composer is disabled with the server's own reason
 // and the history stays. That asymmetry is intentional in the API.
+//
+// ANNOUNCE TO A CLASS sits on this thread, not the list. The list has no draft
+// and no section — a button there would be a second door into the empty compose
+// that already exists. The control cannot name "this class": none of the three
+// messages endpoints carry student_id, grade_level, or section. Do not
+// reconstruct it by matching contacts.student_name to GET /students — two
+// students can share a name. Draft only; never the last incoming message.
 
 export default function MessageThreadPage() {
   const { userId } = useParams();
   const otherId = Number(userId);
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { subscribe } = useSocket();
   const { refresh: refreshUnread } = useUnread();
@@ -132,13 +140,27 @@ export default function MessageThreadPage() {
 
   return (
     <div className="space-y-4">
-      <Link
-        to="/teacher/messages"
-        className="inline-flex items-center gap-2 text-sm text-slate-500 transition hover:text-slate-900"
-      >
-        <i className="fa-solid fa-arrow-left" />
-        All conversations
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          to="/teacher/messages"
+          className="inline-flex items-center gap-2 text-sm text-slate-500 transition hover:text-slate-900"
+        >
+          <i className="fa-solid fa-arrow-left" />
+          All conversations
+        </Link>
+        <button
+          type="button"
+          title="Opens a class announcement. Every parent in the section you pick will see it. This conversation will not."
+          onClick={() =>
+            navigate('/teacher/announcements', {
+              state: { compose: { content: draft.trim() } },
+            })
+          }
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
+        >
+          Announce to a class
+        </button>
+      </div>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 

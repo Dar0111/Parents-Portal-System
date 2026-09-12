@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
@@ -19,10 +20,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // "post to class" control would present a choice that does not exist. The
 // target label names the audience instead of naming a feature.
 //
-// THE LATER "Post to class" FROM MESSAGES PRE-FILLS THIS FORM. That dispatch
-// needs no new endpoint, no new field, and no second composer — it navigates
-// here with `content` populated and the section preselected. Do not build
-// another compose form for it.
+// "POST TO CLASS" FROM MESSAGES OPENS THIS FORM. The thread navigates here
+// with location.state.compose.content = the unsent draft (never the last
+// incoming message). The section is NOT preselected — none of the three
+// messages endpoints carry grade_level or section. Do not reconstruct it by
+// matching contacts.student_name to a student list (two students can share a
+// name). The teacher picks, or today's one-section auto-select applies. That
+// auto-select is "you only have one section", not "we knew this child's
+// class." Do not build another compose form.
 //
 // NO ATTACHMENT FIELD. announcements.attachment_url exists but nothing uploads
 // — POST accepts it as a URL string with no endpoint to produce one — so
@@ -34,6 +39,8 @@ const EMPTY_FORM = { title: '', content: '', category: '', target: '' };
 export default function AnnouncementsPage() {
   usePageTitle('Announcements');
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { sections, loading: targetsLoading } = useTeacherTargets();
 
   const [rows, setRows] = useState([]);
@@ -51,6 +58,10 @@ export default function AnnouncementsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  // True only when location.state asked for a target that is not in `sections`.
+  // This dispatch never sends a target; the branch exists so a later contacts
+  // payload cannot silently land on another section's option.
+  const [staleTargetNotice, setStaleTargetNotice] = useState(false);
 
   // Delete is a HARD DELETE with no status column and no restore path, so it
   // gets an explicit confirmation naming the post (convention 5e). Editing is
@@ -81,10 +92,54 @@ export default function AnnouncementsPage() {
     load();
   }, [load]);
 
+  // Thread arrival. Auto-open only when compose state is present AND the
+  // target list has finished loading — opening against [] would hide compose
+  // behind the "no targets" muted copy, or auto-select nothing and then
+  // overwrite once sections arrive. Consume-once replace so refresh / Back
+  // does not reopen a write form (state does not travel in a shared link).
+  useEffect(() => {
+    const compose = location.state?.compose;
+    if (!compose || targetsLoading) return;
+    if (sections.length === 0) {
+      navigate('.', { replace: true, state: {} });
+      return;
+    }
+    openComposeFromThread(compose);
+    navigate('.', { replace: true, state: {} });
+    // sections is state from useTeacherTargets — identity is stable until load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- consume-once; openComposeFromThread reads current sections
+  }, [location.state, targetsLoading, sections, navigate]);
+
   function openCompose() {
     setEditing(null);
     setForm({ ...EMPTY_FORM, target: sections.length === 1 ? keyOf(sections[0]) : '' });
     setFormError(null);
+    setStaleTargetNotice(false);
+    setComposing(true);
+  }
+
+  // Do not call openCompose() from the thread path — that helper resets content.
+  function openComposeFromThread({ content, target: requested }) {
+    const requestedKey = typeof requested === 'string' && requested ? requested : '';
+    const known = requestedKey && sections.some((s) => keyOf(s) === requestedKey);
+    let target = '';
+    let stale = false;
+    if (known) {
+      target = requestedKey;
+    } else if (requestedKey) {
+      target = '';
+      stale = true;
+    } else {
+      target = sections.length === 1 ? keyOf(sections[0]) : '';
+    }
+    setEditing(null);
+    setForm({
+      ...EMPTY_FORM,
+      content: typeof content === 'string' ? content : '',
+      target,
+    });
+    setFormError(null);
+    setStaleTargetNotice(stale);
     setComposing(true);
   }
 
@@ -97,6 +152,7 @@ export default function AnnouncementsPage() {
       target: `${row.target_grade}|${row.target_section}`,
     });
     setFormError(null);
+    setStaleTargetNotice(false);
     setComposing(true);
   }
 
@@ -326,13 +382,21 @@ export default function AnnouncementsPage() {
       >
         <form id="announcement-form" onSubmit={submitForm} className="space-y-4">
           {formError ? <ErrorAlert message={formError} /> : null}
+          {staleTargetNotice ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              That class is not in your current list. Pick a section.
+            </p>
+          ) : null}
 
           <FormField
             label="Posting to"
             as="select"
             required
             value={form.target}
-            onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, target: e.target.value }));
+              setStaleTargetNotice(false);
+            }}
             // Names the AUDIENCE rather than a feature name. A teacher cannot
             // post school-wide or whole-grade (both admin-only, 403), so those
             // options are not offered at all.

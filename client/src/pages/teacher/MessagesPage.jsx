@@ -13,8 +13,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // a thread is a destination a teacher returns to, and on a phone a split view
 // collapses to exactly this anyway.
 //
-// "Post to class" is NOT here. That is a later dispatch, and when it lands it
-// pre-fills the ANNOUNCEMENTS compose form — it does not add a composer here.
+// "Announce to a class" is on the THREAD, not here. The list has no draft and
+// no section — a button here would be a second door into the empty compose
+// that already exists on Announcements. The thread carries the unsent draft
+// via location.state; it does not add a composer on Messages.
 
 export default function MessagesPage() {
   usePageTitle('Messages');

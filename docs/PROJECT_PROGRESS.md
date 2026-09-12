@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-12 (Teacher → Attendance records. Nav 11 → 12.
+**Last updated:** 2026-09-13 (Teacher → Messages Announce to a class.
 Remaining Stage 4 work is the other admin screens.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
@@ -358,8 +358,10 @@ near-identical; they are not, and **Memos is admin-only for every write**, so a
 teacher's Memos page is a read-only list with no compose control at all.
 Announcements **is the Class Board** — no separate affordance, because a
 teacher's only legal target is an exact section, so every announcement they
-post already is one; the later "Post to class" from Messages pre-fills this
-same form and must not build a second composer. Delete confirms (hard DELETE,
+post already is one; **"Announce to a class" from the message thread
+opens this same form (2026-09-13)** and must not build a second composer.
+Draft only — never the incoming message. **Section is not preselected**
+(contacts has `student_name` only; see CLAUDE.md KNOWN ISSUES). Delete confirms (hard DELETE,
 no undo), edit does not. **Measured: 3m36s — not comparable to the previous
 three, being three pages.**
 
@@ -854,10 +856,13 @@ section adviser (2026-09-06); write scope unchanged. Teacher Edit built
 - [x] **Teacher Announcements, Memos, Events — DONE 2026-09-07.** `posted_by_name` column on Memos only, 2026-09-12. Announcements and Events deliberately do not.
 - [x] **Parent Announcements, Memos, Events — DONE 2026-09-07.** `posted_by_name` in the modal 2026-09-12.
 - [ ] Web pages: admin content. Teacher Announcements/Events `posted_by_name` is a DECISION not to render, not a leftover.
-- [ ] Stage 4 UI note: a "Post to class" action on a message thread view
-      (teacher-only) that pre-fills the announcement composer from a
-      reply's text and calls the existing `POST /api/announcements` —
-      no new endpoint, purely a frontend affordance.
+- [x] **Teacher → Messages "Announce to a class" — DONE 2026-09-13.**
+      Thread control. Opens the existing Announcements compose with the
+      unsent draft via `location.state`. Never copies the incoming
+      message. **Section is not preselected** — `GET /contacts` has
+      `student_name` only (CLAUDE.md KNOWN ISSUES; server dispatch).
+      Button cannot say "this class." No new endpoint, no second
+      composer, no nav change.
 - [ ] Expo screens (Stage 5, not started).
 
 **Parent-Teacher Messaging** — API + Socket.io done. Teacher and Parent web pages built.
@@ -869,6 +874,8 @@ section adviser (2026-09-06); write scope unchanged. Teacher Edit built
       so the frontend needs one call. Build alongside the web page below, not
       before — see CLAUDE.md's "GET /api/messages/contacts" section.
 - [x] **Teacher conversation list + thread — DONE 2026-09-07.**
+      "Announce to a class" on the thread 2026-09-13 (see Announcements
+      checkbox above). Section not preselected.
 - [x] **Parent conversation list + thread — DONE 2026-09-09.** Copies the
       Teacher fetch: table = `GET /conversations`; contacts = New-message
       picker only, no merge. `built: true` closes the 5g LiveStatus inverse.
