@@ -58,6 +58,28 @@ function assert(condition, label, detail = '') {
   }
 }
 
+// A failed FIXTURE is not a failed assertion. assert() only records, so a
+// missing row let the run continue on undefined ids — a pile of misleading ✗
+// lines, or a crash many statements later on a NULL column (test:grades was
+// broken that way 2026-09-10 → 2026-09-13 and reported ER_BAD_NULL_ERROR
+// instead of the one line that explained it). requireFixture counts exactly
+// like assert() and then STOPS the run; the try/finally in run() still
+// cleans up. Use it only where everything after depends on a row existing.
+// A wrong computed VALUE is a finding, not a reason to stop — those stay
+// ordinary assert() calls. Local to this file on purpose: all seventeen
+// test scripts share assert() byte for byte, and changing them together is
+// a shared-helper refactor, not a fixture fix.
+class FixtureFailure extends Error {}
+
+function requireFixture(condition, label, detail = '') {
+  assert(condition, label, detail);
+  if (!condition) throw new FixtureFailure(`${label}${detail ? ` — ${detail}` : ''}`);
+}
+
+function why(res) {
+  return `got ${res.status}${res.data?.message ? `: ${res.data.message}` : ''}`;
+}
+
 async function request(method, path, { token, body } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -211,9 +233,10 @@ async function run() {
       token: adminToken,
       body: { status: 'inactive' },
     });
-    assert(
+    requireFixture(
       createInactive.status === 201 && deactivate.status === 200,
-      'Fixture: an inactive Grade 6 student for the active-status check'
+      'Fixture: an inactive Grade 6 student for the active-status check',
+      `create ${why(createInactive)}; deactivate ${why(deactivate)}`
     );
 
     // --- Success paths ---
@@ -459,7 +482,7 @@ async function run() {
       token: adminToken, // TCH-001 is not assigned MAPEH — admin only
       body: { student_id: marwinId, subject_id: mapehGrade6Id, term: 2, school_year: schoolYear },
     });
-    assert(mapehCreate.status === 201, 'Fixture: MAPEH grade row for the second worked example');
+    requireFixture(mapehCreate.status === 201, 'Fixture: MAPEH grade row for the second worked example', why(mapehCreate));
     const mapehGradeId = mapehCreate.data?.grade?.id;
     if (mapehGradeId) createdGradeIds.push(mapehGradeId);
 
@@ -598,7 +621,11 @@ async function run() {
     });
     const grade1DescriptiveId = grade1DescriptiveCreate.data?.grade?.id;
     if (grade1DescriptiveId) createdGradeIds.push(grade1DescriptiveId);
-    assert(grade1DescriptiveCreate.status === 201, 'Fixture: a Grade 1 (descriptive-mode) grade row');
+    requireFixture(
+      createGrade1Student.status === 201 && grade1DescriptiveCreate.status === 201,
+      'Fixture: a Grade 1 (descriptive-mode) grade row',
+      `student ${why(createGrade1Student)}; grade ${why(grade1DescriptiveCreate)}`
+    );
 
     const [componentsBefore] = await withDb((conn) =>
       conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id = ?', [grade1DescriptiveId])
@@ -673,7 +700,11 @@ async function run() {
     });
     const scienceGradeId = scienceGradeCreate.data?.grade?.id;
     if (scienceGradeId) createdGradeIds.push(scienceGradeId);
-    assert(scienceGradeCreate.status === 201, 'Fixture: a Science grade row for Marwin (Grade 6 - Malikhain), created by admin');
+    requireFixture(
+      scienceGradeCreate.status === 201,
+      'Fixture: a Science grade row for Marwin (Grade 6 - Malikhain), created by admin',
+      why(scienceGradeCreate)
+    );
 
     const viewScopeComponent = await request('POST', `/api/grades/${scienceGradeId}/components`, {
       token: teacherToken,
@@ -865,7 +896,7 @@ async function run() {
     });
     const editDeleteGradeId = editDeleteCreate.data?.grade?.id;
     if (editDeleteGradeId) createdGradeIds.push(editDeleteGradeId);
-    assert(editDeleteCreate.status === 201, 'Fixture: a fresh grade row for edit/delete/lock tests');
+    requireFixture(editDeleteCreate.status === 201, 'Fixture: a fresh grade row for edit/delete/lock tests', why(editDeleteCreate));
 
     const wwA = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
@@ -1266,18 +1297,29 @@ async function run() {
     // --- Final Grade / General Average: NULL-until-complete at BOTH levels ---
     console.log('\nFinal Grade / General Average (NULL until every term / every subject exists):');
 
+    // A REAL Grade 2 section. Since 2026-09-10 POST /students resolves
+    // section_id against the sections table and 400s an invented name — the
+    // handler is correct. This fixture said 'Test-GA', written when an
+    // unmatched name was still accepted, and the suite was broken for three
+    // days because that dispatch ran test:students only. No Grade 2 section
+    // has an adviser or an assignment in the seed, so which one does not
+    // affect isolation; the student is admin-created and deleted in finally.
     const gaFixtureLrn = `2${runId}`;
     const createGaStudent = await request('POST', '/api/students', {
       token: adminToken,
-      body: { lrn: gaFixtureLrn, first_name: 'GA', last_name: 'Fixture', grade_level: 2, section: 'Test-GA' },
+      body: { lrn: gaFixtureLrn, first_name: 'GA', last_name: 'Fixture', grade_level: 2, section: 'Masikap' },
     });
     gaStudentFixtureId = createGaStudent.data?.student?.id;
-    assert(createGaStudent.status === 201, 'Fixture: a fresh Grade 2 student for FG/GA aggregation tests');
+    requireFixture(
+      createGaStudent.status === 201 && Number.isInteger(gaStudentFixtureId),
+      'Fixture: a fresh Grade 2 student for FG/GA aggregation tests',
+      why(createGaStudent)
+    );
 
     const [grade2Subjects] = await withDb((conn) =>
       conn.query('SELECT id, name FROM subjects WHERE grade_level = 2 ORDER BY name ASC')
     );
-    assert(grade2Subjects.length === 5, `Fixture: Grade 2 has exactly 5 subjects (got ${grade2Subjects.length})`);
+    requireFixture(grade2Subjects.length === 5, `Fixture: Grade 2 has exactly 5 subjects (got ${grade2Subjects.length})`);
 
     // 4 of the 5 subjects: all three terms inserted directly (term_grade
     // 84, 90, 87 -> FG 87.00 each) — bypassing the WW/PT/EX write path on
@@ -1394,7 +1436,11 @@ async function run() {
       },
     });
     deleteStudentFixtureId = createDeleteStudent.data?.student?.id;
-    assert(createDeleteStudent.status === 201 && Number.isInteger(deleteStudentFixtureId), 'Fixture: throwaway student for grade DELETE');
+    requireFixture(
+      createDeleteStudent.status === 201 && Number.isInteger(deleteStudentFixtureId),
+      'Fixture: throwaway student for grade DELETE',
+      why(createDeleteStudent)
+    );
 
     const deleteShell = await request('POST', '/api/grades', {
       token: adminToken,
@@ -1407,13 +1453,13 @@ async function run() {
     });
     const deleteGradeId = deleteShell.data?.grade?.id;
     if (deleteGradeId) createdGradeIds.push(deleteGradeId);
-    assert(deleteShell.status === 201 && Number.isInteger(deleteGradeId), 'Fixture: shell grade for DELETE');
+    requireFixture(deleteShell.status === 201 && Number.isInteger(deleteGradeId), 'Fixture: shell grade for DELETE', why(deleteShell));
 
     const deleteComponent = await request('POST', `/api/grades/${deleteGradeId}/components`, {
       token: adminToken,
       body: { type: 'WW', score: 10, max_score: 10, label: 'Cascade check' },
     });
-    assert(deleteComponent.status === 201, 'Fixture: one WW component so CASCADE can be asserted');
+    requireFixture(deleteComponent.status === 201, 'Fixture: one WW component so CASCADE can be asserted', why(deleteComponent));
 
     const [componentsBeforeDelete] = await withDb((conn) =>
       conn.query('SELECT COUNT(*) AS n FROM grade_components WHERE grade_id = ?', [deleteGradeId])
@@ -1490,6 +1536,11 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error('Test runner error:', err);
+  if (err instanceof FixtureFailure) {
+    console.error(`\nSTOPPED — ${err.message}\nEverything after this fixture depends on it, so the run did not continue.`);
+    console.error(`\n${passed} passed, ${failed} failed (run incomplete)\n`);
+  } else {
+    console.error('Test runner error:', err);
+  }
   process.exit(1);
 });
