@@ -41,9 +41,9 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-13 (`test:grades` repaired — 165/165 again after
-being broken 2026-09-10 → 2026-09-13 by a stale GA fixture section. Remaining
-Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-13 (Parent → Attendance shows "Present on
+recorded days" — the school answered the rate question; Late = present,
+Excused = absent. Remaining Stage 4 work is the other admin screens.)
 
 ### Seeded baseline
 
@@ -1003,7 +1003,7 @@ Memos, Events, Messages (+ thread; Announce to a class 2026-09-13), Grades (view
 Settings (password + contact; identity locked).
 Parent: Grades (report card + term breakdown modal), Excuse Letters (submit + edit while Pending), Announcements,
 Memos, Events, Contributions (read-only `my-records`), Messages (+ thread),
-Attendance (raw counts + day list, no rate), Settings (password + contact;
+Attendance (counts + day list + "Present on recorded days", 2026-09-13), Settings (password + contact;
 identity locked). **Admin → Users is the first
 admin feature page.** See STAGE 4 FRONTEND CONVENTIONS below
 for what every one of them inherits. (This line used to read "no feature page
@@ -1051,8 +1051,10 @@ client/src/
                           contacts = New-message picker only, no merge.
                           Contributions calls GET /my-records only — never
                           GET /, GET /:id, or the roster (LRNs). Attendance
-                          is read-only counts + day list (no rate, not Class
-                          Days); Month vs All; same from/to on summary and
+                          is read-only counts + day list + "Present on
+                          recorded days" = (Present + Late) / total, one
+                          decimal (2026-09-13; not Class Days, not the SF9
+                          rate); Month vs All; same from/to on summary and
                           student list. Settings is password + contact only
                           — child name, LRN/login_id, grade, section, guardian
                           name, and email are locked. Password confirm Modal,
@@ -1613,9 +1615,9 @@ the copy true.
   its tooltip. A stronger claim than unbuilt: the page *cannot be designed
   yet* because an external question is unanswered. Takes precedence over
   `built`. Currently none. Parent → Attendance was the only blocked item;
-  it is unblocked because the page shows raw counts, not a rate (the
-  formula is still unanswered). Teacher attendance encoding was never
-  blocked.
+  it was unblocked 2026-09-09 by showing raw counts only, and the school
+  answered the rate question 2026-09-13, so it now also shows a rate over
+  recorded days. Teacher attendance encoding was never blocked.
 - **unbuilt** — `built: false`, dimmed and non-clickable so it cannot drop
   the user into the catch-all redirect.
 
@@ -2771,17 +2773,24 @@ This was always a different question from the one below (how a
 converting the table to per-day did not answer that one, and still
 hasn't.
 
-### Attendance rate formula — still open; the parent page is built because it does not show a rate
+### Attendance rate formula — RESOLVED 2026-09-13 (principal, in conversation) and BUILT
 
-Not a Stage 3 blocker — `routes/attendance.js` is built and shipped, raw
-counts only, deliberately no computed rate (see CHANGELOG, 2026-08-27).
-The parent page (`/parent/attendance`, 2026-09-09) shows Present / Absent /
-Late / Excused and recorded days. It never renders a percentage, never
-folds Late into Present, and never drops Excused from a denominator.
-`summary.total` is recorded days, not SF9 Class Days. The school question
-(does Late count toward "present"? is Excused in the denominator?) is
-still unanswered — do not guess at either, and do not add a % on the
-client. Teacher attendance history is `/teacher/attendance-records`
+Not a Stage 3 blocker — `routes/attendance.js` stays counts-only by design
+(see CHANGELOG, 2026-08-27); **the rate is a client computation over numbers
+the server already returns.** The principal answered on 2026-09-13: **Late
+counts as present; Excused counts as absent.** Parent → Attendance
+(`/parent/attendance`) now shows **"Present on recorded days"** =
+`(Present + Late) / total`, one decimal, half-up, beside the exact fraction.
+`summary.total` is every recorded status row, so an excused day lowers the
+percentage. **It is recorded days, not SF9 Class Days** — unmarked school
+days are not in the table — which is why the label is not "attendance rate"
+(§5i). Not rendered when `total` is 0. No verdict: no colour, badge,
+threshold, or comparison to DO 015 para 71's ~12-absence intervention point
+(§4). **DO 015 s. 2026 prescribes no attendance rate formula and no
+attendance grade component** (para 71 is its only attendance rule;
+Table 9's components are WW / PT / EX), so this is a school decision, not
+a compliance question — never attribute the rule to DepEd in parent-facing
+copy. Teacher attendance history is `/teacher/attendance-records`
 (2026-09-12), not this parent page.
 
 ---
@@ -3489,13 +3498,15 @@ replaced with a new guess.
       skip fetch when unlinked, no Pay button. ParentDashboard derived
       from nav, no edit. Attendance was still blocked on the rate formula
       at this landing — unblocked the same day by the next checkbox.
-- [x] **Parent → Attendance — DONE 2026-09-09.** Unblocked by never
-      rendering a rate. Route `/parent/attendance`, `blocked` dropped,
+- [x] **Parent → Attendance — DONE 2026-09-09.** Unblocked then by
+      showing counts only. Route `/parent/attendance`, `blocked` dropped,
       `built: true` with the route (convention 6). Two calls, same
       `from`/`to`: `GET /attendance/summary/:studentId` and
       `GET /attendance/student/:studentId`. Skip both when unlinked.
       Month vs All (Events pattern). Four counts + recorded days;
-      `StatusBadge` on day rows. Teacher history is Attendance records
+      `StatusBadge` on day rows. **"Present on recorded days" added
+      2026-09-13** once the school answered (Late = present, Excused =
+      absent) — no new request. Teacher history is Attendance records
       (2026-09-12), not this page.
 - [x] **Admin → Users — DONE 2026-09-09.** First admin feature page.
       Route `/admin/users`, `built: false → true` with the route.
@@ -3642,7 +3653,7 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (three)
+### School questions — still open (two)
 
 - **Grade 1 descriptive grading — how is the A–E letter produced?**
   Manual teacher judgment, or computed? Still unanswered. The write
@@ -3653,16 +3664,6 @@ the same way.**
   the school later says a computation feeds the letter, that endpoint
   changes, not the schema.
 
-- **Attendance rate — do Late and Excused count toward the rate?**
-  Still unanswered. Does Late count as present? Is Excused in the
-  denominator? Parent → Attendance (`/parent/attendance`) shows raw
-  counts only — Present / Absent / Late / Excused and recorded days.
-  It never renders a percentage. `GET /api/attendance/summary/:studentId`
-  returns counts, no rate. Do not guess at either, and do not add a %
-  on the client. Longer note: BLOCKED / RESOLVED → Attendance rate
-  formula. **This and the transfer question below are both attendance
-  and will likely be answered in one conversation.**
-
 - **Who owns old attendance after a mid-year section transfer?**
   Still unanswered. PUT `/api/students/:id` refuses a class change
   (`400`). That is a gate, not a transfer. Attendance *rows* key on
@@ -3670,6 +3671,27 @@ the same way.**
   keys on `students.section_id`. Rewriting the FK without an answer
   would move that authority — the exact write the gate exists to
   refuse. Do not add a transfer endpoint until this is answered.
+
+### School questions — answered 2026-09-13
+
+Answered by the **principal** on 2026-09-13, **in conversation — not a
+written policy.** Do not cite it in the manuscript as documented school
+policy. Do not re-ask it.
+
+- **Attendance rate — Late counts as present; Excused counts as absent.**
+  Built the same day: Parent → Attendance shows "Present on recorded days"
+  = `(Present + Late) / total`, one decimal, over recorded days (not SF9
+  Class Days). Excused is in the denominator, so an excused day lowers it.
+  See BLOCKED / RESOLVED → Attendance rate formula.
+- **Separately, from the source itself (not the principal): DO 015 s. 2026
+  prescribes no attendance rate formula and no attendance component in any
+  grade.** Para 71 is its only attendance rule — intervention at roughly
+  twelve absences, and attendance information appears on the term report.
+  Table 9's components are WWs, PTs, EXs; attendance is not among them.
+  That is what makes the rate a school decision rather than a DepEd
+  computation. Read directly (60pp, scanned) on 2026-09-13.
+- **Still open, and NOT answered in the same conversation:** who owns old
+  attendance after a mid-year section transfer (above).
 
 ### School questions — answered 2026-09-11
 
@@ -4087,6 +4109,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | **Parent → Attendance shows "Present on recorded days" — the school answered the rate question.** Branch `feature/parent-attendance-rate`. One page plus a comment in `nav.js`; no server, no endpoint, no new request. **Source:** the principal, 2026-09-13, **in conversation — not a written policy**: Late counts as present, Excused counts as absent. Recorded in OPEN QUESTIONS → answered 2026-09-13, same shape as 762f6a4. **Separately, DO 015 s. 2026 read directly** (60pp, scanned): it prescribes no attendance rate and no attendance grade component — para 71 (intervention at ~12 absences; attendance on the term report) is its only attendance rule, and Table 9 is WW / PT / EX. So the rate is a school decision, not a compliance question. **Formula** `(Present + Late) / total` — all three already in `GET /summary`. `total` is every recorded status row (handler line 45), so **Excused is in the denominator and an excused day lowers the percentage**. One decimal, half-up, via integer arithmetic (`Math.round((present * 1000) / total) / 10`) — the grades module's rule, so a parent can check it by hand against the fraction shown beside it. Half-up at one decimal only reaches 100.0 at 1,999 of 2,000 days; no school year does, so a missed day cannot show as 100%. **Label is "Present on recorded days", never "Attendance rate"** — a parent who has seen an SF9 reads that as the SF9 figure, and this is over recorded days, not Class Days (§5i). Sub-line "N of M recorded days this month" / "N of all M recorded days". New paragraph says three things only: Late = present and Excused = absent; out of recorded days, not SF9 Class Days; unmarked days are not counted. No DepEd attribution in parent copy. Not rendered when `total` is 0 (0% would claim the learner attended nothing; the empty state already names the cause, §5f). **§4 — deliberately no verdict:** no colour, badge, threshold, "good attendance", or comparison to the ~12-absence point; a comment at the card says the absence is a decision. `nav.js` header comment rewritten (it said the page was unblocked BECAUSE it shows no rate); nav array untouched — 0 non-comment lines in its diff. **Flagged, not fixed:** `server/routes/attendance.js:207` comment "raw counts only, no rate (undefined formula)" — the handler is correct and stays counts-only; only "(undefined formula)" is stale. **The "no rate" claim lived in ten separate places in this file**, all found by hand: six present-tense ones rewritten here (parent-pages line, parent code-block entry, §6 blocked note, the BLOCKED / RESOLVED section, the OPEN QUESTIONS bullet, the Parent → Attendance BUILD ORDER checkbox), the server endpoints row (still true of the server, kept), and three dated entries (the 2026-09-09 CHANGELOG row, the eleventh build-time data point, the historical BUILD ORDER line — exempt). Not a complaint: **the reason a future session should think twice before recording the same fact in an eleventh.** Whitelist: `parent/AttendancePage.jsx`, `layout/nav.js` (comment only, approved expansion), `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. `npm run build` exit 0. oxlint **30, unchanged** (the page's advisory is its existing fetch effect, line-shifted). SSR renders the page with the new paragraph; negative control (`useMemo` import removed on a throwaway) → `ReferenceError: useMemo is not defined`. Throwaways deleted. Live as parent `13567454`: September summary P3 / A1 / L1 / E1 / total 6 → **66.7%** ("4 of 6 recorded days this month"); All P3 / A2 / L1 / E1 / total 7 → **57.1%** ("4 of all 7 recorded days"). **Fixtures left for the browser check:** Marwin (`student_id` 1, Malikhain `section_id` 22), created as TCH-001 via `POST /attendance/bulk` — ids **26** 2026-09-07 Present, **27** 09-08 Present, **28** 09-09 Present, **29** 09-10 Late, **30** 09-11 Absent, **31** 09-12 Excused, **32** 2026-08-28 Absent. Delete after confirmation — seeded `attendance` is 0. Never wrote on Jea `1234567`, Rosa, or Nino's five. **No Cursor browser** — `npm run dev` in `client`, open `/parent/attendance` as `13567454`: This month 66.7% / 4 of 6; All recorded days 57.1% / 4 of all 7. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-ninth data point: ~4m (~4m agent incl. two failed shell-escape attempts, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **`test:grades` repaired — broken 2026-09-10 → 2026-09-13, and nobody noticed.** Branch `fix/grades-suite-ga-fixture`. Test fixture fix, not a behaviour change; no route, no client. **Cause:** the GA/FG aggregation fixture POSTed a student with `grade_level: 2, section: 'Test-GA'`. Since 2026-09-10 `POST /students` resolves `section_id` and 400s an unmatched name — **the handler is correct**; the fixture was written when an invented name was still accepted. Grade 2's real sections are Mapagkaibigan, Mapagkakatiwalaan, Masikap. **Why nobody saw it:** d47589b (the POST change) ran `test:students` only; a068d8a (the PUT change) ran students, attendance, excuses — the suites that READ `section_id` — but not grades, which WRITES a student through POST. **The lesson, now a working-agreement bullet: a dispatch that changes a write path runs every suite that writes through it.** **Fix:** `'Masikap'` (no Grade 2 section has an adviser or assignment in the seed, so the choice does not affect isolation). **The second problem mattered more:** `assert()` only records, so the failed fixture let the run continue into twelve INSERTs with `student_id` undefined and die on `ER_BAD_NULL_ERROR` — the database error instead of the one line that explained it. Most other fixtures failed QUIETER: requests to `/api/grades/undefined/…` and a pile of misleading ✗ lines, which is worse than a crash because nobody reads a twenty-failure run carefully. Line 589's Grade 1 student create had no assert of its own. New local `requireFixture()`: counts like `assert()` (pass count unchanged), then throws a `FixtureFailure`; `finally` still cleans up; `run().catch` prints a STOPPED line and the partial tally. Applied at 10 sites where later work depends on a row existing (pre-patch lines 216, 462, 601 with the Grade 1 student create folded into its condition, 676, 868, 1275, 1280, 1397, 1410, 1416). The value checks at pre-patch 883/893/906/910 stay plain `assert()` — a wrong computed number is a finding, not a reason to stop. Local to this file on purpose: all seventeen scripts share `assert()` byte for byte; the other sixteen are an open audit (KNOWN ISSUES). **No other stale section is waiting:** Aguinaldo / Mabini / Test / Rizal in `test:students` are all deliberate negative cases (403 scope, 409 duplicate-LRN-before-resolve, 400 grade 7, 400 naming the invented section, plus an SQL resolve-miss) — two of them assert the exact error that killed this suite. auth / excuses / messages insert Aguinaldo students by SQL with `section_id` NULL on purpose; recorded in KNOWN ISSUES as breaking under a future NOT NULL, not acted on. **Verified.** Before: exit 1, 142 ✓ / 1 ✗ (`Fixture: a fresh Grade 2 student…`), then `Test runner error: Error: Column 'student_id' cannot be null`, no tally. **Negative control on the final code** (temporarily `'Test-GA'`), verbatim: `✗ Fixture: a fresh Grade 2 student for FG/GA aggregation tests — got 400: No section named "Test-GA" exists at Grade 2 for 2026-2027.` / `STOPPED — Fixture: a fresh Grade 2 student for FG/GA aggregation tests — got 400: No section named "Test-GA" exists at Grade 2 for 2026-2027.` / `Everything after this fixture depends on it, so the run did not continue.` / `141 passed, 1 failed (run incomplete)`; exit code 1; no `ER_BAD_NULL_ERROR`; baseline after users 7 / students 3 / grades 5. (141 vs the before-run's 142 ✓: the old code went on past the dead fixture and passed "Grade 2 has exactly 5 subjects"; the new code stops first.) Restored `'Masikap'`: `test:grades` **165/165 twice**, no `db:setup`, header `http://127.0.0.1:5000`; `test:students` **61/61**; `test:sections` **30/30**. Baseline after: users 7, students 3, grades 5, grade_components 0, assignments 8. Whitelist: `test-grades-flows.js`, `CLAUDE.md`. `docs/PROJECT_PROGRESS.md` unchanged — it records only dated stage counts, no present-tense 165. **MEASURED BUILD TIME, twenty-eighth data point: ~4m (~4m agent incl. two negative-control runs, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **Teacher → Messages "Announce to" names the class and preselects it — the half 2d67f11 recorded as undelivered.** Branch `feature/post-to-class-named`. Two pages; no server, no endpoint, no new page, no nav change. Dated 2d67f11 row below stays history. **Thread:** `GET /messages/contacts` fetched once per thread in its own effect keyed on `otherId` — **not inside `load()`**, which re-runs on every socket message for the thread; a contacts call there would be an N+1 that only shows in a busy conversation, which is the one nobody tests. Contacts never writes `loading`/`error` (the thread renders if contacts 500s). `forId !== otherId` is "not loaded", so no synchronous setState. Named only for a parent row with `student_name` and a class: **Announce to Grade 6 - Malikhain**, `state.compose.target = '6\|Malikhain'` (keyOf format). Unnamed **Announce to a class**, no target, in four cases: not loaded, failed (not surfaced — the unnamed button is the honest fallback), teacher/admin row (class null), **and no contacts row at all** — a deactivated parent, or scope changed with history still readable. The fourth was not among the three recorded constraints; do not preselect a class for a parent you can no longer reach. Trust is by construction: contacts' parent rows and `useTeacherTargets` derive from the same `teacher_assignments` grade+section and `sections.adviser_id`, and the only divergence needs a VARCHAR/`section_id` disagreement `PUT /students` now refuses. **The client preselects; it does not authorize.** **Hint is visible** as small muted text under the button row, `title` kept — hover does not exist on touch, and "This conversation will not" is the sentence that stops a teacher believing they replied to the parent (§3's rule, applied to copy that is not a grade). Named: *"Opens an announcement to Grade 6 - Malikhain, already selected. Every parent in that section will see it. This conversation will not."* Unnamed text unchanged. **Announcements:** arrival handler already accepted `target`; its stale branch (unknown target → blank picker + *"That class is not in your current list. Pick a section."*, never one-section auto-select) was written correctly in advance and is unchanged. **Lost-draft fix folded in:** on an empty target list the handler used to drop compose state silently — worse now that the payload carries a target too. It still does not open compose (a form with no valid target is the refused dead end) but no longer discards: an amber notice names **both** causes (*"your section list did not load, or you have no sections to post to"*) because `useTeacherTargets` returns `[]` for both and exposes no error — telling them apart needs a hook change, out of scope. Names the intended class if a target rode along, says *Nothing was posted*, shows the draft read-only to copy, Dismiss. Hook untouched. Whitelist: `MessageThreadPage.jsx`, `AnnouncementsPage.jsx`, these two docs. `npm run build` exit 0. **oxlint 30, unchanged, measured — and 30 is the baseline.** The 31 recorded at 2d67f11 and cb564ff does not reproduce: `git diff cb564ff HEAD -- client` was empty before this dispatch and the tree measured 30. Two dispatches recorded a number that cannot be verified now; a baseline nobody can reproduce is worse than one slightly wrong. The thread page's one advisory is the pre-existing `load()` effect, line-shifted. SSR AnnouncementsPage + MessageThreadPage OK; negative control (`useMemo` import removed on a throwaway) → `ReferenceError: useMemo is not defined`. Throwaways deleted. Thread SSR stops at the loading spinner — it proves the hooks run, not the label; the label is the browser step. Live as TCH-001: contacts row 3 = parent (Ashley / Marwin) `6` / `Malikhain`; row 6 = TCH-003, class null; TCH-001's target keys = `6\|Malikhain`. First fixture attempt hit the Node-fetch ECONNRESET / libuv assertion; DB confirmed nothing landed; retried via curl. **Fixtures left:** TCH-001 → parent `13567454` **message id 35** (`/teacher/messages/3`), TCH-001 → TCH-003 **message id 36** (`/teacher/messages/6`). `messages` was 0 before. Never wrote on Jea `1234567`, Rosa, or Nino's five. **No Cursor browser; Vite dev server was not running** — `npm run dev` in `client`, then as TCH-001: `/teacher/messages/3` (button and visible hint name Grade 6 - Malikhain; click → compose open with Malikhain selected) and `/teacher/messages/6` (Announce to a class, unnamed hint). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-seventh data point: ~9m (~9m agent incl. one Node-fetch retry and one heredoc parse failure, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **HTTP suite `BASE` fallback is `127.0.0.1`, not `localhost`.** Branch `fix/suite-base-ipv4`. Fifteen HTTP scripts, one token each — `process.env.API_BASE` still wins. Node `fetch` on Windows resolves `localhost` to IPv6 `::1` first; the server listens on IPv4; the result was ECONNRESET mid-run (looked like a flaky suite). Closes the flag raised in every dispatch since 2026-09-11. Dated CHANGELOG "Flag, not fixed" lines stay history. **Not `.env`** — a missing key on a fresh clone reproduces the bug. **Not a shared helper** — no logic to extract. **Not a find-and-replace of every `localhost`:** `curl`, `VITE_API_BASE_URL`, and `DB_HOST` stay; only Node `fetch` has this bug. `test-sanitize-user.js` and `test-grade-computation.js` make no HTTP calls — left. No route, no client, no schema, no `API_REFERENCE.md`, no `PROJECT_PROGRESS.md` (it never mentioned this), no README. **README suite-count table recorded as its own flag** (auth 25 vs 39, messages 56 vs 59, plus other drifted rows) — one dedicated pass, not per-dispatch patching. `API_BASE` cleared from the shell before verify; never set for these runs. Plain `npm run test:<name>`: `test:excuses` **70/70** (header `http://127.0.0.1:5000`), `test:messages` **59/59** twice (same header both times), `test:auth` **39/39**, `test:grading-modes` **13/13**. No `localhost` in any header. No `db:setup`. No browser. **MEASURED BUILD TIME, twenty-sixth data point: ~20m (~20m agent, ~0m idle).** Same four caveats; compare to the sixth point onward. |

@@ -14,9 +14,11 @@
 // `blocked: '<reason>'` is a STRONGER statement than `built: false` and the two
 // must not be conflated: unbuilt means nobody has written it yet, blocked means
 // it CANNOT be designed until an external question is answered. Parent ->
-// Attendance was the only blocked item; it is no longer blocked because the
-// page shows raw counts, not a rate (the formula is still unanswered — see
-// CLAUDE.md). Teacher attendance encoding was never blocked and is now built.
+// Attendance was the only blocked item. It was unblocked 2026-09-09 by showing
+// raw counts only; the school answered the rate question 2026-09-13 (Late =
+// present, Excused = absent), so the page now also shows "Present on recorded
+// days" (see CLAUDE.md). Teacher attendance encoding was never blocked and is
+// now built.
 // Shell renders blocked items with the reason as their tooltip; blocked implies
 // not built and takes precedence in that rendering.
 

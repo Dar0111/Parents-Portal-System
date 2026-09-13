@@ -10,12 +10,20 @@ import { usePageTitle } from '../../layout/usePageTitle';
 
 // Parent attendance — READ ONLY history. Teacher encode is a different page.
 //
-// HOW THIS PAGE IS UNBLOCKED: it never renders a rate. The unanswered school
-// question (does Late count as present? is Excused in the denominator?) only
-// blocks a percentage. GET /summary returns { Present, Absent, Late, Excused,
-// total } and nothing else. Late and Excused stay their own numbers. total is
-// recorded days, not SF9 Class Days — unmarked school days are not in the
-// table, so labelling it Class Days would be a lie.
+// THE RATE (2026-09-13). "Present on recorded days" = (Present + Late) / total,
+// one decimal, half-up. The principal answered on 2026-09-13, in conversation:
+// Late counts as present, Excused counts as absent. That is the SCHOOL's rule —
+// DO 015 s. 2026 prescribes no attendance rate — so never attribute it to
+// DepEd anywhere a parent reads it. GET /summary returns { Present, Absent,
+// Late, Excused, total } and nothing else; the rate is computed here from
+// those, with no extra request. total is every recorded status row, so an
+// excused day lowers the percentage. Late and Excused keep their own cards.
+// total is recorded days, not SF9 Class Days — unmarked school days are not in
+// the table, so labelling it Class Days would be a lie, and so would calling
+// this number the "attendance rate" a parent knows from the SF9. That is why
+// the label is the clumsier "Present on recorded days" (§5i). Not rendered
+// when total is 0: 0% would say the learner attended nothing, when it means
+// nobody recorded anything, and the empty state already names that cause.
 //
 // TWO REQUESTS, SAME from/to: GET /attendance/summary/:studentId (unwrap
 // summary) and GET /attendance/student/:studentId (unwrap attendance, array).
@@ -53,6 +61,19 @@ function monthBounds(today = todayLocalDateString()) {
 function countOf(summary, key) {
   const n = Number(summary?.[key] ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+// (Present + Late) / total as a one-decimal string, rounded half-up — the
+// grades module's rule, so a parent can check it by hand next to the exact
+// fraction. Integer arithmetic before the round keeps .5 cases from drifting.
+// Half-up at one decimal only reaches 100.0 at 1,999 of 2,000 days, which no
+// school year does, so a record with a missed day cannot show as 100%.
+// null when nothing is recorded.
+function presentOnRecordedDays(summary) {
+  const total = countOf(summary, 'total');
+  if (total <= 0) return null;
+  const present = countOf(summary, 'Present') + countOf(summary, 'Late');
+  return { present, total, percent: (Math.round((present * 1000) / total) / 10).toFixed(1) };
 }
 
 export default function ParentAttendancePage() {
@@ -148,13 +169,14 @@ export default function ParentAttendancePage() {
   );
 
   const showCounts = studentId != null && !error;
+  const rate = showCounts ? presentOnRecordedDays(summary) : null;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-500">
-        These are recorded days, not a percentage. Late and Excused are listed separately — this
-        page does not fold them into Present or Absent. Unmarked school days are not in this list,
-        so the recorded-days total is not Class Days on the SF9.
+        The percentage counts Late as present and Excused as absent. It is out of the days the
+        adviser recorded, not the Class Days on the SF9 — school days that were not marked are not
+        counted at all.
       </p>
 
       {studentId != null ? (
@@ -169,6 +191,25 @@ export default function ParentAttendancePage() {
             <option value="month">This month</option>
             <option value="all">All recorded days</option>
           </FormField>
+        </div>
+      ) : null}
+
+      {rate ? (
+        // §4 — a NUMBER, not a verdict. Deliberately no colour, no badge, no
+        // threshold, no "good attendance" wording, and no comparison to DO 015
+        // para 71's ~12-absence intervention point. The system counts and
+        // displays; the teacher concludes. Do not add one without the school
+        // having said otherwise — the absence is a decision, not an oversight.
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Present on recorded days
+          </div>
+          <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{rate.percent}%</div>
+          <div className="mt-1 text-sm text-slate-500">
+            {range === 'month'
+              ? `${rate.present} of ${rate.total} recorded days this month`
+              : `${rate.present} of all ${rate.total} recorded days`}
+          </div>
         </div>
       ) : null}
 
