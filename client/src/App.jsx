@@ -19,7 +19,6 @@ import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
 import TeacherGrades from './pages/teacher/GradesPage';
-import TeacherContributions from './pages/teacher/ContributionsPage';
 import TeacherSettings from './pages/teacher/SettingsPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAttendance from './pages/parent/AttendancePage';
@@ -29,7 +28,6 @@ import ParentEvents from './pages/parent/EventsPage';
 import ParentExcuseLetters from './pages/parent/ExcuseLettersPage';
 import ParentMessages from './pages/parent/MessagesPage';
 import ParentMessageThread from './pages/parent/MessageThreadPage';
-import ParentContributions from './pages/parent/ContributionsPage';
 import ParentSettings from './pages/parent/SettingsPage';
 import UiGallery from './pages/dev/UiGallery';
 
@@ -73,7 +71,6 @@ export default function App() {
           >
             <Route index element={<TeacherDashboard />} />
             <Route path="grades" element={<TeacherGrades />} />
-            <Route path="contributions" element={<TeacherContributions />} />
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="attendance-records" element={<TeacherAttendanceRecords />} />
             <Route path="students" element={<TeacherStudents />} />
@@ -102,7 +99,6 @@ export default function App() {
             <Route path="announcements" element={<ParentAnnouncements />} />
             <Route path="memos" element={<ParentMemos />} />
             <Route path="events" element={<ParentEvents />} />
-            <Route path="contributions" element={<ParentContributions />} />
             <Route path="messages" element={<ParentMessages />} />
             <Route path="messages/:userId" element={<ParentMessageThread />} />
             <Route path="settings" element={<ParentSettings />} />

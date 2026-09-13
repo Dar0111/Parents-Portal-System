@@ -1,13 +1,12 @@
 // One central status -> tone map, not a per-module one.
 //
-// The system has five separate status vocabularies:
+// The system has four separate status vocabularies:
 //   users                 pending | active | inactive | rejected
 //   attendance            Present | Absent | Late | Excused
 //   excuse_letters        Pending | Approved | Declined
-//   contribution_records  Paid | Pending
 //   grades                locked | unlocked  (rendered from is_locked)
 //
-// "Pending" appears in three of them meaning the same thing — waiting on
+// "Pending" appears in two of them meaning the same thing — waiting on
 // someone — so mapping it once is honest rather than coincidental. An unknown
 // string falls back to the neutral tone instead of throwing, and the `tone`
 // prop overrides the map outright, so a future module that reuses one of these
@@ -36,8 +35,6 @@ const STATUS_TONE = {
   // excuse letters
   approved: 'success',
   declined: 'danger',
-  // contribution records
-  paid: 'success',
   // grades
   locked: 'neutral',
   unlocked: 'info',
@@ -49,7 +46,7 @@ const STATUS_TONE = {
 // go straight back to it) is never mutated.
 //
 // This exists because the schema is inconsistent and deliberately not being
-// normalised: attendance / excuse_letters / contribution_records ENUMs are
+// normalised: attendance / excuse_letters ENUMs are
 // already capitalised, users.status and students.status are not, and grades'
 // locked/unlocked are strings a caller invents from a boolean. Capitalising
 // here is how that stops being visible on every screen, instead of a migration

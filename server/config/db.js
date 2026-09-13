@@ -21,7 +21,7 @@ function createPool() {
     // 'YYYY-MM-DD' string straight from MySQL instead, so no Date object (and
     // therefore no timezone conversion) is ever constructed for these columns
     // — the value round-trips as the exact string it was written as. Affects
-    // attendance.date, events.event_date, contributions.due_date,
+    // attendance.date, events.event_date,
     // students.birthday (and excuse_letters.absence_date once that module is
     // built) via every query on the shared pool with no per-query changes.
     dateStrings: ['DATE'],

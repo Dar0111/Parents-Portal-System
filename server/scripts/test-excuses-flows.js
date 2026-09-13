@@ -208,7 +208,7 @@ async function run() {
     // The actual regression this guards: absence_date posted as
     // 'YYYY-MM-DD' must come back identical, not shifted a calendar day —
     // the pool's dateStrings: ['DATE'] is what makes this true; same shape
-    // as the attendance/events/contributions/students round-trip checks.
+    // as the attendance/events/students round-trip checks.
     assert(
       submit.data?.excuse_letter?.absence_date === absenceDate,
       `absence_date round-trips exactly as sent (sent ${absenceDate}, got ${submit.data?.excuse_letter?.absence_date})`

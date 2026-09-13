@@ -37,10 +37,10 @@ import { useAuth } from '../auth/AuthContext';
 // cannot show that proof: they are grade-wide, and a second empty Grade 6
 // assignment does not add a grade TCH-001 already has via Malikhain.
 //
-// DO NOT REUSE THIS HOOK FOR GRADES OR CONTRIBUTIONS. Both are the
-// assignments-only modules; this hook is assigned-OR-adviser. The warning
-// is about SCOPE, not about which endpoint either one happens to call —
-// it stays true after the next endpoint change too.
+// DO NOT REUSE THIS HOOK FOR GRADES. Grades is assignments-only; this hook
+// is assigned-OR-adviser. The warning is about SCOPE, not about which
+// endpoint either one happens to call — it stays true after the next
+// endpoint change too.
 //
 // Grades view and encode are teacher_assignments only — sections.adviser_id
 // is deliberately unused there, and CLAUDE.md says widening it would be
@@ -51,21 +51,13 @@ import { useAuth } from '../auth/AuthContext';
 // section list and unions the adviser. Reusing the hook would still offer
 // TCH-002 Masigasig, which Grades cannot encode.
 //
-// Contributions writes (`teacherHasGradeAssignment` in
-// routes/contributions.js) are also assignments-only, grade-level, no
-// adviser clause — content.js writes WERE widened; this one was not.
-// Whether a fee SHOULD include the adviser is a school question (a fee is
-// money; DepEd Order 19 s. 2008), not a consistency patch. Do not widen it.
-// Teacher → Contributions still builds compose grades from GET /students
-// (too wide — TCH-002 sees Jea) and lets Post be the assignment check.
-// That is a leftover NOW POSSIBLE item, not a reason to point this hook
-// at fees.
-//
-// TCH-002 is the proof for both: this hook offers Grade 5 - Masigasig
-// (advisory); GET /api/grades/student/:id for that section's student
-// answers 404, and POST /api/contributions for Grade 5 answers 403.
-// The next page that reaches for "where may this teacher act" must read
-// the route's own scope, not assume this union.
+// TCH-002 is the proof: this hook offers Grade 5 - Masigasig (advisory), and
+// GET /api/grades/student/:id for that section's student answers 404. The
+// next page that reaches for "where may this teacher act" must read the
+// route's own scope, not assume this union. (Contributions was a second
+// assignments-only module until it was removed on 2026-09-13; losing that
+// example does not weaken the rule. The rule is about scope, not about how
+// many modules share it.)
 
 export default function useTeacherTargets() {
   const { user } = useAuth();

@@ -45,7 +45,7 @@ Web + mobile (React Native Expo) portal for parents, teachers, and the school pr
 | Module | Roles |
 |--------|-------|
 | Login, Change Password | All |
-| Student Grades, Attendance, Announcements, Messages, Memos, Events, Contribution, Excuse Letter | Parent (+ teacher/admin as applicable) |
+| Student Grades, Attendance, Announcements, Messages, Memos, Events, Excuse Letter | Parent (+ teacher/admin as applicable) |
 | Enrolled Student List, Create Account | Teacher |
 | Manage User, System Setting, Backup & Restore | Admin (Backup/Restore web only) |
 
@@ -121,8 +121,6 @@ See `database/schema.sql`. Tables:
 | `messages` | Direct messaging |
 | `announcements` | School/grade announcements |
 | `memos` | Admin memos |
-| `contributions` | Fee/contribution tracking |
-| `contribution_records` | Per-student payment status |
 | `events` | Calendar events |
 | `activity_logs` | Audit trail |
 | `system_settings` | School name, year, quarter, etc. |

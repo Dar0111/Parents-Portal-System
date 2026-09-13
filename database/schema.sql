@@ -307,29 +307,6 @@ CREATE TABLE memos (
   INDEX idx_memos_posted (posted_by)
 ) ENGINE=InnoDB;
 
-CREATE TABLE contributions (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(200) NOT NULL,
-  amount DECIMAL(10,2) NOT NULL,
-  grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
-  due_date DATE DEFAULT NULL,
-  posted_by INT UNSIGNED NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_contributions_grade (grade_level)
-) ENGINE=InnoDB;
-
-CREATE TABLE contribution_records (
-  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  contribution_id INT UNSIGNED NOT NULL,
-  student_id INT UNSIGNED NOT NULL,
-  amount DECIMAL(10,2) NOT NULL,
-  status ENUM('Paid', 'Pending') NOT NULL DEFAULT 'Pending',
-  updated_by INT UNSIGNED DEFAULT NULL,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_contribution_student (contribution_id, student_id),
-  INDEX idx_contribution_records_student (student_id)
-) ENGINE=InnoDB;
-
 CREATE TABLE events (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(200) NOT NULL,
@@ -437,14 +414,6 @@ ALTER TABLE announcements
 
 ALTER TABLE memos
   ADD CONSTRAINT fk_memos_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE RESTRICT;
-
-ALTER TABLE contributions
-  ADD CONSTRAINT fk_contributions_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE RESTRICT;
-
-ALTER TABLE contribution_records
-  ADD CONSTRAINT fk_contribution_records_contribution FOREIGN KEY (contribution_id) REFERENCES contributions(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_contribution_records_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_contribution_records_updated_by FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE events
   ADD CONSTRAINT fk_events_posted_by FOREIGN KEY (posted_by) REFERENCES users(id) ON DELETE RESTRICT;

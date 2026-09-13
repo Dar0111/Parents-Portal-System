@@ -2,7 +2,7 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**84 endpoints** across 14 route files (17 feature tables below, since
+**76 endpoints** across 13 route files (16 feature tables below, since
 `content.js` holds three separate resources and `assignments.js` holds
 two). If this document and the
 code disagree, the code is correct and this file needs fixing — same
@@ -47,10 +47,10 @@ it.
   behavior, not a choice made here. `"90.00"`, not `90`. Affects:
   `grades.ww_percentage` / `pt_percentage` / `ex_percentage` /
   `ww_weighted` / `pt_weighted` / `ex_weighted` / `initial_grade` /
-  `term_grade`, and `contributions.amount` / `contribution_records.amount`.
+  `term_grade`.
   Coerce with `Number()` before doing math or comparisons. See the
   Gotchas section for the one place this is *not* true.
-- **No pagination anywhere.** All 84 endpoints return their complete
+- **No pagination anywhere.** All 76 endpoints return their complete
   filtered result set. There is no `?page=`, `?limit=`, or cursor param
   on any list endpoint in this API.
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
@@ -81,32 +81,25 @@ by side. Nothing here is guessed — every line traces to a specific file.
   message reading "Database restored, but marking sessions invalid
   failed — see server logs...". Everywhere else in this API, checking
   `success` is sufficient. Here, you must also read the message.
-- **Teacher scope width silently differs by module.** Contributions and
-  events scope a teacher by **grade alone** — any section within that
-  grade — because neither table has a section column
-  (`teacherHasGradeAssignment`). Students, grades, excuse-letters, and
-  announcements scope a teacher by **exact grade + section**
-  (`teacherHasAssignment` / the `EXISTS`-on-`teacher_assignments`
-  pattern with both `grade_level` and `section` matched). Concretely: a
-  teacher assigned to only Grade 6 - Malikhain can post a contribution
-  or event visible to Grade 6 - Masigasig too, but cannot see, edit, or
-  view a *student* in Grade 6 - Masigasig. This is not documented
-  anywhere else in the codebase — it only shows up by reading
-  `resolveContributionGrade`/`resolveEventTarget` next to
-  `teacherHasAssignment` in `students.js`/`content.js` and noticing one
-  checks `grade_level` alone and the other checks both columns.
-- **`mine` vs. `my-records`.** `GET /api/excuse-letters/mine` and
-  `GET /api/contributions/my-records` are the identical "show me my own
-  stuff" concept, spelled two different ways in two different modules.
-  Guessing one from the other will be wrong exactly half the time.
+- **Teacher scope width silently differs by module.** Events scope a
+  teacher by **grade alone** — any section within that grade — because the
+  table has no section column (`teacherHasGradeAssignment`). Students,
+  grades, excuse-letters, and announcements scope a teacher by **exact
+  grade + section** (`teacherHasAssignment` / the `EXISTS`-on-
+  `teacher_assignments` pattern with both `grade_level` and `section`
+  matched). Concretely: a teacher assigned to only Grade 6 - Malikhain can
+  post an event visible to Grade 6 - Masigasig too, but cannot see, edit,
+  or view a *student* in Grade 6 - Masigasig. It only shows up by reading
+  `resolveEventTarget` next to `teacherHasAssignment` in
+  `students.js`/`content.js`. (Contributions had the same grade-only scope
+  until the module was removed on 2026-09-13.)
 - **`PUT` for approve/reject, `PATCH` everywhere else.**
   `PUT /api/users/parents/:id/approve` and
   `PUT /api/users/parents/:id/reject` are the only status-transition
   endpoints in the whole API using `PUT`. Every other status flip —
   `PATCH /api/students/:id/status`, `PATCH /api/users/:id/status`,
   `PATCH /api/sections/:id/adviser`, `PATCH /api/grades/:id/lock`,
-  `PATCH /api/excuse-letters/:id/review`,
-  `PATCH /api/contributions/:id/records/:studentId` — uses `PATCH`.
+  `PATCH /api/excuse-letters/:id/review` — uses `PATCH`.
   Flagging this as an **apparent inconsistency**, not a documented
   decision: nothing in the code comments justifies the `PUT` choice on
   those two endpoints specifically.
@@ -187,7 +180,7 @@ section 5).
 
 A `:id`-keyed write with **no broader `GET` covering the same resource**
 defaults to `404` on out-of-scope — a true "you cannot see this at all"
-signal (attendance, contributions, students, most of excuse-letters).
+signal (attendance, students, most of excuse-letters).
 Where a **wider `GET` already reveals the resource** to a caller who
 still can't act on it, the write answers `403` naming the specific
 reason instead — a `404` there would contradict what `GET` just showed
@@ -257,10 +250,6 @@ what to expect on the wire.
 | `memos` | array | `GET /memos` |
 | `event` | object | `POST /events`, `PUT /events/:id` |
 | `events` | array | `GET /events` |
-| `contribution` | object | `GET /contributions/:id`, `GET /contributions/:id/records` (secondary), `POST /contributions`, `PUT /contributions/:id` |
-| `contributions` | array | `GET /contributions` |
-| `records` | array — **two different row shapes reuse this same key name** | `GET /contributions/my-records` (parent's own summary rows), `GET /contributions/:id/records` (full roster, secondary key alongside `contribution`) |
-| `record` | object | `PATCH /contributions/:id/records/:studentId` |
 | `excuse_letter` | object | `GET /excuse-letters/:id`, `POST /excuse-letters`, `PUT /excuse-letters/:id`, `PATCH /excuse-letters/:id/review` |
 | `excuse_letters` | array | `GET /excuse-letters/mine`, `GET /excuse-letters` |
 | `settings` | flat object (`{key: value}`), not an array | `GET /settings`, `PATCH /settings` |
@@ -274,9 +263,9 @@ what to expect on the wire.
 | `data` | object — generic name, the one exception in this whole API | `POST /messages`, `PATCH /messages/:id/read` |
 | `count` | bare number, no wrapper object | `PATCH /messages/read-all/:userId` |
 
-**No payload at all** (message only) — the four hard-deletes
-(`DELETE /announcements/:id`, `DELETE /memos/:id`, `DELETE /events/:id`,
-`DELETE /contributions/:id`), `DELETE /backups/:id`,
+**No payload at all** (message only) — the three hard-deletes
+(`DELETE /announcements/:id`, `DELETE /memos/:id`, `DELETE /events/:id`),
+`DELETE /backups/:id`,
 `DELETE /assignments/:id`, `DELETE /grades/:id`,
 `PUT /users/parents/:id/reject`, `PUT /auth/change-password`.
 
@@ -406,19 +395,6 @@ the bottom must equal 82.
 | PUT | `/:id` | `author`, `admin` | `title`, `description`, `event_date`, `target_grade` (any subset) | `event` | non-author → `403`. Same `posted_by` + `posted_by_name`; edit does not rewrite the poster. |
 | DELETE | `/:id` | `author`, `admin` | — | message only | non-author → `403`; hard delete |
 
-### Contributions (8) — `/api/contributions`
-
-| Method | Path | Roles | Request body | Response key | Notes |
-|---|---|---|---|---|---|
-| GET | `/` | `teacher(grade)`, `admin`, `parent(own)` | query: `grade_level` | `contributions` | see Gotchas: `grade`-only teacher scope |
-| GET | `/my-records` | `parent` only | — | `records` | own child's rows only |
-| GET | `/:id` | `teacher(grade)`, `admin`, `parent(own)` | — | `contribution` | `404` out-of-scope |
-| GET | `/:id/records` | `teacher(grade)`, `admin` | — | `contribution` + `records` | `404` out-of-scope; live roster, Pending default |
-| POST | `/` | `teacher(grade)`, `admin` | `title`*, `amount`* (positive), `grade_level`*, `due_date` | `contribution` | teacher out-of-scope → `403` |
-| PUT | `/:id` | `author`, `admin` | `title`, `amount`, `grade_level`, `due_date` (any subset) | `contribution` | non-author → `403` |
-| DELETE | `/:id` | `author`, `admin` | — | message only | non-author → `403`; `409` if any `contribution_records` exist |
-| PATCH | `/:id/records/:studentId` | `teacher(grade)`, `admin` | `status`* (`Paid`\|`Pending`), `amount` (optional override, capped at the fee) | `record` | |
-
 ### Excuse Letters (6) — `/api/excuse-letters`
 
 | Method | Path | Roles | Request body | Response key | Notes |
@@ -477,14 +453,13 @@ the bottom must equal 82.
 | Announcements | 4 |
 | Memos | 4 |
 | Events | 4 |
-| Contributions | 8 |
 | Excuse Letters | 6 |
 | Settings | 4 |
 | Backups | 5 |
 | Messages | 6 |
-| **Total** | **82** |
+| **Total** | **74** |
 
-Matches the Auth bump in this dispatch: 4+9+5+3+1+3+10+6+4+4+4+8+6+4+5+6 = 82.
+Matches the Auth bump in this dispatch: 4+9+5+3+1+3+10+6+4+4+4+6+4+5+6 = 74 (Contributions' 8 removed 2026-09-13).
 `GET /grading-modes` has its own table above and is not in this sum (pre-existing).
 `GET /api/health` is in `server.js`, not a route file.
 

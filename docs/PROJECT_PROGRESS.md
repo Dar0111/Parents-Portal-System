@@ -7,9 +7,10 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-13 (Parent → Attendance shows "Present on
-recorded days" — Late = present, Excused = absent, per the principal.
-Remaining Stage 4 work is the other admin screens.)
+**Last updated:** 2026-09-13 (Feature 7, Contribution/Fees Monitoring,
+REMOVED — Principal Bajar, consultation 2026-09-01: the school may not
+collect contributions from parents. 20 tables. Remaining Stage 4 work is the
+other admin screens — eleven.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -35,7 +36,7 @@ data, not a computed result.
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
 Stage 3 is ✅ done: Student Records, Attendance, Announcements/Memos/Events,
-Contributions, System Settings, User Management, Messages + Socket.io,
+System Settings, User Management, Messages + Socket.io,
 Backup/Restore, and Excuse Letters (full module, including review) are
 fully built (see CLAUDE.md's "RESTORE" section for what the automated
 suite deliberately does not cover). `sections` (schema + 23-row seed) is also in — see
@@ -180,7 +181,7 @@ applied at all three read sites INCLUDING the existence query inside
 equivalent clause was the write gate and had to stay narrow. Here it is only a
 visibility filter; the authority is the separate adviser query that runs after
 it and did not move. Leaving that site narrow is what would have kept the bug. `GET /mine` declared before `GET /:id` so `parseId('mine')` can't fire first. Reads out of scope → `404`; the one CRUD write-scope violation (edit after review) → `403` naming the reason. No submission-deadline check (school hasn't set one) and duplicate letters per date are allowed on purpose (resubmission after a decline). **2026-09-05: `PATCH /:id/review` built — both blockers now resolved.** Adviser-only (`sections.adviser_id`, not any assigned teacher — confirmed by the school), and record-only (writes only `status`/`teacher_remarks`/`reviewed_by`, never `attendance` — "excuse lang yung bata pero absent pa rin"). A non-adviser teacher who *can* read the letter (broader `teacher_assignments`-based `GET` scoping) gets `403` naming the reason, not `404` — deliberately deviating from `attendance.js`'s own out-of-scope-returns-404 precedent, because here `GET` and review-authority genuinely disagree, so `404` would contradict what `GET` already showed that teacher. `teacher_remarks` stays optional on `Declined`, not conditionally required — flagged instead as a Stage 4 UI concern (a decline with no remarks pushes the parent to message the teacher directly). Attendance-row-count-unchanged is asserted directly in the test suite, not just claimed. See CLAUDE.md's "Excuse Letters module" and 2026-09-05 CHANGELOG entry for full detail. **Manually verified 00:25 AM PH** (inside the UTC failing window, 2026-08-31): POST with today's date accepted (not rejected as future), `absence_date` round-trips as `"2026-08-31"` while `created_at` stays ISO (confirming `dateStrings: ['DATE']` applies to DATE only), partial `PUT` with `details` only preserved `absence_date`/`reason`, teacher assignment scoping and the parent/teacher-only-list `403` both correct — all five passed. Response shape: `login` returns `token`/`user` at the top level, excuse-letter endpoints wrap in `excuse_letter` — no `data` wrapper anywhere. |
-| Contribution/Fees Monitoring | ✅ `contributions`, `contribution_records` | ✅ 8 endpoints — list, detail, roster, my-records, create, update, delete, mark paid/pending | ❌ | ❌ | 38/38 tests pass (`npm run test:contributions`), idempotent. `grade_level` is `NOT NULL` — no school-wide option, unlike announcements/events. Roster is a live LEFT JOIN against active students, not a snapshot — a late enrollee shows up automatically as Pending. Amount override on a payment can go below the fee (discount) but never above it (`400`, names the cap). `DELETE` blocked with `409` naming the exact record count when `contribution_records` exist — that FK is `ON DELETE CASCADE`, so an unguarded delete would silently destroy payment history. `my-records` (parent) never touches another student's row, individually or in aggregate. Also open: no CSV export (manuscript Fig. 19), GWA computation undecided — unrelated to this API. **2026-08-30:** `due_date` had the same two bugs as `events.event_date` (UTC round-trip on read, a `toDateString()` fallback silently corrupting it on a PUT that omitted it) — same fixes, same shared `utils/dateFormat.js`. Next: web screens and Expo screens. |
+| ~~Contribution/Fees Monitoring~~ | **REMOVED 2026-09-13** — both tables dropped | **REMOVED** — 8 endpoints deleted | **REMOVED** | — | Principal Bajar, consultation 2026-09-01: the school is not permitted to collect contributions from parents; the team removed Feature 7. See CLAUDE.md → SCOPE DECISION. 40 historical `activity_logs` rows kept. |
 | System Settings Management (Admin) | ✅ `system_settings` | ✅ 4 endpoints — get all, get one, update one, bulk update | ❌ | ❌ | 26/26 tests pass (`npm run test:settings`, was 27 — see below), idempotent (restores original values). 5-key allow-list (`school_name`, `school_address`, `academic_year`, `current_term`, `logo_url`) — unknown key rejected with `400` naming the allowed ones. `academic_year` seed typo fixed to `'2026-2027'` as part of an earlier pass. `PATCH` (bulk) is all-or-nothing. **2026-09-05, as part of the Grades module Stage G1a rebuild:** `current_quarter` renamed to `current_term`, validated against a hardcoded `['1','2','3']` — it used to read `grades.quarter`'s ENUM live via `INFORMATION_SCHEMA` specifically because the quarter-vs-term question was provisional; DO 009 s.2026 has since settled that as fact, and `grades.term` is a plain `TINYINT` now anyway, so there's nothing left to introspect. The dropped source-inspection mechanism test accounts for the 27→26 count change — not a regression. Next: web screens (admin settings form). |
 | Backup & Restore (Admin, web only) | ✅ `backups`, `auth_security_state` | ✅ 5 endpoints — list, create, download, delete, restore | ❌ | — (web-only by design, mobile excluded) | 39/39 backup tests pass (`npm run test:backups`), 22/22 restore tests pass (`npm run test:restore`), both idempotent — a real end-to-end restore, run once manually together, found the backups-table wipe bug below; the automated suite deliberately never runs one, so it could not have caught it. A **second** live restore later found a sharper version of the same bug that the first fix didn't actually fix — see below. Backup: real `mysqldump` — not mocked. Password via `MYSQL_PWD` on the spawned process's own env, never on argv. Row inserted only after the dump succeeds and the file is confirmed non-empty. Caught and fixed before shipping: the filename format is second-granularity with no uniqueness constraint, so two backups in the same second would have silently overwritten each other's file — added a collision-safe filename reservation, verified in tests. Known residual gap: closes the sequential case, not two truly concurrent requests in the same tick — accepted for a single-admin deployment. `download_backup` is logged alongside create/delete — the most sensitive action the API permits (a full copy of every student's data leaving in one file). `scripts/create-backup-zip.js` is a separate, legitimate source-code archiver (zips the codebase to the Desktop) — not the DB backup and not touched by this work. Restore: `POST /:id/restore` — step-up password re-verification, `confirm_filename` exact-match, automatic `pre_restore_*` safety dump before anything is touched (abort with nothing changed if it fails), the actual restore on a dedicated one-off `mysql2` connection (never the shared pool), a partial-failure message naming the safety dump and warning manual recovery may be needed (MySQL has no transactional DDL), shared pool reset via a new proxy pattern in `config/db.js`, and every active JWT invalidated via a new `auth_security_state.token_valid_after` cutoff checked in `middleware/auth.js`. Deliberately synchronous, not async job tracking, given the database's current size — see CLAUDE.md's "RESTORE" section for the explicit trigger to revisit that. Test suite covers every pre-flight gate and `token_valid_after` in isolation (via crafted JWTs) but deliberately never triggers a real restore — that's run once, manually, with `db:setup` ready. **Real bug found in that manual run, since fixed:** `backups` is self-referential (a row is inserted only after its own file finishes dumping, so a backup's file can never contain its own row) — restoring emptied the whole table, not just the safety dump's row. Fixed by excluding `backups`' data from every dump (`--ignore-table` + a `--no-data` pass so the table structure still survives) and adding read-only orphan reconciliation on `GET /api/backups` (`orphaned_files` — never auto-inserted). `activity_logs` was checked for the same shape and found to have a narrower version of it (the safety dump's `create_backup` log entry is wiped by the restore it documents; `restore_backup` itself survives). Not fixed the same way as `backups` (nothing was reordered to stop the loss) — instead a `restore_wiped_activity_logs` marker: counts `activity_logs` rows newer than the restored backup right before the restore runs, then logs one entry after the restore completes (same timing as `restore_backup`, so it survives) naming the source backup and the exact count lost. The wipe still happens; the marker stops it being silent, and isn't tamper-proof against an admin with direct DB access — accepted deliberately. `activity_logs_wiped: <count>` is also in the response body. **The first `backups` fix was incomplete:** the `--no-data` pass still writes `DROP TABLE backups` right before the empty `CREATE TABLE`, and the restore endpoint executed the whole file verbatim — so that DROP ran against the *live* table too, wiping it to zero rows on every restore regardless of source backup (confirmed live: restoring from backup #1 also erased backup #2, taken after #1's dump). The "no `INSERT INTO backups`" test passed the entire time — it checked the anticipated symptom, not this mechanism. Fixed by splitting the concern: the dump file is unchanged (still has a real `CREATE TABLE backups` for bare-metal recovery); a new `stripBackupsTableDdl()` removes just `backups`' block from the SQL the restore *connection* executes — name-based (mysqldump's own `-- Table structure for table` comment), so it protects every backup file already on disk, not just new ones. Verified four ways: against the real dump that exposed the bug, by executing the *stripped* SQL for real against a disposable scratch database (18 tables created, `backups` correctly absent, real data restored), via a permanent `test:backups` regression check, and — the actual proof — a real live restore against the shared dev DB: zero rows survived before this fix, three survived after (both backups + the safety dump), `activity_logs_wiped: 2` in the response confirming that marker fires on a real restore too. `auth_security_state` was checked for the same shape and found *not* to have it — it does get dropped/recreated by a restore too, but an unconditional post-restore write (`token_valid_after = NOW()`, no gating condition) always re-asserts it correctly regardless, verified live. Every orphan across both live-restore bugs (5 files total — the original wipe's 2, this bug's 3) was adopted by hand once each, only after its bug was fixed and confirmed live: `created_by` `ADMIN001`, `created_at` from file mtime, each logged as `manual_backup_adoption`. `backups` now holds 8 rows this way, 0 `orphaned_files`. See CLAUDE.md's RESTORE section and CHANGELOG for the full writeup. |
 
@@ -313,7 +314,7 @@ URL, query string, or error message.
 capitalises its rendered label while the tone lookup keeps keying on the
 lowercased value; nothing about matching, storage or what is sent to the API
 changes. It exists because the schema itself disagrees: `attendance`,
-`excuse_letters` and `contribution_records` ENUMs are capitalised while
+`excuse_letters` ENUMs are capitalised while
 `users.status` and `students.status` are not. **That inconsistency is
 deliberately NOT normalised** — a migration touching real rows for a cosmetic
 reason is the wrong trade — so a future session finding the mismatch is
@@ -380,19 +381,15 @@ switched 2026-09-13** — assigned leg is `GET /assignments` (distinct
 grade+section), not `GET /students`; advisory `GET /sections` stays.
 Empty / all-inactive assigned sections now appear in the Announcements
 picker. Events cannot show that proof (grade-wide; TCH-001 already has
-Grade 6). **Teacher → Contributions still builds compose grades from
-`GET /students`** (too wide; TCH-002 sees Jea); Post is the assignment
-check. That stays NOW POSSIBLE — the last 2026-09-08 expired workaround.
-`posted_by_name` is a decision row, not leftover work. Do not write that
-NOW POSSIBLE is empty. **Contacts now carry class (2026-09-13) —
+Grade 6). **Teacher → Contributions' compose workaround closed 2026-09-13 by
+removal** (Feature 7 removed). NOW POSSIBLE's only remaining entry,
+`posted_by_name`, is a recorded decision, not leftover work. **Contacts now carry class (2026-09-13) —
 the Teacher → Messages thread reads it** to name and preselect the class;
 that NOW POSSIBLE item is closed. **Contacts empty-cause stays open:**
 `GET /assignments` does not tell "no parents exist" from "all parents
 pending." TCH-002 is adviser of Masigasig with zero assignment rows and a
-pending parent. **Consequence 5 is not closed by that API:** `content.js`
-writes include the adviser; `contributions.js` does not. TCH-002 can
-announce to Masigasig and cannot POST a Grade 5 fee. A fee is money
-(DepEd Order 19 s. 2008). Do not widen. School question.
+pending parent. **Consequence 5 closed 2026-09-13 by removal** — it was the
+adviser-cannot-post-a-fee gap in `contributions.js`, which no longer exists.
 
 **Teacher → Messages is DONE (2026-09-07)** — conversation list + thread, and
 the first Stage 4 page using Socket.io. Added `socket.io-client` pinned to
@@ -900,12 +897,12 @@ section adviser (2026-09-06); write scope unchanged. Teacher Edit built
 - [ ] Web pages: admin.
 - [ ] Expo screens (Stage 5, not started).
 
-**Contribution/Fees Monitoring** — API done. Teacher page built 2026-09-08. Parent page built 2026-09-09.
-- [x] **Teacher list + roster — DONE 2026-09-08.** Last Teacher page. Modal roster, not a `:id` route. Amount override skipped. Adviser gap recorded (consequence 5), not widened.
-- [x] **Parent my-records — DONE 2026-09-09.** `GET /my-records` only. No Pay button. Skip fetch when unlinked.
-- [ ] Web pages: admin.
-- [ ] Expo screens (Stage 5, not started).
-- [ ] Open, not blocking: CSV "Download Statement" export (manuscript Fig. 19), GWA computation decision. Module may be struck (DO 19 — adviser has not decided); the principal has separately been *reported* as saying collection is no longer allowed (unconfirmed). Different people — see CLAUDE.md OPEN QUESTIONS → Contributions and KNOWN ISSUES. Do not collapse. If struck, drop the tables. **DELETE 409 names a remedy that does not exist** (no `DELETE` on `contribution_records`): once any student is marked, the contribution is permanently undeletable through the API. Flagged, handler not changed.
+**~~Contribution/Fees Monitoring~~ — REMOVED 2026-09-13.** Principal Bajar,
+consultation 2026-09-01: the school is not permitted to collect contributions
+from parents. The team removed Feature 7: 8 endpoints, 2 tables, 2 pages, 3
+nav items, 1 suite. Chapter 5 must explain it (Figure 19 describes the
+feature). Closed with it: consequence 5, the DELETE 409, Download Statement,
+the last NOW POSSIBLE workaround. See CLAUDE.md → SCOPE DECISION.
 
 **System Settings Management (Admin)** — API done, no screens yet.
 - [ ] Admin web screen: settings form (school info, academic year, current quarter, logo).

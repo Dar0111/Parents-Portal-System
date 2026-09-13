@@ -1,7 +1,7 @@
 // `message` is expected to be the string from extractError() — the API's own
 // wording, not a rewritten one. Several endpoints answer with a deliberately
-// specific reason (which subject a teacher may not encode, why a contribution
-// cannot be deleted); replacing those with a generic "Request failed" would
+// specific reason (which subject a teacher may not encode, why an excuse letter
+// cannot be reviewed); replacing those with a generic "Request failed" would
 // throw away the most useful part of the response.
 export default function ErrorAlert({ message, onRetry, className = '' }) {
   if (!message) return null;

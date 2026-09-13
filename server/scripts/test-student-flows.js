@@ -147,8 +147,8 @@ async function run() {
       createInScope.data?.student?.section_id != null,
       `in-scope Malikhain create stores non-null section_id (got ${createInScope.data?.student?.section_id})`
     );
-    // Same class of regression as attendance.date/events.event_date/
-    // contributions.due_date — a DATE column round-tripping through
+    // Same class of regression as attendance.date/events.event_date —
+    // a DATE column round-tripping through
     // mysql2 without dateStrings: ['DATE'] would come back shifted a
     // calendar day at UTC+8.
     assert(

@@ -29,7 +29,7 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // summary) and GET /attendance/student/:studentId (unwrap attendance, array).
 // Do not call GET / — authorize('teacher','admin'), 403 "Access denied."
 //
-// SKIPS BOTH when user.student_id is null (Grades / Contributions pattern).
+// SKIPS BOTH when user.student_id is null (Grades pattern).
 // parseId(null) is 400 "Invalid student id." — a developer string. loading is
 // cleared in the same turn as the skip.
 //

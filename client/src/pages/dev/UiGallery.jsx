@@ -108,12 +108,6 @@ export default function UiGallery() {
               <StatusBadge status="Declined" />
             </div>
           </Row>
-          <Row label="contribution_records">
-            <div className="flex flex-wrap gap-2">
-              <StatusBadge status="Paid" />
-              <StatusBadge status="Pending" />
-            </div>
-          </Row>
           <Row label="grades (is_locked)">
             <div className="flex flex-wrap gap-2">
               <StatusBadge status="locked" />
@@ -193,7 +187,7 @@ export default function UiGallery() {
               message="Cannot reach the server. Check that it is running, then try again."
               onRetry={() => {}}
             />
-            <ErrorAlert message="Cannot delete. 1 payment record exists for this contribution." />
+            <ErrorAlert message="This excuse letter has already been reviewed." />
           </div>
         </Section>
 

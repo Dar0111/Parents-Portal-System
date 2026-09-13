@@ -13,7 +13,7 @@ Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 22 tables |
+| Database | `parents_portal` — 20 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -30,8 +30,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 84** handlers defined in
-> `server/routes/`, and **the endpoints table below has 85 rows** because
+> different things: **`docs/API_REFERENCE.md` counts 76** handlers defined in
+> `server/routes/`, and **the endpoints table below has 77 rows** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 >
 > Dated CHANGELOG entries are exempt — they record what was true on their date
@@ -41,9 +41,9 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-13 (Parent → Attendance shows "Present on
-recorded days" — the school answered the rate question; Late = present,
-Excused = absent. Remaining Stage 4 work is the other admin screens.)
+**Last verified:** 2026-09-13 (Feature 7, Contribution/Fees Monitoring,
+REMOVED — see SCOPE DECISION. 20 tables, 76 handlers + `/api/health`.
+Remaining Stage 4 work is the other admin screens — eleven.)
 
 ### Seeded baseline
 
@@ -60,7 +60,7 @@ After a clean `npm run db:setup`:
 | `teacher_assignments` | 8 — 3 for TCH-001 (G6 Mathematics/English/Filipino in Malikhain) and 5 for TCH-003 (every Grade 1 subject in Mabait). TCH-002 still has zero; that is the point of the account. |
 | `sections` with a real `adviser_id` | 3 of 23 — Malikhain → TCH-001, Masigasig → TCH-002, Mabait → TCH-003. The other 20 stay NULL until an admin assigns them. |
 | `grades` | 5 — Nino's partial descriptive card (Mathematics terms 1–3 A/B/C, Reading terms 1–2 D/E). `grade_components` is 0. Letters are illustrative fixture data, not a computed result. |
-| `attendance`, `announcements`, `memos`, `events`, `contributions`, `contribution_records`, `excuse_letters`, `messages` | 0 |
+| `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages` | 0 |
 
 HTTP suites that create rows delete them in a `finally` block and must
 return the database to this table, not to a remembered older snapshot.
@@ -125,14 +125,6 @@ return the database to this table, not to a remembered older snapshot.
 | POST | `/api/events` | teacher (own grade only), admin |
 | PUT | `/api/events/:id` | author or admin |
 | DELETE | `/api/events/:id` | author or admin — hard delete |
-| GET | `/api/contributions` | all roles — scoped by grade_level (no section column on this table) |
-| GET | `/api/contributions/my-records` | parent only — own child's rows only, no aggregate/other-student data |
-| GET | `/api/contributions/:id` | all roles — scoped, `404` on violation |
-| GET | `/api/contributions/:id/records` | teacher, admin — live roster (LEFT JOIN), Pending default |
-| POST | `/api/contributions` | teacher (own grade only), admin |
-| PUT | `/api/contributions/:id` | author or admin |
-| DELETE | `/api/contributions/:id` | author or admin — `409` if any `contribution_records` exist (see below) |
-| PATCH | `/api/contributions/:id/records/:studentId` | teacher, admin — mark Paid/Pending, optional amount override |
 | POST | `/api/excuse-letters` | parent — status always Pending, forbidden fields in body ignored; unlinked (`users.student_id` NULL) is 409 |
 | GET | `/api/excuse-letters/mine` | parent — own letters only |
 | GET | `/api/excuse-letters` | teacher (assigned OR adviser of the student's section), admin (all) — filters: status, student_id, from, to |
@@ -163,7 +155,7 @@ a new send; and the subjects-reseed CASCADE is the **opposite** case
 (destroying `subjects.id` wiped assignments *and* grades). Do not add a
 grades-exist guard on `DELETE /api/assignments/:id`.
 
-**Full request/response detail for all 84 endpoints — every body field,
+**Full request/response detail for all 76 endpoints — every body field,
 the exact response wrapper key, role-scope codes, and the 404-vs-403
 convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
 the quick list; that document is what Stage 4 screen work should
@@ -172,7 +164,7 @@ actually be read against.
 **Backup and Restore both built.** See "RESTORE" below for what shipped and
 what the automated suite deliberately does not cover.
 
-**Tests:** sixteen suites. The fifteen HTTP suites default `BASE` to
+**Tests:** fifteen suites. The fourteen HTTP suites default `BASE` to
 `http://127.0.0.1:${PORT}` — Node `fetch` on Windows resolves `localhost`
 to IPv6 `::1` first and the server listens on IPv4; that mismatch was
 ECONNRESET mid-run. `process.env.API_BASE` still wins. They are idempotent — every row they
@@ -196,7 +188,6 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:auth` — 39/39
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 62/62
-- `npm run test:contributions` — 38/38
 - `npm run test:settings` — 26/26
 - `npm run test:users` — 39/39
 - `npm run test:backups` — 39/39
@@ -205,7 +196,7 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:restore` — 22/22
 - `npm run test:excuses` — 70/70
 
-`node scripts/verify-grading-seed.js` is not one of the sixteen suites
+`node scripts/verify-grading-seed.js` is not one of the fifteen suites
 above — it's a direct-DB verification script (no server, no HTTP, no
 `assert()` harness), checking the Grades seed (transmutation table,
 weights, modes, Grade 1 descriptive fixture) is internally consistent.
@@ -213,7 +204,7 @@ Run it after `db:setup`, before trusting the seed. Pass count lives in
 the script's own output, not here.
 
 `npm run test:grade-computation` (Stage G2a, extended in G3 with the
-qualitative/letter descriptor lookups) is also not one of the sixteen
+qualitative/letter descriptor lookups) is also not one of the fifteen
 suites above — it's a direct-call unit test of `utils/gradeComputation.js`,
 no server, no DB, matching `test:sanitize`'s shape. 51/51 passing,
 deterministic (pure functions).
@@ -227,7 +218,7 @@ server/
                                 with httpServer.listen()); mounts /api/auth, /api/users,
                                 /api/students, /api/sections, /api/subjects, /api/assignments,
                                 /api/grades, /api/grading-modes, /api/attendance, /api/announcements, /api/memos,
-                                /api/events, /api/contributions, /api/settings, /api/backups,
+                                /api/events, /api/settings, /api/backups,
                                 /api/messages
   socket.js                    initSocket(httpServer) — JWT auth at connection time, one room per user
   package.json                 socket.io (dependency), socket.io-client (devDependency, test-only)
@@ -410,7 +401,6 @@ server/
                                 INNER JOIN users for posted_by_name alongside the
                                 bare posted_by id. PUT/DELETE load-existing stay
                                 SELECT *. No GET /:id.
-  routes/contributions.js      fee + per-student payment status, lazy roster, delete guard
   routes/settings.js           key-value store, allow-listed keys, per-key validation.
                                 current_term (was current_quarter) validated against a hardcoded
                                 ['1','2','3'] — the old live INFORMATION_SCHEMA ENUM introspection
@@ -451,8 +441,10 @@ server/
   utils/activity.js            insert into activity_logs
   utils/validateId.js          parseId() — validates :id route params before any query
   utils/sanitizeUser.js        sanitizeUser() — strips any key containing "password", case-insensitive
-  utils/dateFormat.js          isValidDateFormat() + todayLocalDateString() — shared by
-                                attendance/content/contributions, replacing 3 duplicated copies
+  utils/dateFormat.js          isValidDateFormat() + todayLocalDateString() — extracted
+                                from 3 duplicated copies (attendance/content/contributions;
+                                contributions removed 2026-09-13); used by attendance,
+                                content, excuses, grades, gradingModes
   utils/gradeComputation.js    Stage G2a (2026-09-05). Pure functions, no DB/HTTP:
                                 componentPercentage() (WW/PT — sum(score)/sum(max)x100),
                                 subTestPercentage() (one EX sub-test), exPercentage() (ST1x0.30 +
@@ -619,7 +611,6 @@ server/
   scripts/test-content-flows.js HTTP tests — audience scoping, named 403 reasons, author-or-admin.
                                 posted_by + posted_by_name on list/POST/PUT, scoped
                                 to rows the run created. 62/62.
-  scripts/test-contributions-flows.js HTTP tests — grade scoping, roster, amount cap, delete guard
   scripts/test-settings-flows.js HTTP tests — allow-list, per-key validation, PATCH all-or-nothing;
                                 current_term validated 1-3, no longer a source-inspection mechanism
                                 check now that the ENUM-sniffing it verified is gone
@@ -663,7 +654,8 @@ server/
                                 in routes/excuses.js), already-reviewed 403, attendance-row-count
                                 unchanged before/after an approval, admin-unscoped review
 database/
-  schema.sql                   22 tables. users.status ENUM now includes 'inactive'.
+  schema.sql                   20 tables (contributions + contribution_records dropped
+                                2026-09-13 with Feature 7). users.status ENUM now includes 'inactive'.
                                 backups.file_size added (bytes, populated after dump succeeds).
                                 auth_security_state — single-row (id=1), token_valid_after, set only
                                 by POST /api/backups/:id/restore, never exposed through /api/settings.
@@ -999,10 +991,10 @@ on top of it the Stage 4 foundation now exists: role-aware `Shell` with
 nested layout routes, seven shared UI primitives, and a dev-only component
 gallery at `/dev/ui`. **Teacher and Parent feature pages now exist** —
 Teacher: Attendance, Attendance records, Students (+ detail), Excuse Letters, Announcements,
-Memos, Events, Messages (+ thread; Announce to a class 2026-09-13), Grades (view + encode), Contributions,
+Memos, Events, Messages (+ thread; Announce to a class 2026-09-13), Grades (view + encode),
 Settings (password + contact; identity locked).
 Parent: Grades (report card + term breakdown modal), Excuse Letters (submit + edit while Pending), Announcements,
-Memos, Events, Contributions (read-only `my-records`), Messages (+ thread),
+Memos, Events, Messages (+ thread),
 Attendance (counts + day list + "Present on recorded days", 2026-09-13), Settings (password + contact;
 identity locked). **Admin → Users is the first
 admin feature page.** See STAGE 4 FRONTEND CONVENTIONS below
@@ -1030,14 +1022,15 @@ client/src/
   components/             DataTable, Modal, FormField, PasswordField, StatusBadge,
                           EmptyState, ErrorAlert, LoadingSpinner
   pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
-  pages/teacher/          **12 nav items** — Attendance, Attendance records
+  pages/teacher/          **11 nav items** — Attendance, Attendance records
                           (2026-09-12, add not flip), Students (+ detail, enroll wizard + create parent 2026-09-10, Edit 2026-09-12), Excuse Letters, Announcements,
                           Memos, Events, Messages (+ thread; Announce to a class 2026-09-13), Grades (view +
-                          encode, one page), Contributions (list + roster modal),
+                          encode, one page),
                           Settings (2026-09-10 — copy of Parent Settings; locked
                           identity + contact + password; password confirm Modal;
                           nav was add, not flip)
-  pages/parent/           9 pages (Settings added 2026-09-09). Content
+  pages/parent/           8 pages (Settings added 2026-09-09; Contributions
+                          removed 2026-09-13). Content
                           (Announcements/Memos/Events) and Grades stay
                           read-only. Parent content modals render
                           posted_by_name (2026-09-12). Teacher → Memos
@@ -1049,8 +1042,7 @@ client/src/
                           correction; no DELETE/withdraw). Messages copies
                           Teacher's fetch: table = GET /conversations,
                           contacts = New-message picker only, no merge.
-                          Contributions calls GET /my-records only — never
-                          GET /, GET /:id, or the roster (LRNs). Attendance
+                          Attendance
                           is read-only counts + day list + "Present on
                           recorded days" = (Present + Late) / total, one
                           decimal (2026-09-13; not Class Days, not the SF9
@@ -1062,7 +1054,7 @@ client/src/
                           Teacher 2026-09-10). Contact stays no-confirm.
                           Never GET /api/settings (school key-value) or
                           PUT /api/users/:id (admin).
-                          Grades, Contributions, and Attendance
+                          Grades and Attendance
                           skip their request when `user.student_id` is null;
                           Excuse Letters skips POST then (an unlinked POST is
                           a 500, flagged not fixed) and still GETs /mine.
@@ -1107,8 +1099,7 @@ api.post('/backups/3/restore', body, { raw: true })       // -> the axios respon
   developer-facing text through `extractError` into an `ErrorAlert`: if a
   key is missing the page is already broken, and loud beats silent.
 - **Array form** for the multi-key responses (`GET /backups` +
-  `orphaned_files`, `GET /contributions/:id/records` + `contribution`,
-  `GET /grades/:id` + `grade_components` + `descriptor`), so those keep the
+  `orphaned_files`, `GET /grades/:id` + `grade_components` + `descriptor`), so those keep the
   missing-key guard instead of dropping to `raw`.
 - **`raw` is for exactly two endpoints** — `POST /api/backups/:id/restore`
   (the one place `success: true` does not mean full success; its caller
@@ -1188,11 +1179,11 @@ column width in a dense table; a bare dash plus one legend line was
 rejected because it breaks the moment one table holds both reasons, which a
 teacher's cross-grade-level list can.
 
-### 4. StatusBadge — five vocabularies, one tone map, NO VERDICTS
+### 4. StatusBadge — four vocabularies, one tone map, NO VERDICTS
 
-Five status vocabularies (`users` · `attendance` · `excuse_letters` ·
-`contribution_records` · grades `is_locked`) share one central status→tone
-map. "Pending" means the same thing in three of them, so mapping it once is
+Four status vocabularies (`users` · `attendance` · `excuse_letters` ·
+grades `is_locked`) share one central status→tone
+map. "Pending" means the same thing in two of them, so mapping it once is
 honest. Unknown values fall back to neutral rather than throwing; a `tone`
 prop overrides.
 
@@ -1255,8 +1246,7 @@ function as the only writer. Never from the object an input handler mutates.
 grades encode screen most obviously — the stored grade and a pending edit sit
 side by side there, and the stakes are higher than attendance, since a grade
 that appears saved and is not affects the SF9 and promotion. Also user
-management (status transitions), excuse-letter review, and contribution
-payment marking.
+management (status transitions) and excuse-letter review.
 
 **The mechanical tell:** search the render for the same state object the
 inputs write to. In `AttendancePage.jsx` the fix was to split one `marks`
@@ -1287,7 +1277,7 @@ a student identifier — it is one of the two factors of a real account.
 LRN, and this is the account screen, so the value is shown **locked** (not in
 a URL, not as a second `lrn` field). It is their own credential on their own
 account, not a third-party roster leak. Do not copy this onto Grades,
-Attendance, Excuse Letters, Contributions, or Messages.
+Attendance, Excuse Letters, or Messages.
 
 This is also why `GET /api/students` returning the full personal row on a LIST
 matters more than it first appears (see the finding recorded below): it is not
@@ -1315,14 +1305,13 @@ and parents, not developers — and a developer has the API response, the schema
 and this note.
 
 **Why this convention exists at all — a schema inconsistency deliberately NOT
-normalised.** The five status vocabularies do not agree with each other in the
-database, and the split is three to two:
+normalised.** The four status vocabularies do not agree with each other in the
+database, and the split is two to two:
 
 | Vocabulary | Stored form | Capitalised? |
 |---|---|---|
 | `attendance.status` | `Present, Absent, Late, Excused` | yes |
 | `excuse_letters.status` | `Pending, Approved, Declined` | yes |
-| `contribution_records.status` | `Paid, Pending` | yes |
 | `users.status` | `pending, active, rejected, inactive` | **no** |
 | `students.status` | `active, inactive` | **no** |
 | grades `is_locked` | not an ENUM — a boolean; `locked`/`unlocked` are invented at the call site | **no** |
@@ -1335,7 +1324,7 @@ paying for that mismatch on every screen instead: capitalise once, in the one
 component that renders these values, and leave the data alone.
 
 Practical consequence worth knowing when reading a diff: capitalising is a
-**no-op for three of the six** vocabularies, and visibly changes only
+**no-op for two of the five** vocabularies, and visibly changes only
 `users.status`, `students.status`, and the grades lock pair.
 
 ### 5e. Confirmation follows reversibility
@@ -1656,12 +1645,12 @@ piece of wiring later is not a breaking change at twenty call sites.
 ### 7b. Modal sizes — three, and `lg` is the ceiling
 
 `sm` / `md` / `lg` (`max-w-sm` / `max-w-lg` / `max-w-2xl`). There is no
-`xl`. **Teacher → Contributions' roster (2026-09-08) is the first Stage 4
-content to hit that ceiling.** The page dropped a column and a second
-action button rather than adding a size for one caller — the same
-"primitive shaped by one page" failure the foundation dispatch existed
-to prevent. **A second page that cannot fit `lg` is the trigger to
-reconsider the scale, not this one.**
+`xl`. **Teacher → Contributions' roster (2026-09-08) was the first Stage 4
+content to hit that ceiling** — the page dropped a column and a second action
+button rather than adding a size for one caller, the same "primitive shaped by
+one page" failure the foundation dispatch existed to prevent. That page was
+removed with Feature 7 on 2026-09-13, so **no current page reaches `lg`'s
+width. A page that cannot fit `lg` is the trigger to reconsider the scale.**
 
 ### Corrections — three claims retired here
 
@@ -2053,7 +2042,7 @@ row yet) in `scripts/test-sanitize-user.js`.
 `package.json`, two terminals. **No monorepo tooling** — no workspaces,
 no Turborepo, no nx.
 
-**Mobile scope:** all 10 features, all 3 roles. Backup/Restore is the one
+**Mobile scope:** all 9 features (Feature 7 removed 2026-09-13), all 3 roles. Backup/Restore is the one
 web-only exception.
 
 **Authentication — implemented and tested**
@@ -2069,7 +2058,7 @@ web-only exception.
 
 ---
 
-## THE 10 CORE FEATURES
+## THE CORE FEATURES — nine (Feature 7 removed 2026-09-13)
 
 1. Grade Management & Viewing
 2. Attendance Monitoring
@@ -2077,13 +2066,59 @@ web-only exception.
 4. Announcements & Memo Dissemination
 5. Parent-Teacher Messaging (Socket.io)
 6. Excuse Letter Submission & Management
-7. Contribution/Fees Monitoring — view and track only, no payment gateway
+7. ~~Contribution/Fees Monitoring — view and track only, no payment gateway~~ — **REMOVED 2026-09-13.** See SCOPE DECISION below. Numbering kept so it still maps to the manuscript.
 8. User Management (Admin)
 9. System Settings Management (Admin)
 10. Backup & Restore (Admin, web only)
 
 **Excluded from scope:** QR attendance, online payment, enrollment,
-transcript requests, schedule grid, college grading.
+transcript requests, schedule grid, college grading, and — since 2026-09-13 —
+contribution/fee collection (SCOPE DECISION below).
+
+### SCOPE DECISION — Feature 7 (Contribution/Fees Monitoring) removed
+
+**Consultation at Captain H. Francisco Elementary School, 2026-09-01.
+Principal Bajar stated that the school is not permitted to collect
+contributions from parents. The team decided to remove Feature 7.** Removed
+in code on 2026-09-13 (branch `chore/remove-contributions`). Recorded from
+the consultation; if a written memo exists, cite its reference here.
+
+**This is a SCOPE decision, not an engineering one**, and it is the answer
+to the November panel. Feature 7 is one of the ten features in the
+approved manuscript, and Figure 19 (the fee screen with its Download
+Statement export) describes it. **Chapter 5 must explain the removal**: what
+the feature was, that the principal said on 2026-09-01 the school may not
+collect contributions from parents, and that the system therefore ships
+nine features. Do not describe it as unfinished or cut for time — it was
+built, tested (38 assertions) and working, and was removed because the
+school may not do the thing it tracked.
+
+**What went:** 8 endpoints (`routes/contributions.js`), the
+`contributions` and `contribution_records` tables with their four FKs,
+Teacher → Contributions and Parent → Contributions, three nav items (teacher,
+parent, and the unbuilt admin one), `test:contributions` and its suite,
+and StatusBadge's `paid` tone (`pending` stays — users and excuse letters
+share it).
+
+**Why not a flag, and why not leave the tables:** a removed feature with a
+live POST still mounted is a UI lie, and empty unused tables are how this
+file's counts drifted before.
+
+**What stays, deliberately:** the 40 `activity_logs` rows recording
+contribution actions (`create_contribution` 12, `delete_contribution` 4,
+`update_contribution` 4, `update_contribution_record` 20) — audit history,
+no FK; deleting them would rewrite what happened, so do not "clean" them.
+Dated CHANGELOG entries, build-time data points, and the §5h defect row stay
+as the history they are. Pre-removal backups still contain both tables — see
+KNOWN ISSUES.
+
+**What the removal also closed:** consequence 5 (the adviser could not post a
+fee — a school question), the DELETE 409 that named a remedy which did not
+exist, the Download Statement KNOWN ISSUE (Figure 19's CSV export), the last
+expired NOW POSSIBLE workaround (Contributions compose built from
+`GET /students`), the DO 19 KNOWN ISSUES row, the unconfirmed OPEN QUESTION,
+and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
+`my-records` gotcha, and the contributions half of the scope-width gotcha.
 
 ---
 
@@ -2915,8 +2950,17 @@ below is in the shipped code, not a plan:
   `created_at` taken from the file's own mtime, and each is recorded in
   `activity_logs` as `manual_backup_adoption`, distinct from
   `create_backup`, so the log stays honest about how those rows actually
-  came to exist. `backups` currently holds 8 rows this way, 0
-  `orphaned_files`.
+  came to exist. `backups` held 8 rows this way on 2026-08-29.
+  **That count went stale on 2026-09-07 and was never updated — corrected
+  2026-09-13.** The `db:setup` that seeded the Grade 1 fixture dropped and
+  recreated the whole database (`users` and `backups` both show
+  CREATE_TIME 2026-09-07 21:08), wiping the 8 adopted rows. Evidence:
+  `backups` AUTO_INCREMENT is 9 and every row since is from `test:backups`
+  runs (8 `create_backup` / 4 `delete_backup` entries in `activity_logs`),
+  all cleaned up — so the table holds 0 rows and the `.sql` files on disk
+  have no rows (`GET /api/backups` lists unmatched files as
+  `orphaned_files`). **Do not "restore" the 8 by recreating rows from
+  memory**; a fabricated `created_by` is the guess the adoption rule refuses.
 - **The restore itself runs on a dedicated one-off `mysql2` connection**
   (`multipleStatements: true`), never the shared pool — the pool's
   existing connections would error once the database they're attached to
@@ -3023,14 +3067,14 @@ imply," not just "does this one anticipated symptom show up."
 | Issue | Where | Note |
 |---|---|---|
 | `users.email` has no UNIQUE constraint | `schema.sql` | Deliberately not added. A plain `UNIQUE` would conflict with the locked one-account-per-student design: `setup-db.js` seeds Marwin's and Jea's parent accounts with the *same* guardian email on purpose, and any real family with 2+ kids needs that same reuse. Only matters once email login is actually built — see Open Questions. |
-| No `Download Statement` export | — | Promised in manuscript Figure 19. Build a CSV export from `contribution_records`, or remove it from the paper. |
+| **No `Download Statement` export — closed 2026-09-13 by removal.** | — | Figure 19 promised a CSV export from `contribution_records`. That table and Feature 7 were removed 2026-09-13 (SCOPE DECISION), so there is nothing to export. Chapter 5 must note that Figure 19 describes a removed feature. |
 | No GWA computation | — | Defined in the manuscript's Definition of Terms but implemented nowhere. Keep or drop — undecided. |
 | A new page file arriving via HMR can leave a stale module in an open tab | Vite dev server | **Try a hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip on 2026-09-07: Teacher → Excuse Letters' "All statuses" filter appeared to return nothing, and the investigation proved the request, the endpoint contract, the empty-state branches and `FormField`'s controlled select were all correct — the running tab was serving a stale module. A hard reload cleared it and there was no data bug. The analysis was not wasted (it found a real copy defect alongside), but the reload should have come first. |
-| **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). **Teacher → Grades switched 2026-09-12** — encode-scope from `GET /assignments`, mode from `GET /grading-modes`. **`useTeacherTargets` switched 2026-09-13** — assigned leg is `GET /assignments` (distinct grade+section), not `GET /students`; advisory `GET /sections` stays. **Consequence 5 is not closed by that API:** `content.js` writes include the adviser; `contributions.js` does not. TCH-002 can announce to Masigasig and cannot POST a Grade 5 fee. GET /assignments exposes rows; it does not widen contributions write scope. A fee is money (DepEd Order 19 s. 2008). Do not widen. School question. Surfaced by Teacher → Contributions (2026-09-08). |
+| **`teacher_assignments` is now readable and writable (2026-09-08) — consequences 1–2 closed.** | `server/routes/assignments.js` | **Closed:** `GET /api/subjects`, `GET`/`POST`/`DELETE /api/assignments`. An admin can assign and unassign; a teacher can read their own rows. **DELETE does not refuse when grades exist.** No `grades` → `teacher_assignments` FK; a scope change removes future authority, never past records. **API gap for consequence 4 is closed:** `GET /api/grading-modes` shipped 2026-09-08 (item 2). **Teacher → Grades switched 2026-09-12** — encode-scope from `GET /assignments`, mode from `GET /grading-modes`. **`useTeacherTargets` switched 2026-09-13** — assigned leg is `GET /assignments` (distinct grade+section), not `GET /students`; advisory `GET /sections` stays. **Consequence 5 closed 2026-09-13 by removal:** it was the adviser-cannot-post-a-fee gap in `contributions.js` (content.js writes include the adviser; contributions did not). The module is gone (SCOPE DECISION), so the school question it raised no longer has a subject. |
 | **`GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending"** | `server/routes/messages.js` | ACTIVE accounts only — correct, a pending parent cannot log in. The empty list is still indistinguishable between those two causes, so the UI's *"No parents yet. A parent appears here once an admin approves their account."* is a known imprecision. **`GET /api/assignments` does not close this.** Assignments are subject-section rows, not parent-account state. TCH-002 is the proof: adviser of Grade 5 - Masigasig, zero assignment rows, and that section's only parent is seeded `pending`. An assignments read would still be empty while students (and pending parents) exist. Closing this needs a signal about parents-of-students-in-scope, not about what a teacher is assigned to teach. Do not treat it as closed by association with item 1. |
 | **`GET /api/messages/contacts` carries class — closed 2026-09-13.** | `server/routes/messages.js` | Students subquery now selects `grade_level` and `section`; outer SELECT aliases them `student_grade_level` / `student_section` next to `student_name`. Prefix because these are the **child's** class on a user row (`id`/`name`/`role` describe the contact). Null on teacher/admin rows (LEFT JOIN; they have no `student_id`) — correct, not hidden. Scope and `?search=` untouched. Teacher → Messages thread reads them to name and preselect the class (2026-09-13) — the only client that does. `GET /conversations` and `GET /with/:userId` still have no class; a client that needs class must take it from contacts before navigating. Inverse, not a defect: a teacher can POST an announcement to an empty section that appears on nobody's contacts. Every parent-derived class on contacts is a class that teacher may announce to (assigned OR adviser; TCH-002 coincides — Jea pending, so no parent row, so no class they could not post to). |
-| **Contributions module may be struck (DO 19 s. 2008) — drop the tables, do not leave them** | `contributions` + `contribution_records` | The adviser has not decided. The principal has separately been *reported* as saying collection is no longer allowed — unconfirmed, a different person, a different statement; nobody has checked whether the two agree. See OPEN QUESTIONS → Contributions. **Do not collapse this row and that bullet into one "struck" claim.** Empty unused tables are how the counts drifted, and the DDL is in git. A "removed" feature with a live POST still mounted is a UI lie. **Do not remove anything now.** If it is struck, drop both tables (and their FKs), do not leave them. Removal would touch: `client/src/pages/teacher/ContributionsPage.jsx`, `client/src/pages/parent/ContributionsPage.jsx`, `App.jsx` routes, `nav.js` teacher item **and delete** parent/admin items (do not leave `built: false`), `server/routes/contributions.js`, `server.js` mount, `test-contributions-flows.js`, `package.json` `test:contributions`, `schema.sql` both tables + FKs, `seed.sql` (0 rows today), this file's endpoints/files/BUILD ORDER/feature 7/baseline/Download Statement/this list **and the 409-message row below**, `docs/PROJECT_PROGRESS.md`, `docs/API_REFERENCE.md` Contributions + wrapper keys + grade-only gotcha. Leave StatusBadge Paid/Pending. Manuscript is the team's. |
-| **DELETE `/api/contributions/:id` 409 tells the teacher to do something impossible** | `server/routes/contributions.js` | The refusal is real (`COUNT(*)` on `contribution_records` > 0 → `409`), and the first sentence is honest. The second is not: *"Clear the payment records first if you need to remove it."* There is no `DELETE` for `contribution_records` — only `PATCH` Paid/Pending, which `ON DUPLICATE KEY UPDATE`s the row, never removes it. Marking Pending again does not unlock delete. **Consequence: once any student is marked, the contribution is permanently undeletable through the API**, and the error message hides that by naming a remedy that does not exist. The Teacher page already says the server will refuse if anyone has been marked; that is more honest than the 409 string. Flagged from Teacher → Contributions browser review (2026-09-08), handler not changed — backend string. If the module is struck this goes with it. If it stays, the gap needs either a record `DELETE` or an honest message. |
+| **Contributions module — decided and REMOVED 2026-09-13.** | (removed) | Principal Bajar, consultation 2026-09-01: the school is not permitted to collect contributions from parents; the team removed Feature 7. Both tables dropped (children first) with their FKs, as this row always said to do. See SCOPE DECISION. |
+| **DELETE `/api/contributions/:id` 409 named a remedy that did not exist — closed 2026-09-13 by removal.** | (removed) | The endpoint and `contribution_records` are gone with Feature 7. |
 | `GET /api/excuse-letters/:id` returns strictly LESS than its own list endpoint | `server/routes/excuses.js` | The list runs `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section`; the detail runs `SELECT el.*` with **no student join at all**. So a detail route would render `student_id: 2` and need a second call to `/students/:id` just to show a name, while a list row already carries everything the detail has plus the student. Teacher → Excuse Letters therefore uses a modal from the list and never calls `GET /:id` — but the oddity is worth knowing before someone builds a detail route on it later and wonders why the name is missing. Flagged, not fixed. |
 | `excuse_letters.attachment_url` exists but nothing can write it | `database/schema.sql` + `server/routes/excuses.js` | The column is in the schema, but `POST /api/excuse-letters` accepts only `absence_date`, `reason` and `details`, and there is no upload endpoint anywhere in the API. The value is always `NULL` in practice. **No screen should render an attachment affordance for it** — that would promise a feature that does not exist. Either build upload or drop the column; until then it is dead schema. |
 | **Unlinked `POST /api/excuse-letters` is 409 — closed 2026-09-11.** | `server/routes/excuses.js` | Guard before the INSERT `try`: `req.user.student_id == null` → 409. **Not a 400.** The body is valid; `student_id` does not come from it. Same family as `POST /api/students` with no `academic_year` ("An admin must set it before students can be created.") and a missing `grading_mode_configs` row ("An admin must configure the grading mode before this can be recorded."). A 400 would tell a parent to fix a request they cannot fix, and would look like the three validation 400s directly above this guard. Message names **school office**, not "An admin" — those precedents are admin-facing config errors; this one is parent-facing, and Parent → Excuse Letters already says "school office" (§5i). **API correctness, not a fixed demo defect.** The page already hides Submit when unlinked, so no parent could reach the old 500 from the UI. A future session must not read this closed row as "the parent-facing 500 is gone." |
@@ -3045,9 +3089,11 @@ imply," not just "does this one anticipated symptom show up."
 | **`/auth/me` no longer returns `lrn` — closed 2026-09-12.** | `server/routes/auth.js` | Dropped `s.lrn` from `fetchUserByLoginId()`. Login, `GET /me`, and `PUT /contact` all use that helper, so all three lose the key. **Absent, not null** — teacher/admin used to carry `lrn: null` from the LEFT JOIN; `'lrn' in user` is now false for every role. A client doing `'lrn' in user` sees a different answer than one doing `user.lrn == null`. Parent still has `login_id` (the LRN) plus the four JOIN columns Settings reads (`student_first_name`, `student_last_name`, `grade_level`, `section`). `PUT /contact` still rejects `lrn` in the *request* body (400). **No client behaviour change** — Parent → Settings still shows `login_id` as Login ID. Flag, not fixed: `routes/users.js` still JOINs `s.lrn` on create-parent / pending / approve (admin §5c-legal). Do not read this closed row as "LRN is gone from every user payload." |
 | `backups` has no `status` column | `schema.sql` | Deliberate, not missing: a row is only ever inserted after the dump succeeds, so every row is definitionally "Completed" — the UI hardcodes that string. Revisit only if backup generation becomes asynchronous (a pending/failed state visible before the job finishes) — that's the trigger, not before. |
 | `GradeValue` has no branch for a descriptive A–E letter | `client/src/format/grade.jsx` | Its header names four states — a number, `null` in numerical mode, `null` in descriptive mode, and a failed request — and **a letter is not one of them**. `formatGrade('A')` is `Number('A') → NaN → null`, so a real Grade 1 term grade of `A` renders as `"— N/A"`, the string meaning "this does not apply", on the one value that does. This is outside the primitive's stated contract rather than a bug inside it. **Two local `TermCell` copies now exist** (Parent → Grades and Teacher → Grades); extract at three. Teacher → Grades was instructed not to add a fifth state to the primitive inside the largest encode screen in Stage 4 — that is the "shaped by one page" failure the foundation dispatch existed to prevent. **The trigger to fix the primitive is the third copy**, not a rushed fifth state. Parent letter rendering as `1090001` / `Parent@2026` is still the browser pass that retires Finding C on the parent card. |
-| **README suite-count table is stale — one pass, not per-dispatch patching** | `README.md` | The table still has `test:auth` 25 (is 39) and `test:messages` 56 (is 59), plus other drifted rows and a 673 total that no longer matches CURRENT STATE. Folding one cell into an unrelated dispatch makes the table look maintained when it is not. Leave it until a dedicated docs pass restates every row against this file's Tests list. The suite `BASE` fallback is **not** documented there (`curl` / `VITE_API_BASE_URL` / `DB_HOST` `localhost` are three other roles). |
-| **Sixteen test scripts still have a record-only `assert()` and no fixture stop** | `server/scripts/test-*.js` | All seventeen scripts share `assert()` byte for byte; it only records, never throws. `test-grades-flows.js` gained a local `requireFixture()` (2026-09-13) so a failed fixture stops the run instead of continuing on `undefined` ids. The other sixteen were **not audited** for fixtures followed by dependent work. Open audit, its own dispatch — a shared helper is a test-infrastructure refactor, not a fixture fix. Do not half-do it inside a feature dispatch. |
+| **README suite-count table is stale — one pass, not per-dispatch patching** | `README.md` | The table still has `test:auth` 25 (is 39) and `test:messages` 56 (is 59), plus other drifted rows and a 673 total that no longer matches CURRENT STATE. Folding one cell into an unrelated dispatch makes the table look maintained when it is not. Leave it until a dedicated docs pass restates every row against this file's Tests list. The suite `BASE` fallback is **not** documented there (`curl` / `VITE_API_BASE_URL` / `DB_HOST` `localhost` are three other roles). It also still lists Contributions (lines 45, 223, 256, 301), removed 2026-09-13 — same one pass, not a second flag. |
+| **Fifteen test scripts still have a record-only `assert()` and no fixture stop** | `server/scripts/test-*.js` | All sixteen scripts share (test-contributions-flows.js was deleted 2026-09-13) `assert()` byte for byte; it only records, never throws. `test-grades-flows.js` gained a local `requireFixture()` (2026-09-13) so a failed fixture stops the run instead of continuing on `undefined` ids. The other fifteen were **not audited** for fixtures followed by dependent work. Open audit, its own dispatch — a shared helper is a test-infrastructure refactor, not a fixture fix. Do not half-do it inside a feature dispatch. |
 | Direct-SQL student fixtures insert `section_id` NULL on purpose | `test-auth-flows.js`, `test-excuses-flows.js`, `test-messages-flows.js` | Each inserts a Grade 3 - Aguinaldo student by SQL (not POST) with `section_id` NULL; excuses relies on the NULL (its line ~716 comment). Unaffected by POST's section resolve. **Would break under a future `NOT NULL` on `students.section_id`.** No such constraint exists; do not act on this until one is proposed. Recorded 2026-09-13. |
+| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + `POST /api/backups/:id/restore` | All ten `.sql` files on disk (as of 2026-09-13) contain `CREATE TABLE contributions` and `contribution_records`. A restore from any of them recreates both — orphan tables no code reads or writes, which silently drift the table count from 20 back to 22 and make it look as though the removal never happened. **What to do after such a restore:** `DROP TABLE contribution_records;` then `DROP TABLE contributions;` by hand (children first, for the FK), then confirm 20 tables. Do not delete or edit the old dump files — they are still valid recovery points for everything else. The restore path is exactly where this surfaces during a demo. |
+| **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and then rebuilds `parents_portal` anyway** | `server/scripts/setup-db.js` + `database/schema.sql` | `setup-db.js` reads `DB_NAME` from the environment and runs `DROP DATABASE IF EXISTS <DB_NAME>` first — so the override **looks** like it works. But `schema.sql` hardcodes `CREATE DATABASE IF NOT EXISTS parents_portal` and `USE parents_portal` (lines 4–8), so every statement after the drop runs against `parents_portal`, not `<DB_NAME>`. **A developer pointing it at another database loses that database**, and then either rebuilds `parents_portal` (if it did not exist) or fails on `CREATE TABLE users` against the live one (if it did — found exactly this way on 2026-09-13; nothing destructive ran). Never run setup-db with a non-default `DB_NAME`. For a scratch proof, rewrite the name in memory instead (the 2026-08-29 method). **Flagged, not fixed** — making the name follow the environment changes setup behaviour and is its own dispatch. |
 
 ---
 
@@ -3060,8 +3106,13 @@ workaround whose reason has expired. Landing Teacher → Contributions did
 - **Teacher `posted_by_name` — DECISION, not leftover (2026-09-12).** Teacher → Memos renders it as a sortable DataTable column (header `Posted by`, cell is the name alone). Sortable needs no extra null handling: `posted_by_name` is never null (INNER JOIN on `posted_by` NOT NULL + `ON DELETE RESTRICT`), so DataTable's nulls-last path has no case here. Teacher → Announcements and Events deliberately do not: Actions already says mine/theirs (`row.posted_by === user.id`), and those pages already carry four columns. Parent content modals already render it (2026-09-12). The payload still carries the field on all three. Do not close this bullet as though all three teacher pages shipped, and do not open a T2 to "finish" Announcements and Events. Do not read the closed KNOWN ISSUES row as "every page shows who posted it."
 - **Teacher → Grades encode-scope and mode — closed 2026-09-12.** `GET /assignments` predicts encode scope (grade+section+subject) before any click. `GET /grading-modes` supplies `mode` from `grade_level`. The report card remains the subject list and term grid. The POST 403 probe, session `(not yours)`, and existing-row `ensureShell` hole are gone. `ensureShell` still creates the shell.
 - **`useTeacherTargets` — closed 2026-09-13.** Assigned leg is `GET /assignments` (`unwrap: 'assignments'`), reduced to distinct `{ grade_level, name }`. Advisory `GET /sections` stays. The union is still assigned OR adviser — not a switch to assignments-only. Empty and all-inactive assigned sections now appear (old `GET /students` was active-only). Announcements compose hint names the empty-audience case as a **general** sentence — the hook returns no enrollment count. Events cannot show that proof (grade-wide; TCH-001 already has Grade 6 via Malikhain). Do not reuse this hook for Grades or Contributions.
-- **Teacher → Contributions still builds compose grades from `GET /students`.** Too wide (TCH-002 sees Jea); Post is the assignment check. `GET /assignments` exists; switch the compose list to it. Do not invent an empty state from students (`[]` is the same for TCH-001 with nothing posted and TCH-002 with nothing to post). This is the last 2026-09-08 expired workaround still open. `posted_by_name` above is a decision row, not leftover work.
+- **Teacher → Contributions compose built from `GET /students` — closed 2026-09-13 by removal.** The page is gone with Feature 7 (SCOPE DECISION). This was the last expired 2026-09-08 workaround.
 - **Teacher → Messages "Announce to" names the section — closed 2026-09-13.** The thread reads `student_grade_level` / `student_section` from `GET /contacts` and Announcements opens with that section selected. All three recorded constraints held, plus a fourth: no contacts row at all (deactivated parent, or scope changed with history readable) falls back to unnamed. See the Class Board section. Do not write that NOW POSSIBLE is empty — Contributions compose is still open.
+
+**Every item above is closed except `posted_by_name`, and that one is a
+recorded DECISION** (Announcements and Events deliberately do not render the
+name), not outstanding work. This section is not a backlog of one; do not
+"finish" it.
 
 **Not on this list:** the contacts empty-cause. `GET /assignments` does not
 tell "no parents exist" from "all parents pending." That stays in KNOWN
@@ -3226,8 +3277,9 @@ at the end of each session.
 
 ### Stage 1 — Foundation ✅ DONE
 
-- [x] Database schema — 22 tables (was 18 when Stage 1 closed; the Grades
-      rebuild and `auth_security_state` added the rest)
+- [x] Database schema — 20 tables (was 18 when Stage 1 closed; the Grades
+      rebuild and `auth_security_state` added four, and Feature 7's two
+      tables were dropped 2026-09-13)
 - [x] Seed data
 - [x] Auth backend — login, JWT, RBAC, approve/reject
 - [x] Auth tests
@@ -3269,7 +3321,7 @@ Grades is last in this stage because it is blocked.
       Not an eleventh feature — Feature 4 with school-wide as admin-only
       and section-level as teacher-capable.
 - [x] Excuse Letters API — **fully built**: submit, mine, list, view, edit, and review (approve/decline, adviser-only, never touches attendance), see BLOCKED / RESOLVED
-- [x] Contributions API — create, record payment, view status
+- [x] ~~Contributions API — create, record payment, view status~~ — **REMOVED 2026-09-13** (SCOPE DECISION)
 - [x] Messages API + Socket.io
 - [x] System Settings API (admin)
 - [x] User Management API — extend the existing `routes/users.js`
@@ -3476,7 +3528,7 @@ replaced with a new guess.
       still creates the shell; it no longer discovers scope. **Alert XOR.**
       **No unsaved-changes warning.** Dated 2026-09-07 verification (throwaway
       `student_id=14`/`15`) stays; that dispatch predicted scope by POST 403.
-- [x] **Teacher → Contributions — DONE 2026-09-08.** Last Teacher Stage 4 page:
+- [x] **Teacher → Contributions — DONE 2026-09-08, REMOVED 2026-09-13 with Feature 7 (SCOPE DECISION).** Was the last Teacher Stage 4 page:
       list, compose, edit, delete, payment roster in a Modal (not a `:id`
       route). Seven of eight endpoints are teacher-reachable (`GET /my-records`
       is parent only). Scope is grade-level `teacher_assignments` only — the
@@ -3494,7 +3546,7 @@ replaced with a new guess.
       `GET /conversations`, contacts are the New-message picker only, no
       merge. Thread is a copy with `/parent/messages` back link; extract
       at Admin. Flipping `built: true` closes the 5g LiveStatus inverse
-      with no `Shell.jsx` change. Contributions: `GET /my-records` only,
+      with no `Shell.jsx` change. Contributions (REMOVED 2026-09-13 with Feature 7): `GET /my-records` only,
       skip fetch when unlinked, no Pay button. ParentDashboard derived
       from nav, no edit. Attendance was still blocked on the rate formula
       at this landing — unblocked the same day by the next checkbox.
@@ -3547,8 +3599,8 @@ replaced with a new guess.
       IG not shown (not on the card). Parents-see-raw-scores answered
       2026-09-11 in conversation; the modal is approved. Spec: NOW
       POSSIBLE → Parent grade breakdown (BUILT).
-- [ ] Admin pages remaining — students, sections/adviser assignment,
-      grades, attendance, excuses, content, contributions, messages,
+- [ ] Admin pages remaining (eleven) — students, sections/adviser assignment,
+      grades, attendance, excuses, content, messages,
       settings, backup/restore. **No longer blocked on missing assignments
       write or missing grade delete / grading-mode read** — items 1–3 of
       the admin-prerequisites plan all shipped 2026-09-08. Remaining work
@@ -3672,6 +3724,16 @@ the same way.**
   would move that authority — the exact write the gate exists to
   refuse. Do not add a transfer endpoint until this is answered.
 
+### School questions — answered 2026-09-01 (recorded 2026-09-13)
+
+- **Contributions — may the school collect them? → No.** Principal Bajar,
+  consultation at Captain H. Francisco Elementary School, 2026-09-01: the
+  school is not permitted to collect contributions from parents. The team
+  decided to remove Feature 7; removed in code 2026-09-13. See SCOPE
+  DECISION. This replaces the "reportedly, not confirmed in writing" entry
+  that sat here as unconfirmed, and closes the KNOWN ISSUES row where the
+  adviser had not decided.
+
 ### School questions — answered 2026-09-13
 
 Answered by the **principal** on 2026-09-13, **in conversation — not a
@@ -3736,29 +3798,6 @@ manuscript as documented school policy. Do not re-ask them.
   transparency.** Already built: Parent → Grades term modal,
   `GET /api/grades/:id`. The modal is approved — do not remove it
   as an unapproved feature. The endpoint stays either way.
-
-### School questions — unconfirmed (not a decision)
-
-- **Contributions — is collection still allowed?** The principal has
-  reportedly said collecting contributions is no longer allowed.
-  That has **not** been confirmed in writing, and the exact scope
-  is unclear: whether it forbids collection entirely, forbids
-  systematising it, or covers only certain fee types. **This is a
-  question, not a decision.** Do not mark the module deprecated.
-  Do not add a deprecation notice to any page. Do not change BUILD
-  ORDER. Until the scope is confirmed in writing, do not spend a
-  dispatch on Contributions.
-
-  Feature 7 is one of the ten approved manuscript features. It has
-  three nav items across three roles (Teacher and Parent built;
-  Admin unbuilt). Removing it would need a written reason
-  defensible at the November panel.
-
-  **Different person, different statement:** KNOWN ISSUES records
-  that the *adviser* has not decided whether the module is struck
-  under DO 19 s. 2008. This item records what the *principal*
-  reportedly said. Nobody has checked whether those two agree.
-  Do not collapse them into one "struck" claim.
 
 ### Engineering, manuscript, and logistics
 
@@ -4109,6 +4148,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | **Feature 7 (Contribution/Fees Monitoring) REMOVED — scope decision, not engineering.** Branch `chore/remove-contributions`. **Decision:** consultation at Captain H. Francisco Elementary School, 2026-09-01 — Principal Bajar stated the school is not permitted to collect contributions from parents; the team decided to remove Feature 7. Recorded in the new SCOPE DECISION block, which is the answer to the November panel and tells a future session that **Chapter 5 must explain the removal** (Figure 19 describes it). **24 files mentioned contributions, not the twelve first counted** — the missed ones included the mount in `server.js`. **Deleted:** `routes/contributions.js` (8 handlers), `test-contributions-flows.js`, both `ContributionsPage.jsx`. **Edited:** `server.js` (require + mount), `package.json` (`test:contributions`), `schema.sql` (both tables, both indexes, the unique key, four FKs), `App.jsx` (2 imports, 2 routes), `nav.js` (teacher, parent **and the unbuilt admin item** — 12→11, 10→9, 14→13; admin backlog now eleven), `useTeacherTargets.js` (warning is Grades-only, at full strength), `StatusBadge.jsx` (`paid` removed — dead tone for a status no table produces; `pending` stays, shared), `ErrorAlert.jsx` / `UiGallery.jsx` / `Modal.jsx` / parent `AttendancePage.jsx` / `config/db.js` / `utils/dateFormat.js` / two suite comments (comments or dev-only examples), `SYSTEM_ARCHITECTURE.md` (3 lines, approved expansion). No dashboard edit — all three derive "Open now" from `navForRole`. `/teacher/contributions` and `/parent/contributions` fall to the catch-all redirect. **Kept:** 40 `activity_logs` contribution rows (audit history). **Order:** client, server, schema, docs. **Live DB:** a first scratch proof through `setup-db.js` with `DB_NAME=parents_portal_scratch_rmcontrib` **ran against the live database** — `schema.sql` hardcodes `CREATE DATABASE IF NOT EXISTS parents_portal` / `USE parents_portal` (lines 4–8) — and failed on `CREATE TABLE users`; nothing destructive ran (every count intact, 22 tables, no scratch DB left). The dispatch stopped and reported. **That exposed a HAZARD, now its own KNOWN ISSUES row:** `DB_NAME=<other> npm run db:setup` drops `<other>` and rebuilds `parents_portal` regardless. Flagged, not fixed. The proof was then redone by the 2026-08-29 method — `schema.sql` read into memory with every `parents_portal` rewritten to the scratch name, guarded so no live-name occurrence could remain — 2 occurrences rewritten; `schema.sql` applied cleanly to `parents_portal_scratch_rmcontrib` with **20 tables, 0 contribution tables, 0 contribution FKs**; scratch database dropped and confirmed gone (0 remaining). Then targeted live DROPs, children first: `contribution_records` then `contributions`; live tables 22 → **20**; users 7, students 3, grades 5, assignments 8, `activity_logs` 1,748 with the 40 contribution entries intact. `db:setup` was not used: it would have wiped the 1,748 `activity_logs` rows, including the 40 contribution entries that must stay (there were no backup rows to lose — see below). **Counts:** tables 22 → **20**; handlers 84 → **76** (mechanical recount across 13 route files) + `/api/health` = 77 table rows; route files 14 → 13; features 10 → 9; suites sixteen → **fifteen** (fourteen HTTP); StatusBadge vocabularies 5 → 4 (§5d split now two to two). **What the removal also closed:** consequence 5, the DELETE 409, Download Statement (Fig. 19), the last expired NOW POSSIBLE workaround, the DO 19 row, the unconfirmed OPEN QUESTION, and three API_REFERENCE gotchas. **This dispatch found TWO stale facts in this file** — (1) RESTORE said `backups` holds 8 rows; it has held 0 since the 2026-09-07 `db:setup` (CREATE_TIME 2026-09-07 21:08, AUTO_INCREMENT 9, 8 `create_backup` / 4 `delete_backup` from `test:backups`), corrected with how it went stale; (2) the attendance dispatch's "no rate" claim had lived in ten places, not the nine first counted. **Not a complaint — evidence that hand-maintained counts in this file go stale silently**, the same failure mode as the `test:grades` fixture. New KNOWN ISSUES row: **restoring any pre-2026-09-13 backup brings the two tables back**; drop them by hand after such a restore. Build exit 0; bundle has no `/contributions` string; **oxlint 28 — the new baseline** (each deleted page carried a fetch-effect advisory). SSR: nav teacher 11 / parent 9 / admin 13, both dashboards' "Open now" without Contributions; negative control `TypeError: navForRole is not a function`. **Suites:** every one run, all green, every count unchanged — auth 39, students 61, sections 30, assignments 41, grading-modes 13, grades 165, attendance 38, content 62, settings 26, users 39, backups 39, sanitize 9, messages 59, restore 22, excuses 70 (the fifteen suites), plus grade-computation 51. `npm run test:contributions` now: `npm error Missing script: "test:contributions"`, exit 1. Baseline after: users 7, students 3, grades 5, assignments 8, **tables 20**. Browser step pending — TCH-001 and `13567454`, nav item gone, no dead route, nothing else moved. **MEASURED BUILD TIME, thirtieth data point: ~17m (~15m agent, ~2m idle — the stop-and-decide wait after the scratch run hit the live database).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **Parent → Attendance shows "Present on recorded days" — the school answered the rate question.** Branch `feature/parent-attendance-rate`. One page plus a comment in `nav.js`; no server, no endpoint, no new request. **Source:** the principal, 2026-09-13, **in conversation — not a written policy**: Late counts as present, Excused counts as absent. Recorded in OPEN QUESTIONS → answered 2026-09-13, same shape as 762f6a4. **Separately, DO 015 s. 2026 read directly** (60pp, scanned): it prescribes no attendance rate and no attendance grade component — para 71 (intervention at ~12 absences; attendance on the term report) is its only attendance rule, and Table 9 is WW / PT / EX. So the rate is a school decision, not a compliance question. **Formula** `(Present + Late) / total` — all three already in `GET /summary`. `total` is every recorded status row (handler line 45), so **Excused is in the denominator and an excused day lowers the percentage**. One decimal, half-up, via integer arithmetic (`Math.round((present * 1000) / total) / 10`) — the grades module's rule, so a parent can check it by hand against the fraction shown beside it. Half-up at one decimal only reaches 100.0 at 1,999 of 2,000 days; no school year does, so a missed day cannot show as 100%. **Label is "Present on recorded days", never "Attendance rate"** — a parent who has seen an SF9 reads that as the SF9 figure, and this is over recorded days, not Class Days (§5i). Sub-line "N of M recorded days this month" / "N of all M recorded days". New paragraph says three things only: Late = present and Excused = absent; out of recorded days, not SF9 Class Days; unmarked days are not counted. No DepEd attribution in parent copy. Not rendered when `total` is 0 (0% would claim the learner attended nothing; the empty state already names the cause, §5f). **§4 — deliberately no verdict:** no colour, badge, threshold, "good attendance", or comparison to the ~12-absence point; a comment at the card says the absence is a decision. `nav.js` header comment rewritten (it said the page was unblocked BECAUSE it shows no rate); nav array untouched — 0 non-comment lines in its diff. **Flagged, not fixed:** `server/routes/attendance.js:207` comment "raw counts only, no rate (undefined formula)" — the handler is correct and stays counts-only; only "(undefined formula)" is stale. **The "no rate" claim lived in ten separate places in this file**, all found by hand: six present-tense ones rewritten here (parent-pages line, parent code-block entry, §6 blocked note, the BLOCKED / RESOLVED section, the OPEN QUESTIONS bullet, the Parent → Attendance BUILD ORDER checkbox), the server endpoints row (still true of the server, kept), and three dated entries (the 2026-09-09 CHANGELOG row, the eleventh build-time data point, the historical BUILD ORDER line — exempt). Not a complaint: **the reason a future session should think twice before recording the same fact in an eleventh.** Whitelist: `parent/AttendancePage.jsx`, `layout/nav.js` (comment only, approved expansion), `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. `npm run build` exit 0. oxlint **30, unchanged** (the page's advisory is its existing fetch effect, line-shifted). SSR renders the page with the new paragraph; negative control (`useMemo` import removed on a throwaway) → `ReferenceError: useMemo is not defined`. Throwaways deleted. Live as parent `13567454`: September summary P3 / A1 / L1 / E1 / total 6 → **66.7%** ("4 of 6 recorded days this month"); All P3 / A2 / L1 / E1 / total 7 → **57.1%** ("4 of all 7 recorded days"). **Fixtures left for the browser check:** Marwin (`student_id` 1, Malikhain `section_id` 22), created as TCH-001 via `POST /attendance/bulk` — ids **26** 2026-09-07 Present, **27** 09-08 Present, **28** 09-09 Present, **29** 09-10 Late, **30** 09-11 Absent, **31** 09-12 Excused, **32** 2026-08-28 Absent. Delete after confirmation — seeded `attendance` is 0. Never wrote on Jea `1234567`, Rosa, or Nino's five. **No Cursor browser** — `npm run dev` in `client`, open `/parent/attendance` as `13567454`: This month 66.7% / 4 of 6; All recorded days 57.1% / 4 of all 7. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-ninth data point: ~4m (~4m agent incl. two failed shell-escape attempts, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **`test:grades` repaired — broken 2026-09-10 → 2026-09-13, and nobody noticed.** Branch `fix/grades-suite-ga-fixture`. Test fixture fix, not a behaviour change; no route, no client. **Cause:** the GA/FG aggregation fixture POSTed a student with `grade_level: 2, section: 'Test-GA'`. Since 2026-09-10 `POST /students` resolves `section_id` and 400s an unmatched name — **the handler is correct**; the fixture was written when an invented name was still accepted. Grade 2's real sections are Mapagkaibigan, Mapagkakatiwalaan, Masikap. **Why nobody saw it:** d47589b (the POST change) ran `test:students` only; a068d8a (the PUT change) ran students, attendance, excuses — the suites that READ `section_id` — but not grades, which WRITES a student through POST. **The lesson, now a working-agreement bullet: a dispatch that changes a write path runs every suite that writes through it.** **Fix:** `'Masikap'` (no Grade 2 section has an adviser or assignment in the seed, so the choice does not affect isolation). **The second problem mattered more:** `assert()` only records, so the failed fixture let the run continue into twelve INSERTs with `student_id` undefined and die on `ER_BAD_NULL_ERROR` — the database error instead of the one line that explained it. Most other fixtures failed QUIETER: requests to `/api/grades/undefined/…` and a pile of misleading ✗ lines, which is worse than a crash because nobody reads a twenty-failure run carefully. Line 589's Grade 1 student create had no assert of its own. New local `requireFixture()`: counts like `assert()` (pass count unchanged), then throws a `FixtureFailure`; `finally` still cleans up; `run().catch` prints a STOPPED line and the partial tally. Applied at 10 sites where later work depends on a row existing (pre-patch lines 216, 462, 601 with the Grade 1 student create folded into its condition, 676, 868, 1275, 1280, 1397, 1410, 1416). The value checks at pre-patch 883/893/906/910 stay plain `assert()` — a wrong computed number is a finding, not a reason to stop. Local to this file on purpose: all seventeen scripts share `assert()` byte for byte; the other sixteen are an open audit (KNOWN ISSUES). **No other stale section is waiting:** Aguinaldo / Mabini / Test / Rizal in `test:students` are all deliberate negative cases (403 scope, 409 duplicate-LRN-before-resolve, 400 grade 7, 400 naming the invented section, plus an SQL resolve-miss) — two of them assert the exact error that killed this suite. auth / excuses / messages insert Aguinaldo students by SQL with `section_id` NULL on purpose; recorded in KNOWN ISSUES as breaking under a future NOT NULL, not acted on. **Verified.** Before: exit 1, 142 ✓ / 1 ✗ (`Fixture: a fresh Grade 2 student…`), then `Test runner error: Error: Column 'student_id' cannot be null`, no tally. **Negative control on the final code** (temporarily `'Test-GA'`), verbatim: `✗ Fixture: a fresh Grade 2 student for FG/GA aggregation tests — got 400: No section named "Test-GA" exists at Grade 2 for 2026-2027.` / `STOPPED — Fixture: a fresh Grade 2 student for FG/GA aggregation tests — got 400: No section named "Test-GA" exists at Grade 2 for 2026-2027.` / `Everything after this fixture depends on it, so the run did not continue.` / `141 passed, 1 failed (run incomplete)`; exit code 1; no `ER_BAD_NULL_ERROR`; baseline after users 7 / students 3 / grades 5. (141 vs the before-run's 142 ✓: the old code went on past the dead fixture and passed "Grade 2 has exactly 5 subjects"; the new code stops first.) Restored `'Masikap'`: `test:grades` **165/165 twice**, no `db:setup`, header `http://127.0.0.1:5000`; `test:students` **61/61**; `test:sections` **30/30**. Baseline after: users 7, students 3, grades 5, grade_components 0, assignments 8. Whitelist: `test-grades-flows.js`, `CLAUDE.md`. `docs/PROJECT_PROGRESS.md` unchanged — it records only dated stage counts, no present-tense 165. **MEASURED BUILD TIME, twenty-eighth data point: ~4m (~4m agent incl. two negative-control runs, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **Teacher → Messages "Announce to" names the class and preselects it — the half 2d67f11 recorded as undelivered.** Branch `feature/post-to-class-named`. Two pages; no server, no endpoint, no new page, no nav change. Dated 2d67f11 row below stays history. **Thread:** `GET /messages/contacts` fetched once per thread in its own effect keyed on `otherId` — **not inside `load()`**, which re-runs on every socket message for the thread; a contacts call there would be an N+1 that only shows in a busy conversation, which is the one nobody tests. Contacts never writes `loading`/`error` (the thread renders if contacts 500s). `forId !== otherId` is "not loaded", so no synchronous setState. Named only for a parent row with `student_name` and a class: **Announce to Grade 6 - Malikhain**, `state.compose.target = '6\|Malikhain'` (keyOf format). Unnamed **Announce to a class**, no target, in four cases: not loaded, failed (not surfaced — the unnamed button is the honest fallback), teacher/admin row (class null), **and no contacts row at all** — a deactivated parent, or scope changed with history still readable. The fourth was not among the three recorded constraints; do not preselect a class for a parent you can no longer reach. Trust is by construction: contacts' parent rows and `useTeacherTargets` derive from the same `teacher_assignments` grade+section and `sections.adviser_id`, and the only divergence needs a VARCHAR/`section_id` disagreement `PUT /students` now refuses. **The client preselects; it does not authorize.** **Hint is visible** as small muted text under the button row, `title` kept — hover does not exist on touch, and "This conversation will not" is the sentence that stops a teacher believing they replied to the parent (§3's rule, applied to copy that is not a grade). Named: *"Opens an announcement to Grade 6 - Malikhain, already selected. Every parent in that section will see it. This conversation will not."* Unnamed text unchanged. **Announcements:** arrival handler already accepted `target`; its stale branch (unknown target → blank picker + *"That class is not in your current list. Pick a section."*, never one-section auto-select) was written correctly in advance and is unchanged. **Lost-draft fix folded in:** on an empty target list the handler used to drop compose state silently — worse now that the payload carries a target too. It still does not open compose (a form with no valid target is the refused dead end) but no longer discards: an amber notice names **both** causes (*"your section list did not load, or you have no sections to post to"*) because `useTeacherTargets` returns `[]` for both and exposes no error — telling them apart needs a hook change, out of scope. Names the intended class if a target rode along, says *Nothing was posted*, shows the draft read-only to copy, Dismiss. Hook untouched. Whitelist: `MessageThreadPage.jsx`, `AnnouncementsPage.jsx`, these two docs. `npm run build` exit 0. **oxlint 30, unchanged, measured — and 30 is the baseline.** The 31 recorded at 2d67f11 and cb564ff does not reproduce: `git diff cb564ff HEAD -- client` was empty before this dispatch and the tree measured 30. Two dispatches recorded a number that cannot be verified now; a baseline nobody can reproduce is worse than one slightly wrong. The thread page's one advisory is the pre-existing `load()` effect, line-shifted. SSR AnnouncementsPage + MessageThreadPage OK; negative control (`useMemo` import removed on a throwaway) → `ReferenceError: useMemo is not defined`. Throwaways deleted. Thread SSR stops at the loading spinner — it proves the hooks run, not the label; the label is the browser step. Live as TCH-001: contacts row 3 = parent (Ashley / Marwin) `6` / `Malikhain`; row 6 = TCH-003, class null; TCH-001's target keys = `6\|Malikhain`. First fixture attempt hit the Node-fetch ECONNRESET / libuv assertion; DB confirmed nothing landed; retried via curl. **Fixtures left:** TCH-001 → parent `13567454` **message id 35** (`/teacher/messages/3`), TCH-001 → TCH-003 **message id 36** (`/teacher/messages/6`). `messages` was 0 before. Never wrote on Jea `1234567`, Rosa, or Nino's five. **No Cursor browser; Vite dev server was not running** — `npm run dev` in `client`, then as TCH-001: `/teacher/messages/3` (button and visible hint name Grade 6 - Malikhain; click → compose open with Malikhain selected) and `/teacher/messages/6` (Announce to a class, unnamed hint). Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-seventh data point: ~9m (~9m agent incl. one Node-fetch retry and one heredoc parse failure, ~0m idle).** Same four caveats; compare to the sixth point onward. |

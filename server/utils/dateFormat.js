@@ -1,5 +1,5 @@
 // Shared by every route that accepts a plain YYYY-MM-DD DATE value —
-// attendance.date, events.event_date, contributions.due_date,
+// attendance.date, events.event_date,
 // students.birthday. Was duplicated identically in three route files;
 // one implementation now, same pattern as parseId/sanitizeUser.
 

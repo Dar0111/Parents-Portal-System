@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 
 // Three sizes, lg (max-w-2xl) is the ceiling. Teacher → Contributions'
 // roster was the first Stage 4 content to hit it — the page cut columns
-// rather than adding xl. A second page hitting this ceiling is the
-// trigger to reconsider the scale, not a one-page extension.
+// rather than adding xl — and that page was removed with Feature 7 on
+// 2026-09-13, so no current page reaches the ceiling. A page hitting it
+// is the trigger to reconsider the scale, not a one-page extension.
 //
 // TWO LIFETIMES, one effect used to mix them (2026-09-08). "Focus the panel
 // when the dialog opens" is a one-time event. "Call the current onClose" is
