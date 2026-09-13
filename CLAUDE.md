@@ -41,9 +41,10 @@ to the team.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-13 (Feature 7, Contribution/Fees Monitoring,
-REMOVED — see SCOPE DECISION. 20 tables, 76 handlers + `/api/health`.
-Remaining Stage 4 work is the other admin screens — eleven.)
+**Last verified:** 2026-09-14 (Admin → Students built. 20 tables, 76
+handlers + `/api/health`. Remaining Stage 4 work is five admin screens —
+Grades (view), Attendance (view), Announcements, Settings, Backup & Restore —
+per the Figure 5 scope decision under ADMIN SCOPE AUDIT.)
 
 ### Seeded baseline
 
@@ -997,7 +998,7 @@ Parent: Grades (report card + term breakdown modal), Excuse Letters (submit + ed
 Memos, Events, Messages (+ thread),
 Attendance (counts + day list + "Present on recorded days", 2026-09-13), Settings (password + contact;
 identity locked). **Admin → Users is the first
-admin feature page.** See STAGE 4 FRONTEND CONVENTIONS below
+admin feature page; Admin → Students (+ detail) the second (2026-09-14).** See STAGE 4 FRONTEND CONVENTIONS below
 for what every one of them inherits. (This line used to read "no feature page
 has been built yet" and stayed that way through five dispatches; corrected
 2026-09-07.)
@@ -1067,6 +1068,26 @@ client/src/
                           (§5c). Approve/reject confirm and name the decision
                           (§5e); deactivate does not. AdminDashboard derives
                           from nav like the other two.
+                          Students + detail (2026-09-14) — Figure 5 1.23.
+                          Unscoped: no GET /assignments, no useTeacherTargets.
+                          List sends status=all by default (Active/Inactive
+                          options); grade select; section select from
+                          GET /sections, disabled until a grade is picked
+                          (server matches section by name only); search is
+                          name or exact LRN. Deactivate/Activate on the list
+                          row, no confirm (§5e — same endpoint reverses it);
+                          after PATCH the list reloads — load() is the only
+                          writer, and a replaced row would contradict the
+                          Status filter. Detail: Edit (six fields, LRN/grade/
+                          section locked, Teacher copy word for word), no
+                          status control, no Create parent (POST
+                          /users/parents is teacher-only), 404 = "Student not
+                          found". Deactivate copy claims only what the server
+                          enforces: hidden from teacher lists, no new
+                          attendance (attendance.js), no new grade record
+                          (grades.js POST /). Not claimed: parent loses access
+                          (auth checks users.status), grades frozen (components
+                          on existing rows still write).
 ```
 
 `/dev/ui` is registered behind `import.meta.env.DEV` and is **verified
@@ -3599,14 +3620,21 @@ replaced with a new guess.
       IG not shown (not on the card). Parents-see-raw-scores answered
       2026-09-11 in conversation; the modal is approved. Spec: NOW
       POSSIBLE → Parent grade breakdown (BUILT).
-- [ ] Admin pages remaining (eleven) — students, sections/adviser assignment,
-      grades, attendance, excuses, content, messages,
-      settings, backup/restore. **No longer blocked on missing assignments
-      write or missing grade delete / grading-mode read** — items 1–3 of
-      the admin-prerequisites plan all shipped 2026-09-08. Remaining work
-      is the screens themselves. (See ADMIN SCOPE AUDIT: Sections,
-      excuses, events and messages have no Figure 5 basis and memos only a
-      partial one; decision pending with the team.)
+- [x] **Admin → Students — DONE 2026-09-14.** Figure 5 1.23. Routes
+      `/admin/students` and `/admin/students/:id` (keyed on `students.id`,
+      never the LRN — §5c); nav `built: false → true` with the route
+      (convention 6). Unscoped. Status defaults to All (`status=all`).
+      Deactivate/Activate on the list, no confirm, list reloads after.
+      Detail has Edit only. No Enroll, no Create parent. See the
+      `pages/admin/` entry in CURRENT STATE.
+- [ ] Admin pages remaining (five) — Grades (1.9, view), Attendance (1.15,
+      view), Announcements (1.18; decides Memos), Settings (1.25), Backup &
+      Restore (1.27, 1.28). Scope is the Figure 5 decision under ADMIN SCOPE
+      AUDIT: Sections, Excuse Letters, Events and Messages are **not** to be
+      built (they stay `built: false`, not removed). **No longer blocked on
+      missing assignments write or missing grade delete / grading-mode
+      read** — items 1–3 of the admin-prerequisites plan all shipped
+      2026-09-08. Remaining work is the screens themselves.
       Teacher → Grades encode-scope and mode switched 2026-09-12
       (`GET /assignments` + `GET /grading-modes`), not an admin-page blocker.
 
@@ -3773,10 +3801,40 @@ Memos fit a feature but not an admin process.
 **Safe to build now — the items with a Figure 5 basis:** Admin → **Students**
 (1.23), **Grades** (1.9, view), **Attendance** (1.15, view), **Announcements**
 (1.18), **Settings** (1.25), **Backup & Restore** (1.27, 1.28). Users (1.1,
-1.3) is already built. **Waiting on a team decision, not blocked by code:**
-Sections, Excuse Letters, Events, Messages, and Memos (partial). Until that
-decision exists they stay `built: false` in `nav.js` exactly as they are — do
-not remove them in a build dispatch.
+1.3) is already built. ~~Waiting on a team decision, not blocked by code:
+Sections, Excuse Letters, Events, Messages, and Memos (partial).~~ **Decided
+2026-09-13 — see the next section.** Sections, Excuse Letters, Events and
+Messages stay `built: false` in `nav.js` exactly as they are — do not remove
+them in a build dispatch.
+
+### SCOPE DECISION — admin screens follow Figure 5 (Darryl, 2026-09-13)
+
+**Figure 5 is the basis for admin scope. Darryl decided this on 2026-09-13,
+after the audit above.** The audit was a finding; this is the decision that
+acts on it. **It is Darryl's decision, not a team consultation** — the audit
+said the call would go to the team with a consultation, a date and a name,
+and that is not what happened. The two are different things and this record
+must not blur them. If a team consultation happens later, add it here.
+
+- **Build — six admin screens, each with a Figure 5 process:** Students
+  (1.23, built 2026-09-14), Grades (1.9, view), Attendance (1.15, view),
+  Announcements (1.18), Settings (1.25), Backup & Restore (1.27, 1.28).
+  Users (1.1, 1.3) was already built.
+- **Do not build:** Sections, Excuse Letters, Events, Messages. They stay
+  `built: false` in `nav.js` and appear in no plan. Removing them from the
+  nav is a separate decision, not taken here.
+- **Memos is partial** (1.18 names announcements only) and is decided at
+  Admin → Announcements, not before.
+- **Defence answer** to "why is there no Admin → Messages": it has no
+  Figure 5 process. Same answer for Sections, Excuse Letters and Events.
+- **Not changed by this decision:** the API still authorizes admin on excuse
+  letters, messages and attendance writes (the audit's one-finding-three-
+  instances). No handler moves.
+- **Consequence with no owner:** STAGE 4 FRONTEND CONVENTIONS §5g says the
+  admin `LiveStatus` inverse (an ungated "live updates paused" strip naming a
+  channel nothing on an admin screen consumes) closes when Admin → Messages
+  lands. That page will now never exist, so the inverse has no owner. It
+  needs its own dispatch; nothing in this decision gates `LiveStatus`.
 
 ---
 
@@ -4064,15 +4122,20 @@ alongside the seven above.
      `grade_level` in the same handler, which validates and rejects.
      Low severity (the failure mode is "you get the default"), but it is
      an inconsistency.
-     **(b) `?status=all` is UNVERIFIED — the fixtures cannot currently
-     test it.** By reading, `'all'` should skip the status filter
-     entirely and return active AND inactive rows. A live check returned
-     only active rows, which proves nothing: the seed has **zero
-     inactive students**, so "all works" and "all is broken" produce an
-     identical result. That test could not have failed. Do not record
-     this as verified until a fixture with an inactive student exists to
-     distinguish the two. **An audit entry claiming "verified fine" when
-     the fixture could not fail is worse than no entry.**
+     **(b) `?status=all` — VERIFIED at the API, 2026-09-14. And this
+     entry was wrong from the day it was written.** It said the fixtures
+     could not test `'all'` because the seed has zero inactive students.
+     True of the seed, but `test:students` has deactivated a throwaway
+     student and asserted `'status=all includes inactive students'` since
+     `a654413`, the commit that built the endpoint — the fixture existed in
+     the suite the whole time; the audit looked at the seed, not the suite.
+     Live on 2026-09-14 against Marwin (id 1): PATCH inactive, then
+     `?status=active` and no param returned 3, 2; `?status=all` returned
+     3, 2, 1 (inactive); `?status=inactive` returned 1; PATCH active
+     restored him. Admin → Students sends `status=all` by default. The
+     page's browser check is still pending. The original warning stands in
+     reverse: **an audit entry claiming "unverified" when a test already
+     proved it is its own stale fact.**
   3. **Contacts shows nothing when every candidate parent is pending —
      a STAGE 4 question, not a backend one.** `GET /api/messages/contacts`
      lists active accounts only (correct — a pending parent cannot log
@@ -4245,6 +4308,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-14 | **Admin → Students (Figure 5 1.23) — and the admin scope decision recorded.** Branch `feature/admin-students`. **Decision (2026-09-13, Darryl — not a team consultation):** admin scope follows Figure 5. Build Students, Grades (view), Attendance (view), Announcements, Settings, Backup & Restore; do NOT build Sections, Excuse Letters, Events, Messages (stay `built: false`, not removed); Memos decided at Admin → Announcements. New SCOPE DECISION block under ADMIN SCOPE AUDIT; the audit's "waiting on a team decision" line points to it. Defence answer to "why no Admin → Messages": no Figure 5 process. §5g's admin `LiveStatus` inverse was owned by Admin → Messages, which will never exist — recorded as ownerless, no code change. **Page:** two new files, `/admin/students` and `/admin/students/:id` (keyed on `students.id`, §5c), nav line 53 `built: false → true` with the route (convention 6). Unscoped — no `GET /assignments`, no `useTeacherTargets`. Status defaults to **All** (`status=all`); Active sends `status=active`. Grade select; section select from `GET /sections`, disabled until a grade is picked (server matches section by name only, so free text or a grade-less pick could lie). Search is name or exact LRN. §5f two branches with `canReset` its own value. Deactivate/Activate on the list row, **no confirm** (§5e — the same endpoint reverses it; Users approve/reject confirm because leaving pending is one-way). **After PATCH the list reloads** — load() is the only writer; replacing the row from the response would leave a deactivated student under Status=Active, a list contradicting its own filter. Detail: Edit only (six fields; LRN, grade, section locked; class copy word for word from Teacher → Students), no status control, no Create parent (`POST /users/parents` is teacher-only), no Enroll, 404 = "Student not found". **§5i — the deactivate copy claims only what code enforces:** hidden from teachers' student and attendance lists (`GET /students` defaults active-only; Teacher → Attendance sends `status=active`), no new attendance (`attendance.js` POST / :309, POST /bulk :398), no new grade record (`grades.js` POST / :728), existing records and parent account unchanged (PATCH writes `students.status` only). **Not claimed:** parent loses access (`auth.js:60` checks the parent's own `users.status`), grades frozen (components on existing grade rows still write). `titleCase` is now at its third copy — the recorded extraction trigger to `client/src/format/text.js`; not done here (three-file refactor, out of whitelist). **`?status=all` found verified, and the audit entry saying otherwise was stale from the start:** `test:students` has asserted it with a deactivated throwaway since `a654413`; the audit read the seed, not the suite. Live on Marwin (id 1): PATCH inactive → `?status=active` and no param 3, 2; `?status=all` 3, 2, 1:inactive; `?status=inactive` 1; PATCH active restored him before any suite ran. **Current-state counts:** admin nav 3 built (Dashboard, Users, Students); remaining **five** admin screens, named — not six, which was already stale on this commit. **Flagged, not fixed (server):** `?status=activ` returns active rows instead of `400`; a status PATCH to the value the student already has returns 200 and still logs `update_student_status`. §5g's present-tense "belongs to Admin → Messages" sentence is now false and was left — the approval named one sentence in the decision record. Whitelist: two new pages, `App.jsx`, `nav.js`, `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. No server files. `npm run build` exit 0. oxlint **28 → 30**, one fetch-effect advisory per new page (StudentsPage:86, StudentDetailPage:104) — the class every page carries. SSR both pages OK (list shows the deactivate copy, "All statuses", "Pick a grade first"); negative control on a throwaway copy without the `useState` import → `ReferenceError: useState is not defined`; throwaways deleted. `npm run test:students` **61/61**. Baseline after: users 7, students 3 all active. **Browser step pending (no Cursor browser, Vite not running):** as ADMIN001 on `/admin/students`, Status=Active → Apply → Deactivate Marwin → he disappears; Status=All → Apply → Marwin with an Inactive badge → Activate. Restore if needed: `PATCH /api/students/1/status {"status":"active"}`. If Edit is tried on Marwin, restore `Marwin` / `Conde` / `2014-03-15` / `male` / `Pateros, Metro Manila` / contact null. Type a full word in Search and in an Edit field (5h). Never Nino or Jea. **MEASURED BUILD TIME, thirty-first data point: ~7m (~7m agent, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **Docs only — admin nav audited against Figure 5. A finding, not a decision.** Branch `docs/admin-scope-audit`. No code changed, no suite ran, no screen moved, no `.js`/`.jsx` touched. New section ADMIN SCOPE AUDIT after MANUSCRIPT. **Four sources disagree:** `nav.js` 13; the p. 70 mockup 5 (Dashboard, Manage Users, Manage System Settings, Post Announcement, Backup / Restore Data); Figure 5's 11 admin-facing processes; `SYSTEM_ARCHITECTURE.md` §4's 3. **The mockup is an incomplete drawing, not a narrower scope** — all five of its items map to Figure 5, and it omits Students, Grades and Attendance, which also have a basis. **SYSTEM_ARCHITECTURE §4 cites Figure 5 in its heading and contradicts it** (3 vs 11, and 1.23 filed under Teacher) — recorded so the heading is not trusted, **not corrected**: correcting it means deciding the admin module list, which is the team's call. Mapped strictly: **7 items with a Figure 5 basis** (Users, Students, Grades view, Attendance view, Announcements, Settings, Backup & Restore), Memos **partial**, **4 with none** (Sections, Excuse Letters, Events, Messages). **One finding, three instances:** the API already authorizes admin beyond Figure 5 in Excuse Letters, Messages and Attendance writes — the same shape each time, recorded as a fact, not a defect. 1.28 belongs inside Backup & Restore; **1.10 / 1.12 left ambiguous between Students and Grades, deliberately** (Figure 17 already used "Student Record" for Grades). **Correction to the framing:** the "build follows the DFD" line in MANUSCRIPT is one recorded decision about the auth flow, not a general rule — this audit applies it as precedent and says so; making it general is its own team decision. Nothing removed, nothing recommended for removal; unbased items stay `built: false` until the team decides with a consultation, a date and a name, as Feature 7 did. BUILD ORDER "Admin pages remaining (eleven)" and PROGRESS line 13 each gained one pointer sentence. Whitelist: `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. **MEASURED BUILD TIME: ~2m (~2m agent, ~0m idle)** from PLAN APPROVED to commit; docs only, no verification beyond the commit. |
 | 2026-09-13 | **Feature 7 (Contribution/Fees Monitoring) REMOVED — scope decision, not engineering.** Branch `chore/remove-contributions`. **Decision:** consultation at Captain H. Francisco Elementary School, 2026-09-01 — Principal Bajar stated the school is not permitted to collect contributions from parents; the team decided to remove Feature 7. Recorded in the new SCOPE DECISION block, which is the answer to the November panel and tells a future session that **Chapter 5 must explain the removal** (Figure 19 describes it). **24 files mentioned contributions, not the twelve first counted** — the missed ones included the mount in `server.js`. **Deleted:** `routes/contributions.js` (8 handlers), `test-contributions-flows.js`, both `ContributionsPage.jsx`. **Edited:** `server.js` (require + mount), `package.json` (`test:contributions`), `schema.sql` (both tables, both indexes, the unique key, four FKs), `App.jsx` (2 imports, 2 routes), `nav.js` (teacher, parent **and the unbuilt admin item** — 12→11, 10→9, 14→13; admin backlog now eleven), `useTeacherTargets.js` (warning is Grades-only, at full strength), `StatusBadge.jsx` (`paid` removed — dead tone for a status no table produces; `pending` stays, shared), `ErrorAlert.jsx` / `UiGallery.jsx` / `Modal.jsx` / parent `AttendancePage.jsx` / `config/db.js` / `utils/dateFormat.js` / two suite comments (comments or dev-only examples), `SYSTEM_ARCHITECTURE.md` (3 lines, approved expansion). No dashboard edit — all three derive "Open now" from `navForRole`. `/teacher/contributions` and `/parent/contributions` fall to the catch-all redirect. **Kept:** 40 `activity_logs` contribution rows (audit history). **Order:** client, server, schema, docs. **Live DB:** a first scratch proof through `setup-db.js` with `DB_NAME=parents_portal_scratch_rmcontrib` **ran against the live database** — `schema.sql` hardcodes `CREATE DATABASE IF NOT EXISTS parents_portal` / `USE parents_portal` (lines 4–8) — and failed on `CREATE TABLE users`; nothing destructive ran (every count intact, 22 tables, no scratch DB left). The dispatch stopped and reported. **That exposed a HAZARD, now its own KNOWN ISSUES row:** `DB_NAME=<other> npm run db:setup` drops `<other>` and rebuilds `parents_portal` regardless. Flagged, not fixed. The proof was then redone by the 2026-08-29 method — `schema.sql` read into memory with every `parents_portal` rewritten to the scratch name, guarded so no live-name occurrence could remain — 2 occurrences rewritten; `schema.sql` applied cleanly to `parents_portal_scratch_rmcontrib` with **20 tables, 0 contribution tables, 0 contribution FKs**; scratch database dropped and confirmed gone (0 remaining). Then targeted live DROPs, children first: `contribution_records` then `contributions`; live tables 22 → **20**; users 7, students 3, grades 5, assignments 8, `activity_logs` 1,748 with the 40 contribution entries intact. `db:setup` was not used: it would have wiped the 1,748 `activity_logs` rows, including the 40 contribution entries that must stay (there were no backup rows to lose — see below). **Counts:** tables 22 → **20**; handlers 84 → **76** (mechanical recount across 13 route files) + `/api/health` = 77 table rows; route files 14 → 13; features 10 → 9; suites sixteen → **fifteen** (fourteen HTTP); StatusBadge vocabularies 5 → 4 (§5d split now two to two). **What the removal also closed:** consequence 5, the DELETE 409, Download Statement (Fig. 19), the last expired NOW POSSIBLE workaround, the DO 19 row, the unconfirmed OPEN QUESTION, and three API_REFERENCE gotchas. **This dispatch found TWO stale facts in this file** — (1) RESTORE said `backups` holds 8 rows; it has held 0 since the 2026-09-07 `db:setup` (CREATE_TIME 2026-09-07 21:08, AUTO_INCREMENT 9, 8 `create_backup` / 4 `delete_backup` from `test:backups`), corrected with how it went stale; (2) the attendance dispatch's "no rate" claim had lived in ten places, not the nine first counted. **Not a complaint — evidence that hand-maintained counts in this file go stale silently**, the same failure mode as the `test:grades` fixture. New KNOWN ISSUES row: **restoring any pre-2026-09-13 backup brings the two tables back**; drop them by hand after such a restore. Build exit 0; bundle has no `/contributions` string; **oxlint 28 — the new baseline** (each deleted page carried a fetch-effect advisory). SSR: nav teacher 11 / parent 9 / admin 13, both dashboards' "Open now" without Contributions; negative control `TypeError: navForRole is not a function`. **Suites:** every one run, all green, every count unchanged — auth 39, students 61, sections 30, assignments 41, grading-modes 13, grades 165, attendance 38, content 62, settings 26, users 39, backups 39, sanitize 9, messages 59, restore 22, excuses 70 (the fifteen suites), plus grade-computation 51. `npm run test:contributions` now: `npm error Missing script: "test:contributions"`, exit 1. Baseline after: users 7, students 3, grades 5, assignments 8, **tables 20**. Browser step pending — TCH-001 and `13567454`, nav item gone, no dead route, nothing else moved. **MEASURED BUILD TIME, thirtieth data point: ~17m (~15m agent, ~2m idle — the stop-and-decide wait after the scratch run hit the live database).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **Parent → Attendance shows "Present on recorded days" — the school answered the rate question.** Branch `feature/parent-attendance-rate`. One page plus a comment in `nav.js`; no server, no endpoint, no new request. **Source:** the principal, 2026-09-13, **in conversation — not a written policy**: Late counts as present, Excused counts as absent. Recorded in OPEN QUESTIONS → answered 2026-09-13, same shape as 762f6a4. **Separately, DO 015 s. 2026 read directly** (60pp, scanned): it prescribes no attendance rate and no attendance grade component — para 71 (intervention at ~12 absences; attendance on the term report) is its only attendance rule, and Table 9 is WW / PT / EX. So the rate is a school decision, not a compliance question. **Formula** `(Present + Late) / total` — all three already in `GET /summary`. `total` is every recorded status row (handler line 45), so **Excused is in the denominator and an excused day lowers the percentage**. One decimal, half-up, via integer arithmetic (`Math.round((present * 1000) / total) / 10`) — the grades module's rule, so a parent can check it by hand against the fraction shown beside it. Half-up at one decimal only reaches 100.0 at 1,999 of 2,000 days; no school year does, so a missed day cannot show as 100%. **Label is "Present on recorded days", never "Attendance rate"** — a parent who has seen an SF9 reads that as the SF9 figure, and this is over recorded days, not Class Days (§5i). Sub-line "N of M recorded days this month" / "N of all M recorded days". New paragraph says three things only: Late = present and Excused = absent; out of recorded days, not SF9 Class Days; unmarked days are not counted. No DepEd attribution in parent copy. Not rendered when `total` is 0 (0% would claim the learner attended nothing; the empty state already names the cause, §5f). **§4 — deliberately no verdict:** no colour, badge, threshold, "good attendance", or comparison to the ~12-absence point; a comment at the card says the absence is a decision. `nav.js` header comment rewritten (it said the page was unblocked BECAUSE it shows no rate); nav array untouched — 0 non-comment lines in its diff. **Flagged, not fixed:** `server/routes/attendance.js:207` comment "raw counts only, no rate (undefined formula)" — the handler is correct and stays counts-only; only "(undefined formula)" is stale. **The "no rate" claim lived in ten separate places in this file**, all found by hand: six present-tense ones rewritten here (parent-pages line, parent code-block entry, §6 blocked note, the BLOCKED / RESOLVED section, the OPEN QUESTIONS bullet, the Parent → Attendance BUILD ORDER checkbox), the server endpoints row (still true of the server, kept), and three dated entries (the 2026-09-09 CHANGELOG row, the eleventh build-time data point, the historical BUILD ORDER line — exempt). Not a complaint: **the reason a future session should think twice before recording the same fact in an eleventh.** Whitelist: `parent/AttendancePage.jsx`, `layout/nav.js` (comment only, approved expansion), `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. `npm run build` exit 0. oxlint **30, unchanged** (the page's advisory is its existing fetch effect, line-shifted). SSR renders the page with the new paragraph; negative control (`useMemo` import removed on a throwaway) → `ReferenceError: useMemo is not defined`. Throwaways deleted. Live as parent `13567454`: September summary P3 / A1 / L1 / E1 / total 6 → **66.7%** ("4 of 6 recorded days this month"); All P3 / A2 / L1 / E1 / total 7 → **57.1%** ("4 of all 7 recorded days"). **Fixtures left for the browser check:** Marwin (`student_id` 1, Malikhain `section_id` 22), created as TCH-001 via `POST /attendance/bulk` — ids **26** 2026-09-07 Present, **27** 09-08 Present, **28** 09-09 Present, **29** 09-10 Late, **30** 09-11 Absent, **31** 09-12 Excused, **32** 2026-08-28 Absent. Delete after confirmation — seeded `attendance` is 0. Never wrote on Jea `1234567`, Rosa, or Nino's five. **No Cursor browser** — `npm run dev` in `client`, open `/parent/attendance` as `13567454`: This month 66.7% / 4 of 6; All recorded days 57.1% / 4 of all 7. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-ninth data point: ~4m (~4m agent incl. two failed shell-escape attempts, ~0m idle).** Same four caveats; compare to the sixth point onward. |

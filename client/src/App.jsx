@@ -6,6 +6,8 @@ import Shell from './layout/Shell';
 import Login from './pages/Login';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import AdminUsers from './pages/admin/UsersPage';
+import AdminStudents from './pages/admin/StudentsPage';
+import AdminStudentDetail from './pages/admin/StudentDetailPage';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
@@ -59,6 +61,8 @@ export default function App() {
           >
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="students" element={<AdminStudents />} />
+            <Route path="students/:id" element={<AdminStudentDetail />} />
           </Route>
 
           <Route

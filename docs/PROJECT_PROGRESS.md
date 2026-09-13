@@ -7,12 +7,12 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-13 (Feature 7, Contribution/Fees Monitoring,
-REMOVED — Principal Bajar, consultation 2026-09-01: the school may not
-collect contributions from parents. 20 tables. Remaining Stage 4 work is the
-other admin screens — eleven. See CLAUDE.md → ADMIN SCOPE AUDIT (2026-09-13):
-Sections, Excuse Letters, Events and Messages have no Figure 5 basis and Memos
-only a partial one; that decision is pending with the team.)
+**Last updated:** 2026-09-14 (Admin → Students built. Admin scope follows
+Figure 5 — Darryl's decision, 2026-09-13, acting on the ADMIN SCOPE AUDIT; not
+a team consultation. Remaining Stage 4 work is five admin screens: Grades
+(view), Attendance (view), Announcements, Settings, Backup & Restore.
+Sections, Excuse Letters, Events and Messages will not be built; Memos is
+decided at Admin → Announcements. 20 tables.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
@@ -33,7 +33,7 @@ data, not a computed result.
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + Teacher web role **complete** (Settings landed 2026-09-10) · Parent web role **complete** · Admin → Users landed. Remaining: other admin screens | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + Teacher web role **complete** (Settings landed 2026-09-10) · Parent web role **complete** · Admin → Users and Admin → Students (2026-09-14) landed. Remaining: five admin screens (Grades view, Attendance view, Announcements, Settings, Backup & Restore) | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -792,8 +792,10 @@ wrong.
 Same four caveats; compare to the sixth point onward. Copy of Parent
 Settings. Nav add, not flip. Stay logged in after password.
 
-**Next:** other admin screens (Students, Sections, Settings, Backup & Restore,
-and the rest of the admin nav). Parent and Teacher web are complete. The
+**Next:** five admin screens with a Figure 5 basis — Grades (view),
+Attendance (view), Announcements, Settings, Backup & Restore. Admin → Students
+landed 2026-09-14. Sections, Excuse Letters, Events and Messages will not be
+built (Darryl, 2026-09-13). Parent and Teacher web are complete. The
 attendance rate question was answered 2026-09-13 (principal, in conversation:
 Late = present, Excused = absent); the parent page shows "Present on recorded
 days" over recorded days, not SF9 Class Days. DO 015 s. 2026 prescribes no
@@ -932,7 +934,8 @@ assignments/subjects, `GET /grading-modes`, `DELETE /grades/:id`, and
 `PUT /auth/contact` (2026-09-09). What every module still needs is
 remaining admin web pages (Stage 4) and Expo screens (Stage 5) — see the
 Notes column above for the concrete next step per module. Teacher → Grades encode-scope switched 2026-09-12. Remaining Stage 4
-work is the other admin screens.
+work is five admin screens (Grades view, Attendance view, Announcements,
+Settings, Backup & Restore); Admin → Students landed 2026-09-14.
 
 ---
 
