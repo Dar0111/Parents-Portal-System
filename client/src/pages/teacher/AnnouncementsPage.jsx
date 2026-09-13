@@ -21,13 +21,17 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // target label names the audience instead of naming a feature.
 //
 // "POST TO CLASS" FROM MESSAGES OPENS THIS FORM. The thread navigates here
-// with location.state.compose.content = the unsent draft (never the last
-// incoming message). The section is NOT preselected — none of the three
-// messages endpoints carry grade_level or section. Do not reconstruct it by
-// matching contacts.student_name to a student list (two students can share a
-// name). The teacher picks, or today's one-section auto-select applies. That
-// auto-select is "you only have one section", not "we knew this child's
-// class." Do not build another compose form.
+// with location.state.compose = { content, target? }. content is the unsent
+// draft (never the last incoming message). target is `${grade}|${section}`
+// (keyOf's format), sent ONLY from a parent thread whose contacts row carried
+// the child's class — the thread reads it from GET /messages/contacts, the one
+// messages endpoint with a class. Without target, the teacher picks, or the
+// one-section auto-select applies; that auto-select is "you only have one
+// section", not "we knew this child's class." This page re-validates target
+// against its own list before selecting it: the thread preselects, it does
+// not authorize, and the server still decides on POST. Do not reconstruct the
+// class by matching student_name to a student list (two students can share a
+// name). Do not build another compose form.
 //
 // NO ATTACHMENT FIELD. announcements.attachment_url exists but nothing uploads
 // — POST accepts it as a URL string with no endpoint to produce one — so
@@ -59,9 +63,14 @@ export default function AnnouncementsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   // True only when location.state asked for a target that is not in `sections`.
-  // This dispatch never sends a target; the branch exists so a later contacts
-  // payload cannot silently land on another section's option.
+  // By construction a contacts-derived class is in this list (see the thread
+  // page header); this branch is the backstop so a disagreement lands on
+  // "Pick a section", never silently on another section's option.
   const [staleTargetNotice, setStaleTargetNotice] = useState(false);
+  // A thread arrival that could not open compose because the target list came
+  // back empty. Held here so the draft is shown, not discarded — see the
+  // arrival effect.
+  const [undelivered, setUndelivered] = useState(null);
 
   // Delete is a HARD DELETE with no status column and no restore path, so it
   // gets an explicit confirmation naming the post (convention 5e). Editing is
@@ -101,6 +110,18 @@ export default function AnnouncementsPage() {
     const compose = location.state?.compose;
     if (!compose || targetsLoading) return;
     if (sections.length === 0) {
+      // Do NOT open compose: a form with no valid target is the dead-end this
+      // codebase refuses. But do not drop the draft silently either — since
+      // the thread now sends a target too, a silent drop loses more and shows
+      // less. Keep it and say so. useTeacherTargets returns [] both when the
+      // list failed to load and when there is genuinely nothing to post to,
+      // and it exposes no error, so the notice names both causes rather than
+      // guessing one (§5f). Distinguishing them would mean changing the hook —
+      // out of scope here.
+      setUndelivered({
+        content: typeof compose.content === 'string' ? compose.content : '',
+        target: typeof compose.target === 'string' ? compose.target : '',
+      });
       navigate('.', { replace: true, state: {} });
       return;
     }
@@ -281,6 +302,37 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="space-y-4">
+      {undelivered ? (
+        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p>
+            The announcement form could not open: your section list did not load, or you have
+            no sections to post to.
+            {undelivered.target
+              ? ` It was meant for Grade ${undelivered.target.split('|')[0]} - ${undelivered.target.split('|')[1]}.`
+              : ''}{' '}
+            Nothing was posted.
+          </p>
+          {undelivered.content ? (
+            <>
+              <p>Your message draft is below. Copy it before leaving this page.</p>
+              <textarea
+                readOnly
+                rows={3}
+                value={undelivered.content}
+                aria-label="Undelivered message draft"
+                className="block w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
+              />
+            </>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setUndelivered(null)}
+            className="rounded-lg border border-amber-300 px-3 py-1 text-sm text-amber-900 transition hover:bg-amber-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <form
           onSubmit={(e) => {

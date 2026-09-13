@@ -27,10 +27,29 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // ANNOUNCE TO A CLASS sits on this thread, not the list. The list has no draft
 // and no section — a button there would be a second door into the empty compose
-// that already exists. The control cannot name "this class": none of the three
-// messages endpoints carry student_id, grade_level, or section. Do not
-// reconstruct it by matching contacts.student_name to GET /students — two
-// students can share a name. Draft only; never the last incoming message.
+// that already exists. Draft only; never the last incoming message.
+//
+// NAMING THE CLASS comes from GET /messages/contacts (2026-09-13), the only
+// messages endpoint that carries the child's class — GET /with/:userId and
+// GET /conversations still carry none. The row for otherId is fetched once per
+// thread in its own effect, NOT inside load(): load() re-runs on every socket
+// message for this thread, so a contacts call there would refetch once per
+// incoming message. The contacts call never touches loading/error — the thread
+// must render if contacts fails.
+//
+// Named ONLY when the row is a parent row with student_name and a class. Every
+// other case falls back to "Announce to a class" with no target: contacts not
+// loaded yet, contacts failed, a teacher/admin thread (class null), or no row
+// at all — a deactivated parent, or scope changed and the history is still
+// readable. Do not preselect a class for a parent you can no longer reach.
+//
+// The target is trusted by construction: contacts' parent rows and
+// useTeacherTargets both derive from teacher_assignments grade+section and
+// sections.adviser_id, and PUT /students refuses the class change that would
+// split them. The client PRESELECTS; it does not authorize — Announcements
+// re-validates against its own target list and the server decides on POST.
+// Do not reconstruct the class by matching student_name to GET /students — two
+// students can share a name.
 
 export default function MessageThreadPage() {
   const { userId } = useParams();
@@ -50,6 +69,10 @@ export default function MessageThreadPage() {
   const [blockedReason, setBlockedReason] = useState(null);
 
   const bottomRef = useRef(null);
+
+  // forId !== otherId is the "not loaded" state, so the effect below never
+  // sets state synchronously on a thread change.
+  const [contactInfo, setContactInfo] = useState({ forId: null, failed: false, row: null });
 
   const other = useMemo(() => {
     const row = messages.find((m) => m.sender_id === otherId || m.receiver_id === otherId);
@@ -105,6 +128,44 @@ export default function MessageThreadPage() {
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
 
+  // Its own effect keyed on otherId — see the header for why not inside load().
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/messages/contacts', { unwrap: 'contacts' })
+      .then((rows) => {
+        if (cancelled) return;
+        setContactInfo({
+          forId: otherId,
+          failed: false,
+          row: rows.find((c) => c.id === otherId) || null,
+        });
+      })
+      .catch(() => {
+        // Not surfaced: the unnamed button is the honest fallback, and a
+        // contacts failure must not read as the conversation being broken.
+        if (!cancelled) setContactInfo({ forId: otherId, failed: true, row: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [otherId]);
+
+  const contactRow = contactInfo.forId === otherId ? contactInfo.row : null;
+  const announceClass =
+    contactRow?.student_name && contactRow.student_grade_level != null && contactRow.student_section
+      ? {
+          key: `${contactRow.student_grade_level}|${contactRow.student_section}`,
+          label: `Grade ${contactRow.student_grade_level} - ${contactRow.student_section}`,
+        }
+      : null;
+  // §5i: the named hint is only shown when Announcements will open with that
+  // section selected. The last sentence stays in both — it is what stops a
+  // teacher believing the announcement answers this parent.
+  const announceHint = announceClass
+    ? `Opens an announcement to ${announceClass.label}, already selected. Every parent in that section will see it. This conversation will not.`
+    : 'Opens a class announcement. Every parent in the section you pick will see it. This conversation will not.';
+
   async function send(event) {
     event.preventDefault();
     if (!draft.trim()) return;
@@ -150,17 +211,25 @@ export default function MessageThreadPage() {
         </Link>
         <button
           type="button"
-          title="Opens a class announcement. Every parent in the section you pick will see it. This conversation will not."
+          title={announceHint}
           onClick={() =>
             navigate('/teacher/announcements', {
-              state: { compose: { content: draft.trim() } },
+              state: {
+                compose: announceClass
+                  ? { content: draft.trim(), target: announceClass.key }
+                  : { content: draft.trim() },
+              },
             })
           }
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
         >
-          Announce to a class
+          {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
         </button>
       </div>
+      {/* Visible, not only the title tooltip: hover does not exist on touch,
+          and "This conversation will not" is the sentence that stops a
+          teacher believing they replied to the parent (§3's rule). */}
+      <p className="-mt-2 text-right text-xs text-slate-500">{announceHint}</p>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
