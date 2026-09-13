@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const { io: ioClient } = require('socket.io-client');
 
-const BASE = process.env.API_BASE || `http://localhost:${process.env.PORT || 5000}`;
+const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
 let passed = 0;
 let failed = 0;

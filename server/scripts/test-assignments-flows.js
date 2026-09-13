@@ -17,7 +17,7 @@
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
-const BASE = process.env.API_BASE || `http://localhost:${process.env.PORT || 5000}`;
+const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
 let passed = 0;
 let failed = 0;

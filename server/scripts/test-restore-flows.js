@@ -28,7 +28,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
-const BASE = process.env.API_BASE || `http://localhost:${process.env.PORT || 5000}`;
+const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 let passed = 0;
