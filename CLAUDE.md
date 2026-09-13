@@ -3604,7 +3604,9 @@ replaced with a new guess.
       settings, backup/restore. **No longer blocked on missing assignments
       write or missing grade delete / grading-mode read** — items 1–3 of
       the admin-prerequisites plan all shipped 2026-09-08. Remaining work
-      is the screens themselves.
+      is the screens themselves. (See ADMIN SCOPE AUDIT: Sections,
+      excuses, events and messages have no Figure 5 basis and memos only a
+      partial one; decision pending with the team.)
       Teacher → Grades encode-scope and mode switched 2026-09-12
       (`GET /assignments` + `GET /grading-modes`), not an admin-page blocker.
 
@@ -3680,6 +3682,101 @@ flag the auth flow as a deviation.
 **Caution:** Figure 4 (DFD Level 0) lists "registration details" as a parent
 input, contradicting Figure 5. When citing the DFD in any explanation,
 always say **Figure 5** specifically.
+
+---
+
+## ADMIN SCOPE AUDIT — nav vs. DFD (2026-09-13). A finding, not a decision.
+
+**Why this exists.** Before more admin screens are built, the record needs to
+say which admin nav items have a basis in the approved design. **This section
+removes nothing and recommends removing nothing.** Keeping or dropping an item
+without a basis is a scope decision for the team, and it gets the treatment
+Feature 7 got: a consultation, a date, a name (see SCOPE DECISION).
+
+**Four sources, four different answers:**
+
+| Source | Admin items |
+|---|---|
+| `client/src/layout/nav.js` (lines 51–63) | 13: Dashboard, Users, Students, Sections, Grades, Attendance, Excuse Letters, Announcements, Memos, Events, Messages, Settings, Backup & Restore |
+| Manuscript admin dashboard mockup, p. 70 | 5: Dashboard, Manage Users, Manage System Settings, Post Announcement, Backup / Restore Data |
+| Figure 5, DFD Level 1 (pp. 30–33) | 11 admin-facing processes: 1.1, 1.3, 1.9, 1.10, 1.12, 1.15, 1.18, 1.23, 1.25, 1.27, 1.28 |
+| `docs/SYSTEM_ARCHITECTURE.md` §4 "API Modules (DFD Figure 5)" | 3: Manage User, System Setting, Backup & Restore. It also puts "Enrolled Student List" under Teacher, while Figure 5's 1.23 is admin-facing |
+
+**The p. 70 mockup is an incomplete drawing, not a narrower approved scope.**
+All five of its items map to Figure 5 processes (Users → 1.1/1.3, Settings →
+1.25, Post Announcement → 1.18, Backup / Restore → 1.27/1.28; Dashboard is
+navigation). What it leaves out is Students, Grades and Attendance — three
+items that DO have a Figure 5 basis. Do not read "the mockup shows five" as
+the answer.
+
+**`docs/SYSTEM_ARCHITECTURE.md` §4 cites Figure 5 in its heading and does not
+match it — do not trust that heading.** Three admin modules against Figure 5's
+eleven processes, and 1.23 moved to Teacher. A document that cites a source
+and then contradicts it is worse than one that cites nothing, because a reader
+takes the heading at its word. **Recorded, not corrected here:** correcting it
+means deciding what the admin module list should be, which is the team's
+decision. The correction belongs to whichever dispatch implements that
+decision.
+
+**Which source governs: precedent, not yet a general rule.** The build already
+followed Figure 5 over Figures 11–13 on self-registration (MANUSCRIPT section:
+"The build followed the DFD"). That is **one recorded decision about the auth
+flow**, not an agreed rule that Figure 5 governs every figure. This audit
+applies the same principle to admin scope as precedent, which is why Figure 5
+is the column items are mapped against. If the team wants "Figure 5 governs
+over the screen mockups" as a general rule, that is its own decision, recorded
+on its own. When citing, say **Figure 5**, never Figure 4.
+
+**Item-by-item (strict: a plausible connection is not a mapping):**
+
+| Nav item | Built | Figure 5 process | Basis |
+|---|---|---|---|
+| Dashboard | ✅ | — | navigation, not a process |
+| Users | ✅ | 1.1, 1.3 | **yes** |
+| Students | ✗ | 1.23 (+ candidate for 1.10/1.12) | **yes** |
+| Sections | ✗ | none | **no.** Supports attendance adviser-scoping; not one of the nine features |
+| Grades | ✗ | 1.9 (+ candidate for 1.10/1.12) | **yes** (view) |
+| Attendance | ✗ | 1.15 | **yes for viewing.** Admin record/correct, which the API allows, has no Figure 5 basis |
+| Excuse Letters | ✗ | none (admin absent from 1.16/1.17) | **no.** The API authorizes admin anyway |
+| Announcements | ✗ | 1.18 | **yes** |
+| Memos | ✗ | 1.18, partial | **partial.** 1.18 names announcements; memos are a separate table and a separate word in Feature 4's name |
+| Events | ✗ | none | **no.** Also not named in Feature 4 |
+| Messages | ✗ | none (1.22 is Teacher and Parent only) | **no.** `canMessage()` lets admin message anyone |
+| Settings | ✗ | 1.25 | **yes.** `system_settings` also holds academic year and current term, operational but about the school |
+| Backup & Restore | ✗ | 1.27, 1.28 | **yes** |
+
+**No Figure 5 basis:** Sections, Excuse Letters, Events, Messages.
+**Partial:** Memos.
+
+**One finding, three instances — the API already authorizes admin beyond
+Figure 5.** Excuse Letters (`routes/excuses.js` list / view / review allow
+admin), Messages (`canMessage()` lets admin message and be messaged by
+anyone), and admin writes on Attendance (`POST /`, `POST /bulk`, `PUT /:id`
+are admin-unscoped). Same shape each time: a handler authorizes admin for
+something no Figure 5 process describes. **This is not a defect and not a
+bug** — no one has decided whether it should be so, and nothing here asks for
+the handlers to change. It is recorded as one pattern because a reader who
+meets it one table row at a time will not see it.
+
+**Figure 5 processes with no nav item:** none clearly unrepresented.
+**1.28 Show Backup Logs** belongs inside Backup & Restore (`GET /api/backups`
+returns the history). **1.10 / 1.12 "Academic Records" are ambiguous between
+Students and Grades — both candidates recorded, neither chosen.** The
+manuscript already used "Student Record" to mean Grades once (Figure 17), so
+picking one would be the quiet assumption this audit exists to surface.
+
+**Against the nine features:** every admin item maps onto one except
+**Sections**, which maps onto none. The feature list is role-neutral and
+Figure 5 is role-specific, which is why Excuse Letters, Messages, Events and
+Memos fit a feature but not an admin process.
+
+**Safe to build now — the items with a Figure 5 basis:** Admin → **Students**
+(1.23), **Grades** (1.9, view), **Attendance** (1.15, view), **Announcements**
+(1.18), **Settings** (1.25), **Backup & Restore** (1.27, 1.28). Users (1.1,
+1.3) is already built. **Waiting on a team decision, not blocked by code:**
+Sections, Excuse Letters, Events, Messages, and Memos (partial). Until that
+decision exists they stay `built: false` in `nav.js` exactly as they are — do
+not remove them in a build dispatch.
 
 ---
 
@@ -4148,6 +4245,7 @@ progress — do not let this file do the same.
 
 | Date | Change |
 |------|--------|
+| 2026-09-13 | **Docs only — admin nav audited against Figure 5. A finding, not a decision.** Branch `docs/admin-scope-audit`. No code changed, no suite ran, no screen moved, no `.js`/`.jsx` touched. New section ADMIN SCOPE AUDIT after MANUSCRIPT. **Four sources disagree:** `nav.js` 13; the p. 70 mockup 5 (Dashboard, Manage Users, Manage System Settings, Post Announcement, Backup / Restore Data); Figure 5's 11 admin-facing processes; `SYSTEM_ARCHITECTURE.md` §4's 3. **The mockup is an incomplete drawing, not a narrower scope** — all five of its items map to Figure 5, and it omits Students, Grades and Attendance, which also have a basis. **SYSTEM_ARCHITECTURE §4 cites Figure 5 in its heading and contradicts it** (3 vs 11, and 1.23 filed under Teacher) — recorded so the heading is not trusted, **not corrected**: correcting it means deciding the admin module list, which is the team's call. Mapped strictly: **7 items with a Figure 5 basis** (Users, Students, Grades view, Attendance view, Announcements, Settings, Backup & Restore), Memos **partial**, **4 with none** (Sections, Excuse Letters, Events, Messages). **One finding, three instances:** the API already authorizes admin beyond Figure 5 in Excuse Letters, Messages and Attendance writes — the same shape each time, recorded as a fact, not a defect. 1.28 belongs inside Backup & Restore; **1.10 / 1.12 left ambiguous between Students and Grades, deliberately** (Figure 17 already used "Student Record" for Grades). **Correction to the framing:** the "build follows the DFD" line in MANUSCRIPT is one recorded decision about the auth flow, not a general rule — this audit applies it as precedent and says so; making it general is its own team decision. Nothing removed, nothing recommended for removal; unbased items stay `built: false` until the team decides with a consultation, a date and a name, as Feature 7 did. BUILD ORDER "Admin pages remaining (eleven)" and PROGRESS line 13 each gained one pointer sentence. Whitelist: `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. **MEASURED BUILD TIME: ~2m (~2m agent, ~0m idle)** from PLAN APPROVED to commit; docs only, no verification beyond the commit. |
 | 2026-09-13 | **Feature 7 (Contribution/Fees Monitoring) REMOVED — scope decision, not engineering.** Branch `chore/remove-contributions`. **Decision:** consultation at Captain H. Francisco Elementary School, 2026-09-01 — Principal Bajar stated the school is not permitted to collect contributions from parents; the team decided to remove Feature 7. Recorded in the new SCOPE DECISION block, which is the answer to the November panel and tells a future session that **Chapter 5 must explain the removal** (Figure 19 describes it). **24 files mentioned contributions, not the twelve first counted** — the missed ones included the mount in `server.js`. **Deleted:** `routes/contributions.js` (8 handlers), `test-contributions-flows.js`, both `ContributionsPage.jsx`. **Edited:** `server.js` (require + mount), `package.json` (`test:contributions`), `schema.sql` (both tables, both indexes, the unique key, four FKs), `App.jsx` (2 imports, 2 routes), `nav.js` (teacher, parent **and the unbuilt admin item** — 12→11, 10→9, 14→13; admin backlog now eleven), `useTeacherTargets.js` (warning is Grades-only, at full strength), `StatusBadge.jsx` (`paid` removed — dead tone for a status no table produces; `pending` stays, shared), `ErrorAlert.jsx` / `UiGallery.jsx` / `Modal.jsx` / parent `AttendancePage.jsx` / `config/db.js` / `utils/dateFormat.js` / two suite comments (comments or dev-only examples), `SYSTEM_ARCHITECTURE.md` (3 lines, approved expansion). No dashboard edit — all three derive "Open now" from `navForRole`. `/teacher/contributions` and `/parent/contributions` fall to the catch-all redirect. **Kept:** 40 `activity_logs` contribution rows (audit history). **Order:** client, server, schema, docs. **Live DB:** a first scratch proof through `setup-db.js` with `DB_NAME=parents_portal_scratch_rmcontrib` **ran against the live database** — `schema.sql` hardcodes `CREATE DATABASE IF NOT EXISTS parents_portal` / `USE parents_portal` (lines 4–8) — and failed on `CREATE TABLE users`; nothing destructive ran (every count intact, 22 tables, no scratch DB left). The dispatch stopped and reported. **That exposed a HAZARD, now its own KNOWN ISSUES row:** `DB_NAME=<other> npm run db:setup` drops `<other>` and rebuilds `parents_portal` regardless. Flagged, not fixed. The proof was then redone by the 2026-08-29 method — `schema.sql` read into memory with every `parents_portal` rewritten to the scratch name, guarded so no live-name occurrence could remain — 2 occurrences rewritten; `schema.sql` applied cleanly to `parents_portal_scratch_rmcontrib` with **20 tables, 0 contribution tables, 0 contribution FKs**; scratch database dropped and confirmed gone (0 remaining). Then targeted live DROPs, children first: `contribution_records` then `contributions`; live tables 22 → **20**; users 7, students 3, grades 5, assignments 8, `activity_logs` 1,748 with the 40 contribution entries intact. `db:setup` was not used: it would have wiped the 1,748 `activity_logs` rows, including the 40 contribution entries that must stay (there were no backup rows to lose — see below). **Counts:** tables 22 → **20**; handlers 84 → **76** (mechanical recount across 13 route files) + `/api/health` = 77 table rows; route files 14 → 13; features 10 → 9; suites sixteen → **fifteen** (fourteen HTTP); StatusBadge vocabularies 5 → 4 (§5d split now two to two). **What the removal also closed:** consequence 5, the DELETE 409, Download Statement (Fig. 19), the last expired NOW POSSIBLE workaround, the DO 19 row, the unconfirmed OPEN QUESTION, and three API_REFERENCE gotchas. **This dispatch found TWO stale facts in this file** — (1) RESTORE said `backups` holds 8 rows; it has held 0 since the 2026-09-07 `db:setup` (CREATE_TIME 2026-09-07 21:08, AUTO_INCREMENT 9, 8 `create_backup` / 4 `delete_backup` from `test:backups`), corrected with how it went stale; (2) the attendance dispatch's "no rate" claim had lived in ten places, not the nine first counted. **Not a complaint — evidence that hand-maintained counts in this file go stale silently**, the same failure mode as the `test:grades` fixture. New KNOWN ISSUES row: **restoring any pre-2026-09-13 backup brings the two tables back**; drop them by hand after such a restore. Build exit 0; bundle has no `/contributions` string; **oxlint 28 — the new baseline** (each deleted page carried a fetch-effect advisory). SSR: nav teacher 11 / parent 9 / admin 13, both dashboards' "Open now" without Contributions; negative control `TypeError: navForRole is not a function`. **Suites:** every one run, all green, every count unchanged — auth 39, students 61, sections 30, assignments 41, grading-modes 13, grades 165, attendance 38, content 62, settings 26, users 39, backups 39, sanitize 9, messages 59, restore 22, excuses 70 (the fifteen suites), plus grade-computation 51. `npm run test:contributions` now: `npm error Missing script: "test:contributions"`, exit 1. Baseline after: users 7, students 3, grades 5, assignments 8, **tables 20**. Browser step pending — TCH-001 and `13567454`, nav item gone, no dead route, nothing else moved. **MEASURED BUILD TIME, thirtieth data point: ~17m (~15m agent, ~2m idle — the stop-and-decide wait after the scratch run hit the live database).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **Parent → Attendance shows "Present on recorded days" — the school answered the rate question.** Branch `feature/parent-attendance-rate`. One page plus a comment in `nav.js`; no server, no endpoint, no new request. **Source:** the principal, 2026-09-13, **in conversation — not a written policy**: Late counts as present, Excused counts as absent. Recorded in OPEN QUESTIONS → answered 2026-09-13, same shape as 762f6a4. **Separately, DO 015 s. 2026 read directly** (60pp, scanned): it prescribes no attendance rate and no attendance grade component — para 71 (intervention at ~12 absences; attendance on the term report) is its only attendance rule, and Table 9 is WW / PT / EX. So the rate is a school decision, not a compliance question. **Formula** `(Present + Late) / total` — all three already in `GET /summary`. `total` is every recorded status row (handler line 45), so **Excused is in the denominator and an excused day lowers the percentage**. One decimal, half-up, via integer arithmetic (`Math.round((present * 1000) / total) / 10`) — the grades module's rule, so a parent can check it by hand against the fraction shown beside it. Half-up at one decimal only reaches 100.0 at 1,999 of 2,000 days; no school year does, so a missed day cannot show as 100%. **Label is "Present on recorded days", never "Attendance rate"** — a parent who has seen an SF9 reads that as the SF9 figure, and this is over recorded days, not Class Days (§5i). Sub-line "N of M recorded days this month" / "N of all M recorded days". New paragraph says three things only: Late = present and Excused = absent; out of recorded days, not SF9 Class Days; unmarked days are not counted. No DepEd attribution in parent copy. Not rendered when `total` is 0 (0% would claim the learner attended nothing; the empty state already names the cause, §5f). **§4 — deliberately no verdict:** no colour, badge, threshold, "good attendance", or comparison to the ~12-absence point; a comment at the card says the absence is a decision. `nav.js` header comment rewritten (it said the page was unblocked BECAUSE it shows no rate); nav array untouched — 0 non-comment lines in its diff. **Flagged, not fixed:** `server/routes/attendance.js:207` comment "raw counts only, no rate (undefined formula)" — the handler is correct and stays counts-only; only "(undefined formula)" is stale. **The "no rate" claim lived in ten separate places in this file**, all found by hand: six present-tense ones rewritten here (parent-pages line, parent code-block entry, §6 blocked note, the BLOCKED / RESOLVED section, the OPEN QUESTIONS bullet, the Parent → Attendance BUILD ORDER checkbox), the server endpoints row (still true of the server, kept), and three dated entries (the 2026-09-09 CHANGELOG row, the eleventh build-time data point, the historical BUILD ORDER line — exempt). Not a complaint: **the reason a future session should think twice before recording the same fact in an eleventh.** Whitelist: `parent/AttendancePage.jsx`, `layout/nav.js` (comment only, approved expansion), `CLAUDE.md`, `docs/PROJECT_PROGRESS.md`. `npm run build` exit 0. oxlint **30, unchanged** (the page's advisory is its existing fetch effect, line-shifted). SSR renders the page with the new paragraph; negative control (`useMemo` import removed on a throwaway) → `ReferenceError: useMemo is not defined`. Throwaways deleted. Live as parent `13567454`: September summary P3 / A1 / L1 / E1 / total 6 → **66.7%** ("4 of 6 recorded days this month"); All P3 / A2 / L1 / E1 / total 7 → **57.1%** ("4 of all 7 recorded days"). **Fixtures left for the browser check:** Marwin (`student_id` 1, Malikhain `section_id` 22), created as TCH-001 via `POST /attendance/bulk` — ids **26** 2026-09-07 Present, **27** 09-08 Present, **28** 09-09 Present, **29** 09-10 Late, **30** 09-11 Absent, **31** 09-12 Excused, **32** 2026-08-28 Absent. Delete after confirmation — seeded `attendance` is 0. Never wrote on Jea `1234567`, Rosa, or Nino's five. **No Cursor browser** — `npm run dev` in `client`, open `/parent/attendance` as `13567454`: This month 66.7% / 4 of 6; All recorded days 57.1% / 4 of all 7. Hard reload if HMR looks wrong. Remaining Stage 4 work is admin screens. **MEASURED BUILD TIME, twenty-ninth data point: ~4m (~4m agent incl. two failed shell-escape attempts, ~0m idle).** Same four caveats; compare to the sixth point onward. |
 | 2026-09-13 | **`test:grades` repaired — broken 2026-09-10 → 2026-09-13, and nobody noticed.** Branch `fix/grades-suite-ga-fixture`. Test fixture fix, not a behaviour change; no route, no client. **Cause:** the GA/FG aggregation fixture POSTed a student with `grade_level: 2, section: 'Test-GA'`. Since 2026-09-10 `POST /students` resolves `section_id` and 400s an unmatched name — **the handler is correct**; the fixture was written when an invented name was still accepted. Grade 2's real sections are Mapagkaibigan, Mapagkakatiwalaan, Masikap. **Why nobody saw it:** d47589b (the POST change) ran `test:students` only; a068d8a (the PUT change) ran students, attendance, excuses — the suites that READ `section_id` — but not grades, which WRITES a student through POST. **The lesson, now a working-agreement bullet: a dispatch that changes a write path runs every suite that writes through it.** **Fix:** `'Masikap'` (no Grade 2 section has an adviser or assignment in the seed, so the choice does not affect isolation). **The second problem mattered more:** `assert()` only records, so the failed fixture let the run continue into twelve INSERTs with `student_id` undefined and die on `ER_BAD_NULL_ERROR` — the database error instead of the one line that explained it. Most other fixtures failed QUIETER: requests to `/api/grades/undefined/…` and a pile of misleading ✗ lines, which is worse than a crash because nobody reads a twenty-failure run carefully. Line 589's Grade 1 student create had no assert of its own. New local `requireFixture()`: counts like `assert()` (pass count unchanged), then throws a `FixtureFailure`; `finally` still cleans up; `run().catch` prints a STOPPED line and the partial tally. Applied at 10 sites where later work depends on a row existing (pre-patch lines 216, 462, 601 with the Grade 1 student create folded into its condition, 676, 868, 1275, 1280, 1397, 1410, 1416). The value checks at pre-patch 883/893/906/910 stay plain `assert()` — a wrong computed number is a finding, not a reason to stop. Local to this file on purpose: all seventeen scripts share `assert()` byte for byte; the other sixteen are an open audit (KNOWN ISSUES). **No other stale section is waiting:** Aguinaldo / Mabini / Test / Rizal in `test:students` are all deliberate negative cases (403 scope, 409 duplicate-LRN-before-resolve, 400 grade 7, 400 naming the invented section, plus an SQL resolve-miss) — two of them assert the exact error that killed this suite. auth / excuses / messages insert Aguinaldo students by SQL with `section_id` NULL on purpose; recorded in KNOWN ISSUES as breaking under a future NOT NULL, not acted on. **Verified.** Before: exit 1, 142 ✓ / 1 ✗ (`Fixture: a fresh Grade 2 student…`), then `Test runner error: Error: Column 'student_id' cannot be null`, no tally. **Negative control on the final code** (temporarily `'Test-GA'`), verbatim: `✗ Fixture: a fresh Grade 2 student for FG/GA aggregation tests — got 400: No section named "Test-GA" exists at Grade 2 for 2026-2027.` / `STOPPED — Fixture: a fresh Grade 2 student for FG/GA aggregation tests — got 400: No section named "Test-GA" exists at Grade 2 for 2026-2027.` / `Everything after this fixture depends on it, so the run did not continue.` / `141 passed, 1 failed (run incomplete)`; exit code 1; no `ER_BAD_NULL_ERROR`; baseline after users 7 / students 3 / grades 5. (141 vs the before-run's 142 ✓: the old code went on past the dead fixture and passed "Grade 2 has exactly 5 subjects"; the new code stops first.) Restored `'Masikap'`: `test:grades` **165/165 twice**, no `db:setup`, header `http://127.0.0.1:5000`; `test:students` **61/61**; `test:sections` **30/30**. Baseline after: users 7, students 3, grades 5, grade_components 0, assignments 8. Whitelist: `test-grades-flows.js`, `CLAUDE.md`. `docs/PROJECT_PROGRESS.md` unchanged — it records only dated stage counts, no present-tense 165. **MEASURED BUILD TIME, twenty-eighth data point: ~4m (~4m agent incl. two negative-control runs, ~0m idle).** Same four caveats; compare to the sixth point onward. |

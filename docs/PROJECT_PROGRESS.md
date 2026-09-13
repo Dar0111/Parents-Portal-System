@@ -10,7 +10,9 @@
 **Last updated:** 2026-09-13 (Feature 7, Contribution/Fees Monitoring,
 REMOVED — Principal Bajar, consultation 2026-09-01: the school may not
 collect contributions from parents. 20 tables. Remaining Stage 4 work is the
-other admin screens — eleven.)
+other admin screens — eleven. See CLAUDE.md → ADMIN SCOPE AUDIT (2026-09-13):
+Sections, Excuse Letters, Events and Messages have no Figure 5 basis and Memos
+only a partial one; that decision is pending with the team.)
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
