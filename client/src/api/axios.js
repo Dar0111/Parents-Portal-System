@@ -98,11 +98,19 @@ api.interceptors.response.use(
   //
   // Login failures (401 wrong password, 403 pending/rejected account) must
   // surface on the login form, not bounce away from it.
+  //
+  // skipAuthRedirect: true — a per-call opt-out, passed by EXACTLY ONE call:
+  // POST /api/backups/:id/restore (Admin → Backup & Restore). That endpoint
+  // answers a missing or wrong STEP-UP password with 401 while the session is
+  // perfectly alive, and redirecting would throw the admin out on a typo and
+  // never show "Incorrect password." — punishing the safeguard's own purpose.
+  // Not a general escape hatch: a second call site means a different problem.
   (error) => {
     const status = error.response?.status;
     const isLoginRequest = error.config?.url?.includes('/auth/login');
+    const skipAuthRedirect = error.config?.skipAuthRedirect === true;
 
-    if (status === 401 && !isLoginRequest) {
+    if (status === 401 && !isLoginRequest && !skipAuthRedirect) {
       localStorage.removeItem(TOKEN_KEY);
       if (window.location.pathname !== '/login') {
         window.location.assign('/login');

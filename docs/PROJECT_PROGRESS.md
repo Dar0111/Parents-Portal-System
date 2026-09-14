@@ -7,12 +7,11 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-14 (Admin → Students, Settings, Attendance,
-Announcements and Grades built. Admin scope follows Figure 5 — Darryl's
-decision, 2026-09-13, acting on the ADMIN SCOPE AUDIT; not a team
-consultation. Remaining Stage 4 work is one admin screen: Backup & Restore.
-Admin → Grades surfaces the lock and deliberately not delete (Darryl,
-2026-09-14). School year is not editable from Admin → Settings (the API still
+**Last updated:** 2026-09-14 (**Stage 4 is COMPLETE** — Admin → Backup &
+Restore landed last; every Figure 5 admin process now has a page. Admin scope
+follows Figure 5 — Darryl's decision, 2026-09-13, acting on the ADMIN SCOPE
+AUDIT; not a team consultation. Admin → Grades surfaces the lock and
+deliberately not delete (Darryl, 2026-09-14). School year is not editable from Admin → Settings (the API still
 accepts it). 20 of 23 sections have no adviser and, with Admin → Sections not
 being built, no screen can assign one — so attendance cannot be recorded in
 them. Sections, Excuse Letters, Events and Messages will not be built. Memos
@@ -38,7 +37,7 @@ data, not a computed result.
 | Stage 1 — Foundation (schema, seed, auth API, auth tests) | ✅ | — | — |
 | Stage 2 — Auth frontend (login, ProtectedRoute, 3 dashboards) | — | ✅ | — |
 | Stage 3 — Backend modules (Student Records → … → Grades) | ✅ | — | — |
-| Stage 4 — Web pages (parent / teacher / admin) | — | 🟡 foundation + Teacher web role **complete** (Settings landed 2026-09-10) · Parent web role **complete** · Admin → Users, Students, Settings, Attendance, Announcements with memos and Grades (2026-09-14) landed. Remaining: one admin screen (Backup & Restore) | — |
+| Stage 4 — Web pages (parent / teacher / admin) | — | ✅ **COMPLETE 2026-09-14.** Teacher and Parent web roles complete · Admin → Users, Students, Settings, Attendance, Announcements with memos, Grades and Backup & Restore — every Figure 5 admin process has a page; Sections, Excuse Letters, Events and Messages stay `built: false` by the scope decision | — |
 | Stage 5 — Mobile (Expo) | — | — | ❌ |
 | Stage 6 — Integration, deployment, demo polish | ❌ | ❌ | ❌ |
 
@@ -797,9 +796,9 @@ wrong.
 Same four caveats; compare to the sixth point onward. Copy of Parent
 Settings. Nav add, not flip. Stay logged in after password.
 
-**Next:** one admin screen with a Figure 5 basis — Backup & Restore. Admin →
-Students, Settings, Attendance, Announcements (with memos) and Grades landed
-2026-09-14. Sections, Excuse Letters, Events and Messages will not be
+**Next:** Stage 4 is complete (2026-09-14) — Admin → Backup & Restore was the
+last page, after Students, Settings, Attendance, Announcements (with memos)
+and Grades. Stage 5 (Expo) is next in BUILD ORDER. Sections, Excuse Letters, Events and Messages will not be
 built (Darryl, 2026-09-13). Parent and Teacher web are complete. The
 attendance rate question was answered 2026-09-13 (principal, in conversation:
 Late = present, Excused = absent); the parent page shows "Present on recorded
@@ -916,9 +915,9 @@ the last NOW POSSIBLE workaround. See CLAUDE.md → SCOPE DECISION.
 **System Settings Management (Admin)** — API done, no screens yet.
 - [ ] Admin web screen: settings form (school info, academic year, current quarter, logo).
 
-**Backup & Restore (Admin, web only)** — API done (both Backup and Restore), no screens yet.
-- [ ] Admin web screens: backup list/history (file size, "Completed" status, download, delete), create-backup button, restore flow (step-up password + type-the-filename confirmation, clear warning that all sessions end).
-- [ ] One deliberate manual end-to-end restore test, together, with `db:setup` ready — not yet scheduled.
+**Backup & Restore (Admin, web only)** — API done (both Backup and Restore); web screen built 2026-09-14.
+- [x] **Admin → Backup & Restore — DONE 2026-09-14.** List + orphaned files (read-only), create, download, delete manual backups only (safety copies have none), restore with step-up password + typed file name and a result panel that names the safety copy and the lost `activity_logs` count. The restore POST is the one `skipAuthRedirect` caller.
+- [ ] One deliberate manual end-to-end restore — it is this dispatch's browser step, Darryl's to run. Both backup suites ran BEFORE it; never run `test:restore` after it (CLAUDE.md KNOWN ISSUES). Not `db:setup` as the recovery path — it drops `activity_logs`.
 
 **Excuse Letter Submission & Management** — API fully done
 (submit/mine/list/view/edit/review). Teacher read scope now
@@ -938,9 +937,11 @@ found all three buckets empty at 77; later additions include
 assignments/subjects, `GET /grading-modes`, `DELETE /grades/:id`, and
 `PUT /auth/contact` (2026-09-09). What every module still needs is
 remaining admin web pages (Stage 4) and Expo screens (Stage 5) — see the
-Notes column above for the concrete next step per module. Teacher → Grades encode-scope switched 2026-09-12. Remaining Stage 4
-work is one admin screen (Backup & Restore); Admin → Students, Settings,
-Attendance, Announcements (with memos) and Grades landed 2026-09-14.
+Notes column above for the concrete next step per module. Teacher → Grades encode-scope switched 2026-09-12. **Stage 4 is
+complete (2026-09-14)** — Admin → Students, Settings, Attendance,
+Announcements (with memos), Grades and Backup & Restore landed that day.
+Sections, Excuse Letters, Events and Messages stay `built: false` by the
+Figure 5 scope decision.
 
 ---
 
