@@ -8,6 +8,7 @@ import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
+import TermValue from '../../format/TermValue';
 import { todayLocalDateString } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -47,14 +48,17 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // promotion. Trust the round-trip; GradeValue renders what the server
 // stored.
 //
-// TermCell is copied from Parent → Grades, not a fifth state on
-// GradeValue. Extract at three. A rushed change to the primitive inside
-// the largest encode screen in Stage 4 is the "shaped by one page"
-// failure the foundation dispatch existed to prevent.
+// The term value (number, letter, Pending, N/A) is TermValue from
+// format/TermValue.jsx — extracted 2026-09-14 when Admin → Grades became the
+// third copy; this page's TermCell and Parent → Grades' TermDisplay were
+// identical. Still not a fifth state on GradeValue.
 //
 // No lock control. PATCH /:id/lock is admin-only and 403s at middleware
 // ("Access denied.") for a teacher. Do not render a button that cannot
-// work. A locked row shows StatusBadge and disables inputs.
+// work. A locked row shows StatusBadge and disables inputs. Admin →
+// Grades (2026-09-14) is where a grade gets locked — and this page's
+// "can no longer be edited" line does not say why or who can unlock it
+// (KNOWN ISSUES; its own dispatch).
 //
 // §5e: encoding is repeatable (null clears a letter or exam pair; DELETE
 // component recomputes). No confirmation. Confirmation would not undo a
@@ -91,29 +95,6 @@ const REPORT_UNWRAP = [
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E'];
-
-// Twin of Parent → Grades. An unrecorded descriptive letter is "not yet
-// recorded" (Pending), so numerical is the correct GradeValue mode for
-// that empty cell even when the student is descriptive-mode.
-const NULL_IS_PENDING = 'numerical';
-
-function TermCell({ entry, mode }) {
-  if (mode === 'descriptive') {
-    if (!entry?.descriptive_grade) {
-      return <GradeValue value={null} mode={NULL_IS_PENDING} />;
-    }
-    return (
-      <span className="whitespace-nowrap">
-        <span className="font-medium text-slate-900">{entry.descriptive_grade}</span>
-        {entry.descriptor ? (
-          <span className="ml-1.5 text-xs text-slate-500">{entry.descriptor.descriptor}</span>
-        ) : null}
-      </span>
-    );
-  }
-
-  return <GradeValue value={entry?.term_grade} mode={mode} />;
-}
 
 function classKeyOf(student) {
   return `${student.grade_level}|${student.section}`;
@@ -728,7 +709,7 @@ export default function TeacherGradesPage() {
           const stored = recorded.get(row.id);
           if (mode === 'descriptive') {
             return (
-              <TermCell
+              <TermValue
                 entry={{
                   descriptive_grade: stored?.descriptive_grade ?? null,
                   descriptor: null,
@@ -1142,7 +1123,7 @@ function EncodePanel({
         <div className="max-w-xs space-y-4">
           <p className="text-sm text-slate-600">
             Recorded letter:{' '}
-            <TermCell
+            <TermValue
               entry={{
                 descriptive_grade: grade.descriptive_grade,
                 descriptor: detail.descriptor,

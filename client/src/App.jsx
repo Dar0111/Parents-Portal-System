@@ -11,6 +11,7 @@ import AdminStudentDetail from './pages/admin/StudentDetailPage';
 import AdminSettings from './pages/admin/SettingsPage';
 import AdminAttendance from './pages/admin/AttendancePage';
 import AdminAnnouncements from './pages/admin/AnnouncementsPage';
+import AdminGrades from './pages/admin/GradesPage';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="settings" element={<AdminSettings />} />
             <Route path="attendance" element={<AdminAttendance />} />
             <Route path="announcements" element={<AdminAnnouncements />} />
+            <Route path="grades" element={<AdminGrades />} />
           </Route>
 
           <Route

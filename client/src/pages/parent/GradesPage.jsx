@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import GradeValue, { GradeLegend } from '../../format/grade';
+import TermValue from '../../format/TermValue';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -72,47 +73,16 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // it, and it reads either as "final" — a promise the system should not make,
 // since an admin can unlock — or as "hidden from you", which is false.
 
-// mode names the REASON a null renders, not the grade level a student is at.
-// An unrecorded descriptive letter is "not yet recorded", which is Pending, so
-// 'numerical' is the correct argument for that cell even though the student is
-// descriptive-mode.
-//
-// FINDING C, recorded rather than fixed: GradeValue's own header names four
-// states — a number, null-numerical, null-descriptive, and error — and A
-// DESCRIPTIVE LETTER IS NOT ONE OF THEM. formatGrade('A') gives Number('A') ->
-// NaN -> null, so a real Grade 1 term grade of A would render as "— N/A", the
-// string meaning "this doesn't apply", on the one value that does. That is
-// outside GradeValue's stated contract rather than a bug inside it, so the
-// letter is handled locally here and format/grade.jsx is left untouched. Close
-// the gap in GradeValue the day a third TermCell copy would force the extract
-// (still two: this page and Teacher → Grades).
-const NULL_IS_PENDING = 'numerical';
+// The value inside a term cell (number, letter, Pending, N/A) is TermValue in
+// format/TermValue.jsx — extracted 2026-09-14 when Admin → Grades became the
+// third copy (this page's TermDisplay and Teacher → Grades' TermCell were
+// identical). That file carries the FINDING C note on why a descriptive letter
+// is handled outside GradeValue. This page keeps only its own wrapper below.
 
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
-function TermDisplay({ entry, mode }) {
-  if (mode === 'descriptive') {
-    if (!entry?.descriptive_grade) {
-      return <GradeValue value={null} mode={NULL_IS_PENDING} />;
-    }
-    return (
-      <span className="whitespace-nowrap">
-        <span className="font-medium text-slate-900">{entry.descriptive_grade}</span>
-        {entry.descriptor ? (
-          <span className="ml-1.5 text-xs text-slate-500">{entry.descriptor.descriptor}</span>
-        ) : null}
-      </span>
-    );
-  }
-
-  // `mode` is the API's own grading_mode, never inferred from the null itself:
-  // "null because incomplete" and "null because inapplicable" are
-  // indistinguishable from the value alone.
-  return <GradeValue value={entry?.term_grade} mode={mode} />;
-}
-
 function TermCell({ entry, mode, onOpen }) {
-  const inner = <TermDisplay entry={entry} mode={mode} />;
+  const inner = <TermValue entry={entry} mode={mode} />;
   if (!entry?.grade_id || !onOpen) return inner;
   return (
     <button
@@ -206,7 +176,7 @@ function BreakdownBody({ mode, detail }) {
     return (
       <div className="space-y-3">
         <div>
-          <TermDisplay
+          <TermValue
             entry={{
               descriptive_grade: grade.descriptive_grade,
               descriptor: detail.descriptor,
