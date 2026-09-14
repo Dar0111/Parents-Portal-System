@@ -53,7 +53,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/students', label: 'Students', icon: 'fa-user-graduate', built: true },
     { to: '/admin/sections', label: 'Sections', icon: 'fa-layer-group', built: false },
     { to: '/admin/grades', label: 'Grades', icon: 'fa-chart-simple', built: false },
-    { to: '/admin/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: false },
+    { to: '/admin/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/admin/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: false },
     { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: false },
     { to: '/admin/memos', label: 'Memos', icon: 'fa-file-lines', built: false },
