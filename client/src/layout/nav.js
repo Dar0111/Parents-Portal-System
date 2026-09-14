@@ -55,7 +55,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/grades', label: 'Grades', icon: 'fa-chart-simple', built: false },
     { to: '/admin/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/admin/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: false },
-    { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: false },
+    { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
     { to: '/admin/memos', label: 'Memos', icon: 'fa-file-lines', built: false },
     { to: '/admin/events', label: 'Events', icon: 'fa-calendar-days', built: false },
     { to: '/admin/messages', label: 'Messages', icon: 'fa-comments', built: false },
