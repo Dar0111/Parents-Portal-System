@@ -59,7 +59,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/memos', label: 'Memos', icon: 'fa-file-lines', built: false },
     { to: '/admin/events', label: 'Events', icon: 'fa-calendar-days', built: false },
     { to: '/admin/messages', label: 'Messages', icon: 'fa-comments', built: false },
-    { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: false },
+    { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: true },
     { to: '/admin/backups', label: 'Backup & Restore', icon: 'fa-database', built: false },
   ],
 };
