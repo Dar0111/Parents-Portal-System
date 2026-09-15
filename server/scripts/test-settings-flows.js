@@ -138,6 +138,17 @@ async function run() {
         !(unlistedKey in (listAfterDirectInsert.data?.settings || {})),
         'A row outside the allow-list does not appear in GET /api/settings, even if it exists in the table'
       );
+
+      // The PATCH response used to re-read the whole table with no filter.
+      const patchWhileUnlistedExists = await request('PATCH', '/api/settings', {
+        token: adminToken,
+        body: { settings: { current_term: original.current_term } },
+      });
+      assert(
+        patchWhileUnlistedExists.status === 200 &&
+          !(unlistedKey in (patchWhileUnlistedExists.data?.settings || {})),
+        'A row outside the allow-list does not appear in the PATCH response either'
+      );
     } finally {
       await withDb((conn) => conn.query('DELETE FROM system_settings WHERE setting_key = ?', [unlistedKey]));
     }
@@ -216,6 +227,33 @@ async function run() {
       body: { value: '   ' },
     });
     assert(emptySchoolName.status === 400, 'Blank school_name rejected');
+
+    // Validation always checked the trimmed value; storage used to keep the
+    // raw one. The same text padded with spaces must be stored without them.
+    // school_name is restored in the finally block below.
+    const paddedPut = await request('PUT', '/api/settings/school_name', {
+      token: adminToken,
+      body: { value: `  ${original.school_name}  ` },
+    });
+    const afterPaddedPut = await request('GET', '/api/settings/school_name', { token: adminToken });
+    assert(
+      paddedPut.status === 200 &&
+        paddedPut.data?.value === original.school_name &&
+        afterPaddedPut.data?.value === original.school_name,
+      'PUT stores the trimmed value — surrounding spaces are not saved'
+    );
+
+    const paddedPatch = await request('PATCH', '/api/settings', {
+      token: adminToken,
+      body: { settings: { school_name: `\t${original.school_name} ` } },
+    });
+    const afterPaddedPatch = await request('GET', '/api/settings/school_name', { token: adminToken });
+    assert(
+      paddedPatch.status === 200 &&
+        paddedPatch.data?.settings?.school_name === original.school_name &&
+        afterPaddedPatch.data?.value === original.school_name,
+      'PATCH stores the trimmed value too'
+    );
 
     // --- PATCH: all-or-nothing ---
     console.log('\nPATCH (all-or-nothing):');

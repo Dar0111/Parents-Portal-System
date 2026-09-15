@@ -360,6 +360,22 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
   }
 });
 
+// A refused restore attempt is logged, because the most destructive endpoint
+// in the API should leave a trace when someone tries it and fails. Best
+// effort: a failed log write must not turn a 400/403 into the pre-flight 500.
+// The typed password and the typed file name are never written here — the
+// response already shows the admin what they typed. Caveat, recorded in
+// CLAUDE.md KNOWN ISSUES: a refusal made shortly before a SUCCESSFUL restore
+// is newer than the backup it restores from, so that restore rewinds it with
+// the rest of activity_logs; it then survives only in the lost-entries count.
+async function logRestoreRefusal(userId, filename, reason) {
+  try {
+    await logActivity(userId, 'restore_refused', `Restore of backup "${filename}" refused: ${reason}.`);
+  } catch (error) {
+    console.error('Could not log a refused restore attempt (refusal still returned):', error);
+  }
+}
+
 // POST /api/backups/:id/restore — admin only. Drops and recreates the whole
 // database from a tracked backup. See CLAUDE.md's "RESTORE — required before
 // building" for the full reasoning behind every guard below. Source
@@ -396,18 +412,28 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
 
     // Step-up auth: an open admin session is not authorization for a total,
     // irreversible data wipe on its own.
+    //
+    // Never 401 here. The bearer token is valid — 401 would tell the client
+    // the SESSION is dead, and the shared interceptor would log the admin
+    // out on a typo. A missing password is a malformed request (400, like
+    // every other missing required field in this API); a wrong one is a
+    // well-formed request whose re-authentication failed, so the server
+    // refuses the action with a reason (403, STAGE 4 FRONTEND CONVENTIONS §2).
     if (typeof password !== 'string' || !password) {
-      return res.status(401).json({ success: false, message: 'password is required.' });
+      await logRestoreRefusal(req.user.id, backup.filename, 'no password given');
+      return res.status(400).json({ success: false, message: 'password is required.' });
     }
     const [passwordRows] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const validPassword = passwordRows.length > 0 && (await comparePassword(password, passwordRows[0].password));
     if (!validPassword) {
-      return res.status(401).json({ success: false, message: 'Incorrect password.' });
+      await logRestoreRefusal(req.user.id, backup.filename, 'incorrect password');
+      return res.status(403).json({ success: false, message: 'Incorrect password.' });
     }
 
     // Type-the-name confirmation. A dialog someone clicks through is not a
     // safeguard — naming both values so a typo is obvious, not just "bad request".
     if (confirm_filename !== backup.filename) {
+      await logRestoreRefusal(req.user.id, backup.filename, 'typed file name did not match');
       return res.status(400).json({
         success: false,
         message: `confirm_filename does not match. You entered "${

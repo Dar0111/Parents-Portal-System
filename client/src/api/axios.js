@@ -86,11 +86,14 @@ api.interceptors.response.use(
   // 403 deliberately does NOT redirect. In this API a 403 is the considered
   // answer to an out-of-scope WRITE, carrying a specific reason in the body
   // ("Only the adviser of this student's section can review excuse letters.",
-  // and the five :id-keyed grades writes naming the subject). Of the 20 places
-  // a 403 originates, 18 are route-level scope refusals and one is an
-  // authorize() role violation — for all 19, bouncing the user to /login
-  // throws away the reason and, for the role violation, re-logs them in to the
-  // same refusal. Only middleware/auth.js's "Account is not active." is a dead
+  // and the five :id-keyed grades writes naming the subject). Every 403 origin
+  // is a route-level refusal with a reason (scope, a locked grade, a failed
+  // re-authentication) or an authorize() role violation — for all of them,
+  // bouncing the user to /login throws away the reason and, for the role
+  // violation, re-logs them in to the same refusal. (No count here: some 403s
+  // come from helpers rather than literal status(403) calls, so a number
+  // cannot be checked mechanically — the "20" that stood here went stale.)
+  // Only middleware/auth.js's "Account is not active." is a dead
   // session, and that resolves on the next refresh via AuthContext's /auth/me
   // check. Not string-matched here: matching on a message is fragile, and the
   // right fix is server-side (that response should be a 401 — a token that no
@@ -99,18 +102,16 @@ api.interceptors.response.use(
   // Login failures (401 wrong password, 403 pending/rejected account) must
   // surface on the login form, not bounce away from it.
   //
-  // skipAuthRedirect: true — a per-call opt-out, passed by EXACTLY ONE call:
-  // POST /api/backups/:id/restore (Admin → Backup & Restore). That endpoint
-  // answers a missing or wrong STEP-UP password with 401 while the session is
-  // perfectly alive, and redirecting would throw the admin out on a typo and
-  // never show "Incorrect password." — punishing the safeguard's own purpose.
-  // Not a general escape hatch: a second call site means a different problem.
+  // No per-call opt-out. A 401 here must always mean the session is dead. A
+  // wrong password typed INSIDE a live session (restore's step-up, "Current
+  // password" on change-password) is 400/403 from the server since
+  // 2026-09-15 — if an endpoint ever answers a live session with 401, fix its
+  // status code; do not add an exception to this interceptor.
   (error) => {
     const status = error.response?.status;
     const isLoginRequest = error.config?.url?.includes('/auth/login');
-    const skipAuthRedirect = error.config?.skipAuthRedirect === true;
 
-    if (status === 401 && !isLoginRequest && !skipAuthRedirect) {
+    if (status === 401 && !isLoginRequest) {
       localStorage.removeItem(TOKEN_KEY);
       if (window.location.pathname !== '/login') {
         window.location.assign('/login');

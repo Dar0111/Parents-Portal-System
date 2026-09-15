@@ -1027,6 +1027,33 @@ async function run() {
       `Admin locks a grade with initial_grade NULL -> 200, is_locked 1 (got ${adminLocks.data?.grade?.is_locked})`
     );
 
+    // Locking an already-locked grade: still 200 (the requested state holds)
+    // but nothing changed, so no update_grade_lock entry — the log used to
+    // read "from 1 to 1". Scoped to this run's own grade id.
+    const countLockLogs = async (gradeId) => {
+      const [rows] = await withDb((conn) =>
+        conn.query("SELECT COUNT(*) AS c FROM activity_logs WHERE action = 'update_grade_lock' AND description LIKE ?", [
+          `Set is_locked for grade #${gradeId} from %`,
+        ])
+      );
+      return Number(rows[0].c);
+    };
+    const lockLogsBefore = await countLockLogs(editDeleteGradeId);
+    const adminLocksAgain = await request('PATCH', `/api/grades/${editDeleteGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: true },
+    });
+    assert(
+      adminLocksAgain.status === 200 &&
+        num(adminLocksAgain.data?.grade?.is_locked) === 1 &&
+        /already locked/.test(adminLocksAgain.data?.message || ''),
+      'Locking an already-locked grade is 200 and says nothing changed'
+    );
+    assert(
+      (await countLockLogs(editDeleteGradeId)) === lockLogsBefore,
+      'That no-op writes no update_grade_lock entry'
+    );
+
     const postOnLocked = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
       body: { type: 'WW', score: 1, max_score: 1, label: 'Should be 403' },

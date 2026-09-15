@@ -196,6 +196,17 @@ async function run() {
     assert(noAuth.status === 401, 'Unauthenticated /me rejected');
 
     try {
+      // 403, not 401: the session is valid, and a 401 made the client log a
+      // teacher or parent out on a typo before the message could show.
+      const wrongCurrent = await request('PUT', '/api/auth/change-password', {
+        token: parentToken,
+        body: { current_password: 'NotTheRightOne@1', new_password: 'Parent@2026New' },
+      });
+      assert(
+        wrongCurrent.status === 403 && /Current password is incorrect/.test(wrongCurrent.data?.message || ''),
+        'Wrong current password is 403 naming it, not 401 — the session is still valid'
+      );
+
       const changePw = await request('PUT', '/api/auth/change-password', {
         token: parentToken,
         body: { current_password: 'Parent@2026', new_password: 'Parent@2026New' },

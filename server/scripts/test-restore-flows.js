@@ -125,6 +125,33 @@ async function run() {
     }
   }
 
+  // auth_security_state may hold a REAL cutoff: a real restore has run against
+  // this dev DB (2026-09-15). Deleting that row would make every token issued
+  // before that restore valid again for the rest of its 24h — the opposite of
+  // what the restore was for. So this suite records the row exactly as it
+  // found it (present or absent, NULL or a time) and puts exactly that back.
+  // It never deletes a cutoff it did not create.
+  async function readCutoffState() {
+    const [rows] = await withDb((conn) =>
+      conn.query('SELECT UNIX_TIMESTAMP(token_valid_after) AS ts FROM auth_security_state WHERE id = 1')
+    );
+    return rows.length ? { exists: true, ts: rows[0].ts } : { exists: false, ts: null };
+  }
+  const originalCutoff = await readCutoffState();
+  async function restoreCutoff() {
+    if (!originalCutoff.exists) {
+      await withDb((conn) => conn.query('DELETE FROM auth_security_state WHERE id = 1'));
+      return;
+    }
+    await withDb((conn) =>
+      conn.query(
+        `INSERT INTO auth_security_state (id, token_valid_after) VALUES (1, FROM_UNIXTIME(?))
+         ON DUPLICATE KEY UPDATE token_valid_after = VALUES(token_valid_after)`,
+        [originalCutoff.ts]
+      )
+    );
+  }
+
   const createdBackupIds = [];
 
   async function cleanup() {
@@ -143,10 +170,9 @@ async function run() {
       }
       await withDb((conn) => conn.query('DELETE FROM backups WHERE id IN (?)', [createdBackupIds]));
     }
-    // No restore ever ran in this file, so this is almost certainly already
-    // empty — cleaning up unconditionally anyway, in case a prior manual
-    // end-to-end restore left a row and this suite ran after it.
-    await withDb((conn) => conn.query('DELETE FROM auth_security_state WHERE id = 1'));
+    // Put the cutoff back exactly as it was found — never a blanket DELETE,
+    // which would re-validate every pre-restore token (see readCutoffState).
+    await restoreCutoff();
   }
 
   try {
@@ -230,16 +256,22 @@ async function run() {
       token: adminToken,
       body: { confirm_filename: targetFilename },
     });
+    // Never 401 here: the admin's token is valid, and a 401 would make the
+    // client treat the session as dead. Missing field = 400; failed
+    // re-authentication = 403 (see routes/backups.js).
     assert(
-      noPassword.status === 401 && /password is required/i.test(noPassword.data?.message || ''),
-      'Missing password rejected — 401'
+      noPassword.status === 400 && /password is required/i.test(noPassword.data?.message || ''),
+      'Missing password rejected — 400 (a missing required field), not 401'
     );
 
     const wrongPassword = await request('POST', `/api/backups/${targetId}/restore`, {
       token: adminToken,
       body: { password: 'DefinitelyWrong@2026', confirm_filename: targetFilename },
     });
-    assert(wrongPassword.status === 401, "Wrong password rejected — 401, even with the correct filename supplied");
+    assert(
+      wrongPassword.status === 403 && /Incorrect password/.test(wrongPassword.data?.message || ''),
+      'Wrong password rejected — 403 "Incorrect password.", not 401, even with the correct filename supplied'
+    );
 
     // --- Type-the-name confirmation ---
     console.log('\nconfirm_filename:');
@@ -261,6 +293,37 @@ async function run() {
     });
     assert(emptyFilename.status === 400, 'Missing confirm_filename rejected — 400');
 
+    // --- Refused attempts leave a trace ---
+    console.log('\nRefused attempts are logged:');
+
+    // Scoped to this run's own backup file name (timestamped, collision-safe),
+    // so other runs' refusals never count here.
+    const [refusalRows] = await withDb((conn) =>
+      conn.query(
+        "SELECT description FROM activity_logs WHERE action = 'restore_refused' AND user_id = ? AND description LIKE ? ORDER BY id",
+        [adminUser.id, `%"${targetFilename}"%`]
+      )
+    );
+    const refusals = refusalRows.map((r) => r.description || '');
+    assert(
+      refusals.length === 4,
+      `Each of the four refusals above wrote one restore_refused entry naming this run's backup (got ${refusals.length})`
+    );
+    assert(
+      refusals.some((d) => d.includes('no password given')) &&
+        refusals.some((d) => d.includes('incorrect password')) &&
+        refusals.some((d) => d.includes('typed file name did not match')),
+      'The entries name the reason: no password, incorrect password, file name mismatch'
+    );
+    assert(
+      !refusals.some((d) => d.includes('DefinitelyWrong@2026')),
+      'The typed password is never written to the log'
+    );
+    assert(
+      !refusals.some((d) => d.includes('not-the-real-file.sql')),
+      'The typed file name is never written to the log'
+    );
+
     // --- Confirm nothing happened ---
     console.log('\nNothing happened:');
 
@@ -270,12 +333,13 @@ async function run() {
       'No NEW safety dump was created — every gate above failed before reaching it'
     );
 
-    const [stateRows] = await withDb((conn) =>
-      conn.query('SELECT token_valid_after FROM auth_security_state WHERE id = 1')
-    );
+    // Not "unset": a real restore has run against this DB, so a cutoff may
+    // legitimately exist. What this suite must prove is that none of its own
+    // refused requests moved it.
+    const cutoffAfterGates = await readCutoffState();
     assert(
-      !stateRows.length || stateRows[0].token_valid_after === null,
-      'token_valid_after is still unset — no restore ever actually ran'
+      cutoffAfterGates.exists === originalCutoff.exists && String(cutoffAfterGates.ts) === String(originalCutoff.ts),
+      'token_valid_after unchanged by this run — no refused request set it'
     );
 
     // --- token_valid_after mechanism, in isolation from an actual restore ---
@@ -312,10 +376,15 @@ async function run() {
     const meWithNewToken = await request('GET', '/api/auth/me', { token: newToken });
     assert(meWithNewToken.status === 200, 'A token issued after the cutoff still works');
 
-    await withDb((conn) => conn.query('DELETE FROM auth_security_state WHERE id = 1'));
+    // Put back the cutoff found at the start (a real restore's, or none) —
+    // not a DELETE, which would re-validate every pre-restore token.
+    await restoreCutoff();
 
     const meAfterReset = await request('GET', '/api/auth/me', { token: teacherToken });
-    assert(meAfterReset.status === 200, "Clearing token_valid_after restores everyone's existing tokens");
+    assert(
+      meAfterReset.status === 200,
+      'Putting the original cutoff back restores every token issued after it (this run\'s tokens)'
+    );
   } finally {
     await cleanup();
   }

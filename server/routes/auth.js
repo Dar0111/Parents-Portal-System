@@ -125,7 +125,11 @@ router.put('/change-password', authenticate, async (req, res) => {
 
     const valid = await comparePassword(current_password, rows[0].password);
     if (!valid) {
-      return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      // 403, never 401: the session is valid, and a 401 makes the client's
+      // interceptor log a teacher or parent out on a typo in "Current
+      // password" before the message can show (same fix as restore's
+      // step-up password, 2026-09-15).
+      return res.status(403).json({ success: false, message: 'Current password is incorrect.' });
     }
 
     const hashed = await hashPassword(new_password);

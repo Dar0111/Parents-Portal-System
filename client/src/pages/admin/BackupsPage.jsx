@@ -18,11 +18,12 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // messages are surfaced VERBATIM — several are written for someone reading
 // them in a panic, and a paraphrase would lose the file name they carry.
 //
-// THE 401 PROBLEM. Restore answers a missing or wrong STEP-UP password with
-// 401 while the session is alive. The shared interceptor treats any non-login
-// 401 as a dead session and redirects — so a typo would throw the admin out
-// and never show why. The restore POST therefore passes skipAuthRedirect
-// (api/axios.js). It is the ONLY call that does.
+// A WRONG STEP-UP PASSWORD IS 403, A MISSING ONE 400 (since 2026-09-15). It
+// used to be 401 on a live session, which the shared interceptor reads as a
+// dead session — a typo threw the admin out, and this call carried a
+// per-call opt-out to survive it. The server status was fixed instead and
+// the opt-out removed; "Incorrect password." now reaches the form through
+// the ordinary catch below.
 //
 // AFTER A SUCCESSFUL RESTORE the server has invalidated every session
 // (auth_security_state.token_valid_after), including this one. The page makes
@@ -217,12 +218,11 @@ export default function AdminBackupsPage() {
     setStage('running');
     try {
       // raw: this is the one endpoint where success:true does not always mean
-      // full success — the message must be read. skipAuthRedirect: a wrong
-      // step-up password is 401 on a LIVE session (see file header).
+      // full success — the message must be read.
       const res = await api.post(
         `/backups/${restoring.id}/restore`,
         { password, confirm_filename: confirmName },
-        { raw: true, skipAuthRedirect: true }
+        { raw: true }
       );
       setPassword('');
       setOutcome(res.data);

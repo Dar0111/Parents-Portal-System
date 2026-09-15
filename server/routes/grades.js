@@ -1324,15 +1324,33 @@ router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => 
     // step-up auth exists because a restore is irreversible; an unlock
     // is reversible by re-locking, so matching that friction here would
     // be theatre, not safety. The admin-only gate plus full old/new
-    // logActivity on every toggle (below) is the real safety rail.
-    await pool.query('UPDATE grades SET is_locked = ? WHERE id = ?', [is_locked ? 1 : 0, gradeId]);
+    // logActivity on every CHANGE (below) is the real safety rail.
+    //
+    // Locking an already-locked grade (or unlocking an unlocked one) is 200
+    // with no log: the requested state holds, but nothing changed, and the
+    // log used to read "from 1 to 1". The guarded UPDATE decides that in one
+    // statement, so two admins acting at once cannot both log a change.
+    const next = is_locked ? 1 : 0;
+    const [result] = await pool.query('UPDATE grades SET is_locked = ? WHERE id = ? AND is_locked <> ?', [
+      next,
+      gradeId,
+      next,
+    ]);
 
     const [updatedRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+
+    if (result.affectedRows === 0) {
+      return res.json({
+        success: true,
+        message: `Grade is already ${is_locked ? 'locked' : 'unlocked'}. Nothing was changed.`,
+        grade: updatedRows[0],
+      });
+    }
 
     await logActivity(
       req.user.id,
       'update_grade_lock',
-      `Set is_locked for grade #${gradeId} from ${grade.is_locked} to ${is_locked ? 1 : 0}`
+      `Set is_locked for grade #${gradeId} from ${grade.is_locked} to ${next}`
     );
 
     return res.json({ success: true, message: 'Grade lock updated.', grade: updatedRows[0] });

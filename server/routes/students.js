@@ -38,6 +38,9 @@ async function currentAcademicYear() {
 }
 
 
+// The only values GET /?status= accepts. Omitted means active-only.
+const STATUS_FILTERS = ['active', 'inactive', 'all'];
+
 // GET /api/students — list, scoped by role
 router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) => {
   const { grade_level, section, status, search } = req.query;
@@ -61,6 +64,16 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
   if (section) {
     conditions.push('s.section = ?');
     params.push(String(section).trim());
+  }
+
+  // Absent means the active-only default; present must be one of the three.
+  // A typo used to fall through to active-only silently, returning a
+  // plausible list for a question the caller did not ask.
+  if (status !== undefined && !STATUS_FILTERS.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `status must be one of: ${STATUS_FILTERS.join(', ')}.`,
+    });
   }
 
   if (status === 'inactive') {
@@ -404,10 +417,27 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
 
-    await pool.query('UPDATE students SET status = ? WHERE id = ?', [status, id]);
-    await logActivity(req.user.id, 'update_student_status', `Set student ${rows[0].lrn} (#${id}) to ${status}`);
-
+    // A PATCH to a target state: if the student is already there, the
+    // requested state holds, so this is still success — but nothing
+    // changed, so nothing is logged. The guarded UPDATE decides that in one
+    // statement, which also closes the race between two admins acting at
+    // once (the old read-then-write let both log a change).
+    const [result] = await pool.query('UPDATE students SET status = ? WHERE id = ? AND status <> ?', [
+      status,
+      id,
+      status,
+    ]);
     const [updated] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+
+    if (result.affectedRows === 0) {
+      return res.json({
+        success: true,
+        message: `Student is already ${status}. Nothing was changed.`,
+        student: updated[0],
+      });
+    }
+
+    await logActivity(req.user.id, 'update_student_status', `Set student ${rows[0].lrn} (#${id}) to ${status}`);
     return res.json({ success: true, message: 'Student status updated.', student: updated[0] });
   } catch (error) {
     console.error('Update student status error:', error);

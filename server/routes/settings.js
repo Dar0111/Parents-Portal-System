@@ -72,21 +72,36 @@ async function validateSetting(key, value) {
   return VALIDATORS[key](value);
 }
 
-// GET /api/settings — all roles, read-only. Filtered by the same allow-list
-// writes are checked against — without this WHERE, this returns every row in
-// the table regardless of ALLOWED_KEYS, which would expose anything that
-// ever lands there by any other means (e.g. an internal-only key like
-// token_valid_after, never meant to be readable by non-admin roles) to
-// every authenticated role, parents included.
+// Trimmed once, where a value enters, and that trimmed value is the one
+// validated, stored, echoed and logged. The validators always checked
+// value.trim() while the INSERT wrote the raw value, so "  name  " passed as
+// "name" and was saved with its spaces. Non-strings pass through untouched —
+// the validators reject them.
+function normalizeValue(value) {
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+// Every read of the whole table goes through the allow-list. Without the
+// WHERE, a read returns every row regardless of ALLOWED_KEYS, exposing
+// anything that ever lands there by other means (e.g. an internal-only key
+// like token_valid_after). GET / was fixed for that on 2026-08-29 and the
+// PATCH response kept the unfiltered query until 2026-09-15 — one function
+// both use is what stops them drifting apart again.
+async function readAllowedSettings() {
+  const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)', [
+    ALLOWED_KEYS,
+  ]);
+  const settings = {};
+  for (const row of rows) {
+    settings[row.setting_key] = row.setting_value;
+  }
+  return settings;
+}
+
+// GET /api/settings — all roles, read-only, allow-listed (readAllowedSettings).
 router.get('/', authenticate, async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)', [
-      ALLOWED_KEYS,
-    ]);
-    const settings = {};
-    for (const row of rows) {
-      settings[row.setting_key] = row.setting_value;
-    }
+    const settings = await readAllowedSettings();
     return res.json({ success: true, settings });
   } catch (error) {
     console.error('List settings error:', error);
@@ -120,7 +135,7 @@ router.get('/:key', authenticate, async (req, res) => {
 // PUT /api/settings/:key — admin only, update one
 router.put('/:key', authenticate, authorize('admin'), async (req, res) => {
   const { key } = req.params;
-  const { value } = req.body;
+  const value = normalizeValue(req.body.value);
 
   if (!ALLOWED_KEYS.includes(key)) {
     return res.status(400).json({
@@ -173,8 +188,13 @@ router.patch('/', authenticate, authorize('admin'), async (req, res) => {
     });
   }
 
+  const normalized = {};
   for (const key of keys) {
-    const error = await validateSetting(key, settings[key]);
+    normalized[key] = normalizeValue(settings[key]);
+  }
+
+  for (const key of keys) {
+    const error = await validateSetting(key, normalized[key]);
     if (error) {
       return res.status(400).json({ success: false, message: `${key}: ${error}` });
     }
@@ -189,17 +209,13 @@ router.patch('/', authenticate, authorize('admin'), async (req, res) => {
       await conn.query(
         `INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-        [key, settings[key]]
+        [key, normalized[key]]
       );
     }
 
     await conn.commit();
 
-    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings');
-    const updated = {};
-    for (const row of rows) {
-      updated[row.setting_key] = row.setting_value;
-    }
+    const updated = await readAllowedSettings();
 
     await logActivity(req.user.id, 'update_settings_bulk', `Updated settings: ${keys.join(', ')}`);
 

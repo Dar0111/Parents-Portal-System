@@ -286,7 +286,7 @@ the bottom must equal 82.
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
 | GET | `/me` | any authenticated | — | `user` |
-| PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (min 6 chars) | message only |
+| PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (min 6 chars) | message only — wrong `current_password` is `403` "Current password is incorrect." (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out) |
 | PUT | `/contact` | any authenticated | `contact_number`* (non-empty, max 20 chars) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 
 ### Users (9) — `/api/users`
@@ -307,11 +307,11 @@ the bottom must equal 82.
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `teacher(wide)`, `admin` | query: `grade_level`, `section`, `status`, `search` | `students` | |
+| GET | `/` | `teacher(wide)`, `admin` | query: `grade_level`, `section`, `status`, `search` | `students` | `status`: `active` \| `inactive` \| `all`; absent = active-only; anything else (a typo, an empty value) → `400` "status must be one of: active, inactive, all." (2026-09-15; a typo used to fall through to active-only) |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `student` | `404` out-of-scope |
 | POST | `/` | `teacher(wide)`, `admin` | `lrn`*, `first_name`*, `last_name`*, `grade_level`*, `section`*, `birthday`, `gender`, `address`, `contact_number` | `student` | teacher out-of-scope → `403` |
 | PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section`, `birthday`, `gender`, `address`, `contact_number` (any subset) | `student` | `404` out-of-scope. Differing `grade_level`/`section` → `400` (whole request refused). Matching class may set `section_id` when it is NULL (same resolve as POST); unmatched resolve does not fail the PUT |
-| PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `student` | |
+| PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `student` | already that status → `200` "Student is already <status>. Nothing was changed.", no log entry (2026-09-15) |
 
 ### Sections (3) — `/api/sections`
 
@@ -348,7 +348,7 @@ the bottom must equal 82.
 | DELETE | `/:id/components/:componentId` | `teacher(subject)`, `admin` | — | `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
 | PATCH | `/:id/exam` | `teacher(subject)`, `admin` | any subset of `st1_score`/`st1_max`/`st2_score`/`st2_max`/`te_score`/`te_max` (score+max always paired; explicit `null` clears both) | `grade` | same `403`/`404` split |
 | PATCH | `/:id/descriptive` | `teacher(subject)`, `admin` | `descriptive_grade`* (`A`-`E` or `null`) | `grade` | same `403`/`404` split |
-| PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split |
+| PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split; already that value → `200` "Grade is already locked/unlocked. Nothing was changed.", no log entry (2026-09-15) |
 | DELETE | `/:id` | `admin` only | — | message only | unscoped; `403` when locked (`This grade is locked and cannot be deleted.`); `404` when missing; `grade_components` cascade |
 
 ### Grading modes (1) — `/api/grading-modes`
@@ -412,8 +412,8 @@ the bottom must equal 82.
 |---|---|---|---|---|---|
 | GET | `/` | `all` | — | `settings` (flat object) | only the 5 allow-listed keys |
 | GET | `/:key` | `all` | — | `key` + `value` (bare) | `404` if not one of the 5 allow-listed keys; `:key` is a **string**, not `parseId`-validated |
-| PUT | `/:key` | `admin` | `value`* | message + `key` + `value` | `400` if unknown key or fails per-key validation |
-| PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written |
+| PUT | `/:key` | `admin` | `value`* | message + `key` + `value` | `400` if unknown key or fails per-key validation; a string value is trimmed before validation and stored, echoed and logged trimmed (2026-09-15) |
+| PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written; values trimmed as in PUT; the response is the 5 allow-listed keys only, same read as `GET /` (2026-09-15) |
 
 ### Backups (5) — `/api/backups`
 
@@ -423,7 +423,7 @@ the bottom must equal 82.
 | POST | `/` | `admin` only | — | `backup` | real `mysqldump`; row inserted only after success |
 | GET | `/:id/download` | `admin` only | — | binary file stream, no JSON on success | `404` if row or file missing |
 | DELETE | `/:id` | `admin` only | — | message only | row still removed if file already gone |
-| POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `401` on wrong password, `400` on `confirm_filename` mismatch |
+| POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `400` on missing password, `403` "Incorrect password." on a wrong one (both were `401` until 2026-09-15 — the session is valid), `400` on `confirm_filename` mismatch; each of those refusals is logged as `restore_refused` |
 
 ### Messages (6) — `/api/messages`
 

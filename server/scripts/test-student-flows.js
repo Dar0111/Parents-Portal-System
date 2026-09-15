@@ -499,6 +499,48 @@ async function run() {
     const listAllIncludesInactive = await request('GET', '/api/students?status=all', { token: adminToken });
     const nowListed = (listAllIncludesInactive.data?.students || []).some((s) => s.id === inScopeId);
     assert(nowListed, 'status=all includes inactive students');
+
+    const listActiveExplicit = await request('GET', '/api/students?status=active', { token: adminToken });
+    assert(
+      listActiveExplicit.status === 200 &&
+        !(listActiveExplicit.data?.students || []).some((s) => s.id === inScopeId),
+      'status=active is accepted explicitly and excludes the inactive student'
+    );
+
+    // A typo used to fall through to active-only silently.
+    const listTypo = await request('GET', '/api/students?status=activ', { token: adminToken });
+    assert(
+      listTypo.status === 400 && /active, inactive, all/.test(listTypo.data?.message || ''),
+      'status=activ (a typo) is 400 naming the valid values, not a silent active-only list'
+    );
+
+    // A second PATCH to the state the student is already in: still success
+    // (the requested state holds) but nothing changed, so nothing is logged.
+    // Scoped to this run's own student id.
+    const countStatusLogs = async () => {
+      const [rows] = await withDb((conn) =>
+        conn.query(
+          "SELECT COUNT(*) AS c FROM activity_logs WHERE action = 'update_student_status' AND description LIKE ?",
+          [`%(#${inScopeId}) to %`]
+        )
+      );
+      return Number(rows[0].c);
+    };
+    const statusLogsBefore = await countStatusLogs();
+    const adminStatusNoop = await request('PATCH', `/api/students/${inScopeId}/status`, {
+      token: adminToken,
+      body: { status: 'inactive' },
+    });
+    assert(
+      adminStatusNoop.status === 200 &&
+        adminStatusNoop.data?.student?.status === 'inactive' &&
+        /already inactive/.test(adminStatusNoop.data?.message || ''),
+      'Setting a student to the status they already have is 200 and says nothing changed'
+    );
+    assert(
+      (await countStatusLogs()) === statusLogsBefore,
+      'That no-op writes no update_student_status entry'
+    );
   } finally {
     await cleanup();
   }
