@@ -917,7 +917,8 @@ the last NOW POSSIBLE workaround. See CLAUDE.md → SCOPE DECISION.
 
 **Backup & Restore (Admin, web only)** — API done (both Backup and Restore); web screen built 2026-09-14.
 - [x] **Admin → Backup & Restore — DONE 2026-09-14.** List + orphaned files (read-only), create, download, delete manual backups only (safety copies have none), restore with step-up password + typed file name and a result panel that names the safety copy and the lost `activity_logs` count. The restore POST is the one `skipAuthRedirect` caller.
-- [ ] One deliberate manual end-to-end restore — it is this dispatch's browser step, Darryl's to run. Both backup suites ran BEFORE it; never run `test:restore` after it (CLAUDE.md KNOWN ISSUES). Not `db:setup` as the recovery path — it drops `activity_logs`.
+- [x] **Manual end-to-end restore — DONE 2026-09-15** (Darryl, the Admin → Backup & Restore browser check; all eight steps passed; 2 `activity_logs` entries lost, named on the result panel). Both backup suites ran before it; do not run `test:restore` against this database now (CLAUDE.md KNOWN ISSUES). Not `db:setup` as the recovery path — it drops `activity_logs`.
+- Four findings, recorded in CLAUDE.md KNOWN ISSUES, not fixed: failed restore attempts are not logged; `auth_security_state` is one global row with no user or role (intended); the lost-entries count undercounts by the source backup's own `create_backup` row (screen said 2, the pre-restore safety dump shows 3); a truncated dump from the check (`parents_portal_2026-09-15_003822.sql`) sits on disk as an 11th orphan, unmarked as incomplete.
 
 **Excuse Letter Submission & Management** — API fully done
 (submit/mine/list/view/edit/review). Teacher read scope now
