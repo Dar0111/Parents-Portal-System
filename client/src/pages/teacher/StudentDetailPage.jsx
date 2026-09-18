@@ -11,6 +11,7 @@ import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
+import { contactError, contactRuleHint } from '../../format/contactRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -94,6 +95,14 @@ export default function StudentDetailPage() {
   const { id } = useParams();
 
   const [student, setStudent] = useState(null);
+  // null = no parent account yet; { id, status } = one exists (one per
+  // student is LOCKED). load() is the only writer (§5b).
+  const [parentAccount, setParentAccount] = useState(null);
+  // Field-level refusals in either modal — the client rule's (contact) or the
+  // server's 400 with a `field` key (contact_number, birthday, gender,
+  // password) — render under their input with a red border (§7c). Cleared
+  // when a modal opens or closes and per field as it changes.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notInScope, setNotInScope] = useState(false);
@@ -129,8 +138,13 @@ export default function StudentDetailPage() {
     setNotInScope(false);
 
     try {
-      const row = await api.get(`/students/${id}`, { unwrap: 'student' });
-      setStudent(row);
+      // parent_account (2026-09-18): { id, status } or null — so the page can
+      // say whether a parent account exists instead of offering a button
+      // that ends in the server's 409. The array form keeps the missing-key
+      // guard on both keys.
+      const row = await api.get(`/students/${id}`, { unwrap: ['student', 'parent_account'] });
+      setStudent(row.student);
+      setParentAccount(row.parent_account);
     } catch (err) {
       // 404 here is deliberate API design, not a missing record: routes/students.js
       // collapses "does not exist" and "outside your scope" into the same
@@ -178,6 +192,7 @@ export default function StudentDetailPage() {
     setParent(EMPTY_PARENT);
     setConfirming(false);
     setFormError(null);
+    setFieldErrors({});
     setRevealed({ password: false, confirm: false });
     setStatus({});
     setOpen(true);
@@ -188,6 +203,7 @@ export default function StudentDetailPage() {
     setOpen(false);
     setConfirming(false);
     setFormError(null);
+    setFieldErrors({});
     setParent(EMPTY_PARENT);
     setRevealed({ password: false, confirm: false });
   }
@@ -207,6 +223,11 @@ export default function StudentDetailPage() {
     }
     if (parent.password !== parent.confirmPassword) {
       setFormError('New password and confirmation do not match.');
+      return;
+    }
+    const contactProblem = contactError(parent.contact_number);
+    if (contactProblem) {
+      setFieldErrors({ contact_number: contactProblem });
       return;
     }
     setConfirming(true);
@@ -231,8 +252,12 @@ export default function StudentDetailPage() {
       setOpen(false);
       setConfirming(false);
       setParent(EMPTY_PARENT);
+      // Re-read so parent_account reflects the new row (§5b: load() writes it).
+      await load();
     } catch (err) {
-      setFormError(extractError(err));
+      const field = err?.response?.data?.field;
+      if (field) setFieldErrors({ [field]: extractError(err) });
+      else setFormError(extractError(err));
       setConfirming(false);
     } finally {
       setSaving(false);
@@ -243,6 +268,7 @@ export default function StudentDetailPage() {
     if (!student) return;
     setDraft(draftFrom(student));
     setEditError(null);
+    setFieldErrors({});
     setStatus({});
     setEditOpen(true);
   }
@@ -251,6 +277,7 @@ export default function StudentDetailPage() {
     if (savingEdit) return;
     setEditOpen(false);
     setEditError(null);
+    setFieldErrors({});
     setDraft(EMPTY_EDIT);
   }
 
@@ -260,6 +287,11 @@ export default function StudentDetailPage() {
     setEditError(null);
     if (!draft.first_name.trim() || !draft.last_name.trim()) {
       setEditError('First name and last name are required.');
+      return;
+    }
+    const contactProblem = contactError(draft.contact_number);
+    if (contactProblem) {
+      setFieldErrors({ contact_number: contactProblem });
       return;
     }
     setSavingEdit(true);
@@ -286,7 +318,9 @@ export default function StudentDetailPage() {
       setEditOpen(false);
       setDraft(EMPTY_EDIT);
     } catch (err) {
-      setEditError(extractError(err));
+      const field = err?.response?.data?.field;
+      if (field) setFieldErrors({ [field]: extractError(err) });
+      else setEditError(extractError(err));
     } finally {
       setSavingEdit(false);
     }
@@ -360,13 +394,23 @@ export default function StudentDetailPage() {
                 section is not enough.
               </p>
             )}
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
-            >
-              Create parent account
-            </button>
+            {parentAccount ? (
+              // One account per student (LOCKED). The server refuses a second
+              // with a 409; the page now knows from GET /students/:id and says
+              // so instead of offering a dead end. The status is the account's
+              // own (users.status): pending needs an admin's approval.
+              <p className="text-sm text-slate-600">
+                Parent account: <StatusBadge status={parentAccount.status} />
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={openCreate}
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
+              >
+                Create parent account
+              </button>
+            )}
           </div>
         </div>
 
@@ -453,13 +497,21 @@ export default function StudentDetailPage() {
                 label="Birthday"
                 type="date"
                 value={draft.birthday}
-                onChange={(e) => setDraft((prev) => ({ ...prev, birthday: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((prev) => ({ ...prev, birthday: null }));
+                  setDraft((prev) => ({ ...prev, birthday: e.target.value }));
+                }}
+                error={fieldErrors.birthday}
               />
               <FormField
                 label="Gender"
                 as="select"
                 value={draft.gender}
-                onChange={(e) => setDraft((prev) => ({ ...prev, gender: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((prev) => ({ ...prev, gender: null }));
+                  setDraft((prev) => ({ ...prev, gender: e.target.value }));
+                }}
+                error={fieldErrors.gender}
               >
                 <option value="">Not recorded</option>
                 <option value="male">Male</option>
@@ -476,9 +528,14 @@ export default function StudentDetailPage() {
             <FormField
               label="Contact number"
               value={draft.contact_number}
-              onChange={(e) => setDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+              onChange={(e) => {
+                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
+                setDraft((prev) => ({ ...prev, contact_number: e.target.value }));
+              }}
               maxLength={20}
-              hint="Up to 20 characters."
+              inputMode="tel"
+              hint={contactRuleHint()}
+              error={fieldErrors.contact_number}
             />
           </form>
         </div>
@@ -559,6 +616,7 @@ export default function StudentDetailPage() {
               autoComplete="new-password"
               revealed={revealed.password}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
+              error={fieldErrors.password}
               below={<PasswordChecklist value={parent.password} />}
             />
             <PasswordField
@@ -579,9 +637,14 @@ export default function StudentDetailPage() {
             <FormField
               label="Contact number"
               value={parent.contact_number}
-              onChange={(e) => setParent((prev) => ({ ...prev, contact_number: e.target.value }))}
+              onChange={(e) => {
+                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
+                setParent((prev) => ({ ...prev, contact_number: e.target.value }));
+              }}
               maxLength={20}
-              hint="Up to 20 characters."
+              inputMode="tel"
+              hint={contactRuleHint()}
+              error={fieldErrors.contact_number}
             />
           </form>
         )}

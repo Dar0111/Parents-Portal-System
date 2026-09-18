@@ -421,13 +421,15 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
     // refuses the action with a reason (403, STAGE 4 FRONTEND CONVENTIONS §2).
     if (typeof password !== 'string' || !password) {
       await logRestoreRefusal(req.user.id, backup.filename, 'no password given');
-      return res.status(400).json({ success: false, message: 'password is required.' });
+      return res.status(400).json({ success: false, message: 'password is required.', field: 'password' });
     }
     const [passwordRows] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const validPassword = passwordRows.length > 0 && (await comparePassword(password, passwordRows[0].password));
     if (!validPassword) {
       await logRestoreRefusal(req.user.id, backup.filename, 'incorrect password');
-      return res.status(403).json({ success: false, message: 'Incorrect password.' });
+      // `field` (2026-09-18): the client puts the message under the password
+      // input instead of at the top of the modal body (§7c).
+      return res.status(403).json({ success: false, message: 'Incorrect password.', field: 'password' });
     }
 
     // Type-the-name confirmation. A dialog someone clicks through is not a
@@ -439,6 +441,7 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
         message: `confirm_filename does not match. You entered "${
           confirm_filename || ''
         }", the backup's filename is "${backup.filename}".`,
+        field: 'confirm_filename',
       });
     }
   } catch (error) {

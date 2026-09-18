@@ -2106,6 +2106,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Server hardening A (`feat/validation`): 12-digit LRN on create (`utils/lrnRule.js`), one contact-number rule at all six writes (`utils/contactRule.js`, digits-only storage), birthday/gender validated as `400`s, `parent_account` on `GET /students/:id`, ids instead of LRNs in new audit rows, `field` keys on restore, Login uses `extractError`. students 79, auth 52, users 47, restore 29. |
 | 2026-09-18 | Settings redesign: one `pages/settings/SettingsLayout` for all roles, tabs as sub-routes, live `PasswordChecklist` in all four password-setting forms, Text size (this device only), the admin's first account screen; the three `SettingsPage.jsx` files deleted (the `client/src/` tree above still names them — next CLAUDE.md pass). Branch `feat/settings-redesign`. |
 | 2026-09-18 | Password rule: at least 8 characters and one number, one server module (`utils/passwordRule.js`) at the three set-points with `field` on each refusal, one client module (`format/passwordRule.js`) in the three create forms; never at login. Branch `feat/password-rule`; `test:auth` 51, `test:users` 42. |
 | 2026-09-18 | Teacher → Grades locked-grade copy: both occurrences now say only an admin can unlock it; server `403` unchanged; KNOWN ISSUES row closed. Branch `fix/locked-grade-copy`; fixture grade 336 left locked for the browser check. |

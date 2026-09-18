@@ -4,12 +4,78 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
+const { validateLrn } = require('../utils/lrnRule');
+const { validateContact } = require('../utils/contactRule');
+const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 
 const router = express.Router();
+
+const GENDERS = ['male', 'female'];
+
+// "YYYY-MM-DD" names a day that exists (no 2020-02-30). UTC round-trip, so
+// the server's time zone cannot shift the day.
+function isRealDate(day) {
+  const [y, m, d] = day.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
 
 function isValidGradeLevel(value) {
   const n = Number(value);
   return Number.isInteger(n) && n >= 1 && n <= 6;
+}
+
+// The optional student fields, validated in the route so a bad value is a
+// 400 naming its field — not MySQL rejecting the DATE/ENUM/VARCHAR as a 500
+// (2026-09-18). Each key is checked only when present in the body; `values`
+// carries what to store (contact digits-only, empty strings as NULL).
+function validateStudentOptionals({ birthday, gender, contact_number }) {
+  const values = {};
+  if (birthday !== undefined) {
+    if (birthday === null || birthday === '') {
+      values.birthday = null;
+    } else {
+      const day = String(birthday).trim();
+      // isValidDateFormat checks the SHAPE only ("2020-02-30" passes it);
+      // the round-trip below rejects a day that does not exist, which MySQL
+      // would otherwise refuse as a 500.
+      if (!isValidDateFormat(day) || !isRealDate(day)) {
+        return { error: 'birthday must be a valid date in YYYY-MM-DD format.', field: 'birthday' };
+      }
+      if (day > todayLocalDateString()) {
+        return { error: 'birthday cannot be in the future.', field: 'birthday' };
+      }
+      values.birthday = day;
+    }
+  }
+  if (gender !== undefined) {
+    if (gender === null || gender === '') {
+      values.gender = null;
+    } else if (!GENDERS.includes(String(gender))) {
+      return { error: `gender must be one of: ${GENDERS.join(', ')}.`, field: 'gender' };
+    } else {
+      values.gender = String(gender);
+    }
+  }
+  if (contact_number !== undefined) {
+    const contact = validateContact(contact_number);
+    if (contact.error) return { error: contact.error, field: 'contact_number' };
+    values.contact_number = contact.value;
+  }
+  return { error: null, values };
+}
+
+// The parent account linked to a student, for GET /:id (teacher and admin
+// only). Student detail hides "Create parent account" when one exists and
+// says its status — before this the client could not know, and the button was
+// a dead end ending in the server's 409 (KNOWN ISSUES, 2026-09-18). One
+// account per student is a LOCKED decision, so LIMIT 1 is the whole story.
+async function parentAccountFor(studentId) {
+  const [rows] = await pool.query(
+    `SELECT id, status FROM users WHERE student_id = ? AND role = 'parent' LIMIT 1`,
+    [studentId]
+  );
+  return rows[0] ? { id: rows[0].id, status: rows[0].status } : null;
 }
 
 // First sentence is the refusal; second is the consequence (§5i). The whole
@@ -139,7 +205,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
       if (!rows.length) {
         return res.status(404).json({ success: false, message: 'Student not found.' });
       }
-      return res.json({ success: true, student: rows[0] });
+      return res.json({ success: true, student: rows[0], parent_account: await parentAccountFor(id) });
     }
 
     // admin
@@ -147,7 +213,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
-    return res.json({ success: true, student: rows[0] });
+    return res.json({ success: true, student: rows[0], parent_account: await parentAccountFor(id) });
   } catch (error) {
     console.error('Get student error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch student.' });
@@ -176,6 +242,20 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
 
   const trimmedLrn = String(lrn).trim();
   const gradeLevelNum = Number(grade_level);
+
+  // The LRN rule (utils/lrnRule.js): exactly 12 digits, checked on CREATE
+  // only — before the duplicate lookup, so a malformed value is a 400 whether
+  // or not something already holds it. Seeded and older rows keep their
+  // shorter LRNs untouched.
+  const lrnError = validateLrn(trimmedLrn);
+  if (lrnError) {
+    return res.status(400).json({ success: false, message: lrnError, field: 'lrn' });
+  }
+
+  const optionals = validateStudentOptionals({ birthday, gender, contact_number });
+  if (optionals.error) {
+    return res.status(400).json({ success: false, message: optionals.error, field: optionals.field });
+  }
 
   try {
     if (req.user.role === 'teacher') {
@@ -229,19 +309,21 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
         gradeLevelNum,
         trimmedSection,
         sectionRow.id,
-        birthday || null,
-        gender || null,
+        optionals.values.birthday ?? null,
+        optionals.values.gender ?? null,
         address || null,
-        contact_number || null,
+        optionals.values.contact_number ?? null,
         req.user.id,
       ]
     );
 
     const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [result.insertId]);
+    // Id, not the LRN (§5c) — the LRN doubles as the parent's login id and an
+    // audit row persists. Rows written before 2026-09-18 keep their wording.
     await logActivity(
       req.user.id,
       'create_student',
-      `Created student ${trimmedLrn} (Grade ${gradeLevelNum} - ${trimmedSection})`
+      `Created student #${result.insertId} (Grade ${gradeLevelNum} - ${trimmedSection})`
     );
 
     return res.status(201).json({
@@ -270,6 +352,13 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
 
   if (section !== undefined && !String(section).trim()) {
     return res.status(400).json({ success: false, message: 'section must not be empty.' });
+  }
+
+  // Only the keys present in the body are checked; an omitted key keeps the
+  // stored value below.
+  const optionals = validateStudentOptionals({ birthday, gender, contact_number });
+  if (optionals.error) {
+    return res.status(400).json({ success: false, message: optionals.error, field: optionals.field });
   }
 
   try {
@@ -325,10 +414,10 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       last_name: last_name !== undefined ? last_name : existing.last_name,
       grade_level: grade_level !== undefined ? Number(grade_level) : existing.grade_level,
       section: section !== undefined ? String(section).trim() : existing.section,
-      birthday: birthday !== undefined ? birthday || null : existing.birthday,
-      gender: gender !== undefined ? gender || null : existing.gender,
+      birthday: birthday !== undefined ? optionals.values.birthday : existing.birthday,
+      gender: gender !== undefined ? optionals.values.gender : existing.gender,
       address: address !== undefined ? address || null : existing.address,
-      contact_number: contact_number !== undefined ? contact_number || null : existing.contact_number,
+      contact_number: contact_number !== undefined ? optionals.values.contact_number : existing.contact_number,
     };
 
     // Class change is refused, not applied. Attendance authority keys on
@@ -389,7 +478,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     );
 
     const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
-    await logActivity(req.user.id, 'update_student', `Updated student ${existing.lrn} (#${id})`);
+    await logActivity(req.user.id, 'update_student', `Updated student #${id}`);
 
     return res.json({ success: true, message: 'Student updated.', student: rows[0] });
   } catch (error) {
@@ -437,7 +526,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
       });
     }
 
-    await logActivity(req.user.id, 'update_student_status', `Set student ${rows[0].lrn} (#${id}) to ${status}`);
+    await logActivity(req.user.id, 'update_student_status', `Set student #${id} to ${status}`);
     return res.json({ success: true, message: 'Student status updated.', student: updated[0] });
   } catch (error) {
     console.error('Update student status error:', error);

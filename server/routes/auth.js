@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const { comparePassword, hashPassword } = require('../utils/password');
 const { validateNewPassword } = require('../utils/passwordRule');
+const { validateContact } = require('../utils/contactRule');
 const { signToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
@@ -177,16 +178,17 @@ router.put('/contact', authenticate, async (req, res) => {
     return res.status(400).json({ success: false, message: 'contact_number is required.' });
   }
 
-  const nextContact = String(body.contact_number).trim();
-  if (!nextContact) {
-    return res.status(400).json({ success: false, message: 'contact_number must not be empty.' });
+  // Required and non-empty here (this endpoint exists to set one), then the
+  // shared rule: 11 digits starting with 09 after spaces/dashes are stripped,
+  // stored as digits only (utils/contactRule.js). `field` names the input.
+  if (!String(body.contact_number).trim()) {
+    return res.status(400).json({ success: false, message: 'contact_number must not be empty.', field: 'contact_number' });
   }
-  if (nextContact.length > 20) {
-    return res.status(400).json({
-      success: false,
-      message: 'contact_number must be at most 20 characters.',
-    });
+  const contact = validateContact(body.contact_number);
+  if (contact.error) {
+    return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
   }
+  const nextContact = contact.value;
 
   try {
     await pool.query('UPDATE users SET contact_number = ? WHERE id = ?', [nextContact, req.user.id]);

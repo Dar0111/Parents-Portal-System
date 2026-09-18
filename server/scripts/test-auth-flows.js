@@ -109,8 +109,11 @@ async function run() {
   // block below, so a run leaves the DB exactly as it found it.
   const runId = Date.now();
   const newTeacherId = `TCH-${runId}`;
-  const pendingLrn = String(runId).slice(-10);
-  const rejectLrn = String(runId + 1).slice(-10);
+  // 12 digits, the LRN rule since 2026-09-18. These students are inserted by
+  // SQL (the rule runs on POST /students only), but the fixtures should look
+  // like real LRNs anyway.
+  const pendingLrn = String(runId).slice(-12);
+  const rejectLrn = String(runId + 1).slice(-12);
 
   const createdLoginIds = [];
   const createdLrns = [];
@@ -456,6 +459,18 @@ async function run() {
     );
     const pendingParentId = createParent2.data?.user?.id;
     if (createParent2.status === 201) createdLoginIds.push(pendingLrn);
+
+    // parent_account on GET /students/:id (2026-09-18): the linked case — a
+    // pending account exists for this student, so the detail says so and the
+    // client can stop offering "Create parent account".
+    const pendingStudentId = createParent2.data?.user?.student_id;
+    const detailWithParent = await request('GET', `/api/students/${pendingStudentId}`, { token: adminToken });
+    assert(
+      detailWithParent.status === 200 &&
+        detailWithParent.data?.parent_account?.id === pendingParentId &&
+        detailWithParent.data?.parent_account?.status === 'pending',
+      'GET /students/:id carries parent_account { id, status: "pending" } once a parent exists'
+    );
 
     const pendingLogin = await login(pendingLrn, 'Parent@2026');
     assert(pendingLogin.status === 403, 'New pending parent cannot login');

@@ -4,6 +4,7 @@ import extractError from '../../api/extractError';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import { useAuth } from '../../auth/AuthContext';
+import { contactError, contactRuleHint } from '../../format/contactRule';
 
 // Settings → Account information, all three roles. Locked identity fields
 // (school records — "ask the office") and the one editable one, the contact
@@ -94,13 +95,23 @@ export default function AccountInfoSection() {
   const contactDirty = contactValue.trim() !== storedContact.trim();
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(null);
+  // A refused number — the client rule's or the server's 400 with field
+  // "contact_number" — renders under the input with a red border (§7c);
+  // everything else stays in FormStatus under the button.
+  const [contactFieldError, setContactFieldError] = useState(null);
 
   async function saveContact(event) {
     event.preventDefault();
     setStatus(null);
+    setContactFieldError(null);
     const next = contactValue.trim();
     if (!next) {
-      setStatus(fail('Contact number must not be empty.'));
+      setContactFieldError('Contact number must not be empty.');
+      return;
+    }
+    const problem = contactError(next);
+    if (problem) {
+      setContactFieldError(problem);
       return;
     }
     setSaving(true);
@@ -110,7 +121,8 @@ export default function AccountInfoSection() {
       setDraft(null);
       setStatus(ok('Contact number updated.'));
     } catch (err) {
-      setStatus(fail(extractError(err)));
+      if (err?.response?.data?.field === 'contact_number') setContactFieldError(extractError(err));
+      else setStatus(fail(extractError(err)));
     } finally {
       setSaving(false);
     }
@@ -158,10 +170,15 @@ export default function AccountInfoSection() {
           <FormField
             label="New contact number"
             value={contactValue}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setContactFieldError(null);
+              setDraft(e.target.value);
+            }}
             maxLength={20}
+            inputMode="tel"
             autoComplete="tel"
-            hint="Up to 20 characters."
+            hint={contactRuleHint()}
+            error={contactFieldError}
           />
           <button
             type="submit"

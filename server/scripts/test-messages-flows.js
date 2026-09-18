@@ -169,7 +169,9 @@ async function run() {
       'Fixture: created an unassigned second teacher'
     );
 
-    const student2Lrn = `3${runId}`;
+    // 12 digits (the LRN rule since 2026-09-18); inserted by SQL, so the rule
+    // does not run here — the fixture just looks like a real LRN.
+    const student2Lrn = `3${String(Date.now()).slice(-11)}`;
     const [studentResult] = await withDb((conn) =>
       conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, status, created_by)

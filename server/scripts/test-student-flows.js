@@ -125,7 +125,10 @@ async function run() {
     // --- Create ---
     console.log('\nCreate:');
 
-    const uniqueSuffix = String(Date.now()).slice(-6);
+    // 11 digits + a one-digit prefix = a 12-digit LRN, the rule POST /students
+    // enforces since 2026-09-18 (utils/lrnRule.js). Seeded rows keep their
+    // shorter LRNs; only creates are checked.
+    const uniqueSuffix = String(Date.now()).slice(-11);
     const inScopeLrn = `6${uniqueSuffix}`;
 
     const inScopeBirthday = '2015-08-29';
@@ -172,11 +175,13 @@ async function run() {
     );
 
     // Mabini is fictional. Duplicate-LRN must fire BEFORE section resolve,
-    // or this is 400 "no section named Mabini" instead of 409.
+    // or this is 400 "no section named Mabini" instead of 409. The duplicate
+    // is the 12-digit in-scope student created above — Marwin's seeded 8-digit
+    // LRN would now be refused by the LRN rule (400) before the lookup.
     const createDuplicate = await request('POST', '/api/students', {
       token: adminToken,
       body: {
-        lrn: '13567454', // Marwin's LRN — already exists
+        lrn: inScopeLrn, // already exists (created above)
         first_name: 'Dup',
         last_name: 'Student',
         grade_level: 6,
@@ -184,6 +189,54 @@ async function run() {
       },
     });
     assert(createDuplicate.status === 409, 'Duplicate LRN rejected');
+
+    // --- The LRN rule and the optional-field rules on POST (2026-09-18) ---
+    // Each refusal is a 400 naming its field; nothing is created.
+    const shortLrn = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: uniqueSuffix, first_name: 'Short', last_name: 'Lrn', grade_level: 6, section: 'Malikhain' },
+    });
+    assert(
+      shortLrn.status === 400 && shortLrn.data?.field === 'lrn' && /12 digits/.test(shortLrn.data?.message || ''),
+      'POST /students: an 11-digit LRN is 400, field "lrn", naming 12 digits'
+    );
+    const spacedLrn = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: 'Test Student', first_name: 'Text', last_name: 'Lrn', grade_level: 6, section: 'Malikhain' },
+    });
+    assert(spacedLrn.status === 400 && spacedLrn.data?.field === 'lrn', 'POST /students: "Test Student" (12 chars, not digits) is 400, field "lrn"');
+    const badDay = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: `4${uniqueSuffix}`, first_name: 'Bad', last_name: 'Day', grade_level: 6, section: 'Malikhain', birthday: '2020-02-30' },
+    });
+    assert(badDay.status === 400 && badDay.data?.field === 'birthday', 'POST /students: 2020-02-30 is 400, field "birthday" (a day that does not exist)');
+    const futureDay = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: `4${uniqueSuffix}`, first_name: 'Future', last_name: 'Day', grade_level: 6, section: 'Malikhain', birthday: '2999-01-01' },
+    });
+    assert(futureDay.status === 400 && futureDay.data?.field === 'birthday', 'POST /students: a future birthday is 400, field "birthday"');
+    const badGender = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: `4${uniqueSuffix}`, first_name: 'Bad', last_name: 'Gender', grade_level: 6, section: 'Malikhain', gender: 'other' },
+    });
+    assert(badGender.status === 400 && badGender.data?.field === 'gender', 'POST /students: gender outside the ENUM is 400, field "gender"');
+    const badContact = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: `4${uniqueSuffix}`, first_name: 'Bad', last_name: 'Contact', grade_level: 6, section: 'Malikhain', contact_number: 'Test' },
+    });
+    assert(badContact.status === 400 && badContact.data?.field === 'contact_number', 'POST /students: contact "Test" is 400, field "contact_number"');
+    const notCreated = await request('GET', `/api/students?search=${'4' + uniqueSuffix}`, { token: adminToken });
+    assert(notCreated.status === 200 && (notCreated.data?.students || []).length === 0, 'POST /students: the refused bodies created nothing');
+    const spacedContact = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: `4${uniqueSuffix}`, first_name: 'Spaced', last_name: 'Contact', grade_level: 6, section: 'Malikhain', contact_number: '0917 123 4567' },
+    });
+    assert(
+      spacedContact.status === 201 && spacedContact.data?.student?.contact_number === '09171234567',
+      'POST /students: "0917 123 4567" is accepted and stored as 09171234567'
+    );
+    const spacedContactId = spacedContact.data?.student?.id;
+    if (spacedContact.status === 201 && spacedContactId) createdStudentIds.push(spacedContactId);
 
     const createBadGrade = await request('POST', '/api/students', {
       token: adminToken,
@@ -309,6 +362,45 @@ async function run() {
       `birthday is unchanged after a PUT that omits it (still ${inScopeBirthday}, got ${teacherUpdateInScope.data?.student?.birthday})`
     );
 
+    // --- The optional-field rules on PUT (2026-09-18): same checks as POST,
+    // only for keys present in the body; refusals name the field and save
+    // nothing (the contact set just above must survive each one).
+    const putDashedContact = await request('PUT', `/api/students/${inScopeId}`, {
+      token: teacherToken,
+      body: { contact_number: '0917-123-4568' },
+    });
+    assert(
+      putDashedContact.status === 200 && putDashedContact.data?.student?.contact_number === '09171234568',
+      'PUT /students: "0917-123-4568" is accepted and stored as 09171234568'
+    );
+    const putBadContact = await request('PUT', `/api/students/${inScopeId}`, {
+      token: teacherToken,
+      body: { contact_number: 'Test' },
+    });
+    assert(putBadContact.status === 400 && putBadContact.data?.field === 'contact_number', 'PUT /students: contact "Test" is 400, field "contact_number"');
+    const putBadDay = await request('PUT', `/api/students/${inScopeId}`, {
+      token: teacherToken,
+      body: { birthday: '2020-02-30' },
+    });
+    assert(putBadDay.status === 400 && putBadDay.data?.field === 'birthday', 'PUT /students: 2020-02-30 is 400, field "birthday"');
+    const putBadGender = await request('PUT', `/api/students/${inScopeId}`, {
+      token: teacherToken,
+      body: { gender: 'other' },
+    });
+    assert(putBadGender.status === 400 && putBadGender.data?.field === 'gender', 'PUT /students: gender outside the ENUM is 400, field "gender"');
+    const afterRefusals = await request('GET', `/api/students/${inScopeId}`, { token: teacherToken });
+    assert(
+      afterRefusals.data?.student?.contact_number === '09171234568' &&
+        afterRefusals.data?.student?.birthday === inScopeBirthday,
+      'PUT /students: the refused bodies changed nothing'
+    );
+    // parent_account on GET /:id (2026-09-18): null here — no parent was
+    // created for this fixture; the linked case is asserted in test:auth.
+    assert(
+      afterRefusals.status === 200 && 'parent_account' in (afterRefusals.data || {}) && afterRefusals.data.parent_account === null,
+      'GET /students/:id carries parent_account (null when no parent account exists)'
+    );
+
     const teacherUpdateOutOfScope = await request('PUT', `/api/students/${jeaId}`, {
       token: teacherToken,
       body: { contact_number: '09170000000' },
@@ -431,7 +523,7 @@ async function run() {
       const [result] = await conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
          VALUES (?, 'NullSid', 'Malikhain', 6, 'Malikhain', NULL, 1)`,
-        [`TNUL${uniqueSuffix}`]
+        [`TN${uniqueSuffix.slice(-10)}`] // 12 chars, non-numeric on purpose (VARCHAR(12))
       );
       return result.insertId;
     });
@@ -451,7 +543,7 @@ async function run() {
       const [result] = await conn.query(
         `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
          VALUES (?, 'Unmatched', 'Mabini', 6, 'Mabini', NULL, 1)`,
-        [`TMAB${uniqueSuffix}`]
+        [`TM${uniqueSuffix.slice(-10)}`] // 12 chars, non-numeric on purpose (VARCHAR(12))
       );
       return result.insertId;
     });

@@ -159,7 +159,9 @@ async function run() {
     // assignment (Grade 3 - Aguinaldo, not TCH-001's Grade 6 - Malikhain) —
     // doubles as "the out-of-scope student" for teacher-scoping checks
     // and "a different parent" for cross-parent isolation checks.
-    const outsideLrn = `3${runId}`;
+    // 12 digits (the LRN rule since 2026-09-18); inserted by SQL, so the rule
+    // does not run here — the fixture just looks like a real LRN.
+    const outsideLrn = `3${String(Date.now()).slice(-11)}`;
     createdLrns.push(outsideLrn);
     await withDb((conn) =>
       conn.query(

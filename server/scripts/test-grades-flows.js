@@ -188,6 +188,10 @@ async function run() {
   }
 
   const runId = String(Date.now()).slice(-8);
+  // 11 digits + a one-digit prefix = a 12-digit LRN, the rule POST /students
+  // enforces since 2026-09-18 — every throwaway student here goes through
+  // that endpoint. runId stays 8 digits for login ids and labels.
+  const lrnSuffix = String(Date.now()).slice(-11);
   const schoolYear = '2026-2027';
   const createdGradeIds = [];
   let inactiveStudentId;
@@ -223,7 +227,7 @@ async function run() {
 
   try {
     // --- Fixture: an inactive student, Grade 6, for the active-status check ---
-    const inactiveLrn = `6${runId}`;
+    const inactiveLrn = `6${lrnSuffix}`;
     const createInactive = await request('POST', '/api/students', {
       token: adminToken,
       body: { lrn: inactiveLrn, first_name: 'Inactive', last_name: 'Fixture', grade_level: 6, section: 'Malikhain' },
@@ -608,7 +612,7 @@ async function run() {
     // --- Descriptive mode + transaction atomicity ---
     console.log('\nDescriptive mode (Grade 1) + atomicity:');
 
-    const grade1FixtureLrn = `1${runId}`;
+    const grade1FixtureLrn = `1${lrnSuffix}`;
     const createGrade1Student = await request('POST', '/api/students', {
       token: adminToken,
       body: { lrn: grade1FixtureLrn, first_name: 'Descriptive', last_name: 'Fixture', grade_level: 1, section: 'Matipid' },
@@ -1331,7 +1335,7 @@ async function run() {
     // days because that dispatch ran test:students only. No Grade 2 section
     // has an adviser or an assignment in the seed, so which one does not
     // affect isolation; the student is admin-created and deleted in finally.
-    const gaFixtureLrn = `2${runId}`;
+    const gaFixtureLrn = `2${lrnSuffix}`;
     const createGaStudent = await request('POST', '/api/students', {
       token: adminToken,
       body: { lrn: gaFixtureLrn, first_name: 'GA', last_name: 'Fixture', grade_level: 2, section: 'Masikap' },
@@ -1451,7 +1455,7 @@ async function run() {
 
     assert((await ninoGradeCount()) === 5, "Nino's five seeded grade rows are intact before DELETE tests");
 
-    const deleteFixtureLrn = `7${runId}`;
+    const deleteFixtureLrn = `7${lrnSuffix}`;
     const createDeleteStudent = await request('POST', '/api/students', {
       token: adminToken,
       body: {

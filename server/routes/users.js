@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../config/db');
 const { hashPassword } = require('../utils/password');
 const { validateNewPassword } = require('../utils/passwordRule');
+const { validateContact } = require('../utils/contactRule');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
@@ -26,6 +27,13 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
+  // Contact number: optional; if given, 11 digits starting with 09, stored
+  // as digits only (utils/contactRule.js). `field` names the input.
+  const contact = validateContact(contact_number);
+  if (contact.error) {
+    return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
+  }
+
   const trimmedLoginId = String(login_id).trim();
   if (trimmedLoginId.length > 20) {
     return res.status(400).json({
@@ -46,7 +54,7 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO users (login_id, password, role, status, name, email, contact_number, created_by)
        VALUES (?, ?, 'teacher', 'active', ?, ?, ?, ?)`,
-      [trimmedLoginId, hashed, name, email || null, contact_number || null, req.user.id]
+      [trimmedLoginId, hashed, name, email || null, contact.value, req.user.id]
     );
 
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [result.insertId]);
@@ -82,6 +90,11 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
+  const contact = validateContact(contact_number);
+  if (contact.error) {
+    return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
+  }
+
   const loginId = String(lrn).trim();
 
   try {
@@ -111,7 +124,7 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     const [result] = await pool.query(
       `INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by)
        VALUES (?, ?, 'parent', 'pending', ?, ?, ?, ?, ?)`,
-      [loginId, hashed, name, email || null, contact_number || null, student.id, req.user.id]
+      [loginId, hashed, name, email || null, contact.value, student.id, req.user.id]
     );
 
     const [rows] = await pool.query(
@@ -122,7 +135,13 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
       [result.insertId]
     );
 
-    await logActivity(req.user.id, 'create_parent', `Created pending parent account for LRN ${loginId}`);
+    // Ids, not the LRN (§5c): a parent's login_id IS the child's LRN, and an
+    // audit row persists. Rows written before 2026-09-18 keep their wording.
+    await logActivity(
+      req.user.id,
+      'create_parent',
+      `Created pending parent account #${result.insertId} for student #${student.id}`
+    );
 
     return res.status(201).json({
       success: true,
@@ -192,7 +211,7 @@ router.put('/parents/:id/approve', authenticate, authorize('admin'), async (req,
       [parentId]
     );
 
-    await logActivity(req.user.id, 'approve_parent', `Approved parent account LRN ${parent.login_id}`);
+    await logActivity(req.user.id, 'approve_parent', `Approved parent account #${parentId}`);
 
     return res.json({
       success: true,
@@ -240,7 +259,7 @@ router.put('/parents/:id/reject', authenticate, authorize('admin'), async (req, 
       [req.user.id, String(reason).trim(), parentId]
     );
 
-    await logActivity(req.user.id, 'reject_parent', `Rejected parent account LRN ${parent.login_id}`);
+    await logActivity(req.user.id, 'reject_parent', `Rejected parent account #${parentId}`);
 
     return res.json({
       success: true,
@@ -345,7 +364,16 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     const { name, email, contact_number } = req.body;
     const nextName = name !== undefined ? name : existing.name;
     const nextEmail = email !== undefined ? email || null : existing.email;
-    const nextContact = contact_number !== undefined ? contact_number || null : existing.contact_number;
+    let nextContact = existing.contact_number;
+    if (contact_number !== undefined) {
+      // Optional; if given, 11 digits starting with 09, stored digits-only
+      // (utils/contactRule.js). An empty string clears it.
+      const contact = validateContact(contact_number);
+      if (contact.error) {
+        return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
+      }
+      nextContact = contact.value;
+    }
 
     if (!nextName || !String(nextName).trim()) {
       return res.status(400).json({ success: false, message: 'name must not be empty.' });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
+import extractError from '../api/extractError';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
@@ -26,10 +27,12 @@ export default function Login() {
       navigate(roleHome(loggedInUser.role), { replace: true });
     } catch (err) {
       // Backend sends the exact message to show: wrong credentials (401),
-      // or pending/rejected account (403, routes/auth.js). Show it verbatim
-      // rather than a generic failure message.
-      const message = err.response?.data?.message || 'Login failed. Please try again.';
-      setError(message);
+      // or pending/rejected account (403, routes/auth.js). extractError
+      // returns it verbatim — and, when there is no response at all, the
+      // distinct offline message, so a dead API is never mistaken for a
+      // wrong password (this file predated extractError; KNOWN ISSUES row
+      // closed 2026-09-18).
+      setError(extractError(err));
     } finally {
       setSubmitting(false);
     }

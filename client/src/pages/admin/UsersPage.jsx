@@ -8,6 +8,7 @@ import FormField, { filterSelectClass } from '../../components/FormField';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
+import { contactError, contactRuleHint } from '../../format/contactRule';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -104,6 +105,10 @@ export default function UsersPage() {
   // field "password". Cleared when the field changes and when the form closes.
   const [passwordError, setPasswordError] = useState(null);
   const [passwordRevealed, setPasswordRevealed] = useState(false);
+  // Contact-number refusals — the client rule's or the server's 400 with
+  // field "contact_number" — under the field in each form (§7c).
+  const [createContactError, setCreateContactError] = useState(null);
+  const [editContactError, setEditContactError] = useState(null);
   const [createSaving, setCreateSaving] = useState(false);
 
   const [editing, setEditing] = useState(null);
@@ -193,6 +198,7 @@ export default function UsersPage() {
     setCreating(false);
     setCreateError(null);
     setPasswordError(null);
+    setCreateContactError(null);
   }
 
   async function submitCreate(event) {
@@ -209,6 +215,11 @@ export default function UsersPage() {
     // not in the form-level strip.
     if (!passwordIsValid(teacherForm.password)) {
       setPasswordError(passwordRuleHint());
+      return;
+    }
+    const contactProblem = contactError(teacherForm.contact_number);
+    if (contactProblem) {
+      setCreateContactError(contactProblem);
       return;
     }
     setCreateSaving(true);
@@ -229,8 +240,11 @@ export default function UsersPage() {
       setFormStatus({ directory: ok('Teacher account created and activated.') });
       await load();
     } catch (err) {
-      if (err?.response?.data?.field === 'password') {
+      const field = err?.response?.data?.field;
+      if (field === 'password') {
         setPasswordError(extractError(err));
+      } else if (field === 'contact_number') {
+        setCreateContactError(extractError(err));
       } else {
         setCreateError(extractError(err));
       }
@@ -247,12 +261,14 @@ export default function UsersPage() {
       contact_number: row.contact_number || '',
     });
     setEditError(null);
+    setEditContactError(null);
   }
 
   function closeEdit() {
     if (editSaving) return;
     setEditing(null);
     setEditError(null);
+    setEditContactError(null);
   }
 
   async function submitEdit(event) {
@@ -261,6 +277,11 @@ export default function UsersPage() {
     setEditError(null);
     if (!editForm.name.trim()) {
       setEditError('name must not be empty.');
+      return;
+    }
+    const contactProblem = contactError(editForm.contact_number);
+    if (contactProblem) {
+      setEditContactError(contactProblem);
       return;
     }
     setEditSaving(true);
@@ -278,7 +299,11 @@ export default function UsersPage() {
       setFormStatus({ directory: ok('User updated.') });
       await load();
     } catch (err) {
-      setEditError(extractError(err));
+      if (err?.response?.data?.field === 'contact_number') {
+        setEditContactError(extractError(err));
+      } else {
+        setEditError(extractError(err));
+      }
     } finally {
       setEditSaving(false);
     }
@@ -656,7 +681,14 @@ export default function UsersPage() {
           <FormField
             label="Contact number"
             value={teacherForm.contact_number}
-            onChange={(e) => setTeacherForm((f) => ({ ...f, contact_number: e.target.value }))}
+            onChange={(e) => {
+              setCreateContactError(null);
+              setTeacherForm((f) => ({ ...f, contact_number: e.target.value }));
+            }}
+            maxLength={20}
+            inputMode="tel"
+            hint={contactRuleHint()}
+            error={createContactError}
           />
         </form>
       </Modal>
@@ -710,7 +742,14 @@ export default function UsersPage() {
             <FormField
               label="Contact number"
               value={editForm.contact_number}
-              onChange={(e) => setEditForm((f) => ({ ...f, contact_number: e.target.value }))}
+              onChange={(e) => {
+                setEditContactError(null);
+                setEditForm((f) => ({ ...f, contact_number: e.target.value }));
+              }}
+              maxLength={20}
+              inputMode="tel"
+              hint={contactRuleHint()}
+              error={editContactError}
             />
           </form>
         ) : null}

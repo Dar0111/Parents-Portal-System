@@ -263,6 +263,7 @@ async function run() {
       noPassword.status === 400 && /password is required/i.test(noPassword.data?.message || ''),
       'Missing password rejected — 400 (a missing required field), not 401'
     );
+    assert(noPassword.data?.field === 'password', 'Missing password names field "password" (2026-09-18)');
 
     const wrongPassword = await request('POST', `/api/backups/${targetId}/restore`, {
       token: adminToken,
@@ -271,6 +272,10 @@ async function run() {
     assert(
       wrongPassword.status === 403 && /Incorrect password/.test(wrongPassword.data?.message || ''),
       'Wrong password rejected — 403 "Incorrect password.", not 401, even with the correct filename supplied'
+    );
+    assert(
+      wrongPassword.data?.field === 'password',
+      'Wrong password names field "password" so the client renders it under the password input'
     );
 
     // --- Type-the-name confirmation ---
@@ -286,6 +291,7 @@ async function run() {
         wrongFilename.data?.message?.includes(targetFilename),
       'Wrong confirm_filename rejected — 400 naming both the entered and the real value'
     );
+    assert(wrongFilename.data?.field === 'confirm_filename', 'Wrong confirm_filename names field "confirm_filename"');
 
     const emptyFilename = await request('POST', `/api/backups/${targetId}/restore`, {
       token: adminToken,

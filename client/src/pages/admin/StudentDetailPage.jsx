@@ -10,6 +10,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
+import { contactError, contactRuleHint } from '../../format/contactRule';
 
 // One student record, admin view. Same shape as Teacher → Students detail,
 // minus everything that exists because a teacher is scoped:
@@ -34,12 +35,12 @@ function titleCase(value) {
   return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-function Field({ label, value }) {
+function Field({ label, value, empty = 'Not recorded' }) {
   return (
     <div>
       <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
       <dd className="mt-1 text-sm text-slate-900">
-        {value || <span className="text-slate-400">Not recorded</span>}
+        {value || <span className="text-slate-400">{empty}</span>}
       </dd>
     </div>
   );
@@ -69,6 +70,12 @@ export default function StudentDetailPage() {
   const { id } = useParams();
 
   const [student, setStudent] = useState(null);
+  // { id, status } or null, from GET /students/:id (2026-09-18); load() is
+  // the only writer (§5b). Admin has no create button — it says which it is.
+  const [parentAccount, setParentAccount] = useState(null);
+  // Field-level refusals in the edit modal — the client contact rule's or the
+  // server's 400 with a `field` key — render under their input (§7c).
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -90,8 +97,9 @@ export default function StudentDetailPage() {
     setError(null);
     setNotFound(false);
     try {
-      const row = await api.get(`/students/${id}`, { unwrap: 'student' });
-      setStudent(row);
+      const row = await api.get(`/students/${id}`, { unwrap: ['student', 'parent_account'] });
+      setStudent(row.student);
+      setParentAccount(row.parent_account);
     } catch (err) {
       if (err?.response?.status === 404) {
         setNotFound(true);
@@ -112,6 +120,7 @@ export default function StudentDetailPage() {
     if (!student) return;
     setDraft(draftFrom(student));
     setStatus({});
+    setFieldErrors({});
     setEditOpen(true);
   }
 
@@ -119,6 +128,7 @@ export default function StudentDetailPage() {
     if (savingEdit) return;
     setEditOpen(false);
     setStatus({});
+    setFieldErrors({});
     setDraft(EMPTY_EDIT);
   }
 
@@ -128,6 +138,11 @@ export default function StudentDetailPage() {
     setStatus({});
     if (!draft.first_name.trim() || !draft.last_name.trim()) {
       setStatus({ edit: fail('First name and last name are required.') });
+      return;
+    }
+    const contactProblem = contactError(draft.contact_number);
+    if (contactProblem) {
+      setFieldErrors({ contact_number: contactProblem });
       return;
     }
     setSavingEdit(true);
@@ -152,7 +167,9 @@ export default function StudentDetailPage() {
       setEditOpen(false);
       setDraft(EMPTY_EDIT);
     } catch (err) {
-      setStatus({ edit: fail(extractError(err)) });
+      const field = err?.response?.data?.field;
+      if (field) setFieldErrors({ [field]: extractError(err) });
+      else setStatus({ edit: fail(extractError(err)) });
     } finally {
       setSavingEdit(false);
     }
@@ -229,6 +246,13 @@ export default function StudentDetailPage() {
           <Field label="Birthday" value={student.birthday} />
           <Field label="Gender" value={titleCase(student.gender)} />
           <Field label="Contact number" value={student.contact_number} />
+          {/* Which it is, not a button: POST /users/parents is teacher-only.
+              users.status of the linked account; "None" = no account yet. */}
+          <Field
+            label="Parent account"
+            value={parentAccount ? titleCase(parentAccount.status) : null}
+            empty="None"
+          />
           <div className="sm:col-span-2">
             <Field label="Address" value={student.address} />
           </div>
@@ -298,13 +322,21 @@ export default function StudentDetailPage() {
                 label="Birthday"
                 type="date"
                 value={draft.birthday}
-                onChange={(e) => setDraft((prev) => ({ ...prev, birthday: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((prev) => ({ ...prev, birthday: null }));
+                  setDraft((prev) => ({ ...prev, birthday: e.target.value }));
+                }}
+                error={fieldErrors.birthday}
               />
               <FormField
                 label="Gender"
                 as="select"
                 value={draft.gender}
-                onChange={(e) => setDraft((prev) => ({ ...prev, gender: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((prev) => ({ ...prev, gender: null }));
+                  setDraft((prev) => ({ ...prev, gender: e.target.value }));
+                }}
+                error={fieldErrors.gender}
               >
                 <option value="">Not recorded</option>
                 <option value="male">Male</option>
@@ -321,9 +353,14 @@ export default function StudentDetailPage() {
             <FormField
               label="Contact number"
               value={draft.contact_number}
-              onChange={(e) => setDraft((prev) => ({ ...prev, contact_number: e.target.value }))}
+              onChange={(e) => {
+                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
+                setDraft((prev) => ({ ...prev, contact_number: e.target.value }));
+              }}
               maxLength={20}
-              hint="Up to 20 characters."
+              inputMode="tel"
+              hint={contactRuleHint()}
+              error={fieldErrors.contact_number}
             />
           </form>
         </div>

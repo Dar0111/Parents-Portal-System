@@ -261,6 +261,44 @@ async function run() {
     });
     assert(putBlankName.status === 400, 'PUT with a blank name rejected');
 
+    // --- Contact-number rule (utils/contactRule.js, 2026-09-18): optional;
+    // if given, 11 digits starting with 09 after spaces/dashes are stripped,
+    // stored digits-only; a refusal names field "contact_number".
+    const putBadContact = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { contact_number: 'Test' },
+    });
+    assert(
+      putBadContact.status === 400 && putBadContact.data?.field === 'contact_number',
+      'PUT /users/:id: contact "Test" is 400, field "contact_number"'
+    );
+    const putSpacedContact = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { contact_number: '0917 111 2233' },
+    });
+    assert(
+      putSpacedContact.status === 200 && putSpacedContact.data?.user?.contact_number === '09171112233',
+      'PUT /users/:id: "0917 111 2233" is accepted and stored as 09171112233'
+    );
+    const putClearContact = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { contact_number: '' },
+    });
+    assert(
+      putClearContact.status === 200 && putClearContact.data?.user?.contact_number === null,
+      'PUT /users/:id: an empty contact_number clears it (optional field)'
+    );
+    const createBadContact = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: `${throwawayLoginId}C`, password: 'Teacher@2026', name: 'Bad Contact', contact_number: 'Test' },
+    });
+    assert(
+      createBadContact.status === 400 && createBadContact.data?.field === 'contact_number',
+      'POST /teachers: contact "Test" is 400, field "contact_number", nothing created'
+    );
+    const badContactLogin = await login(`${throwawayLoginId}C`, 'Teacher@2026');
+    assert(badContactLogin.status === 401, 'POST /teachers: the refused contact created no account');
+
     const putUnknownId = await request('PUT', '/api/users/999999999', { token: adminToken, body: { name: 'x' } });
     assert(putUnknownId.status === 404, 'PUT on a nonexistent id returns 404');
 

@@ -149,7 +149,9 @@ async function run() {
   const dateA = daysAgo(2);
   const dateB = daysAgo(3);
   const uniqueSuffix = String(Date.now()).slice(-6);
-  const rosterLrn = `6${uniqueSuffix}`;
+  // 12 digits (the LRN rule since 2026-09-18). Inserted by SQL, so the rule
+  // does not run here; the fixture just looks like a real LRN.
+  const rosterLrn = `6${String(Date.now()).slice(-11)}`;
 
   const createdStudentIds = [];
 

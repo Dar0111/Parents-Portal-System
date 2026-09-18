@@ -110,6 +110,11 @@ export default function AdminBackupsPage() {
   const [revealed, setRevealed] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [restoreError, setRestoreError] = useState(null);
+  // The server names the input it refused (`field`: "password" or
+  // "confirm_filename", 2026-09-18), so those messages render under that
+  // field with a red border instead of at the top of the scrolling body;
+  // restoreError keeps everything else (offline, 404, 500).
+  const [restoreFieldErrors, setRestoreFieldErrors] = useState({});
   const [outcome, setOutcome] = useState(null);
   const attemptedRef = useRef(false);
 
@@ -197,6 +202,7 @@ export default function AdminBackupsPage() {
     setRevealed(false);
     setConfirmName('');
     setRestoreError(null);
+    setRestoreFieldErrors({});
     setOutcome(null);
     attemptedRef.current = false;
   }
@@ -209,6 +215,7 @@ export default function AdminBackupsPage() {
     setPassword('');
     setConfirmName('');
     setRestoreError(null);
+    setRestoreFieldErrors({});
     // A failed attempt can still have created a safety copy (a partial
     // restore, or one that failed after the safety dump) — show it.
     if (attemptedRef.current) load();
@@ -219,6 +226,7 @@ export default function AdminBackupsPage() {
     if (!restoring) return;
     attemptedRef.current = true;
     setRestoreError(null);
+    setRestoreFieldErrors({});
     setStage('running');
     try {
       // raw: this is the one endpoint where success:true does not always mean
@@ -232,7 +240,12 @@ export default function AdminBackupsPage() {
       setOutcome(res.data);
       setStage('done');
     } catch (err) {
-      setRestoreError(extractError(err));
+      const field = err?.response?.data?.field;
+      if (field === 'password' || field === 'confirm_filename') {
+        setRestoreFieldErrors({ [field]: extractError(err) });
+      } else {
+        setRestoreError(extractError(err));
+      }
       setStage('form');
     }
   }
@@ -508,8 +521,6 @@ export default function AdminBackupsPage() {
           </div>
         ) : restoring ? (
           <form id="restore-form" onSubmit={submitRestore} className="max-h-[70vh] space-y-4 overflow-y-auto">
-            {restoreError ? <ErrorAlert message={restoreError} /> : null}
-
             <p className="text-sm text-slate-800">
               This replaces the entire database with{' '}
               <span className="font-mono text-xs font-semibold">{restoring.filename}</span>, taken{' '}
@@ -537,10 +548,15 @@ export default function AdminBackupsPage() {
             <PasswordField
               label="Your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setRestoreFieldErrors((prev) => ({ ...prev, password: null }));
+                setPassword(e.target.value);
+              }}
               autoComplete="current-password"
               revealed={revealed}
               onToggleReveal={() => setRevealed((r) => !r)}
+              error={restoreFieldErrors.password}
+              disabled={stage === 'running'}
             />
 
             <div className="space-y-1.5">
@@ -551,12 +567,21 @@ export default function AdminBackupsPage() {
               <FormField
                 label="File name"
                 value={confirmName}
-                onChange={(e) => setConfirmName(e.target.value)}
+                onChange={(e) => {
+                  setRestoreFieldErrors((prev) => ({ ...prev, confirm_filename: null }));
+                  setConfirmName(e.target.value);
+                }}
                 autoComplete="off"
                 spellCheck={false}
                 disabled={stage === 'running'}
+                error={restoreFieldErrors.confirm_filename}
               />
             </div>
+
+            {/* Everything the server did not attribute to a field — offline,
+                a 404, a 500 — renders here, under the fields and next to the
+                action row (§7c), not at the top of the scrolling body. */}
+            {restoreError ? <ErrorAlert message={restoreError} /> : null}
 
             {stage === 'running' ? (
               <p className="text-sm font-medium text-slate-800">

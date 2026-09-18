@@ -10,6 +10,8 @@ import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
+import { lrnError, lrnRuleHint } from '../../format/lrnRule';
+import { contactError, contactRuleHint } from '../../format/contactRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -93,6 +95,11 @@ export default function StudentsPage() {
   const [phase, setPhase] = useState('enroll');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  // Field-level refusals — the client rule's (LRN, contact) or the server's
+  // 400 with a `field` key (lrn, contact_number, birthday, gender) — render
+  // under their input with a red border (§7c); everything else stays in the
+  // form-level strip above. Cleared per field as it changes.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [enroll, setEnroll] = useState(EMPTY_ENROLL);
   const [parent, setParent] = useState(EMPTY_PARENT);
   const [enrolled, setEnrolled] = useState(null);
@@ -193,6 +200,7 @@ export default function StudentsPage() {
     setWizardOpen(false);
     setPhase('enroll');
     setFormError(null);
+    setFieldErrors({});
     setEnroll(EMPTY_ENROLL);
     setParent(EMPTY_PARENT);
     setEnrolled(null);
@@ -205,6 +213,17 @@ export default function StudentsPage() {
     const parsed = parseClassKey(enroll.classKey);
     if (!enroll.lrn.trim() || !enroll.first_name.trim() || !enroll.last_name.trim() || !parsed) {
       setFormError('LRN, first name, last name, and class are required.');
+      return;
+    }
+    // The client's copies of the LRN and contact rules (format/lrnRule.js,
+    // format/contactRule.js); the server enforces the same on POST /students
+    // and answers 400 with a `field` key.
+    const clientErrors = {
+      lrn: lrnError(enroll.lrn),
+      contact_number: contactError(enroll.contact_number),
+    };
+    if (clientErrors.lrn || clientErrors.contact_number) {
+      setFieldErrors(clientErrors);
       return;
     }
     setPhase('confirm-enroll');
@@ -234,7 +253,9 @@ export default function StudentsPage() {
       setPhase('parent');
       await load();
     } catch (err) {
-      setFormError(extractError(err));
+      const field = err?.response?.data?.field;
+      if (field) setFieldErrors({ [field]: extractError(err) });
+      else setFormError(extractError(err));
       setPhase('enroll');
     } finally {
       setSaving(false);
@@ -256,6 +277,11 @@ export default function StudentsPage() {
     }
     if (parent.password !== parent.confirmPassword) {
       setFormError('New password and confirmation do not match.');
+      return;
+    }
+    const contactProblem = contactError(parent.contact_number);
+    if (contactProblem) {
+      setFieldErrors({ contact_number: contactProblem });
       return;
     }
     setPhase('confirm-parent');
@@ -283,7 +309,9 @@ export default function StudentsPage() {
       setParent(EMPTY_PARENT);
       setEnrolled(null);
     } catch (err) {
-      setFormError(extractError(err));
+      const field = err?.response?.data?.field;
+      if (field) setFieldErrors({ [field]: extractError(err) });
+      else setFormError(extractError(err));
       setPhase('parent');
     } finally {
       setSaving(false);
@@ -526,9 +554,15 @@ export default function StudentsPage() {
             <FormField
               label="LRN"
               value={enroll.lrn}
-              onChange={(e) => setEnroll((prev) => ({ ...prev, lrn: e.target.value }))}
+              onChange={(e) => {
+                setFieldErrors((prev) => ({ ...prev, lrn: null }));
+                setEnroll((prev) => ({ ...prev, lrn: e.target.value }));
+              }}
               maxLength={12}
+              inputMode="numeric"
               required
+              hint={lrnRuleHint()}
+              error={fieldErrors.lrn}
             />
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField
@@ -563,13 +597,21 @@ export default function StudentsPage() {
                 label="Birthday"
                 type="date"
                 value={enroll.birthday}
-                onChange={(e) => setEnroll((prev) => ({ ...prev, birthday: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((prev) => ({ ...prev, birthday: null }));
+                  setEnroll((prev) => ({ ...prev, birthday: e.target.value }));
+                }}
+                error={fieldErrors.birthday}
               />
               <FormField
                 label="Gender"
                 as="select"
                 value={enroll.gender}
-                onChange={(e) => setEnroll((prev) => ({ ...prev, gender: e.target.value }))}
+                onChange={(e) => {
+                  setFieldErrors((prev) => ({ ...prev, gender: null }));
+                  setEnroll((prev) => ({ ...prev, gender: e.target.value }));
+                }}
+                error={fieldErrors.gender}
               >
                 <option value="">Not recorded</option>
                 <option value="male">Male</option>
@@ -586,9 +628,14 @@ export default function StudentsPage() {
             <FormField
               label="Contact number"
               value={enroll.contact_number}
-              onChange={(e) => setEnroll((prev) => ({ ...prev, contact_number: e.target.value }))}
+              onChange={(e) => {
+                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
+                setEnroll((prev) => ({ ...prev, contact_number: e.target.value }));
+              }}
               maxLength={20}
-              hint="Up to 20 characters."
+              inputMode="tel"
+              hint={contactRuleHint()}
+              error={fieldErrors.contact_number}
             />
           </form>
         ) : null}
@@ -621,6 +668,7 @@ export default function StudentsPage() {
               autoComplete="new-password"
               revealed={revealed.password}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
+              error={fieldErrors.password}
               below={<PasswordChecklist value={parent.password} />}
             />
             <PasswordField
@@ -641,9 +689,14 @@ export default function StudentsPage() {
             <FormField
               label="Contact number"
               value={parent.contact_number}
-              onChange={(e) => setParent((prev) => ({ ...prev, contact_number: e.target.value }))}
+              onChange={(e) => {
+                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
+                setParent((prev) => ({ ...prev, contact_number: e.target.value }));
+              }}
               maxLength={20}
-              hint="Up to 20 characters."
+              inputMode="tel"
+              hint={contactRuleHint()}
+              error={fieldErrors.contact_number}
             />
           </form>
         ) : null}

@@ -94,6 +94,26 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Server hardening A, `feat/validation` (2026-09-18):** one LRN rule
+(`server/utils/lrnRule.js`, exactly 12 digits, on `POST /students` only —
+seeded and older rows keep their shorter LRNs, logins unaffected) and one
+contact-number rule (`server/utils/contactRule.js`, optional; 11 digits
+starting with 09 after spaces/dashes are stripped, stored digits-only) at all
+six contact writes; `birthday` (a real date, not in the future) and `gender`
+validated in the student routes with a `400` naming the field where MySQL
+answered `500`; `GET /students/:id` carries `parent_account { id, status } |
+null` so Student detail says "Parent account: Active" instead of offering a
+button that ends in a 409; new `activity_logs` rows use ids, never an LRN (the
+160 existing rows stay, by decision); restore's refusals name their field and
+the modal renders them under the password / file-name inputs; `Login.jsx` uses
+`extractError`. Client mirrors: `format/lrnRule.js`, `format/contactRule.js`,
+field-level errors in the enroll wizard, both Student detail pages, Admin →
+Users and Settings → Account information. Suites twice: students 79, auth 52,
+users 47, restore 29; excuses, messages, grades, attendance unchanged. Six
+KNOWN ISSUES rows closed; two added (email format deliberately not
+validated; adviser-only enrolment as a school question). Full row:
+`docs/CHANGELOG.md`, 2026-09-18.
+
 **Settings redesign, `feat/settings-redesign` (2026-09-18, Branch B):** one
 `SettingsLayout` for all three roles — a left tab card and the active panel,
 tabs as sub-routes (`/<role>/settings`, `/password`, `/personalization`, and

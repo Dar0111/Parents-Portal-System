@@ -60,13 +60,17 @@ it.
 - **Error shape** is `{ success: false, message: "..." }` on essentially
   every 4xx/5xx across the whole API — this is uniform enough that you
   can assume it by default. The two places it isn't are in the Gotchas
-  section below; there is no third. **Since 2026-09-18 four refusals also
-  carry an optional `field`** naming the input the message belongs under
-  — `"current_password"` on change-password's `403`, `"new_password"` on
-  its rule `400`, `"password"` on the rule `400` of `POST /users/teachers`
-  and `POST /users/parents`. Additive: `success` and `message` are
-  unchanged, and a client that ignores `field` sees exactly what it saw
-  before.
+  section below; there is no third. **Since 2026-09-18 a refusal may also
+  carry an optional `field`** naming the input the message belongs under.
+  Where: `"current_password"` on change-password's `403` and
+  `"new_password"` on its rule `400`; `"password"` on the rule `400` of
+  `POST /users/teachers` and `POST /users/parents`; `"contact_number"` on
+  every write of a contact number (`PUT /auth/contact`, both user creates,
+  `PUT /users/:id`, `POST` and `PUT /students`); `"lrn"`, `"birthday"` and
+  `"gender"` on `POST /students` (`"birthday"`/`"gender"` on `PUT` too);
+  `"password"` and `"confirm_filename"` on the restore pre-flight refusals.
+  Additive: `success` and `message` are unchanged, and a client that
+  ignores `field` sees exactly what it saw before.
 
 ---
 
@@ -293,20 +297,20 @@ the bottom must equal 82.
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
 | GET | `/me` | any authenticated | — | `user` |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
-| PUT | `/contact` | any authenticated | `contact_number`* (non-empty, max 20 chars) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
+| PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule since 2026-09-18 — exactly 11 digits starting with 09 after spaces and dashes are stripped, stored digits-only, `server/utils/contactRule.js`; a refusal is `400` with `field: "contact_number"`) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 
 ### Users (9) — `/api/users`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
-| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` | `user` |
-| POST | `/parents` | `teacher` (`wide` — any assignment, unrelated to the student being enrolled) | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email`, `contact_number` | `user` |
+| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — 11 digits starting with 09, spaces/dashes stripped, stored digits-only — `400` with `field: "contact_number"`) | `user` |
+| POST | `/parents` | `teacher` (`wide` — any assignment, unrelated to the student being enrolled) | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — `400` with `field: "contact_number"`, checked before the student lookup too) | `user` |
 | GET | `/parents/pending` | `admin` | — | `parents` |
 | PUT | `/parents/:id/approve` | `admin` | — | `user` |
 | PUT | `/parents/:id/reject` | `admin` | `reason`* | message only |
 | GET | `/` | `admin` | query: `role`, `status`, `search` | `users` |
 | GET | `/:id` | `admin` | — | `user` |
-| PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
+| PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset; `contact_number` follows the contact rule since 2026-09-18 — `400` with `field: "contact_number"`, an empty string clears it) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `user` |
 
 ### Students (5) — `/api/students`
@@ -314,9 +318,9 @@ the bottom must equal 82.
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | `teacher(wide)`, `admin` | query: `grade_level`, `section`, `status`, `search` | `students` | `status`: `active` \| `inactive` \| `all`; absent = active-only; anything else (a typo, an empty value) → `400` "status must be one of: active, inactive, all." (2026-09-15; a typo used to fall through to active-only) |
-| GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `student` | `404` out-of-scope |
-| POST | `/` | `teacher(wide)`, `admin` | `lrn`*, `first_name`*, `last_name`*, `grade_level`*, `section`*, `birthday`, `gender`, `address`, `contact_number` | `student` | teacher out-of-scope → `403` |
-| PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section`, `birthday`, `gender`, `address`, `contact_number` (any subset) | `student` | `404` out-of-scope. Differing `grade_level`/`section` → `400` (whole request refused). Matching class may set `section_id` when it is NULL (same resolve as POST); unmatched resolve does not fail the PUT |
+| GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `student` + `parent_account` (teacher and admin only, since 2026-09-18: `{ id, status } \| null` for the one parent account linked to the student; absent on the parent's own read) | `404` out-of-scope |
+| POST | `/` | `teacher(wide)`, `admin` | `lrn`* (exactly 12 digits since 2026-09-18 — `server/utils/lrnRule.js`, checked before the duplicate lookup, `400` with `field: "lrn"`; seeded/older rows keep shorter LRNs), `first_name`*, `last_name`*, `grade_level`*, `section`*, `birthday` (a real `YYYY-MM-DD`, not in the future — `400`, `field: "birthday"`), `gender` (`male`/`female` — `400`, `field: "gender"`), `address`, `contact_number` (the contact rule — `400`, `field: "contact_number"`, stored digits-only) | `student` | teacher out-of-scope → `403` |
+| PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section`, `birthday`, `gender`, `address`, `contact_number` (any subset; since 2026-09-18 `birthday`, `gender` and `contact_number` are validated exactly as on POST when present — `400` naming the field, nothing saved; the LRN is never changed here) | `student` | `404` out-of-scope. Differing `grade_level`/`section` → `400` (whole request refused). Matching class may set `section_id` when it is NULL (same resolve as POST); unmatched resolve does not fail the PUT |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `student` | already that status → `200` "Student is already <status>. Nothing was changed.", no log entry (2026-09-15) |
 
 ### Sections (3) — `/api/sections`
@@ -429,7 +433,7 @@ the bottom must equal 82.
 | POST | `/` | `admin` only | — | `backup` | real `mysqldump`; row inserted only after success |
 | GET | `/:id/download` | `admin` only | — | binary file stream, no JSON on success | `404` if row or file missing |
 | DELETE | `/:id` | `admin` only | — | message only | row still removed if file already gone |
-| POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `400` on missing password, `403` "Incorrect password." on a wrong one (both were `401` until 2026-09-15 — the session is valid), `400` on `confirm_filename` mismatch; each of those refusals is logged as `restore_refused` |
+| POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `400` on missing password, `403` "Incorrect password." on a wrong one (both were `401` until 2026-09-15 — the session is valid), `400` on `confirm_filename` mismatch; since 2026-09-18 the two password refusals carry `field: "password"` and the mismatch carries `field: "confirm_filename"`; each of those refusals is logged as `restore_refused` |
 
 ### Messages (6) — `/api/messages`
 
