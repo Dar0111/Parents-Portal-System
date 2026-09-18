@@ -4,3 +4,12 @@
 body {
   margin: 0;
 }
+
+/* Text size "Large" (Settings -> Personalization). The whole type and spacing
+   scale is rem-based (Tailwind v4 defaults), so one root font-size scales
+   every page, widths included. 112.5% = 18px at the browser's 16px default.
+   The class is set by the inline script in index.html before first paint and
+   toggled by src/pages/settings/textSize.js afterwards. */
+html.text-large {
+  font-size: 112.5%;
+}

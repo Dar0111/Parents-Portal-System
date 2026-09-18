@@ -8,7 +8,6 @@ import AdminDashboard from './pages/dashboards/AdminDashboard';
 import AdminUsers from './pages/admin/UsersPage';
 import AdminStudents from './pages/admin/StudentsPage';
 import AdminStudentDetail from './pages/admin/StudentDetailPage';
-import AdminSettings from './pages/admin/SettingsPage';
 import AdminAttendance from './pages/admin/AttendancePage';
 import AdminAnnouncements from './pages/admin/AnnouncementsPage';
 import AdminGrades from './pages/admin/GradesPage';
@@ -26,7 +25,6 @@ import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
 import TeacherGrades from './pages/teacher/GradesPage';
-import TeacherSettings from './pages/teacher/SettingsPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAttendance from './pages/parent/AttendancePage';
 import ParentAnnouncements from './pages/parent/AnnouncementsPage';
@@ -35,7 +33,11 @@ import ParentEvents from './pages/parent/EventsPage';
 import ParentExcuseLetters from './pages/parent/ExcuseLettersPage';
 import ParentMessages from './pages/parent/MessagesPage';
 import ParentMessageThread from './pages/parent/MessageThreadPage';
-import ParentSettings from './pages/parent/SettingsPage';
+import SettingsLayout from './pages/settings/SettingsLayout';
+import AccountInfoSection from './pages/settings/AccountInfoSection';
+import ChangePasswordSection from './pages/settings/ChangePasswordSection';
+import PersonalizationSection from './pages/settings/PersonalizationSection';
+import SchoolSettingsSection from './pages/settings/SchoolSettingsSection';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -68,7 +70,16 @@ export default function App() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="students" element={<AdminStudents />} />
             <Route path="students/:id" element={<AdminStudentDetail />} />
-            <Route path="settings" element={<AdminSettings />} />
+            {/* Settings is a nested layout: tabs are sub-routes, so a deep link
+                opens the right tab and the back button returns to the previous
+                one. Admin's index tab is School settings; the other roles'
+                index tab is Account information. */}
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<SchoolSettingsSection />} />
+              <Route path="account" element={<AccountInfoSection />} />
+              <Route path="password" element={<ChangePasswordSection />} />
+              <Route path="personalization" element={<PersonalizationSection />} />
+            </Route>
             <Route path="attendance" element={<AdminAttendance />} />
             <Route path="announcements" element={<AdminAnnouncements />} />
             <Route path="grades" element={<AdminGrades />} />
@@ -95,7 +106,11 @@ export default function App() {
             <Route path="events" element={<TeacherEvents />} />
             <Route path="messages" element={<TeacherMessages />} />
             <Route path="messages/:userId" element={<TeacherMessageThread />} />
-            <Route path="settings" element={<TeacherSettings />} />
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<AccountInfoSection />} />
+              <Route path="password" element={<ChangePasswordSection />} />
+              <Route path="personalization" element={<PersonalizationSection />} />
+            </Route>
           </Route>
 
           <Route
@@ -115,7 +130,11 @@ export default function App() {
             <Route path="events" element={<ParentEvents />} />
             <Route path="messages" element={<ParentMessages />} />
             <Route path="messages/:userId" element={<ParentMessageThread />} />
-            <Route path="settings" element={<ParentSettings />} />
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<AccountInfoSection />} />
+              <Route path="password" element={<ChangePasswordSection />} />
+              <Route path="personalization" element={<PersonalizationSection />} />
+            </Route>
           </Route>
 
           {/* Component gallery — dev builds only. import.meta.env.DEV is

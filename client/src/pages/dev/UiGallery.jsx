@@ -4,6 +4,8 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { controlClass } from '../../components/FormField';
+import PasswordField from '../../components/PasswordField';
+import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
@@ -13,6 +15,57 @@ import { NavItem } from '../../layout/Shell';
 // Dev-only component gallery (routed in App.jsx behind import.meta.env.DEV).
 // Every primitive in every state it can be in, so the shared pattern can be
 // reviewed before any feature page is built against it.
+
+// PasswordField + PasswordChecklist, live: type to watch the rules flip and
+// the Confirm field's mismatch error appear; the third field is the error
+// state a refused current password produces (red border AND message — the
+// `invalid` in FormField's render object, 2026-09-18).
+function PasswordDemo() {
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [revealed, setRevealed] = useState({ next: false, confirm: false, current: false });
+  const toggle = (key) => setRevealed((r) => ({ ...r, [key]: !r[key] }));
+  return (
+    <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2">
+      <PasswordField
+        label="New password"
+        value={next}
+        onChange={(e) => setNext(e.target.value)}
+        autoComplete="new-password"
+        revealed={revealed.next}
+        onToggleReveal={() => toggle('next')}
+        below={<PasswordChecklist value={next} />}
+      />
+      <PasswordField
+        label="Confirm new password"
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+        autoComplete="new-password"
+        revealed={revealed.confirm}
+        onToggleReveal={() => toggle('confirm')}
+        error={confirmError(next, confirm)}
+        hint={passwordFormReady(next, confirm) ? 'Ready — submit would be enabled.' : 'Submit stays disabled until every rule passes and this matches.'}
+      />
+      <PasswordField
+        label="Current password (refused)"
+        value="wrong-one"
+        onChange={() => {}}
+        autoComplete="current-password"
+        revealed={revealed.current}
+        onToggleReveal={() => toggle('current')}
+        error="Current password is incorrect."
+      />
+      <PasswordField
+        label="Disabled"
+        value="••••••••"
+        onChange={() => {}}
+        revealed={false}
+        onToggleReveal={() => {}}
+        disabled
+      />
+    </div>
+  );
+}
 
 function Section({ title, note, children }) {
   return (
@@ -238,6 +291,13 @@ export default function UiGallery() {
               )}
             />
           </div>
+        </Section>
+
+        <Section
+          title="PasswordField + PasswordChecklist"
+          note="Eye toggle per field. The checklist reads format/passwordRule.js and goes grey → green as you type; the Confirm field shows 'Passwords do not match.' with a red border once it has a value; a refused password gets the same red border as any erroring input (invalid in FormField's render object)."
+        >
+          <PasswordDemo />
         </Section>
 
         <Section

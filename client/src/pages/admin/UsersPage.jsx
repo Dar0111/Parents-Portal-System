@@ -5,6 +5,8 @@ import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
+import PasswordField from '../../components/PasswordField';
+import PasswordChecklist from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
@@ -101,6 +103,7 @@ export default function UsersPage() {
   // form-level strip — from the client check or from the server's 400 with
   // field "password". Cleared when the field changes and when the form closes.
   const [passwordError, setPasswordError] = useState(null);
+  const [passwordRevealed, setPasswordRevealed] = useState(false);
   const [createSaving, setCreateSaving] = useState(false);
 
   const [editing, setEditing] = useState(null);
@@ -600,7 +603,7 @@ export default function UsersPage() {
             <button
               type="submit"
               form="create-teacher-form"
-              disabled={createSaving}
+              disabled={createSaving || !passwordIsValid(teacherForm.password)}
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
             >
               {createSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
@@ -618,17 +621,25 @@ export default function UsersPage() {
             onChange={(e) => setTeacherForm((f) => ({ ...f, login_id: e.target.value }))}
             hint="Assigned teacher ID, not an LRN. At most 20 characters."
           />
-          <FormField
+          {/* PasswordField (eye toggle) like the other password-setting forms;
+              the live checklist under it reads the shared rule, and Create
+              stays disabled until every rule passes. A refusal — the client
+              check's or the server's field "password" — renders here with a
+              red border, not in the form-level strip. */}
+          <PasswordField
             label="Password"
-            type="password"
             required
             value={teacherForm.password}
             onChange={(e) => {
               setPasswordError(null);
               setTeacherForm((f) => ({ ...f, password: e.target.value }));
             }}
-            hint={passwordRuleHint()}
+            autoComplete="new-password"
+            revealed={passwordRevealed}
+            onToggleReveal={() => setPasswordRevealed((r) => !r)}
             error={passwordError}
+            disabled={createSaving}
+            below={<PasswordChecklist value={teacherForm.password} />}
           />
           <FormField
             label="Name"

@@ -9,6 +9,7 @@ import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
+import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -526,7 +527,7 @@ export default function StudentDetailPage() {
               <button
                 type="submit"
                 form="detail-parent-form"
-                disabled={saving || !parent.confirmPassword.trim()}
+                disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)}
                 className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
               >
                 Continue
@@ -556,9 +557,9 @@ export default function StudentDetailPage() {
               value={parent.password}
               onChange={(e) => setParent((prev) => ({ ...prev, password: e.target.value }))}
               autoComplete="new-password"
-              hint={passwordRuleHint()}
               revealed={revealed.password}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
+              below={<PasswordChecklist value={parent.password} />}
             />
             <PasswordField
               label="Confirm password"
@@ -567,6 +568,7 @@ export default function StudentDetailPage() {
               autoComplete="new-password"
               revealed={revealed.confirm}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
+              error={confirmError(parent.password, parent.confirmPassword)}
             />
             <FormField
               label="Email"

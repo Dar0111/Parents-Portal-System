@@ -5,6 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Parent's Portal</title>
+    <!-- Text size (Settings -> Personalization) is stored on this device only.
+         Applied here, synchronously, BEFORE the module bundle loads, so the
+         first paint is already at the chosen size - no flash from Normal to
+         Large. Mirrors src/pages/settings/textSize.js (same key, same class);
+         keep the two in step by hand. try/catch: private windows and blocked
+         storage throw, and the page must still load. -->
+    <script>
+      try {
+        if (localStorage.getItem('pp.textSize') === 'large') {
+          document.documentElement.classList.add('text-large');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

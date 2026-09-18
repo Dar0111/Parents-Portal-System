@@ -2106,6 +2106,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Settings redesign: one `pages/settings/SettingsLayout` for all roles, tabs as sub-routes, live `PasswordChecklist` in all four password-setting forms, Text size (this device only), the admin's first account screen; the three `SettingsPage.jsx` files deleted (the `client/src/` tree above still names them — next CLAUDE.md pass). Branch `feat/settings-redesign`. |
 | 2026-09-18 | Password rule: at least 8 characters and one number, one server module (`utils/passwordRule.js`) at the three set-points with `field` on each refusal, one client module (`format/passwordRule.js`) in the three create forms; never at login. Branch `feat/password-rule`; `test:auth` 51, `test:users` 42. |
 | 2026-09-18 | Teacher → Grades locked-grade copy: both occurrences now say only an admin can unlock it; server `403` unchanged; KNOWN ISSUES row closed. Branch `fix/locked-grade-copy`; fixture grade 336 left locked for the browser check. |
 | 2026-09-18 | Browser check PASSED on Branch 3 (through `1ceff55`); the two teacher filter bars fixed under an approved scope expansion; the check's fixtures (student 154, parent user 115) removed by recorded SQL after backup 26 — Darryl's choice, no delete endpoint exists by design; four findings added to `docs/KNOWN_ISSUES.md`. |

@@ -5,18 +5,12 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { usePageTitle } from '../../layout/usePageTitle';
 
-// Admin school settings — Figure 5 process 1.25 (School Information
-// Management). SCHOOL settings, not account settings: Teacher and Parent
-// Settings change the logged-in user's contact number and password; this
-// page changes the five system_settings rows every role reads. The header
-// says "School settings" and the first line says so, because the sidebar
-// word is the same on all three roles.
-//
-// SIBLING SHAPE: stacked sections, each with its own form and its own Save,
-// one page-level success/error strip, locked values in the same grey Field
-// box Teacher and Parent Settings use.
+// Admin → Settings → School settings — Figure 5 process 1.25 (School
+// Information Management). The body of the former admin/SettingsPage.jsx,
+// moved under SettingsLayout as the admin's index tab on 2026-09-18 with its
+// behaviour unchanged. SCHOOL settings, not account settings: the admin's own
+// account lives on the Account information tab beside this one.
 //
 // TWO SECTIONS, TWO SAVES. The term is the one value that changes what
 // someone else sees; separate saves mean fixing an address typo can never
@@ -40,10 +34,8 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // Both sections write through PATCH /settings, sending only changed keys:
 // validated before any write, one transaction, and the activity log names
-// the keys. The PATCH response is NOT rendered — it reads system_settings
-// without the allow-list filter GET / has (flagged server-side). §5b:
-// `stored` comes from load() only; drafts are separate and null until the
-// admin types. After a successful save, load() re-reads the database.
+// the keys. §5b: `stored` comes from load() only; drafts are separate and
+// null until the admin types. After a successful save, load() re-reads.
 //
 // §5e: no confirmation. Every value is reversible by saving again and is on
 // screen; the term only sets a starting selection teachers can override.
@@ -69,9 +61,7 @@ function detailsFrom(stored) {
   };
 }
 
-export default function AdminSettingsPage() {
-  usePageTitle('School settings');
-
+export default function SchoolSettingsSection() {
   const [stored, setStored] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -81,9 +71,8 @@ export default function AdminSettingsPage() {
   const [detailsDraft, setDetailsDraft] = useState(null);
   const [saving, setSaving] = useState(null); // 'term' | 'details' | null
 
-  // One status object keyed by form. Two sections, two saves: fixing an
-  // address typo can never also change the term, and each reports under its
-  // own button. See FormStatus.
+  // One status object keyed by form. Two sections, two saves: each reports
+  // under its own button. See FormStatus.
   const [status, setStatus] = useState({});
 
   const load = useCallback(async () => {
@@ -168,17 +157,18 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-8">
-      <p className="text-sm text-slate-500">
-        These settings belong to the school, not to your account.
-      </p>
-
-      {/* No page-level status slot — each save reports under its own
-          button. See FormStatus. */}
+      <div>
+        <h2 className="text-base font-semibold text-slate-900">School settings</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          These settings belong to the school, not to your account. Your own account is under
+          Account information.
+        </p>
+      </div>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
       <section className="max-w-md space-y-3">
-        <h2 className="text-sm font-semibold text-slate-900">School year and term</h2>
+        <h3 className="text-sm font-semibold text-slate-900">School year and term</h3>
         <dl className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
           <Field label="School year" value={stored.academic_year} />
         </dl>
@@ -215,7 +205,7 @@ export default function AdminSettingsPage() {
       </section>
 
       <section className="max-w-md space-y-3">
-        <h2 className="text-sm font-semibold text-slate-900">School details</h2>
+        <h3 className="text-sm font-semibold text-slate-900">School details</h3>
         <form onSubmit={saveDetails} className="space-y-3">
           <FormField
             label="School name"

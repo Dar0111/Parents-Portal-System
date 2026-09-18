@@ -94,6 +94,25 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Settings redesign, `feat/settings-redesign` (2026-09-18, Branch B):** one
+`SettingsLayout` for all three roles — a left tab card and the active panel,
+tabs as sub-routes (`/<role>/settings`, `/password`, `/personalization`, and
+`/admin/settings/account`; admin's index is School settings, unchanged in
+behaviour). Sections: Account information (parent's Login ID — the child's
+LRN — masked with a Show control), Change password (live checklist from the
+shared rule, mismatch under Confirm, submit disabled until ready, a refused
+current password under its field with a red border and focus), Personalization
+(Text size Normal / Large, this device only, applied before first paint).
+The admin has an account screen for the first time (KNOWN ISSUES row closed).
+`FormField`'s render object gains `invalid`; `PasswordField` gains `error`,
+`inputRef`, `disabled`, `below`; new `PasswordChecklist` used by all four
+password-setting forms, including Admin → Users' create teacher, which moved
+to `PasswordField`. The three old `SettingsPage.jsx` files are deleted. Build
+exit 0; oxlint 41 (two named `only-export-components` on the checklist
+helpers); SSR of the real route tree, 26 checks plus a negative control. New
+KNOWN ISSUES row: contact number accepts any text (queued for Server
+hardening). Full row: `docs/CHANGELOG.md`, 2026-09-18.
+
 **Password rule, `feat/password-rule` (2026-09-18, Branch A of the Settings
 redesign):** at least 8 characters AND at least one number, enforced only
 where a password is SET — `PUT /auth/change-password` (`field:

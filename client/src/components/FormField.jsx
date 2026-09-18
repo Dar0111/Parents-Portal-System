@@ -5,7 +5,10 @@ import { useId } from 'react';
 export const controlClass =
   'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
 
-const errorClass = 'border-rose-300 focus:border-rose-400 focus:ring-rose-100';
+// Exported for shape-4 callers (PasswordField): the render object tells them
+// `invalid`, and this is the border they apply — the same one a shape-1
+// control gets, so an erroring password field looks like any erroring input.
+export const errorClass = 'border-rose-300 focus:border-rose-400 focus:ring-rose-100';
 
 // The width every filter-bar <select> gets. Pass it as the FormField's
 // `className` — it sizes the WRAPPER, which is what a bare flex item lacks.
@@ -50,9 +53,11 @@ export const filterSelectClass = 'w-full sm:w-72';
 // element and React throws if it is given children.
 //
 // Shape 4 is the escape hatch for a control this component does not model.
-// `render` receives a single object ({ id, describedBy }) rather than
-// positional arguments, so adding a third piece of wiring later is not a
-// breaking change at every existing call site.
+// `render` receives a single object ({ id, describedBy, invalid }) rather than
+// positional arguments, so adding a piece of wiring later is not a breaking
+// change at every existing call site — `invalid` (2026-09-18) is exactly that
+// addition: shapes 1–3 got the red border from `error` all along, shape 4
+// never did, so a refused password showed a red message over a grey input.
 export default function FormField({
   label,
   as = 'input',
@@ -71,7 +76,7 @@ export default function FormField({
 
   const Control = as;
   const control = render ? (
-    render({ id: fieldId, describedBy })
+    render({ id: fieldId, describedBy, invalid: Boolean(error) })
   ) : (
     <Control
       id={fieldId}
