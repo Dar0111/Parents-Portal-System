@@ -7,7 +7,7 @@
 **Sept 7, 2026** — system proposal checkpoint, **not** the final defense.
 **Final defense** — expected around November 2026.
 
-**Last updated:** 2026-09-14 (**Stage 4 is COMPLETE** — Admin → Backup &
+**Last updated:** 2026-09-18 (**Stage 4 is COMPLETE** — Admin → Backup &
 Restore landed last; every Figure 5 admin process now has a page. Admin scope
 follows Figure 5 — Darryl's decision, 2026-09-13, acting on the ADMIN SCOPE
 AUDIT; not a team consultation. Admin → Grades surfaces the lock and
@@ -16,7 +16,31 @@ accepts it). 20 of 23 sections have no adviser and, with Admin → Sections not
 being built, no screen can assign one — so attendance cannot be recorded in
 them. Sections, Excuse Letters, Events and Messages will not be built. Memos
 live on Admin → Announcements (Darryl, 2026-09-14) — the only place a memo can
-be written; the unbuilt Memos nav item stays built: false. 20 tables.)
+be written. 20 tables.)
+
+**Decided 2026-09-18 (Darryl), recorded before it is applied in code:** the
+five admin nav entries with no page — Sections, Excuse Letters, Memos, Events,
+Messages — will be **removed** from `nav.js` rather than left `built: false`,
+because `built: false` means *unwritten*, not *refused* (§6). **Not yet applied:
+as of this entry the sidebar still shows all thirteen, five of them dimmed.**
+The nav state claim changes in the commit that edits `nav.js`. Separately, and
+already true in code, grade **lock and unlock are admin only** —
+`PATCH /api/grades/:id/lock` (`routes/grades.js:1286`) is `authorize('admin')`
+and is the only route reaching the sole `UPDATE grades SET is_locked` (`:1334`);
+there is no separate unlock path, and Admin → Grades already renders both
+labels from one toggle. See CLAUDE.md → ADMIN SCOPE AUDIT → SCOPE DECISION
+(2026-09-18).
+
+**Verified 2026-09-18 (Darryl, browser):** the 2026-09-15 status-code fixes
+behave on screen — a wrong restore step-up password shows "Incorrect password."
+inline with a **403** and the admin stays logged in; a wrong current password on
+Teacher → Settings shows the error inline and the teacher stays logged in. The
+six fixtures queued for deletion (announcements 33/34/35, memo 13, grades
+285/286) were found **already gone**, removed by direct SQL outside the API
+before 2026-09-14 16:38 UTC — no `delete_*` log entries, AUTO_INCREMENT never
+reset, and absent from both the restored dump and its safety copy. Nino's five
+descriptive grade rows are intact. Full evidence: `docs/CHANGELOG.md`,
+2026-09-18.
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the

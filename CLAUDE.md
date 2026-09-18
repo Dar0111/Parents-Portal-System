@@ -1740,6 +1740,35 @@ must not be blurred. If a consultation happens later, add it here.
 
 Full text: `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT.
 
+### SCOPE DECISION — admin nav trimmed to what exists (Darryl, 2026-09-18)
+
+**Supersedes one line of the 2026-09-13 decision above** — "they stay
+`built: false` in `nav.js` exactly as they are — do not remove them in a build
+dispatch." Which admin screens get built is unchanged; what the sidebar shows
+for the ones ruled out is what changes. The 2026-09-13 entry is not edited.
+
+- **The five admin nav entries with no page are removed, not dimmed:**
+  Sections, Excuse Letters, Memos, Events, Messages. A permanently dimmed row
+  is not "not yet" — it advertises a page that was decided against, and
+  `built: false` is defined as *unwritten*, not *refused* (§6). Memos is in
+  the list because Admin → Announcements is the only place a memo can ever be
+  written, and that page's own copy already says memos have no page of their
+  own.
+- **This reverses no build decision.** Nothing becomes buildable, no route
+  appears or disappears, and no handler moves — the API still authorizes admin
+  on excuse letters, messages and attendance writes.
+- **Grade lock AND unlock are admin only.** Recorded as a decision, and it was
+  **already true in code** before this dispatch: `PATCH /api/grades/:id/lock`
+  (`routes/grades.js:1286`) is `authorize('admin')` and is the only route
+  reaching the server's sole `UPDATE grades SET is_locked` (`:1334`). There is
+  no separate unlock path — direction is the request's `is_locked` boolean —
+  and Admin → Grades already renders both labels from one toggle. Nothing was
+  widened or narrowed to satisfy this; it is written down so a later dispatch
+  does not add a teacher-side lock as a convenience.
+- **Defence answer unchanged** for Sections, Excuse Letters, Events and
+  Messages: no Figure 5 process. Memos is covered by 1.18 on Admin →
+  Announcements.
+
 ---
 
 ## PHASE SEQUENCING — no skipping
@@ -2024,6 +2053,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Browser check passed (restore 403, change-password inline); the six queued fixtures were already gone, removed outside the API; admin nav trim + admin-only lock/unlock decided. |
 | 2026-09-18 | **CLAUDE.md split** — it had grown to 712k chars against Claude Code's 150k limit and was being truncated. Verbatim history moved to `docs/CHANGELOG.md`, `docs/KNOWN_ISSUES.md`, `docs/FRONTEND_CONVENTIONS.md`, `docs/RESTORE.md` and `docs/ARCHIVE.md`; this file condensed to rules + facts, every `##` heading kept. Docs only. |
 | 2026-09-15 | Server cleanup — seven recorded flags closed; change-password's live `401` → `403`; `skipAuthRedirect` removed; five suites grew. |
 | 2026-09-15 | Docs only — Admin → Backup & Restore browser check passed; the first real restore through the UI recorded, with four restore findings. |
