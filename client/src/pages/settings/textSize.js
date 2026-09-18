@@ -13,9 +13,10 @@
 // applies the size for this session and says it could not be remembered.
 //
 // The type scale is rem-based (Tailwind v4 defaults, no config), so one root
-// font-size scales every page, including widths declared in rem. Three
-// decorative px sizes do not follow (DataTable sort icon, two message
-// timestamps) — recorded, out of this branch's scope.
+// font-size scales every page, including widths declared in rem. The three
+// decorative sizes that used to be fixed px (DataTable's sort icon and pager
+// chevrons, both message-thread timestamps) are rem since 2026-09-19
+// (fix/copy-nits), so nothing on screen stays put at Large.
 
 export const TEXT_SIZE_KEY = 'pp.textSize';
 export const TEXT_SIZE_CLASS = 'text-large';
