@@ -924,6 +924,21 @@ wording reaches the user is untouched; a success carries `role="status"` to
 `ErrorAlert`'s `role="alert"`. An error slot already rendered inside its own
 modal is already correct — do not convert it for uniformity.
 
+### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
+
+**Frozen 2026-09-19.** Every color a page uses is one of the 60 semantic
+tokens in `client/src/index.css` (`bg-surface`, `text-fg-muted`,
+`border-edge`, `ring-focus-ring`, the `neutral/success/warning/danger/info-*`
+tone sets, the six `bubble-*`) — never `bg-white`, `text-slate-500`, an
+arbitrary color, or a `dark:` variant. `:root` holds the raw values, each
+line naming the palette color it equals; `@theme inline` maps them so a
+`[data-theme]` block can swap values at runtime. **`npm run lint:tokens`
+(`client/scripts/check-color-tokens.mjs`) must report 0 on every client
+dispatch**, next to oxlint's 42. `page`/`surface-subtle` and
+`primary`/`bubble-mine` share a light value on purpose — do not merge them.
+Full text, the proof method and the six accepted light-mode changes (E1–E6):
+`docs/FRONTEND_CONVENTIONS.md` §8.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, never in this file, recorded so they cannot
@@ -2054,6 +2069,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Design tokens (D1, `feat/design-tokens`): 60 semantic color tokens in `client/src/index.css` (`@theme inline`), 1,029 raw utilities in 51 files replaced by codemod (75 class strings, 33 line overrides, six accepted light-mode exceptions E1–E6), `npm run lint:tokens` = 0 enforced by `client/scripts/check-color-tokens.mjs`; SSR snapshot 38/38 identical with classes stripped; new §8 above. No dark values yet — D2. |
 | 2026-09-19 | `fix/copy-nits`: Teacher → Attendance footer verb follows the unset count ("1 student has"); the "N students" line under both Students pagers removed; the three decorative px sizes (DataTable sort icon + chevrons, thread timestamps) converted to rem so Large text scales them — KNOWN ISSUES row added and closed. `textSize.js`'s comment still calls them out of scope: stale, not edited. |
 | 2026-09-19 | CLAUDE.md trim (D0): 147,145 → 134,157 chars. Four blocks moved verbatim by script with a byte-identical check (129/129 lines): 30 compact KNOWN ISSUES rows → `docs/KNOWN_ISSUES.md`, 14 older CHANGELOG stubs, the ADMIN SCOPE AUDIT block and the answered OPEN QUESTIONS bullets → `docs/ARCHIVE.md`. Every `##` heading kept, each condensed section ends with a pointer. Docs only. |
 | 2026-09-19 | Server hardening C (`feat/pagination`): every list endpoint pages (`limit` 50/200, `offset`, `sort`/`order` allow-list, sibling `page { limit, offset, total, has_more }` over the filtered set; the thread on `?before=`), 16 handlers in 9 route files, `utils/pagination.js`; DataTable paged mode (server sort, footer, C7 step-back), `fetchAll` (200/page, de-dupe, hard cap) for every complete-set caller, 24 client files. Nine suites grew (users 61, students 94, grades 182, attendance 60, excuses 92, content 96, assignments 56, backups 47, messages 80). FRONTEND_CONVENTIONS §5 and two KNOWN ISSUES rows here are now stale — listed on the full row, not edited. |

@@ -94,6 +94,19 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Design tokens, `feat/design-tokens` (2026-09-19, D1 of the Dark mode
+plan):** 60 semantic color tokens defined once in `client/src/index.css`
+(`:root` light values equal to the Tailwind palette, `@theme inline` names so
+a theme can swap them at runtime); a codemod replaced all 1,029 raw palette
+utilities across 51 client files with tokens (75 class strings, 33 file:line
+overrides, six accepted light-mode changes E1–E6); `npm run lint:tokens`
+(`client/scripts/check-color-tokens.mjs`) now fails on any raw palette
+utility, arbitrary color or `dark:` outside `index.css` and reports 0. Light
+mode proven identical: token-equality 60/60, SSR snapshot of 38 renders
+byte-identical with class attributes stripped, build 0, oxlint 42, negative
+control. Convention §8 added. No dark values, no `color-scheme` yet — those
+are D2. Full row: `docs/CHANGELOG.md`, 2026-09-19.
+
 **`fix/copy-nits` (2026-09-19):** Teacher → Attendance's footer verb now
 follows the unset count ("1 of 1 student has no status"); the "N students"
 line under both Students pagers is gone (it repeated the page's row count);

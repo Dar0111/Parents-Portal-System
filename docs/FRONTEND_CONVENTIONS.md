@@ -619,6 +619,62 @@ one page" failure the foundation dispatch existed to prevent. That page was
 removed with Feature 7 on 2026-09-13, so **no current page reaches `lg`'s
 width. A page that cannot fit `lg` is the trigger to reconsider the scale.**
 
+### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
+
+**Frozen 2026-09-19, `feat/design-tokens` (D1 of the Dark mode plan).** Every
+color a page uses is one of the 60 semantic tokens defined once in
+`client/src/index.css`: `page` / `surface` / `surface-muted` /
+`surface-subtle` / `backdrop`; `edge` / `edge-soft` / `edge-strong` /
+`focus-edge` / `focus-ring` / `focus-accent`; `fg` / `fg-secondary` /
+`fg-body` / `fg-muted` / `fg-faint` / `fg-ghost`; `primary` /
+`primary-hover` / `primary-fg` / `primary-disabled` / `solid-fg`; the tone
+sets `neutral-*`, `success-*`, `warning-*`, `danger-*`, `info-*` (`-soft`,
+`-edge`, `-fg`, `-strong`, `-icon`, `-solid`… only the slots something uses);
+and the six `bubble-*` tokens for message threads. A page writes
+`bg-surface`, `text-fg-muted`, `border-edge`, `ring-focus-ring`,
+`hover:bg-surface-muted` — never `bg-white`, `text-slate-500`,
+`border-slate-200`, and never a `dark:` variant.
+
+**Why tokens and not `dark:`.** 1,029 raw utilities stood in 51 files before
+this rule; a theme done with `dark:` would have been 1,029 second guesses
+scattered through pages, each one a place for light and dark to drift. With
+tokens a theme is a second block of values for the SAME variables in one
+file, and a page cannot be half-themed. The two layers in `index.css` matter:
+`:root` holds the raw values (light), each line naming the Tailwind palette
+color it equals, and `@theme inline` maps the Tailwind names to `var(--…)` —
+`inline` is what makes `bg-surface` resolve at RUNTIME so a `[data-theme]`
+block can swap the value; a plain `@theme` would bake the light value in.
+
+**Enforced by `npm run lint:tokens`** (`client/scripts/check-color-tokens.mjs`):
+it fails on any `(variant:)*prefix-family(-shade)?(/alpha)?` for every
+Tailwind palette family across `bg`/`text`/`border`/`ring`/`divide`/
+`placeholder`/`decoration`/`outline`/`from`/`to`/`via`/`shadow`/`fill`/
+`stroke`/`accent`/`caret`, on any arbitrary color (`-[#…]`, `-[rgb…]`,
+`-[hsl…]`, `-[oklch…]`), and on any `dark:` — anywhere under `src/` except
+`src/index.css`. Zero matches is a done-condition of every client dispatch,
+reported next to oxlint's 42.
+
+**Same-shade splits are deliberate.** `page` and `surface-subtle` are both
+slate-50 in light (the page background vs. a band inside a white card);
+`primary` and `bubble-mine` are both slate-900 (the button will invert in
+dark, the bubble will not). Do not merge them because the light values match.
+
+**How light mode was proven identical after the codemod** — the record for
+the next mechanical change of this size: (1) a token-equality script compared
+every `:root` value to the palette color named in its comment (60/60);
+(2) the codemod stopped on any unmapped class and any context-sensitive class
+without a file:line override (75 class strings, 33 overrides, 1,029
+replacements, zero errors); (3) an SSR snapshot of 38 renders taken before and
+after, compared with `class` attributes stripped, was byte-identical, and the
+number of class attributes per render was unchanged; (4) Darryl's six
+baseline screenshots. Six accepted, named light-mode changes rode along:
+E1 the two `hover:bg-slate-800` primary buttons now hover to `primary-hover`
+(slate-700); E2 seven `text-slate-800` labels are `fg-secondary` (slate-700);
+E3 Login's inputs focus with the shared `focus-ring`/`focus-edge` instead of
+slate-500; E4 one `emerald-900` note is `success-strong` (800); E5 Login's
+error box is `danger-soft`/`danger-strong` (rose) instead of red; E6 the
+ErrorAlert retry link hovers to `danger-strong` (800) instead of rose-900.
+
 ### Corrections — three claims retired here
 
 These circulated in planning and are **wrong**. None of them ever appeared
