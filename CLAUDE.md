@@ -560,7 +560,7 @@ Full text: `docs/ARCHIVE.md` → CURRENT STATE → Class Board.
 
 `client/` builds clean (`npm run build`) and lints clean (`oxlint`, two
 pre-existing `AuthContext.jsx` warnings aside; the running oxlint baseline is
-measured and recorded on each dispatch's CHANGELOG row). On top of the auth
+**42 as of 2026-09-18**, measured and recorded on each dispatch's CHANGELOG row). On top of the auth
 slice: role-aware `Shell` with nested layout routes, seven shared UI
 primitives, and a dev-only component gallery at `/dev/ui` — registered behind
 `import.meta.env.DEV` and **verified absent from the production bundle**

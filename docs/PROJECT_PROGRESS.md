@@ -108,8 +108,9 @@ The admin has an account screen for the first time (KNOWN ISSUES row closed).
 `inputRef`, `disabled`, `below`; new `PasswordChecklist` used by all four
 password-setting forms, including Admin → Users' create teacher, which moved
 to `PasswordField`. The three old `SettingsPage.jsx` files are deleted. Build
-exit 0; oxlint 41 (two named `only-export-components` on the checklist
-helpers); SSR of the real route tree, 26 checks plus a negative control. New
+exit 0; **oxlint 42, the new baseline** (39 → 42: `only-export-components`
+on the checklist's two helpers and on `FormField`'s `controlClassFor`); SSR
+of the real route tree, 26 checks plus a negative control. New
 KNOWN ISSUES row: contact number accepts any text (queued for Server
 hardening). Full row: `docs/CHANGELOG.md`, 2026-09-18. **Browser check
 passed except the red border, fixed on the branch:** an erroring input had
