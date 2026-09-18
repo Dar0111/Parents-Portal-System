@@ -11,6 +11,20 @@
 // true in the same dispatch that adds the page's route — that is the one step
 // that must not be forgotten when a page lands.
 //
+// `built: false` means UNWRITTEN, never REFUSED. A page the project has
+// decided against does not belong here at all: dimmed forever, it advertises
+// something nobody is coming back for. That is why admin lost Sections,
+// Excuse Letters, Memos, Events and Messages on 2026-09-18 (Darryl) rather
+// than keeping them dimmed — see CLAUDE.md -> ADMIN SCOPE AUDIT -> SCOPE
+// DECISION (2026-09-18), which supersedes one line of the 2026-09-13 decision.
+// Memos went with them because Admin -> Announcements is the only place a memo
+// can ever be written, and that page says so itself.
+//
+// NO ROLE CURRENTLY HAS A `built: false` ITEM, and that is not the same as the
+// state being retired: Stage 5 and any future page will reintroduce it, Shell
+// still renders it, and /dev/ui still demonstrates it. Do not delete the
+// branch because nothing in production exercises it today.
+//
 // `blocked: '<reason>'` is a STRONGER statement than `built: false` and the two
 // must not be conflated: unbuilt means nobody has written it yet, blocked means
 // it CANNOT be designed until an external question is answered. Parent ->
@@ -51,14 +65,9 @@ export const NAV_BY_ROLE = {
     { to: '/admin', label: 'Dashboard', icon: 'fa-gauge', built: true },
     { to: '/admin/users', label: 'Users', icon: 'fa-users-gear', built: true },
     { to: '/admin/students', label: 'Students', icon: 'fa-user-graduate', built: true },
-    { to: '/admin/sections', label: 'Sections', icon: 'fa-layer-group', built: false },
     { to: '/admin/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
     { to: '/admin/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
-    { to: '/admin/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: false },
     { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
-    { to: '/admin/memos', label: 'Memos', icon: 'fa-file-lines', built: false },
-    { to: '/admin/events', label: 'Events', icon: 'fa-calendar-days', built: false },
-    { to: '/admin/messages', label: 'Messages', icon: 'fa-comments', built: false },
     { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: true },
     { to: '/admin/backups', label: 'Backup & Restore', icon: 'fa-database', built: true },
   ],

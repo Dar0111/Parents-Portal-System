@@ -23,10 +23,11 @@ export function NavItem({ item, onNavigate, badge = 0 }) {
 
   // The badge renders ONLY on a built item. A count on a dimmed, unclickable
   // nav entry would be worse than no count: it announces something the user
-  // cannot go and read. Parent and Admin Messages are built: false today, so
-  // their unread counts are deliberately invisible until those pages land —
-  // at which point flipping `built` makes the badge appear with no change
-  // here. See the unread note in Shell below.
+  // cannot go and read. Teacher and Parent Messages are both built, so both
+  // carry a live count; admin has no Messages item at all since 2026-09-18,
+  // so there is nothing to badge and `UnreadProvider` never fetches for that
+  // role. A future role/page that lands built: false inherits this untouched.
+  // See the unread note in Shell below.
   const withBadge = (label) =>
     badge > 0 ? (
       <>
@@ -117,6 +118,10 @@ function ShellChrome() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const items = navForRole(user?.role);
+  // Same test as Shell()'s `enabled` above, derived from the list this
+  // component already has rather than threaded down as a prop. It gates the
+  // LiveStatus strip: see the 5g note at its render below.
+  const messagesBuilt = Boolean(items.find((i) => i.to.endsWith('/messages'))?.built);
   const { unread } = useUnread();
   const title =
     customTitle || navTitleForPath(user?.role, location.pathname) || "Parent's Portal";
@@ -206,14 +211,27 @@ function ShellChrome() {
               to be visible on every page too. Confining it to the Messages
               pages — where it started — left a teacher on Students or Grades
               with a badge that had silently stopped updating and nothing to
-              say so, which is 5g's own failure mode one level out. */}
-          <LiveStatus
-            // A full reload rather than a per-page refetch: Shell cannot know
-            // what the routed page fetches, and a Refresh that silently
-            // refreshed only the badge would be its own small lie. Reloading
-            // re-runs every fetch on the page and re-attempts the socket.
-            onRefresh={() => window.location.reload()}
-          />
+              say so, which is 5g's own failure mode one level out.
+
+              GATED ON `messagesBuilt` SINCE 2026-09-18, which closes 5g's
+              INVERSE — the case the convention left ownerless. 5g's rule is
+              "say so wherever something channel-fed is shown"; for a role with
+              no Messages item nothing on screen is channel-fed, so the strip
+              announced a failure with no consequence the viewer could act on.
+              Admin is that role and will stay that way: Admin -> Messages has
+              no Figure 5 process and will not be built. This is the whole fix —
+              a render condition. `SocketProvider` still connects for every
+              role; an admin socket now feeds nothing, which is harmless and is
+              recorded rather than optimised away here. */}
+          {messagesBuilt ? (
+            <LiveStatus
+              // A full reload rather than a per-page refetch: Shell cannot know
+              // what the routed page fetches, and a Refresh that silently
+              // refreshed only the badge would be its own small lie. Reloading
+              // re-runs every fetch on the page and re-attempts the socket.
+              onRefresh={() => window.location.reload()}
+            />
+          ) : null}
           <PageTitleContext.Provider value={titleContext}>
             <Outlet />
           </PageTitleContext.Provider>

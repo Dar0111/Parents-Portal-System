@@ -14,20 +14,32 @@ import { navForRole } from '../../layout/nav';
 // IS the sentence.
 //
 // `to !== '/parent'` drops Dashboard — unfiltered, this page would list
-// itself. `!blocked` drops Attendance, which is `built: false` today but
-// carries a reason and would be wrong to advertise even after its flag flips.
+// itself. `!blocked` is kept even though no parent item is blocked today:
+// Attendance was the one blocked item, unblocked 2026-09-09, and a future
+// blocked item would be wrong to advertise as open.
+//
+// The "remaining… as their pages land" sentence is DERIVED, matching Admin and
+// Teacher, and this file was the last of the three to get that treatment. It
+// rendered unconditionally until 2026-09-18, so from the moment Settings
+// landed (2026-09-09) it promised parents more pages were coming when every
+// parent page already existed — the same stale-string failure deriving the
+// list was meant to prevent, surviving one line below the fix.
 export default function ParentDashboard() {
-  const open = navForRole('parent')
-    .filter((item) => item.built && !item.blocked && item.to !== '/parent')
-    .map((item) => item.label);
+  const items = navForRole('parent').filter((item) => item.to !== '/parent');
+  const open = items.filter((item) => item.built && !item.blocked).map((item) => item.label);
+  const remaining = items.some((item) => !item.built || item.blocked);
 
   return (
     <p className="text-sm text-slate-500">
       {open.length ? (
-        <>
-          Open now: {open.join(', ')}. The remaining sidebar items appear in full colour as their
-          pages land.
-        </>
+        remaining ? (
+          <>
+            Open now: {open.join(', ')}. The remaining sidebar items appear in full colour as their
+            pages land.
+          </>
+        ) : (
+          <>Open now: {open.join(', ')}.</>
+        )
       ) : (
         <>No modules built yet. Sidebar items appear in full colour as their pages land.</>
       )}

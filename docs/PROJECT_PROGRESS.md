@@ -18,13 +18,13 @@ them. Sections, Excuse Letters, Events and Messages will not be built. Memos
 live on Admin → Announcements (Darryl, 2026-09-14) — the only place a memo can
 be written. 20 tables.)
 
-**Decided 2026-09-18 (Darryl), recorded before it is applied in code:** the
-five admin nav entries with no page — Sections, Excuse Letters, Memos, Events,
-Messages — will be **removed** from `nav.js` rather than left `built: false`,
-because `built: false` means *unwritten*, not *refused* (§6). **Not yet applied:
-as of this entry the sidebar still shows all thirteen, five of them dimmed.**
-The nav state claim changes in the commit that edits `nav.js`. Separately, and
-already true in code, grade **lock and unlock are admin only** —
+**Decided and applied 2026-09-18 (Darryl):** the five admin nav entries with
+no page — Sections, Excuse Letters, Memos, Events, Messages — are **removed**
+from `nav.js` rather than left `built: false`, because `built: false` means
+*unwritten*, not *refused* (§6). **Admin nav is now 8 items, all built;**
+teacher (11) and parent (9) are unchanged and **no role has a `built: false`
+item** — the state is still supported and is demonstrated in `/dev/ui`.
+Separately, and already true in code, grade **lock and unlock are admin only** —
 `PATCH /api/grades/:id/lock` (`routes/grades.js:1286`) is `authorize('admin')`
 and is the only route reaching the sole `UPDATE grades SET is_locked` (`:1334`);
 there is no separate unlock path, and Admin → Grades already renders both
@@ -967,8 +967,13 @@ remaining admin web pages (Stage 4) and Expo screens (Stage 5) — see the
 Notes column above for the concrete next step per module. Teacher → Grades encode-scope switched 2026-09-12. **Stage 4 is
 complete (2026-09-14)** — Admin → Students, Settings, Attendance,
 Announcements (with memos), Grades and Backup & Restore landed that day.
-Sections, Excuse Letters, Events and Messages stay `built: false` by the
-Figure 5 scope decision.
+Sections, Excuse Letters, Memos, Events and Messages are not built by the
+Figure 5 scope decision, and were **removed from the admin nav on 2026-09-18**
+rather than left dimmed — admin nav is 8 items, all built. The Parent
+dashboard's "remaining sidebar items…" sentence was removed the same day (it
+had been false since Parent → Settings landed on 2026-09-09), and §5g's
+LiveStatus inverse was closed by gating the strip on the same test as the
+unread badge.
 
 ---
 

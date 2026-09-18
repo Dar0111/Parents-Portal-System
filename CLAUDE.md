@@ -67,12 +67,14 @@ and this file gets the rule and the pointer. Never delete to make room.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-14 (**Stage 4 is COMPLETE.** Admin → Backup &
-Restore was the last page: every Figure 5 admin process now has a page, and
-Sections, Excuse Letters, Events and Messages stay `built: false` by the
-scope decision under ADMIN SCOPE AUDIT. 20 tables, 76 handlers +
-`/api/health`. 20 of 23 sections have no adviser and no screen can assign one
-— see KNOWN ISSUES.)
+**Last verified:** 2026-09-18 (**Stage 4 is COMPLETE.** Admin → Backup &
+Restore was the last page: every Figure 5 admin process has a page. **Admin
+nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
+Messages were **removed** on 2026-09-18 rather than left `built: false`, by
+the scope decision under ADMIN SCOPE AUDIT; teacher (11) and parent (9) are
+unchanged, and **no role now has a `built: false` item**. 20 tables, 76
+handlers + `/api/health`. 20 of 23 sections have no adviser and no screen can
+assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
 
@@ -840,6 +842,16 @@ Admin → Messages will not be built). **Flipping `built: false` to `true` is
 part of whichever dispatch adds that page's route — never a follow-up.** A
 page with no unbuilt row is an add, not a flip.
 
+**No role has a `built: false` item as of 2026-09-18** — admin's five were
+**removed, not dimmed** (ADMIN SCOPE AUDIT → SCOPE DECISION 2026-09-18), on
+the rule that `built: false` means *unwritten*, never *refused*. **The state
+is not retired and its branch is not dead:** `Shell.jsx` still implements
+unbuilt and blocked, `/dev/ui` still renders both, and Stage 5 will
+reintroduce them. **§5g's inverse is closed the same day** — `LiveStatus` is
+now gated on the same "role has a built Messages item" test as the badge, so
+the paused-updates strip no longer shows to a role with nothing channel-fed
+on screen. `SocketProvider` still connects for every role.
+
 ### 7. FormField — four shapes, and only four
 
 ```
@@ -1586,17 +1598,19 @@ what it deliberately did not, how it was verified — is verbatim in
 - [x] **Admin → Attendance — 2026-09-14.** Figure 5 1.15. View only; no fetch
       until a grade or date range is applied; counts, no rate.
 - [x] **Admin → Announcements (with memos) — 2026-09-14.** Figure 5 1.18 +
-      Feature 4. The unbuilt "Memos" nav item stays `built: false`; this page
-      covers it.
+      Feature 4. This page is the only place a memo can be written; the admin
+      "Memos" nav item was `built: false` alongside it and was removed
+      2026-09-18.
 - [x] **Admin → Grades — 2026-09-14.** Figure 5 1.9. View + lock, NOT delete.
       `TermValue` extracted at the third copy.
 - [x] **Admin → Backup & Restore — 2026-09-14.** Figure 5 1.27/1.28, Stage 4's
       last page.
 
 **Stage 4 — CLOSED 2026-09-14.** Every Figure 5 admin process has a page.
-Sections, Excuse Letters, Events and Messages stay `built: false` by the
-scope decision (ADMIN SCOPE AUDIT → SCOPE DECISION) — not unfinished work,
-not removed. Next in BUILD ORDER is Stage 5 (Expo).
+Sections, Excuse Letters, Memos, Events and Messages are not built by the
+scope decision (ADMIN SCOPE AUDIT → SCOPE DECISION) — not unfinished work.
+**They were removed from the admin nav on 2026-09-18** rather than left
+dimmed; see that date's SCOPE DECISION. Next in BUILD ORDER is Stage 5 (Expo).
 
 **Backend work interleaved with Stage 4:**
 
@@ -2053,6 +2067,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Admin nav trimmed 13 → 8 (the five page-less entries removed, not dimmed); Parent dashboard stops promising pages that already landed; §5g inverse closed — LiveStatus gated on the same test as the badge. |
 | 2026-09-18 | Browser check passed (restore 403, change-password inline); the six queued fixtures were already gone, removed outside the API; admin nav trim + admin-only lock/unlock decided. |
 | 2026-09-18 | **CLAUDE.md split** — it had grown to 712k chars against Claude Code's 150k limit and was being truncated. Verbatim history moved to `docs/CHANGELOG.md`, `docs/KNOWN_ISSUES.md`, `docs/FRONTEND_CONVENTIONS.md`, `docs/RESTORE.md` and `docs/ARCHIVE.md`; this file condensed to rules + facts, every `##` heading kept. Docs only. |
 | 2026-09-15 | Server cleanup — seven recorded flags closed; change-password's live `401` → `403`; `skipAuthRedirect` removed; five suites grew. |

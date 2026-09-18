@@ -550,9 +550,28 @@ unclickable entry is worse than no count: it announces something the user
 cannot go and read. `UnreadProvider` therefore skips the request entirely
 unless that role's Messages item is built.
 
-**Live today for TEACHER and PARENT.** Admin gets the badge automatically
-the day its Messages page lands and its `built` flag flips — no change to
-`Shell.jsx` is needed, and that dispatch should not build its own badge.
+**Live today for TEACHER and PARENT.** Admin has no Messages item at all
+since 2026-09-18, so there is nothing to badge and `UnreadProvider` never
+fetches for that role. The wiring is unchanged and still flag-driven: a role
+that gains a built Messages item gets the badge with no edit to `Shell.jsx`,
+and that dispatch should not build its own badge. (This paragraph previously
+said admin would get the badge "the day its Messages page lands" — that page
+will not land; see CLAUDE.md → ADMIN SCOPE AUDIT.)
+
+**§5g's inverse is closed, 2026-09-18.** `LiveStatus` is now gated on the
+same "does this role have a built Messages item" test as the badge, so the
+"Live updates paused" strip no longer renders for a role where nothing on
+screen is channel-fed. It had been ungated, and the 2026-09-13 scope decision
+left that ownerless when Admin → Messages was ruled out. `SocketProvider`
+still connects for every role.
+
+**NO ROLE HAS A `built: false` ITEM AS OF 2026-09-18** — the last five were
+admin's, removed rather than left dimmed (see the SCOPE DECISION of that
+date). **The state is not retired and the rendering branch is not dead:**
+`Shell.jsx` still implements unbuilt and blocked, `/dev/ui` still renders
+both so they stay reviewable, and Stage 5 or any future page will reintroduce
+them. Do not delete the branch because production nav happens not to exercise
+it today.
 
 **FLIPPING `built: false` TO `true` IS PART OF WHICHEVER DISPATCH ADDS THAT
 PAGE'S ROUTE — never a follow-up, never a cleanup pass.** A live route
