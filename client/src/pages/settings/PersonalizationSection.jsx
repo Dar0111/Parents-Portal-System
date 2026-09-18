@@ -30,22 +30,22 @@ export default function PersonalizationSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Personalization</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="text-base font-semibold text-fg">Personalization</h2>
+        <p className="mt-1 text-sm text-fg-muted">
           These choices are stored on this device only. Other devices, and other people using
           this account elsewhere, are not affected.
         </p>
       </div>
 
       <fieldset className="space-y-3">
-        <legend className="text-sm font-medium text-slate-700">Text size</legend>
+        <legend className="text-sm font-medium text-fg-secondary">Text size</legend>
         {TEXT_SIZES.map((option) => (
           <label
             key={option.value}
             className={`flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3 transition ${
               size === option.value
-                ? 'border-slate-900 bg-slate-50'
-                : 'border-slate-200 hover:border-slate-300'
+                ? 'border-primary bg-surface-subtle'
+                : 'border-edge hover:border-edge-strong'
             }`}
           >
             <input
@@ -57,8 +57,8 @@ export default function PersonalizationSection() {
               className="mt-1"
             />
             <span>
-              <span className="block text-sm font-medium text-slate-900">{option.label}</span>
-              <span className="block text-sm text-slate-500">{option.description}</span>
+              <span className="block text-sm font-medium text-fg">{option.label}</span>
+              <span className="block text-sm text-fg-muted">{option.description}</span>
             </span>
           </label>
         ))}

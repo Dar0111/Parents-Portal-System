@@ -4,7 +4,7 @@ import { useId } from 'react';
 // component does not cover (a date range, a custom picker) can still match.
 // THE ERROR BORDER NEVER SHOWED, FOR ANY SHAPE, UNTIL 2026-09-18. The old
 // composition was `${controlClass} ${error ? errorClass : ''}` — BOTH
-// `border-slate-300` and `border-rose-300` on the element. Same specificity,
+// `border-edge-strong` and `border-danger-edge-strong` on the element. Same specificity,
 // so the stylesheet's order decides, and Tailwind v4 emits colour utilities in
 // theme order: rose (byte 14876 of the built CSS) before slate (15086). Slate
 // won every time; the message turned red and the input stayed grey — seen on
@@ -12,12 +12,12 @@ import { useId } from 'react';
 // different class but NOT emitting the slate state classes when invalid:
 // controlClassFor(invalid) picks one state or the other, never both.
 const controlBaseClass =
-  'block w-full rounded-lg border bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
-const normalStateClass = 'border-slate-300 focus:border-slate-400 focus:ring-slate-200';
+  'block w-full rounded-lg border bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-faint focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
+const normalStateClass = 'border-edge-strong focus:border-focus-edge focus:ring-focus-ring';
 
 // Exported for shape-4 callers: the render object tells them `invalid`, and
 // this is the border they apply — the same one shapes 1–3 get.
-export const errorClass = 'border-rose-300 focus:border-rose-400 focus:ring-rose-100';
+export const errorClass = 'border-danger-edge-strong focus:border-danger-edge-focus focus:ring-danger-ring-focus';
 
 // The normal control, unchanged as a string for every existing caller of
 // `controlClass` (a custom range picker, the gallery). Do not append
@@ -111,20 +111,20 @@ export default function FormField({
   return (
     <div className={className}>
       {label ? (
-        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-slate-700">
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-fg-secondary">
           {label}
-          {required ? <span className="ml-0.5 text-rose-500">*</span> : null}
+          {required ? <span className="ml-0.5 text-danger-icon">*</span> : null}
         </label>
       ) : null}
 
       {control}
 
       {error ? (
-        <p id={`${fieldId}-error`} className="mt-1.5 text-sm text-rose-600">
+        <p id={`${fieldId}-error`} className="mt-1.5 text-sm text-danger-text">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${fieldId}-hint`} className="mt-1.5 text-sm text-slate-500">
+        <p id={`${fieldId}-hint`} className="mt-1.5 text-sm text-fg-muted">
           {hint}
         </p>
       ) : null}

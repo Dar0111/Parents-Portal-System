@@ -9,16 +9,16 @@ export default function ErrorAlert({ message, onRetry, className = '' }) {
   return (
     <div
       role="alert"
-      className={`flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 ${className}`}
+      className={`flex items-start gap-3 rounded-lg border border-danger-edge bg-danger-soft px-4 py-3 ${className}`}
     >
-      <i className="fa-solid fa-circle-exclamation mt-0.5 text-rose-500" />
+      <i className="fa-solid fa-circle-exclamation mt-0.5 text-danger-icon" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-rose-800">{message}</p>
+        <p className="text-sm text-danger-strong">{message}</p>
         {onRetry ? (
           <button
             type="button"
             onClick={onRetry}
-            className="mt-2 text-sm font-medium text-rose-700 underline underline-offset-2 transition hover:text-rose-900"
+            className="mt-2 text-sm font-medium text-danger-fg underline underline-offset-2 transition hover:text-danger-strong"
           >
             Try again
           </button>

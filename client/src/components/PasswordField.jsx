@@ -56,7 +56,7 @@ export default function PasswordField({
               disabled={disabled}
               aria-label={revealed ? 'Hide password' : 'Show password'}
               aria-pressed={revealed}
-              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 transition hover:text-slate-600 disabled:opacity-50"
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-fg-faint transition hover:text-fg-body disabled:opacity-50"
             >
               <i className={`fa-solid ${revealed ? 'fa-eye-slash' : 'fa-eye'}`} />
             </button>

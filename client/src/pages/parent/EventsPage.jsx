@@ -171,14 +171,14 @@ export default function ParentEventsPage() {
             <button
               type="button"
               onClick={() => setReading(row)}
-              className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+              className="text-left font-medium text-fg underline-offset-2 hover:underline"
             >
               {row.title}
             </button>
             {row.description ? (
-              <div className="line-clamp-2 max-w-xl text-xs text-slate-500">{row.description}</div>
+              <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
             ) : null}
-            <div className="mt-1 text-xs text-slate-400">{audienceLabel(row)}</div>
+            <div className="mt-1 text-xs text-fg-faint">{audienceLabel(row)}</div>
           </div>
         ),
       },
@@ -189,7 +189,7 @@ export default function ParentEventsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-xl border border-edge bg-surface p-4">
         <FormField
           label="Show"
           as="select"
@@ -221,7 +221,7 @@ export default function ParentEventsPage() {
             <button
               type="button"
               onClick={() => changeRange('all')}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Show past events
             </button>
@@ -236,7 +236,7 @@ export default function ParentEventsPage() {
         size="lg"
       >
         <div className="max-h-[70vh] overflow-y-auto">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
             <span>{reading?.event_date}</span>
             <span aria-hidden="true">·</span>
             <span>{reading ? audienceLabel(reading) : null}</span>
@@ -247,11 +247,11 @@ export default function ParentEventsPage() {
               real possibility and gets said out loud rather than rendering a
               blank panel. */}
           {reading?.description ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg-secondary">
               {reading.description}
             </p>
           ) : (
-            <p className="text-sm italic text-slate-500">No further details.</p>
+            <p className="text-sm italic text-fg-muted">No further details.</p>
           )}
         </div>
       </Modal>

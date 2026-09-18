@@ -35,7 +35,7 @@ export default function SettingsLayout() {
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
       <nav
         aria-label="Settings sections"
-        className="rounded-lg border border-slate-200 bg-white p-2 sm:w-[14.5rem] sm:shrink-0"
+        className="rounded-lg border border-edge bg-surface p-2 sm:w-[14.5rem] sm:shrink-0"
       >
         <ul className="flex flex-col gap-1">
           {tabs.map((tab) => (
@@ -46,8 +46,8 @@ export default function SettingsLayout() {
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                     isActive
-                      ? 'bg-slate-100 font-medium text-slate-900'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-surface-muted font-medium text-fg'
+                      : 'text-fg-body hover:bg-surface-subtle hover:text-fg'
                   }`
                 }
               >
@@ -59,7 +59,7 @@ export default function SettingsLayout() {
         </ul>
       </nav>
 
-      <section className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white p-4 sm:max-w-[42.5rem] sm:p-6">
+      <section className="min-w-0 flex-1 rounded-lg border border-edge bg-surface p-4 sm:max-w-[42.5rem] sm:p-6">
         <Outlet />
       </section>
     </div>

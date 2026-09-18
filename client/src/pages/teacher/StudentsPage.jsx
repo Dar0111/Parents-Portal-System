@@ -356,7 +356,7 @@ export default function StudentsPage() {
       render: (row) => (
         <Link
           to={`/teacher/students/${row.id}`}
-          className="font-medium text-slate-900 underline-offset-2 hover:underline"
+          className="font-medium text-fg underline-offset-2 hover:underline"
         >
           {row.last_name}, {row.first_name}
         </Link>
@@ -388,7 +388,7 @@ export default function StudentsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
         <form onSubmit={applyFilters} className="flex flex-1 flex-wrap items-end gap-3">
           <FormField
             label="Search"
@@ -406,7 +406,7 @@ export default function StudentsPage() {
           />
           <button
             type="submit"
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             Apply
           </button>
@@ -414,7 +414,7 @@ export default function StudentsPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Clear
             </button>
@@ -424,12 +424,12 @@ export default function StudentsPage() {
           <button
             type="button"
             onClick={openWizard}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             Enroll student
           </button>
         ) : (
-          <p className="max-w-sm text-sm text-slate-500">
+          <p className="max-w-sm text-sm text-fg-muted">
             Enrolling a student is limited to classes you are assigned to teach.
             Advising a section is not enough.
           </p>
@@ -462,7 +462,7 @@ export default function StudentsPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Clear filters
             </button>
@@ -483,7 +483,7 @@ export default function StudentsPage() {
                 type="button"
                 onClick={closeWizard}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -491,7 +491,7 @@ export default function StudentsPage() {
                 type="submit"
                 form="enroll-form"
                 disabled={saving}
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 Continue
               </button>
@@ -505,7 +505,7 @@ export default function StudentsPage() {
                   setPhase('enroll');
                 }}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
               </button>
@@ -513,7 +513,7 @@ export default function StudentsPage() {
                 type="button"
                 onClick={submitEnroll}
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Yes, enroll this student
@@ -525,7 +525,7 @@ export default function StudentsPage() {
                 type="button"
                 onClick={closeWizard}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Skip
               </button>
@@ -533,7 +533,7 @@ export default function StudentsPage() {
                 type="submit"
                 form="parent-form"
                 disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)}
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 Continue
               </button>
@@ -547,7 +547,7 @@ export default function StudentsPage() {
                   setPhase('parent');
                 }}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
               </button>
@@ -555,7 +555,7 @@ export default function StudentsPage() {
                 type="button"
                 onClick={submitParent}
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Yes, create parent account
@@ -658,7 +658,7 @@ export default function StudentsPage() {
         ) : null}
 
         {phase === 'confirm-enroll' ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-fg-body">
             Enroll {enroll.first_name.trim()} {enroll.last_name.trim()} (LRN {enroll.lrn.trim()})
             in {classLabel}? This cannot be undone from here — there is no delete for a
             student record.
@@ -667,7 +667,7 @@ export default function StudentsPage() {
 
         {phase === 'parent' ? (
           <form id="parent-form" onSubmit={requestParent} className="space-y-3">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-fg-body">
               {enrolled?.first_name} {enrolled?.last_name} is enrolled. Create the pending parent
               account next, or skip and do it later from the student record.
             </p>
@@ -719,7 +719,7 @@ export default function StudentsPage() {
         ) : null}
 
         {phase === 'confirm-parent' ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-fg-body">
             Create a pending parent account for {parent.name.trim()} (login ID {enrolled?.lrn})?
             An admin must approve it before they can log in. You cannot un-create it.
           </p>

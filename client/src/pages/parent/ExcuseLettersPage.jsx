@@ -183,7 +183,7 @@ export default function ParentExcuseLettersPage() {
         <button
           type="button"
           onClick={() => setReading(row)}
-          className="line-clamp-2 max-w-md text-left text-slate-700 underline-offset-2 hover:underline"
+          className="line-clamp-2 max-w-md text-left text-fg-secondary underline-offset-2 hover:underline"
         >
           {row.reason}
         </button>
@@ -203,7 +203,7 @@ export default function ParentExcuseLettersPage() {
           <button
             type="button"
             onClick={() => openEdit(row)}
-            className="rounded-lg border border-slate-300 px-2.5 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
           >
             Edit
           </button>
@@ -215,7 +215,7 @@ export default function ParentExcuseLettersPage() {
     <button
       type="button"
       onClick={openCompose}
-      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
     >
       Submit letter
     </button>
@@ -242,7 +242,7 @@ export default function ParentExcuseLettersPage() {
             <button
               type="button"
               onClick={() => setStatus('All')}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Reset
             </button>
@@ -252,7 +252,7 @@ export default function ParentExcuseLettersPage() {
       </div>
 
       {!canSubmit ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-fg-muted">
           Submitting is unavailable until the school office links this account to a student.
         </p>
       ) : null}
@@ -272,7 +272,7 @@ export default function ParentExcuseLettersPage() {
             <button
               type="button"
               onClick={() => setStatus('All')}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Show all letters
             </button>
@@ -292,29 +292,29 @@ export default function ParentExcuseLettersPage() {
           <div className="max-h-[70vh] space-y-4 overflow-y-auto">
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Absence date</dt>
-                <dd className="mt-0.5 text-sm text-slate-900">{reading.absence_date}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Absence date</dt>
+                <dd className="mt-0.5 text-sm text-fg">{reading.absence_date}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Status</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Status</dt>
                 <dd className="mt-0.5">
                   <StatusBadge status={reading.status} />
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Reason</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-900">{reading.reason}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Reason</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.reason}</dd>
               </div>
               {reading.details ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Details</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-900">{reading.details}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Details</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.details}</dd>
                 </div>
               ) : null}
               {reading.teacher_remarks ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Adviser remarks</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-900">{reading.teacher_remarks}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Adviser remarks</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.teacher_remarks}</dd>
                 </div>
               ) : null}
             </dl>
@@ -322,12 +322,12 @@ export default function ParentExcuseLettersPage() {
               <button
                 type="button"
                 onClick={() => openEdit(reading)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
               >
                 Edit
               </button>
             ) : (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-fg-muted">
                 This letter has been reviewed and can no longer be edited.
               </p>
             )}
@@ -347,7 +347,7 @@ export default function ParentExcuseLettersPage() {
               type="button"
               onClick={closeCompose}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -355,7 +355,7 @@ export default function ParentExcuseLettersPage() {
               type="submit"
               form="parent-excuse-form"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {editing ? 'Save changes' : 'Submit'}
@@ -365,7 +365,7 @@ export default function ParentExcuseLettersPage() {
       >
         <form id="parent-excuse-form" onSubmit={submitForm} className="space-y-4">
           {formError ? <ErrorAlert message={formError} /> : null}
-          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+          <p className="rounded-lg border border-info-edge bg-info-soft px-3 py-2 text-sm text-info-strong">
             The adviser records the reason for the absence. The attendance mark stays Absent.
           </p>
           <FormField

@@ -194,7 +194,7 @@ export default function AttendancePage() {
       sortable: true,
       sortValue: (row) => `${row.last_name}, ${row.first_name}`,
       render: (row) => (
-        <span className="font-medium text-slate-900">
+        <span className="font-medium text-fg">
           {row.last_name}, {row.first_name}
         </span>
       ),
@@ -211,7 +211,7 @@ export default function AttendancePage() {
         recorded.has(row.id) ? (
           <StatusBadge status={recorded.get(row.id)} />
         ) : (
-          <span className="text-sm text-slate-400">Not recorded</span>
+          <span className="text-sm text-fg-faint">Not recorded</span>
         ),
     },
     {
@@ -257,13 +257,13 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-edge bg-surface p-4">
         <div>
-          <p className="mb-1.5 text-sm font-medium text-slate-700">Section</p>
+          <p className="mb-1.5 text-sm font-medium text-fg-secondary">Section</p>
           {sections.length === 1 ? (
             // One advisory section is not a choice — a dropdown with a single
             // option would be a decision the teacher does not actually have.
-            <p className="py-2 text-sm font-semibold text-slate-900">
+            <p className="py-2 text-sm font-semibold text-fg">
               Grade {section?.grade_level} - {section?.name}
             </p>
           ) : (
@@ -311,7 +311,7 @@ export default function AttendancePage() {
           {unsetCount > 0 ? (
             // Unset rows are omitted from the request, never defaulted to
             // Present — defaulting would invent attendance nobody entered.
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-muted">
               {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'}{' '}
               {unsetCount === 1 ? 'has' : 'have'} no status and will not be submitted.
             </p>
@@ -321,7 +321,7 @@ export default function AttendancePage() {
             type="button"
             onClick={handleSubmit}
             disabled={saving || entries.length === 0}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
           >
             {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
             {isUpdate ? 'Update attendance' : 'Save attendance'}

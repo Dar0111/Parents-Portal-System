@@ -262,8 +262,8 @@ export default function AnnouncementsPage() {
         sortable: true,
         render: (row) => (
           <div>
-            <div className="font-medium text-slate-900">{row.title}</div>
-            <div className="line-clamp-2 max-w-xl text-xs text-slate-500">{row.content}</div>
+            <div className="font-medium text-fg">{row.title}</div>
+            <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
           </div>
         ),
       },
@@ -272,9 +272,9 @@ export default function AnnouncementsPage() {
         header: 'Audience',
         render: (row) =>
           row.target_grade === null ? (
-            <span className="text-slate-500">School-wide</span>
+            <span className="text-fg-muted">School-wide</span>
           ) : (
-            <span className="text-slate-700">
+            <span className="text-fg-secondary">
               Grade {row.target_grade}
               {row.target_section ? ` - ${row.target_section}` : ' (whole grade)'}
             </span>
@@ -294,7 +294,7 @@ export default function AnnouncementsPage() {
               <button
                 type="button"
                 onClick={() => openEdit(row)}
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+                className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
               >
                 Edit
               </button>
@@ -304,7 +304,7 @@ export default function AnnouncementsPage() {
                   setDeleting(row);
                   setDeleteError(null);
                 }}
-                className="rounded-lg border border-rose-200 px-2.5 py-1 text-sm text-rose-600 transition hover:bg-rose-50"
+                className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
               >
                 Delete
               </button>
@@ -318,7 +318,7 @@ export default function AnnouncementsPage() {
   return (
     <div className="space-y-4">
       {undelivered ? (
-        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="space-y-2 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
           <p>
             The announcement form could not open: your section list did not load, or you have
             no sections to post to.
@@ -335,20 +335,20 @@ export default function AnnouncementsPage() {
                 rows={3}
                 value={undelivered.content}
                 aria-label="Undelivered message draft"
-                className="block w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
+                className="block w-full rounded-lg border border-warning-edge bg-surface px-3 py-2 text-sm text-fg"
               />
             </>
           ) : null}
           <button
             type="button"
             onClick={() => setUndelivered(null)}
-            className="rounded-lg border border-amber-300 px-3 py-1 text-sm text-amber-900 transition hover:bg-amber-100"
+            className="rounded-lg border border-warning-edge-strong px-3 py-1 text-sm text-warning-strong transition hover:bg-warning-soft-hover"
           >
             Dismiss
           </button>
         </div>
       ) : null}
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -373,7 +373,7 @@ export default function AnnouncementsPage() {
           </FormField>
           <button
             type="submit"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
           >
             Apply
           </button>
@@ -383,14 +383,14 @@ export default function AnnouncementsPage() {
           <button
             type="button"
             onClick={openCompose}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             New announcement
           </button>
         ) : (
           // No valid targets: hide compose rather than offer a form that can
           // only fail. The explanation is what stops this reading as broken.
-          <p className="max-w-sm text-sm text-slate-500">
+          <p className="max-w-sm text-sm text-fg-muted">
             You can post once you are assigned to a class or made a section adviser.
           </p>
         )}
@@ -418,7 +418,7 @@ export default function AnnouncementsPage() {
                 setOffset(0);
                 setApplied({ section: '' });
               }}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Clear filter
             </button>
@@ -438,7 +438,7 @@ export default function AnnouncementsPage() {
               type="button"
               onClick={() => setComposing(false)}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -446,7 +446,7 @@ export default function AnnouncementsPage() {
               type="submit"
               form="announcement-form"
               disabled={saving || !form.title.trim() || !form.content.trim() || !form.target}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {editing ? 'Save changes' : 'Post'}
@@ -457,7 +457,7 @@ export default function AnnouncementsPage() {
         <form id="announcement-form" onSubmit={submitForm} className="space-y-4">
           {formError ? <ErrorAlert message={formError} /> : null}
           {staleTargetNotice ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
               That class is not in your current list. Pick a section.
             </p>
           ) : null}
@@ -530,7 +530,7 @@ export default function AnnouncementsPage() {
               type="button"
               onClick={() => setDeleting(null)}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -538,7 +538,7 @@ export default function AnnouncementsPage() {
               type="button"
               onClick={confirmDelete}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Delete
@@ -547,7 +547,7 @@ export default function AnnouncementsPage() {
         }
       >
         {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-fg-secondary">
           Delete <strong>&ldquo;{deleting?.title}&rdquo;</strong>? This cannot be undone — parents
           who have not read it yet will never see it.
         </p>

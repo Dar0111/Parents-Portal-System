@@ -32,7 +32,7 @@ export function NavItem({ item, onNavigate, badge = 0 }) {
     badge > 0 ? (
       <>
         <span className="flex-1">{label}</span>
-        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">
+        <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-fg">
           {badge > 99 ? '99+' : badge}
         </span>
       </>
@@ -45,11 +45,11 @@ export function NavItem({ item, onNavigate, badge = 0 }) {
       <span
         title={item.blocked}
         aria-disabled="true"
-        className={`${base} cursor-not-allowed text-slate-300`}
+        className={`${base} cursor-not-allowed text-fg-ghost`}
       >
         <i className={`fa-solid ${item.icon} w-4 text-center`} />
         <span className="flex-1">{item.label}</span>
-        <i className="fa-solid fa-circle-exclamation text-xs text-amber-400" />
+        <i className="fa-solid fa-circle-exclamation text-xs text-warning-icon" />
       </span>
     );
   }
@@ -59,7 +59,7 @@ export function NavItem({ item, onNavigate, badge = 0 }) {
       <span
         title="Not built yet"
         aria-disabled="true"
-        className={`${base} cursor-not-allowed text-slate-300`}
+        className={`${base} cursor-not-allowed text-fg-ghost`}
       >
         <i className={`fa-solid ${item.icon} w-4 text-center`} />
         {item.label}
@@ -75,8 +75,8 @@ export function NavItem({ item, onNavigate, badge = 0 }) {
       className={({ isActive }) =>
         `${base} ${
           isActive
-            ? 'bg-slate-100 font-medium text-slate-900'
-            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ? 'bg-surface-muted font-medium text-fg'
+            : 'text-fg-body hover:bg-surface-subtle hover:text-fg'
         }`
       }
     >
@@ -145,26 +145,26 @@ function ShellChrome() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white sm:flex">
-        <div className="px-4 py-5 text-sm font-semibold text-slate-900">Parent&rsquo;s Portal</div>
+    <div className="flex min-h-screen bg-page">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-edge bg-surface sm:flex">
+        <div className="px-4 py-5 text-sm font-semibold text-fg">Parent&rsquo;s Portal</div>
         <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
       </aside>
 
       {mobileNavOpen ? (
         <div className="fixed inset-0 z-40 sm:hidden">
           <div
-            className="absolute inset-0 bg-slate-900/40"
+            className="absolute inset-0 bg-backdrop"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="absolute inset-y-0 left-0 flex w-60 flex-col bg-white shadow-xl">
+          <aside className="absolute inset-y-0 left-0 flex w-60 flex-col bg-surface shadow-xl">
             <div className="flex items-center justify-between px-4 py-5">
-              <span className="text-sm font-semibold text-slate-900">Parent&rsquo;s Portal</span>
+              <span className="text-sm font-semibold text-fg">Parent&rsquo;s Portal</span>
               <button
                 type="button"
                 aria-label="Close menu"
                 onClick={() => setMobileNavOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+                className="rounded-lg p-1 text-fg-faint hover:bg-surface-muted"
               >
                 <i className="fa-solid fa-xmark" />
               </button>
@@ -175,28 +175,28 @@ function ShellChrome() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <header className="flex items-center justify-between gap-4 border-b border-edge bg-surface px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               aria-label="Open menu"
               onClick={() => setMobileNavOpen(true)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-slate-600 sm:hidden"
+              className="rounded-lg border border-edge-strong px-2.5 py-1.5 text-fg-body sm:hidden"
             >
               <i className="fa-solid fa-bars" />
             </button>
-            <h1 className="truncate text-base font-semibold text-slate-900">{title}</h1>
+            <h1 className="truncate text-base font-semibold text-fg">{title}</h1>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="hidden text-right text-sm sm:block">
-              <div className="font-medium text-slate-900">{user?.name || user?.login_id}</div>
-              <div className="text-xs text-slate-500">{ROLE_LABEL[user?.role] || user?.role}</div>
+              <div className="font-medium text-fg">{user?.name || user?.login_id}</div>
+              <div className="text-xs text-fg-muted">{ROLE_LABEL[user?.role] || user?.role}</div>
             </div>
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="flex items-center gap-2 rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               <i className="fa-solid fa-right-from-bracket" />
               <span className="hidden sm:inline">Logout</span>

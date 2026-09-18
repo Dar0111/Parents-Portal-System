@@ -14,11 +14,11 @@
 // breaking edit to this table.
 
 const TONES = {
-  neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  warning: 'bg-amber-50 text-amber-800 ring-amber-200',
-  danger: 'bg-rose-50 text-rose-700 ring-rose-200',
-  info: 'bg-sky-50 text-sky-700 ring-sky-200',
+  neutral: 'bg-neutral-soft text-neutral-fg ring-neutral-edge',
+  success: 'bg-success-soft text-success-fg ring-success-edge',
+  warning: 'bg-warning-soft text-warning-fg ring-warning-edge',
+  danger: 'bg-danger-soft text-danger-fg ring-danger-edge',
+  info: 'bg-info-soft text-info-fg ring-info-edge',
 };
 
 const STATUS_TONE = {

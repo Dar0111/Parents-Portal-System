@@ -38,9 +38,9 @@ function titleCase(value) {
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">
-        {value || <span className="text-slate-400">{empty}</span>}
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">
+        {value || <span className="text-fg-faint">{empty}</span>}
       </dd>
     </div>
   );
@@ -178,7 +178,7 @@ export default function StudentDetailPage() {
   const backLink = (
     <Link
       to="/admin/students"
-      className="inline-flex items-center gap-2 text-sm text-slate-500 transition hover:text-slate-900"
+      className="inline-flex items-center gap-2 text-sm text-fg-muted transition hover:text-fg"
     >
       <i className="fa-solid fa-arrow-left" />
       All students
@@ -217,13 +217,13 @@ export default function StudentDetailPage() {
 
       <FormStatus status={status.record} />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="rounded-xl border border-edge bg-surface p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-edge pb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-lg font-semibold text-fg">
               {student.last_name}, {student.first_name}
             </h2>
-            <p className="mt-0.5 text-sm text-slate-500">
+            <p className="mt-0.5 text-sm text-fg-muted">
               Grade {student.grade_level} - {student.section}
             </p>
           </div>
@@ -232,7 +232,7 @@ export default function StudentDetailPage() {
             <button
               type="button"
               onClick={openEdit}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-fg-secondary transition hover:bg-surface-muted"
             >
               Edit
             </button>
@@ -271,7 +271,7 @@ export default function StudentDetailPage() {
               type="button"
               onClick={closeEdit}
               disabled={savingEdit}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -279,7 +279,7 @@ export default function StudentDetailPage() {
               type="submit"
               form="admin-student-edit-form"
               disabled={savingEdit}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
             >
               {savingEdit ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Save
@@ -313,7 +313,7 @@ export default function StudentDetailPage() {
             {/* §5i: word for word the Teacher → Students copy. Two pages
                 disagreeing about whether a class can change is worse than
                 either wording. The school question behind a move is open. */}
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-muted">
               A student's class cannot be changed here. The system does not support moving a
               student between classes.
             </p>

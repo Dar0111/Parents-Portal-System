@@ -119,10 +119,10 @@ export default function ParentMessagesPage() {
       render: (row) => (
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-medium text-slate-900">{row.other_user_name}</span>
-            <span className="text-xs text-slate-400">{row.other_user_role}</span>
+            <span className="font-medium text-fg">{row.other_user_name}</span>
+            <span className="text-xs text-fg-faint">{row.other_user_role}</span>
           </div>
-          <div className="line-clamp-1 max-w-xl text-xs text-slate-500">{row.last_message_body}</div>
+          <div className="line-clamp-1 max-w-xl text-xs text-fg-muted">{row.last_message_body}</div>
         </div>
       ),
     },
@@ -139,7 +139,7 @@ export default function ParentMessagesPage() {
       sortable: true,
       render: (row) =>
         Number(row.unread_count) > 0 ? (
-          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-slate-900 px-2 py-0.5 text-xs font-medium text-white">
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-fg">
             {row.unread_count}
           </span>
         ) : null,
@@ -152,7 +152,7 @@ export default function ParentMessagesPage() {
         <button
           type="button"
           onClick={() => navigate(`/parent/messages/${row.other_user_id}`)}
-          className="rounded-lg border border-slate-300 px-2.5 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+          className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
         >
           Open
         </button>
@@ -164,7 +164,7 @@ export default function ParentMessagesPage() {
     <button
       type="button"
       onClick={openPicker}
-      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
     >
       New message
     </button>
@@ -201,9 +201,9 @@ export default function ParentMessagesPage() {
           />
 
           {contactsLoading ? (
-            <p className="py-6 text-center text-sm text-slate-500">Loading contacts…</p>
+            <p className="py-6 text-center text-sm text-fg-muted">Loading contacts…</p>
           ) : contactsError ? (
-            <p className="text-sm text-rose-600">{contactsError}</p>
+            <p className="text-sm text-danger-text">{contactsError}</p>
           ) : contacts.length === 0 ? (
             <EmptyState
               icon="fa-address-book"
@@ -213,17 +213,17 @@ export default function ParentMessagesPage() {
           ) : (
             groups.map((group) => (
               <div key={group.role}>
-                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-faint">
                   {group.label}
                 </p>
                 {group.rows.length === 0 ? (
-                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                  <p className="rounded-lg bg-surface-subtle px-3 py-2 text-sm text-fg-muted">
                     {search.trim()
                       ? `No ${group.label.toLowerCase()} match that search.`
                       : `No ${group.label.toLowerCase()} to message.`}
                   </p>
                 ) : (
-                  <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                  <ul className="divide-y divide-edge-soft rounded-lg border border-edge">
                     {group.rows.map((c) => (
                       <li key={c.id}>
                         <button
@@ -232,16 +232,16 @@ export default function ParentMessagesPage() {
                             setPicking(false);
                             navigate(`/parent/messages/${c.id}`);
                           }}
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-slate-50"
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-surface-subtle"
                         >
                           <span>
-                            <span className="font-medium text-slate-900">{c.name}</span>
+                            <span className="font-medium text-fg">{c.name}</span>
                             {c.subject ? (
-                              <span className="text-sm text-slate-500"> — {c.subject}</span>
+                              <span className="text-sm text-fg-muted"> — {c.subject}</span>
                             ) : null}
                           </span>
                           {Number(c.unread_count) > 0 ? (
-                            <span className="rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-fg">
                               {c.unread_count}
                             </span>
                           ) : null}

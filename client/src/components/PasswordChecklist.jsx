@@ -44,10 +44,10 @@ export default function PasswordChecklist({ value, id }) {
         return (
           <li
             key={rule.key}
-            className={`flex items-center gap-2 ${passes ? 'text-emerald-700' : 'text-slate-500'}`}
+            className={`flex items-center gap-2 ${passes ? 'text-success-fg' : 'text-fg-muted'}`}
           >
             <i
-              className={`fa-solid ${passes ? 'fa-circle-check text-emerald-600' : 'fa-circle text-slate-300'} text-xs`}
+              className={`fa-solid ${passes ? 'fa-circle-check text-success-icon' : 'fa-circle text-fg-ghost'} text-xs`}
               aria-hidden="true"
             />
             <span>

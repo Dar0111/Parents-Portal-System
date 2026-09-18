@@ -177,9 +177,9 @@ export default function EventsPage() {
         sortable: true,
         render: (row) => (
           <div>
-            <div className="font-medium text-slate-900">{row.title}</div>
+            <div className="font-medium text-fg">{row.title}</div>
             {row.description ? (
-              <div className="line-clamp-2 max-w-xl text-xs text-slate-500">{row.description}</div>
+              <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
             ) : null}
           </div>
         ),
@@ -190,9 +190,9 @@ export default function EventsPage() {
         header: 'Audience',
         render: (row) =>
           row.target_grade === null ? (
-            <span className="text-slate-500">School-wide</span>
+            <span className="text-fg-muted">School-wide</span>
           ) : (
-            <span className="text-slate-700">Grade {row.target_grade}</span>
+            <span className="text-fg-secondary">Grade {row.target_grade}</span>
           ),
       },
       {
@@ -205,7 +205,7 @@ export default function EventsPage() {
               <button
                 type="button"
                 onClick={() => openEdit(row)}
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+                className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
               >
                 Edit
               </button>
@@ -215,7 +215,7 @@ export default function EventsPage() {
                   setDeleting(row);
                   setDeleteError(null);
                 }}
-                className="rounded-lg border border-rose-200 px-2.5 py-1 text-sm text-rose-600 transition hover:bg-rose-50"
+                className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
               >
                 Delete
               </button>
@@ -228,7 +228,7 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -255,7 +255,7 @@ export default function EventsPage() {
           <FormField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           <button
             type="submit"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
           >
             Apply
           </button>
@@ -265,12 +265,12 @@ export default function EventsPage() {
           <button
             type="button"
             onClick={openCompose}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             New event
           </button>
         ) : (
-          <p className="max-w-sm text-sm text-slate-500">
+          <p className="max-w-sm text-sm text-fg-muted">
             You can post once you are assigned to a class or made a section adviser.
           </p>
         )}
@@ -300,7 +300,7 @@ export default function EventsPage() {
                 setOffset(0);
                 setApplied({ grade: '', from: '', to: '' });
               }}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Clear filters
             </button>
@@ -320,7 +320,7 @@ export default function EventsPage() {
               type="button"
               onClick={() => setComposing(false)}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -328,7 +328,7 @@ export default function EventsPage() {
               type="submit"
               form="event-form"
               disabled={saving || !form.title.trim() || !form.event_date || !form.target_grade}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {editing ? 'Save changes' : 'Post'}
@@ -394,7 +394,7 @@ export default function EventsPage() {
               type="button"
               onClick={() => setDeleting(null)}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -402,7 +402,7 @@ export default function EventsPage() {
               type="button"
               onClick={confirmDelete}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Delete
@@ -411,7 +411,7 @@ export default function EventsPage() {
         }
       >
         {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-fg-secondary">
           Delete <strong>&ldquo;{deleting?.title}&rdquo;</strong>? This cannot be undone.
         </p>
       </Modal>

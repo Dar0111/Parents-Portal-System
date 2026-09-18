@@ -148,7 +148,7 @@ export default function AttendanceRecordsPage() {
         sortable: true,
         sortValue: (row) => `${row.last_name}, ${row.first_name}`,
         render: (row) => (
-          <span className="font-medium text-slate-900">
+          <span className="font-medium text-fg">
             {row.last_name}, {row.first_name}
           </span>
         ),
@@ -164,11 +164,11 @@ export default function AttendanceRecordsPage() {
   );
 
   const hint = (
-    <p className="text-sm text-slate-500">
+    <p className="text-sm text-fg-muted">
       To change a mark, open{' '}
       <Link
         to="/teacher/attendance"
-        className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+        className="font-medium text-fg-secondary underline decoration-fg-ghost underline-offset-2 hover:text-fg"
       >
         Attendance
       </Link>{' '}
@@ -217,12 +217,12 @@ export default function AttendanceRecordsPage() {
           setOffset(0);
           setApplied({ from, to });
         }}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
       >
         <div>
-          <p className="mb-1.5 text-sm font-medium text-slate-700">Section</p>
+          <p className="mb-1.5 text-sm font-medium text-fg-secondary">Section</p>
           {sections.length === 1 ? (
-            <p className="py-2 text-sm font-semibold text-slate-900">
+            <p className="py-2 text-sm font-semibold text-fg">
               Grade {section?.grade_level} - {section?.name}
             </p>
           ) : (
@@ -246,7 +246,7 @@ export default function AttendanceRecordsPage() {
         <FormField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         <button
           type="submit"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
         >
           Apply
         </button>
@@ -254,7 +254,7 @@ export default function AttendanceRecordsPage() {
           <button
             type="button"
             onClick={resetFilters}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
           >
             Reset
           </button>
@@ -279,7 +279,7 @@ export default function AttendanceRecordsPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Reset
             </button>

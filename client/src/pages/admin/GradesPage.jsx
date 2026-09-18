@@ -222,7 +222,7 @@ export default function AdminGradesPage() {
           <span className="inline-flex items-center gap-1.5">
             <TermValue entry={entry} mode={mode} />
             {entry?.is_locked ? (
-              <i className="fa-solid fa-lock text-xs text-slate-400" title="Locked" aria-label="Locked" />
+              <i className="fa-solid fa-lock text-xs text-fg-faint" title="Locked" aria-label="Locked" />
             ) : null}
           </span>
         );
@@ -232,7 +232,7 @@ export default function AdminGradesPage() {
           <button
             type="button"
             onClick={() => openCell(row, term)}
-            className="-mx-1 rounded px-1 text-right hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            className="-mx-1 rounded px-1 text-right hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
           >
             {value}
           </button>
@@ -256,7 +256,7 @@ export default function AdminGradesPage() {
         <div className="whitespace-nowrap">
           <GradeValue value={row.final_grade} mode={mode} />
           {row.final_grade_descriptor ? (
-            <div className="text-xs text-slate-500">{row.final_grade_descriptor.descriptor}</div>
+            <div className="text-xs text-fg-muted">{row.final_grade_descriptor.descriptor}</div>
           ) : null}
         </div>
       ),
@@ -267,7 +267,7 @@ export default function AdminGradesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4">
         <FormField
           label="Grade"
           as="select"
@@ -356,10 +356,10 @@ export default function AdminGradesPage() {
         <>
           {student ? (
             <div>
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2 className="text-base font-semibold text-fg">
                 {student.first_name} {student.last_name}
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-fg-muted">
                 Grade {student.grade_level} · {student.section} · School year {report.school_year}
               </p>
             </div>
@@ -369,10 +369,10 @@ export default function AdminGradesPage() {
               state: replacing it would hide the subject list (Parent →
               Grades' reasoning). A line above it instead. */}
           {noGradesYet ? (
-            <p className="text-sm text-slate-500">No grades have been recorded for this student yet.</p>
+            <p className="text-sm text-fg-muted">No grades have been recorded for this student yet.</p>
           ) : null}
 
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-fg-muted">
             Select a term grade to lock or unlock it. A term with nothing recorded has no grade to lock.
           </p>
 
@@ -396,15 +396,15 @@ export default function AdminGradesPage() {
           </div>
 
           {report && subjects.length ? (
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-edge bg-surface px-4 py-3">
+              <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
                 General Average
               </span>
               <span className="text-base">
                 <GradeValue value={report.general_average} mode={mode} />
               </span>
               {report.general_average_descriptor ? (
-                <span className="text-xs text-slate-500">{report.general_average_descriptor.descriptor}</span>
+                <span className="text-xs text-fg-muted">{report.general_average_descriptor.descriptor}</span>
               ) : null}
             </div>
           ) : null}
@@ -423,7 +423,7 @@ export default function AdminGradesPage() {
               type="button"
               onClick={closeCell}
               disabled={lockSaving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Close
             </button>
@@ -432,7 +432,7 @@ export default function AdminGradesPage() {
                 type="button"
                 onClick={toggleLock}
                 disabled={lockSaving}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {lockSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 {selectedEntry.is_locked ? 'Unlock grade' : 'Lock grade'}
@@ -451,14 +451,14 @@ export default function AdminGradesPage() {
               <StatusBadge status={selectedEntry.is_locked ? 'locked' : 'unlocked'} />
             </div>
             {/* §5i: exactly what preflightGradeWrite and DELETE /:id enforce. */}
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-fg-body">
               Locking stops every change to this grade&apos;s scores or letter — by teachers and by
               admins — and stops it from being deleted, until it is unlocked here. Parents and
               teachers still see it exactly as it is; the teacher sees it marked Locked.
             </p>
           </div>
         ) : (
-          <p className="text-sm text-slate-500">This term no longer has a grade record.</p>
+          <p className="text-sm text-fg-muted">This term no longer has a grade record.</p>
         )}
       </Modal>
     </div>

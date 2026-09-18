@@ -52,9 +52,9 @@ function titleCase(value) {
 function Field({ label, value }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">
-        {value || <span className="text-slate-400">Not recorded</span>}
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">
+        {value || <span className="text-fg-faint">Not recorded</span>}
       </dd>
     </div>
   );
@@ -332,7 +332,7 @@ export default function StudentDetailPage() {
   const backLink = (
     <Link
       to="/teacher/students"
-      className="inline-flex items-center gap-2 text-sm text-slate-500 transition hover:text-slate-900"
+      className="inline-flex items-center gap-2 text-sm text-fg-muted transition hover:text-fg"
     >
       <i className="fa-solid fa-arrow-left" />
       All students
@@ -371,13 +371,13 @@ export default function StudentDetailPage() {
 
       <FormStatus status={status.record} />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
+      <div className="rounded-xl border border-edge bg-surface p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-edge pb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-lg font-semibold text-fg">
               {student.last_name}, {student.first_name}
             </h2>
-            <p className="mt-0.5 text-sm text-slate-500">
+            <p className="mt-0.5 text-sm text-fg-muted">
               Grade {student.grade_level} - {student.section}
             </p>
           </div>
@@ -387,12 +387,12 @@ export default function StudentDetailPage() {
               <button
                 type="button"
                 onClick={openEdit}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-fg-secondary transition hover:bg-surface-muted"
               >
                 Edit
               </button>
             ) : (
-              <p className="max-w-sm text-sm text-slate-500">
+              <p className="max-w-sm text-sm text-fg-muted">
                 Editing a student is limited to classes you are assigned to teach. Advising a
                 section is not enough.
               </p>
@@ -402,14 +402,14 @@ export default function StudentDetailPage() {
               // with a 409; the page now knows from GET /students/:id and says
               // so instead of offering a dead end. The status is the account's
               // own (users.status): pending needs an admin's approval.
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-fg-body">
                 Parent account: <StatusBadge status={parentAccount.status} />
               </p>
             ) : (
               <button
                 type="button"
                 onClick={openCreate}
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
               >
                 Create parent account
               </button>
@@ -449,7 +449,7 @@ export default function StudentDetailPage() {
               type="button"
               onClick={closeEdit}
               disabled={savingEdit}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -457,7 +457,7 @@ export default function StudentDetailPage() {
               type="submit"
               form="detail-edit-form"
               disabled={savingEdit}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
             >
               {savingEdit ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Save
@@ -491,7 +491,7 @@ export default function StudentDetailPage() {
             {/* §5i: the fact plus the reason. Do not name a transfer route,
                 imply one is coming, or tell them to ask someone. The school
                 question behind a move is unanswered. */}
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-muted">
               A student's class cannot be changed here. The system does not support moving a
               student between classes.
             </p>
@@ -560,7 +560,7 @@ export default function StudentDetailPage() {
                   setConfirming(false);
                 }}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
               </button>
@@ -568,7 +568,7 @@ export default function StudentDetailPage() {
                 type="button"
                 onClick={submitCreate}
                 disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Yes, create parent account
@@ -580,7 +580,7 @@ export default function StudentDetailPage() {
                 type="button"
                 onClick={closeCreate}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -588,7 +588,7 @@ export default function StudentDetailPage() {
                 type="submit"
                 form="detail-parent-form"
                 disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)}
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 Continue
               </button>
@@ -599,7 +599,7 @@ export default function StudentDetailPage() {
         {formError ? <ErrorAlert message={formError} /> : null}
 
         {confirming ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-fg-body">
             Create a pending parent account for {parent.name.trim()} (login ID {student.lrn})?
             An admin must approve it before they can log in. You cannot un-create it.
           </p>

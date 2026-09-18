@@ -7,8 +7,8 @@ export default function ProtectedRoute({ allowedRoles, children }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <i className="fa-solid fa-circle-notch fa-spin text-3xl text-slate-400" />
+      <div className="flex min-h-screen items-center justify-center bg-page">
+        <i className="fa-solid fa-circle-notch fa-spin text-3xl text-fg-faint" />
       </div>
     );
   }

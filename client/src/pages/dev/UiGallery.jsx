@@ -26,7 +26,7 @@ function PasswordDemo() {
   const [revealed, setRevealed] = useState({ next: false, confirm: false, current: false });
   const toggle = (key) => setRevealed((r) => ({ ...r, [key]: !r[key] }));
   return (
-    <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2">
+    <div className="grid gap-4 rounded-xl border border-edge bg-surface p-6 sm:grid-cols-2">
       <PasswordField
         label="New password"
         value={next}
@@ -70,8 +70,8 @@ function PasswordDemo() {
 function Section({ title, note, children }) {
   return (
     <section className="mb-10">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-      {note ? <p className="mt-1 text-sm text-slate-500">{note}</p> : null}
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">{title}</h2>
+      {note ? <p className="mt-1 text-sm text-fg-muted">{note}</p> : null}
       <div className="mt-3">{children}</div>
     </section>
   );
@@ -80,7 +80,7 @@ function Section({ title, note, children }) {
 function Row({ label, children }) {
   return (
     <div className="mb-4">
-      <p className="mb-2 text-xs font-medium text-slate-400">{label}</p>
+      <p className="mb-2 text-xs font-medium text-fg-faint">{label}</p>
       {children}
     </div>
   );
@@ -126,11 +126,11 @@ export default function UiGallery() {
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-page p-6">
       <div className="mx-auto max-w-4xl">
         <header className="mb-8">
-          <h1 className="text-lg font-semibold text-slate-900">UI primitives</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-lg font-semibold text-fg">UI primitives</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Dev-only gallery. Not in any nav, not in a production build.
           </p>
         </header>
@@ -224,7 +224,7 @@ export default function UiGallery() {
         </Section>
 
         <Section title="LoadingSpinner">
-          <div className="flex items-center gap-10 rounded-xl border border-slate-200 bg-white p-6">
+          <div className="flex items-center gap-10 rounded-xl border border-edge bg-surface p-6">
             <LoadingSpinner size="sm" label={null} />
             <LoadingSpinner size="md" />
             <LoadingSpinner size="lg" label="Saving…" />
@@ -232,7 +232,7 @@ export default function UiGallery() {
         </Section>
 
         <Section title="EmptyState">
-          <div className="rounded-xl border border-slate-200 bg-white">
+          <div className="rounded-xl border border-edge bg-surface">
             <EmptyState
               icon="fa-envelope-open-text"
               title="No excuse letters yet"
@@ -240,7 +240,7 @@ export default function UiGallery() {
               action={
                 <button
                   type="button"
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
                 >
                   Refresh
                 </button>
@@ -266,7 +266,7 @@ export default function UiGallery() {
           <div className="space-y-3">
             <FormStatus status={ok('Contact number updated.')} />
             <FormStatus status={fail('Current password is incorrect.')} />
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-muted">
               A null status renders nothing — there is no empty frame to reserve space:
             </p>
             <FormStatus status={null} />
@@ -277,7 +277,7 @@ export default function UiGallery() {
           title="FormField"
           note="Four shapes: input (default), textarea, select with children as its options, or a custom control via render={({ id, describedBy }) => …}."
         >
-          <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-6 sm:grid-cols-2">
+          <div className="grid gap-4 rounded-xl border border-edge bg-surface p-6 sm:grid-cols-2">
             <FormField label="Student name" placeholder="Juan dela Cruz" required />
             <FormField label="LRN" hint="12 digits, immutable after creation." placeholder="136491230001" />
             <FormField label="Contact number" error="Contact number must be 11 digits." defaultValue="0917" />
@@ -318,22 +318,22 @@ export default function UiGallery() {
           title="GradeValue — the four states"
           note="NULL is never a bare dash: the reason is inline text, because tooltips do not exist on touch and the report card is a phone screen."
         >
-          <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="rounded-xl border border-edge bg-surface p-6">
             <div className="grid gap-4 sm:grid-cols-4">
               <div>
-                <p className="mb-1 text-xs font-medium text-slate-400">a real grade</p>
+                <p className="mb-1 text-xs font-medium text-fg-faint">a real grade</p>
                 <GradeValue value="88.05" mode="numerical" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-slate-400">a real zero</p>
+                <p className="mb-1 text-xs font-medium text-fg-faint">a real zero</p>
                 <GradeValue value="0.00" mode="numerical" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-slate-400">null, numerical</p>
+                <p className="mb-1 text-xs font-medium text-fg-faint">null, numerical</p>
                 <GradeValue value={null} mode="numerical" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-slate-400">null, descriptive</p>
+                <p className="mb-1 text-xs font-medium text-fg-faint">null, descriptive</p>
                 <GradeValue value={null} mode="descriptive" />
               </div>
             </div>
@@ -345,7 +345,7 @@ export default function UiGallery() {
           title="Nav states"
           note="Three states, not two. Blocked is a stronger claim than unbuilt and takes precedence — hover it for the reason."
         >
-          <div className="max-w-xs rounded-xl border border-slate-200 bg-white p-2">
+          <div className="max-w-xs rounded-xl border border-edge bg-surface p-2">
             <NavItem item={{ to: '/dev/ui', label: 'Built (this page)', icon: 'fa-gauge', built: true }} />
             <NavItem item={{ to: '/x', label: 'Not built yet', icon: 'fa-user-graduate', built: false }} />
             <NavItem
@@ -364,7 +364,7 @@ export default function UiGallery() {
           <button
             type="button"
             onClick={() => setModalOpen(true)}
-            className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             Open modal
           </button>
@@ -378,14 +378,14 @@ export default function UiGallery() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+                  className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700"
+                  className="rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover"
                 >
                   Decline
                 </button>

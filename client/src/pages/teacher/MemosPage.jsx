@@ -69,8 +69,8 @@ export default function MemosPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <div className="font-medium text-slate-900">{row.title}</div>
-          <div className="line-clamp-2 max-w-2xl text-xs text-slate-500">{row.content}</div>
+          <div className="font-medium text-fg">{row.title}</div>
+          <div className="line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -92,8 +92,8 @@ export default function MemosPage() {
 
   return (
     <div className="space-y-4">
-      <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-        <i className="fa-solid fa-circle-info mr-2 text-slate-400" />
+      <p className="rounded-xl border border-edge bg-surface px-4 py-3 text-sm text-fg-body">
+        <i className="fa-solid fa-circle-info mr-2 text-fg-faint" />
         Memos are posted by the school administration and go to everyone. Teachers read them here;
         to reach your own class, use Announcements.
       </p>

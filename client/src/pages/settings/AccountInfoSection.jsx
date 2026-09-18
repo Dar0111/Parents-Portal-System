@@ -36,9 +36,9 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 function Field({ label, value, empty = 'Not recorded', children }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">
-        {children ?? (value ? value : <span className="text-slate-400">{empty}</span>)}
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">
+        {children ?? (value ? value : <span className="text-fg-faint">{empty}</span>)}
       </dd>
     </div>
   );
@@ -58,7 +58,7 @@ function childClass(user) {
 
 function MaskedLoginId({ value }) {
   const [shown, setShown] = useState(false);
-  if (!value) return <span className="text-slate-400">—</span>;
+  if (!value) return <span className="text-fg-faint">—</span>;
   return (
     <span className="inline-flex items-center gap-3">
       <span className="font-mono tracking-wider" aria-live="polite">
@@ -69,7 +69,7 @@ function MaskedLoginId({ value }) {
         type="button"
         onClick={() => setShown((s) => !s)}
         aria-pressed={shown}
-        className="text-xs font-medium text-slate-600 underline-offset-2 hover:underline"
+        className="text-xs font-medium text-fg-body underline-offset-2 hover:underline"
       >
         {shown ? 'Hide' : 'Show'}
       </button>
@@ -131,11 +131,11 @@ export default function AccountInfoSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Account information</h2>
-        <p className="mt-1 text-sm text-slate-500">{ROLE_COPY[role] || ''}</p>
+        <h2 className="text-base font-semibold text-fg">Account information</h2>
+        <p className="mt-1 text-sm text-fg-muted">{ROLE_COPY[role] || ''}</p>
       </div>
 
-      <dl className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-2">
+      <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4 sm:grid-cols-2">
         {role === 'parent' ? (
           <>
             <Field label="Parent name" value={user?.name} />
@@ -162,8 +162,8 @@ export default function AccountInfoSection() {
       </dl>
 
       <section className="max-w-md space-y-3">
-        <h3 className="text-sm font-semibold text-slate-900">Update contact number</h3>
-        <p className="text-sm text-slate-500">
+        <h3 className="text-sm font-semibold text-fg">Update contact number</h3>
+        <p className="text-sm text-fg-muted">
           If you change phones, update this so the school can still reach you.
         </p>
         <form onSubmit={saveContact} className="space-y-3">
@@ -183,7 +183,7 @@ export default function AccountInfoSection() {
           <button
             type="submit"
             disabled={saving || !contactDirty}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save contact number'}
           </button>

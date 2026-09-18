@@ -38,10 +38,10 @@ export default function FormStatus({ status, className = '' }) {
   return (
     <div
       role="status"
-      className={`flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 ${className}`}
+      className={`flex items-start gap-3 rounded-lg border border-success-edge bg-success-soft px-4 py-3 ${className}`}
     >
-      <i className="fa-solid fa-circle-check mt-0.5 text-emerald-600" />
-      <p className="text-sm text-emerald-800">{status.text}</p>
+      <i className="fa-solid fa-circle-check mt-0.5 text-success-icon" />
+      <p className="text-sm text-success-strong">{status.text}</p>
     </div>
   );
 }

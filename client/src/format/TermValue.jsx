@@ -26,9 +26,9 @@ export default function TermValue({ entry, mode }) {
     }
     return (
       <span className="whitespace-nowrap">
-        <span className="font-medium text-slate-900">{entry.descriptive_grade}</span>
+        <span className="font-medium text-fg">{entry.descriptive_grade}</span>
         {entry.descriptor ? (
-          <span className="ml-1.5 text-xs text-slate-500">{entry.descriptor.descriptor}</span>
+          <span className="ml-1.5 text-xs text-fg-muted">{entry.descriptor.descriptor}</span>
         ) : null}
       </span>
     );

@@ -12,8 +12,8 @@ export default function LiveStatus({ onRefresh }) {
   if (connected) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
-      <p className="text-sm text-amber-900">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-2.5">
+      <p className="text-sm text-warning-strong">
         <i className="fa-solid fa-plug-circle-xmark mr-2" />
         Live updates paused — new messages will not appear on their own.
       </p>
@@ -21,7 +21,7 @@ export default function LiveStatus({ onRefresh }) {
         <button
           type="button"
           onClick={onRefresh}
-          className="rounded-lg border border-amber-300 bg-white px-3 py-1 text-sm font-medium text-amber-900 transition hover:bg-amber-100"
+          className="rounded-lg border border-warning-edge-strong bg-surface px-3 py-1 text-sm font-medium text-warning-strong transition hover:bg-warning-soft-hover"
         >
           Refresh
         </button>

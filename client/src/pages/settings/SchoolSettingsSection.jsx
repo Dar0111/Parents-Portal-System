@@ -45,9 +45,9 @@ const TERMS = ['1', '2', '3'];
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">
-        {value ? value : <span className="text-slate-400">{empty}</span>}
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dd className="mt-1 text-sm text-fg">
+        {value ? value : <span className="text-fg-faint">{empty}</span>}
       </dd>
     </div>
   );
@@ -158,8 +158,8 @@ export default function SchoolSettingsSection() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">School settings</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="text-base font-semibold text-fg">School settings</h2>
+        <p className="mt-1 text-sm text-fg-muted">
           These settings belong to the school, not to your account. Your own account is under
           Account information.
         </p>
@@ -168,13 +168,13 @@ export default function SchoolSettingsSection() {
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
       <section className="max-w-md space-y-3">
-        <h3 className="text-sm font-semibold text-slate-900">School year and term</h3>
-        <dl className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+        <h3 className="text-sm font-semibold text-fg">School year and term</h3>
+        <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4">
           <Field label="School year" value={stored.academic_year} />
         </dl>
         {/* §5i: says it cannot be changed here and why; does not promise
             where it can be — no such screen or process exists. */}
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-fg-muted">
           The school year cannot be changed here. Sections, grading setup and existing grades are
           all tied to the school year, and changing this value would not move any of them.
         </p>
@@ -196,7 +196,7 @@ export default function SchoolSettingsSection() {
           <button
             type="submit"
             disabled={saving !== null || !termDirty}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving === 'term' ? 'Saving…' : 'Save term'}
           </button>
@@ -205,7 +205,7 @@ export default function SchoolSettingsSection() {
       </section>
 
       <section className="max-w-md space-y-3">
-        <h3 className="text-sm font-semibold text-slate-900">School details</h3>
+        <h3 className="text-sm font-semibold text-fg">School details</h3>
         <form onSubmit={saveDetails} className="space-y-3">
           <FormField
             label="School name"
@@ -231,7 +231,7 @@ export default function SchoolSettingsSection() {
           <button
             type="submit"
             disabled={saving !== null || !detailsDirty}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving === 'details' ? 'Saving…' : 'Save school details'}
           </button>

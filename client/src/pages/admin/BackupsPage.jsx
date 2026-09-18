@@ -278,16 +278,16 @@ export default function AdminBackupsPage() {
       key: 'filename',
       header: 'File',
       sortable: true,
-      render: (row) => <span className="font-mono text-xs text-slate-900">{row.filename}</span>,
+      render: (row) => <span className="font-mono text-xs text-fg">{row.filename}</span>,
     },
     {
       key: 'kind',
       header: 'Kind',
       render: (row) =>
         isSafetyCopy(row) ? (
-          <span className="text-slate-700">Safety copy (taken automatically before a restore)</span>
+          <span className="text-fg-secondary">Safety copy (taken automatically before a restore)</span>
         ) : (
-          <span className="text-slate-700">Manual backup</span>
+          <span className="text-fg-secondary">Manual backup</span>
         ),
     },
     { key: 'created_at', header: 'Created', sortable: true, render: (row) => formatWhen(row.created_at) },
@@ -302,7 +302,7 @@ export default function AdminBackupsPage() {
         if (!row.file_exists) {
           return (
             <div className="flex items-center justify-end gap-2">
-              <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">Missing from disk</span>
+              <span className="rounded bg-warning-soft px-2 py-0.5 text-xs text-warning-fg">Missing from disk</span>
               {isSafetyCopy(row) ? null : (
                 <button
                   type="button"
@@ -312,7 +312,7 @@ export default function AdminBackupsPage() {
                     setDeleteError(null);
                     setDeleting(row);
                   }}
-                  className="rounded-lg border border-rose-200 px-2.5 py-1 text-sm text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                  className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft disabled:opacity-50"
                 >
                   Delete
                 </button>
@@ -326,7 +326,7 @@ export default function AdminBackupsPage() {
               type="button"
               disabled={disabled}
               onClick={() => downloadBackup(row)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               {busy === `download-${row.id}` ? <i className="fa-solid fa-circle-notch fa-spin" /> : 'Download'}
             </button>
@@ -334,7 +334,7 @@ export default function AdminBackupsPage() {
               type="button"
               disabled={disabled}
               onClick={() => openRestore(row)}
-              className="rounded-lg border border-slate-300 px-2.5 py-1 text-sm font-medium text-slate-800 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm font-medium text-fg-secondary transition hover:bg-surface-muted disabled:opacity-50"
             >
               Restore…
             </button>
@@ -347,7 +347,7 @@ export default function AdminBackupsPage() {
                   setDeleteError(null);
                   setDeleting(row);
                 }}
-                className="rounded-lg border border-rose-200 px-2.5 py-1 text-sm text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+                className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft disabled:opacity-50"
               >
                 Delete
               </button>
@@ -362,7 +362,7 @@ export default function AdminBackupsPage() {
     {
       key: 'filename',
       header: 'File',
-      render: (row) => <span className="font-mono text-xs text-slate-700">{row.filename}</span>,
+      render: (row) => <span className="font-mono text-xs text-fg-secondary">{row.filename}</span>,
     },
     { key: 'file_size', header: 'Size', align: 'right', render: (row) => formatSize(row.file_size) },
     { key: 'mtime', header: 'Modified', render: (row) => formatWhen(row.mtime) },
@@ -375,10 +375,10 @@ export default function AdminBackupsPage() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Backups</h2>
+            <h2 className="text-sm font-semibold text-fg">Backups</h2>
             {/* §5i: routes/backups.js — the download is the most sensitive
                 action the API permits, and it is logged. */}
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-muted">
               A backup is a full copy of the database. A download is a full copy of every
               student&apos;s records — keep it private. Downloads are recorded in the activity log.
             </p>
@@ -387,7 +387,7 @@ export default function AdminBackupsPage() {
             type="button"
             onClick={createBackup}
             disabled={busy !== null}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy === 'create' ? (
               <>
@@ -425,8 +425,8 @@ export default function AdminBackupsPage() {
 
       {orphans.length ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-slate-900">Files on disk with no record</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-sm font-semibold text-fg">Files on disk with no record</h2>
+          <p className="text-sm text-fg-muted">
             The system has no record of these files, so they cannot be downloaded, restored or
             deleted here.
           </p>
@@ -446,7 +446,7 @@ export default function AdminBackupsPage() {
               type="button"
               onClick={() => setDeleting(null)}
               disabled={Boolean(busy)}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Cancel
             </button>
@@ -454,7 +454,7 @@ export default function AdminBackupsPage() {
               type="button"
               onClick={confirmDelete}
               disabled={Boolean(busy)}
-              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
             >
               {busy ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Delete
@@ -464,7 +464,7 @@ export default function AdminBackupsPage() {
       >
         {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
         {deleting ? (
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-fg-secondary">
             Delete <span className="font-mono text-xs">{deleting.filename}</span>, taken{' '}
             {formatWhen(deleting.created_at)}? The file is removed from the server&apos;s disk and
             cannot be recovered.
@@ -483,7 +483,7 @@ export default function AdminBackupsPage() {
             <button
               type="button"
               onClick={logInAgain}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
             >
               Log in again
             </button>
@@ -493,7 +493,7 @@ export default function AdminBackupsPage() {
                 type="button"
                 onClick={closeRestore}
                 disabled={stage === 'running'}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -501,7 +501,7 @@ export default function AdminBackupsPage() {
                 type="submit"
                 form="restore-form"
                 disabled={stage === 'running' || !password || !confirmName}
-                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {stage === 'running' ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 {stage === 'running' ? 'Restoring…' : 'Restore database'}
@@ -514,43 +514,43 @@ export default function AdminBackupsPage() {
           // Server wording, verbatim. Nothing on this page calls the API
           // again: every session — this one included — is now invalid.
           <div className="space-y-3">
-            <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            <p className="rounded-lg border border-success-edge bg-success-soft px-3 py-2 text-sm text-success-strong">
               {outcome.message}
             </p>
             {outcome.restored_from ? (
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-fg-secondary">
                 Restored from <span className="font-mono text-xs">{outcome.restored_from.filename}</span>.
               </p>
             ) : null}
             {outcome.safety_backup ? (
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-fg-secondary">
                 Safety copy of the database as it was just before this restore:{' '}
                 <span className="font-mono text-xs font-semibold">{outcome.safety_backup.filename}</span>.
                 If this restore was a mistake, log in and restore that file.
               </p>
             ) : null}
             {Number(outcome.activity_logs_wiped) > 0 ? (
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-fg-secondary">
                 {outcome.activity_logs_wiped} activity log{' '}
                 {Number(outcome.activity_logs_wiped) === 1 ? 'entry' : 'entries'} recorded after the
                 backup was taken {Number(outcome.activity_logs_wiped) === 1 ? 'was' : 'were'} lost.
               </p>
             ) : null}
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-fg-muted">
               Log in again with the password that was valid when{' '}
               <span className="font-mono text-xs">{restoring.filename}</span> was taken.
             </p>
           </div>
         ) : restoring ? (
           <form id="restore-form" onSubmit={submitRestore} className="max-h-[70vh] space-y-4 overflow-y-auto">
-            <p className="text-sm text-slate-800">
+            <p className="text-sm text-fg-secondary">
               This replaces the entire database with{' '}
               <span className="font-mono text-xs font-semibold">{restoring.filename}</span>, taken{' '}
               {restoreDate}.
             </p>
 
             {/* §5i: the server's own order and terms (routes/backups.js). */}
-            <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
+            <ol className="list-decimal space-y-1.5 pl-5 text-sm text-fg-secondary">
               <li>A safety backup of the current database is taken first. If that fails, nothing is changed.</li>
               <li>
                 Everything except the list of backups is replaced with this backup&apos;s contents —
@@ -582,9 +582,9 @@ export default function AdminBackupsPage() {
             />
 
             <div className="space-y-1.5">
-              <p className="text-sm text-slate-700">
+              <p className="text-sm text-fg-secondary">
                 Type the file name to confirm:{' '}
-                <span className="font-mono text-xs font-semibold text-slate-900">{restoring.filename}</span>
+                <span className="font-mono text-xs font-semibold text-fg">{restoring.filename}</span>
               </p>
               <FormField
                 label="File name"
@@ -606,7 +606,7 @@ export default function AdminBackupsPage() {
             {restoreError ? <ErrorAlert message={restoreError} /> : null}
 
             {stage === 'running' ? (
-              <p className="text-sm font-medium text-slate-800">
+              <p className="text-sm font-medium text-fg-secondary">
                 Restoring — do not close or refresh this tab.
               </p>
             ) : null}

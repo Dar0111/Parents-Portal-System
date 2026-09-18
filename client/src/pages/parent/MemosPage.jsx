@@ -88,11 +88,11 @@ export default function ParentMemosPage() {
           <button
             type="button"
             onClick={() => setReading(row)}
-            className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+            className="text-left font-medium text-fg underline-offset-2 hover:underline"
           >
             {row.title}
           </button>
-          <div className="line-clamp-2 max-w-2xl text-xs text-slate-500">{row.content}</div>
+          <div className="line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -108,8 +108,8 @@ export default function ParentMemosPage() {
     <div className="space-y-4">
       {/* No audience label on a memo row: memos have no targeting columns at
           all, so the fact is true of the whole page rather than of any row. */}
-      <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-        <i className="fa-solid fa-circle-info mr-2 text-slate-400" />
+      <p className="rounded-xl border border-edge bg-surface px-4 py-3 text-sm text-fg-body">
+        <i className="fa-solid fa-circle-info mr-2 text-fg-faint" />
         Memos come from the school administration and go to everyone.
       </p>
 
@@ -139,12 +139,12 @@ export default function ParentMemosPage() {
         size="lg"
       >
         <div className="max-h-[70vh] overflow-y-auto">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
             <span>Posted {String(reading?.created_at).slice(0, 10)}</span>
             <span aria-hidden="true">·</span>
             <span>Posted by {reading?.posted_by_name}</span>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg-secondary">
             {reading?.content}
           </p>
         </div>

@@ -141,15 +141,15 @@ export default function ParentAnnouncementsPage() {
             <button
               type="button"
               onClick={() => setReading(row)}
-              className="text-left font-medium text-slate-900 underline-offset-2 hover:underline"
+              className="text-left font-medium text-fg underline-offset-2 hover:underline"
             >
               {row.title}
             </button>
-            <div className="line-clamp-2 max-w-xl text-xs text-slate-500">{row.content}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-faint">
               <span>{audienceLabel(row)}</span>
               {row.category ? (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-fg-muted">
                   {/* Rendered exactly as stored. Free-text columns are outside
                       convention 5d's casing permission, which covers only
                       values whose stored form is lowercase BY SCHEMA. */}
@@ -197,7 +197,7 @@ export default function ParentAnnouncementsPage() {
             announcement would otherwise push the panel past the viewport and
             take its close button with it. */}
         <div className="max-h-[70vh] overflow-y-auto">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
             <span>{reading ? audienceLabel(reading) : null}</span>
             <span aria-hidden="true">·</span>
             <span>Posted {String(reading?.created_at).slice(0, 10)}</span>
@@ -210,7 +210,7 @@ export default function ParentAnnouncementsPage() {
               </>
             ) : null}
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg-secondary">
             {reading?.content}
           </p>
         </div>

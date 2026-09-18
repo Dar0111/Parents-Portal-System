@@ -374,9 +374,9 @@ export default function AdminAnnouncementsPage() {
   const filterLabel = filter.section ? `Grade ${filter.grade} - ${filter.section}` : `Grade ${filter.grade}`;
 
   const buttonNeutral =
-    'rounded-lg border border-slate-300 px-2.5 py-1 text-sm text-slate-600 transition hover:bg-slate-100';
+    'rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted';
   const buttonDanger =
-    'rounded-lg border border-rose-200 px-2.5 py-1 text-sm text-rose-600 transition hover:bg-rose-50';
+    'rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft';
 
   const announcementColumns = [
     {
@@ -385,15 +385,15 @@ export default function AdminAnnouncementsPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <div className="font-medium text-slate-900">{row.title}</div>
-          <div className="line-clamp-2 max-w-xl text-xs text-slate-500">{row.content}</div>
+          <div className="font-medium text-fg">{row.title}</div>
+          <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
     {
       key: 'audience',
       header: 'Audience',
-      render: (row) => <span className="text-slate-700">{audienceLabel(row)}</span>,
+      render: (row) => <span className="text-fg-secondary">{audienceLabel(row)}</span>,
     },
     // Authors are mixed on the admin list, and Edit depends on it — so the
     // name is shown here even though Teacher → Announcements omits it.
@@ -425,8 +425,8 @@ export default function AdminAnnouncementsPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <div className="font-medium text-slate-900">{row.title}</div>
-          <div className="line-clamp-2 max-w-2xl text-xs text-slate-500">{row.content}</div>
+          <div className="font-medium text-fg">{row.title}</div>
+          <div className="line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -453,14 +453,14 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="space-y-8">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-fg-muted">
         Memos have no page of their own — they are posted here, below announcements, and go to
         everyone.
       </p>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-900">Announcements</h2>
-        <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-fg">Announcements</h2>
+        <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
           <form onSubmit={applyFilter} className="flex flex-wrap items-end gap-3">
             <FormField
               label="Grade"
@@ -491,11 +491,11 @@ export default function AdminAnnouncementsPage() {
                 </option>
               ))}
             </FormField>
-            <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100">
+            <button type="submit" className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted">
               Apply
             </button>
             {canReset ? (
-              <button type="button" onClick={resetFilter} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100">
+              <button type="button" onClick={resetFilter} className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted">
                 Reset
               </button>
             ) : null}
@@ -503,7 +503,7 @@ export default function AdminAnnouncementsPage() {
           <button
             type="button"
             onClick={openNewAnnouncement}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             New announcement
           </button>
@@ -531,7 +531,7 @@ export default function AdminAnnouncementsPage() {
           }
           emptyAction={
             canReset ? (
-              <button type="button" onClick={resetFilter} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100">
+              <button type="button" onClick={resetFilter} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted">
                 Clear filter
               </button>
             ) : null
@@ -541,11 +541,11 @@ export default function AdminAnnouncementsPage() {
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-900">Memos</h2>
+          <h2 className="text-sm font-semibold text-fg">Memos</h2>
           <button
             type="button"
             onClick={openNewMemo}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
           >
             New memo
           </button>
@@ -577,14 +577,14 @@ export default function AdminAnnouncementsPage() {
         size="lg"
         footer={
           <>
-            <button type="button" onClick={closeAnnouncement} disabled={saving} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+            <button type="button" onClick={closeAnnouncement} disabled={saving} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
             <button
               type="submit"
               form="admin-announcement-form"
               disabled={saving || !annForm.title.trim() || !annForm.content.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {annEditing?.id ? 'Save changes' : 'Post'}
@@ -596,13 +596,13 @@ export default function AdminAnnouncementsPage() {
           {formError ? <ErrorAlert message={formError} /> : null}
 
           <fieldset className="space-y-2">
-            <legend className="mb-1.5 text-sm font-medium text-slate-700">Audience</legend>
+            <legend className="mb-1.5 text-sm font-medium text-fg-secondary">Audience</legend>
             {[
               { value: 'school', label: 'Everyone at the school' },
               { value: 'grade', label: 'One whole grade' },
               { value: 'class', label: 'One class' },
             ].map((opt) => (
-              <label key={opt.value} className="flex items-center gap-2 text-sm text-slate-700">
+              <label key={opt.value} className="flex items-center gap-2 text-sm text-fg-secondary">
                 <input
                   type="radio"
                   name="audience"
@@ -649,9 +649,9 @@ export default function AdminAnnouncementsPage() {
             </div>
           ) : null}
 
-          <p className="text-sm text-slate-500">{audienceHint}</p>
+          <p className="text-sm text-fg-muted">{audienceHint}</p>
           {annForm.audience === 'class' && chosenSection && Number(chosenSection.student_count) === 0 ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
               This class has no students, so no parent will see this post.
             </p>
           ) : null}
@@ -689,14 +689,14 @@ export default function AdminAnnouncementsPage() {
         size="lg"
         footer={
           <>
-            <button type="button" onClick={closeMemo} disabled={saving} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+            <button type="button" onClick={closeMemo} disabled={saving} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
             <button
               type="submit"
               form="admin-memo-form"
               disabled={saving || !memoForm.title.trim() || !memoForm.content.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {memoEditing?.id ? 'Save changes' : 'Post memo'}
@@ -708,7 +708,7 @@ export default function AdminAnnouncementsPage() {
           {formError ? <ErrorAlert message={formError} /> : null}
           {/* A form with no audience field invites the assumption that one was
               forgotten. Memos have no targeting columns (content.js). */}
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-fg-muted">
             Memos have no audience setting — every memo goes to every teacher and every parent.
           </p>
           <FormField
@@ -737,14 +737,14 @@ export default function AdminAnnouncementsPage() {
         size="sm"
         footer={
           <>
-            <button type="button" onClick={() => setDeleting(null)} disabled={saving} className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50">
+            <button type="button" onClick={() => setDeleting(null)} disabled={saving} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50">
               Cancel
             </button>
             <button
               type="button"
               onClick={confirmDelete}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-rose-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Delete
@@ -754,14 +754,14 @@ export default function AdminAnnouncementsPage() {
       >
         {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
         {deleting?.kind === 'memo' ? (
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-fg-secondary">
             Delete <strong>&ldquo;{deleting.row.title}&rdquo;</strong>? This cannot be undone. Every
             teacher and parent loses it.
           </p>
         ) : deleting ? (
           // "…is not told" stays: nothing in the system notifies the poster,
           // and this is the only place that fact appears in the product.
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-fg-secondary">
             Delete <strong>&ldquo;{deleting.row.title}&rdquo;</strong>, posted by{' '}
             {deletingOwn ? 'you' : deleting.row.posted_by_name} to {audienceLabel(deleting.row)}? This
             cannot be undone. Parents who have not read it will never see it

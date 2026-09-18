@@ -88,7 +88,7 @@ function TermCell({ entry, mode, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(entry)}
-      className="-mx-1 rounded px-1 text-right hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+      className="-mx-1 rounded px-1 text-right hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
     >
       {inner}
     </button>
@@ -97,10 +97,10 @@ function TermCell({ entry, mode, onOpen }) {
 
 function ScorePair({ score, max }) {
   if (score == null && max == null) {
-    return <span className="text-sm text-slate-400">Not yet recorded</span>;
+    return <span className="text-sm text-fg-faint">Not yet recorded</span>;
   }
   return (
-    <span className="tabular-nums text-sm text-slate-900">
+    <span className="tabular-nums text-sm text-fg">
       {score}/{max}
     </span>
   );
@@ -109,17 +109,17 @@ function ScorePair({ score, max }) {
 function ComponentList({ title, rows, empty }) {
   return (
     <section>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <h3 className="text-sm font-semibold text-fg">{title}</h3>
       {rows.length === 0 ? (
-        <p className="mt-1 text-sm text-slate-500">{empty}</p>
+        <p className="mt-1 text-sm text-fg-muted">{empty}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100">
+        <ul className="mt-2 divide-y divide-edge-soft">
           {rows.map((row) => (
             <li key={row.id} className="flex items-baseline justify-between gap-3 py-1.5">
               <div className="min-w-0">
-                <p className="text-sm text-slate-800">{row.label}</p>
+                <p className="text-sm text-fg-secondary">{row.label}</p>
                 {row.date_recorded ? (
-                  <p className="text-xs text-slate-400">{row.date_recorded}</p>
+                  <p className="text-xs text-fg-faint">{row.date_recorded}</p>
                 ) : null}
               </div>
               <ScorePair score={row.score} max={row.max_score} />
@@ -141,14 +141,14 @@ function ExamList({ grade }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-slate-900">Examinations</h3>
+      <h3 className="text-sm font-semibold text-fg">Examinations</h3>
       {!anyRecorded ? (
-        <p className="mt-1 text-sm text-slate-500">No examination scores recorded yet</p>
+        <p className="mt-1 text-sm text-fg-muted">No examination scores recorded yet</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100">
+        <ul className="mt-2 divide-y divide-edge-soft">
           {lines.map((line) => (
             <li key={line.key} className="flex items-baseline justify-between gap-3 py-1.5">
-              <p className="text-sm text-slate-800">{line.label}</p>
+              <p className="text-sm text-fg-secondary">{line.label}</p>
               <ScorePair score={line.score} max={line.max} />
             </li>
           ))}
@@ -197,7 +197,7 @@ function BreakdownBody({ mode, detail }) {
             so empty tables would say "scores missing" about something
             that cannot have scores (§5f / §5i). */}
         {hasRecordedBreakdown ? (
-          <div className="space-y-4 border-t border-slate-100 pt-3">
+          <div className="space-y-4 border-t border-edge-soft pt-3">
             {ww.length > 0 ? (
               <ComponentList title="Written Works" rows={ww} empty="" />
             ) : null}
@@ -216,7 +216,7 @@ function BreakdownBody({ mode, detail }) {
       <div>
         <GradeValue value={grade.term_grade} mode={mode} />
         {detail.descriptor?.descriptor ? (
-          <span className="ml-1.5 text-xs text-slate-500">{detail.descriptor.descriptor}</span>
+          <span className="ml-1.5 text-xs text-fg-muted">{detail.descriptor.descriptor}</span>
         ) : null}
       </div>
       <ComponentList
@@ -441,7 +441,7 @@ export default function ParentGradesPage() {
           <div className="whitespace-nowrap">
             <GradeValue value={row.final_grade} mode={mode} />
             {row.final_grade_descriptor ? (
-              <div className="text-xs text-slate-500">{row.final_grade_descriptor.descriptor}</div>
+              <div className="text-xs text-fg-muted">{row.final_grade_descriptor.descriptor}</div>
             ) : null}
           </div>
         ),
@@ -457,10 +457,10 @@ export default function ParentGradesPage() {
           the numeric student.id is not shown either. */}
       {student ? (
         <div>
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="text-base font-semibold text-fg">
             {student.first_name} {student.last_name}
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-fg-muted">
             Grade {student.grade_level} · {student.section} · School year {report.school_year}
           </p>
         </div>
@@ -500,15 +500,15 @@ export default function ParentGradesPage() {
           partial average determines promotion and prints on the SF9, so a
           parent seeing one in October would reasonably treat it as settled. */}
       {report && subjects.length ? (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-edge bg-surface px-4 py-3">
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
             General Average
           </span>
           <span className="text-base">
             <GradeValue value={report.general_average} mode={mode} />
           </span>
           {report.general_average_descriptor ? (
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-fg-muted">
               {report.general_average_descriptor.descriptor}
             </span>
           ) : null}

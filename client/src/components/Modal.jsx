@@ -69,7 +69,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-backdrop p-4"
       onMouseDown={(event) => {
         // mousedown, not click: a click that STARTS inside the panel and ends
         // on the backdrop (dragging to select text) must not close the modal.
@@ -82,15 +82,15 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        className={`w-full ${SIZES[size] || SIZES.md} rounded-xl bg-white shadow-xl outline-none`}
+        className={`w-full ${SIZES[size] || SIZES.md} rounded-xl bg-surface shadow-xl outline-none`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+        <div className="flex items-start justify-between gap-4 border-b border-edge px-5 py-4">
+          <h2 className="text-base font-semibold text-fg">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="-m-1 rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="-m-1 rounded-lg p-1 text-fg-faint transition hover:bg-surface-muted hover:text-fg-body"
           >
             <i className="fa-solid fa-xmark" />
           </button>
@@ -99,7 +99,7 @@ export default function Modal({
         <div className="px-5 py-4">{children}</div>
 
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">{footer}</div>
+          <div className="flex justify-end gap-2 border-t border-edge px-5 py-3">{footer}</div>
         ) : null}
       </div>
     </div>

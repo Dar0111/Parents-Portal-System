@@ -171,11 +171,11 @@ function parseScoreMax(scoreStr, maxStr) {
 }
 
 const btnPrimary =
-  'inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300';
+  'inline-flex items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled';
 const btnSecondary =
-  'inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400';
+  'inline-flex items-center justify-center rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm font-medium text-fg-secondary transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:text-fg-faint';
 const btnDanger =
-  'inline-flex items-center justify-center rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:text-slate-400';
+  'inline-flex items-center justify-center rounded-lg border border-danger-edge bg-surface px-2.5 py-1.5 text-xs font-medium text-danger-fg transition hover:bg-danger-soft disabled:cursor-not-allowed disabled:text-fg-faint';
 
 export default function TeacherGradesPage() {
   usePageTitle('Grades');
@@ -690,7 +690,7 @@ export default function TeacherGradesPage() {
         sortable: true,
         sortValue: (row) => `${row.last_name} ${row.first_name}`,
         render: (row) => (
-          <span className="font-medium text-slate-900">
+          <span className="font-medium text-fg">
             {row.last_name}, {row.first_name}
           </span>
         ),
@@ -756,7 +756,7 @@ export default function TeacherGradesPage() {
             );
           }
           if (!canEncode) {
-            return <span className="text-xs text-slate-400">Not yours</span>;
+            return <span className="text-xs text-fg-faint">Not yours</span>;
           }
           const stored = recorded.get(row.id);
           const locked = isLocked(stored);
@@ -802,11 +802,11 @@ export default function TeacherGradesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-edge bg-surface p-4">
         <div>
-          <p className="mb-1.5 text-sm font-medium text-slate-700">Class</p>
+          <p className="mb-1.5 text-sm font-medium text-fg-secondary">Class</p>
           {classes.length === 1 ? (
-            <p className="py-2 text-sm font-semibold text-slate-900">
+            <p className="py-2 text-sm font-semibold text-fg">
               Grade {selectedClass?.grade_level} - {selectedClass?.section}
             </p>
           ) : (
@@ -865,7 +865,7 @@ export default function TeacherGradesPage() {
       </div>
 
       {report && subjects.length && assignmentsLoaded ? (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-fg-body">
           You can view every subject on this class card. You can encode the ones
           you are assigned to teach — those are unmarked in the list. A subject
           marked “(not yours)” cannot be encoded from here.
@@ -966,14 +966,14 @@ function scoreMaxLabel(score, max) {
 function ComponentList({ title, rows, locked, editId, editDraft, setEditId, setEditDraft, saving, onSaveEdit, onDelete }) {
   if (!rows.length) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-fg-muted">
         No {title} recorded yet.
       </p>
     );
   }
 
   return (
-    <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+    <ul className="divide-y divide-edge-soft rounded-lg border border-edge">
       {rows.map((row) => {
         const editing = editId === row.id;
         return (
@@ -1020,12 +1020,12 @@ function ComponentList({ title, rows, locked, editId, editDraft, setEditId, setE
               </>
             ) : (
               <>
-                <span className="min-w-0 flex-1 text-sm text-slate-800">{row.label}</span>
-                <span className="tabular-nums text-sm text-slate-700">
+                <span className="min-w-0 flex-1 text-sm text-fg-secondary">{row.label}</span>
+                <span className="tabular-nums text-sm text-fg-secondary">
                   {scoreMaxLabel(row.score, row.max_score)}
                 </span>
                 {row.date_recorded ? (
-                  <span className="text-xs text-slate-500">{row.date_recorded}</span>
+                  <span className="text-xs text-fg-muted">{row.date_recorded}</span>
                 ) : null}
                 {locked ? null : (
                   <>
@@ -1097,13 +1097,13 @@ function EncodePanel({
   const pt = components.filter((c) => c.type === 'PT');
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
+    <section className="rounded-xl border border-edge bg-surface p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">
+          <h2 className="text-base font-semibold text-fg">
             {student.last_name}, {student.first_name}
           </h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-fg-muted">
             {subjectName} · Term {term}
             {locked ? (
               <span className="ml-2 inline-block align-middle">
@@ -1120,10 +1120,10 @@ function EncodePanel({
       {loading ? (
         <LoadingSpinner className="py-10" label="Opening grade record…" />
       ) : !grade ? (
-        <p className="text-sm text-slate-500">Could not open this grade record.</p>
+        <p className="text-sm text-fg-muted">Could not open this grade record.</p>
       ) : mode === 'descriptive' ? (
         <div className="max-w-xs space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-fg-body">
             Recorded letter:{' '}
             <TermValue
               entry={{
@@ -1148,7 +1148,7 @@ function EncodePanel({
             ))}
           </FormField>
           {locked ? (
-            <p className="text-sm text-slate-500">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
+            <p className="text-sm text-fg-muted">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
           ) : (
             <button type="button" className={btnPrimary} disabled={saving} onClick={onSaveLetter}>
               Save letter
@@ -1159,18 +1159,18 @@ function EncodePanel({
         <div className="space-y-6">
           <div className="flex flex-wrap gap-6 text-sm">
             <p>
-              <span className="text-slate-500">Initial Grade </span>
+              <span className="text-fg-muted">Initial Grade </span>
               <GradeValue value={grade.initial_grade} mode={mode} />
             </p>
             <p>
-              <span className="text-slate-500">Term Grade </span>
+              <span className="text-fg-muted">Term Grade </span>
               <GradeValue value={grade.term_grade} mode={mode} />
             </p>
             {detail.descriptor?.descriptor ? (
-              <p className="text-slate-500">{detail.descriptor.descriptor}</p>
+              <p className="text-fg-muted">{detail.descriptor.descriptor}</p>
             ) : null}
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-fg-muted">
             Initial Grade appears after Written Works, Performance Tasks, and all
             three exam parts are recorded. The number comes from the server after
             you save — this screen does not preview it.
@@ -1178,7 +1178,7 @@ function EncodePanel({
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-900">Written Works</h3>
+              <h3 className="text-sm font-semibold text-fg">Written Works</h3>
               <ComponentList
                 title="Written Works"
                 rows={ww}
@@ -1193,7 +1193,7 @@ function EncodePanel({
               />
             </div>
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-900">Performance Tasks</h3>
+              <h3 className="text-sm font-semibold text-fg">Performance Tasks</h3>
               <ComponentList
                 title="Performance Tasks"
                 rows={pt}
@@ -1258,11 +1258,11 @@ function EncodePanel({
           )}
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-900">Examinations</h3>
+            <h3 className="mb-3 text-sm font-semibold text-fg">Examinations</h3>
             <div className="overflow-x-auto">
               <table className="w-full max-w-xl border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <tr className="border-b border-edge text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">
                     <th className="py-2 pr-3">Part</th>
                     <th className="py-2 pr-3">Recorded</th>
                     <th className="py-2 pr-3">Score</th>
@@ -1275,17 +1275,17 @@ function EncodePanel({
                     { key: 'st2', label: 'ST2', score: grade.ex_st2, max: grade.ex_st2_max, dScore: 'st2_score', dMax: 'st2_max' },
                     { key: 'te', label: 'TE', score: grade.ex_te, max: grade.ex_te_max, dScore: 'te_score', dMax: 'te_max' },
                   ].map((part) => (
-                    <tr key={part.key} className="border-b border-slate-100">
-                      <td className="py-2 pr-3 font-medium text-slate-800">{part.label}</td>
-                      <td className="py-2 pr-3 tabular-nums text-slate-600">
+                    <tr key={part.key} className="border-b border-edge-soft">
+                      <td className="py-2 pr-3 font-medium text-fg-secondary">{part.label}</td>
+                      <td className="py-2 pr-3 tabular-nums text-fg-body">
                         {scoreMaxLabel(part.score, part.max) || (
-                          <span className="text-slate-400">Not recorded</span>
+                          <span className="text-fg-faint">Not recorded</span>
                         )}
                       </td>
                       <td className="py-2 pr-3">
                         <input
                           type="number"
-                          className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-50"
+                          className="w-24 rounded-lg border border-edge-strong px-2 py-1.5 text-sm disabled:bg-surface-subtle"
                           value={examDraft[part.dScore]}
                           disabled={locked || saving}
                           onChange={(e) =>
@@ -1296,7 +1296,7 @@ function EncodePanel({
                       <td className="py-2">
                         <input
                           type="number"
-                          className="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:bg-slate-50"
+                          className="w-24 rounded-lg border border-edge-strong px-2 py-1.5 text-sm disabled:bg-surface-subtle"
                           value={examDraft[part.dMax]}
                           disabled={locked || saving}
                           onChange={(e) =>
@@ -1310,7 +1310,7 @@ function EncodePanel({
               </table>
             </div>
             {locked ? (
-              <p className="mt-3 text-sm text-slate-500">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
+              <p className="mt-3 text-sm text-fg-muted">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
             ) : (
               <button type="button" className={`${btnPrimary} mt-3`} disabled={saving} onClick={onSaveExam}>
                 Save exam

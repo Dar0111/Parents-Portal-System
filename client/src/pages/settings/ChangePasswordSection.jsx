@@ -91,8 +91,8 @@ export default function ChangePasswordSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Change password</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <h2 className="text-base font-semibold text-fg">Change password</h2>
+        <p className="mt-1 text-sm text-fg-muted">
           You will stay logged in on this device. Use the new password the next time you log in.
         </p>
       </div>
@@ -139,7 +139,7 @@ export default function ChangePasswordSection() {
         <button
           type="submit"
           disabled={saving || !ready}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           Change password
         </button>
@@ -160,7 +160,7 @@ export default function ChangePasswordSection() {
               type="button"
               onClick={() => setConfirming(false)}
               disabled={saving}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
               Go back
             </button>
@@ -168,7 +168,7 @@ export default function ChangePasswordSection() {
               type="button"
               onClick={save}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
             >
               {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Yes, change password
@@ -176,7 +176,7 @@ export default function ChangePasswordSection() {
           </>
         }
       >
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-fg-body">
           You will stay logged in on this device. Use the new password the next time you log in.
         </p>
       </Modal>

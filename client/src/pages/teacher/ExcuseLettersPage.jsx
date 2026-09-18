@@ -242,10 +242,10 @@ export default function ExcuseLettersPage() {
         sortValue: (row) => `${row.last_name}, ${row.first_name}`,
         render: (row) => (
           <div>
-            <div className="font-medium text-slate-900">
+            <div className="font-medium text-fg">
               {row.last_name}, {row.first_name}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-fg-muted">
               Grade {row.grade_level} - {row.section}
             </div>
           </div>
@@ -256,7 +256,7 @@ export default function ExcuseLettersPage() {
         key: 'reason',
         header: 'Reason',
         render: (row) => (
-          <span className="line-clamp-2 max-w-md text-slate-700" title={row.reason}>
+          <span className="line-clamp-2 max-w-md text-fg-secondary" title={row.reason}>
             {row.reason}
           </span>
         ),
@@ -275,7 +275,7 @@ export default function ExcuseLettersPage() {
             <button
               type="button"
               onClick={() => openReview(row)}
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700"
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
             >
               Review
             </button>
@@ -283,7 +283,7 @@ export default function ExcuseLettersPage() {
             // Seen but not actionable. Named rather than left blank, and never
             // rendered as a button that would only produce a 403 — the same
             // precedent the Students page set by omitting Edit.
-            <span className="text-xs text-slate-400">Adviser only</span>
+            <span className="text-xs text-fg-faint">Adviser only</span>
           ) : null,
       },
     ],
@@ -298,7 +298,7 @@ export default function ExcuseLettersPage() {
           setOffset(0);
           setApplied({ status, from, to });
         }}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
       >
         <FormField
           label="Status"
@@ -317,7 +317,7 @@ export default function ExcuseLettersPage() {
         <FormField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         <button
           type="submit"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
         >
           Apply
         </button>
@@ -325,7 +325,7 @@ export default function ExcuseLettersPage() {
           <button
             type="button"
             onClick={resetFilters}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
           >
             Reset
           </button>
@@ -350,7 +350,7 @@ export default function ExcuseLettersPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Reset filters
             </button>
@@ -370,7 +370,7 @@ export default function ExcuseLettersPage() {
                 type="button"
                 onClick={() => setConfirming(false)}
                 disabled={saving}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
               </button>
@@ -378,10 +378,10 @@ export default function ExcuseLettersPage() {
                 type="button"
                 onClick={submitReview}
                 disabled={saving}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-white transition disabled:opacity-60 ${
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-solid-fg transition disabled:opacity-60 ${
                   decision === 'Approved'
-                    ? 'bg-emerald-600 hover:bg-emerald-700'
-                    : 'bg-rose-600 hover:bg-rose-700'
+                    ? 'bg-success-solid hover:bg-success-solid-hover'
+                    : 'bg-danger-solid hover:bg-danger-solid-hover'
                 }`}
               >
                 {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
@@ -393,7 +393,7 @@ export default function ExcuseLettersPage() {
               <button
                 type="button"
                 onClick={closeReview}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
               >
                 Cancel
               </button>
@@ -401,7 +401,7 @@ export default function ExcuseLettersPage() {
                 type="button"
                 disabled={!decision}
                 onClick={() => setConfirming(true)}
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
               >
                 Continue
               </button>
@@ -415,23 +415,23 @@ export default function ExcuseLettersPage() {
 
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Absence date</dt>
-                <dd className="mt-0.5 text-sm text-slate-900">{reviewing.absence_date}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Absence date</dt>
+                <dd className="mt-0.5 text-sm text-fg">{reviewing.absence_date}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Class</dt>
-                <dd className="mt-0.5 text-sm text-slate-900">
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Class</dt>
+                <dd className="mt-0.5 text-sm text-fg">
                   Grade {reviewing.grade_level} - {reviewing.section}
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Reason</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-900">{reviewing.reason}</dd>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Reason</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reviewing.reason}</dd>
               </div>
               {reviewing.details ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Details</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-slate-900">{reviewing.details}</dd>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Details</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reviewing.details}</dd>
                 </div>
               ) : null}
             </dl>
@@ -443,7 +443,7 @@ export default function ExcuseLettersPage() {
                 attendance query at all). A teacher who approves believing the
                 absence clears has been misled by the interface into a wrong
                 model of their own records. */}
-            <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+            <p className="rounded-lg border border-info-edge bg-info-soft px-3 py-2 text-sm text-info-strong">
               Approving records the reason for this absence. It does not change the attendance
               record — the student stays marked Absent for that day.
             </p>
@@ -453,7 +453,7 @@ export default function ExcuseLettersPage() {
               // letter leaves Pending, PATCH /:id/review answers 403 and there is
               // no un-review endpoint. Names the specific decision back rather
               // than asking a generic "are you sure".
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
                 <strong>
                   {decision === 'Approved' ? 'Approve this letter?' : 'Decline this letter?'}
                 </strong>{' '}
@@ -462,7 +462,7 @@ export default function ExcuseLettersPage() {
             ) : (
               <>
                 <div>
-                  <p className="mb-1.5 text-sm font-medium text-slate-700">Decision</p>
+                  <p className="mb-1.5 text-sm font-medium text-fg-secondary">Decision</p>
                   <div className="flex gap-2">
                     {['Approved', 'Declined'].map((value) => (
                       <button
@@ -471,8 +471,8 @@ export default function ExcuseLettersPage() {
                         onClick={() => setDecision(value)}
                         className={`rounded-lg border px-3 py-1.5 text-sm transition ${
                           decision === value
-                            ? 'border-slate-900 bg-slate-900 font-medium text-white'
-                            : 'border-slate-300 text-slate-600 hover:bg-slate-100'
+                            ? 'border-primary bg-primary font-medium text-primary-fg'
+                            : 'border-edge-strong text-fg-body hover:bg-surface-muted'
                         }`}
                       >
                         {value === 'Approved' ? 'Approve' : 'Decline'}

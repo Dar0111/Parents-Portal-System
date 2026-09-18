@@ -67,13 +67,13 @@ export default function GradeValue({ value, mode, className = '' }) {
   const formatted = formatGrade(value);
 
   if (formatted !== null) {
-    return <span className={`tabular-nums text-slate-900 ${className}`}>{formatted}</span>;
+    return <span className={`tabular-nums text-fg ${className}`}>{formatted}</span>;
   }
 
   const reason = reasonFor(mode);
 
   return (
-    <span className={`whitespace-nowrap text-slate-400 ${className}`} title={reason.title}>
+    <span className={`whitespace-nowrap text-fg-faint ${className}`} title={reason.title}>
       <span aria-hidden="true">—</span>{' '}
       <span className="text-xs italic">{reason.short}</span>
     </span>
@@ -87,7 +87,7 @@ export function GradeLegend({ pending = true, notApplicable = false, className =
   if (!pending && !notApplicable) return null;
 
   return (
-    <p className={`mt-2 text-xs text-slate-500 ${className}`}>
+    <p className={`mt-2 text-xs text-fg-muted ${className}`}>
       {pending ? (
         <span className="mr-4">
           <span className="italic">Pending</span> — not yet computable; all components must be

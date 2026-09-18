@@ -253,7 +253,7 @@ export default function MessageThreadPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           to="/teacher/messages"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 transition hover:text-slate-900"
+          className="inline-flex items-center gap-2 text-sm text-fg-muted transition hover:text-fg"
         >
           <i className="fa-solid fa-arrow-left" />
           All conversations
@@ -270,7 +270,7 @@ export default function MessageThreadPage() {
               },
             })
           }
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
+          className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-secondary transition hover:bg-surface-muted"
         >
           {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
         </button>
@@ -278,14 +278,14 @@ export default function MessageThreadPage() {
       {/* Visible, not only the title tooltip: hover does not exist on touch,
           and "This conversation will not" is the sentence that stops a
           teacher believing they replied to the parent (§3's rule). */}
-      <p className="-mt-2 text-right text-xs text-slate-500">{announceHint}</p>
+      <p className="-mt-2 text-right text-xs text-fg-muted">{announceHint}</p>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
-      <div className="rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-5 py-3">
-          <p className="font-semibold text-slate-900">{other?.name || 'Conversation'}</p>
-          {other?.role ? <p className="text-xs text-slate-500">{other.role}</p> : null}
+      <div className="rounded-xl border border-edge bg-surface">
+        <div className="border-b border-edge px-5 py-3">
+          <p className="font-semibold text-fg">{other?.name || 'Conversation'}</p>
+          {other?.role ? <p className="text-xs text-fg-muted">{other.role}</p> : null}
         </div>
 
         <div className="max-h-[28rem] space-y-3 overflow-y-auto px-5 py-4">
@@ -295,14 +295,14 @@ export default function MessageThreadPage() {
                 type="button"
                 onClick={loadEarlier}
                 disabled={loadingEarlier}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-lg border border-edge-strong bg-surface px-3 py-1 text-xs font-medium text-fg-body transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
               </button>
             </div>
           ) : null}
           {messages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">
+            <p className="py-8 text-center text-sm text-fg-muted">
               No messages in this conversation yet. Send the first one below.
             </p>
           ) : (
@@ -312,11 +312,11 @@ export default function MessageThreadPage() {
                 <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                   <div
                     className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                      mine ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-900'
+                      mine ? 'bg-bubble-mine text-bubble-mine-fg' : 'bg-bubble-theirs text-bubble-theirs-fg'
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{m.body}</p>
-                    <p className={`mt-1 text-[0.6875rem] ${mine ? 'text-slate-300' : 'text-slate-500'}`}>
+                    <p className={`mt-1 text-[0.6875rem] ${mine ? 'text-bubble-mine-meta' : 'text-bubble-theirs-meta'}`}>
                       {String(m.created_at).slice(0, 16).replace('T', ' ')}
                     </p>
                   </div>
@@ -327,11 +327,11 @@ export default function MessageThreadPage() {
           <div ref={bottomRef} />
         </div>
 
-        <form onSubmit={send} className="border-t border-slate-200 px-5 py-3">
+        <form onSubmit={send} className="border-t border-edge px-5 py-3">
           {sendError ? <ErrorAlert message={sendError} className="mb-3" /> : null}
 
           {blockedReason ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
               {blockedReason} You can still read this conversation.
             </p>
           ) : (
@@ -341,12 +341,12 @@ export default function MessageThreadPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Write a message…"
-                className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                className="block w-full rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-faint focus:border-focus-edge focus:outline-none focus:ring-2 focus:ring-focus-ring"
               />
               <button
                 type="submit"
                 disabled={sending || !draft.trim()}
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
               >
                 {sending ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Send

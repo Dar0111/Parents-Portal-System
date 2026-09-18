@@ -137,7 +137,7 @@ export default function DataTable({
     setLocalSort((current) => nextSort(current, column));
   }
 
-  const frame = `overflow-hidden rounded-xl border border-slate-200 bg-white ${className}`;
+  const frame = `overflow-hidden rounded-xl border border-edge bg-surface ${className}`;
 
   if (error) {
     return (
@@ -180,7 +180,7 @@ export default function DataTable({
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
+            <tr className="border-b border-edge bg-surface-subtle">
               {columns.map((column) => {
                 const active = sort?.key === column.key;
                 return (
@@ -189,7 +189,7 @@ export default function DataTable({
                     scope="col"
                     style={column.width ? { width: column.width } : undefined}
                     aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                    className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
+                    className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted ${
                       ALIGN[column.align] || ALIGN.left
                     }`}
                   >
@@ -197,16 +197,16 @@ export default function DataTable({
                       <button
                         type="button"
                         onClick={() => toggleSort(column)}
-                        className="inline-flex items-center gap-1.5 uppercase tracking-wide transition hover:text-slate-900"
+                        className="inline-flex items-center gap-1.5 uppercase tracking-wide transition hover:text-fg"
                       >
                         {column.header}
                         <i
                           className={`fa-solid text-[0.625rem] ${
                             active
                               ? sort.dir === 'asc'
-                                ? 'fa-arrow-up-short-wide text-slate-700'
-                                : 'fa-arrow-down-wide-short text-slate-700'
-                              : 'fa-sort text-slate-300'
+                                ? 'fa-arrow-up-short-wide text-fg-secondary'
+                                : 'fa-arrow-down-wide-short text-fg-secondary'
+                              : 'fa-sort text-fg-ghost'
                           }`}
                         />
                       </button>
@@ -223,12 +223,12 @@ export default function DataTable({
             {sortedRows.map((row, index) => (
               <tr
                 key={row[keyField] ?? index}
-                className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                className="border-b border-edge-soft last:border-0 hover:bg-surface-subtle"
               >
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-4 py-2.5 text-slate-700 ${ALIGN[column.align] || ALIGN.left}`}
+                    className={`px-4 py-2.5 text-fg-secondary ${ALIGN[column.align] || ALIGN.left}`}
                   >
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
@@ -241,7 +241,7 @@ export default function DataTable({
 
       {paged && (
         <div
-          className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600"
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-edge bg-surface-subtle px-4 py-2 text-xs text-fg-body"
           data-testid="datatable-pager"
         >
           <span>
@@ -252,7 +252,7 @@ export default function DataTable({
               type="button"
               disabled={!canPrev}
               onClick={() => onPageChange && onPageChange(Math.max(0, page.offset - page.limit))}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-edge-strong bg-surface px-2.5 py-1 font-medium text-fg-secondary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
               <i className="fa-solid fa-chevron-left mr-1 text-[0.625rem]" />
               Previous
@@ -261,7 +261,7 @@ export default function DataTable({
               type="button"
               disabled={!canNext}
               onClick={() => onPageChange && onPageChange(page.offset + page.limit)}
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-edge-strong bg-surface px-2.5 py-1 font-medium text-fg-secondary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
               <i className="fa-solid fa-chevron-right ml-1 text-[0.625rem]" />

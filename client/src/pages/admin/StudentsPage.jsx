@@ -180,7 +180,7 @@ export default function StudentsPage() {
       render: (row) => (
         <Link
           to={`/admin/students/${row.id}`}
-          className="font-medium text-slate-900 underline-offset-2 hover:underline"
+          className="font-medium text-fg underline-offset-2 hover:underline"
         >
           {row.last_name}, {row.first_name}
         </Link>
@@ -212,7 +212,7 @@ export default function StudentsPage() {
             type="button"
             disabled={busy}
             onClick={() => setStudentStatus(row, next)}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+            className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
           >
             {busy ? (
               <i className="fa-solid fa-circle-notch fa-spin" />
@@ -238,7 +238,7 @@ export default function StudentsPage() {
           only. Deliberately NOT claimed: that the parent loses access
           (login checks the parent's own users.status), or that grades are
           frozen (scores can still be added to an existing grade record). */}
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-fg-muted">
         Deactivating a student hides them from teachers' student and attendance lists, and stops
         new attendance and new grade records from being created for them. Their existing records
         and their parent's account are not changed. Activate reverses it.
@@ -246,7 +246,7 @@ export default function StudentsPage() {
 
       <form
         onSubmit={applyFilters}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
       >
         <FormField
           label="Status"
@@ -299,7 +299,7 @@ export default function StudentsPage() {
         />
         <button
           type="submit"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
         >
           Apply
         </button>
@@ -307,7 +307,7 @@ export default function StudentsPage() {
           <button
             type="button"
             onClick={resetFilters}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
           >
             Reset
           </button>
@@ -341,7 +341,7 @@ export default function StudentsPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Reset filters
             </button>

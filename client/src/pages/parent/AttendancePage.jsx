@@ -197,14 +197,14 @@ export default function ParentAttendancePage() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-fg-muted">
         The percentage counts Late as present and Excused as absent. It is out of the days the
         adviser recorded, not the Class Days on the SF9 — school days that were not marked are not
         counted at all.
       </p>
 
       {studentId != null ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="rounded-xl border border-edge bg-surface p-4">
           <FormField
             label="Show"
             as="select"
@@ -224,12 +224,12 @@ export default function ParentAttendancePage() {
         // para 71's ~12-absence intervention point. The system counts and
         // displays; the teacher concludes. Do not add one without the school
         // having said otherwise — the absence is a decision, not an oversight.
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <div className="rounded-xl border border-edge bg-surface p-4">
+          <div className="text-xs font-medium uppercase tracking-wide text-fg-muted">
             Present on recorded days
           </div>
-          <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{rate.percent}%</div>
-          <div className="mt-1 text-sm text-slate-500">
+          <div className="mt-2 text-2xl font-semibold tabular-nums text-fg">{rate.percent}%</div>
+          <div className="mt-1 text-sm text-fg-muted">
             {range === 'month'
               ? `${rate.present} of ${rate.total} recorded days this month`
               : `${rate.present} of all ${rate.total} recorded days`}
@@ -240,18 +240,18 @@ export default function ParentAttendancePage() {
       {showCounts ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {STATUSES.map((status) => (
-            <div key={status} className="rounded-xl border border-slate-200 bg-white p-3">
+            <div key={status} className="rounded-xl border border-edge bg-surface p-3">
               <StatusBadge status={status} />
-              <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">
+              <div className="mt-2 text-2xl font-semibold tabular-nums text-fg">
                 {countOf(summary, status)}
               </div>
             </div>
           ))}
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <div className="rounded-xl border border-edge bg-surface p-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-fg-muted">
               Recorded days
             </div>
-            <div className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">
+            <div className="mt-2 text-2xl font-semibold tabular-nums text-fg">
               {countOf(summary, 'total')}
             </div>
           </div>
@@ -277,7 +277,7 @@ export default function ParentAttendancePage() {
             <button
               type="button"
               onClick={() => changeRange('all')}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Show all recorded days
             </button>

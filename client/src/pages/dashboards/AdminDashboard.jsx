@@ -21,7 +21,7 @@ export default function AdminDashboard() {
   const remaining = items.some((item) => !item.built || item.blocked);
 
   return (
-    <p className="text-sm text-slate-500">
+    <p className="text-sm text-fg-muted">
       {open.length ? (
         remaining ? (
           <>
