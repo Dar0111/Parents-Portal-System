@@ -577,13 +577,18 @@ loading spinner with no login-page flash.
 ```
 client/src/
   App.jsx                 /login, then nested layout routes per role under ProtectedRoute + Shell
-  api/axios.js            Bearer interceptor; mandatory unwrap on success; 401-only redirect. No
-                          per-call opt-out exists — if an endpoint answers a live session with 401,
-                          fix its status code, never add an interceptor exception
+  api/axios.js            Bearer interceptor; mandatory unwrap on success; 401-only redirect, storing
+                          the server's reason in sessionStorage (never the URL) for Login to show once —
+                          "Account is not active." and the restore message verbatim, token-shaped 401s
+                          as "Your session has ended. Please log in again." No per-call opt-out exists —
+                          if an endpoint answers a live session with 401, fix its status code, never
+                          add an interceptor exception
   api/extractError.js     { success:false, message } -> string, with an offline case
   auth/AuthContext.jsx    login/logout/refresh/user/loading — awaits GET /auth/me on load
   auth/ProtectedRoute.jsx role-gated route wrapper
-  pages/Login.jsx         Login ID + password, no role dropdown (does not use extractError — KNOWN ISSUES)
+  pages/Login.jsx         Login ID + password, no role dropdown; extractError for sign-in failures; shows
+                          the 401 logout reason once (takeLogoutReason in its error initialiser), never
+                          after a refresh or a manual Logout
   format/grade.jsx        GradeValue + GradeLegend — the NULL-grade rule (§3). No branch for a
                           descriptive A–E letter (KNOWN ISSUES)
   format/TermValue.jsx    the shared term cell — extracted at the third copy (2026-09-14); Parent,
