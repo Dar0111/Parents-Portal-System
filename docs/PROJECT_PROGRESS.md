@@ -94,6 +94,16 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Branch 4, `fix/locked-grade-copy` (2026-09-18):** Teacher → Grades' two
+locked-grade sentences now read "This grade is locked. Only an admin can
+unlock it — ask the school admin if it needs a change." — who can unlock, and
+that it is reversible, without naming who locked it (no locker column) and
+without claiming a notification. Server and its `403` wording unchanged; the
+KNOWN ISSUES row closed. Fixture for the browser check: grade 336 (Marwin,
+Grade 6 Mathematics, term 1), created and locked as admin, left locked until
+Darryl confirms, then unlocked and deleted through the API. Full row:
+`docs/CHANGELOG.md`, 2026-09-18.
+
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
 demo Grade 1 path exists: Nino Alcantara (LRN `1090001`, Grade 1 - Mabait),

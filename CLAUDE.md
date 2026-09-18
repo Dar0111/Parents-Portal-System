@@ -1374,7 +1374,6 @@ stay open on purpose, each needing its own dispatch:**
 | An admin PUT on a teacher's announcement keeps the TEACHER as `posted_by`, under admin targeting rules | `routes/content.js` | New words and a wider audience under the teacher's name. Admin → Announcements offers Edit only on the admin's own posts, Delete on any |
 | Announcements and memos accept a whitespace-only title or message | `routes/content.js` | Checked as `!title \|\| !content`. Compose forms trim and disable Post while blank |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
-| **Teacher → Grades says a grade is locked but not why, or who can unlock it** | `teacher/GradesPage.jsx` | Admin → Grades makes that state reachable mid-encoding. Copy change needs its own dispatch and must not claim anything about notification — nothing notifies anyone |
 | `GET /api/grades` has no limit and cannot filter by class | `routes/grades.js` | Admin → Grades does not call it (student-first via `GET /grades/student/:id`) |
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
@@ -2107,6 +2106,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Teacher → Grades locked-grade copy: both occurrences now say only an admin can unlock it; server `403` unchanged; KNOWN ISSUES row closed. Branch `fix/locked-grade-copy`; fixture grade 336 left locked for the browser check. |
 | 2026-09-18 | Browser check PASSED on Branch 3 (through `1ceff55`); the two teacher filter bars fixed under an approved scope expansion; the check's fixtures (student 154, parent user 115) removed by recorded SQL after backup 26 — Darryl's choice, no delete endpoint exists by design; four findings added to `docs/KNOWN_ISSUES.md`. |
 | 2026-09-18 | Browser check failed on the filter widths — the fix had been scoped from a remembered list, not a search. Full audit of all 41 selects under `client/src/pages`: 22 are filter/toolbar selects and all 22 now carry the token; two more bars are outside the branch whitelist and were declared, not edited. |
 | 2026-09-18 | `FormStatus` — a write’s result renders under the control that caused it, not in a shared slot at the top; 13 pages, keyed status, XOR now structural. One `filterSelectClass` (`w-full sm:w-72`) stops filter selects resizing with the selection. |

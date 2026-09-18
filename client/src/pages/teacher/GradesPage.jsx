@@ -1144,7 +1144,7 @@ function EncodePanel({
             ))}
           </FormField>
           {locked ? (
-            <p className="text-sm text-slate-500">This grade is locked and can no longer be edited.</p>
+            <p className="text-sm text-slate-500">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
           ) : (
             <button type="button" className={btnPrimary} disabled={saving} onClick={onSaveLetter}>
               Save letter
@@ -1306,7 +1306,7 @@ function EncodePanel({
               </table>
             </div>
             {locked ? (
-              <p className="mt-3 text-sm text-slate-500">This grade is locked and can no longer be edited.</p>
+              <p className="mt-3 text-sm text-slate-500">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
             ) : (
               <button type="button" className={`${btnPrimary} mt-3`} disabled={saving} onClick={onSaveExam}>
                 Save exam
