@@ -316,7 +316,7 @@ export default function MessageThreadPage() {
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{m.body}</p>
-                    <p className={`mt-1 text-[11px] ${mine ? 'text-slate-300' : 'text-slate-500'}`}>
+                    <p className={`mt-1 text-[0.6875rem] ${mine ? 'text-slate-300' : 'text-slate-500'}`}>
                       {String(m.created_at).slice(0, 16).replace('T', ' ')}
                     </p>
                   </div>

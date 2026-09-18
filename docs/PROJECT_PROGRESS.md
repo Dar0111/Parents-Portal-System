@@ -94,6 +94,14 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**`fix/copy-nits` (2026-09-19):** Teacher → Attendance's footer verb now
+follows the unset count ("1 of 1 student has no status"); the "N students"
+line under both Students pagers is gone (it repeated the page's row count);
+the three decorative pixel sizes (DataTable sort icon and chevrons, both
+thread timestamps) are rem so Large text scales them — its KNOWN ISSUES row
+added and closed. Build 0, oxlint 42, SSR 14/14 with a negative control; no
+server files. Full row: `docs/CHANGELOG.md`, 2026-09-19.
+
 **CLAUDE.md trim, `docs/claude-md-trim` (2026-09-19, D0 of the Dark mode
 plan):** 147,145 → 134,157 chars, docs only. Four blocks moved verbatim by
 script with a byte-identical check on every moved line (129/129): the 30

@@ -201,7 +201,7 @@ export default function DataTable({
                       >
                         {column.header}
                         <i
-                          className={`fa-solid text-[10px] ${
+                          className={`fa-solid text-[0.625rem] ${
                             active
                               ? sort.dir === 'asc'
                                 ? 'fa-arrow-up-short-wide text-slate-700'
@@ -254,7 +254,7 @@ export default function DataTable({
               onClick={() => onPageChange && onPageChange(Math.max(0, page.offset - page.limit))}
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <i className="fa-solid fa-chevron-left mr-1 text-[10px]" />
+              <i className="fa-solid fa-chevron-left mr-1 text-[0.625rem]" />
               Previous
             </button>
             <button
@@ -264,7 +264,7 @@ export default function DataTable({
               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
-              <i className="fa-solid fa-chevron-right ml-1 text-[10px]" />
+              <i className="fa-solid fa-chevron-right ml-1 text-[0.625rem]" />
             </button>
           </span>
         </div>

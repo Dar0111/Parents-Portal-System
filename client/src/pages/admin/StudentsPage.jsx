@@ -348,12 +348,6 @@ export default function StudentsPage() {
           ) : null
         }
       />
-
-      {students.length ? (
-        <p className="text-sm text-slate-500">
-          {students.length} student{students.length === 1 ? '' : 's'}
-        </p>
-      ) : null}
     </div>
   );
 }

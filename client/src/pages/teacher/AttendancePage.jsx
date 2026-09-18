@@ -312,8 +312,8 @@ export default function AttendancePage() {
             // Unset rows are omitted from the request, never defaulted to
             // Present — defaulting would invent attendance nobody entered.
             <p className="text-sm text-slate-500">
-              {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'} have no status
-              and will not be submitted.
+              {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'}{' '}
+              {unsetCount === 1 ? 'has' : 'have'} no status and will not be submitted.
             </p>
           ) : null}
 
