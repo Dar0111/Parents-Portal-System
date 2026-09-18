@@ -31,6 +31,20 @@ there is no separate unlock path, and Admin → Grades already renders both
 labels from one toggle. See CLAUDE.md → ADMIN SCOPE AUDIT → SCOPE DECISION
 (2026-09-18).
 
+**UI pass, 2026-09-18.** A write’s result now renders under the control that
+caused it — `client/src/components/FormStatus.jsx`, applied across 13 pages.
+One `status` object per page keyed by form; writing a key replaces the object,
+clearing the others. One value per status, so a success and a failure cannot
+both be on screen: the XOR each page used to re-derive by hand is structural.
+A message that outlives its modal renders above the list it describes (Admin →
+Users has two keys for its two tables). Nothing in `Shell` is sticky, which is
+why a shared slot at the top of the page put a confirmation off-screen on
+Teacher → Settings. Errors still go through `ErrorAlert` (§2 wording kept);
+successes gained `role="status"`. Separately, every filter-bar select now
+takes one shared `filterSelectClass` (`w-full sm:w-72`, sized to the longest
+real option — 30 characters) so the control no longer resizes with the
+selection. See CLAUDE.md §7c and `docs/CHANGELOG.md`, 2026-09-18.
+
 **Verified 2026-09-18 (Darryl, browser):** the 2026-09-15 status-code fixes
 behave on screen — a wrong restore step-up password shows "Incorrect password."
 inline with a **403** and the admin stays logged in; a wrong current password on

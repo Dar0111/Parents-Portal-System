@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -80,8 +81,10 @@ export default function AdminSettingsPage() {
   const [detailsDraft, setDetailsDraft] = useState(null);
   const [saving, setSaving] = useState(null); // 'term' | 'details' | null
 
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // One status object keyed by form. Two sections, two saves: fixing an
+  // address typo can never also change the term, and each reports under its
+  // own button. See FormStatus.
+  const [status, setStatus] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,20 +122,19 @@ export default function AdminSettingsPage() {
 
   async function saveTerm(event) {
     event.preventDefault();
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     if (!TERMS.includes(termValue)) {
-      setSaveError('Pick Term 1, 2, or 3.');
+      setStatus({ term: fail('Pick Term 1, 2, or 3.') });
       return;
     }
     setSaving('term');
     try {
       await api.patch('/settings', { settings: { current_term: termValue } }, { unwrap: 'message' });
       setTermDraft(null);
-      setSaveMessage(`Current term set to Term ${termValue}.`);
+      setStatus({ term: ok(`Current term set to Term ${termValue}.`) });
       await load();
     } catch (err) {
-      setSaveError(extractError(err));
+      setStatus({ term: fail(extractError(err)) });
     } finally {
       setSaving(null);
     }
@@ -140,20 +142,19 @@ export default function AdminSettingsPage() {
 
   async function saveDetails(event) {
     event.preventDefault();
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     if (!details.school_name.trim() || !details.school_address.trim()) {
-      setSaveError('School name and school address must not be empty.');
+      setStatus({ details: fail('School name and school address must not be empty.') });
       return;
     }
     setSaving('details');
     try {
       await api.patch('/settings', { settings: changedDetails }, { unwrap: 'message' });
       setDetailsDraft(null);
-      setSaveMessage('School details updated.');
+      setStatus({ details: ok('School details updated.') });
       await load();
     } catch (err) {
-      setSaveError(extractError(err));
+      setStatus({ details: fail(extractError(err)) });
     } finally {
       setSaving(null);
     }
@@ -171,14 +172,8 @@ export default function AdminSettingsPage() {
         These settings belong to the school, not to your account.
       </p>
 
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
+      {/* No page-level status slot — each save reports under its own
+          button. See FormStatus. */}
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
@@ -215,6 +210,7 @@ export default function AdminSettingsPage() {
           >
             {saving === 'term' ? 'Saving…' : 'Save term'}
           </button>
+          <FormStatus status={status.term} />
         </form>
       </section>
 
@@ -249,6 +245,7 @@ export default function AdminSettingsPage() {
           >
             {saving === 'details' ? 'Saving…' : 'Save school details'}
           </button>
+          <FormStatus status={status.details} />
         </form>
       </section>
     </div>

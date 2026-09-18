@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../auth/AuthContext';
@@ -84,8 +85,10 @@ export default function AdminAnnouncementsPage() {
   const [filterDraft, setFilterDraft] = useState(EMPTY_FILTER);
   const [filter, setFilter] = useState(EMPTY_FILTER);
 
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status, two keys for the two stacked lists: `announcements` and
+  // `memos`. Every write here happens in a modal that closes on success, so
+  // the message outlives its modal and belongs above the list it changed.
+  const [status, setStatus] = useState({});
 
   const [annEditing, setAnnEditing] = useState(null); // null = closed, {} = new, row = edit
   const [annForm, setAnnForm] = useState(EMPTY_ANN);
@@ -180,8 +183,7 @@ export default function AdminAnnouncementsPage() {
   })();
 
   function clearStrips() {
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
   }
 
   function openNewAnnouncement() {
@@ -238,7 +240,7 @@ export default function AdminAnnouncementsPage() {
         await api.post('/announcements', body, { unwrap: 'announcement' });
       }
       setAnnEditing(null);
-      setSaveMessage(isEdit ? 'Announcement updated.' : 'Announcement posted.');
+      setStatus({ announcements: ok(isEdit ? 'Announcement updated.' : 'Announcement posted.') });
       await loadAnnouncements();
     } catch (err) {
       setFormError(extractError(err));
@@ -285,7 +287,7 @@ export default function AdminAnnouncementsPage() {
         await api.post('/memos', { title, content }, { unwrap: 'memo' });
       }
       setMemoEditing(null);
-      setSaveMessage(isEdit ? 'Memo updated.' : 'Memo posted.');
+      setStatus({ memos: ok(isEdit ? 'Memo updated.' : 'Memo posted.') });
       await loadMemos();
     } catch (err) {
       setFormError(extractError(err));
@@ -309,12 +311,12 @@ export default function AdminAnnouncementsPage() {
       if (kind === 'announcement') {
         await api.delete(`/announcements/${row.id}`, { unwrap: 'message' });
         setDeleting(null);
-        setSaveMessage('Announcement deleted.');
+        setStatus({ announcements: ok('Announcement deleted.') });
         await loadAnnouncements();
       } else {
         await api.delete(`/memos/${row.id}`, { unwrap: 'message' });
         setDeleting(null);
-        setSaveMessage('Memo deleted.');
+        setStatus({ memos: ok('Memo deleted.') });
         await loadMemos();
       }
     } catch (err) {
@@ -425,15 +427,6 @@ export default function AdminAnnouncementsPage() {
         everyone.
       </p>
 
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
-
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Announcements</h2>
         <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -484,6 +477,8 @@ export default function AdminAnnouncementsPage() {
         </div>
         {/* §5f: two causes, two branches. A grade filter is an exact match on
             target_grade, so school-wide posts (NULL) are never in it — said. */}
+        <FormStatus status={status.announcements} />
+
         <DataTable
           columns={announcementColumns}
           rows={announcements}
@@ -519,6 +514,8 @@ export default function AdminAnnouncementsPage() {
           </button>
         </div>
         {/* §5f: GET /memos takes no parameters — one cause of empty, one branch. */}
+        <FormStatus status={status.memos} />
+
         <DataTable
           columns={memoColumns}
           rows={memos}

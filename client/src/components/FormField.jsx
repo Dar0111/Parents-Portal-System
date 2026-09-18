@@ -7,6 +7,36 @@ export const controlClass =
 
 const errorClass = 'border-rose-300 focus:border-rose-400 focus:ring-rose-100';
 
+// The width every filter-bar <select> gets. Pass it as the FormField's
+// `className` — it sizes the WRAPPER, which is what a bare flex item lacks.
+//
+// THE BUG IT FIXES: `controlClass` is `w-full`, so a select fills its wrapper
+// — but the wrapper is `<div className={className}>`, and the filter-bar
+// selects passed no className at all. A flex item with no width is sized by
+// its content, and a select's content changes with the selection, so the
+// control visibly resized as you picked: Admin → Students' Section placeholder
+// alone swings between "Pick a grade first" and "All sections", moving Search
+// and Apply sideways. Only three selects in the whole client had a width
+// before this (two `max-w-xs`, one `w-48`, all on Parent pages), which is why
+// this is one shared token rather than a per-page fix.
+//
+// A FIXED width, not `min-w-`: a minimum still grows to fit a long option, so
+// the control would still move — just less often, which is worse to diagnose.
+//
+// WHY w-72 (18rem / 288px). Sized from the longest option text these selects
+// can really show, both 30 characters: "Mapagkakatiwalaan (no adviser)" on
+// Admin → Attendance (only 3 of 23 sections have an adviser, so the suffix is
+// the common case) and "Araling Panlipunan (not yours)" on Teacher → Grades.
+// At the control's 14px text that is ~216px of glyphs, plus `px-3` (24px) and
+// the native dropdown arrow (~20px) — about 260px needed. w-64 (256px) is
+// under it; w-72 leaves ~28px. Truncating a section name is the exact defect
+// being fixed, so the tie goes to the wider token.
+//
+// Trade-off, accepted: one width for every filter select means "All statuses"
+// is as wide as the longest section name, and a four-control bar wraps sooner
+// on a narrow laptop. Uniform and stable beats snug and jumpy.
+export const filterSelectClass = 'w-full sm:w-72';
+
 // Four supported call shapes, and only four:
 //
 //   1. <FormField label="Name" placeholder="…" />                  -> <input>

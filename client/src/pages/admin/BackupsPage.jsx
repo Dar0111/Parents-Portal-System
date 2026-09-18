@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
@@ -93,8 +94,12 @@ export default function AdminBackupsPage() {
   // One request at a time across every action: no second click anywhere
   // while a create, download or delete is running.
   const [busy, setBusy] = useState(null);
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status. One key: every write on this page (create, download,
+  // delete) is about the backup list, and each reports above that list.
+  // The restore result is NOT a status — it is a terminal panel that
+  // replaces the page, because after a restore no further request can
+  // succeed against the new session cutoff.
+  const [status, setStatus] = useState({});
 
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -129,8 +134,7 @@ export default function AdminBackupsPage() {
   }, [load]);
 
   function clearStrips() {
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
   }
 
   async function createBackup() {
@@ -138,10 +142,10 @@ export default function AdminBackupsPage() {
     setBusy('create');
     try {
       const { message } = await api.post('/backups', null, { unwrap: ['backup', 'message'] });
-      setSaveMessage(message);
+      setStatus({ list: ok(message) });
       await load();
     } catch (err) {
-      setSaveError(extractError(err));
+      setStatus({ list: fail(extractError(err)) });
     } finally {
       setBusy(null);
     }
@@ -163,7 +167,7 @@ export default function AdminBackupsPage() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setSaveError(await downloadErrorMessage(err));
+      setStatus({ list: fail(await downloadErrorMessage(err)) });
     } finally {
       setBusy(null);
     }
@@ -176,7 +180,7 @@ export default function AdminBackupsPage() {
     try {
       const message = await api.delete(`/backups/${deleting.id}`, { unwrap: 'message' });
       setDeleting(null);
-      setSaveMessage(message);
+      setStatus({ list: ok(message) });
       await load();
     } catch (err) {
       setDeleteError(extractError(err));
@@ -337,15 +341,6 @@ export default function AdminBackupsPage() {
 
   return (
     <div className="space-y-6">
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
-
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -375,6 +370,8 @@ export default function AdminBackupsPage() {
         </div>
 
         {/* §5f: two causes of an empty list, two branches. */}
+        <FormStatus status={status.list} />
+
         <DataTable
           columns={columns}
           rows={backups}

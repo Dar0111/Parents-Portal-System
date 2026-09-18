@@ -2,6 +2,7 @@ import { useState } from 'react';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { controlClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
@@ -188,6 +189,20 @@ export default function UiGallery() {
               onRetry={() => {}}
             />
             <ErrorAlert message="This excuse letter has already been reviewed." />
+          </div>
+        </Section>
+
+        <Section
+          title="FormStatus"
+          note="The outcome of ONE write, rendered under the control that caused it — never in a shared slot at the top of the page. One value, so a success and a failure cannot be on screen at once. An error delegates to ErrorAlert, so the API's own wording (§2) is untouched; a success carries role=&quot;status&quot; where ErrorAlert carries role=&quot;alert&quot;."
+        >
+          <div className="space-y-3">
+            <FormStatus status={ok('Contact number updated.')} />
+            <FormStatus status={fail('Current password is incorrect.')} />
+            <p className="text-sm text-slate-500">
+              A null status renders nothing — there is no empty frame to reserve space:
+            </p>
+            <FormStatus status={null} />
           </div>
         </Section>
 

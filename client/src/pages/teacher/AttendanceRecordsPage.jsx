@@ -5,7 +5,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -212,6 +212,7 @@ export default function AttendanceRecordsPage() {
             <FormField
               label={null}
               as="select"
+              className={filterSelectClass}
               value={sectionId ?? ''}
               onChange={(e) => setSectionId(Number(e.target.value))}
             >

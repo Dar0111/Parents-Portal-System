@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
@@ -74,10 +75,23 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState({ role: '', status: '', search: '' });
 
-  // Page-level XOR: a successful create then a failed deactivate must not
-  // leave both strips visible (Teacher → Grades, 2026-09-07).
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // The XOR this used to implement by hand (a successful create then a failed
+  // deactivate must not leave both strips visible — Teacher → Grades,
+  // 2026-09-07) is now structural: a status is one value, not two slots.
+  //
+  // Named formStatus, not status: `status` above is this page's role/status
+  // FILTER, a string. Two different things, one obvious name.
+  //
+  // Keyed status, and TWO keys because this page has two tables: `pending`
+  // describes the approval queue, `directory` describes the directory below
+  // it. Each renders above the table it is about — one shared slot at the top
+  // put "User updated." nowhere near the row that changed.
+  //
+  // The three modal errors (createError / editError / reviewError) are NOT
+  // folded in: each already renders inside its own modal, next to the button
+  // that produced it, which is exactly where FormStatus would put it. They
+  // are single-purpose error slots, so converting them would be churn.
+  const [formStatus, setFormStatus] = useState({});
 
   const [creating, setCreating] = useState(false);
   const [teacherForm, setTeacherForm] = useState(EMPTY_TEACHER);
@@ -194,8 +208,7 @@ export default function UsersPage() {
       );
       setCreating(false);
       setTeacherForm(EMPTY_TEACHER);
-      setSaveError(null);
-      setSaveMessage('Teacher account created and activated.');
+      setFormStatus({ directory: ok('Teacher account created and activated.') });
       await load();
     } catch (err) {
       setCreateError(extractError(err));
@@ -240,8 +253,7 @@ export default function UsersPage() {
         { unwrap: 'user' }
       );
       setEditing(null);
-      setSaveError(null);
-      setSaveMessage('User updated.');
+      setFormStatus({ directory: ok('User updated.') });
       await load();
     } catch (err) {
       setEditError(extractError(err));
@@ -251,15 +263,16 @@ export default function UsersPage() {
   }
 
   async function setUserStatus(row, nextStatus) {
-    setSaveError(null);
-    setSaveMessage(null);
+    setFormStatus({});
     setStatusSavingId(row.id);
     try {
       await api.patch(`/users/${row.id}/status`, { status: nextStatus }, { unwrap: 'user' });
-      setSaveMessage(nextStatus === 'inactive' ? 'Account deactivated.' : 'Account activated.');
+      setFormStatus({
+        directory: ok(nextStatus === 'inactive' ? 'Account deactivated.' : 'Account activated.'),
+      });
       await load();
     } catch (err) {
-      setSaveError(extractError(err));
+      setFormStatus({ directory: fail(extractError(err)) });
     } finally {
       setStatusSavingId(null);
     }
@@ -299,16 +312,15 @@ export default function UsersPage() {
     try {
       if (decision === 'approve') {
         await api.put(`/users/parents/${reviewing.id}/approve`, {}, { unwrap: 'user' });
-        setSaveMessage('Parent account approved and activated.');
+        setFormStatus({ pending: ok('Parent account approved and activated.') });
       } else {
         await api.put(
           `/users/parents/${reviewing.id}/reject`,
           { reason: rejectReason.trim() },
           { unwrap: 'message' }
         );
-        setSaveMessage('Parent account rejected.');
+        setFormStatus({ pending: ok('Parent account rejected.') });
       }
-      setSaveError(null);
       setReviewing(null);
       setDecision(null);
       setRejectReason('');
@@ -445,21 +457,14 @@ export default function UsersPage() {
   return (
     <div className="space-y-6">
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
-
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">Waiting for approval</h2>
         <p className="text-sm text-slate-500">
           A parent account stays pending until it is approved or rejected. That decision cannot be
           returned to pending afterward.
         </p>
+        <FormStatus status={formStatus.pending} />
+
         <DataTable
           columns={pendingColumns}
           rows={pending}
@@ -527,6 +532,8 @@ export default function UsersPage() {
             </button>
           ) : null}
         </form>
+
+        <FormStatus status={formStatus.directory} />
 
         <DataTable
           columns={userColumns}

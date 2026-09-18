@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
-import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
@@ -87,8 +87,10 @@ export default function ParentSettingsPage() {
     confirm: false,
   });
 
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // One status object keyed by form; writing one REPLACES the object, which
+  // clears the others. See FormStatus for why one value, and why it renders
+  // under the button that caused it rather than at the top of the page.
+  const [status, setStatus] = useState({});
 
   function toggleRevealed(key) {
     setRevealed((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -99,12 +101,11 @@ export default function ParentSettingsPage() {
 
   async function saveContact(e) {
     e.preventDefault();
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
 
     const next = contactValue.trim();
     if (!next) {
-      setSaveError('Contact number must not be empty.');
+      setStatus({ contact: fail('Contact number must not be empty.') });
       return;
     }
 
@@ -113,9 +114,9 @@ export default function ParentSettingsPage() {
       await api.put('/auth/contact', { contact_number: next }, { unwrap: 'user' });
       await refresh();
       setDraft(null);
-      setSaveMessage('Contact number updated.');
+      setStatus({ contact: ok('Contact number updated.') });
     } catch (err) {
-      setSaveError(extractError(err));
+      setStatus({ contact: fail(extractError(err)) });
     } finally {
       setContactSaving(false);
     }
@@ -123,19 +124,18 @@ export default function ParentSettingsPage() {
 
   function requestPasswordChange(e) {
     e.preventDefault();
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
 
     if (!currentPassword || !newPassword) {
-      setSaveError('Current password and new password are required.');
+      setStatus({ password: fail('Current password and new password are required.') });
       return;
     }
     if (newPassword.length < 6) {
-      setSaveError('New password must be at least 6 characters.');
+      setStatus({ password: fail('New password must be at least 6 characters.') });
       return;
     }
     if (newPassword !== confirmPassword) {
-      setSaveError('New password and confirmation do not match.');
+      setStatus({ password: fail('New password and confirmation do not match.') });
       return;
     }
 
@@ -143,8 +143,7 @@ export default function ParentSettingsPage() {
   }
 
   async function savePassword() {
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     setPasswordSaving(true);
     try {
       const message = await api.put(
@@ -157,10 +156,10 @@ export default function ParentSettingsPage() {
       setConfirmPassword('');
       setConfirmingPassword(false);
       setRevealed({ current: false, next: false, confirm: false });
-      setSaveMessage(message);
+      setStatus({ password: ok(message) });
     } catch (err) {
       setConfirmingPassword(false);
-      setSaveError(extractError(err));
+      setStatus({ password: fail(extractError(err)) });
     } finally {
       setPasswordSaving(false);
     }
@@ -168,14 +167,8 @@ export default function ParentSettingsPage() {
 
   return (
     <div className="space-y-8">
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
+      {/* No page-level status slot — each form reports under its own button.
+          See FormStatus. */}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-900">School record</h2>
@@ -233,6 +226,7 @@ export default function ParentSettingsPage() {
           >
             {contactSaving ? 'Saving…' : 'Save contact number'}
           </button>
+          <FormStatus status={status.contact} />
         </form>
       </section>
 
@@ -271,6 +265,7 @@ export default function ParentSettingsPage() {
           >
             Change password
           </button>
+          <FormStatus status={status.password} />
         </form>
       </section>
 

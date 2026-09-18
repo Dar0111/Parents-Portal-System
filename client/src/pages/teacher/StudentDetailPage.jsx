@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
@@ -96,8 +97,13 @@ export default function StudentDetailPage() {
   const [notInScope, setNotInScope] = useState(false);
   const [assignments, setAssignments] = useState([]);
 
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status, one key. Both modals report their own failures inside
+  // themselves (formError on create-parent, editError on edit) — already the
+  // right place. What survives a modal closing is the success, and it
+  // describes the record, so it renders above the card.
+  //
+  // `saveError` was dead state here too: only ever set to null. Removed.
+  const [status, setStatus] = useState({});
 
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -171,8 +177,7 @@ export default function StudentDetailPage() {
     setConfirming(false);
     setFormError(null);
     setRevealed({ password: false, confirm: false });
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     setOpen(true);
   }
 
@@ -207,8 +212,7 @@ export default function StudentDetailPage() {
     if (!student?.lrn) return;
     setSaving(true);
     setFormError(null);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     try {
       const body = {
         lrn: student.lrn,
@@ -219,7 +223,7 @@ export default function StudentDetailPage() {
       if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();
 
       const { message } = await api.post('/users/parents', body, { unwrap: ['user', 'message'] });
-      setSaveMessage(message);
+      setStatus({ record: ok(message) });
       setOpen(false);
       setConfirming(false);
       setParent(EMPTY_PARENT);
@@ -235,8 +239,7 @@ export default function StudentDetailPage() {
     if (!student) return;
     setDraft(draftFrom(student));
     setEditError(null);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     setEditOpen(true);
   }
 
@@ -256,8 +259,7 @@ export default function StudentDetailPage() {
       return;
     }
     setSavingEdit(true);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     try {
       // Omit grade_level, section, lrn, status. A matching class pair works
       // today and is one more way to trip the 400 later. Omitting cannot.
@@ -276,7 +278,7 @@ export default function StudentDetailPage() {
       // §5b: the card reads `student`. Writers are load() and this success
       // path. Never copy draft onto the record.
       setStudent(updated);
-      setSaveMessage(message);
+      setStatus({ record: ok(message) });
       setEditOpen(false);
       setDraft(EMPTY_EDIT);
     } catch (err) {
@@ -326,14 +328,7 @@ export default function StudentDetailPage() {
     <div className="space-y-4">
       {backLink}
 
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
+      <FormStatus status={status.record} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">

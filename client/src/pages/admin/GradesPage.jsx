@@ -4,7 +4,8 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
@@ -87,8 +88,10 @@ export default function AdminGradesPage() {
   // `report`, so after a reload the modal shows the stored lock state (§5b).
   const [selected, setSelected] = useState(null); // { subjectId, subjectName, term }
   const [lockSaving, setLockSaving] = useState(false);
-  const [lockError, setLockError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status. `lock` renders INSIDE the modal under its action row (the
+  // Lock/Unlock button is there); `card` is the confirmation that outlives
+  // the modal and belongs above the report card it describes. See FormStatus.
+  const [status, setStatus] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -180,30 +183,29 @@ export default function AdminGradesPage() {
   }, [selected, subjects]);
 
   function openCell(subject, term) {
-    setSaveMessage(null);
-    setLockError(null);
+    setStatus({});
     setSelected({ subjectId: subject.subject_id, subjectName: subject.subject_name, term });
   }
 
   function closeCell() {
     if (lockSaving) return;
     setSelected(null);
-    setLockError(null);
+    setStatus({});
   }
 
   async function toggleLock() {
     if (!selectedEntry?.grade_id) return;
     const next = !selectedEntry.is_locked;
     setLockSaving(true);
-    setLockError(null);
+    setStatus({});
     try {
       await api.patch(`/grades/${selectedEntry.grade_id}/lock`, { is_locked: next }, { unwrap: 'grade' });
-      setSaveMessage(
-        `${selected.subjectName}, Term ${selected.term} ${next ? 'locked' : 'unlocked'}.`
-      );
+      setStatus({
+        card: ok(`${selected.subjectName}, Term ${selected.term} ${next ? 'locked' : 'unlocked'}.`),
+      });
       await loadReport();
     } catch (err) {
-      setLockError(extractError(err));
+      setStatus({ lock: fail(extractError(err)) });
     } finally {
       setLockSaving(false);
     }
@@ -269,6 +271,7 @@ export default function AdminGradesPage() {
         <FormField
           label="Grade"
           as="select"
+          className={filterSelectClass}
           value={grade}
           onChange={(e) => {
             setGrade(e.target.value);
@@ -287,6 +290,7 @@ export default function AdminGradesPage() {
         <FormField
           label="Section"
           as="select"
+          className={filterSelectClass}
           value={sectionName}
           disabled={!grade}
           onChange={(e) => {
@@ -305,12 +309,13 @@ export default function AdminGradesPage() {
         <FormField
           label="Student"
           as="select"
+          className={filterSelectClass}
           value={studentId}
           disabled={!sectionName || studentsLoading || students.length === 0}
           onChange={(e) => {
             setStudentId(e.target.value);
             setSelected(null);
-            setSaveMessage(null);
+            setStatus({});
           }}
         >
           <option value="">
@@ -325,12 +330,7 @@ export default function AdminGradesPage() {
         </FormField>
       </div>
 
-      {saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
+      <FormStatus status={status.card} />
 
       {studentsError ? <ErrorAlert message={studentsError} /> : null}
 
@@ -441,7 +441,7 @@ export default function AdminGradesPage() {
           </>
         }
       >
-        {lockError ? <ErrorAlert message={lockError} className="mb-3" /> : null}
+        <FormStatus status={status.lock} className="mb-3" />
         {selectedEntry ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">

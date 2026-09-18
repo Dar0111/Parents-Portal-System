@@ -4,6 +4,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { controlClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
@@ -59,8 +60,14 @@ export default function AttendancePage() {
   const [recorded, setRecorded] = useState(new Map());
 
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status, one key: the only write is the bulk submit, and it reports
+  // directly under its own button at the bottom of the roster — not above the
+  // table, where a long roster pushed it off-screen.
+  //
+  // This page rendered the error and the success as two SEPARATE blocks, so
+  // both could show at once — the defect fixed on Teacher → Grades on
+  // 2026-09-07 was still latent here. One value makes it unrepresentable.
+  const [status, setStatus] = useState({});
 
   // --- advisory sections -------------------------------------------------
   // GET /api/sections is unscoped reference data (all 23 rows, every role), and
@@ -97,8 +104,7 @@ export default function AttendancePage() {
 
     setRosterLoading(true);
     setRosterError(null);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
 
     try {
       // status=active deliberately: POST /bulk rejects an inactive student with
@@ -154,8 +160,7 @@ export default function AttendancePage() {
 
   async function handleSubmit() {
     setSaving(true);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
 
     try {
       await api.post(
@@ -163,15 +168,17 @@ export default function AttendancePage() {
         { section_id: section.id, date, entries },
         { unwrap: 'attendance' }
       );
-      setSaveMessage(
-        `Attendance saved for ${entries.length} student${entries.length === 1 ? '' : 's'}.`
-      );
+      setStatus({
+        roster: ok(
+          `Attendance saved for ${entries.length} student${entries.length === 1 ? '' : 's'}.`
+        ),
+      });
       // Re-read rather than trusting local state: the response is the source of
       // truth for what is now recorded, and this is also what flips the button
       // to "Update attendance" without a special case.
       await loadRoster();
     } catch (err) {
-      setSaveError(extractError(err));
+      setStatus({ roster: fail(extractError(err)) });
     } finally {
       setSaving(false);
     }
@@ -284,15 +291,6 @@ export default function AttendancePage() {
         />
       </div>
 
-      {saveError ? <ErrorAlert message={saveError} /> : null}
-
-      {saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-500" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
-
       <DataTable
         columns={columns}
         rows={roster}
@@ -324,6 +322,8 @@ export default function AttendancePage() {
             {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
             {isUpdate ? 'Update attendance' : 'Save attendance'}
           </button>
+
+          <FormStatus status={status.roster} />
         </div>
       ) : null}
     </div>

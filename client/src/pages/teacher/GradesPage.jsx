@@ -4,6 +4,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
@@ -225,24 +226,24 @@ export default function TeacherGradesPage() {
   const [editDraft, setEditDraft] = useState({ label: '', score: '', max_score: '', date_recorded: '' });
 
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status, one key: every write on this page comes from the encode
+  // panel, so the result renders directly above that panel rather than at
+  // the top of the page, above the roster table.
+  const [status, setStatus] = useState({});
 
   // One outcome on screen. Two flags internally, XOR at render: error
   // wins. Every writer of either flag clears the other, including
   // validation early-returns. Splitting them under exam vs add-score is
   // the same bug in a different shape.
+  // The XOR these three enforced by hand is now structural — one value.
   function clearSaveFeedback() {
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
   }
   function showSaveError(message) {
-    setSaveMessage(null);
-    setSaveError(message);
+    setStatus({ encode: fail(message) });
   }
   function showSaveSuccess(message) {
-    setSaveError(null);
-    setSaveMessage(message);
+    setStatus({ encode: ok(message) });
   }
 
   const classes = useMemo(() => classesFromStudents(students), [students]);
@@ -334,8 +335,7 @@ export default function TeacherGradesPage() {
     setEditId(null);
     setShellLoading(false);
     setDetailLoading(false);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
   }, []);
 
   const handleEncodeError = useCallback(
@@ -401,8 +401,7 @@ export default function TeacherGradesPage() {
     setSubjectId(null);
     setRecorded(new Map());
     setRecordedError(null);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
 
     if (!classKey) return undefined;
     const classRoster = students.filter((s) => classKeyOf(s) === classKey);
@@ -879,13 +878,6 @@ export default function TeacherGradesPage() {
         <ErrorAlert
           message={`You are not assigned to teach ${selectedSubject?.subject_name || 'this subject'} for this class. Pick a subject you teach to encode.`}
         />
-      ) : saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-500" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
       ) : null}
 
       {reportError ? <ErrorAlert message={reportError} /> : null}
@@ -921,7 +913,9 @@ export default function TeacherGradesPage() {
           <GradeLegend pending notApplicable={mode === 'descriptive'} />
 
           {encodingStudent ? (
-            <EncodePanel
+            <>
+              <FormStatus status={status.encode} />
+              <EncodePanel
               student={encodingStudent}
               mode={mode}
               subjectName={selectedSubject?.subject_name}
@@ -946,7 +940,8 @@ export default function TeacherGradesPage() {
               onSaveEdit={saveEdit}
               onDeleteComponent={deleteComponent}
               onClose={closePanel}
-            />
+              />
+            </>
           ) : null}
         </>
       ) : null}

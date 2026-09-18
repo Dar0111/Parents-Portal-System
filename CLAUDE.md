@@ -598,7 +598,19 @@ client/src/
   hooks/useTeacherTargets.js  assigned (GET /assignments, distinct grade+section) OR adviser
                           (GET /sections). Announcements and Events only — never Grades
   components/             DataTable, Modal, FormField, PasswordField, StatusBadge, EmptyState,
-                          ErrorAlert, LoadingSpinner
+                          ErrorAlert, LoadingSpinner, FormStatus. FormStatus (2026-09-18) is the
+                          outcome of ONE write, rendered under the control that caused it — under
+                          that form's submit button, or inside the Modal whose action produced it;
+                          a message that outlives its modal goes above the list it describes.
+                          ONE value ({ tone, text }), so a success and a failure cannot both be on
+                          screen — the XOR is structural, not re-derived per page. An error
+                          delegates to ErrorAlert (§2 wording untouched); a success carries
+                          role="status". Pages hold one `status` object keyed by form, and writing
+                          one key replaces the object, which clears the others.
+                          FormField also exports `filterSelectClass` — the fixed width every
+                          filter-bar select takes (`w-full sm:w-72`, sized to the longest real
+                          option, 30 chars). A bare flex item with no width is content-sized, so
+                          without it a select resizes as you pick
   pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
   pages/dashboards/       all three derive "Open now" from navForRole — no edit when a page lands
   pages/teacher/          11 nav items. Attendance (encode; adviser-scoped; ?status=active roster;
@@ -873,6 +885,30 @@ to reconsider the scale, never to add a size for one caller. `Modal` focuses
 the panel on `open` only and keeps `onClose` current via a ref — an effect
 that mixes a one-time action with a frequently-changing dependency re-fires on
 every keystroke (found in browser review 2026-09-08, fixed in the primitive).
+
+### 7c. A write's result renders next to the control that caused it
+
+**Frozen 2026-09-18, after Teacher → Settings.** `FormStatus` is the only
+renderer for the outcome of a write. Three rules:
+
+- **Placement.** Under that form's submit button; **inside the Modal**, under
+  its action row, for a modal write; **above the list it describes** when the
+  message outlives its modal ("Parent approved." after the dialog closes). A
+  page with two lists gets two keys. **Never a single slot at the top of the
+  page** — nothing in `Shell` is sticky, so on a long page the confirmation for
+  a button near the bottom renders off-screen and the write looks like it did
+  nothing.
+- **One value, not two.** `{ tone, text }`, so a success and a failure cannot
+  both be on screen. The XOR that each page used to re-derive by hand — and
+  got wrong twice — is now unrepresentable.
+- **One object per page, keyed by form.** Writing a key REPLACES the object,
+  clearing every other form's message: a message describes the action just
+  taken, and a stale success next to a fresh one gets read as the new result.
+
+An error still goes through `ErrorAlert`, so §2's rule that the API's own
+wording reaches the user is untouched; a success carries `role="status"` to
+`ErrorAlert`'s `role="alert"`. An error slot already rendered inside its own
+modal is already correct — do not convert it for uniformity.
 
 ### Corrections — three claims retired here
 
@@ -2067,6 +2103,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | `FormStatus` — a write’s result renders under the control that caused it, not in a shared slot at the top; 13 pages, keyed status, XOR now structural. One `filterSelectClass` (`w-full sm:w-72`) stops filter selects resizing with the selection. |
 | 2026-09-18 | Admin nav trimmed 13 → 8 (the five page-less entries removed, not dimmed); Parent dashboard stops promising pages that already landed; §5g inverse closed — LiveStatus gated on the same test as the badge. |
 | 2026-09-18 | Browser check passed (restore 403, change-password inline); the six queued fixtures were already gone, removed outside the API; admin nav trim + admin-only lock/unlock decided. |
 | 2026-09-18 | **CLAUDE.md split** — it had grown to 712k chars against Claude Code's 150k limit and was being truncated. Verbatim history moved to `docs/CHANGELOG.md`, `docs/KNOWN_ISSUES.md`, `docs/FRONTEND_CONVENTIONS.md`, `docs/RESTORE.md` and `docs/ARCHIVE.md`; this file condensed to rules + facts, every `##` heading kept. Docs only. |

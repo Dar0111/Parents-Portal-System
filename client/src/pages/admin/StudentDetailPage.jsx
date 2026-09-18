@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
@@ -72,11 +73,14 @@ export default function StudentDetailPage() {
   const [error, setError] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
-  const [saveMessage, setSaveMessage] = useState(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
-  const [editError, setEditError] = useState(null);
+  // Keyed status. `edit` renders INSIDE the modal, under its action row —
+  // that is where the Save button is. `record` is the success that OUTLIVES
+  // the modal ("Student updated."), so it belongs to the record it describes
+  // and renders above the card. See FormStatus.
+  const [status, setStatus] = useState({});
   const [draft, setDraft] = useState(EMPTY_EDIT);
 
   usePageTitle(student ? `${student.first_name} ${student.last_name}` : 'Student');
@@ -107,28 +111,26 @@ export default function StudentDetailPage() {
   function openEdit() {
     if (!student) return;
     setDraft(draftFrom(student));
-    setEditError(null);
-    setSaveMessage(null);
+    setStatus({});
     setEditOpen(true);
   }
 
   function closeEdit() {
     if (savingEdit) return;
     setEditOpen(false);
-    setEditError(null);
+    setStatus({});
     setDraft(EMPTY_EDIT);
   }
 
   async function submitEdit(event) {
     event.preventDefault();
     if (!student) return;
-    setEditError(null);
+    setStatus({});
     if (!draft.first_name.trim() || !draft.last_name.trim()) {
-      setEditError('First name and last name are required.');
+      setStatus({ edit: fail('First name and last name are required.') });
       return;
     }
     setSavingEdit(true);
-    setSaveMessage(null);
     try {
       // Six fields only. grade_level and section are omitted (a differing
       // pair is a 400; omitting cannot trip it). lrn, status and section_id
@@ -146,11 +148,11 @@ export default function StudentDetailPage() {
         { unwrap: ['student', 'message'] }
       );
       setStudent(updated);
-      setSaveMessage(message);
+      setStatus({ record: ok(message) });
       setEditOpen(false);
       setDraft(EMPTY_EDIT);
     } catch (err) {
-      setEditError(extractError(err));
+      setStatus({ edit: fail(extractError(err)) });
     } finally {
       setSavingEdit(false);
     }
@@ -196,12 +198,7 @@ export default function StudentDetailPage() {
     <div className="space-y-4">
       {backLink}
 
-      {saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
+      <FormStatus status={status.record} />
 
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
@@ -267,7 +264,7 @@ export default function StudentDetailPage() {
         }
       >
         <div className="max-h-[70vh] overflow-y-auto">
-          {editError ? <ErrorAlert message={editError} /> : null}
+          <FormStatus status={status.edit} className="mb-3" />
 
           <form id="admin-student-edit-form" onSubmit={submitEdit} className="space-y-3">
             <FormField label="LRN" value={student.lrn} disabled />

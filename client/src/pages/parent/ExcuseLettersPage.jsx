@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { todayLocalDateString } from '../../format/date';
@@ -223,7 +223,7 @@ export default function ParentExcuseLettersPage() {
           as="select"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="w-48"
+          className={filterSelectClass}
         >
           {STATUS_FILTERS.map((s) => (
             <option key={s} value={s}>

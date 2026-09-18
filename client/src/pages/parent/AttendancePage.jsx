@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
 import { todayLocalDateString } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
@@ -184,9 +184,9 @@ export default function ParentAttendancePage() {
           <FormField
             label="Show"
             as="select"
+            className={filterSelectClass}
             value={range}
-            onChange={(e) => setRange(e.target.value)}
-            className="max-w-xs"
+            onChange={(e) => setRange(e.target.value)}
           >
             <option value="month">This month</option>
             <option value="all">All recorded days</option>

@@ -4,7 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -228,6 +228,7 @@ export default function AdminAttendancePage() {
         <FormField
           label="Grade"
           as="select"
+          className={filterSelectClass}
           value={draft.grade_level}
           onChange={(e) => setDraft((prev) => ({ ...prev, grade_level: e.target.value, section: '' }))}
         >
@@ -241,6 +242,7 @@ export default function AdminAttendancePage() {
         <FormField
           label="Section"
           as="select"
+          className={filterSelectClass}
           value={draft.section}
           disabled={!draft.grade_level}
           onChange={(e) => setDraft((prev) => ({ ...prev, section: e.target.value }))}
@@ -268,6 +270,7 @@ export default function AdminAttendancePage() {
         <FormField
           label="Status"
           as="select"
+          className={filterSelectClass}
           value={draft.status}
           onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
         >

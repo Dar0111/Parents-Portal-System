@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
-import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormStatus, { ok, fail } from '../../components/FormStatus';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -59,9 +59,10 @@ export default function StudentsPage() {
   const [draft, setDraft] = useState(DEFAULT_FILTERS);
   const [applied, setApplied] = useState(DEFAULT_FILTERS);
 
-  // Page-level XOR (Teacher → Grades, 2026-09-07): one strip at a time.
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status. The only write here is a row action, so there is one key.
+  // It renders directly above the table it describes, not at the top of the
+  // page: the row that changed is in that table. See FormStatus.
+  const [status, setStatus] = useState({});
   const [statusSavingId, setStatusSavingId] = useState(null);
 
   const load = useCallback(async () => {
@@ -136,19 +137,20 @@ export default function StudentsPage() {
     Boolean(applied.grade_level || applied.section || applied.search);
 
   async function setStudentStatus(row, nextStatus) {
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     setStatusSavingId(row.id);
     try {
       await api.patch(`/students/${row.id}/status`, { status: nextStatus }, { unwrap: 'student' });
-      setSaveMessage(
-        nextStatus === 'inactive'
-          ? `${row.first_name} ${row.last_name} deactivated.`
-          : `${row.first_name} ${row.last_name} activated.`
-      );
+      setStatus({
+        list: ok(
+          nextStatus === 'inactive'
+            ? `${row.first_name} ${row.last_name} deactivated.`
+            : `${row.first_name} ${row.last_name} activated.`
+        ),
+      });
       await load();
     } catch (err) {
-      setSaveError(extractError(err));
+      setStatus({ list: fail(extractError(err)) });
     } finally {
       setStatusSavingId(null);
     }
@@ -212,15 +214,6 @@ export default function StudentsPage() {
 
   return (
     <div className="space-y-4">
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
-
       {/* §5i: every clause here is enforced by a line of server code.
           Hidden from teachers' lists — GET /students defaults to active-only
           (students.js), and Teacher → Attendance fetches status=active.
@@ -243,6 +236,7 @@ export default function StudentsPage() {
         <FormField
           label="Status"
           as="select"
+          className={filterSelectClass}
           value={draft.status}
           onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
         >
@@ -255,6 +249,7 @@ export default function StudentsPage() {
         <FormField
           label="Grade"
           as="select"
+          className={filterSelectClass}
           value={draft.grade_level}
           onChange={(e) => setDraft((prev) => ({ ...prev, grade_level: e.target.value, section: '' }))}
         >
@@ -268,6 +263,7 @@ export default function StudentsPage() {
         <FormField
           label="Section"
           as="select"
+          className={filterSelectClass}
           value={draft.section}
           disabled={!draft.grade_level}
           onChange={(e) => setDraft((prev) => ({ ...prev, section: e.target.value }))}
@@ -306,6 +302,8 @@ export default function StudentsPage() {
       {/* §5f: two causes, two branches. canReset decides both the copy and
           whether Reset is offered — offering it on "nothing exists" would be
           a dead end. */}
+      <FormStatus status={status.list} />
+
       <DataTable
         columns={columns}
         rows={students}

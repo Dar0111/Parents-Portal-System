@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
@@ -75,8 +76,14 @@ export default function StudentsPage() {
   const [section, setSection] = useState('');
   const [applied, setApplied] = useState({ search: '', section: '' });
 
-  const [saveError, setSaveError] = useState(null);
-  const [saveMessage, setSaveMessage] = useState(null);
+  // Keyed status, one key. The wizard reports its own failures through
+  // formError INSIDE the modal (already the right place); what survives the
+  // modal closing is the success, and it belongs above the list it changed.
+  //
+  // The old `saveError` was dead state: it was only ever set to null, never
+  // to a message, because every error path here writes formError instead.
+  // It is gone rather than carried forward as an empty slot.
+  const [status, setStatus] = useState({});
 
   const [wizardOpen, setWizardOpen] = useState(false);
   // enroll → confirm-enroll → parent → confirm-parent.
@@ -206,8 +213,7 @@ export default function StudentsPage() {
     if (!parsed) return;
     setSaving(true);
     setFormError(null);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     try {
       const body = {
         lrn: enroll.lrn.trim(),
@@ -255,8 +261,7 @@ export default function StudentsPage() {
     if (!enrolled?.lrn) return;
     setSaving(true);
     setFormError(null);
-    setSaveError(null);
-    setSaveMessage(null);
+    setStatus({});
     try {
       const body = {
         lrn: enrolled.lrn,
@@ -267,7 +272,7 @@ export default function StudentsPage() {
       if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();
 
       const { message } = await api.post('/users/parents', body, { unwrap: ['user', 'message'] });
-      setSaveMessage(message);
+      setStatus({ list: ok(message) });
       setWizardOpen(false);
       setPhase('enroll');
       setEnroll(EMPTY_ENROLL);
@@ -332,15 +337,6 @@ export default function StudentsPage() {
 
   return (
     <div className="space-y-4">
-      {saveError ? (
-        <ErrorAlert message={saveError} />
-      ) : saveMessage ? (
-        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-          <i className="fa-solid fa-circle-check text-emerald-600" />
-          <p className="text-sm text-emerald-800">{saveMessage}</p>
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <form onSubmit={applyFilters} className="flex flex-1 flex-wrap items-end gap-3">
           <FormField
@@ -388,6 +384,8 @@ export default function StudentsPage() {
           </p>
         )}
       </div>
+
+      <FormStatus status={status.list} />
 
       <DataTable
         columns={columns}

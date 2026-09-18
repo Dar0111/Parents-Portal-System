@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -283,7 +283,13 @@ export default function ExcuseLettersPage() {
         }}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
       >
-        <FormField label="Status" as="select" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <FormField
+          label="Status"
+          as="select"
+          className={filterSelectClass}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
           {STATUS_FILTERS.map((s) => (
             <option key={s} value={s}>
               {s === 'All' ? 'All statuses' : s}
