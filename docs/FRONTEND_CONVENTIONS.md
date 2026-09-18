@@ -134,11 +134,25 @@ adding one requires the school to have said otherwise first.
 - **Never fetches.** The page owns the request and passes
   `rows`/`loading`/`error`. Loading, error and empty render *inside* the
   table frame so no page re-implements the three-state dance.
-- **No pagination.** No endpoint in this API accepts `limit`/`offset`/
-  `page` — checked across every route file, zero of them read those params
-  — so every list arrives whole. **Revisit trigger:** the admin
-  `GET /api/users` list once real accounts exist; that is the first list
-  here that could plausibly reach the hundreds.
+- **Two modes, decided by the `page` prop (since 2026-09-19 — this bullet
+  used to say "No pagination", and the revisit trigger it named, the admin
+  `GET /api/users` list once real accounts exist, was taken up by Server
+  hardening C before any real account existed).** Without `page`, the whole
+  list is on screen and the table sorts it locally: the two report cards,
+  and every set a page fetched whole through `fetchAll`. With `page` — the
+  API's `{ limit, offset, total, has_more }` — the rows are ONE page, so
+  sorting is controlled: a header click calls `onSortChange` and the page
+  re-requests with `sort`/`order` against the endpoint's allow-list; nothing
+  is sorted locally, because the top of page 2 is not the top of the set. A
+  footer reads "1–50 of 812" with Previous/Next, still rendered when
+  everything fits so a list never changes shape as it grows. An empty page
+  of a non-empty set (the last pending parent on page 2 approved away) shows
+  the spinner and asks for the last page that exists, in one effect inside
+  DataTable, so no page re-implements it. A filter or sort change resets the
+  offset to 0 — in the page, which owns the request. Every list endpoint
+  pages (`docs/API_REFERENCE.md` §6b); a caller that needs a complete set
+  uses `fetchAll` (200 a page, de-duplicated by id, a hard cap that throws a
+  user-facing error), never the first 50.
 - **Nulls sort last in BOTH directions, and the rule sits OUTSIDE the
   direction multiplier.** Handling emptiness inside the comparator and then
   multiplying by `-1` flips it to nulls-first on descending — which is the

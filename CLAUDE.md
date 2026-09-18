@@ -1349,8 +1349,12 @@ note, and every CLOSED row kept so it is not reopened — is
 **Server cleanup, 2026-09-15** closed seven server flags. **Three server items
 stayed open on purpose; two closed 2026-09-18 (`feat/authorization`) and one
 is still open, needing its own dispatch:**
-- **`GET /api/grades` and `GET /api/attendance` have no `LIMIT`** — needs a
-  page-size and pagination decision; the client pages would change.
+- ~~`GET /api/grades` and `GET /api/attendance` have no `LIMIT`~~ — CLOSED
+  2026-09-19 (`feat/pagination`): every list endpoint pages — `limit` 50
+  default / 200 max, `offset`, `sort`/`order` against an allow-list, a
+  sibling `page { limit, offset, total, has_more }` over the filtered set;
+  `docs/API_REFERENCE.md` §6b. The three deliberately-open server items are
+  all closed.
 - ~~`POST /api/users/parents` has no assignment check~~ — CLOSED 2026-09-18:
   assigned OR adviser of the student's section, `403` otherwise; an unknown
   LRN is that same `403` (never `404`), and the scope check runs before the
@@ -1383,13 +1387,13 @@ is still open, needing its own dispatch:**
 | Admin has no screen to change their own password or contact | `client/` | `PUT /auth/change-password` works for any role; only Teacher and Parent Settings call it. Known before the demo, not a defect |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
 | **`test:attendance` deletes every attendance row on three dates, not just its own** | `test-attendance-flows.js` `cleanup()` | `daysAgo(2)`, `daysAgo(3)` and today, for ALL students; `daysAgo(4)` likewise. Do not run it against data you want to keep on those dates. A test-file dispatch |
-| `GET /api/attendance` has no limit, and `date` silently drops `from`/`to` | `routes/attendance.js` | Admin → Attendance does not fetch until a grade or date range is applied. A caller sending `date` with `from`/`to` gets a different answer than it asked for |
+| `GET /api/attendance`: `date` silently drops `from`/`to` (the no-limit half closed 2026-09-19 — it pages) | `routes/attendance.js` | Admin → Attendance does not fetch until a grade or date range is applied. A caller sending `date` with `from`/`to` gets a different answer than it asked for |
 | Admin `target_section` is never checked against `sections` | `routes/content.js` `resolveAnnouncementTarget` admin branch | A typo creates a post nobody can read, no error. Admin → Announcements closes it at the UI by picking from `GET /sections` |
 | `PUT /api/announcements/:id` keeps a target key's OLD value when the key is omitted | `routes/content.js` | Clearing a section needs an explicit `null`. Admin → Announcements always sends both keys; any future client must too |
 | An admin PUT on a teacher's announcement keeps the TEACHER as `posted_by`, under admin targeting rules | `routes/content.js` | New words and a wider audience under the teacher's name. Admin → Announcements offers Edit only on the admin's own posts, Delete on any |
 | Announcements and memos accept a whitespace-only title or message | `routes/content.js` | Checked as `!title \|\| !content`. Compose forms trim and disable Post while blank |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
-| `GET /api/grades` has no limit and cannot filter by class | `routes/grades.js` | Admin → Grades does not call it (student-first via `GET /grades/student/:id`) |
+| `GET /api/grades` cannot filter by class (the no-limit half closed 2026-09-19 — it pages; Teacher → Grades reads it whole via `fetchAll`) | `routes/grades.js` | Admin → Grades does not call it (student-first via `GET /grades/student/:id`) |
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
 | Download filename comes from the row, not `Content-Disposition` | `server/server.js` CORS + `BackupsPage.jsx` | No `exposedHeaders`. Fix is one `exposedHeaders: ['Content-Disposition']` — a server change |
