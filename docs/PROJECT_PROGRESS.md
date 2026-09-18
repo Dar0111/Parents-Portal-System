@@ -94,6 +94,15 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**CLAUDE.md trim, `docs/claude-md-trim` (2026-09-19, D0 of the Dark mode
+plan):** 147,145 → 134,157 chars, docs only. Four blocks moved verbatim by
+script with a byte-identical check on every moved line (129/129): the 30
+non-bold compact KNOWN ISSUES rows to `docs/KNOWN_ISSUES.md` (the 10 bold
+hazard rows stay), the 14 older CHANGELOG stubs, the ADMIN SCOPE AUDIT block
+and the three answered OPEN QUESTIONS bullets to `docs/ARCHIVE.md`. Every
+`##` heading kept; each condensed section ends with a pointer. Full row:
+`docs/CHANGELOG.md`, 2026-09-19.
+
 **Server hardening C, `feat/pagination` (2026-09-19):** every list endpoint
 now pages — `limit` (default 50, max 200), `offset`, `sort`/`order` against a
 per-endpoint allow-list, and a sibling `page { limit, offset, total,

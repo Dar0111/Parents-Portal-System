@@ -4,6 +4,48 @@
 > Moved out of `CLAUDE.md` on 2026-09-18 verbatim so that file fits Claude Code's 150k-char limit. `CLAUDE.md` holds the condensed version and wins on any present-tense claim; if the two disagree, the code is correct and both must be fixed.
 > Dated entries record what was true on their date and are never back-edited. Closed rows stay so a future session does not reopen them.
 
+## Compact rows moved from CLAUDE.md on 2026-09-19
+
+These 30 one-line rows stood in `CLAUDE.md` → KNOWN ISSUES until 2026-09-19 and
+were moved here verbatim to keep that file under the 150k limit (only the bold
+hazard / do-not rows stay there). Several were already closed by the time they
+moved; the full row in the main table below is the authority for each.
+
+| Issue | Where | Note |
+|---|---|---|
+| `users.email` has no UNIQUE constraint | `schema.sql` | Deliberate: sibling parent accounts share a guardian email (one account per student). Only matters if email login is built — see OPEN QUESTIONS |
+| No GWA computation | — | In the manuscript's Definition of Terms, implemented nowhere. Keep or drop — undecided |
+| HMR can leave a stale module in an open tab | Vite dev server | **Hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip once |
+| `GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending" | `routes/messages.js` | ACTIVE only is correct. The UI copy "No parents yet…" is a known imprecision. `GET /assignments` does not close this (TCH-002: adviser, zero assignments, pending parent) |
+| `GET /api/excuse-letters/:id` returns strictly LESS than its list endpoint | `routes/excuses.js` | Detail has no student join. Teacher → Excuse Letters uses a modal from the list and never calls `GET /:id` |
+| `excuse_letters.attachment_url` exists but nothing can write it | `schema.sql` + `routes/excuses.js` | Always NULL; no upload endpoint. **No screen may render an attachment affordance.** Build upload or drop the column |
+| `GET /api/students` returns the full personal row on a LIST | `routes/students.js` | Birthday, gender, address, contact on every row, and the LRN doubles as a login id (§5c). Lists render only name / LRN / class / status |
+| `docs/API_REFERENCE.md` scope labels are stale for every widened read | `docs/API_REFERENCE.md` §4 + module tables | Rows still say `teacher(wide)`; there is no legend code for "assigned OR adviser". Needs a backend-docs dispatch: add the code, then relabel |
+| `Login.jsx` does not use `extractError` | `client/src/pages/Login.jsx` | A dead server and a wrong password show the same message. Small fix, fold into a client dispatch |
+| No `GET /:id` on announcements, memos or events | `routes/content.js` | Detail is a Modal from the row. Trigger to build them: a shareable link to one post |
+| `GET /api/memos` ignores unknown query params while its siblings `400` | `routes/content.js` | Memos are school-wide by schema; low severity, but "same file, same conventions" guesses wrong |
+| `backups` has no `status` column | `schema.sql` | Deliberate — a row exists only after a dump succeeds. Revisit only if backups become asynchronous |
+| `GradeValue` has no branch for a descriptive A–E letter | `client/src/format/grade.jsx` | `formatGrade('A')` → `"— N/A"`. The letter is handled by `format/TermValue.jsx`; the primitive itself is still outside its stated contract |
+| README suite-count table is stale | `README.md` | Several rows and the total drifted; still lists Contributions. One dedicated docs pass, not per-dispatch patching |
+| Fifteen test scripts have a record-only `assert()` and no fixture stop | `server/scripts/test-*.js` | Only `test-grades-flows.js` has `requireFixture()`. Open audit, its own dispatch — a shared helper is a test-infrastructure refactor |
+| Direct-SQL student fixtures insert `section_id` NULL on purpose | `test-auth-flows.js`, `test-excuses-flows.js`, `test-messages-flows.js` | Would break under a future `NOT NULL` on `students.section_id`. No such constraint exists; do not act until one is proposed |
+| Admin has no screen to change their own password or contact | `client/` | `PUT /auth/change-password` works for any role; only Teacher and Parent Settings call it. Known before the demo, not a defect |
+| `GET /api/attendance`: `date` silently drops `from`/`to` (the no-limit half closed 2026-09-19 — it pages) | `routes/attendance.js` | Admin → Attendance does not fetch until a grade or date range is applied. A caller sending `date` with `from`/`to` gets a different answer than it asked for |
+| Admin `target_section` is never checked against `sections` | `routes/content.js` `resolveAnnouncementTarget` admin branch | A typo creates a post nobody can read, no error. Admin → Announcements closes it at the UI by picking from `GET /sections` |
+| `PUT /api/announcements/:id` keeps a target key's OLD value when the key is omitted | `routes/content.js` | Clearing a section needs an explicit `null`. Admin → Announcements always sends both keys; any future client must too |
+| An admin PUT on a teacher's announcement keeps the TEACHER as `posted_by`, under admin targeting rules | `routes/content.js` | New words and a wider audience under the teacher's name. Admin → Announcements offers Edit only on the admin's own posts, Delete on any |
+| Announcements and memos accept a whitespace-only title or message | `routes/content.js` | Checked as `!title \|\| !content`. Compose forms trim and disable Post while blank |
+| `GET /api/grades` cannot filter by class (the no-limit half closed 2026-09-19 — it pages; Teacher → Grades reads it whole via `fetchAll`) | `routes/grades.js` | Admin → Grades does not call it (student-first via `GET /grades/student/:id`) |
+| Download filename comes from the row, not `Content-Disposition` | `server/server.js` CORS + `BackupsPage.jsx` | No `exposedHeaders`. Fix is one `exposedHeaders: ['Content-Disposition']` — a server change |
+| A refusal made shortly before a SUCCESSFUL restore is rewound with the rest of `activity_logs` | `routes/backups.js` `logRestoreRefusal` | Refusals are logged (closed 2026-09-15) but survive a following restore only inside the lost-entries count. Keeping them would need a log outside `activity_logs`; not built |
+| `auth_security_state` is one global row — the restore cutoff has no user and no role | `schema.sql` + `middleware/auth.js` | Intended design (force-logout-everyone). Do not add a per-user or per-role column as a "fix" |
+| `POST /api/students` accepts any text as an LRN | `routes/students.js:177` + `schema.sql:41` (`VARCHAR(12)`) | Student 154 was enrolled as `Test Student` (12 chars with a space) and that became a parent login id. A DepEd LRN is 12 digits; the only checks are present, trimmed, not a duplicate. Flagged 2026-09-18, not fixed |
+| Student detail always shows "Create parent account" even when one exists | `teacher/StudentDetailPage.jsx:364` + `routes/users.js:82–93` | The server refuses a second account two ways (`409` on `login_id` UNIQUE, `409` on an existing `role='parent'` for that `student_id`), so one-account-per-student holds. The button is a dead end ending in a 409 message; `GET /students/:id` does not say whether a parent exists. Flagged 2026-09-18, not fixed |
+| Restore modal renders "Incorrect password." above the password field and action row | `admin/BackupsPage.jsx:511` vs `:537` | Correct status, wrong placement (§7c: under the action row for a modal write). Flagged 2026-09-18, not fixed |
+| `activity_logs` descriptions embed the LRN | `routes/users.js:110, 180, 228`; `routes/students.js:392, 440` | Admin-readable only, so not a leak to another role, but §5c's reasoning applies and `(#id)` already identifies the row. Existing rows stay as written. Flagged 2026-09-18, not fixed |
+
+---
+
 **Server cleanup, 2026-09-15:** seven server flags closed (the rows marked
 "closed 2026-09-15" below, plus `?status=` validation on `GET /api/students`
 and the student-status no-op, which lived in OPEN QUESTIONS and a CHANGELOG

@@ -2848,3 +2848,127 @@ alongside the seven above.
 
 ---
 
+---
+
+## ADMIN SCOPE AUDIT — the condensed section as it stood in CLAUDE.md until 2026-09-19
+
+Moved from `CLAUDE.md` on 2026-09-19 verbatim (the condensed text that replaced the
+original full section on 2026-09-18; that original is above under ADMIN SCOPE AUDIT).
+`CLAUDE.md` keeps a shorter finding + decision and the 2026-09-18 nav-trim decision.
+
+Before more admin screens were built, the record needed to say which admin
+nav items have a basis in the approved design. Four sources give four
+answers: `client/src/layout/nav.js` lists 13 admin items; the manuscript's
+p. 70 admin dashboard mockup shows 5 (**an incomplete drawing, not a narrower
+approved scope** — all five map to Figure 5, and it omits Students, Grades
+and Attendance, which also have a basis); Figure 5, DFD Level 1, has 11
+admin-facing processes (1.1, 1.3, 1.9, 1.10, 1.12, 1.15, 1.18, 1.23, 1.25,
+1.27, 1.28); `docs/SYSTEM_ARCHITECTURE.md` §4 cites Figure 5 in its heading
+and lists 3, with 1.23 filed under Teacher — **do not trust that heading; it
+is recorded, not corrected, because correcting it is the team's decision.**
+Figure 5 governs by precedent (the auth flow followed it over Figures 11–13),
+not by an agreed general rule. When citing, say **Figure 5**, never Figure 4.
+
+| Nav item | Figure 5 process | Basis |
+|---|---|---|
+| Dashboard | — | navigation, not a process |
+| Users | 1.1, 1.3 | **yes** |
+| Students | 1.23 (+ candidate for 1.10/1.12) | **yes** |
+| Sections | none | **no** — supports attendance adviser-scoping; not one of the nine features |
+| Grades | 1.9 (+ candidate for 1.10/1.12) | **yes** (view) |
+| Attendance | 1.15 | **yes for viewing.** Admin record/correct, which the API allows, has no basis |
+| Excuse Letters | none (admin absent from 1.16/1.17) | **no** — the API authorizes admin anyway |
+| Announcements | 1.18 | **yes** |
+| Memos | 1.18, partial | **partial** — a separate table and a separate word in Feature 4's name |
+| Events | none | **no** — also not named in Feature 4 |
+| Messages | none (1.22 is Teacher and Parent only) | **no** — `canMessage()` lets admin message anyone |
+| Settings | 1.25 | **yes** |
+| Backup & Restore | 1.27, 1.28 | **yes** — 1.28 Show Backup Logs is `GET /api/backups` |
+
+**One finding, three instances — the API already authorizes admin beyond
+Figure 5:** excuse letters (list / view / review), messages (`canMessage()`),
+attendance writes (`POST /`, `POST /bulk`, `PUT /:id`). Not a defect; recorded
+as one pattern. **1.10 / 1.12 "Academic Records" are ambiguous between
+Students and Grades — both candidates recorded, neither chosen** (Figure 17
+already used "Student Record" to mean Grades).
+
+### SCOPE DECISION — admin screens follow Figure 5 (Darryl, 2026-09-13)
+
+**Darryl's decision, not a team consultation** — the audit said the call would
+go to the team with a date and a name, and that is not what happened; the two
+must not be blurred. If a consultation happens later, add it here.
+
+- **Build — the six with a Figure 5 process, all built 2026-09-14:** Students
+  (1.23), Grades (1.9, view + lock), Attendance (1.15, view), Announcements
+  (1.18, with memos), Settings (1.25), Backup & Restore (1.27, 1.28). Users
+  (1.1, 1.3) was already built. **Stage 4 is complete.**
+- **Do not build:** Sections, Excuse Letters, Events, Messages. They stay
+  `built: false` in `nav.js` and appear in no plan. Removing them from the nav
+  is a separate decision, not taken here.
+- **Memos — DECIDED 2026-09-14 (Darryl): memos live on Admin → Announcements,
+  not on their own route.** 1.18 is one process and the only content process
+  the admin has; Feature 4 names both; `memosRouter` writes are all
+  `authorize('admin')` while both reader pages are read-only, so that page is
+  the ONLY place a memo can ever be written. The admin "Memos" nav item stays
+  `built: false`, not flipped and not removed.
+- **Defence answer** to "why is there no Admin → Messages": it has no Figure 5
+  process. Same answer for Sections, Excuse Letters and Events.
+- **Not changed by this decision:** the API still authorizes admin on excuse
+  letters, messages and attendance writes. No handler moves.
+- **Consequence with no owner:** §5g's admin `LiveStatus` inverse was owned by
+  Admin → Messages, which will now never exist. Needs its own dispatch;
+  nothing here gates `LiveStatus`.
+
+Full text: `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT.
+
+---
+
+## OPEN QUESTIONS — answered bullets as they stood in CLAUDE.md until 2026-09-19
+
+Moved from `CLAUDE.md` on 2026-09-19 verbatim; `CLAUDE.md` keeps one line each.
+
+- **2026-09-01 — Principal Bajar, consultation at the school:** the school
+  is not permitted to collect contributions from parents → Feature 7 removed
+  in code 2026-09-13 (SCOPE DECISION).
+- **2026-09-13 — the principal, in conversation:** attendance rate — **Late
+  counts as present; Excused counts as absent** → Parent → Attendance shows
+  "Present on recorded days" = `(Present + Late) / total` over recorded days,
+  not SF9 Class Days; Excused is in the denominator. **DO 015 s. 2026 itself
+  prescribes no attendance rate formula and no attendance grade component**
+  (para 71 — intervention at roughly twelve absences — is its only attendance
+  rule; Table 9's components are WW / PT / EX), so this is a school decision,
+  not DepEd's — never attribute it to DepEd in parent-facing copy. Mid-year
+  transfer ownership was NOT answered in the same conversation.
+- **2026-09-11 — the team, in conversation, seven answers, all already
+  built:** three terms, not four quarters (`grades.term` 1–3,
+  `system_settings.current_term`); both grading modes (`grading_mode_configs`:
+  Grade 1 descriptive, Grades 2–6 numerical); three components (WW/PT rows +
+  EX columns); weights by learning area keyed `(subject_id, school_year)`,
+  not grade band; lock is admin only — do not widen `authorize()` on
+  `PATCH /api/grades/:id/lock`; every parent knows the child's LRN (it is on
+  the old school id and never changes — login design stays); parents see raw
+  WW / PT / Exam scores — the modal is approved.
+
+---
+
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-19
+
+The one-line stubs that stood in `CLAUDE.md` → CHANGELOG until 2026-09-19 (it keeps
+the newest five). Every full row is in `docs/CHANGELOG.md`.
+
+| Date | Change |
+|------|--------|
+| 2026-09-18 | Settings redesign: one `pages/settings/SettingsLayout` for all roles, tabs as sub-routes, live `PasswordChecklist` in all four password-setting forms, Text size (this device only), the admin's first account screen; the three `SettingsPage.jsx` files deleted (the `client/src/` tree above still names them — next CLAUDE.md pass). Branch `feat/settings-redesign`. |
+| 2026-09-18 | Password rule: at least 8 characters and one number, one server module (`utils/passwordRule.js`) at the three set-points with `field` on each refusal, one client module (`format/passwordRule.js`) in the three create forms; never at login. Branch `feat/password-rule`; `test:auth` 51, `test:users` 42. |
+| 2026-09-18 | Teacher → Grades locked-grade copy: both occurrences now say only an admin can unlock it; server `403` unchanged; KNOWN ISSUES row closed. Branch `fix/locked-grade-copy`; fixture grade 336 left locked for the browser check. |
+| 2026-09-18 | Browser check PASSED on Branch 3 (through `1ceff55`); the two teacher filter bars fixed under an approved scope expansion; the check's fixtures (student 154, parent user 115) removed by recorded SQL after backup 26 — Darryl's choice, no delete endpoint exists by design; four findings added to `docs/KNOWN_ISSUES.md`. |
+| 2026-09-18 | Browser check failed on the filter widths — the fix had been scoped from a remembered list, not a search. Full audit of all 41 selects under `client/src/pages`: 22 are filter/toolbar selects and all 22 now carry the token; two more bars are outside the branch whitelist and were declared, not edited. |
+| 2026-09-18 | `FormStatus` — a write’s result renders under the control that caused it, not in a shared slot at the top; 13 pages, keyed status, XOR now structural. One `filterSelectClass` (`w-full sm:w-72`) stops filter selects resizing with the selection. |
+| 2026-09-18 | Admin nav trimmed 13 → 8 (the five page-less entries removed, not dimmed); Parent dashboard stops promising pages that already landed; §5g inverse closed — LiveStatus gated on the same test as the badge. |
+| 2026-09-18 | Browser check passed (restore 403, change-password inline); the six queued fixtures were already gone, removed outside the API; admin nav trim + admin-only lock/unlock decided. |
+| 2026-09-18 | **CLAUDE.md split** — it had grown to 712k chars against Claude Code's 150k limit and was being truncated. Verbatim history moved to `docs/CHANGELOG.md`, `docs/KNOWN_ISSUES.md`, `docs/FRONTEND_CONVENTIONS.md`, `docs/RESTORE.md` and `docs/ARCHIVE.md`; this file condensed to rules + facts, every `##` heading kept. Docs only. |
+| 2026-09-15 | Server cleanup — seven recorded flags closed; change-password's live `401` → `403`; `skipAuthRedirect` removed; five suites grew. |
+| 2026-09-15 | Docs only — Admin → Backup & Restore browser check passed; the first real restore through the UI recorded, with four restore findings. |
+| 2026-09-14 | Admin → Backup & Restore — Stage 4's last page. **Stage 4 complete.** |
+| 2026-09-14 | Admin → Grades — view plus the lock, NOT delete; `TermValue` extracted at the third copy. |
+| 2026-09-14 | Admin → Announcements, with memos on the same page. |

@@ -1365,46 +1365,22 @@ is still open, needing its own dispatch:**
 
 | Issue | Where | Note |
 |---|---|---|
-| `users.email` has no UNIQUE constraint | `schema.sql` | Deliberate: sibling parent accounts share a guardian email (one account per student). Only matters if email login is built — see OPEN QUESTIONS |
-| No GWA computation | — | In the manuscript's Definition of Terms, implemented nowhere. Keep or drop — undecided |
-| HMR can leave a stale module in an open tab | Vite dev server | **Hard reload (Ctrl+Shift+R) before treating a browser-review symptom as a code defect.** Cost a full round trip once |
-| `GET /api/messages/contacts` cannot tell "no parents exist" from "all parents pending" | `routes/messages.js` | ACTIVE only is correct. The UI copy "No parents yet…" is a known imprecision. `GET /assignments` does not close this (TCH-002: adviser, zero assignments, pending parent) |
-| `GET /api/excuse-letters/:id` returns strictly LESS than its list endpoint | `routes/excuses.js` | Detail has no student join. Teacher → Excuse Letters uses a modal from the list and never calls `GET /:id` |
-| `excuse_letters.attachment_url` exists but nothing can write it | `schema.sql` + `routes/excuses.js` | Always NULL; no upload endpoint. **No screen may render an attachment affordance.** Build upload or drop the column |
-| `GET /api/students` returns the full personal row on a LIST | `routes/students.js` | Birthday, gender, address, contact on every row, and the LRN doubles as a login id (§5c). Lists render only name / LRN / class / status |
-| `docs/API_REFERENCE.md` scope labels are stale for every widened read | `docs/API_REFERENCE.md` §4 + module tables | Rows still say `teacher(wide)`; there is no legend code for "assigned OR adviser". Needs a backend-docs dispatch: add the code, then relabel |
-| `Login.jsx` does not use `extractError` | `client/src/pages/Login.jsx` | A dead server and a wrong password show the same message. Small fix, fold into a client dispatch |
-| No `GET /:id` on announcements, memos or events | `routes/content.js` | Detail is a Modal from the row. Trigger to build them: a shareable link to one post |
-| `GET /api/memos` ignores unknown query params while its siblings `400` | `routes/content.js` | Memos are school-wide by schema; low severity, but "same file, same conventions" guesses wrong |
-| `backups` has no `status` column | `schema.sql` | Deliberate — a row exists only after a dump succeeds. Revisit only if backups become asynchronous |
-| `GradeValue` has no branch for a descriptive A–E letter | `client/src/format/grade.jsx` | `formatGrade('A')` → `"— N/A"`. The letter is handled by `format/TermValue.jsx`; the primitive itself is still outside its stated contract |
-| README suite-count table is stale | `README.md` | Several rows and the total drifted; still lists Contributions. One dedicated docs pass, not per-dispatch patching |
-| Fifteen test scripts have a record-only `assert()` and no fixture stop | `server/scripts/test-*.js` | Only `test-grades-flows.js` has `requireFixture()`. Open audit, its own dispatch — a shared helper is a test-infrastructure refactor |
-| Direct-SQL student fixtures insert `section_id` NULL on purpose | `test-auth-flows.js`, `test-excuses-flows.js`, `test-messages-flows.js` | Would break under a future `NOT NULL` on `students.section_id`. No such constraint exists; do not act until one is proposed |
 | **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm 20 tables. Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `admin/SettingsPage.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
-| Admin has no screen to change their own password or contact | `client/` | `PUT /auth/change-password` works for any role; only Teacher and Parent Settings call it. Known before the demo, not a defect |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
 | **`test:attendance` deletes every attendance row on three dates, not just its own** | `test-attendance-flows.js` `cleanup()` | `daysAgo(2)`, `daysAgo(3)` and today, for ALL students; `daysAgo(4)` likewise. Do not run it against data you want to keep on those dates. A test-file dispatch |
-| `GET /api/attendance`: `date` silently drops `from`/`to` (the no-limit half closed 2026-09-19 — it pages) | `routes/attendance.js` | Admin → Attendance does not fetch until a grade or date range is applied. A caller sending `date` with `from`/`to` gets a different answer than it asked for |
-| Admin `target_section` is never checked against `sections` | `routes/content.js` `resolveAnnouncementTarget` admin branch | A typo creates a post nobody can read, no error. Admin → Announcements closes it at the UI by picking from `GET /sections` |
-| `PUT /api/announcements/:id` keeps a target key's OLD value when the key is omitted | `routes/content.js` | Clearing a section needs an explicit `null`. Admin → Announcements always sends both keys; any future client must too |
-| An admin PUT on a teacher's announcement keeps the TEACHER as `posted_by`, under admin targeting rules | `routes/content.js` | New words and a wider audience under the teacher's name. Admin → Announcements offers Edit only on the admin's own posts, Delete on any |
-| Announcements and memos accept a whitespace-only title or message | `routes/content.js` | Checked as `!title \|\| !content`. Compose forms trim and disable Post while blank |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
-| `GET /api/grades` cannot filter by class (the no-limit half closed 2026-09-19 — it pages; Teacher → Grades reads it whole via `fetchAll`) | `routes/grades.js` | Admin → Grades does not call it (student-first via `GET /grades/student/:id`) |
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
-| Download filename comes from the row, not `Content-Disposition` | `server/server.js` CORS + `BackupsPage.jsx` | No `exposedHeaders`. Fix is one `exposedHeaders: ['Content-Disposition']` — a server change |
-| A refusal made shortly before a SUCCESSFUL restore is rewound with the rest of `activity_logs` | `routes/backups.js` `logRestoreRefusal` | Refusals are logged (closed 2026-09-15) but survive a following restore only inside the lost-entries count. Keeping them would need a log outside `activity_logs`; not built |
-| `auth_security_state` is one global row — the restore cutoff has no user and no role | `schema.sql` + `middleware/auth.js` | Intended design (force-logout-everyone). Do not add a per-user or per-role column as a "fix" |
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
-| `POST /api/students` accepts any text as an LRN | `routes/students.js:177` + `schema.sql:41` (`VARCHAR(12)`) | Student 154 was enrolled as `Test Student` (12 chars with a space) and that became a parent login id. A DepEd LRN is 12 digits; the only checks are present, trimmed, not a duplicate. Flagged 2026-09-18, not fixed |
-| Student detail always shows "Create parent account" even when one exists | `teacher/StudentDetailPage.jsx:364` + `routes/users.js:82–93` | The server refuses a second account two ways (`409` on `login_id` UNIQUE, `409` on an existing `role='parent'` for that `student_id`), so one-account-per-student holds. The button is a dead end ending in a 409 message; `GET /students/:id` does not say whether a parent exists. Flagged 2026-09-18, not fixed |
-| Restore modal renders "Incorrect password." above the password field and action row | `admin/BackupsPage.jsx:511` vs `:537` | Correct status, wrong placement (§7c: under the action row for a modal write). Flagged 2026-09-18, not fixed |
-| `activity_logs` descriptions embed the LRN | `routes/users.js:110, 180, 228`; `routes/students.js:392, 440` | Admin-readable only, so not a leak to another role, but §5c's reasoning applies and `(#id)` already identifies the row. Existing rows stay as written. Flagged 2026-09-18, not fixed |
+
+The other 30 compact rows that stood here until 2026-09-19 are verbatim in
+`docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
+Several were already closed by then; each row's full entry in that file's
+main table is the authority, not the compact wording. Only the bold
+hazard / do-not rows stay above.
 
 ---
 
@@ -1747,70 +1723,30 @@ always say **Figure 5** specifically.
 
 ## ADMIN SCOPE AUDIT — nav vs. DFD (2026-09-13). A finding, not a decision.
 
-Before more admin screens were built, the record needed to say which admin
-nav items have a basis in the approved design. Four sources give four
-answers: `client/src/layout/nav.js` lists 13 admin items; the manuscript's
-p. 70 admin dashboard mockup shows 5 (**an incomplete drawing, not a narrower
-approved scope** — all five map to Figure 5, and it omits Students, Grades
-and Attendance, which also have a basis); Figure 5, DFD Level 1, has 11
-admin-facing processes (1.1, 1.3, 1.9, 1.10, 1.12, 1.15, 1.18, 1.23, 1.25,
-1.27, 1.28); `docs/SYSTEM_ARCHITECTURE.md` §4 cites Figure 5 in its heading
-and lists 3, with 1.23 filed under Teacher — **do not trust that heading; it
-is recorded, not corrected, because correcting it is the team's decision.**
-Figure 5 governs by precedent (the auth flow followed it over Figures 11–13),
-not by an agreed general rule. When citing, say **Figure 5**, never Figure 4.
+**Finding, 2026-09-13.** Four sources gave four answers for which admin nav
+items have a basis in the approved design (`nav.js` 13, the p. 70 mockup 5,
+Figure 5 has 11 admin-facing processes, `docs/SYSTEM_ARCHITECTURE.md` §4
+lists 3 — do not trust that heading). Figure 5 governs by precedent; cite
+**Figure 5**, never Figure 4. With a Figure 5 process: Users (1.1, 1.3),
+Students (1.23), Grades (1.9), Attendance (1.15, view), Announcements (1.18,
+memos partial), Settings (1.25), Backup & Restore (1.27, 1.28). Without one:
+Sections, Excuse Letters, Events, Messages. The API already authorizes admin
+beyond Figure 5 in three places (excuse letters, messages, attendance writes)
+— one pattern, not a defect. 1.10 / 1.12 "Academic Records" stay ambiguous
+between Students and Grades.
 
-| Nav item | Figure 5 process | Basis |
-|---|---|---|
-| Dashboard | — | navigation, not a process |
-| Users | 1.1, 1.3 | **yes** |
-| Students | 1.23 (+ candidate for 1.10/1.12) | **yes** |
-| Sections | none | **no** — supports attendance adviser-scoping; not one of the nine features |
-| Grades | 1.9 (+ candidate for 1.10/1.12) | **yes** (view) |
-| Attendance | 1.15 | **yes for viewing.** Admin record/correct, which the API allows, has no basis |
-| Excuse Letters | none (admin absent from 1.16/1.17) | **no** — the API authorizes admin anyway |
-| Announcements | 1.18 | **yes** |
-| Memos | 1.18, partial | **partial** — a separate table and a separate word in Feature 4's name |
-| Events | none | **no** — also not named in Feature 4 |
-| Messages | none (1.22 is Teacher and Parent only) | **no** — `canMessage()` lets admin message anyone |
-| Settings | 1.25 | **yes** |
-| Backup & Restore | 1.27, 1.28 | **yes** — 1.28 Show Backup Logs is `GET /api/backups` |
+**SCOPE DECISION, Darryl, 2026-09-13 (his decision, not a team consultation —
+do not blur the two):** build the six with a Figure 5 process (all built
+2026-09-14; Stage 4 complete); do not build Sections, Excuse Letters, Events,
+Messages; memos live on Admin → Announcements (decided 2026-09-14), the only
+place a memo can be written; the defence answer for the four is "no Figure 5
+process"; no handler moves — the API still authorizes admin on excuse
+letters, messages and attendance writes.
 
-**One finding, three instances — the API already authorizes admin beyond
-Figure 5:** excuse letters (list / view / review), messages (`canMessage()`),
-attendance writes (`POST /`, `POST /bulk`, `PUT /:id`). Not a defect; recorded
-as one pattern. **1.10 / 1.12 "Academic Records" are ambiguous between
-Students and Grades — both candidates recorded, neither chosen** (Figure 17
-already used "Student Record" to mean Grades).
-
-### SCOPE DECISION — admin screens follow Figure 5 (Darryl, 2026-09-13)
-
-**Darryl's decision, not a team consultation** — the audit said the call would
-go to the team with a date and a name, and that is not what happened; the two
-must not be blurred. If a consultation happens later, add it here.
-
-- **Build — the six with a Figure 5 process, all built 2026-09-14:** Students
-  (1.23), Grades (1.9, view + lock), Attendance (1.15, view), Announcements
-  (1.18, with memos), Settings (1.25), Backup & Restore (1.27, 1.28). Users
-  (1.1, 1.3) was already built. **Stage 4 is complete.**
-- **Do not build:** Sections, Excuse Letters, Events, Messages. They stay
-  `built: false` in `nav.js` and appear in no plan. Removing them from the nav
-  is a separate decision, not taken here.
-- **Memos — DECIDED 2026-09-14 (Darryl): memos live on Admin → Announcements,
-  not on their own route.** 1.18 is one process and the only content process
-  the admin has; Feature 4 names both; `memosRouter` writes are all
-  `authorize('admin')` while both reader pages are read-only, so that page is
-  the ONLY place a memo can ever be written. The admin "Memos" nav item stays
-  `built: false`, not flipped and not removed.
-- **Defence answer** to "why is there no Admin → Messages": it has no Figure 5
-  process. Same answer for Sections, Excuse Letters and Events.
-- **Not changed by this decision:** the API still authorizes admin on excuse
-  letters, messages and attendance writes. No handler moves.
-- **Consequence with no owner:** §5g's admin `LiveStatus` inverse was owned by
-  Admin → Messages, which will now never exist. Needs its own dispatch;
-  nothing here gates `LiveStatus`.
-
-Full text: `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT.
+The nav-item table, the finding paragraph and the decision bullets as they
+stood here until 2026-09-19 are verbatim in `docs/ARCHIVE.md` → "ADMIN SCOPE
+AUDIT — the condensed section as it stood in CLAUDE.md until 2026-09-19";
+the original full text is `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT.
 
 ### SCOPE DECISION — admin nav trimmed to what exists (Darryl, 2026-09-18)
 
@@ -1890,27 +1826,20 @@ None of these is a written policy. **Do not cite them in the manuscript as
 documented school policy, and do not re-ask them.** Full entries:
 `docs/ARCHIVE.md` → OPEN QUESTIONS.
 
-- **2026-09-01 — Principal Bajar, consultation at the school:** the school
-  is not permitted to collect contributions from parents → Feature 7 removed
-  in code 2026-09-13 (SCOPE DECISION).
-- **2026-09-13 — the principal, in conversation:** attendance rate — **Late
-  counts as present; Excused counts as absent** → Parent → Attendance shows
-  "Present on recorded days" = `(Present + Late) / total` over recorded days,
-  not SF9 Class Days; Excused is in the denominator. **DO 015 s. 2026 itself
-  prescribes no attendance rate formula and no attendance grade component**
-  (para 71 — intervention at roughly twelve absences — is its only attendance
-  rule; Table 9's components are WW / PT / EX), so this is a school decision,
-  not DepEd's — never attribute it to DepEd in parent-facing copy. Mid-year
-  transfer ownership was NOT answered in the same conversation.
-- **2026-09-11 — the team, in conversation, seven answers, all already
-  built:** three terms, not four quarters (`grades.term` 1–3,
-  `system_settings.current_term`); both grading modes (`grading_mode_configs`:
-  Grade 1 descriptive, Grades 2–6 numerical); three components (WW/PT rows +
-  EX columns); weights by learning area keyed `(subject_id, school_year)`,
-  not grade band; lock is admin only — do not widen `authorize()` on
-  `PATCH /api/grades/:id/lock`; every parent knows the child's LRN (it is on
-  the old school id and never changes — login design stays); parents see raw
-  WW / PT / Exam scores — the modal is approved.
+- **2026-09-01 — Principal Bajar, consultation:** no contributions from
+  parents → Feature 7 removed 2026-09-13.
+- **2026-09-13 — the principal, in conversation:** Late counts as present,
+  Excused as absent → "Present on recorded days" on Parent → Attendance; a
+  school decision, not DepEd's (DO 015 prescribes no rate); never attribute
+  it to DepEd. Mid-year transfer ownership was NOT answered.
+- **2026-09-11 — the team, in conversation, seven answers, all built:** three
+  terms; both grading modes; three components; weights by learning area; lock
+  admin-only; parents know the LRN (login design stays); raw WW / PT / Exam
+  scores in the parent modal — approved.
+
+The bullets as they stood here until 2026-09-19 are verbatim in
+`docs/ARCHIVE.md` → "OPEN QUESTIONS — answered bullets as they stood in
+CLAUDE.md until 2026-09-19".
 
 ### Engineering, manuscript, and logistics
 
@@ -2125,22 +2054,13 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | CLAUDE.md trim (D0): 147,145 → 134,157 chars. Four blocks moved verbatim by script with a byte-identical check (129/129 lines): 30 compact KNOWN ISSUES rows → `docs/KNOWN_ISSUES.md`, 14 older CHANGELOG stubs, the ADMIN SCOPE AUDIT block and the answered OPEN QUESTIONS bullets → `docs/ARCHIVE.md`. Every `##` heading kept, each condensed section ends with a pointer. Docs only. |
 | 2026-09-19 | Server hardening C (`feat/pagination`): every list endpoint pages (`limit` 50/200, `offset`, `sort`/`order` allow-list, sibling `page { limit, offset, total, has_more }` over the filtered set; the thread on `?before=`), 16 handlers in 9 route files, `utils/pagination.js`; DataTable paged mode (server sort, footer, C7 step-back), `fetchAll` (200/page, de-dupe, hard cap) for every complete-set caller, 24 client files. Nine suites grew (users 61, students 94, grades 182, attendance 60, excuses 92, content 96, assignments 56, backups 47, messages 80). FRONTEND_CONVENTIONS §5 and two KNOWN ISSUES rows here are now stale — listed on the full row, not edited. |
 | 2026-09-19 | B3: the `401` redirect now carries its reason — `axios.js` stores it in `sessionStorage` (never the URL), Login shows it once in the sign-in error slot and clears it; `Account is not active.` and the restore message verbatim, the token-shaped 401s become "Your session has ended. Please log in again."; a manual Logout shows nothing. Same-browser second-login identity swap recorded in KNOWN ISSUES, not fixed. |
 | 2026-09-19 | Branch B amended (B1, B2): `POST /api/users/parents` resolves LRN + scope in one query BEFORE the duplicate `409`s — unknown LRN, out-of-scope LRN and out-of-scope LRN of a child with a parent are byte-identical `403`s, the `404` is gone; the six stale present-tense claims from the row below corrected (CLAUDE.md, `docs/FRONTEND_CONVENTIONS.md`, `StudentsPage.jsx`). `test:auth` 56. |
 | 2026-09-18 | Server hardening B (`feat/authorization`): `POST /api/users/parents` is `403` unless the teacher is assigned to OR advises the student's section (the shared `TEACHER_VIEW_SCOPE_SQL`); `middleware/auth.js` answers `401`, not `403`, for `Account is not active.` on a live session — login keeps `403` + `status`. `test:auth` 54, `test:users` 47, `test:excuses` 70. Six sentences in this file and one `StudentsPage.jsx` comment are now stale — listed on the full row, not edited. |
 | 2026-09-18 | Server hardening A (`feat/validation`): 12-digit LRN on create (`utils/lrnRule.js`), one contact-number rule at all six writes (`utils/contactRule.js`, digits-only storage), birthday/gender validated as `400`s, `parent_account` on `GET /students/:id`, ids instead of LRNs in new audit rows, `field` keys on restore, Login uses `extractError`. students 79, auth 52, users 47, restore 29. |
-| 2026-09-18 | Settings redesign: one `pages/settings/SettingsLayout` for all roles, tabs as sub-routes, live `PasswordChecklist` in all four password-setting forms, Text size (this device only), the admin's first account screen; the three `SettingsPage.jsx` files deleted (the `client/src/` tree above still names them — next CLAUDE.md pass). Branch `feat/settings-redesign`. |
-| 2026-09-18 | Password rule: at least 8 characters and one number, one server module (`utils/passwordRule.js`) at the three set-points with `field` on each refusal, one client module (`format/passwordRule.js`) in the three create forms; never at login. Branch `feat/password-rule`; `test:auth` 51, `test:users` 42. |
-| 2026-09-18 | Teacher → Grades locked-grade copy: both occurrences now say only an admin can unlock it; server `403` unchanged; KNOWN ISSUES row closed. Branch `fix/locked-grade-copy`; fixture grade 336 left locked for the browser check. |
-| 2026-09-18 | Browser check PASSED on Branch 3 (through `1ceff55`); the two teacher filter bars fixed under an approved scope expansion; the check's fixtures (student 154, parent user 115) removed by recorded SQL after backup 26 — Darryl's choice, no delete endpoint exists by design; four findings added to `docs/KNOWN_ISSUES.md`. |
-| 2026-09-18 | Browser check failed on the filter widths — the fix had been scoped from a remembered list, not a search. Full audit of all 41 selects under `client/src/pages`: 22 are filter/toolbar selects and all 22 now carry the token; two more bars are outside the branch whitelist and were declared, not edited. |
-| 2026-09-18 | `FormStatus` — a write’s result renders under the control that caused it, not in a shared slot at the top; 13 pages, keyed status, XOR now structural. One `filterSelectClass` (`w-full sm:w-72`) stops filter selects resizing with the selection. |
-| 2026-09-18 | Admin nav trimmed 13 → 8 (the five page-less entries removed, not dimmed); Parent dashboard stops promising pages that already landed; §5g inverse closed — LiveStatus gated on the same test as the badge. |
-| 2026-09-18 | Browser check passed (restore 403, change-password inline); the six queued fixtures were already gone, removed outside the API; admin nav trim + admin-only lock/unlock decided. |
-| 2026-09-18 | **CLAUDE.md split** — it had grown to 712k chars against Claude Code's 150k limit and was being truncated. Verbatim history moved to `docs/CHANGELOG.md`, `docs/KNOWN_ISSUES.md`, `docs/FRONTEND_CONVENTIONS.md`, `docs/RESTORE.md` and `docs/ARCHIVE.md`; this file condensed to rules + facts, every `##` heading kept. Docs only. |
-| 2026-09-15 | Server cleanup — seven recorded flags closed; change-password's live `401` → `403`; `skipAuthRedirect` removed; five suites grew. |
-| 2026-09-15 | Docs only — Admin → Backup & Restore browser check passed; the first real restore through the UI recorded, with four restore findings. |
-| 2026-09-14 | Admin → Backup & Restore — Stage 4's last page. **Stage 4 complete.** |
-| 2026-09-14 | Admin → Grades — view plus the lock, NOT delete; `TermValue` extracted at the third copy. |
-| 2026-09-14 | Admin → Announcements, with memos on the same page. |
+
+Stub lines older than these (14, 2026-09-14 → 2026-09-18) are verbatim in
+`docs/ARCHIVE.md` → "CHANGELOG stubs moved from CLAUDE.md on 2026-09-19";
+every full row is in `docs/CHANGELOG.md`.
