@@ -116,6 +116,11 @@ api.interceptors.response.use(
     if (status === 401 && !isLoginRequest) {
       localStorage.removeItem(TOKEN_KEY);
       if (window.location.pathname !== '/login') {
+        // B3 (2026-09-19): carry the reason across the full-page redirect so
+        // the Login page can say WHY the user is back there. sessionStorage,
+        // never the URL (§5c: nothing about the session goes in a query
+        // string); consumed once by Login on its first render.
+        storeLogoutReason(error.response?.data?.message);
         window.location.assign('/login');
       }
     }
@@ -123,6 +128,49 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// -----------------------------------------------------------------------------
+// Logout reason — written by the 401 branch above, read once by Login.
+// -----------------------------------------------------------------------------
+//
+// Every 401 middleware/auth.js can send on a live session, verbatim:
+//   'Account is not active.'                                        (deactivated / pending / rejected)
+//   'Session invalidated by a database restore. Please log in again.'
+//   'Invalid or expired token.'                                     (jwt.verify threw)
+//   'User not found.'                                               (the users row is gone)
+//   'Authentication required.'                                      (no token — unreachable with one)
+// The first two read as sentences to a person and are shown as-is. The
+// other three describe the token, not the person, and are replaced by one
+// sentence. A manual Logout (Shell → AuthContext.logout) never comes
+// through here, so it writes nothing and Login shows nothing.
+const LOGOUT_REASON_KEY = 'pp_logout_reason';
+const SESSION_ENDED = 'Your session has ended. Please log in again.';
+const HUMAN_READABLE_401S = new Set([
+  'Account is not active.',
+  'Session invalidated by a database restore. Please log in again.',
+]);
+
+function storeLogoutReason(serverMessage) {
+  const text = HUMAN_READABLE_401S.has(serverMessage) ? serverMessage : SESSION_ENDED;
+  try {
+    sessionStorage.setItem(LOGOUT_REASON_KEY, text);
+  } catch {
+    // Storage blocked (private mode, cleared site data): the redirect still
+    // happens; Login simply shows no reason.
+  }
+}
+
+// Returns the stored reason (or '') and clears it, so a refresh of the Login
+// page does not repeat it.
+export function takeLogoutReason() {
+  try {
+    const text = sessionStorage.getItem(LOGOUT_REASON_KEY) || '';
+    if (text) sessionStorage.removeItem(LOGOUT_REASON_KEY);
+    return text;
+  } catch {
+    return '';
+  }
+}
 
 export { TOKEN_KEY };
 export default api;

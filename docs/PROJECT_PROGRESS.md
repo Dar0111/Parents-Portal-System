@@ -94,6 +94,17 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**B3 on the same branch (2026-09-19):** the browser check found the `401`
+logout landing on Login with no reason. `api/axios.js` now stores the
+server's message in `sessionStorage` (never the URL) before the redirect —
+"Account is not active." and the restore message verbatim, the three
+token-shaped 401s replaced by "Your session has ended. Please log in
+again." — and `Login.jsx` shows it once, in the sign-in error slot, then
+clears it; a refresh or a manual Logout shows nothing. Build 0, oxlint 42,
+SSR 13/13 with a negative control. Recorded, not fixed: a second login in
+another tab of the same browser session silently swaps the open tab's
+identity (KNOWN ISSUES). Full row: `docs/CHANGELOG.md`, 2026-09-19.
+
 **Server hardening B, `feat/authorization` (2026-09-18):** two closes.
 `POST /api/users/parents` now refuses a teacher who is neither assigned to
 the student's class nor the adviser of its section (`403` naming the rule;

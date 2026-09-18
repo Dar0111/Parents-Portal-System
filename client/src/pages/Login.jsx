@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
 import extractError from '../api/extractError';
+import { takeLogoutReason } from '../api/axios';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
@@ -10,7 +11,12 @@ export default function Login() {
 
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  // B3 (2026-09-19): when the 401 interceptor sent the user here, the reason
+  // it stored ("Account is not active." / "Your session has ended…") is the
+  // first thing this page shows. Read once, in the state initialiser, and
+  // cleared by takeLogoutReason, so a refresh or a manual Logout shows
+  // nothing. Same slot as a failed sign-in: the next submit replaces it.
+  const [error, setError] = useState(() => takeLogoutReason());
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && user) {
