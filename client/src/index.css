@@ -1,6 +1,179 @@
 @import "tailwindcss";
 @import "@fortawesome/fontawesome-free/css/all.min.css";
 
+/* -----------------------------------------------------------------------------
+   Design tokens (2026-09-19, feat/design-tokens — docs/FRONTEND_CONVENTIONS.md §8)
+
+   Every color a page uses is one of these semantic tokens; no page carries a
+   raw palette utility (bg-slate-100, text-rose-600) or a `dark:` variant —
+   `npm run lint:tokens` (scripts/check-color-tokens.mjs) fails on any. A
+   theme is therefore a second block of values for the SAME variables, never
+   an edit to fifty pages.
+
+   Two layers, on purpose:
+     :root            the raw values (light). Each line names the Tailwind
+                      palette color it equals — scripts compare the two.
+     @theme inline    the Tailwind names, each `var(--…)`. `inline` is what
+                      makes `bg-surface` compile to `var(--color-surface)` and
+                      resolve at RUNTIME, so a `[data-theme]` block can swap
+                      the value; a plain @theme would bake the light value in.
+
+   Same-shade splits are deliberate, not duplicates: `page` and
+   `surface-subtle` are both slate-50 in light (the page background vs. a
+   band inside a white card) and `primary` and `bubble-mine` are both
+   slate-900, so a dark theme can give each pair different depths.
+   ----------------------------------------------------------------------------- */
+
+:root {
+  /* surfaces */
+  --page: oklch(98.4% 0.003 247.858);            /* slate-50 */
+  --surface: #fff;                                /* white */
+  --surface-muted: oklch(96.8% 0.007 247.896);    /* slate-100 */
+  --surface-subtle: oklch(98.4% 0.003 247.858);   /* slate-50 */
+  --backdrop: color-mix(in oklab, oklch(20.8% 0.042 265.755) 40%, transparent); /* slate-900/40 */
+
+  /* edges */
+  --edge: oklch(92.9% 0.013 255.508);             /* slate-200 */
+  --edge-soft: oklch(96.8% 0.007 247.896);        /* slate-100 */
+  --edge-strong: oklch(86.9% 0.022 252.894);      /* slate-300 */
+  --focus-edge: oklch(70.4% 0.04 256.788);        /* slate-400 */
+  --focus-ring: oklch(92.9% 0.013 255.508);       /* slate-200 */
+  --focus-accent: oklch(68.5% 0.169 237.323);     /* sky-500 */
+
+  /* text */
+  --fg: oklch(20.8% 0.042 265.755);               /* slate-900 */
+  --fg-secondary: oklch(37.2% 0.044 257.287);     /* slate-700 */
+  --fg-body: oklch(44.6% 0.043 257.281);          /* slate-600 */
+  --fg-muted: oklch(55.4% 0.046 257.417);         /* slate-500 */
+  --fg-faint: oklch(70.4% 0.04 256.788);          /* slate-400 */
+  --fg-ghost: oklch(86.9% 0.022 252.894);         /* slate-300 */
+
+  /* primary action */
+  --primary: oklch(20.8% 0.042 265.755);          /* slate-900 */
+  --primary-hover: oklch(37.2% 0.044 257.287);    /* slate-700 */
+  --primary-fg: #fff;                             /* white */
+  --primary-disabled: oklch(86.9% 0.022 252.894); /* slate-300 */
+  --solid-fg: #fff;                               /* white — text on a danger/success solid button */
+
+  /* tones */
+  --neutral-soft: oklch(96.8% 0.007 247.896);     /* slate-100 */
+  --neutral-edge: oklch(92.9% 0.013 255.508);     /* slate-200 */
+  --neutral-fg: oklch(37.2% 0.044 257.287);       /* slate-700 */
+
+  --success-soft: oklch(97.9% 0.021 166.113);     /* emerald-50 */
+  --success-edge: oklch(90.5% 0.093 164.15);      /* emerald-200 */
+  --success-fg: oklch(50.8% 0.118 165.612);       /* emerald-700 */
+  --success-strong: oklch(43.2% 0.095 166.913);   /* emerald-800 */
+  --success-icon: oklch(59.6% 0.145 163.225);     /* emerald-600 */
+  --success-solid: oklch(59.6% 0.145 163.225);    /* emerald-600 */
+  --success-solid-hover: oklch(50.8% 0.118 165.612); /* emerald-700 */
+
+  --warning-soft: oklch(98.7% 0.022 95.277);      /* amber-50 */
+  --warning-soft-hover: oklch(96.2% 0.059 95.617); /* amber-100 */
+  --warning-edge: oklch(92.4% 0.12 95.746);       /* amber-200 */
+  --warning-edge-strong: oklch(87.9% 0.169 91.605); /* amber-300 */
+  --warning-fg: oklch(47.3% 0.137 46.201);        /* amber-800 */
+  --warning-strong: oklch(41.4% 0.112 45.904);    /* amber-900 */
+  --warning-icon: oklch(82.8% 0.189 84.429);      /* amber-400 */
+
+  --danger-soft: oklch(96.9% 0.015 12.422);       /* rose-50 */
+  --danger-edge: oklch(89.2% 0.058 10.001);       /* rose-200 */
+  --danger-edge-strong: oklch(81% 0.117 11.638);  /* rose-300 */
+  --danger-edge-focus: oklch(71.2% 0.194 13.428); /* rose-400 */
+  --danger-ring-focus: oklch(94.1% 0.03 12.58);   /* rose-100 */
+  --danger-fg: oklch(51.4% 0.222 16.935);         /* rose-700 */
+  --danger-strong: oklch(45.5% 0.188 13.697);     /* rose-800 */
+  --danger-text: oklch(58.6% 0.253 17.585);       /* rose-600 */
+  --danger-icon: oklch(64.5% 0.246 16.439);       /* rose-500 */
+  --danger-solid: oklch(58.6% 0.253 17.585);      /* rose-600 */
+  --danger-solid-hover: oklch(51.4% 0.222 16.935); /* rose-700 */
+
+  --info-soft: oklch(97.7% 0.013 236.62);         /* sky-50 */
+  --info-edge: oklch(90.1% 0.058 230.902);        /* sky-200 */
+  --info-fg: oklch(50% 0.134 242.749);            /* sky-700 */
+  --info-strong: oklch(39.1% 0.09 240.876);       /* sky-900 */
+
+  /* message bubbles */
+  --bubble-mine: oklch(20.8% 0.042 265.755);      /* slate-900 */
+  --bubble-mine-fg: #fff;                         /* white */
+  --bubble-mine-meta: oklch(86.9% 0.022 252.894); /* slate-300 */
+  --bubble-theirs: oklch(96.8% 0.007 247.896);    /* slate-100 */
+  --bubble-theirs-fg: oklch(20.8% 0.042 265.755); /* slate-900 */
+  --bubble-theirs-meta: oklch(55.4% 0.046 257.417); /* slate-500 */
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-backdrop: var(--backdrop);
+
+  --color-edge: var(--edge);
+  --color-edge-soft: var(--edge-soft);
+  --color-edge-strong: var(--edge-strong);
+  --color-focus-edge: var(--focus-edge);
+  --color-focus-ring: var(--focus-ring);
+  --color-focus-accent: var(--focus-accent);
+
+  --color-fg: var(--fg);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-body: var(--fg-body);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-fg-ghost: var(--fg-ghost);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-disabled: var(--primary-disabled);
+  --color-solid-fg: var(--solid-fg);
+
+  --color-neutral-soft: var(--neutral-soft);
+  --color-neutral-edge: var(--neutral-edge);
+  --color-neutral-fg: var(--neutral-fg);
+
+  --color-success-soft: var(--success-soft);
+  --color-success-edge: var(--success-edge);
+  --color-success-fg: var(--success-fg);
+  --color-success-strong: var(--success-strong);
+  --color-success-icon: var(--success-icon);
+  --color-success-solid: var(--success-solid);
+  --color-success-solid-hover: var(--success-solid-hover);
+
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-hover: var(--warning-soft-hover);
+  --color-warning-edge: var(--warning-edge);
+  --color-warning-edge-strong: var(--warning-edge-strong);
+  --color-warning-fg: var(--warning-fg);
+  --color-warning-strong: var(--warning-strong);
+  --color-warning-icon: var(--warning-icon);
+
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-edge: var(--danger-edge);
+  --color-danger-edge-strong: var(--danger-edge-strong);
+  --color-danger-edge-focus: var(--danger-edge-focus);
+  --color-danger-ring-focus: var(--danger-ring-focus);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-strong: var(--danger-strong);
+  --color-danger-text: var(--danger-text);
+  --color-danger-icon: var(--danger-icon);
+  --color-danger-solid: var(--danger-solid);
+  --color-danger-solid-hover: var(--danger-solid-hover);
+
+  --color-info-soft: var(--info-soft);
+  --color-info-edge: var(--info-edge);
+  --color-info-fg: var(--info-fg);
+  --color-info-strong: var(--info-strong);
+
+  --color-bubble-mine: var(--bubble-mine);
+  --color-bubble-mine-fg: var(--bubble-mine-fg);
+  --color-bubble-mine-meta: var(--bubble-mine-meta);
+  --color-bubble-theirs: var(--bubble-theirs);
+  --color-bubble-theirs-fg: var(--bubble-theirs-fg);
+  --color-bubble-theirs-meta: var(--bubble-theirs-meta);
+}
+
 body {
   margin: 0;
 }
