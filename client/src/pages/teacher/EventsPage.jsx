@@ -3,7 +3,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { todayLocalDateString } from '../../format/date';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
@@ -224,6 +224,7 @@ export default function EventsPage() {
           <FormField
             label="Grade"
             as="select"
+            className={filterSelectClass}
             value={gradeFilter}
             onChange={(e) => setGradeFilter(e.target.value)}
           >

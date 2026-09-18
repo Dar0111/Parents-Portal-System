@@ -4,7 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { useAuth } from '../../auth/AuthContext';
@@ -344,6 +344,7 @@ export default function AnnouncementsPage() {
           <FormField
             label="Section"
             as="select"
+            className={filterSelectClass}
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value)}
           >
