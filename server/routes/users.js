@@ -99,11 +99,26 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
   const loginId = String(lrn).trim();
 
   try {
-    const [students] = await pool.query('SELECT id, lrn FROM students WHERE lrn = ? LIMIT 1', [loginId]);
+    // Who may create it (Darryl, 2026-09-18): a teacher assigned to OR
+    // advising the student's section — the same shared predicate that decides
+    // whether the teacher can SEE the student (utils/teacherScope.js), so
+    // "can create a parent for" equals "can list". ONE query resolves the LRN
+    // and the scope together, so "no such LRN" and "not your student" are the
+    // same response byte for byte (B1, 2026-09-19): an out-of-scope teacher
+    // must not learn whether an LRN exists, and — because this runs BEFORE
+    // the two duplicate 409s below — must not learn whether that child
+    // already has a parent account either. 403 naming the rule (a write, §2);
+    // a teacher in scope who mistypes an LRN gets the same 403, and the
+    // enroll wizard never reaches this call with an unknown LRN (step 2 runs
+    // only after a successful POST /students).
+    const [students] = await pool.query(
+      `SELECT s.id FROM students s WHERE s.lrn = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
+      [loginId, ...teacherViewScopeParams(req.user.id)]
+    );
     if (!students.length) {
-      return res.status(404).json({
+      return res.status(403).json({
         success: false,
-        message: 'Student with this LRN not found. Enroll the student first.',
+        message: "Only a teacher assigned to this student's class, or the adviser of their section, can create the parent account.",
       });
     }
     const student = students[0];
@@ -119,25 +134,6 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     );
     if (existingParent.length) {
       return res.status(409).json({ success: false, message: 'A parent account is already linked to this student.' });
-    }
-
-    // Who may create it (Darryl, 2026-09-18): a teacher assigned to OR
-    // advising the student's section — the same shared predicate that decides
-    // whether the teacher can SEE the student (utils/teacherScope.js), so
-    // "can create a parent for" equals "can list". Until now any teacher who
-    // knew an LRN could create the account. Checked AFTER the two 409s above
-    // so the rule adds a refusal, not a reordering; 403 naming the reason
-    // (a write, §2), not 404 — GET /students already tells this teacher
-    // whether they can see the student.
-    const [inScope] = await pool.query(
-      `SELECT 1 FROM students s WHERE s.id = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
-      [student.id, ...teacherViewScopeParams(req.user.id)]
-    );
-    if (!inScope.length) {
-      return res.status(403).json({
-        success: false,
-        message: "Only a teacher assigned to this student's class, or the adviser of their section, can create the parent account.",
-      });
     }
 
     const hashed = await hashPassword(password);

@@ -106,7 +106,7 @@ return the database to this table, not to a remembered older snapshot.
 | PUT | `/api/auth/change-password` | Authenticated |
 | PUT | `/api/auth/contact` | Authenticated — own `contact_number` only; identity fields in the body rejected with 400 |
 | POST | `/api/users/teachers` | admin |
-| POST | `/api/users/parents` | teacher |
+| POST | `/api/users/parents` | teacher — assigned to the student's class OR adviser of its section; one query resolves LRN + scope, so unknown LRN and out-of-scope are the same `403`, checked BEFORE the duplicate `409`s |
 | GET | `/api/users/parents/pending` | admin |
 | PUT | `/api/users/parents/:id/approve` | admin |
 | PUT | `/api/users/parents/:id/reject` | admin |
@@ -216,11 +216,11 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:assignments` — 41/41
 - `npm run test:grading-modes` — 13/13
 - `npm run test:grades` — 167/167 (confirmed twice 2026-09-15; was broken 2026-09-10 → 2026-09-13 — see CHANGELOG)
-- `npm run test:auth` — 40/40
+- `npm run test:auth` — 56/56
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 62/62
 - `npm run test:settings` — 29/29
-- `npm run test:users` — 39/39
+- `npm run test:users` — 47/47
 - `npm run test:backups` — 39/39
 - `npm run test:sanitize` — 9/9
 - `npm run test:messages` — 59/59
@@ -689,10 +689,10 @@ api.post('/backups/3/restore', body, { raw: true })       // -> the axios respon
 - **`403` does NOT redirect, and never should.** A 403 in this API is an
   *informative refusal* with a reason (scope, a locked grade, a failed step-up
   or current password, an `authorize()` role violation) that must reach the
-  user through `extractError`. The one exception is `middleware/auth.js`'s
-  `Account is not active.`, a dead session that resolves on the next refresh
-  via `AuthContext`'s `/auth/me` check; the real fix is server-side (OPEN
-  QUESTIONS). Not string-matched. No count of 403 origins — it cannot be
+  user through `extractError`. There is no exception: `middleware/auth.js`'s
+  `Account is not active.` — the one 403 that meant a dead session — is
+  `401` since 2026-09-18, so a deactivated user is logged out on their next
+  request. Not string-matched. No count of 403 origins — it cannot be
   checked mechanically.
 - **Reads out of scope return `404`** (anti-enumeration); **writes return
   `403`**. Two exceptions return `403` where a read would 404, because a
@@ -1333,16 +1333,17 @@ note, and every CLOSED row kept so it is not reopened — is
 `docs/KNOWN_ISSUES.md`. Add new rows there and add a line here.**
 
 **Server cleanup, 2026-09-15** closed seven server flags. **Three server items
-stay open on purpose, each needing its own dispatch:**
+stayed open on purpose; two closed 2026-09-18 (`feat/authorization`) and one
+is still open, needing its own dispatch:**
 - **`GET /api/grades` and `GET /api/attendance` have no `LIMIT`** — needs a
   page-size and pagination decision; the client pages would change.
-- **`POST /api/users/parents` has no assignment check** — the fix NARROWS
-  what a teacher can do and touches the enroll flow and two suites. Do not
-  hide the button behind assignments; do not add the check in a client-only
-  dispatch.
-- **`Account is not active.` is `403`, should be `401`** (`middleware/auth.js`)
-  — runs on every request of every role, so it goes last and alone. See OPEN
-  QUESTIONS.
+- ~~`POST /api/users/parents` has no assignment check~~ — CLOSED 2026-09-18:
+  assigned OR adviser of the student's section, `403` otherwise; an unknown
+  LRN is that same `403` (never `404`), and the scope check runs before the
+  duplicate `409`s. Do not hide the button behind assignments — an adviser
+  may create it.
+- ~~`Account is not active.` is `403`, should be `401`~~ — CLOSED 2026-09-18:
+  `401` in `middleware/auth.js`; login keeps `403` + `status`.
 
 | Issue | Where | Note |
 |---|---|---|
@@ -1925,12 +1926,12 @@ questions.
   2026-09-06/07 via `utils/teacherScope.js`. **`routes/grades.js` is
   deliberately NOT widened** — grade encoding is the subject teacher's
   authority; widening it would invent school policy.
-- **`Account is not active.` should be `401`, not `403`**
-  (`middleware/auth.js`) — the one 403 in the API that means a dead session,
-  and the reason the client once redirected on every 403. A server change
-  that runs on every request of every role; goes last and alone. Until then a
-  mid-session deactivation shows an `ErrorAlert` until the next refresh logs
-  the user out; nothing renders meanwhile.
+- **`Account is not active.` is `401` since 2026-09-18** (`middleware/auth.js`,
+  `feat/authorization`) — it was the one 403 in the API that meant a dead
+  session, and the reason the client once redirected on every 403. A
+  mid-session deactivation now logs the user out on their next request.
+  Login keeps `403` + `status` for the same accounts. Closed; kept here so
+  the old row is not re-derived.
 - **Endpoint audit — run 2026-09-07, three-way diff (this file's table,
   `docs/API_REFERENCE.md`, the handlers actually mounted), all three buckets
   empty.** Re-run after any dispatch that adds or removes an endpoint. Its
@@ -2106,6 +2107,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Branch B amended (B1, B2): `POST /api/users/parents` resolves LRN + scope in one query BEFORE the duplicate `409`s — unknown LRN, out-of-scope LRN and out-of-scope LRN of a child with a parent are byte-identical `403`s, the `404` is gone; the six stale present-tense claims from the row below corrected (CLAUDE.md, `docs/FRONTEND_CONVENTIONS.md`, `StudentsPage.jsx`). `test:auth` 56. |
 | 2026-09-18 | Server hardening B (`feat/authorization`): `POST /api/users/parents` is `403` unless the teacher is assigned to OR advises the student's section (the shared `TEACHER_VIEW_SCOPE_SQL`); `middleware/auth.js` answers `401`, not `403`, for `Account is not active.` on a live session — login keeps `403` + `status`. `test:auth` 54, `test:users` 47, `test:excuses` 70. Six sentences in this file and one `StudentsPage.jsx` comment are now stale — listed on the full row, not edited. |
 | 2026-09-18 | Server hardening A (`feat/validation`): 12-digit LRN on create (`utils/lrnRule.js`), one contact-number rule at all six writes (`utils/contactRule.js`, digits-only storage), birthday/gender validated as `400`s, `parent_account` on `GET /students/:id`, ids instead of LRNs in new audit rows, `field` keys on restore, Login uses `extractError`. students 79, auth 52, users 47, restore 29. |
 | 2026-09-18 | Settings redesign: one `pages/settings/SettingsLayout` for all roles, tabs as sub-routes, live `PasswordChecklist` in all four password-setting forms, Text size (this device only), the admin's first account screen; the three `SettingsPage.jsx` files deleted (the `client/src/` tree above still names them — next CLAUDE.md pass). Branch `feat/settings-redesign`. |

@@ -27,11 +27,15 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // GET /assignments, no teacher_id. TCH-002's [] is the Enroll-vs-muted-copy
 // signal, not a third empty state on GET /students.
 //
-// POST /users/parents has no assignment check — any teacher who knows an
-// LRN can call it. This page does not widen that hole: wizard step 2 only
-// after a successful enroll; LRN is locked from the student row. Do not
-// hide Create parent behind assignments on the detail page either — that
-// would invent a narrower UI than the API.
+// POST /users/parents is scoped since 2026-09-18: the teacher must be
+// assigned to the student's class OR advise its section (the same
+// predicate that lets them see the student), else 403 — and an unknown
+// LRN is that same 403, never a 404. Wizard step 2 runs only after a
+// successful enroll, so the LRN it sends is one this teacher just created
+// in their own assignment; LRN is locked from the student row. Do not hide
+// Create parent behind assignments on the detail page — an adviser-only
+// teacher (TCH-002) may create it, and the detail page's own read scope
+// already equals the create scope.
 
 const EMPTY_ENROLL = {
   lrn: '',

@@ -57,9 +57,10 @@ and the call site is the only honest place for this knowledge.
   such as restore's step-up password or change-password's current
   password) or an `authorize()` role violation — for all of them, bouncing
   to `/login` throws away the reason and, for the role violation, re-logs
-  the user in to the same refusal. The exception is `middleware/auth.js`'s
-  `Account is not active.`, a genuinely dead session that resolves on the
-  next refresh via `AuthContext`'s `/auth/me` check. **No count, on
+  the user in to the same refusal. There is no exception any more:
+  `middleware/auth.js`'s `Account is not active.` — the one 403 that meant a
+  dead session — has been `401` since 2026-09-18 (Server hardening B), so the
+  interceptor logs that user out on their very next request. **No count, on
   purpose:** this used to say "twenty places"; it cannot be checked
   mechanically, because some 403s come from helpers (e.g.
   `preflightGradeWrite`) rather than literal `status(403)` calls — there

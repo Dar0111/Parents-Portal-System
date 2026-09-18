@@ -415,7 +415,13 @@ async function run() {
         contact_number: '09170000888',
       },
     });
-    assert(createParent.status === 404, 'Parent creation fails for unknown LRN');
+    // B1 (2026-09-19): an unknown LRN is the SAME 403 as an out-of-scope
+    // student — never a 404 that would tell a teacher whether an LRN exists.
+    assert(
+      createParent.status === 403 && /assigned to this student's class, or the adviser/.test(createParent.data?.message || ''),
+      'POST /parents: an unknown LRN is 403 naming the scope rule, not 404'
+    );
+    const unknownLrnResponse = `${createParent.status} ${JSON.stringify(createParent.data)}`;
 
     // Grade 6 - Malikhain: TCH-001 (teacherToken) is assigned there, which
     // POST /users/parents requires since 2026-09-18 (assigned OR adviser of
@@ -450,9 +456,12 @@ async function run() {
     // --- Who may create a parent account (2026-09-18): a teacher assigned to
     // OR advising the student's section — the shared read-scope predicate.
     // A student in Grade 3 - Aguinaldo is outside both for TCH-001, so the
-    // create is 403 naming the rule, and nothing is created. The 403 comes
-    // AFTER the LRN/duplicate checks, so an in-scope teacher's 404/409 paths
-    // are unchanged.
+    // create is 403 naming the rule, and nothing is created. B1 (2026-09-19):
+    // the LRN lookup and the scope check are ONE query that runs BEFORE the
+    // two duplicate 409s, so an out-of-scope teacher learns neither whether
+    // an LRN exists nor whether that child already has a parent account —
+    // unknown LRN, out-of-scope LRN, and out-of-scope LRN of a child WITH a
+    // parent are byte-identical responses.
     const outsideLrn = String(runId + 2).slice(-12);
     await insertTestStudent(outsideLrn, 'Outside', 'Student', 3, 'Aguinaldo');
     createdLrns.push(outsideLrn);
@@ -464,8 +473,35 @@ async function run() {
       outsideCreate.status === 403 && /assigned to this student's class, or the adviser/.test(outsideCreate.data?.message || ''),
       'POST /parents: a teacher neither assigned to nor advising the student\'s section is 403 naming the rule'
     );
+    assert(
+      `${outsideCreate.status} ${JSON.stringify(outsideCreate.data)}` === unknownLrnResponse,
+      'POST /parents: unknown LRN and out-of-scope LRN are byte-identical responses'
+    );
     const outsideLogin = await login(outsideLrn, 'Parent@2026');
     assert(outsideLogin.status === 401, 'POST /parents: the refused out-of-scope create made no account');
+
+    // The out-of-scope child now HAS a parent account (inserted by SQL, never
+    // logged in as). The same teacher posting that LRN must still get the
+    // scope 403 — never the 409 that would reveal the account exists.
+    const [[outsideStudentRow]] = await withDb((conn) =>
+      conn.query('SELECT id FROM students WHERE lrn = ? LIMIT 1', [outsideLrn])
+    );
+    createdLoginIds.push(outsideLrn);
+    await withDb((conn) =>
+      conn.query(
+        `INSERT INTO users (login_id, password, role, status, name, student_id, created_by)
+         VALUES (?, 'not-a-real-hash', 'parent', 'pending', 'Outside Guardian', ?, 2)`,
+        [outsideLrn, outsideStudentRow?.id]
+      )
+    );
+    const outsideWithParent = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: outsideLrn, password: 'Parent@2026', name: 'Outside Guardian 2' },
+    });
+    assert(
+      `${outsideWithParent.status} ${JSON.stringify(outsideWithParent.data)}` === unknownLrnResponse,
+      'POST /parents: out-of-scope LRN of a child WITH a parent is the same 403, never a 409'
+    );
 
     const createParent2 = await request('POST', '/api/users/parents', {
       token: teacherToken,
