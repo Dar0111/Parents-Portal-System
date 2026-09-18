@@ -5,6 +5,7 @@ import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
+import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -96,6 +97,10 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [teacherForm, setTeacherForm] = useState(EMPTY_TEACHER);
   const [createError, setCreateError] = useState(null);
+  // The password rule's message renders under the Password field, not in the
+  // form-level strip — from the client check or from the server's 400 with
+  // field "password". Cleared when the field changes and when the form closes.
+  const [passwordError, setPasswordError] = useState(null);
   const [createSaving, setCreateSaving] = useState(false);
 
   const [editing, setEditing] = useState(null);
@@ -184,13 +189,23 @@ export default function UsersPage() {
     if (createSaving) return;
     setCreating(false);
     setCreateError(null);
+    setPasswordError(null);
   }
 
   async function submitCreate(event) {
     event.preventDefault();
     setCreateError(null);
+    setPasswordError(null);
     if (!teacherForm.login_id.trim() || !teacherForm.password || !teacherForm.name.trim()) {
       setCreateError('login_id, password, and name are required.');
+      return;
+    }
+    // One rule, one module (format/passwordRule.js). The server enforces the
+    // same rule on POST /users/teachers and answers 400 with field
+    // "password"; either way the message renders under the Password field,
+    // not in the form-level strip.
+    if (!passwordIsValid(teacherForm.password)) {
+      setPasswordError(passwordRuleHint());
       return;
     }
     setCreateSaving(true);
@@ -211,7 +226,11 @@ export default function UsersPage() {
       setFormStatus({ directory: ok('Teacher account created and activated.') });
       await load();
     } catch (err) {
-      setCreateError(extractError(err));
+      if (err?.response?.data?.field === 'password') {
+        setPasswordError(extractError(err));
+      } else {
+        setCreateError(extractError(err));
+      }
     } finally {
       setCreateSaving(false);
     }
@@ -604,7 +623,12 @@ export default function UsersPage() {
             type="password"
             required
             value={teacherForm.password}
-            onChange={(e) => setTeacherForm((f) => ({ ...f, password: e.target.value }))}
+            onChange={(e) => {
+              setPasswordError(null);
+              setTeacherForm((f) => ({ ...f, password: e.target.value }));
+            }}
+            hint={passwordRuleHint()}
+            error={passwordError}
           />
           <FormField
             label="Name"

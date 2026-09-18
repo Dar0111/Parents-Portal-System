@@ -60,7 +60,13 @@ it.
 - **Error shape** is `{ success: false, message: "..." }` on essentially
   every 4xx/5xx across the whole API — this is uniform enough that you
   can assume it by default. The two places it isn't are in the Gotchas
-  section below; there is no third.
+  section below; there is no third. **Since 2026-09-18 four refusals also
+  carry an optional `field`** naming the input the message belongs under
+  — `"current_password"` on change-password's `403`, `"new_password"` on
+  its rule `400`, `"password"` on the rule `400` of `POST /users/teachers`
+  and `POST /users/parents`. Additive: `success` and `message` are
+  unchanged, and a client that ignores `field` sees exactly what it saw
+  before.
 
 ---
 
@@ -286,15 +292,15 @@ the bottom must equal 82.
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
 | GET | `/me` | any authenticated | — | `user` |
-| PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (min 6 chars) | message only — wrong `current_password` is `403` "Current password is incorrect." (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out) |
+| PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
 | PUT | `/contact` | any authenticated | `contact_number`* (non-empty, max 20 chars) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 
 ### Users (9) — `/api/users`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
-| POST | `/teachers` | `admin` | `login_id`*, `password`*, `name`*, `email`, `contact_number` | `user` |
-| POST | `/parents` | `teacher` (`wide` — any assignment, unrelated to the student being enrolled) | `lrn`*, `password`*, `name`*, `email`, `contact_number` | `user` |
+| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` | `user` |
+| POST | `/parents` | `teacher` (`wide` — any assignment, unrelated to the student being enrolled) | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email`, `contact_number` | `user` |
 | GET | `/parents/pending` | `admin` | — | `parents` |
 | PUT | `/parents/:id/approve` | `admin` | — | `user` |
 | PUT | `/parents/:id/reject` | `admin` | `reason`* | message only |

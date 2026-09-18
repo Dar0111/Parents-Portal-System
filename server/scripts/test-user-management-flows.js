@@ -181,6 +181,32 @@ async function run() {
     const throwawayLoginId = `TCH-UM${runId}`;
     createdLoginIds.push(throwawayLoginId);
 
+    // --- Password rule on POST /teachers (utils/passwordRule.js): at least 8
+    // characters AND at least one number; refusals name field "password"
+    // with the shared message and create nothing. The accepted case is the
+    // throwaway below (its fixture password already satisfies the rule; the
+    // exactly-8-with-a-digit acceptance is asserted in test-auth-flows.js).
+    const ruleShort = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: throwawayLoginId, password: 'abc1234', name: 'Throwaway Teacher' },
+    });
+    assert(
+      ruleShort.status === 400 &&
+        ruleShort.data?.field === 'password' &&
+        /at least 8 characters and include at least one number/.test(ruleShort.data?.message || ''),
+      'POST /teachers: 7 chars with a digit is 400, field "password", the rule message'
+    );
+    const ruleNoDigit = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: throwawayLoginId, password: 'abcdefgh', name: 'Throwaway Teacher' },
+    });
+    assert(
+      ruleNoDigit.status === 400 && ruleNoDigit.data?.field === 'password',
+      'POST /teachers: 8 letters with no digit is 400, field "password"'
+    );
+    const refusedLogin = await login(throwawayLoginId, 'abc1234');
+    assert(refusedLogin.status === 401, 'POST /teachers: a refused password creates no account');
+
     const createThrowaway = await request('POST', '/api/users/teachers', {
       token: adminToken,
       body: { login_id: throwawayLoginId, password: 'Teacher@2026', name: 'Throwaway Teacher' },

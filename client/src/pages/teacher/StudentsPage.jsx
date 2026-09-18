@@ -8,6 +8,7 @@ import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
+import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -246,8 +247,10 @@ export default function StudentsPage() {
       setFormError('Guardian name and password are required.');
       return;
     }
-    if (parent.password.length < 6) {
-      setFormError('New password must be at least 6 characters.');
+    // One rule, one module (format/passwordRule.js); the server enforces it
+    // on POST /users/parents and answers 400 with field "password".
+    if (!passwordIsValid(parent.password)) {
+      setFormError(`Password: ${passwordRuleHint()}`);
       return;
     }
     if (parent.password !== parent.confirmPassword) {
@@ -615,7 +618,7 @@ export default function StudentsPage() {
               value={parent.password}
               onChange={(e) => setParent((prev) => ({ ...prev, password: e.target.value }))}
               autoComplete="new-password"
-              hint="At least 6 characters."
+              hint={passwordRuleHint()}
               revealed={revealed.password}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
             />

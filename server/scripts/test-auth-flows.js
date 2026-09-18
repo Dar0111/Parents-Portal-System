@@ -206,6 +206,35 @@ async function run() {
         wrongCurrent.status === 403 && /Current password is incorrect/.test(wrongCurrent.data?.message || ''),
         'Wrong current password is 403 naming it, not 401 — the session is still valid'
       );
+      assert(
+        wrongCurrent.data?.field === 'current_password',
+        'Wrong current password names field "current_password" so the client can put it under the input'
+      );
+
+      // Password rule on new_password (utils/passwordRule.js): at least 8
+      // characters AND at least one number; field "new_password"; same
+      // message as POST /teachers and POST /parents. The current password is
+      // correct here, so the rule is the only thing refusing.
+      const ruleShort = await request('PUT', '/api/auth/change-password', {
+        token: parentToken,
+        body: { current_password: 'Parent@2026', new_password: 'abc1234' },
+      });
+      assert(
+        ruleShort.status === 400 &&
+          ruleShort.data?.field === 'new_password' &&
+          /at least 8 characters and include at least one number/.test(ruleShort.data?.message || ''),
+        'change-password: 7 chars with a digit is 400, field "new_password", the rule message'
+      );
+      const ruleNoDigit = await request('PUT', '/api/auth/change-password', {
+        token: parentToken,
+        body: { current_password: 'Parent@2026', new_password: 'abcdefgh' },
+      });
+      assert(
+        ruleNoDigit.status === 400 && ruleNoDigit.data?.field === 'new_password',
+        'change-password: 8 letters with no digit is 400, field "new_password"'
+      );
+      const stillOld = await login('13567454', 'Parent@2026');
+      assert(stillOld.status === 200, 'A refused new password leaves the old one in place');
 
       const changePw = await request('PUT', '/api/auth/change-password', {
         token: parentToken,
@@ -230,6 +259,12 @@ async function run() {
         });
       }
     }
+
+    // The rule runs only where a password is SET. Login compares against the
+    // stored hash and nothing else, so an account whose password predates the
+    // rule — or, as here, the seeded one — keeps logging in.
+    const seededStillWorks = await login('13567454', 'Parent@2026');
+    assert(seededStillWorks.status === 200, 'Seeded password still logs in — the rule never runs at login');
 
     // --- Own contact number (parent Settings) ---
     // Seeded parent 13567454 is 09170000003. Restore via a direct UPDATE in
@@ -327,6 +362,36 @@ async function run() {
     assert(createTeacher.status === 201 && createTeacher.data?.user?.status === 'active', 'Admin creates teacher (active)');
     if (createTeacher.status === 201) createdLoginIds.push(newTeacherId);
 
+    // --- Password rule on POST /teachers (utils/passwordRule.js): at least 8
+    // characters AND at least one number. Each refusal names field "password"
+    // with the one shared message; the accepted case is a distinct login id
+    // so it cannot collide with the row above, and is deleted in finally.
+    const ruleTeacherId = `${newTeacherId}R`;
+    const tooShort = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: ruleTeacherId, password: 'abc1234', name: 'Rule Teacher' },
+    });
+    assert(
+      tooShort.status === 400 &&
+        tooShort.data?.field === 'password' &&
+        /at least 8 characters and include at least one number/.test(tooShort.data?.message || ''),
+      'POST /teachers: 7 chars with a digit is 400, field "password", the rule message'
+    );
+    const noDigit = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: ruleTeacherId, password: 'abcdefgh', name: 'Rule Teacher' },
+    });
+    assert(
+      noDigit.status === 400 && noDigit.data?.field === 'password',
+      'POST /teachers: 8 letters with no digit is 400, field "password"'
+    );
+    const ruleOk = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: ruleTeacherId, password: 'abcdefg1', name: 'Rule Teacher' },
+    });
+    assert(ruleOk.status === 201, 'POST /teachers: 8 chars with a digit is accepted (201)');
+    if (ruleOk.status === 201) createdLoginIds.push(ruleTeacherId);
+
     const teacherCanCreate = await request('POST', '/api/users/teachers', {
       token: teacherToken,
       body: { login_id: 'TCH-FAIL', password: 'x', name: 'Fail' },
@@ -351,6 +416,30 @@ async function run() {
 
     await insertTestStudent(pendingLrn, 'Test', 'Student', 4, 'Bonifacio');
     createdLrns.push(pendingLrn);
+
+    // --- Password rule on POST /parents: same rule, same message, field
+    // "password". Checked before the student lookup. The accepted case is
+    // createParent2 below (its password already satisfies the rule).
+    const parentTooShort = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: pendingLrn, password: 'abc1234', name: 'Rule Guardian' },
+    });
+    assert(
+      parentTooShort.status === 400 &&
+        parentTooShort.data?.field === 'password' &&
+        /at least 8 characters and include at least one number/.test(parentTooShort.data?.message || ''),
+      'POST /parents: 7 chars with a digit is 400, field "password", the rule message'
+    );
+    const parentNoDigit = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: pendingLrn, password: 'abcdefgh', name: 'Rule Guardian' },
+    });
+    assert(
+      parentNoDigit.status === 400 && parentNoDigit.data?.field === 'password',
+      'POST /parents: 8 letters with no digit is 400, field "password"'
+    );
+    const nothingCreated = await login(pendingLrn, 'abc1234');
+    assert(nothingCreated.status === 401, 'POST /parents: a refused password creates no account');
 
     const createParent2 = await request('POST', '/api/users/parents', {
       token: teacherToken,

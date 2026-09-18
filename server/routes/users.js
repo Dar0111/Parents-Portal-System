@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/db');
 const { hashPassword } = require('../utils/password');
+const { validateNewPassword } = require('../utils/passwordRule');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
@@ -17,6 +18,12 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
       success: false,
       message: 'login_id, password, and name are required.',
     });
+  }
+
+  // The one password rule (utils/passwordRule.js); `field` names the input.
+  const ruleError = validateNewPassword(password);
+  if (ruleError) {
+    return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
   const trimmedLoginId = String(login_id).trim();
@@ -65,6 +72,14 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
       success: false,
       message: 'lrn, password, and guardian name are required.',
     });
+  }
+
+  // The one password rule (utils/passwordRule.js); `field` names the input.
+  // Checked before the student lookup so a weak password never reveals
+  // whether an LRN exists.
+  const ruleError = validateNewPassword(password);
+  if (ruleError) {
+    return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
   const loginId = String(lrn).trim();

@@ -94,6 +94,22 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Password rule, `feat/password-rule` (2026-09-18, Branch A of the Settings
+redesign):** at least 8 characters AND at least one number, enforced only
+where a password is SET — `PUT /auth/change-password` (`field:
+"new_password"`), `POST /users/teachers` and `POST /users/parents` (`field:
+"password"`) — from one module, `server/utils/passwordRule.js`, with one
+message. The wrong-current `403` on change-password now names `field:
+"current_password"`. Never at login or the restore step-up, so every existing
+password keeps working; all seven seeded passwords already satisfy it. The
+client has its own single source, `client/src/format/passwordRule.js` (labels
++ checks), used by the enroll wizard, Student detail's create parent and Admin
+→ Users' create teacher (which had no client rule before); Admin → Users
+renders a refusal under the Password field. `test:auth` 51, `test:users` 42;
+excuses, messages, sections and assignments unchanged, each twice. Teacher
+and Parent Settings still say "at least 6" until Branch B replaces them
+(declared, outside this branch). Full row: `docs/CHANGELOG.md`, 2026-09-18.
+
 **Branch 4, `fix/locked-grade-copy` (2026-09-18):** Teacher → Grades' two
 locked-grade sentences now read "This grade is locked. Only an admin can
 unlock it — ask the school admin if it needs a change." — who can unlock, and
