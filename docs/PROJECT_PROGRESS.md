@@ -196,7 +196,9 @@ it and did not move. Leaving that site narrow is what would have kept the bug. `
 ## Stage 4 — foundation done, conventions frozen (2026-09-06)
 
 **CLAUDE.md's STAGE 4 FRONTEND CONVENTIONS section is authoritative — read
-it before building any screen.** This is the summary.
+it before building any screen; its full text with the reasoning behind each
+rule is `docs/FRONTEND_CONVENTIONS.md` (split out 2026-09-18).** This is the
+summary.
 
 Built: nested layout routes (`ProtectedRoute` -> `Shell` -> `<Outlet/>`,
 so pages no longer wrap themselves in `Shell`), a role-aware sidebar from

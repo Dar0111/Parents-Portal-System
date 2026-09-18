@@ -38,6 +38,10 @@ than assuming it is there.
 
 ## When finishing work
 
-Update the CURRENT STATE and CHANGELOG sections of `CLAUDE.md`. List
-endpoints, not percentages. If a module has tables but no handlers, it is
+Update the CURRENT STATE section of `CLAUDE.md` and add a dated row to
+`docs/CHANGELOG.md` (the CHANGELOG table moved there on 2026-09-18; the
+long text behind the other sections lives in the `docs/` companion files
+listed in CLAUDE.md's COMPANION DOCUMENTS section). Keep `CLAUDE.md`
+under 150k chars — never delete to make room. List endpoints, not
+percentages. If a module has tables but no handlers, it is
 not started.

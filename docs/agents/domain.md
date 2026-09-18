@@ -9,8 +9,9 @@ exploring the codebase.
 
 `diagnosing-bugs` and `tdd` both say "read `CONTEXT.md` (if it exists)". In this
 repo that file is `CLAUDE.md` — it holds the domain vocabulary (roles, scoping
-rules, the auth pattern), the locked decisions, the blocked modules, and the
-CHANGELOG. A second context document was considered and rejected: `CLAUDE.md`
+rules, the auth pattern), the locked decisions, the blocked modules, and a
+pointer to the CHANGELOG (`docs/CHANGELOG.md` since 2026-09-18; the other
+companion files are listed in its COMPANION DOCUMENTS section). A second context document was considered and rejected: `CLAUDE.md`
 already carries a written warning about `PROJECT_PROGRESS.md` drifting out of
 sync with the code, and a third document to keep in sync would reintroduce
 exactly that problem.
@@ -18,7 +19,7 @@ exactly that problem.
 So: wherever a skill says `CONTEXT.md`, read `CLAUDE.md`.
 
 - **`docs/adr/`**: does not exist yet. Architectural decisions currently live in
-  `CLAUDE.md`'s **LOCKED DECISIONS** and **CHANGELOG** sections. If any skill
+  `CLAUDE.md`'s **LOCKED DECISIONS** section and `docs/CHANGELOG.md`. If any skill
   ever proposes creating `docs/adr/`, that is a decision for Darryl, not a
   default — it is another sync surface.
 
