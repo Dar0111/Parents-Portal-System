@@ -111,7 +111,13 @@ to `PasswordField`. The three old `SettingsPage.jsx` files are deleted. Build
 exit 0; oxlint 41 (two named `only-export-components` on the checklist
 helpers); SSR of the real route tree, 26 checks plus a negative control. New
 KNOWN ISSUES row: contact number accepts any text (queued for Server
-hardening). Full row: `docs/CHANGELOG.md`, 2026-09-18.
+hardening). Full row: `docs/CHANGELOG.md`, 2026-09-18. **Browser check
+passed except the red border, fixed on the branch:** an erroring input had
+never shown its red border for any `FormField` shape since the foundation —
+both the slate and the rose border classes were on the element and Tailwind
+v4's stylesheet order let slate win. `controlClassFor(invalid)` now emits one
+state, never both; SSR proves the rose border on the `<input>` with `error`
+set, with a negative control reproducing the old double-border.
 
 **Password rule, `feat/password-rule` (2026-09-18, Branch A of the Settings
 redesign):** at least 8 characters AND at least one number, enforced only

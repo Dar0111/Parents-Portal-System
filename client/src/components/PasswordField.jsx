@@ -1,4 +1,4 @@
-import FormField, { controlClass, errorClass } from './FormField';
+import FormField, { controlClassFor } from './FormField';
 
 // FormField shape 4 (render) + controlClass. Show/hide is per field.
 // Third copy extracted from Teacher Settings and Parent Settings; create-
@@ -48,7 +48,7 @@ export default function PasswordField({
               required={required}
               aria-invalid={invalid || undefined}
               aria-describedby={describedBy}
-              className={`${controlClass} pr-10 ${invalid ? errorClass : ''}`}
+              className={`${controlClassFor(invalid)} pr-10`}
             />
             <button
               type="button"
