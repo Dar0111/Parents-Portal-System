@@ -71,6 +71,16 @@ it.
   `"password"` and `"confirm_filename"` on the restore pre-flight refusals.
   Additive: `success` and `message` are unchanged, and a client that
   ignores `field` sees exactly what it saw before.
+- **`401` means the session is dead; a live session is never `401`.**
+  `middleware/auth.js` answers `401` for a missing/invalid/expired token, a
+  token older than the restore cutoff, an unknown user and — since
+  2026-09-18 — `"Account is not active."` for a deactivated, pending or
+  rejected account (was `403`). The web client logs out and redirects on
+  `401` only. `POST /auth/login` is the deliberate other half: the same
+  inactive accounts get `403` + `status` there, because the credentials
+  were right and the refusal carries a reason. A wrong password typed
+  INSIDE a session (change-password, restore step-up) is `403`, never
+  `401`.
 
 ---
 
@@ -304,7 +314,7 @@ the bottom must equal 82.
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — 11 digits starting with 09, spaces/dashes stripped, stored digits-only — `400` with `field: "contact_number"`) | `user` |
-| POST | `/parents` | `teacher` (`wide` — any assignment, unrelated to the student being enrolled) | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — `400` with `field: "contact_number"`, checked before the student lookup too) | `user` |
+| POST | `/parents` | `teacher` — `wide` OR `adviser` of the student's section (the shared `TEACHER_VIEW_SCOPE_SQL` predicate, since 2026-09-18). Checked AFTER the LRN lookup and the two duplicate `409`s: out of scope is `403` "Only a teacher assigned to this student's class, or the adviser of their section, can create the parent account." and nothing is created | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — `400` with `field: "contact_number"`, checked before the student lookup too) | `user` |
 | GET | `/parents/pending` | `admin` | — | `parents` |
 | PUT | `/parents/:id/approve` | `admin` | — | `user` |
 | PUT | `/parents/:id/reject` | `admin` | `reason`* | message only |

@@ -93,11 +93,13 @@ api.interceptors.response.use(
   // violation, re-logs them in to the same refusal. (No count here: some 403s
   // come from helpers rather than literal status(403) calls, so a number
   // cannot be checked mechanically — the "20" that stood here went stale.)
-  // Only middleware/auth.js's "Account is not active." is a dead
-  // session, and that resolves on the next refresh via AuthContext's /auth/me
-  // check. Not string-matched here: matching on a message is fragile, and the
-  // right fix is server-side (that response should be a 401 — a token that no
-  // longer identifies a usable session IS an authentication failure).
+  // Since 2026-09-18 NO 403 means a dead session: middleware/auth.js answers
+  // a deactivated account's next request with 401 "Account is not active.",
+  // so the branch below logs that user out immediately, not on their next
+  // refresh. (It was the one 403 that meant "session dead" rather than
+  // "refused, here is why", and the reason this interceptor once redirected
+  // on every 403.) Nothing here is string-matched — matching on a message is
+  // fragile, and the status code is now the honest signal.
   //
   // Login failures (401 wrong password, 403 pending/rejected account) must
   // surface on the login form, not bounce away from it.

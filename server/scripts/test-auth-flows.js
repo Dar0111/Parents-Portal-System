@@ -417,7 +417,10 @@ async function run() {
     });
     assert(createParent.status === 404, 'Parent creation fails for unknown LRN');
 
-    await insertTestStudent(pendingLrn, 'Test', 'Student', 4, 'Bonifacio');
+    // Grade 6 - Malikhain: TCH-001 (teacherToken) is assigned there, which
+    // POST /users/parents requires since 2026-09-18 (assigned OR adviser of
+    // the student's section). Was Grade 4 - Bonifacio, where TCH-001 is neither.
+    await insertTestStudent(pendingLrn, 'Test', 'Student', 6, 'Malikhain');
     createdLrns.push(pendingLrn);
 
     // --- Password rule on POST /parents: same rule, same message, field
@@ -443,6 +446,26 @@ async function run() {
     );
     const nothingCreated = await login(pendingLrn, 'abc1234');
     assert(nothingCreated.status === 401, 'POST /parents: a refused password creates no account');
+
+    // --- Who may create a parent account (2026-09-18): a teacher assigned to
+    // OR advising the student's section — the shared read-scope predicate.
+    // A student in Grade 3 - Aguinaldo is outside both for TCH-001, so the
+    // create is 403 naming the rule, and nothing is created. The 403 comes
+    // AFTER the LRN/duplicate checks, so an in-scope teacher's 404/409 paths
+    // are unchanged.
+    const outsideLrn = String(runId + 2).slice(-12);
+    await insertTestStudent(outsideLrn, 'Outside', 'Student', 3, 'Aguinaldo');
+    createdLrns.push(outsideLrn);
+    const outsideCreate = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: outsideLrn, password: 'Parent@2026', name: 'Outside Guardian' },
+    });
+    assert(
+      outsideCreate.status === 403 && /assigned to this student's class, or the adviser/.test(outsideCreate.data?.message || ''),
+      'POST /parents: a teacher neither assigned to nor advising the student\'s section is 403 naming the rule'
+    );
+    const outsideLogin = await login(outsideLrn, 'Parent@2026');
+    assert(outsideLogin.status === 401, 'POST /parents: the refused out-of-scope create made no account');
 
     const createParent2 = await request('POST', '/api/users/parents', {
       token: teacherToken,
@@ -499,7 +522,7 @@ async function run() {
     assert(approvedLogin.status === 200, 'Approved parent can login');
 
     // --- Rejection flow (second temp student) ---
-    await insertTestStudent(rejectLrn, 'Reject', 'Student', 3, 'Aguinaldo');
+    await insertTestStudent(rejectLrn, 'Reject', 'Student', 6, 'Malikhain');
     createdLrns.push(rejectLrn);
 
     const createForReject = await request('POST', '/api/users/parents', {

@@ -171,23 +171,29 @@ async function run() {
       )
     );
 
+    // The parent is inserted by SQL, already active, with a real hash: since
+    // 2026-09-18 POST /api/users/parents refuses a teacher who is neither
+    // assigned to nor advising the student's section (403 — asserted in
+    // test:auth), and TCH-001 is exactly that for Grade 3 - Aguinaldo. The
+    // suite logs in as this parent later, so the hash must be usable.
     const outsideLoginId = outsideLrn;
     createdLoginIds.push(outsideLoginId);
-    const createOutsideParent = await request('POST', '/api/users/parents', {
-      token: teacherToken,
-      body: { lrn: outsideLrn, password: 'Parent@2026', name: 'Outside Guardian' },
-    });
-    const outsideParentId = createOutsideParent.data?.user?.id;
-    const approveOutsideParent = await request('PUT', `/api/users/parents/${outsideParentId}/approve`, {
-      token: adminToken,
-    });
+    const [[outsideStudentRow]] = await withDb((conn) =>
+      conn.query('SELECT id FROM students WHERE lrn = ? LIMIT 1', [outsideLrn])
+    );
+    const outsideHash = await hashPassword('Parent@2026');
+    await withDb((conn) =>
+      conn.query(
+        `INSERT INTO users (login_id, password, role, status, name, student_id, created_by)
+         VALUES (?, ?, 'parent', 'active', 'Outside Guardian', ?, 2)`,
+        [outsideLoginId, outsideHash, outsideStudentRow?.id]
+      )
+    );
     const outsideParentLogin = await login(outsideLoginId, 'Parent@2026');
     const outsideParentToken = outsideParentLogin.data?.token;
     assert(
-      createOutsideParent.status === 201 &&
-        approveOutsideParent.status === 200 &&
-        outsideParentLogin.status === 200,
-      'Fixture: created and approved a parent/student outside TCH-001\'s assignment'
+      Boolean(outsideStudentRow?.id) && outsideParentLogin.status === 200,
+      'Fixture: an active parent/student outside TCH-001\'s scope, inserted by SQL, can log in'
     );
 
     // --- Submit ---

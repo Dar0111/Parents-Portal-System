@@ -20,11 +20,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // — the same write-scope signal StudentsPage uses for Enroll. Do not
 // reuse useTeacherTargets (assigned-OR-adviser is the READ scope). Do
 // not probe PUT. An adviser-only teacher gets muted copy, not a button
-// that 403s. Create parent stays always shown: the API has no assignment
-// check on POST /users/parents, and hiding it would invent a narrower UI
-// than the API. TCH-002 still sees it on Jea and gets 409 (already
-// linked). "Already has a parent" is that 409 — do not probe, do not
-// invent a flag on GET.
+// that 403s. Create parent is shown whenever parent_account is null: since
+// 2026-09-18 POST /users/parents allows a teacher assigned to OR advising
+// the student's section — the same assigned-OR-adviser predicate that
+// decides whether this page can load the student at all — so every
+// teacher who can see this page may create the parent. Do not gate it on
+// GET /assignments (that would hide it from an adviser such as TCH-002).
+// "Already has a parent" comes from GET /students/:id's parent_account,
+// never from probing the 409.
 //
 // A separate route rather than a modal on the list: a student record is a
 // destination — deep-linkable, back-buttonable, and reachable later from the

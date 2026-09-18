@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { hashPassword } = require('../utils/password');
 const { validateNewPassword } = require('../utils/passwordRule');
 const { validateContact } = require('../utils/contactRule');
+const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
@@ -118,6 +119,25 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     );
     if (existingParent.length) {
       return res.status(409).json({ success: false, message: 'A parent account is already linked to this student.' });
+    }
+
+    // Who may create it (Darryl, 2026-09-18): a teacher assigned to OR
+    // advising the student's section — the same shared predicate that decides
+    // whether the teacher can SEE the student (utils/teacherScope.js), so
+    // "can create a parent for" equals "can list". Until now any teacher who
+    // knew an LRN could create the account. Checked AFTER the two 409s above
+    // so the rule adds a refusal, not a reordering; 403 naming the reason
+    // (a write, §2), not 404 — GET /students already tells this teacher
+    // whether they can see the student.
+    const [inScope] = await pool.query(
+      `SELECT 1 FROM students s WHERE s.id = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
+      [student.id, ...teacherViewScopeParams(req.user.id)]
+    );
+    if (!inScope.length) {
+      return res.status(403).json({
+        success: false,
+        message: "Only a teacher assigned to this student's class, or the adviser of their section, can create the parent account.",
+      });
     }
 
     const hashed = await hashPassword(password);

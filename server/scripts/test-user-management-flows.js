@@ -347,9 +347,12 @@ async function run() {
     );
 
     const staleTokenRejected = await request('GET', '/api/auth/me', { token: throwawayTokenBefore });
+    // 401 since 2026-09-18 (was 403): a token that no longer identifies a
+    // usable session is an authentication failure, and the client logs out
+    // on 401. Login below keeps its 403 — credentials valid, account unusable.
     assert(
-      staleTokenRejected.status === 403,
-      "Deactivated user's already-issued token is rejected on its very next request"
+      staleTokenRejected.status === 401 && /not active/.test(staleTokenRejected.data?.message || ''),
+      "Deactivated user's already-issued token is rejected on its very next request — 401 \"Account is not active.\""
     );
 
     const loginAfterDeactivate = await login(throwawayLoginId, 'Teacher@2026');

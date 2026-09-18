@@ -37,7 +37,15 @@ async function authenticate(req, res, next) {
 
     const user = rows[0];
     if (user.status !== 'active') {
-      return res.status(403).json({ success: false, message: 'Account is not active.' });
+      // 401, not 403 (2026-09-18): a token that no longer identifies a usable
+      // session IS an authentication failure. The web interceptor logs out
+      // and redirects on 401 only, so a deactivation now takes effect on the
+      // user's very next request instead of after their next refresh. This
+      // was the one 403 in the API that meant "session dead" rather than
+      // "refused, here is why" (§2). Login keeps its 403 + `status` for a
+      // pending / rejected / inactive account — there the credentials are
+      // valid and the account is unusable, which is a refusal with a reason.
+      return res.status(401).json({ success: false, message: 'Account is not active.' });
     }
 
     req.user = user;
