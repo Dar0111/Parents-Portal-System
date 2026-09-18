@@ -5,7 +5,7 @@ import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
@@ -809,6 +809,7 @@ export default function TeacherGradesPage() {
             <FormField
               label={null}
               as="select"
+              className={filterSelectClass}
               value={classKey ?? ''}
               onChange={(e) => setClassKey(e.target.value)}
             >
@@ -826,6 +827,7 @@ export default function TeacherGradesPage() {
             <FormField
               label="Subject"
               as="select"
+              className={filterSelectClass}
               value={subjectId ?? ''}
               onChange={(e) => {
                 closePanel();
@@ -843,6 +845,7 @@ export default function TeacherGradesPage() {
             <FormField
               label="Term"
               as="select"
+              className={filterSelectClass}
               value={term}
               onChange={(e) => {
                 closePanel();

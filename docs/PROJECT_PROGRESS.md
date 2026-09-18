@@ -31,6 +31,20 @@ there is no separate unlock path, and Admin → Grades already renders both
 labels from one toggle. See CLAUDE.md → ADMIN SCOPE AUDIT → SCOPE DECISION
 (2026-09-18).
 
+**Filter widths, corrected 2026-09-18.** The first pass at this scoped its
+file list from the phrase “the five filter bars” and missed four of them;
+the browser check caught Admin → Announcements still resizing. Every
+`<select>` and `as="select"` under `client/src/pages` was then audited — 41
+occurrences, 20 files. **22 are filter-bar or toolbar selects and all 22 now
+carry `filterSelectClass`**; the remaining 19 sit inside a Modal’s
+`space-y-4` or a `grid` cell, where the parent already fixes the width. One
+deliberate exception: the per-row attendance select on Teacher → Attendance
+lives in an `11rem` DataTable column and keeps `controlClass`. Two bars —
+Teacher → Announcements and Teacher → Events — are outside this branch’s
+whitelist, were declared as SCOPE EXPANSION rather than edited, and still
+resize. Token unchanged at `w-full sm:w-72`; 30 characters is still the
+longest real option. See `docs/CHANGELOG.md`, 2026-09-18.
+
 **UI pass, 2026-09-18.** A write’s result now renders under the control that
 caused it — `client/src/components/FormStatus.jsx`, applied across 13 pages.
 One `status` object per page keyed by form; writing a key replaces the object,

@@ -5,7 +5,7 @@ import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import FormField, { controlClass } from '../../components/FormField';
+import FormField, { controlClass, filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
 import { todayLocalDateString } from '../../format/date';
@@ -267,6 +267,7 @@ export default function AttendancePage() {
             <FormField
               label={null}
               as="select"
+              className={filterSelectClass}
               value={sectionId ?? ''}
               onChange={(e) => setSectionId(Number(e.target.value))}
             >

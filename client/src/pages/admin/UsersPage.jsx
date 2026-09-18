@@ -4,7 +4,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -491,7 +491,13 @@ export default function UsersPage() {
           onSubmit={applyFilters}
           className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
         >
-          <FormField label="Role" as="select" value={role} onChange={(e) => setRole(e.target.value)}>
+          <FormField
+            label="Role"
+            as="select"
+            className={filterSelectClass}
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+          >
             {ROLE_FILTERS.map((value) => (
               <option key={value || 'all'} value={value}>
                 {value ? displayRole(value) : 'All roles'}
@@ -501,6 +507,7 @@ export default function UsersPage() {
           <FormField
             label="Status"
             as="select"
+            className={filterSelectClass}
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >

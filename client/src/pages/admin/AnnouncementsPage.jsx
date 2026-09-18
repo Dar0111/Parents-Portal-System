@@ -4,7 +4,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -434,6 +434,7 @@ export default function AdminAnnouncementsPage() {
             <FormField
               label="Grade"
               as="select"
+              className={filterSelectClass}
               value={filterDraft.grade}
               onChange={(e) => setFilterDraft({ grade: e.target.value, section: '' })}
             >
@@ -447,6 +448,7 @@ export default function AdminAnnouncementsPage() {
             <FormField
               label="Class"
               as="select"
+              className={filterSelectClass}
               value={filterDraft.section}
               disabled={!filterDraft.grade}
               onChange={(e) => setFilterDraft((prev) => ({ ...prev, section: e.target.value }))}
