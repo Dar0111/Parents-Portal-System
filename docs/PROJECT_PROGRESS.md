@@ -40,10 +40,12 @@ carry `filterSelectClass`**; the remaining 19 sit inside a Modal’s
 `space-y-4` or a `grid` cell, where the parent already fixes the width. One
 deliberate exception: the per-row attendance select on Teacher → Attendance
 lives in an `11rem` DataTable column and keeps `controlClass`. Two bars —
-Teacher → Announcements and Teacher → Events — are outside this branch’s
-whitelist, were declared as SCOPE EXPANSION rather than edited, and still
-resize. Token unchanged at `w-full sm:w-72`; 30 characters is still the
-longest real option. See `docs/CHANGELOG.md`, 2026-09-18.
+Teacher → Announcements and Teacher → Events — were outside that dispatch's
+whitelist and were declared as SCOPE EXPANSION rather than edited; **Darryl
+approved the expansion the same day and both now carry the token (`1ceff55`)**,
+so every filter-bar select under `client/src/pages` has it. Token unchanged at
+`w-full sm:w-72`; 30 characters is still the longest real option. See
+`docs/CHANGELOG.md`, 2026-09-18.
 
 **UI pass, 2026-09-18.** A write’s result now renders under the control that
 caused it — `client/src/components/FormStatus.jsx`, applied across 13 pages.
@@ -68,6 +70,28 @@ six fixtures queued for deletion (announcements 33/34/35, memo 13, grades
 before 2026-09-14 16:38 UTC — no `delete_*` log entries, AUTO_INCREMENT never
 reset, and absent from both the restored dump and its safety copy. Nino's five
 descriptive grade rows are intact. Full evidence: `docs/CHANGELOG.md`,
+2026-09-18.
+
+**Browser check PASSED on Branch 3 (Darryl, 2026-09-18, through `1ceff55`),
+and its fixtures were removed by recorded SQL.** Passed on screen: Teacher →
+Settings messages under their own control; the restore wrong-password inline in
+the modal, still logged in; the filter bars on Teacher → Events / Announcements
+and the admin bars; a parent account created for student 154 from Student
+detail, approved and edited on Admin → Users, and the student edited on
+Student detail — each message rendering above the table or card it describes.
+Grades lock deferred to Branch 4. **Cleanup:** no delete endpoint exists for a
+student or a user, by design, so Darryl chose a recorded SQL removal — backup
+26 (`parents_portal_2026-09-18_163801.sql`) taken first through the API; every
+FK onto `students.id` and `users.id` listed with its row count (only
+`users.student_id` pointed at 154, and that was user 115 itself); then one
+transaction deleting user 115 and student 154, nothing else. After: users 7,
+students 3, Jea's account still `pending`, Nino's five grade rows unchanged,
+`activity_logs` kept in full. **Four findings recorded in
+`docs/KNOWN_ISSUES.md`, none fixed:** `POST /students` accepts any text as an
+LRN (154 was `Test Student`); Student detail always offers "Create parent
+account" although the server refuses a second one with a `409`; the restore
+modal's "Incorrect password." renders above the password field; five
+`activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded

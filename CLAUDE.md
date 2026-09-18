@@ -1383,6 +1383,10 @@ stay open on purpose, each needing its own dispatch:**
 | `auth_security_state` is one global row — the restore cutoff has no user and no role | `schema.sql` + `middleware/auth.js` | Intended design (force-logout-everyone). Do not add a per-user or per-role column as a "fix" |
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
+| `POST /api/students` accepts any text as an LRN | `routes/students.js:177` + `schema.sql:41` (`VARCHAR(12)`) | Student 154 was enrolled as `Test Student` (12 chars with a space) and that became a parent login id. A DepEd LRN is 12 digits; the only checks are present, trimmed, not a duplicate. Flagged 2026-09-18, not fixed |
+| Student detail always shows "Create parent account" even when one exists | `teacher/StudentDetailPage.jsx:364` + `routes/users.js:82–93` | The server refuses a second account two ways (`409` on `login_id` UNIQUE, `409` on an existing `role='parent'` for that `student_id`), so one-account-per-student holds. The button is a dead end ending in a 409 message; `GET /students/:id` does not say whether a parent exists. Flagged 2026-09-18, not fixed |
+| Restore modal renders "Incorrect password." above the password field and action row | `admin/BackupsPage.jsx:511` vs `:537` | Correct status, wrong placement (§7c: under the action row for a modal write). Flagged 2026-09-18, not fixed |
+| `activity_logs` descriptions embed the LRN | `routes/users.js:110, 180, 228`; `routes/students.js:392, 440` | Admin-readable only, so not a leak to another role, but §5c's reasoning applies and `(#id)` already identifies the row. Existing rows stay as written. Flagged 2026-09-18, not fixed |
 
 ---
 
@@ -2103,6 +2107,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-18 | Browser check PASSED on Branch 3 (through `1ceff55`); the two teacher filter bars fixed under an approved scope expansion; the check's fixtures (student 154, parent user 115) removed by recorded SQL after backup 26 — Darryl's choice, no delete endpoint exists by design; four findings added to `docs/KNOWN_ISSUES.md`. |
 | 2026-09-18 | Browser check failed on the filter widths — the fix had been scoped from a remembered list, not a search. Full audit of all 41 selects under `client/src/pages`: 22 are filter/toolbar selects and all 22 now carry the token; two more bars are outside the branch whitelist and were declared, not edited. |
 | 2026-09-18 | `FormStatus` — a write’s result renders under the control that caused it, not in a shared slot at the top; 13 pages, keyed status, XOR now structural. One `filterSelectClass` (`w-full sm:w-72`) stops filter selects resizing with the selection. |
 | 2026-09-18 | Admin nav trimmed 13 → 8 (the five page-less entries removed, not dimmed); Parent dashboard stops promising pages that already landed; §5g inverse closed — LiveStatus gated on the same test as the badge. |
