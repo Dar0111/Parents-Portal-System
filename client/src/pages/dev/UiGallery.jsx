@@ -183,6 +183,20 @@ export default function UiGallery() {
           <DataTable columns={COLUMNS} rows={STUDENTS} />
         </Section>
 
+        <Section
+          title="DataTable — paged"
+          note="A `page` prop switches the table to one page of a server-sorted list: the footer reads 51–54 of 812, Previous is enabled, Next is enabled while has_more is true, and header clicks call onSortChange instead of sorting locally (this fixture logs to the console)."
+        >
+          <DataTable
+            columns={COLUMNS}
+            rows={STUDENTS}
+            page={{ limit: 50, offset: 50, total: 812, has_more: true }}
+            onPageChange={(offset) => console.log('onPageChange', offset)}
+            sort={{ key: 'name', dir: 'asc' }}
+            onSortChange={(sort) => console.log('onSortChange', sort)}
+          />
+        </Section>
+
         <Section title="DataTable — loading">
           <DataTable columns={COLUMNS} rows={[]} loading />
         </Section>

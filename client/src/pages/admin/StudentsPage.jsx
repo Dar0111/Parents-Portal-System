@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
@@ -65,23 +65,36 @@ export default function StudentsPage() {
   const [status, setStatus] = useState({});
   const [statusSavingId, setStatusSavingId] = useState(null);
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // filter or sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = { status: applied.status };
+      const params = { status: applied.status, ...listParams({ offset, sort }) };
       if (applied.grade_level) params.grade_level = applied.grade_level;
       if (applied.section) params.section = applied.section;
       if (applied.search) params.search = applied.search;
-      const rows = await api.get('/students', { unwrap: 'students', params });
-      setStudents(rows);
+      const result = await api.get('/students', { unwrap: ['students', 'page'], params });
+      setStudents(result.students);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setStudents([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [applied]);
+  }, [applied, offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -121,12 +134,14 @@ export default function StudentsPage() {
     // Loading before applied, or the frame between them renders the wrong
     // empty copy (Admin → Users found this).
     setLoading(true);
+    setOffset(0);
     setApplied({ ...draft, search: draft.search.trim() });
   }
 
   function resetFilters() {
     setDraft(DEFAULT_FILTERS);
     setLoading(true);
+    setOffset(0);
     setApplied(DEFAULT_FILTERS);
   }
 
@@ -310,6 +325,10 @@ export default function StudentsPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={canReset ? 'fa-magnifying-glass' : 'fa-user-graduate'}
         emptyTitle={canReset ? 'No students match these filters' : 'No students yet'}
         emptyMessage={

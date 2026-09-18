@@ -594,6 +594,121 @@ async function run() {
     const unauthContacts = await request('GET', '/api/messages/contacts');
     assert(unauthContacts.status === 401, 'Unauthenticated GET /contacts returns 401');
 
+    // --- Pagination contract (2026-09-19, utils/pagination.js): every list
+    // carries page { limit, offset, total, has_more }; limit default 50, max
+    // 200; sort against an allow-list. Invariants only — never an exact count
+    // on a table the application also writes to.
+    console.log('\nPagination:');
+    const qs = (path, q) => `${path}${path.includes('?') ? '&' : '?'}${q}`;
+    const ordered = (rows, field) =>
+      rows.every((row, i) => {
+        if (i === 0) return true;
+        const a = rows[i - 1][field];
+        const b = row[field];
+        if (a === null || a === undefined || b === null || b === undefined) return true;
+        return typeof a === 'number' && typeof b === 'number'
+          ? a >= b
+          : String(a).localeCompare(String(b), undefined, { sensitivity: 'base' }) >= 0;
+      });
+    async function checkPage(path, token, key, { sort, field, idField = 'id' }) {
+      const first = await request('GET', path, { token });
+      const rows = first.data?.[key] || [];
+      const page = first.data?.page;
+      assert(
+        first.status === 200 && page && page.limit === 50 && page.offset === 0 && Number.isInteger(page.total),
+        `${path}: page { limit 50, offset 0, total } by default`
+      );
+      assert(
+        rows.length <= 50 && page?.has_more === (page?.total > 50) && (page?.has_more || rows.length === page?.total),
+        `${path}: rows <= limit, has_more = total > limit, a last page holds the rest`
+      );
+      const one = await request('GET', qs(path, 'limit=1'), { token });
+      assert(
+        one.status === 200 &&
+          (one.data?.[key] || []).length === Math.min(1, page?.total ?? 0) &&
+          one.data?.page?.has_more === (page?.total > 1),
+        `${path}: limit=1 returns one row and has_more when more exist`
+      );
+      if ((page?.total ?? 0) >= 2) {
+        const second = await request('GET', qs(path, 'limit=1&offset=1'), { token });
+        assert(
+          second.status === 200 && second.data?.[key]?.[0]?.[idField] !== one.data?.[key]?.[0]?.[idField],
+          `${path}: offset=1 returns a different row than offset=0`
+        );
+      }
+      const bad = await Promise.all(
+        ['limit=0', 'limit=201', 'offset=-1', 'sort=nope', `sort=${sort}&order=sideways`, 'order=desc'].map((q) =>
+          request('GET', qs(path, q), { token })
+        )
+      );
+      assert(bad.every((r) => r.status === 400), `${path}: limit 0/201, offset -1, unknown sort, bad order, order without sort are 400`);
+      assert(new RegExp(`sort must be one of: .*\\b${sort}\\b`).test(bad[3].data?.message || ''), `${path}: the sort 400 names the allowed keys`);
+      const sorted = await request('GET', qs(path, `sort=${sort}&order=desc`), { token });
+      assert(sorted.status === 200 && ordered(sorted.data?.[key] || [], field), `${path}: sort=${sort}&order=desc is ordered on the page`);
+    }
+
+    await checkPage('/api/messages/conversations', parent1Token, 'conversations', {
+      sort: 'last_message_at',
+      field: 'last_message_at',
+      idField: 'other_user_id',
+    });
+    await checkPage('/api/messages/contacts', adminToken, 'contacts', { sort: 'name', field: 'name' });
+
+    // C4: ?search= narrows total within scope.
+    const searchContacts = await request('GET', '/api/messages/contacts?search=Conde&limit=200', { token: adminToken });
+    assert(
+      searchContacts.status === 200 &&
+        (searchContacts.data?.contacts || []).every((c) => /Conde/i.test(`${c.name} ${c.student_name || ''}`)) &&
+        (searchContacts.data?.page?.has_more || searchContacts.data?.page?.total === searchContacts.data?.contacts?.length),
+      'GET /messages/contacts?search=Conde: every row matches and total is the filtered count'
+    );
+
+    // --- C3: the thread pages on a cursor, newest page first, oldest-first
+    // within the page. This run created at least three messages between
+    // parent1 and teacher1 (m1, m4, m5), so the tail has a page before it.
+    const tail = await request('GET', `/api/messages/with/${teacher1Id}?limit=1`, { token: parent1Token });
+    const tailRows = tail.data?.messages || [];
+    assert(
+      tail.status === 200 && tailRows.length === 1 && tail.data?.page?.before === null && tail.data?.page?.limit === 1,
+      'GET /with/:id?limit=1: one row, page.before null, page.limit 1'
+    );
+    assert(
+      Number.isInteger(tail.data?.page?.total) && tail.data?.page?.total >= 3 && tail.data?.page?.has_more === true,
+      'GET /with/:id?limit=1: total counts the whole thread and has_more is true with older rows'
+    );
+    const [[trueNewest]] = await withDb((conn) =>
+      conn.query(
+        `SELECT id FROM messages
+         WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+         ORDER BY id DESC LIMIT 1`,
+        [parent1Id, teacher1Id, teacher1Id, parent1Id]
+      )
+    );
+    assert(tailRows[0]?.id === trueNewest?.id, 'GET /with/:id?limit=1 without before returns the NEWEST message');
+    const earlier = await request('GET', `/api/messages/with/${teacher1Id}?limit=2&before=${tailRows[0]?.id}`, {
+      token: parent1Token,
+    });
+    const earlierRows = earlier.data?.messages || [];
+    assert(
+      earlier.status === 200 &&
+        earlierRows.length === 2 &&
+        earlierRows.every((m) => m.id < tailRows[0]?.id) &&
+        earlierRows[0].id < earlierRows[1].id &&
+        earlier.data?.page?.before === tailRows[0]?.id,
+      'GET /with/:id?before=<newest>&limit=2: two older rows, oldest first, page.before echoes the cursor'
+    );
+    assert(
+      earlier.data?.page?.has_more === (earlier.data?.page?.total > 3),
+      'GET /with/:id?before=: has_more is true exactly when rows older than the page exist'
+    );
+    const threadOffset = await request('GET', `/api/messages/with/${teacher1Id}?offset=1`, { token: parent1Token });
+    const threadSort = await request('GET', `/api/messages/with/${teacher1Id}?sort=created_at`, { token: parent1Token });
+    const threadBadBefore = await request('GET', `/api/messages/with/${teacher1Id}?before=abc`, { token: parent1Token });
+    assert(
+      threadOffset.status === 400 && /before=<message_id>, not offset/.test(threadOffset.data?.message || '') &&
+        threadSort.status === 400 && threadBadBefore.status === 400,
+      'GET /with/:id refuses offset, sort and a non-numeric before with 400'
+    );
   } finally {
     await cleanup();
   }

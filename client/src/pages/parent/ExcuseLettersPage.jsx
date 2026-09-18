@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -67,7 +67,13 @@ export default function ParentExcuseLettersPage() {
     setLoading(true);
     setError(null);
     try {
-      setLetters(await api.get('/excuse-letters/mine', { unwrap: 'excuse_letters' }));
+      // C2 (2026-09-19): this page filters by status CLIENT-SIDE (`visible`
+      // below) and GET /mine has no status filter, so it needs the parent's
+      // whole set — one child's letters, bounded — and fetchAll pages through
+      // it. The table keeps its client-side sort; no pager here on purpose:
+      // a pager over a locally filtered page would show "3 of 40" for a
+      // filter the server never saw (C4).
+      setLetters(await fetchAll('/excuse-letters/mine', { unwrap: 'excuse_letters' }));
     } catch (err) {
       setError(extractError(err));
       setLetters([]);

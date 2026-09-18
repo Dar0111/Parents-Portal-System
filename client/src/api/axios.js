@@ -172,5 +172,69 @@ export function takeLogoutReason() {
   }
 }
 
+// -----------------------------------------------------------------------------
+// Pagination (2026-09-19, Server hardening C). Every list endpoint answers
+// { <key>: [...], page: { limit, offset, total, has_more } } and accepts
+// limit (max 200), offset, sort, order — see docs/API_REFERENCE.md →
+// Pagination. Two consumers, two helpers:
+//   listParams({ offset, sort })  a TABLE page asks for one page in one order
+//   fetchAll(path, { unwrap })    a COMPLETE-SET caller (a roster, a picker,
+//                                  a map) pages through until has_more is false
+// -----------------------------------------------------------------------------
+
+export const PAGE_SIZE = 50;
+
+// `sort` is DataTable's { key, dir } or null; the column key IS the server's
+// sort key (each table's columns were named against its endpoint's allow-list).
+export function listParams({ offset = 0, sort = null } = {}) {
+  const params = { limit: PAGE_SIZE, offset };
+  if (sort?.key) {
+    params.sort = sort.key;
+    params.order = sort.dir === 'desc' ? 'desc' : 'asc';
+  }
+  return params;
+}
+
+// C2 / C5: never the first 50 of a set the caller needs whole, and never an
+// endless loop. Pages of 200 (the server max) until has_more is false, under
+// a hard cap — 25 pages or 5,000 rows, whichever comes first — beyond which
+// it throws a message ErrorAlert can show as-is. Rows are de-duplicated by
+// `idField` across pages: an insert between two requests shifts every later
+// offset by one, so a row can arrive twice; the duplicate is dropped (a row
+// that shifted OUT of the window cannot be recovered by any offset scheme,
+// which is why a bounded scope, not a school-wide list, is what these
+// callers fetch).
+const FETCH_ALL_PAGE = 200;
+const FETCH_ALL_MAX_PAGES = 25;
+const FETCH_ALL_MAX_ROWS = 5000;
+
+export async function fetchAll(path, { unwrap, params = {}, idField = 'id' } = {}) {
+  if (typeof unwrap !== 'string') {
+    throw new Error(`fetchAll(${path}) needs { unwrap: '<key>' } — the array key to page through.`);
+  }
+  const seen = new Set();
+  const rows = [];
+  for (let pageIndex = 0; pageIndex < FETCH_ALL_MAX_PAGES; pageIndex++) {
+    const result = await api.get(path, {
+      unwrap: [unwrap, 'page'],
+      params: { ...params, limit: FETCH_ALL_PAGE, offset: pageIndex * FETCH_ALL_PAGE },
+    });
+    for (const row of result[unwrap]) {
+      const id = row?.[idField];
+      if (id !== undefined && id !== null) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+      }
+      rows.push(row);
+    }
+    if (!result.page?.has_more) return rows;
+    if (rows.length >= FETCH_ALL_MAX_ROWS) break;
+  }
+  throw new Error(
+    `This list is too large to load in one go (more than ${FETCH_ALL_MAX_ROWS} rows or ` +
+      `${FETCH_ALL_MAX_PAGES} pages from ${path}). Narrow it with a filter and try again.`
+  );
+}
+
 export { TOKEN_KEY };
 export default api;

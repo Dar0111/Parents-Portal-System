@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../api/axios';
+import api, { fetchAll } from '../api/axios';
 import { useAuth } from '../auth/AuthContext';
 
 // Where a teacher is allowed to post.
@@ -69,9 +69,12 @@ export default function useTeacherTargets() {
     let cancelled = false;
     if (!user?.id) return undefined;
 
+    // GET /sections is reference data (23 rows, not paginated). GET
+    // /assignments is paginated, and this hook needs EVERY row of the
+    // teacher's own scope (C2) — fetchAll pages through, never the first 50.
     Promise.all([
       api.get('/sections', { unwrap: 'sections' }),
-      api.get('/assignments', { unwrap: 'assignments' }),
+      fetchAll('/assignments', { unwrap: 'assignments' }),
     ])
       .then(([allSections, assignments]) => {
         if (cancelled) return;

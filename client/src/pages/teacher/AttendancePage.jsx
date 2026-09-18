@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -113,12 +113,15 @@ export default function AttendancePage() {
       // (Note the endpoint only matches 'inactive' and 'all' explicitly —
       // anything else, including this, falls to its active-only default. Passed
       // explicitly anyway to state intent at the call site.)
+      // C2: a roster and the day's existing rows are COMPLETE sets — every
+      // student of the class, every record for the date — so both page
+      // through (fetchAll), never the first page.
       const [students, existing] = await Promise.all([
-        api.get('/students', {
+        fetchAll('/students', {
           unwrap: 'students',
           params: { grade_level: section.grade_level, section: section.name, status: 'active' },
         }),
-        api.get('/attendance', {
+        fetchAll('/attendance', {
           unwrap: 'attendance',
           params: { grade_level: section.grade_level, section: section.name, date },
         }),

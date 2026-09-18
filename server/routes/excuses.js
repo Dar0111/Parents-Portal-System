@@ -5,6 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -24,12 +25,24 @@ function isFutureDate(value) {
 // routing is first-match, and parseId('mine') would otherwise fire first
 // and return 400 for every request to this path.
 router.get('/mine', authenticate, authorize('parent'), async (req, res) => {
+  const list = readListParams(req.query, {
+    sortable: { absence_date: 'absence_date', reason: 'reason', status: 'status', created_at: 'created_at' },
+    defaultOrderBy: 'absence_date DESC',
+    tiebreaker: 'id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM excuse_letters WHERE parent_id = ?', [
+      req.user.id,
+    ]);
     const [rows] = await pool.query(
-      'SELECT * FROM excuse_letters WHERE parent_id = ? ORDER BY absence_date DESC, id DESC',
-      [req.user.id]
+      `SELECT * FROM excuse_letters WHERE parent_id = ? ${list.orderBy} LIMIT ? OFFSET ?`,
+      [req.user.id, list.limit, list.offset]
     );
-    return res.json({ success: true, excuse_letters: rows });
+    return res.json({ success: true, excuse_letters: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List own excuse letters error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch excuse letters.' });
@@ -87,17 +100,35 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  const list = readListParams(req.query, {
+    sortable: {
+      student: 's.last_name, s.first_name',
+      class: 's.grade_level, s.section',
+      absence_date: 'el.absence_date',
+      status: 'el.status',
+      created_at: 'el.created_at',
+    },
+    defaultOrderBy: 'el.absence_date DESC',
+    tiebreaker: 'el.id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    const fromClause = `FROM excuse_letters el
+       JOIN students s ON s.id = el.student_id
+       ${where}`;
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
     const [rows] = await pool.query(
       `SELECT el.*, s.first_name, s.last_name, s.grade_level, s.section
-       FROM excuse_letters el
-       JOIN students s ON s.id = el.student_id
-       ${where}
-       ORDER BY el.absence_date DESC, el.id DESC`,
-      params
+       ${fromClause}
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, excuse_letters: rows });
+    return res.json({ success: true, excuse_letters: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List excuse letters error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch excuse letters.' });

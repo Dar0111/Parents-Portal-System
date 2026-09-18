@@ -4,6 +4,7 @@ const { authenticate } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
+const { readListParams, parsePagination, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -90,7 +91,24 @@ async function canMessage(senderUser, recipientId) {
 router.get('/conversations', authenticate, async (req, res) => {
   const userId = req.user.id;
 
+  const list = readListParams(req.query, {
+    sortable: { other_user_name: 'u.name', last_message_at: 'r.created_at', unread_count: 'unread_count' },
+    defaultOrderBy: 'r.created_at DESC',
+    tiebreaker: 'r.other_user_id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    // total = the people this user has exchanged messages with (C4: the same
+    // set the CTE below ranks), counted without materialising the ranking.
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(DISTINCT CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END) AS total
+       FROM messages m
+       WHERE m.sender_id = ? OR m.receiver_id = ?`,
+      [userId, userId, userId]
+    );
     const [rows] = await pool.query(
       `WITH ranked AS (
          SELECT
@@ -113,11 +131,12 @@ router.get('/conversations', authenticate, async (req, res) => {
        FROM ranked r
        JOIN users u ON u.id = r.other_user_id
        WHERE r.rn = 1
-       ORDER BY r.created_at DESC`,
-      [userId, userId, userId, userId, userId]
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [userId, userId, userId, userId, userId, list.limit, list.offset]
     );
 
-    return res.json({ success: true, conversations: rows });
+    return res.json({ success: true, conversations: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List conversations error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch conversations.' });
@@ -196,7 +215,28 @@ router.get('/contacts', authenticate, async (req, res) => {
     params.push(term, term);
   }
 
+  const list = readListParams(req.query, {
+    sortable: { name: 'u.name', role: 'u.role', student_name: 'st.student_name', last_message_at: 'lm.created_at' },
+    defaultOrderBy: '(lm.created_at IS NULL), lm.created_at DESC, u.name ASC',
+    tiebreaker: 'u.id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    // total over the same scope + search (C4). Only the student subquery is
+    // needed for the WHERE; the conversation and subject joins are display.
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM users u
+       LEFT JOIN (
+         SELECT s.id, CONCAT(s.first_name, ' ', s.last_name) AS student_name
+         FROM students s
+       ) st ON st.id = u.student_id
+       WHERE ${conditions.join(' AND ')}`,
+      params
+    );
     const [rows] = await pool.query(
       `SELECT
          u.id, u.name, u.role,
@@ -232,11 +272,12 @@ router.get('/contacts', authenticate, async (req, res) => {
          WHERE m.sender_id = ? OR m.receiver_id = ?
        ) lm ON lm.other_user_id = u.id AND lm.rn = 1
        WHERE ${conditions.join(' AND ')}
-       ORDER BY (lm.created_at IS NULL), lm.created_at DESC, u.name ASC`,
-      [userId, userId, userId, userId, userId, ...params]
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [userId, userId, userId, userId, userId, ...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, contacts: rows });
+    return res.json({ success: true, contacts: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List contacts error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch contacts.' });
@@ -252,20 +293,70 @@ router.get('/with/:userId', authenticate, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid user id.' });
   }
 
+  // C3 (2026-09-19): this list pages on a CURSOR, not an offset. A thread is
+  // appended to live (Socket.io), so an offset taken before a new message
+  // arrived would skip or repeat a row on "Load earlier". ?before=<message_id>
+  // returns the `limit` messages older than that id (newest page first: no
+  // `before` means the tail of the thread). Within a page the rows stay in
+  // reading order (oldest first) so the client prepends a page unchanged.
+  // `page` here is { limit, before, total, has_more } — has_more is true when
+  // older rows exist than the oldest one returned. offset/sort/order are
+  // refused on this route so no caller can mix the two schemes.
+  for (const key of ['offset', 'sort', 'order']) {
+    if (req.query[key] !== undefined) {
+      return res.status(400).json({
+        success: false,
+        message: `This thread pages with before=<message_id>, not ${key}.`,
+      });
+    }
+  }
+  const page = parsePagination(req.query);
+  if (page.error) {
+    return res.status(400).json({ success: false, message: page.error });
+  }
+  let before = null;
+  if (req.query.before !== undefined) {
+    before = parseId(req.query.before);
+    if (before === null) {
+      return res.status(400).json({ success: false, message: 'before must be a positive integer message id.' });
+    }
+  }
+
   try {
-    const [rows] = await pool.query(
+    const threadWhere = '((m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?))';
+    const threadParams = [req.user.id, otherId, otherId, req.user.id];
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM messages m WHERE ${threadWhere}`, threadParams);
+
+    const cursor = before === null ? '' : 'AND m.id < ?';
+    const cursorParams = before === null ? [] : [before];
+    const [newestFirst] = await pool.query(
       `SELECT m.id, m.sender_id, m.receiver_id, m.body, m.read_status, m.created_at,
               s.name AS sender_name, s.role AS sender_role,
               r.name AS receiver_name, r.role AS receiver_role
        FROM messages m
        JOIN users s ON s.id = m.sender_id
        JOIN users r ON r.id = m.receiver_id
-       WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
-       ORDER BY m.created_at ASC, m.id ASC`,
-      [req.user.id, otherId, otherId, req.user.id]
+       WHERE ${threadWhere} ${cursor}
+       ORDER BY m.id DESC
+       LIMIT ?`,
+      [...threadParams, ...cursorParams, page.limit]
     );
+    const rows = newestFirst.reverse();
 
-    return res.json({ success: true, messages: rows });
+    let hasMore = false;
+    if (rows.length) {
+      const [[{ older }]] = await pool.query(
+        `SELECT COUNT(*) AS older FROM messages m WHERE ${threadWhere} AND m.id < ?`,
+        [...threadParams, rows[0].id]
+      );
+      hasMore = older > 0;
+    }
+
+    return res.json({
+      success: true,
+      messages: rows,
+      page: { limit: page.limit, before, total, has_more: hasMore },
+    });
   } catch (error) {
     console.error('Get thread error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch messages.' });

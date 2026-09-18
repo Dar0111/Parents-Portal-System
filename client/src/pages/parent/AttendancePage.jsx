@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import FormField, { filterSelectClass } from '../../components/FormField';
@@ -89,9 +89,28 @@ export default function ParentAttendancePage() {
   // The select IS the applied value — no draft, no Apply.
   const [range, setRange] = useState('month');
 
+  // Paged day list (2026-09-19): one page of a server-sorted list (C1). The
+  // counts above it come from /summary over the SAME range, never from the
+  // page, so "Present on recorded days" is unaffected by paging. A range or
+  // sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
+  function changeRange(next) {
+    setRange(next);
+    setOffset(0);
+  }
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
+
   const load = useCallback(async () => {
     if (studentId == null) {
       setRows([]);
+      setPage(null);
       setSummary(EMPTY_SUMMARY);
       setError(null);
       setLoading(false);
@@ -107,20 +126,25 @@ export default function ParentAttendancePage() {
         params.from = from;
         params.to = to;
       }
-      const [nextSummary, nextRows] = await Promise.all([
+      const [nextSummary, result] = await Promise.all([
         api.get(`/attendance/summary/${studentId}`, { unwrap: 'summary', params }),
-        api.get(`/attendance/student/${studentId}`, { unwrap: 'attendance', params }),
+        api.get(`/attendance/student/${studentId}`, {
+          unwrap: ['attendance', 'page'],
+          params: { ...params, ...listParams({ offset, sort }) },
+        }),
       ]);
       setSummary(nextSummary ?? EMPTY_SUMMARY);
-      setRows(Array.isArray(nextRows) ? nextRows : []);
+      setRows(Array.isArray(result.attendance) ? result.attendance : []);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setSummary(EMPTY_SUMMARY);
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [studentId, range]);
+  }, [studentId, range, offset, sort]);
 
   useEffect(() => {
     load();
@@ -186,7 +210,7 @@ export default function ParentAttendancePage() {
             as="select"
             className={filterSelectClass}
             value={range}
-            onChange={(e) => setRange(e.target.value)}
+            onChange={(e) => changeRange(e.target.value)}
           >
             <option value="month">This month</option>
             <option value="all">All recorded days</option>
@@ -241,6 +265,10 @@ export default function ParentAttendancePage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={empty.icon}
         emptyTitle={empty.title}
         emptyMessage={empty.message}
@@ -248,7 +276,7 @@ export default function ParentAttendancePage() {
           empty.showReset ? (
             <button
               type="button"
-              onClick={() => setRange('all')}
+              onClick={() => changeRange('all')}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
             >
               Show all recorded days

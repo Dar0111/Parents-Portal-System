@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -31,18 +31,32 @@ export default function MemosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await api.get('/memos', { unwrap: 'memos' }));
+      const result = await api.get('/memos', { unwrap: ['memos', 'page'], params: listParams({ offset, sort }) });
+      setRows(result.memos);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -90,6 +104,10 @@ export default function MemosPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon="fa-file-lines"
         emptyTitle="No memos yet"
         // No filters exist on this endpoint, so there is only one empty case —

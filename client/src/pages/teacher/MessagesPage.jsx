@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { fetchAll, listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -26,6 +26,11 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Paged table (2026-09-19): one page of conversations, sorted by the
+  // server (C1). A sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
 
   const [picking, setPicking] = useState(false);
   const [contacts, setContacts] = useState([]);
@@ -37,14 +42,25 @@ export default function MessagesPage() {
     setLoading(true);
     setError(null);
     try {
-      setConversations(await api.get('/messages/conversations', { unwrap: 'conversations' }));
+      const result = await api.get('/messages/conversations', {
+        unwrap: ['conversations', 'page'],
+        params: listParams({ offset, sort }),
+      });
+      setConversations(result.conversations);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setConversations([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -61,7 +77,9 @@ export default function MessagesPage() {
     setContactsError(null);
     setSearch('');
     try {
-      setContacts(await api.get('/messages/contacts', { unwrap: 'contacts' }));
+      // C2: the picker searches the WHOLE scoped set client-side, so it needs
+      // every contact — fetchAll pages through, never the first page.
+      setContacts(await fetchAll('/messages/contacts', { unwrap: 'contacts' }));
     } catch (err) {
       setContactsError(extractError(err));
       setContacts([]);
@@ -161,6 +179,10 @@ export default function MessagesPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon="fa-comments"
         emptyTitle="No messages yet"
         emptyMessage="Start a conversation with a parent, another teacher, or the admin."

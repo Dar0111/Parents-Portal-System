@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -86,11 +86,18 @@ export default function ExcuseLettersPage() {
     };
   }, [user?.id]);
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // filter or sort change resets to the first page (C6); a page emptied by
+  // a review steps back on its own (C7, in DataTable).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = { ...listParams({ offset, sort }) };
       // 'All' means "send no status filter" — unlike students.js's ?status, the
       // three values here are the letter's own ENUM and the endpoint validates
       // them, returning 400 on anything else. Safe to build on.
@@ -98,14 +105,22 @@ export default function ExcuseLettersPage() {
       if (applied.from) params.from = applied.from;
       if (applied.to) params.to = applied.to;
 
-      setLetters(await api.get('/excuse-letters', { unwrap: 'excuse_letters', params }));
+      const result = await api.get('/excuse-letters', { unwrap: ['excuse_letters', 'page'], params });
+      setLetters(result.excuse_letters);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setLetters([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [applied]);
+  }, [applied, offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -131,6 +146,7 @@ export default function ExcuseLettersPage() {
     setStatus('Pending');
     setFrom('');
     setTo('');
+    setOffset(0);
     setApplied({ status: 'Pending', from: '', to: '' });
   }
 
@@ -279,6 +295,7 @@ export default function ExcuseLettersPage() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          setOffset(0);
           setApplied({ status, from, to });
         }}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
@@ -321,6 +338,10 @@ export default function ExcuseLettersPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={emptyState.icon}
         emptyTitle={emptyState.title}
         emptyMessage={emptyState.message}

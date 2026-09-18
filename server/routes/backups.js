@@ -8,6 +8,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { comparePassword } = require('../utils/password');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -240,18 +241,33 @@ async function createBackupRecord({ prefix, createdBy }) {
 // created_by no one can actually vouch for. See CLAUDE.md's RESTORE
 // section for how the two orphans this bug already produced were handled.
 router.get('/', authenticate, authorize('admin'), async (req, res) => {
+  const list = readListParams(req.query, {
+    sortable: { filename: 'b.filename', created_at: 'b.created_at', file_size: 'b.file_size' },
+    defaultOrderBy: 'b.created_at DESC',
+    tiebreaker: 'b.id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM backups');
     const [rows] = await pool.query(
       `SELECT b.*, u.name AS created_by_name
        FROM backups b
        LEFT JOIN users u ON u.id = b.created_by
-       ORDER BY b.created_at DESC`
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [list.limit, list.offset]
     );
 
     const backups = rows.map((row) => ({ ...row, file_exists: fs.existsSync(row.file_path) }));
 
+    // orphaned_files is NOT paginated: it is the disk minus EVERY row, not
+    // minus this page, so the known set is read separately from the table.
     ensureBackupsDir();
-    const knownFilenames = new Set(rows.map((row) => row.filename));
+    const [allNames] = await pool.query('SELECT filename FROM backups');
+    const knownFilenames = new Set(allNames.map((row) => row.filename));
     const orphaned_files = fs
       .readdirSync(BACKUPS_DIR)
       .filter((name) => name.endsWith('.sql') && !knownFilenames.has(name))
@@ -266,7 +282,12 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
         };
       });
 
-    return res.json({ success: true, backups, orphaned_files });
+    return res.json({
+      success: true,
+      backups,
+      orphaned_files,
+      page: pageMeta({ limit: list.limit, offset: list.offset, total }),
+    });
   } catch (error) {
     console.error('List backups error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch backups.' });

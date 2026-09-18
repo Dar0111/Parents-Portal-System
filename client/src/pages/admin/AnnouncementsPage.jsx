@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -100,34 +100,63 @@ export default function AdminAnnouncementsPage() {
   const [deleting, setDeleting] = useState(null); // { kind, row }
   const [deleteError, setDeleteError] = useState(null);
 
+  // Two paged tables, two pager states (2026-09-19). Each is one page of a
+  // server-sorted list (C1); a filter or sort change resets its offset (C6);
+  // a page emptied by a delete steps back on its own (C7, in DataTable).
+  const [annOffset, setAnnOffset] = useState(0);
+  const [annSort, setAnnSort] = useState(null);
+  const [annPage, setAnnPage] = useState(null);
+  const [memoOffset, setMemoOffset] = useState(0);
+  const [memoSort, setMemoSort] = useState(null);
+  const [memoPage, setMemoPage] = useState(null);
+
   const loadAnnouncements = useCallback(async () => {
     setAnnLoading(true);
     setAnnError(null);
     try {
-      const params = {};
+      const params = { ...listParams({ offset: annOffset, sort: annSort }) };
       if (filter.grade) params.grade_level = filter.grade;
       if (filter.section) params.section = filter.section;
-      setAnnouncements(await api.get('/announcements', { unwrap: 'announcements', params }));
+      const result = await api.get('/announcements', { unwrap: ['announcements', 'page'], params });
+      setAnnouncements(result.announcements);
+      setAnnPage(result.page);
     } catch (err) {
       setAnnError(extractError(err));
       setAnnouncements([]);
+      setAnnPage(null);
     } finally {
       setAnnLoading(false);
     }
-  }, [filter]);
+  }, [filter, annOffset, annSort]);
 
   const loadMemos = useCallback(async () => {
     setMemoLoading(true);
     setMemoError(null);
     try {
-      setMemos(await api.get('/memos', { unwrap: 'memos' }));
+      const result = await api.get('/memos', {
+        unwrap: ['memos', 'page'],
+        params: listParams({ offset: memoOffset, sort: memoSort }),
+      });
+      setMemos(result.memos);
+      setMemoPage(result.page);
     } catch (err) {
       setMemoError(extractError(err));
       setMemos([]);
+      setMemoPage(null);
     } finally {
       setMemoLoading(false);
     }
-  }, []);
+  }, [memoOffset, memoSort]);
+
+  function changeAnnSort(next) {
+    setAnnSort(next);
+    setAnnOffset(0);
+  }
+
+  function changeMemoSort(next) {
+    setMemoSort(next);
+    setMemoOffset(0);
+  }
 
   useEffect(() => {
     loadAnnouncements();
@@ -329,12 +358,14 @@ export default function AdminAnnouncementsPage() {
   function applyFilter(event) {
     event.preventDefault();
     setAnnLoading(true);
+    setAnnOffset(0);
     setFilter(filterDraft);
   }
 
   function resetFilter() {
     setFilterDraft(EMPTY_FILTER);
     setAnnLoading(true);
+    setAnnOffset(0);
     setFilter(EMPTY_FILTER);
   }
 
@@ -487,6 +518,10 @@ export default function AdminAnnouncementsPage() {
           loading={annLoading}
           error={annError}
           onRetry={loadAnnouncements}
+          page={annPage}
+          onPageChange={setAnnOffset}
+          sort={annSort}
+          onSortChange={changeAnnSort}
           emptyIcon={canReset ? 'fa-filter' : 'fa-bullhorn'}
           emptyTitle={canReset ? `No announcements addressed to ${filterLabel}` : 'No announcements yet'}
           emptyMessage={
@@ -524,6 +559,10 @@ export default function AdminAnnouncementsPage() {
           loading={memoLoading}
           error={memoError}
           onRetry={loadMemos}
+          page={memoPage}
+          onPageChange={setMemoOffset}
+          sort={memoSort}
+          onSortChange={changeMemoSort}
           emptyIcon="fa-file-lines"
           emptyTitle="No memos yet"
           emptyMessage="A memo posted here reaches every teacher and parent."

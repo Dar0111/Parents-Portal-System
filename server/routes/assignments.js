@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 const subjectsRouter = express.Router();
 const assignmentsRouter = express.Router();
@@ -91,6 +92,15 @@ assignmentsRouter.get('/', authenticate, authorize('teacher', 'admin'), async (r
     teacherIdFilter = req.user.id;
   }
 
+  const list = readListParams(req.query, {
+    sortable: { class: 'ta.grade_level, ta.section', subject: 's.name', teacher: 'u.name' },
+    defaultOrderBy: 'ta.grade_level, ta.section, s.name',
+    tiebreaker: 'ta.id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
     const params = [];
     let where = '';
@@ -99,6 +109,10 @@ assignmentsRouter.get('/', authenticate, authorize('teacher', 'admin'), async (r
       params.push(teacherIdFilter);
     }
 
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM teacher_assignments ta ${where}`,
+      params
+    );
     const [rows] = await pool.query(
       `SELECT ta.id, ta.teacher_id, u.name AS teacher_name,
               ta.subject_id, s.name AS subject_name,
@@ -107,11 +121,12 @@ assignmentsRouter.get('/', authenticate, authorize('teacher', 'admin'), async (r
        JOIN users u ON u.id = ta.teacher_id
        JOIN subjects s ON s.id = ta.subject_id
        ${where}
-       ORDER BY ta.grade_level, ta.section, s.name`,
-      params
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, assignments: rows });
+    return res.json({ success: true, assignments: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List assignments error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch assignments.' });

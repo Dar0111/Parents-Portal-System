@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -282,8 +282,10 @@ export default function TeacherGradesPage() {
     setStudentsLoading(true);
     setStudentsError(null);
     try {
+      // C2: the roster is a COMPLETE set (a subject teacher with six sections
+      // is ~210 students, over one page), so fetchAll pages through it.
       const [rows, settings] = await Promise.all([
-        api.get('/students', { unwrap: 'students', params: { status: 'active' } }),
+        fetchAll('/students', { unwrap: 'students', params: { status: 'active' } }),
         api.get('/settings', { unwrap: 'settings' }),
       ]);
       setStudents(rows);
@@ -312,7 +314,7 @@ export default function TeacherGradesPage() {
   const loadAssignments = useCallback(async () => {
     setAssignmentsError(null);
     try {
-      const rows = await api.get('/assignments', { unwrap: 'assignments' });
+      const rows = await fetchAll('/assignments', { unwrap: 'assignments' });
       setAssignments(rows);
     } catch (err) {
       setAssignmentsError(
@@ -445,7 +447,9 @@ export default function TeacherGradesPage() {
     setRecordedLoading(true);
     setRecordedError(null);
     try {
-      const rows = await api.get('/grades', {
+      // C2: the recorded map must cover EVERY row for this subject/term across
+      // the teacher's scope, not the first page of them.
+      const rows = await fetchAll('/grades', {
         unwrap: 'grades',
         params: { subject_id: subjectId, term, school_year: year },
       });
@@ -504,7 +508,7 @@ export default function TeacherGradesPage() {
         return null;
       }
       if (err?.response?.status === 409) {
-        const rows = await api.get('/grades', {
+        const rows = await fetchAll('/grades', {
           unwrap: 'grades',
           params: { student_id: student.id, subject_id: subjectId, term, school_year: year },
         });

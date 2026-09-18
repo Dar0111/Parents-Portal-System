@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
 import LoadingSpinner from './LoadingSpinner';
@@ -7,13 +7,26 @@ import LoadingSpinner from './LoadingSpinner';
 // down rows/loading/error, so the same table renders a roster, a grade list,
 // or a backup history without knowing anything about any of them.
 //
-// No pagination, deliberately: no endpoint in this API accepts limit/offset or
-// page (checked across every file in server/routes/ — zero of them read those
-// params), so every list arrives whole, and the first consumer is a ~40-row
-// attendance roster. Building server pagination controls now would be wiring
-// to a contract that does not exist.
-// TRIGGER TO REVISIT: the admin GET /api/users list once real accounts exist —
-// that is the first list here that could plausibly reach the hundreds.
+// TWO MODES, decided by the `page` prop (2026-09-19, Server hardening C):
+//
+//   WHOLE LIST (no `page`): rows are the complete set and the table sorts
+//   them client-side — the original behaviour, kept for the tables whose
+//   source is not paginated (a report card) or is fetched whole (fetchAll).
+//
+//   PAGED (`page` = the API's { limit, offset, total, has_more }): rows are
+//   ONE page. Sorting one page client-side would be wrong (the top row of
+//   page 2 is not the top row of the set), so sorting is CONTROLLED here —
+//   the header click calls onSortChange({ key, dir } | null) and the page
+//   re-requests with sort/order against the server's allow-list; nothing is
+//   sorted locally. A footer renders "1–50 of 812" with Previous / Next,
+//   disabled at the bounds, calling onPageChange(nextOffset). The pager is
+//   still rendered when everything fits on one page (disabled), so a list
+//   never changes shape as it grows.
+//
+//   C7: a page that is empty while the set is not (the last row of page 2
+//   was just approved away) is a page that no longer exists — the table asks
+//   for the last page that does, instead of showing "nothing here" over a
+//   list that has rows. That decision lives here so no page re-implements it.
 //
 // Loading / error / empty are rendered INSIDE the table frame rather than left
 // to the page, so no page has to re-implement the three-state dance and none
@@ -46,6 +59,12 @@ function compare(a, b) {
   return String(a).localeCompare(String(b));
 }
 
+// The offset of the last page that holds at least one row.
+function lastPageOffset(page) {
+  if (!page || page.total <= 0) return 0;
+  return Math.floor((page.total - 1) / page.limit) * page.limit;
+}
+
 export default function DataTable({
   columns,
   rows,
@@ -58,11 +77,20 @@ export default function DataTable({
   emptyMessage,
   emptyAction,
   className = '',
+  // Paged mode (all four together; see the header comment).
+  page = null,
+  onPageChange,
+  sort: controlledSort,
+  onSortChange,
 }) {
-  const [sort, setSort] = useState(null);
+  const paged = Boolean(page);
+  const [localSort, setLocalSort] = useState(null);
+  const sort = paged ? controlledSort || null : localSort;
 
   const sortedRows = useMemo(() => {
-    if (!sort || !Array.isArray(rows)) return rows || [];
+    if (!Array.isArray(rows)) return [];
+    // Paged: the server ordered this page; never reorder it locally.
+    if (paged || !sort) return rows;
     const column = columns.find((c) => c.key === sort.key);
     if (!column) return rows;
 
@@ -85,15 +113,28 @@ export default function DataTable({
 
       return compare(left, right) * factor;
     });
-  }, [rows, columns, sort]);
+  }, [rows, columns, sort, paged]);
+
+  // C7 — see the header comment. Only in paged mode, only once the page has
+  // settled (not loading, no error), and only when the set itself has rows.
+  const pageIsStale = paged && !loading && !error && page.total > 0 && sortedRows.length === 0 && page.offset > 0;
+  useEffect(() => {
+    if (pageIsStale && onPageChange) onPageChange(lastPageOffset(page));
+  }, [pageIsStale, onPageChange, page]);
+
+  function nextSort(current, column) {
+    if (current?.key !== column.key) return { key: column.key, dir: 'asc' };
+    if (current.dir === 'asc') return { key: column.key, dir: 'desc' };
+    return null; // third click clears back to the API's own order
+  }
 
   function toggleSort(column) {
     if (!column.sortable) return;
-    setSort((current) => {
-      if (current?.key !== column.key) return { key: column.key, dir: 'asc' };
-      if (current.dir === 'asc') return { key: column.key, dir: 'desc' };
-      return null; // third click clears back to the API's own order
-    });
+    if (paged) {
+      if (onSortChange) onSortChange(nextSort(sort, column));
+      return;
+    }
+    setLocalSort((current) => nextSort(current, column));
   }
 
   const frame = `overflow-hidden rounded-xl border border-slate-200 bg-white ${className}`;
@@ -108,7 +149,7 @@ export default function DataTable({
     );
   }
 
-  if (loading) {
+  if (loading || pageIsStale) {
     return (
       <div className={frame}>
         <LoadingSpinner className="py-12" />
@@ -128,6 +169,11 @@ export default function DataTable({
       </div>
     );
   }
+
+  const first = paged ? page.offset + 1 : 1;
+  const last = paged ? page.offset + sortedRows.length : sortedRows.length;
+  const canPrev = paged && page.offset > 0;
+  const canNext = paged && page.has_more;
 
   return (
     <div className={frame}>
@@ -192,6 +238,37 @@ export default function DataTable({
           </tbody>
         </table>
       </div>
+
+      {paged && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600"
+          data-testid="datatable-pager"
+        >
+          <span>
+            {first}–{last} of {page.total}
+          </span>
+          <span className="inline-flex gap-2">
+            <button
+              type="button"
+              disabled={!canPrev}
+              onClick={() => onPageChange && onPageChange(Math.max(0, page.offset - page.limit))}
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <i className="fa-solid fa-chevron-left mr-1 text-[10px]" />
+              Previous
+            </button>
+            <button
+              type="button"
+              disabled={!canNext}
+              onClick={() => onPageChange && onPageChange(page.offset + page.limit)}
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+              <i className="fa-solid fa-chevron-right ml-1 text-[10px]" />
+            </button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

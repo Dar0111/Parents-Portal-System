@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -72,25 +72,39 @@ export default function AdminAttendancePage() {
   // Grade or a date range — status alone is not enough to bound the fetch.
   const hasScope = Boolean(applied.grade_level || applied.from || applied.to);
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // filter or sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     if (!hasScope) return;
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = { ...listParams({ offset, sort }) };
       if (applied.grade_level) params.grade_level = applied.grade_level;
       if (applied.section) params.section = applied.section;
       if (applied.from) params.from = applied.from;
       if (applied.to) params.to = applied.to;
       if (applied.status) params.status = applied.status;
-      setRows(await api.get('/attendance', { unwrap: 'attendance', params }));
+      const result = await api.get('/attendance', { unwrap: ['attendance', 'page'], params });
+      setRows(result.attendance);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [applied, hasScope]);
+  }, [applied, hasScope, offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -123,12 +137,16 @@ export default function AdminAttendancePage() {
     // wrong empty copy. Only when a fetch will actually run.
     if (next.grade_level || next.from || next.to) setLoading(true);
     setRows([]);
+    setPage(null);
+    setOffset(0);
     setApplied(next);
   }
 
   function resetFilters() {
     setDraft(EMPTY);
     setRows([]);
+    setPage(null);
+    setOffset(0);
     setError(null);
     setApplied(EMPTY);
   }
@@ -312,6 +330,10 @@ export default function AdminAttendancePage() {
             loading={loading}
             error={error}
             onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
             emptyIcon={emptyState.icon}
             emptyTitle={emptyState.title}
             emptyMessage={emptyState.message}

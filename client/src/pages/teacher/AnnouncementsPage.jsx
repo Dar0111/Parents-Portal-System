@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -78,24 +78,39 @@ export default function AnnouncementsPage() {
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // filter or sort change resets to the first page (C6); a page emptied by
+  // a delete steps back on its own (C7, in DataTable).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = { ...listParams({ offset, sort }) };
       if (applied.section) {
         const [grade, name] = applied.section.split('|');
         params.grade_level = grade;
         params.section = name;
       }
-      setRows(await api.get('/announcements', { unwrap: 'announcements', params }));
+      const result = await api.get('/announcements', { unwrap: ['announcements', 'page'], params });
+      setRows(result.announcements);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [applied]);
+  }, [applied, offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -337,6 +352,7 @@ export default function AnnouncementsPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            setOffset(0);
             setApplied({ section: sectionFilter });
           }}
           className="flex flex-wrap items-end gap-3"
@@ -386,6 +402,10 @@ export default function AnnouncementsPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={emptyState.icon}
         emptyTitle={emptyState.title}
         emptyMessage={emptyState.message}
@@ -395,6 +415,7 @@ export default function AnnouncementsPage() {
               type="button"
               onClick={() => {
                 setSectionFilter('');
+                setOffset(0);
                 setApplied({ section: '' });
               }}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"

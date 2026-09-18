@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import FormField, { filterSelectClass } from '../../components/FormField';
@@ -83,37 +83,52 @@ export default function ParentEventsPage() {
   // show once the list has come back empty — skipping the fetch because the
   // account "looks unlinked" would hide real events behind a stale
   // AuthContext.
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // range or sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
+  function changeRange(next) {
+    setRange(next);
+    setOffset(0);
+  }
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
+
+  // The order used to be a client-side sort of the whole list — soonest
+  // first for Upcoming, most recent first for All. On a paged list that is
+  // the SERVER's job: with no header sort chosen, Upcoming asks for
+  // event_date ascending and All takes the endpoint's own event_date DESC.
+  const effectiveSort = useMemo(
+    () => sort ?? (range === 'upcoming' ? { key: 'event_date', dir: 'asc' } : null),
+    [sort, range]
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = { ...listParams({ offset, sort: effectiveSort }) };
       if (range === 'upcoming') params.from = todayLocalDateString();
-      setRows(await api.get('/events', { unwrap: 'events', params }));
+      const result = await api.get('/events', { unwrap: ['events', 'page'], params });
+      setRows(result.events);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [range]);
+  }, [range, offset, effectiveSort]);
 
   useEffect(() => {
     load();
   }, [load]);
-
-  // event_date is a plain 'YYYY-MM-DD' string (the pool's dateStrings: ['DATE']
-  // means DATE columns never arrive as Date objects), so a string comparison
-  // is a correct chronological one.
-  const ordered = useMemo(() => {
-    const copy = [...rows];
-    copy.sort((a, b) =>
-      range === 'upcoming'
-        ? String(a.event_date).localeCompare(String(b.event_date))
-        : String(b.event_date).localeCompare(String(a.event_date))
-    );
-    return copy;
-  }, [rows, range]);
 
   // Convention 5f — one branch per cause, keyed on the actual applied value,
   // never on a boolean meaning "something is set". A reset is offered only in
@@ -180,7 +195,7 @@ export default function ParentEventsPage() {
           as="select"
           className={filterSelectClass}
           value={range}
-          onChange={(e) => setRange(e.target.value)}
+          onChange={(e) => changeRange(e.target.value)}
           hint="Upcoming includes anything happening today."
         >
           <option value="upcoming">Upcoming events</option>
@@ -190,10 +205,14 @@ export default function ParentEventsPage() {
 
       <DataTable
         columns={columns}
-        rows={ordered}
+        rows={rows}
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={empty.icon}
         emptyTitle={empty.title}
         emptyMessage={empty.message}
@@ -201,7 +220,7 @@ export default function ParentEventsPage() {
           empty.showPast ? (
             <button
               type="button"
-              onClick={() => setRange('all')}
+              onClick={() => changeRange('all')}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-slate-100"
             >
               Show past events

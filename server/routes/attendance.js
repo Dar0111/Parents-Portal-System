@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -133,18 +134,35 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  const list = readListParams(req.query, {
+    sortable: {
+      date: 'a.date',
+      student: 's.last_name, s.first_name',
+      class: 's.grade_level, s.section',
+      status: 'a.status',
+    },
+    defaultOrderBy: 'a.date DESC, s.last_name, s.first_name',
+    tiebreaker: 'a.id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    const fromClause = `FROM attendance a
+       JOIN students s ON s.id = a.student_id
+       ${where}`;
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
     const [rows] = await pool.query(
       `SELECT a.id, a.student_id, a.date, a.status, a.recorded_by, a.created_at, a.updated_at,
               s.first_name, s.last_name, s.grade_level, s.section
-       FROM attendance a
-       JOIN students s ON s.id = a.student_id
-       ${where}
-       ORDER BY a.date DESC, s.last_name, s.first_name`,
-      params
+       ${fromClause}
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, attendance: rows });
+    return res.json({ success: true, attendance: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List attendance error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch attendance.' });
@@ -192,12 +210,23 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
       params.push(status);
     }
 
+    const list = readListParams(req.query, {
+      sortable: { date: 'a.date', status: 'a.status' },
+      defaultOrderBy: 'a.date DESC',
+      tiebreaker: 'a.id ASC',
+    });
+    if (!list.ok) {
+      return res.status(400).json({ success: false, message: list.message });
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM attendance a ${where}`, params);
     const [rows] = await pool.query(
-      `SELECT a.* FROM attendance a WHERE ${conditions.join(' AND ')} ORDER BY a.date DESC`,
-      params
+      `SELECT a.* FROM attendance a ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, attendance: rows });
+    return res.json({ success: true, attendance: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('Get student attendance error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch attendance.' });

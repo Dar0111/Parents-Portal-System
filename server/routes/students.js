@@ -7,6 +7,7 @@ const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/tea
 const { validateLrn } = require('../utils/lrnRule');
 const { validateContact } = require('../utils/contactRule');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -158,17 +159,36 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  const list = readListParams(req.query, {
+    sortable: {
+      name: 's.last_name, s.first_name',
+      class: 's.grade_level, s.section',
+      lrn: 's.lrn',
+      status: 's.status',
+      created_at: 's.created_at',
+    },
+    defaultOrderBy: 's.grade_level, s.section, s.last_name, s.first_name',
+    tiebreaker: 's.id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    // total counts the FILTERED, scoped set (C4). The scope predicate is
+    // EXISTS-based, so COUNT(*) over the same WHERE is the DISTINCT count.
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM students s ${where}`, params);
     const [rows] = await pool.query(
       `SELECT DISTINCT s.id, s.lrn, s.first_name, s.last_name, s.grade_level, s.section,
               s.birthday, s.gender, s.address, s.contact_number, s.status, s.created_at
        FROM students s
        ${where}
-       ORDER BY s.grade_level, s.section, s.last_name, s.first_name`,
-      params
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, students: rows });
+    return res.json({ success: true, students: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List students error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch students.' });

@@ -39,6 +39,21 @@ export default function ParentMessageThreadPage() {
 
   const bottomRef = useRef(null);
 
+  // C3 (2026-09-19): the thread pages on a cursor. load() fetches the TAIL
+  // (the newest page) and merges it over what is already on screen, so a
+  // socket-triggered reload never discards pages the user scrolled back to;
+  // loadEarlier() asks for the page before the oldest row on screen.
+  // messagesRef mirrors `messages` for the merge; loadedForRef says which
+  // thread it belongs to, so a thread change starts from nothing.
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
+  const messagesRef = useRef([]);
+  const loadedForRef = useRef(null);
+  const lastIdRef = useRef(null);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   const other = useMemo(() => {
     const row = messages.find((m) => m.sender_id === otherId || m.receiver_id === otherId);
     if (!row) return null;
@@ -53,8 +68,16 @@ export default function ParentMessageThreadPage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await api.get(`/messages/with/${otherId}`, { unwrap: 'messages' });
-      setMessages(rows);
+      const result = await api.get(`/messages/with/${otherId}`, { unwrap: ['messages', 'page'] });
+      const rows = result.messages;
+      const previous = loadedForRef.current === otherId ? messagesRef.current : [];
+      const oldestInTail = rows[0]?.id;
+      const kept = oldestInTail === undefined ? [] : previous.filter((m) => m.id < oldestInTail);
+      loadedForRef.current = otherId;
+      setMessages([...kept, ...rows]);
+      // has_more describes the tail; once earlier pages are on screen the
+      // value from loadEarlier() is the current one.
+      if (!kept.length) setHasMore(Boolean(result.page?.has_more));
 
       if (rows.some((m) => m.receiver_id === user?.id && !m.read_status)) {
         await api.patch(`/messages/read-all/${otherId}`, {}, { unwrap: 'count' });
@@ -80,9 +103,35 @@ export default function ParentMessageThreadPage() {
     [subscribe, otherId, load]
   );
 
+  // Scroll to the bottom only when the NEWEST message changed — a page
+  // prepended by loadEarlier() leaves the last id alone and must not yank
+  // the reader back down.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' });
+    const lastId = messages[messages.length - 1]?.id ?? null;
+    if (lastId !== lastIdRef.current) {
+      lastIdRef.current = lastId;
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    }
   }, [messages]);
+
+  async function loadEarlier() {
+    const oldest = messages[0]?.id;
+    if (!oldest || loadingEarlier) return;
+    setLoadingEarlier(true);
+    setError(null);
+    try {
+      const result = await api.get(`/messages/with/${otherId}`, {
+        unwrap: ['messages', 'page'],
+        params: { before: oldest },
+      });
+      setMessages((prev) => [...result.messages.filter((m) => !prev.some((p) => p.id === m.id)), ...prev]);
+      setHasMore(Boolean(result.page?.has_more));
+    } catch (err) {
+      setError(extractError(err));
+    } finally {
+      setLoadingEarlier(false);
+    }
+  }
 
   async function send(event) {
     event.preventDefault();
@@ -131,6 +180,18 @@ export default function ParentMessageThreadPage() {
         </div>
 
         <div className="max-h-[28rem] space-y-3 overflow-y-auto px-5 py-4">
+          {hasMore ? (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={loadEarlier}
+                disabled={loadingEarlier}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
+              </button>
+            </div>
+          ) : null}
           {messages.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">
               No messages in this conversation yet. Send the first one below.

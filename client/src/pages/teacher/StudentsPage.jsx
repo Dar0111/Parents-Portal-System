@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -109,6 +109,12 @@ export default function StudentsPage() {
   const [enrolled, setEnrolled] = useState(null);
   const [revealed, setRevealed] = useState({ password: false, confirm: false });
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // filter or sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -122,19 +128,26 @@ export default function StudentsPage() {
       // failed), and this page will not build on that. Consequence, recorded
       // as a known gap rather than hidden: a transferred-out student simply
       // disappears from this list with no explanation.
-      const params = {};
+      const params = { ...listParams({ offset, sort }) };
       if (applied.search) params.search = applied.search;
       if (applied.section) params.section = applied.section;
 
-      const rows = await api.get('/students', { unwrap: 'students', params });
-      setStudents(rows);
+      const result = await api.get('/students', { unwrap: ['students', 'page'], params });
+      setStudents(result.students);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setStudents([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [applied]);
+  }, [applied, offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -176,12 +189,14 @@ export default function StudentsPage() {
 
   function applyFilters(event) {
     event.preventDefault();
+    setOffset(0);
     setApplied({ search: search.trim(), section: section.trim() });
   }
 
   function clearFilters() {
     setSearch('');
     setSection('');
+    setOffset(0);
     setApplied({ search: '', section: '' });
   }
 
@@ -429,6 +444,10 @@ export default function StudentsPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={filtered ? 'fa-magnifying-glass' : 'fa-user-graduate'}
         // Two genuinely different situations, deliberately not one message:
         // an empty scope is not the same as a filter that matched nothing.

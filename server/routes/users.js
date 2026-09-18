@@ -4,6 +4,7 @@ const { hashPassword } = require('../utils/password');
 const { validateNewPassword } = require('../utils/passwordRule');
 const { validateContact } = require('../utils/contactRule');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
+const { readListParams, pageMeta } = require('../utils/pagination');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
@@ -172,7 +173,27 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
 
 // GET /api/users/parents/pending — Admin lists pending parent accounts
 router.get('/parents/pending', authenticate, authorize('admin'), async (req, res) => {
+  const list = readListParams(req.query, {
+    sortable: {
+      name: 'u.name',
+      student: 's.last_name, s.first_name',
+      class: 's.grade_level, s.section',
+      created_at: 'u.created_at',
+    },
+    defaultOrderBy: 'u.created_at ASC',
+    tiebreaker: 'u.id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM users u
+       JOIN students s ON s.id = u.student_id
+       WHERE u.role = 'parent' AND u.status = 'pending'`
+    );
     const [rows] = await pool.query(
       `SELECT u.id, u.login_id, u.name, u.email, u.contact_number, u.status, u.created_at,
               s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name,
@@ -182,10 +203,12 @@ router.get('/parents/pending', authenticate, authorize('admin'), async (req, res
        JOIN students s ON s.id = u.student_id
        LEFT JOIN users creator ON creator.id = u.created_by
        WHERE u.role = 'parent' AND u.status = 'pending'
-       ORDER BY u.created_at ASC`
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [list.limit, list.offset]
     );
 
-    return res.json({ success: true, parents: rows });
+    return res.json({ success: true, parents: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List pending parents error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch pending accounts.' });
@@ -321,9 +344,27 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  const list = readListParams(req.query, {
+    sortable: { name: 'name', login_id: 'login_id', role: 'role', status: 'status', created_at: 'created_at' },
+    defaultOrderBy: 'created_at DESC',
+    tiebreaker: 'id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
-    const [rows] = await pool.query(`SELECT * FROM users ${where} ORDER BY created_at DESC`, params);
-    return res.json({ success: true, users: rows.map(sanitizeUser) });
+    // total counts the FILTERED set (C4) — same WHERE, same params.
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM users ${where}`, params);
+    const [rows] = await pool.query(
+      `SELECT * FROM users ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
+    );
+    return res.json({
+      success: true,
+      users: rows.map(sanitizeUser),
+      page: pageMeta({ limit: list.limit, offset: list.offset, total }),
+    });
   } catch (error) {
     console.error('List users error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch users.' });

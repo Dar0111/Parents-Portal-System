@@ -633,6 +633,70 @@ async function run() {
       (await countStatusLogs()) === statusLogsBefore,
       'That no-op writes no update_student_status entry'
     );
+    // --- Pagination contract (2026-09-19, utils/pagination.js): every list
+    // carries page { limit, offset, total, has_more }; limit default 50, max
+    // 200; sort against an allow-list. Invariants only — never an exact count
+    // on a table the application also writes to.
+    console.log('\nPagination:');
+    const qs = (path, q) => `${path}${path.includes('?') ? '&' : '?'}${q}`;
+    const ordered = (rows, field) =>
+      rows.every((row, i) => {
+        if (i === 0) return true;
+        const a = rows[i - 1][field];
+        const b = row[field];
+        if (a === null || a === undefined || b === null || b === undefined) return true;
+        return typeof a === 'number' && typeof b === 'number'
+          ? a >= b
+          : String(a).localeCompare(String(b), undefined, { sensitivity: 'base' }) >= 0;
+      });
+    async function checkPage(path, token, key, { sort, field, idField = 'id' }) {
+      const first = await request('GET', path, { token });
+      const rows = first.data?.[key] || [];
+      const page = first.data?.page;
+      assert(
+        first.status === 200 && page && page.limit === 50 && page.offset === 0 && Number.isInteger(page.total),
+        `${path}: page { limit 50, offset 0, total } by default`
+      );
+      assert(
+        rows.length <= 50 && page?.has_more === (page?.total > 50) && (page?.has_more || rows.length === page?.total),
+        `${path}: rows <= limit, has_more = total > limit, a last page holds the rest`
+      );
+      const one = await request('GET', qs(path, 'limit=1'), { token });
+      assert(
+        one.status === 200 &&
+          (one.data?.[key] || []).length === Math.min(1, page?.total ?? 0) &&
+          one.data?.page?.has_more === (page?.total > 1),
+        `${path}: limit=1 returns one row and has_more when more exist`
+      );
+      if ((page?.total ?? 0) >= 2) {
+        const second = await request('GET', qs(path, 'limit=1&offset=1'), { token });
+        assert(
+          second.status === 200 && second.data?.[key]?.[0]?.[idField] !== one.data?.[key]?.[0]?.[idField],
+          `${path}: offset=1 returns a different row than offset=0`
+        );
+      }
+      const bad = await Promise.all(
+        ['limit=0', 'limit=201', 'offset=-1', 'sort=nope', `sort=${sort}&order=sideways`, 'order=desc'].map((q) =>
+          request('GET', qs(path, q), { token })
+        )
+      );
+      assert(bad.every((r) => r.status === 400), `${path}: limit 0/201, offset -1, unknown sort, bad order, order without sort are 400`);
+      assert(new RegExp(`sort must be one of: .*\\b${sort}\\b`).test(bad[3].data?.message || ''), `${path}: the sort 400 names the allowed keys`);
+      const sorted = await request('GET', qs(path, `sort=${sort}&order=desc`), { token });
+      assert(sorted.status === 200 && ordered(sorted.data?.[key] || [], field), `${path}: sort=${sort}&order=desc is ordered on the page`);
+    }
+
+    await checkPage('/api/students?status=all', adminToken, 'students', { sort: 'name', field: 'last_name' });
+    await checkPage('/api/students', teacherToken, 'students', { sort: 'lrn', field: 'lrn' });
+
+    // C4: search narrows total to the filtered, scoped set (Marwin is seeded).
+    const searchPage = await request('GET', '/api/students?search=Conde&limit=200', { token: adminToken });
+    assert(
+      searchPage.status === 200 &&
+        (searchPage.data?.students || []).every((s) => `${s.first_name} ${s.last_name}`.includes('Conde')) &&
+        (searchPage.data?.page?.has_more || searchPage.data?.page?.total === searchPage.data?.students?.length),
+      'GET /students?search=Conde: every row matches and total is the filtered count'
+    );
   } finally {
     await cleanup();
   }

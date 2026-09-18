@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -118,21 +118,39 @@ export default function AdminBackupsPage() {
   const [outcome, setOutcome] = useState(null);
   const attemptedRef = useRef(false);
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // sort change resets to the first page (C6); a page emptied by a delete
+  // steps back on its own (C7, in DataTable). orphaned_files is NOT paged —
+  // it is the disk minus EVERY row, the same list on every page.
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get('/backups', { unwrap: ['backups', 'orphaned_files'] });
+      const data = await api.get('/backups', {
+        unwrap: ['backups', 'orphaned_files', 'page'],
+        params: listParams({ offset, sort }),
+      });
       setBackups(data.backups);
       setOrphans(data.orphaned_files);
+      setPage(data.page);
     } catch (err) {
       setError(extractError(err));
       setBackups([]);
       setOrphans([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -391,6 +409,10 @@ export default function AdminBackupsPage() {
           loading={loading}
           error={error}
           onRetry={load}
+          page={page}
+          onPageChange={setOffset}
+          sort={sort}
+          onSortChange={changeSort}
           emptyIcon="fa-database"
           emptyTitle={orphans.length ? 'No backups recorded' : 'No backups yet'}
           emptyMessage={

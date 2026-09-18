@@ -739,8 +739,17 @@ concludes.** Adding one requires the school to have said otherwise first.
 
 - **Never fetches.** The page owns `rows`/`loading`/`error`; loading, error
   and empty render inside the frame.
-- **No pagination** — no endpoint accepts `limit`/`offset`/`page`. Revisit
-  trigger: admin `GET /api/users` once real accounts exist.
+- **Two modes, decided by the `page` prop (2026-09-19).** Without it, the
+  whole list is on screen and the table sorts it locally (report cards, and
+  every set fetched whole through `fetchAll`). With it — the API's
+  `{ limit, offset, total, has_more }` — the rows are ONE page: sorting is
+  controlled (`onSortChange` re-requests with `sort`/`order` against the
+  endpoint's allow-list, nothing is sorted locally), a footer reads
+  "1–50 of 812" with Previous/Next, and an empty page of a non-empty set
+  steps back to the last real page on its own (C7). A filter or sort change
+  resets the page's offset to 0 (C6) — in the page, not here. Every list
+  endpoint pages (`docs/API_REFERENCE.md` §6b); a caller that needs a
+  complete set uses `fetchAll`, never the first 50 (C2/C5).
 - **Nulls sort last in BOTH directions, and the rule sits OUTSIDE the
   direction multiplier.** Two empties compare equal; `Array#sort` is stable.
 - mysql2 returns `DECIMAL` as strings, so the comparator coerces numerically
@@ -2112,6 +2121,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Server hardening C (`feat/pagination`): every list endpoint pages (`limit` 50/200, `offset`, `sort`/`order` allow-list, sibling `page { limit, offset, total, has_more }` over the filtered set; the thread on `?before=`), 16 handlers in 9 route files, `utils/pagination.js`; DataTable paged mode (server sort, footer, C7 step-back), `fetchAll` (200/page, de-dupe, hard cap) for every complete-set caller, 24 client files. Nine suites grew (users 61, students 94, grades 182, attendance 60, excuses 92, content 96, assignments 56, backups 47, messages 80). FRONTEND_CONVENTIONS §5 and two KNOWN ISSUES rows here are now stale — listed on the full row, not edited. |
 | 2026-09-19 | B3: the `401` redirect now carries its reason — `axios.js` stores it in `sessionStorage` (never the URL), Login shows it once in the sign-in error slot and clears it; `Account is not active.` and the restore message verbatim, the token-shaped 401s become "Your session has ended. Please log in again."; a manual Logout shows nothing. Same-browser second-login identity swap recorded in KNOWN ISSUES, not fixed. |
 | 2026-09-19 | Branch B amended (B1, B2): `POST /api/users/parents` resolves LRN + scope in one query BEFORE the duplicate `409`s — unknown LRN, out-of-scope LRN and out-of-scope LRN of a child with a parent are byte-identical `403`s, the `404` is gone; the six stale present-tense claims from the row below corrected (CLAUDE.md, `docs/FRONTEND_CONVENTIONS.md`, `StudentsPage.jsx`). `test:auth` 56. |
 | 2026-09-18 | Server hardening B (`feat/authorization`): `POST /api/users/parents` is `403` unless the teacher is assigned to OR advises the student's section (the shared `TEACHER_VIEW_SCOPE_SQL`); `middleware/auth.js` answers `401`, not `403`, for `Account is not active.` on a live session — login keeps `403` + `status`. `test:auth` 54, `test:users` 47, `test:excuses` 70. Six sentences in this file and one `StudentsPage.jsx` comment are now stale — listed on the full row, not edited. |

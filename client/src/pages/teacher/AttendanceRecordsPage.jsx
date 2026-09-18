@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
@@ -73,6 +73,12 @@ export default function AttendanceRecordsPage() {
     [sections, sectionId]
   );
 
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // filter or sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     if (!section) return;
 
@@ -82,27 +88,37 @@ export default function AttendanceRecordsPage() {
       const params = {
         grade_level: section.grade_level,
         section: section.name,
+        ...listParams({ offset, sort }),
       };
       // Never send `date`. That branch ignores from/to.
       if (applied.from) params.from = applied.from;
       if (applied.to) params.to = applied.to;
 
-      setRows(await api.get('/attendance', { unwrap: 'attendance', params }));
+      const result = await api.get('/attendance', { unwrap: ['attendance', 'page'], params });
+      setRows(result.attendance);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, [section, applied]);
+  }, [section, applied, offset, sort]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
+
   function resetFilters() {
     setFrom('');
     setTo('');
+    setOffset(0);
     setApplied({ from: '', to: '' });
   }
 
@@ -198,6 +214,7 @@ export default function AttendanceRecordsPage() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          setOffset(0);
           setApplied({ from, to });
         }}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
@@ -250,6 +267,10 @@ export default function AttendanceRecordsPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={emptyState.icon}
         emptyTitle={emptyState.title}
         emptyMessage={emptyState.message}

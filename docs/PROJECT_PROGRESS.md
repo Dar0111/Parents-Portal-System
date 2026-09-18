@@ -94,6 +94,28 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Server hardening C, `feat/pagination` (2026-09-19):** every list endpoint
+now pages — `limit` (default 50, max 200), `offset`, `sort`/`order` against a
+per-endpoint allow-list, and a sibling `page { limit, offset, total,
+has_more }` counted over the filtered, scoped set — via one module,
+`server/utils/pagination.js`, on 16 handlers in 9 route files; the message
+thread pages on `?before=<message_id>` instead of an offset so live socket
+inserts cannot skip or repeat a row. `DataTable` gained a paged mode (server
+sort through `onSortChange`, a "1–50 of 812" footer with Previous/Next, and an
+automatic step back when a write empties the current page); `fetchAll` in
+`api/axios.js` pages through at 200 with de-duplication and a hard cap (25
+pages / 5,000 rows → a user-facing error) for the callers that need a
+complete set — the target picker hook, Teacher → Grades' roster and
+recorded-grades map, Teacher → Attendance's roster and day rows, both Messages
+pickers, and Parent → Excuse Letters (client-side status filter). 18 table
+pages carry a pager; filter and sort changes reset to the first page. Suites
+twice: users 61, students 94, grades 182, attendance 60, excuses 92, content
+96, assignments 56, backups 47, messages 80; build 0, oxlint 42, SSR 44/44
+with a negative control. The last open server item in KNOWN ISSUES (no
+`LIMIT`) is closed; the `date`-drops-`from`/`to` and no-class-filter halves
+of the attendance and grades rows stay open. Full row and allow-lists:
+`docs/CHANGELOG.md`, 2026-09-19, and `docs/API_REFERENCE.md` §6b.
+
 **B3 on the same branch (2026-09-19):** the browser check found the `401`
 logout landing on Login with no reason. `api/axios.js` now stores the
 server's message in `sessionStorage` (never the URL) before the redirect —

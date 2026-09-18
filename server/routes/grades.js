@@ -5,6 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat } = require('../utils/dateFormat');
 const gc = require('../utils/gradeComputation');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -429,20 +430,38 @@ router.get('/', authenticate, authorize('teacher', 'admin', 'parent'), async (re
     params.push(school_year);
   }
 
+  const list = readListParams(req.query, {
+    sortable: {
+      student: 's.last_name, s.first_name',
+      subject: 'sub.name',
+      term: 'g.term',
+      school_year: 'g.school_year',
+      updated_at: 'g.updated_at',
+    },
+    defaultOrderBy: 'g.school_year DESC, g.term ASC, sub.name ASC',
+    tiebreaker: 'g.id ASC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const fromClause = `FROM grades g
+       JOIN students s ON s.id = g.student_id
+       JOIN subjects sub ON sub.id = g.subject_id
+       ${whereClause}`;
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
     const [rows] = await pool.query(
       `SELECT g.*, s.first_name, s.last_name, s.grade_level AS student_grade_level, s.section AS student_section,
               sub.name AS subject_name
-       FROM grades g
-       JOIN students s ON s.id = g.student_id
-       JOIN subjects sub ON sub.id = g.subject_id
-       ${whereClause}
-       ORDER BY g.school_year DESC, g.term ASC, sub.name ASC`,
-      params
+       ${fromClause}
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, grades: rows });
+    return res.json({ success: true, grades: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List grades error:', error);
     return res.status(500).json({ success: false, message: 'Failed to list grades.' });

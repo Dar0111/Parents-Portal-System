@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -125,27 +125,52 @@ export default function UsersPage() {
 
   const [statusSavingId, setStatusSavingId] = useState(null);
 
+  // Two paged tables, two pager states (2026-09-19). Each is one page of a
+  // server-sorted list (C1); a filter or sort change resets its offset (C6);
+  // a page emptied by an approval steps back on its own (C7, in DataTable).
+  const [pendingOffset, setPendingOffset] = useState(0);
+  const [pendingSort, setPendingSort] = useState(null);
+  const [pendingPage, setPendingPage] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = {};
+      const params = { ...listParams({ offset, sort }) };
       if (applied.role) params.role = applied.role;
       if (applied.status) params.status = applied.status;
       if (applied.search) params.search = applied.search;
 
-      const [pendingRows, userRows] = await Promise.all([
-        api.get('/users/parents/pending', { unwrap: 'parents' }),
-        api.get('/users', { unwrap: 'users', params }),
+      const [pendingResult, userResult] = await Promise.all([
+        api.get('/users/parents/pending', {
+          unwrap: ['parents', 'page'],
+          params: listParams({ offset: pendingOffset, sort: pendingSort }),
+        }),
+        api.get('/users', { unwrap: ['users', 'page'], params }),
       ]);
-      setPending(pendingRows);
-      setUsers(userRows);
+      setPending(pendingResult.parents);
+      setPendingPage(pendingResult.page);
+      setUsers(userResult.users);
+      setPage(userResult.page);
     } catch (err) {
       setError(extractError(err));
     } finally {
       setLoading(false);
     }
-  }, [applied]);
+  }, [applied, offset, sort, pendingOffset, pendingSort]);
+
+  function changePendingSort(next) {
+    setPendingSort(next);
+    setPendingOffset(0);
+  }
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -157,6 +182,7 @@ export default function UsersPage() {
     // empty, users still []) renders "No users yet" — 5f naming the
     // wrong cause. DataTable already prefers loading over empty.
     setLoading(true);
+    setOffset(0);
     setApplied({ role, status, search: search.trim() });
   }
 
@@ -165,6 +191,7 @@ export default function UsersPage() {
     setStatus('');
     setSearch('');
     setLoading(true);
+    setOffset(0);
     setApplied({ role: '', status: '', search: '' });
   }
 
@@ -516,6 +543,10 @@ export default function UsersPage() {
           columns={pendingColumns}
           rows={pending}
           loading={loading}
+          page={pendingPage}
+          onPageChange={setPendingOffset}
+          sort={pendingSort}
+          onSortChange={changePendingSort}
           emptyIcon="fa-envelope-open-text"
           emptyTitle="No parent accounts waiting for approval"
           emptyMessage="A teacher creates the account. It appears here until you approve or reject it."
@@ -593,6 +624,10 @@ export default function UsersPage() {
           columns={userColumns}
           rows={users}
           loading={loading}
+          page={page}
+          onPageChange={setOffset}
+          sort={sort}
+          onSortChange={changeSort}
           emptyIcon={directoryEmpty.icon}
           emptyTitle={directoryEmpty.title}
           emptyMessage={directoryEmpty.message}

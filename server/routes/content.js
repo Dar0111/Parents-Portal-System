@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
+const { readListParams, pageMeta } = require('../utils/pagination');
 
 function isValidGradeLevel(value) {
   const n = Number(value);
@@ -181,11 +182,24 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
   const conditions = [];
   const params = [];
 
+  const list = readListParams(req.query, {
+    sortable: { title: 'a.title', posted_by_name: 'u.name', created_at: 'a.created_at', category: 'a.category' },
+    defaultOrderBy: 'a.created_at DESC',
+    tiebreaker: 'a.id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
     if (req.user.role === 'parent') {
       const student = await getStudentClass(req.user.student_id);
       if (!student) {
-        return res.json({ success: true, announcements: [] });
+        return res.json({
+          success: true,
+          announcements: [],
+          page: pageMeta({ limit: list.limit, offset: list.offset, total: 0 }),
+        });
       }
       conditions.push(
         '(a.target_grade IS NULL OR (a.target_grade = ? AND (a.target_section IS NULL OR a.target_section = ?)))'
@@ -230,15 +244,19 @@ announcementsRouter.get('/', authenticate, async (req, res) => {
     // ON DELETE RESTRICT, so a missing poster cannot exist. Written longhand
     // at all nine returning SELECTs (3 list + 3 POST + 3 PUT); load-existing
     // for PUT/DELETE stays SELECT * and is not returned to a caller.
+    const fromClause = `FROM announcements a
+       INNER JOIN users u ON u.id = a.posted_by
+       ${where}`;
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
     const [rows] = await pool.query(
       `SELECT a.*, u.name AS posted_by_name
-       FROM announcements a
-       INNER JOIN users u ON u.id = a.posted_by
-       ${where} ORDER BY a.created_at DESC`,
-      params
+       ${fromClause}
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, announcements: rows });
+    return res.json({ success: true, announcements: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List announcements error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch announcements.' });
@@ -371,18 +389,30 @@ announcementsRouter.delete('/:id', authenticate, authorize('teacher', 'admin'), 
 
 const memosRouter = express.Router();
 
-memosRouter.get('/', authenticate, async (_req, res) => {
+memosRouter.get('/', authenticate, async (req, res) => {
+  const list = readListParams(req.query, {
+    sortable: { title: 'm.title', posted_by_name: 'u.name', created_at: 'm.created_at' },
+    defaultOrderBy: 'm.created_at DESC',
+    tiebreaker: 'm.id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
     // m.* is the same column set SELECT * used to return (id, title, content,
     // attachment_url, posted_by, created_at). Alias required so the JOIN
     // cannot collide posted_by with u.id.
+    const [[{ total }]] = await pool.query('SELECT COUNT(*) AS total FROM memos');
     const [rows] = await pool.query(
       `SELECT m.*, u.name AS posted_by_name
        FROM memos m
        INNER JOIN users u ON u.id = m.posted_by
-       ORDER BY m.created_at DESC`
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [list.limit, list.offset]
     );
-    return res.json({ success: true, memos: rows });
+    return res.json({ success: true, memos: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List memos error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch memos.' });
@@ -496,11 +526,20 @@ eventsRouter.get('/', authenticate, async (req, res) => {
   const conditions = [];
   const params = [];
 
+  const list = readListParams(req.query, {
+    sortable: { title: 'e.title', event_date: 'e.event_date', posted_by_name: 'u.name', created_at: 'e.created_at' },
+    defaultOrderBy: 'e.event_date DESC',
+    tiebreaker: 'e.id DESC',
+  });
+  if (!list.ok) {
+    return res.status(400).json({ success: false, message: list.message });
+  }
+
   try {
     if (req.user.role === 'parent') {
       const student = await getStudentClass(req.user.student_id);
       if (!student) {
-        return res.json({ success: true, events: [] });
+        return res.json({ success: true, events: [], page: pageMeta({ limit: list.limit, offset: list.offset, total: 0 }) });
       }
       conditions.push('(e.target_grade IS NULL OR e.target_grade = ?)');
       params.push(student.grade_level);
@@ -538,15 +577,19 @@ eventsRouter.get('/', authenticate, async (req, res) => {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const fromClause = `FROM events e
+       INNER JOIN users u ON u.id = e.posted_by
+       ${where}`;
+    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
     const [rows] = await pool.query(
       `SELECT e.*, u.name AS posted_by_name
-       FROM events e
-       INNER JOIN users u ON u.id = e.posted_by
-       ${where} ORDER BY e.event_date DESC`,
-      params
+       ${fromClause}
+       ${list.orderBy}
+       LIMIT ? OFFSET ?`,
+      [...params, list.limit, list.offset]
     );
 
-    return res.json({ success: true, events: rows });
+    return res.json({ success: true, events: rows, page: pageMeta({ limit: list.limit, offset: list.offset, total }) });
   } catch (error) {
     console.error('List events error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch events.' });

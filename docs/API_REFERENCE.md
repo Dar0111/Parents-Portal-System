@@ -235,6 +235,83 @@ see, by name. A 404 would hide nothing and cost clarity. Do not "fix" it.
 
 ---
 
+## 6b. Pagination — every list endpoint (2026-09-19)
+
+One contract, `server/utils/pagination.js`, on **16 list handlers**:
+`GET /users`, `/users/parents/pending`, `/students`, `/grades`,
+`/attendance`, `/attendance/student/:id`, `/excuse-letters`,
+`/excuse-letters/mine`, `/announcements`, `/memos`, `/events`,
+`/assignments`, `/backups`, `/messages/conversations`, `/messages/contacts`
+and — on a cursor, see below — `/messages/with/:userId`. Not paginated, by
+design: `/sections` (23 rows), `/subjects` (40), `/settings`,
+`/grading-modes`, `/grades/student/:id` (a bounded report card),
+`/attendance/summary/:id` (counts), and `backups`' `orphaned_files` (the
+disk minus EVERY row — the same list on every page).
+
+**Request** — all optional:
+
+| Param | Meaning | Refusal |
+|---|---|---|
+| `limit` | rows per page, default **50**, max **200** | `400` "limit must be an integer between 1 and 200." |
+| `offset` | rows to skip, default 0 | `400` "offset must be an integer of 0 or more." |
+| `sort` | one key from that endpoint's allow-list (the row's table below names them) | `400` "sort must be one of: …" naming every allowed key |
+| `order` | `asc` (default) or `desc`; requires `sort` | `400` "order must be 'asc' or 'desc'." / "order requires sort." |
+
+**Response** — the endpoint's existing array key is unchanged (so `unwrap`
+and every page keep working) and a sibling object is added:
+
+```json
+{ "success": true, "students": [ ... ], "page": { "limit": 50, "offset": 0, "total": 812, "has_more": true } }
+```
+
+`total` counts the **filtered, scoped** set — the same WHERE the rows came
+from, so `?status=Pending` or `?search=` changes it (C4). `has_more` is
+`offset + limit < total`. Without `sort` each handler keeps its own default
+order; with it, the allow-listed expression is applied (a two-column key such
+as `name` → `last_name, first_name` takes the direction on both columns) and
+a row-id tiebreaker is always appended so no row can appear on two pages.
+
+**Allow-lists** (key → what it orders by):
+
+| Endpoint | Keys |
+|---|---|
+| `/users` | `name`, `login_id`, `role`, `status`, `created_at` |
+| `/users/parents/pending` | `name`, `student` (last, first), `class` (grade, section), `created_at` |
+| `/students` | `name`, `class`, `lrn`, `status`, `created_at` |
+| `/grades` | `student`, `subject`, `term`, `school_year`, `updated_at` |
+| `/attendance` | `date`, `student`, `class`, `status` |
+| `/attendance/student/:id` | `date`, `status` |
+| `/excuse-letters` | `student`, `class`, `absence_date`, `status`, `created_at` |
+| `/excuse-letters/mine` | `absence_date`, `reason`, `status`, `created_at` |
+| `/announcements` | `title`, `posted_by_name`, `created_at`, `category` |
+| `/memos` | `title`, `posted_by_name`, `created_at` |
+| `/events` | `title`, `event_date`, `posted_by_name`, `created_at` |
+| `/assignments` | `class`, `subject`, `teacher` |
+| `/backups` | `filename`, `created_at`, `file_size` |
+| `/messages/conversations` | `other_user_name`, `last_message_at`, `unread_count` |
+| `/messages/contacts` | `name`, `role`, `student_name`, `last_message_at` |
+
+**The thread is the one cursor-paged list (C3).** `GET /messages/with/:userId`
+takes `limit` and `before=<message_id>` and refuses `offset`, `sort` and
+`order` with `400` ("This thread pages with before=<message_id>, not
+offset."). No `before` returns the newest `limit` messages; `before=<id>`
+returns the `limit` messages older than that id. Within a page the rows are
+in reading order (oldest first), so a client prepends a page unchanged.
+`page` here is `{ limit, before, total, has_more }` — `total` is the whole
+thread, `has_more` is true when rows older than the oldest returned exist.
+Offsets were rejected for the thread because Socket.io appends to it live:
+an offset taken before a new message arrived would skip or repeat a row on
+"Load earlier".
+
+**Clients.** A table page sends one page (`listParams` in
+`client/src/api/axios.js`, page size 50) and sorts server-side — `DataTable`
+in paged mode emits the header click instead of sorting one page locally. A
+caller that needs a COMPLETE set (a roster, a picker, a recorded-grades map)
+uses `fetchAll`, which pages through at 200 until `has_more` is false, de-
+duplicates by id across pages, and throws a user-facing error at 25 pages or
+5,000 rows rather than looping (C2/C5). No client takes the first 50 of a set
+it needs whole.
+
 ## 7. Response wrapper catalog
 
 The full list, one row per concept (singular/plural pairs and

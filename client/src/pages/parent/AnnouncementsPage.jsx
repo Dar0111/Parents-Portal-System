@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api from '../../api/axios';
+import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
@@ -73,18 +73,35 @@ export default function ParentAnnouncementsPage() {
   // show once the list has actually come back empty — skipping the fetch
   // because the account "looks unlinked" would hide real posts behind a stale
   // AuthContext.
+  // Paged table (2026-09-19): one page of a server-sorted list (C1); a
+  // sort change resets to the first page (C6).
+  const [offset, setOffset] = useState(0);
+  const [sort, setSort] = useState(null);
+  const [page, setPage] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await api.get('/announcements', { unwrap: 'announcements' }));
+      const result = await api.get('/announcements', {
+        unwrap: ['announcements', 'page'],
+        params: listParams({ offset, sort }),
+      });
+      setRows(result.announcements);
+      setPage(result.page);
     } catch (err) {
       setError(extractError(err));
       setRows([]);
+      setPage(null);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [offset, sort]);
+
+  function changeSort(next) {
+    setSort(next);
+    setOffset(0);
+  }
 
   useEffect(() => {
     load();
@@ -161,6 +178,10 @@ export default function ParentAnnouncementsPage() {
         loading={loading}
         error={error}
         onRetry={load}
+        page={page}
+        onPageChange={setOffset}
+        sort={sort}
+        onSortChange={changeSort}
         emptyIcon={empty.icon}
         emptyTitle={empty.title}
         emptyMessage={empty.message}
