@@ -13,7 +13,7 @@ Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 20 tables |
+| Database | `parents_portal` — 21 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -30,8 +30,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 76** handlers defined in
-> `server/routes/`, and **the endpoints table below has 77 rows** because
+> different things: **`docs/API_REFERENCE.md` counts 80** handlers defined in
+> `server/routes/`, and **the endpoints table below has 81 rows** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 >
 > Dated CHANGELOG entries are exempt — they record what was true on their date
@@ -72,7 +72,7 @@ Restore was the last page: every Figure 5 admin process has a page. **Admin
 nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; teacher (11) and parent (9) are
-unchanged, and **no role now has a `built: false` item**. 20 tables, 76
+unchanged, and **no role now has a `built: false` item**. 21 tables, 80
 handlers + `/api/health`. 20 of 23 sections have no adviser and no screen can
 assign one — see KNOWN ISSUES.)
 
@@ -177,6 +177,10 @@ return the database to this table, not to a remembered older snapshot.
 | POST | `/api/messages` | authenticated — `canMessage()` boundary, `403` naming the reason on violation |
 | PATCH | `/api/messages/:id/read` | recipient only — sender or a third party gets `403` |
 | PATCH | `/api/messages/read-all/:userId` | recipient only — marks a whole thread read |
+| GET | `/api/notifications` | authenticated — the caller’s own rows only, newest first; paginated; `?unread_only=`. Text is composed from the LIVE item and every row is re-checked for visibility on read, so a notification whose item was deleted (or whose audience no longer includes the caller) is not returned |
+| GET | `/api/notifications/unread-counts` | authenticated — `{ total, announcements, memos, events, excuse_letters, users, grades }`, keyed by nav section. `total` may EXCEED the sum of the badged sections: grades count here and are deliberately never badged |
+| PATCH | `/api/notifications/:id/read` | authenticated — own row only; another user’s is `404`, not `403`; an already-read row is absorbed |
+| PATCH | `/api/notifications/read-all` | authenticated — **no `:userId`**, unlike the messages equivalent: the caller is the only possible subject |
 
 **A scope change removes future authority, never past records.** Three
 places, one principle: deleting a `teacher_assignments` row does not
@@ -186,7 +190,7 @@ a new send; and the subjects-reseed CASCADE is the **opposite** case
 (destroying `subjects.id` wiped assignments *and* grades). Do not add a
 grades-exist guard on `DELETE /api/assignments/:id`.
 
-**Full request/response detail for all 76 endpoints — every body field,
+**Full request/response detail for all 80 endpoints — every body field,
 the exact response wrapper key, role-scope codes, and the 404-vs-403
 convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
 the quick list; that document is what Stage 4 screen work should
@@ -328,6 +332,22 @@ server/
                                 status/teacher_remarks/reviewed_by — never attendance. Unlinked
                                 parent POST is 409 naming the school office
   backups/                     .sql dump files land here — gitignored except .gitkeep
+  routes/notifications.js      the bell: list, unread-counts, mark one read, mark all read. NO user id
+                                is accepted from a request in any form — every statement filters on
+                                req.user.id. Another user’s row is 404, not 403. Two argued departures
+                                from the auth template, both in the file header: no sanitizeUser (every
+                                query names its columns) and NO logActivity on mark-read (a row per
+                                notification opened would drown the audit trail the restore machinery
+                                counts). Text is composed from the LIVE item; every read re-checks
+                                visibility through the matching list endpoint’s own WHERE
+  utils/notify.js              the fan-out, one place, seven event types. THE RULE: a recipient set is
+                                the matching list endpoint’s own WHERE, or a DECLARED NARROWING of it,
+                                never a widening. Three narrowings are in force and each is named at
+                                its query: active accounts only; excuse_submitted to the section
+                                ADVISER alone (review authority is narrower than read scope); and NO
+                                events to admin, who has no Events page. The actor is never a recipient
+                                (Amendment A1) — applied once, in insertNotifications, not in seven
+                                queries. Insert inside the caller’s transaction, emit AFTER it commits
   utils/jwt.js                 sign/verify
   utils/password.js            bcrypt hash/compare
   utils/activity.js            insert into activity_logs
@@ -349,6 +369,16 @@ server/
                                 TCH-002 (adviser-only) and TCH-003 (Grade 1 adviser + all five
                                 subjects). Counts: Seeded baseline. NEVER run with a non-default
                                 DB_NAME (KNOWN ISSUES hazard)
+  scripts/migrate-notifications.js THE MIGRATION TEMPLATE, and the first one this repo ever had.
+                                Before it the only schema tool was setup-db.js, which opens with
+                                DROP DATABASE and is therefore never run against anything that
+                                matters. Copy its four rules for the next migration: NEVER drop;
+                                be idempotent and PRINT the evidence (--print-state, so two runs
+                                are compared by diff rather than by reading the code); announce
+                                created / already present per object; and mirror the change into
+                                database/schema.sql so a clean db:setup matches. MySQL 8 has no
+                                ADD CONSTRAINT IF NOT EXISTS — guard each FK with an
+                                information_schema lookup
   scripts/verify-grading-seed.js direct-DB check of the Grades seed (41-row transmutation table with
                                 no gaps/overlaps, 40 subjects, 35 weight rows, modes, Grade 1 fixture)
                                 — not one of the fifteen suites; run after db:setup
@@ -363,7 +393,8 @@ server/
   scripts/test-sanitize-user.js, scripts/test-grade-computation.js
                                 direct-call unit tests — no server, no DB
 database/
-  schema.sql                   20 tables (contributions + contribution_records dropped 2026-09-13).
+  schema.sql                   21 tables (contributions + contribution_records dropped 2026-09-13;
+                                notifications added 2026-09-19 — see the migration note below).
                                 sections — UNIQUE (grade_level, name, school_year), adviser FK
                                 ON DELETE SET NULL; nullable section_id FK on students (RESTRICT),
                                 teacher_assignments (CASCADE), announcements (CASCADE). attendance —
@@ -560,7 +591,7 @@ Full text: `docs/ARCHIVE.md` → CURRENT STATE → Class Board.
 
 `client/` builds clean (`npm run build`) and lints clean (`oxlint`, two
 pre-existing `AuthContext.jsx` warnings aside; the running oxlint baseline is
-**42 as of 2026-09-18**, measured and recorded on each dispatch's CHANGELOG row). On top of the auth
+**44 as of 2026-09-19**, measured and recorded on each dispatch's CHANGELOG row). On top of the auth
 slice: role-aware `Shell` with nested layout routes, seven shared UI
 primitives, and a dev-only component gallery at `/dev/ui` — registered behind
 `import.meta.env.DEV` and **verified absent from the production bundle**
@@ -600,16 +631,28 @@ client/src/
                           the seal + "Parent's Portal / Capt. H. Francisco ES", <Outlet/>, page title,
                           the LiveStatus strip above the routed page, the unread badge (only on a BUILT
                           Messages item); exports NavItem. The document is the only scroller
-  layout/Header.jsx       the sticky (top-0 z-30) header: title, user, Logout, hamburger below sm.
+  layout/Header.jsx       the sticky (top-0 z-30) header: title, the notification bell, user,
+                          Logout, hamburger below sm. The bell sits BEFORE the user block so the
+                          rightmost control stays Logout at every width.
                           Extracted on D3 so the Notifications dispatch has a file to put the bell in —
                           no bell slot yet
   layout/nav.js           NAV_BY_ROLE — built / blocked / unbuilt flags; the single source of nav
   layout/usePageTitle.js  detail pages override the nav-derived title
-  realtime/               SocketProvider (connected), LiveStatus, UnreadProvider ({ unread, refresh },
-                          request skipped unless that role's Messages item is built)
+  realtime/               SocketProvider (connected; subscribe -> new_message, subscribeNotifications
+                          -> notification_counts — TWO separate listener sets, because one carries a
+                          message and the other carries nothing and means "refetch"), LiveStatus
+                          (ungated for every role since N2), UnreadProvider ({ unread, refresh },
+                          request skipped unless that role's Messages item is built),
+                          NotificationProvider ({ counts, refresh }; a SIBLING of UnreadProvider, never
+                          summed with it — CLAUDE.md §9)
   hooks/useTeacherTargets.js  assigned (GET /assignments, distinct grade+section) OR adviser
                           (GET /sections). Announcements and Events only — never Grades
-  components/             DataTable, Modal, FormField, PasswordField, StatusBadge, EmptyState,
+  components/             NotificationBell (the header bell + its dropdown: real button with
+                          aria-expanded/-controls/-haspopup, the count also as words, Escape closes
+                          AND returns focus, outside click on mousedown, role="menu" with focus NOT
+                          trapped, z-40 over the z-30 header, full-bleed below sm, pages in place —
+                          there is deliberately no /notifications route),
+                          DataTable, Modal, FormField, PasswordField, StatusBadge, EmptyState,
                           ErrorAlert, LoadingSpinner, FormStatus. FormStatus (2026-09-18) is the
                           outcome of ONE write, rendered under the control that caused it — under
                           that form's submit button, or inside the Modal whose action produced it;
@@ -833,16 +876,24 @@ reset may sit in the empty state.**
 ### 5g. When a live channel fails, say so — never fake liveness
 
 `SocketProvider` exposes `connected`; `LiveStatus` renders a persistent
-*"Live updates paused — new messages will not appear on their own"* strip
+*"Live updates paused — new updates will not appear on their own"* strip
 with a Refresh action, and nothing while healthy. **No polling fallback.**
 The socket is a latency optimisation, not the delivery path —
 `POST /api/messages` persists before it emits, and an emit into an empty room
 is a no-op. **The notice must appear wherever anything depending on the
 channel is shown**: `LiveStatus` renders in `Shell`, above the routed page,
 because the unread badge is on every page; its Refresh is a full reload.
-`UnreadProvider` is gated on `messagesBuilt`; `LiveStatus` is not — Admin
-still sees the strip with no Messages page (the inverse), ownerless since the
-Figure 5 scope decision.
+`UnreadProvider` is gated on `messagesBuilt`; **`LiveStatus` is UNGATED for
+every role, since N2 on 2026-09-19** — and the copy says "new updates", not
+"new messages", because the strip is no longer only about Messages and is
+shown to a role that has none. The 2026-09-18 gate on `messagesBuilt` is
+gone: it was sound when written (nothing on an admin's screen was
+channel-fed, so the strip announced a failure they could do nothing about),
+but N1 changed the fact it rested on. Every role now has a bell and sidebar
+badges on the SAME socket, and admin receives `parent_pending` live, so an
+admin whose channel dies has a silently frozen bell — the thing this
+convention exists to prevent. §5g's inverse is therefore not "closed"; it
+no longer exists, because no role is channel-less.
 
 ### 5h. Build and lint prove the code compiles, not that the page renders
 
@@ -883,10 +934,10 @@ page with no unbuilt row is an add, not a flip.
 the rule that `built: false` means *unwritten*, never *refused*. **The state
 is not retired and its branch is not dead:** `Shell.jsx` still implements
 unbuilt and blocked, `/dev/ui` still renders both, and Stage 5 will
-reintroduce them. **§5g's inverse is closed the same day** — `LiveStatus` is
-now gated on the same "role has a built Messages item" test as the badge, so
-the paused-updates strip no longer shows to a role with nothing channel-fed
-on screen. `SocketProvider` still connects for every role.
+reintroduce them. **The `LiveStatus` gate that landed the same day is gone
+again (N2, 2026-09-19)** — every role is channel-fed now, so the strip is
+unconditional; see §5g. `SocketProvider` still connects for every role, and
+an admin socket now feeds something.
 
 ### 7. FormField — four shapes, and only four
 
@@ -947,7 +998,7 @@ sits on a `bg-seal-bg` disc (§9). `:root` holds the raw values, each
 line naming the palette color it equals; `@theme inline` maps them so a
 `[data-theme]` block can swap values at runtime. **`npm run lint:tokens`
 (`client/scripts/check-color-tokens.mjs`) must report 0 on every client
-dispatch**, next to oxlint's 42. `page`/`surface-subtle` and
+dispatch**, next to oxlint's 44. `page`/`surface-subtle` and
 `primary`/`bubble-mine` share a light value on purpose — do not merge them.
 **Dark (2026-09-19):** the same variables under `[data-theme="dark"]` — the
 block is the theme, no page changed for it. Light / Dark / System live in
@@ -955,10 +1006,40 @@ Settings → Personalization, stored on the device (`pp.theme`, default Light),
 applied by `pages/settings/theme.js` and by an inline script in `index.html`
 before the bundle (keep the two in step by hand); `initTheme()` in `main.jsx`
 keeps System live. **`npm run lint:contrast` must report 0** on every client
-dispatch, next to `lint:tokens` and oxlint's 42; a failing pair is waived
+dispatch, next to `lint:tokens` and oxlint's 44; a failing pair is waived
 only by an allow-list entry whose marker sits on a KNOWN ISSUES row. Full
 text, the proof method, the six accepted light-mode changes (E1–E6) and the
 dark values: `docs/FRONTEND_CONVENTIONS.md` §8.
+
+### 10. Notifications — the bell, the badges, and what a count may be
+
+**Frozen 2026-09-19 (N1 server, N2 client).** Four rules; the reasoning, the
+audiences and the accessibility contract are in
+`docs/FRONTEND_CONVENTIONS.md` §10 and `docs/API_REFERENCE.md`.
+
+- **A count is the server’s answer, never client arithmetic.** The socket
+  event `notification_counts` carries no payload and means *refetch*.
+  Nothing increments on arrival or decrements on a read. This is §5b one
+  component out, and the Messages badge had exactly this defect on
+  2026-09-07.
+- **Two counts, two sources, never summed.** Messages keep their own
+  (`GET /messages/conversations`); the bell counts everything else and
+  deliberately excludes messages, because `messages.read_status` already IS
+  per-item read state.
+- **Bell vs badge is a decision.** Everything rings the bell. Badged:
+  Excuse Letters / Announcements / Memos / Events for teacher and parent,
+  Users and Announcements (carrying **announcements + memos**, since admin
+  has no Memos page) for admin. **Grades is never badged** — bell only. So a
+  parent’s bell total EXCEEDS the sum of their badges; that is correct, and
+  it must be written down wherever it could read as a bug.
+- **A notification must be openable**, and "cannot open" includes having no
+  page for it, not only failing an API scope check — admin is authorised by
+  `GET /api/events` and is still not notified about events. Enforced twice:
+  the fan-out picks the audience with the matching list endpoint’s own
+  `WHERE` (or a DECLARED narrowing, never a widening), and every read
+  re-checks visibility against live rows. Adding a page for something
+  currently excluded means changing BOTH places; flipping a nav flag will
+  not do it.
 
 ### Corrections — three claims retired here
 
@@ -1401,7 +1482,7 @@ is still open, needing its own dispatch:**
 
 | Issue | Where | Note |
 |---|---|---|
-| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm 20 tables. Do not delete or edit the old dumps |
+| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (21 since `notifications` landed 2026-09-19). Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `admin/SettingsPage.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
@@ -1550,8 +1631,9 @@ at the end of each session.
 
 ### Stage 1 — Foundation ✅ DONE
 
-- [x] Database schema — 20 tables (was 18 when Stage 1 closed; the Grades
-      rebuild and `auth_security_state` added four, and Feature 7's two
+- [x] Database schema — 21 tables (was 18 when Stage 1 closed; the Grades
+      rebuild and `auth_security_state` added four, `notifications` added one,
+      and Feature 7's two
       tables were dropped 2026-09-13)
 - [x] Seed data
 - [x] Auth backend — login, JWT, RBAC, approve/reject
@@ -2090,21 +2172,14 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |
 | 2026-09-19 | Login defect fixes (same branch): the leading icons were not centred because Font Awesome ships `.fa-solid { display: inline-block }` UNLAYERED and beats Tailwind’s layered `.flex` — the flex now sits on a wrapping span, never on the `<i>`; and the band painted over the card below `lg` because `.brand-panel-art` is `position: relative` and a positioned element covers a static sibling whatever the DOM order — the card’s `<main>` takes `relative z-10`. Both found in browser review; three SSR controls prove the new assertions actually fail on the old code. |
 | 2026-09-19 | Login addendum (same branch): card copy is "Welcome back" / "Sign in to continue."; `fa-user` and `fa-lock` inside the inputs (Login ID via `FormField` shape 4, Password via one new optional `leadingIcon` prop — declared scope expansion) and `fa-arrow-right` on the button; a decorative glow, dot pattern, two corner rings, a seal halo and a dot grid behind the card, all defined in `index.css` off five new tokens (palette 66 → 71) including `brand-panel-lit`, the precomputed panel-plus-glow composite that `lint:contrast` checks the text against. |
 | 2026-09-19 | Login redesign (`feat/login-redesign`): a brand split panel at `lg` and a band below it with the card overlapping (`-mt-12` against `pb-16`, not absolute); three new tokens `brand-panel` / `-fg` / `-muted` because `primary` is a LIGHT indigo in dark and `brand-soft` is near-white in light (palette 63 → 66, two stale counts corrected); Login ID becomes a `FormField` and Password a `PasswordField`, so the page has a reveal toggle and `PasswordField` no longer says Login is not its consumer; `role="alert"` on the error box. |
-| 2026-09-19 | Brand chrome (D3, `feat/brand-chrome`): `primary` is the school's navy (`#08027C` / `#ABA8F7` dark) — buttons, badges, segmented controls; `brand`, `brand-soft`, `seal-bg` added (63 tokens) for the active nav, seven content links and the seal's disc; the seal (192 px, 49 KB, from the school's JPG — a JPG with a white field, not the named transparent PNG) in the sidebar, drawer and Login, favicon set generated, `favicon.svg` gone; header extracted to `layout/Header.jsx` and sticky, sidebar sticky, one scrollbar, no bell slot. Two extra content links declared as scope expansion, not edited. |
-| 2026-09-19 | `fix/empty-state-duplicates`: Parent → Excuse Letters' empty state no longer repeats the header's Submit letter and names it instead; §5f gains the rule (an empty state never repeats an always-visible header action; filter/range resets may stay). Audit: this and the D2 Messages case were the only two duplicates. |
-| 2026-09-19 | Dark mode (D2, `feat/dark-mode`): Light / Dark / System in Settings → Personalization (`pp.theme`, default Light, `data-theme` on `<html>` set by `theme.js` and an `index.html` inline script before the bundle, one `prefers-color-scheme` listener); the 60 tokens' dark values under `[data-theme="dark"]`; light AA fixes (table header, placeholders, Approve buttons, 41 faint labels); Messages empty-state button removed; `/dev/ui` theme preview + token strip; `npm run lint:contrast` = 0 with nine waived pairs each on a KNOWN ISSUES row. |
-| 2026-09-19 | Design tokens (D1, `feat/design-tokens`): 60 semantic color tokens in `client/src/index.css` (`@theme inline`), 1,029 raw utilities in 51 files replaced by codemod (75 class strings, 33 line overrides, six accepted light-mode exceptions E1–E6), `npm run lint:tokens` = 0 enforced by `client/scripts/check-color-tokens.mjs`; SSR snapshot 38/38 identical with classes stripped; new §8 above. No dark values yet — D2. |
-| 2026-09-19 | `fix/copy-nits`: Teacher → Attendance footer verb follows the unset count ("1 student has"); the "N students" line under both Students pagers removed; the three decorative px sizes (DataTable sort icon + chevrons, thread timestamps) converted to rem so Large text scales them — KNOWN ISSUES row added and closed. `textSize.js`'s comment still calls them out of scope: stale, not edited. |
-| 2026-09-19 | CLAUDE.md trim (D0): 147,145 → 134,157 chars. Four blocks moved verbatim by script with a byte-identical check (129/129 lines): 30 compact KNOWN ISSUES rows → `docs/KNOWN_ISSUES.md`, 14 older CHANGELOG stubs, the ADMIN SCOPE AUDIT block and the answered OPEN QUESTIONS bullets → `docs/ARCHIVE.md`. Every `##` heading kept, each condensed section ends with a pointer. Docs only. |
-| 2026-09-19 | Server hardening C (`feat/pagination`): every list endpoint pages (`limit` 50/200, `offset`, `sort`/`order` allow-list, sibling `page { limit, offset, total, has_more }` over the filtered set; the thread on `?before=`), 16 handlers in 9 route files, `utils/pagination.js`; DataTable paged mode (server sort, footer, C7 step-back), `fetchAll` (200/page, de-dupe, hard cap) for every complete-set caller, 24 client files. Nine suites grew (users 61, students 94, grades 182, attendance 60, excuses 92, content 96, assignments 56, backups 47, messages 80). FRONTEND_CONVENTIONS §5 and two KNOWN ISSUES rows here are now stale — listed on the full row, not edited. |
-| 2026-09-19 | B3: the `401` redirect now carries its reason — `axios.js` stores it in `sessionStorage` (never the URL), Login shows it once in the sign-in error slot and clears it; `Account is not active.` and the restore message verbatim, the token-shaped 401s become "Your session has ended. Please log in again."; a manual Logout shows nothing. Same-browser second-login identity swap recorded in KNOWN ISSUES, not fixed. |
-| 2026-09-19 | Branch B amended (B1, B2): `POST /api/users/parents` resolves LRN + scope in one query BEFORE the duplicate `409`s — unknown LRN, out-of-scope LRN and out-of-scope LRN of a child with a parent are byte-identical `403`s, the `404` is gone; the six stale present-tense claims from the row below corrected (CLAUDE.md, `docs/FRONTEND_CONVENTIONS.md`, `StudentsPage.jsx`). `test:auth` 56. |
-| 2026-09-18 | Server hardening B (`feat/authorization`): `POST /api/users/parents` is `403` unless the teacher is assigned to OR advises the student's section (the shared `TEACHER_VIEW_SCOPE_SQL`); `middleware/auth.js` answers `401`, not `403`, for `Account is not active.` on a live session — login keeps `403` + `status`. `test:auth` 54, `test:users` 47, `test:excuses` 70. Six sentences in this file and one `StudentsPage.jsx` comment are now stale — listed on the full row, not edited. |
-| 2026-09-18 | Server hardening A (`feat/validation`): 12-digit LRN on create (`utils/lrnRule.js`), one contact-number rule at all six writes (`utils/contactRule.js`, digits-only storage), birthday/gender validated as `400`s, `parent_account` on `GET /students/:id`, ids instead of LRNs in new audit rows, `field` keys on restore, Login uses `extractError`. students 79, auth 52, users 47, restore 29. |
 
-Stub lines older than these (14, 2026-09-14 → 2026-09-18) are verbatim in
-`docs/ARCHIVE.md` → "CHANGELOG stubs moved from CLAUDE.md on 2026-09-19";
-every full row is in `docs/CHANGELOG.md`.
+Older stub lines are verbatim in `docs/ARCHIVE.md` — 14 (2026-09-14 →
+2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on 2026-09-19", and
+11 more (all 2026-09-18 and 2026-09-19) under the "second batch, N3"
+heading below it. **Every full row is in `docs/CHANGELOG.md`**; this table
+holds only the newest one-line summaries, and a stub is moved out when this
+file approaches its size limit, never deleted.

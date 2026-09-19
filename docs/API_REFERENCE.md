@@ -227,11 +227,26 @@ see, by name. A 404 would hide nothing and cost clarity. Do not "fix" it.
   client's perspective.
 - On connect, the server automatically joins the socket to a room named
   `user:<your user id>` — nothing for the client to do to "subscribe."
-- **One event**: `new_message`, emitted only by `POST /api/messages`
-  after the row is persisted (REST is the source of truth; the socket
-  emit happens after, never instead of). Payload is the full `messages`
-  row: `{ id, sender_id, receiver_id, body, read_status, created_at }`.
-  Delivered only to the recipient's room — never a broadcast.
+- **Two events** (`new_message` since Messages shipped, `notification_counts`
+  since N1 on 2026-09-19). Both are emitted only AFTER the row they describe
+  is persisted — REST is the source of truth and the socket emit happens
+  after, never instead of — and both go to one room, never a broadcast.
+
+| Event | Payload | Emitted by | Means |
+|---|---|---|---|
+| `new_message` | the full `messages` row: `{ id, sender_id, receiver_id, body, read_status, created_at }` | `POST /api/messages` | a message arrived, here it is |
+| `notification_counts` | **NONE — deliberately** | `server/utils/notify.js`, after any fan-out commits | *your notifications changed; re-read them* |
+
+- **`notification_counts` carries no payload on purpose, and a client must
+  not invent one.** The count and the rows come from
+  `GET /api/notifications/unread-counts` and `GET /api/notifications`; a
+  client that incremented a local number on the event would be holding a
+  second copy of a fact the server owns, which is the defect CLAUDE.md
+  convention 5b describes one component further out. The client contract is:
+  hear the event, refetch.
+- For the grades hooks the emit happens **after `conn.commit()`**, never
+  inside the transaction — a socket event for a row that rolled back would
+  be the fake liveness convention 5g forbids.
 
 ---
 
@@ -532,6 +547,62 @@ the bottom must equal 82.
 | POST | `/` | any authenticated | `receiver_id`*, `body`* | `data` | `403` naming the reason on a `canMessage()` violation; `404` if recipient not found/inactive; emits `new_message` over Socket.io |
 | PATCH | `/:id/read` | any authenticated (recipient only) | — | `data` | non-recipient → `403` |
 | PATCH | `/read-all/:userId` | any authenticated (recipient only, by construction) | — | `count` (bare number) | |
+
+### Notifications (4) — `/api/notifications`
+
+**The bell. Added N1, 2026-09-19.** Every route is `authenticate` only — there
+is no `authorize()` call in the file, because the resource IS the caller.
+
+**THE AUTH RULE, which is the whole security story here: no endpoint accepts
+a user id in any form.** Not in the path, not in a query parameter, not in a
+body. Every statement filters on `req.user.id`, the row `authenticate`
+re-read from the database on this request. `PATCH /read-all` deliberately
+takes **no** `:userId`, unlike `PATCH /api/messages/read-all/:userId`: the
+caller is the only possible subject, and an id in the path invites exactly
+the mistake that route has to guard against. Acting on a notification that
+is not yours is **`404`, not `403`** — a read-shaped failure, so
+anti-enumeration applies (§5).
+
+**Rows are re-checked for visibility on every read.** A notification whose
+item was deleted, or whose audience no longer includes this user (a deleted
+`teacher_assignments` row, an approved pending parent), is simply not
+returned — the list joins each row back to its item through that item’s own
+list `WHERE`. Nothing deletes the row and there is no cleanup job.
+
+| Method | Path | Roles | Request | Response key | Notes |
+|---|---|---|---|---|---|
+| GET | `/` | any authenticated | query: `limit` (1–200, default 50), `offset`, `sort` (`created_at` only), `order`, `unread_only` (`true`/`false`) | `notifications` (array) + `page` | Newest first. Row: `{ id, type, item_type, item_id, title, body, link, actor_name, created_at, read_at }` — `read_at` `null` means unread. `title`/`body` are **composed server-side from the LIVE item**, never stored text (an edited announcement reads as it reads now); `link` is the client route to open, so no client keeps a type→route map. `page.total` counts the filtered AND visibility-checked set (§6b C4). `unread_only` outside `true`/`false` is `400`. |
+| GET | `/unread-counts` | any authenticated | — | `counts` | `{ total, announcements, memos, events, excuse_letters, users, grades }`, keyed by **nav section**, unread only. `total` is every unread row; the named keys are what a sidebar badge may show. **`total` can exceed the sum of the named keys a role badges**, because `grades` is counted here and is deliberately never badged — see CLAUDE.md §9. Excludes messages entirely: those have their own count at `GET /api/messages/conversations`. |
+| PATCH | `/:id/read` | any authenticated (own rows only) | — | `notification` | Sets `read_at`. Ownership is in the `UPDATE` itself, so there is no window between a check and the write. An already-read row is **absorbed**, not an error (a repeat, not a second decision — §5e). Another user’s row, or a nonexistent one, is `404`. Non-numeric id is `400` (`parseId`). |
+| PATCH | `/read-all` | any authenticated (own rows only) | — | `updated` (number) | Marks every unread row of the caller read, including ones currently filtered out by the visibility re-check. A second call returns `updated: 0` and is not an error. |
+
+**No DELETE, and no endpoint that writes a notification.** Rows are created
+only by the seven fan-out hooks in `server/routes/`, never by a request.
+
+**No `logActivity` on mark-read — a deliberate exception to "every write
+logs".** A row per notification opened is hundreds of `activity_logs` rows a
+day against a table with no pruning that the restore machinery counts and
+reports on; the thing worth auditing (the announcement, the review, the
+approval) is already logged by the handler that caused it. Argued in the
+route file’s header.
+
+### Notification text — every type, as it will read
+
+Composed in `routes/notifications.js`. **Nothing here may carry an LRN, a
+login id, a score, a letter, an average or a verdict** — a parent’s
+`login_id` IS their child’s LRN (§5c), and the system counts and displays
+but never concludes (CLAUDE.md §4).
+
+| `type` | Title | Body |
+|---|---|---|
+| `announcement` | New announcement | `{actor} posted "{live title}".` |
+| `memo` | New memo | `{actor} posted "{live title}".` |
+| `event` | New event | `{actor} added "{live title}" on {event_date}.` |
+| `excuse_submitted` | New excuse letter | `{student first + last} has a new excuse letter for {absence_date}.` — to the adviser, who is already authorised to see that student |
+| `excuse_reviewed` (Approved) | Excuse letter approved | `Your excuse letter for {absence_date} was approved.` |
+| `excuse_reviewed` (Declined) | Excuse letter declined | `Your excuse letter for {absence_date} was declined. Open it to read the teacher’s remarks.` — the remarks are **not** inlined; they are optional and can be long |
+| `parent_pending` | Parent account waiting for approval | `A new parent account for {student first + last} is waiting for approval.` — names the STUDENT, never the login id |
+| `grade_available` | A grade is ready to view | `{subject} — Term {n} is now on the report card.` — **no number, no letter, no "passing"** |
 
 ---
 

@@ -61,6 +61,40 @@ takes one shared `filterSelectClass` (`w-full sm:w-72`, sized to the longest
 real option — 30 characters) so the control no longer resizes with the
 selection. See CLAUDE.md §7c and `docs/CHANGELOG.md`, 2026-09-18.
 
+**Notifications — DONE 2026-09-19 (N1 server, N2 client, N3 docs).** The
+manuscript promises notifications on pp. 10, 24, 37, 39, 52, 71 and 74; the
+system now has them, on the web, for all three roles. Expo will reuse the
+same API unchanged.
+
+**What exists.** One `notifications` table (the 21st), created by the
+repo’s first migration script — `server/scripts/migrate-notifications.js`,
+which is the template for the next one: never drop, be idempotent and PRINT
+the evidence, announce per object, mirror into `schema.sql`. Four endpoints
+under `/api/notifications` (list, unread-counts, mark one read, mark all
+read), seven fan-out hooks in the existing write paths, and a second socket
+event, `notification_counts`, which carries no payload and means "refetch".
+On the client: a bell in the header with a dropdown that pages in place, and
+unread badges on the sidebar.
+
+**Seven events:** an announcement, a memo or an event posted; an excuse
+letter submitted (to the section adviser alone) and reviewed (back to the
+parent); a pending parent account created (to admin); and a grade becoming
+viewable (to the parent, bell only, at most once per subject and term). The
+actor is never notified about their own item.
+
+**The two rules worth remembering.** A recipient set is the matching list
+endpoint’s own `WHERE`, or a declared narrowing of it, never a widening —
+and because those predicates are evaluated against live rows, every READ
+re-checks visibility, so a notification whose item was deleted or whose
+audience changed simply stops being listed. And a count is always the
+server’s answer: nothing on the client ever adds or subtracts one.
+
+**Not built, deliberately:** a full notifications page (the dropdown pages
+in place; a page would mean a new nav item for three roles), and messages in
+the bell (they keep their own badge, because `messages.read_status` already
+is per-item read state). See CLAUDE.md §9 and
+`docs/FRONTEND_CONVENTIONS.md` §10.
+
 **Two Login defects, 2026-09-19.** Browser review found the leading icons
 sitting at the top-left of their inputs and, at 440px, the brand band
 painting over the top of the card. One cause each, both worth remembering.

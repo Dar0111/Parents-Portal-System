@@ -775,6 +775,63 @@ a dark surface, and the disc is white in both themes on purpose. Alt text is
 one-off System.Drawing script — not a build step; regenerate by hand if the
 school ever supplies a new seal. `favicon.svg` is gone.
 
+### 10. Notifications — the bell, the badges, and what a count is allowed to be
+
+**Frozen 2026-09-19, after N1 (server) and N2 (client).** Four rules. The
+first two are about correctness and the last two about honesty.
+
+**A COUNT IS ALWAYS THE SERVER’S ANSWER, NEVER CLIENT ARITHMETIC.** The
+socket event `notification_counts` carries no payload; it means *refetch*.
+Nothing increments when a notification arrives and nothing decrements when
+one is read — marking a row read calls `refresh()`, which re-reads
+`GET /api/notifications/unread-counts`. This is convention 5b (a display of
+DATABASE state never derives from local state) applied one component out,
+and it is not hypothetical: the Messages badge had exactly this defect on
+2026-09-07, when a locally-maintained number disagreed with the rows the
+server still held unread. `UnreadProvider`’s header records that; this rule
+exists so the second provider did not repeat it.
+
+**TWO COUNTS, TWO SOURCES, NEVER SUMMED.** Messages keep their own count
+(`GET /api/messages/conversations`, feeding the Messages nav badge);
+everything else comes from the bell’s counts. They are joined only at the
+point of rendering one number on one nav item. Messages are deliberately NOT
+in the bell: `messages.read_status` already IS per-item read state, and a
+second store for one fact means two places to mark read and two chances to
+disagree. If the bell should ever mention messages, the fix is to read them
+from the same endpoint — not to add two providers together.
+
+**BELL VS BADGE IS A DECISION, NOT A DEFAULT.** Every unread notification
+rings the bell. Only some badge a nav item:
+
+| | badged |
+|---|---|
+| Teacher, Parent | Excuse Letters, Announcements, Memos, Events |
+| Admin | Users, and Announcements carrying **announcements + memos** |
+| every role | Grades — **never**, bell only (Darryl, 2026-09-19) |
+
+Admin’s Announcements badge carries memos too because admin has no Memos
+page — memos live on Admin → Announcements, the only place one can be
+written — so a posted memo would otherwise ring a bell with no badge leading
+anywhere. The visible consequence of excluding grades is that a parent’s
+bell total EXCEEDS the sum of their badges. That is correct. Write it down
+wherever it could read as a bug, because it will.
+
+**A NOTIFICATION MUST BE OPENABLE.** Nobody is notified about an item they
+cannot open, and "cannot open" includes having no page for it — not just
+failing an API scope check. Admin is authorised by `GET /api/events` and is
+still not notified about events, because admin’s nav has no Events page. The
+rule is enforced twice, at different times: the fan-out picks the audience
+with the matching list endpoint’s own `WHERE` (or a DECLARED narrowing,
+never a widening), and every read re-checks visibility against live rows. If
+a page is ever added for something currently excluded, BOTH places change —
+flipping a nav flag alone will not do it.
+
+**Where the reasoning lives:** `server/utils/notify.js` (the audiences and
+the three declared narrowings), `server/routes/notifications.js` (the
+read-time re-check and the text), `client/src/realtime/NotificationProvider.jsx`
+(the counts), `client/src/components/NotificationBell.jsx` (the panel and its
+accessibility contract).
+
 ### Corrections — three claims retired here
 
 These circulated in planning and are **wrong**. None of them ever appeared

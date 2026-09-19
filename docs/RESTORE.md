@@ -112,7 +112,26 @@ below is in the shipped code, not a plan:
   admin with direct DB access could delete the marker row same as any
   other — accepted deliberately: not silent is still better than silent.
   Response body carries `activity_logs_wiped: <count>` too, so the acting
-  admin sees it immediately, not only in the log. `GET /api/backups` now also reconciles the table against
+  admin sees it immediately, not only in the log.
+
+  **A RESTORE ALSO REWINDS NOTIFICATION READ STATE, AND THE DOTS COME
+  BACK.** `notifications` (added N1, 2026-09-19) is an ordinary table in the
+  dump — `dumpDatabase()` excludes only `backups`’ own rows — so it is
+  captured and restored with everything else, with no code change and
+  nothing to configure. The consequence is that `read_at` reverts to what it
+  was in the snapshot: a notification someone opened after the backup was
+  taken is unread again, and their bell lights up for it a second time.
+  That is correct snapshot behaviour and identical in kind to rewinding
+  `activity_logs`, but it is the one part users SEE, so it belongs in
+  whatever is said to them after a restore.
+
+  It needs no marker row of its own. `restore_wiped_activity_logs` exists
+  because a vanished audit trail is invisible; a returning dot announces
+  itself. **Excluding the table was considered and rejected:** it would mean
+  a second `--ignore-table` plus teaching `stripBackupsTableDdl()` a second
+  table, and it would leave a restored database holding notifications that
+  point at items the restore has just rewound — strictly worse than dots
+  coming back. `GET /api/backups` now also reconciles the table against
   `server/backups/` on every read and returns any `.sql` file with no
   matching row as `orphaned_files` — read-only, never auto-inserted; an
   unexpected file is reported, not silently adopted into the table as
