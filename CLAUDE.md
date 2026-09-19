@@ -1824,6 +1824,9 @@ questions.
 
 **Working agreement**
 
+- Write or edit file content only with the Write/Edit tools — never through
+  `python -c`, `echo`, heredocs or any shell quoting (CLAUDE.md was once
+  truncated to 0 bytes this way).
 - Before writing code for a new module, state the exact list of files you
   will create or modify. If you later need a file outside that list, stop
   and say "SCOPE EXPANSION — need `<path>` because `<reason>`" rather than
