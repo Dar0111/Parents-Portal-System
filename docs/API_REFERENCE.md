@@ -2,9 +2,11 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**86 handlers** across 15 route files (18 feature tables below, since
-`content.js` holds three separate resources and `assignments.js` holds
-two), plus `GET /api/health` in `server.js` = **87 endpoints**. Recounted
+**86 handlers** across 15 route files, documented as **18 endpoint tables
+in §8** (more tables than files, because `content.js` holds three separate
+resources and `assignments.js` holds two), plus `GET /api/health` in
+`server.js` = **87 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
+FILE — it is not a database-table count, and the database has 22. Recounted
 from the code on 2026-09-19; see Verification at the bottom for the
 per-file arithmetic and for which number to quote. If this document and the
 code disagree, the code is correct and this file needs fixing — same

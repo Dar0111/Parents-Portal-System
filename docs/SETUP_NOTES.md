@@ -83,6 +83,15 @@ C:\Users\Win10 User\Parents_Portal
 
 ## Ano na ang tapos (Phase 1)
 
+> **SNAPSHOT NG PHASE 1, hindi kasalukuyang estado.** Tama ang mga numero sa
+> ibaba noong isinulat sila; matagal nang lumampas ang code. Ngayon: **22
+> tables**, `npm run test:auth` **56**, at tapos na ang React web (Stage 4) —
+> ang mga unchecked na kahon sa ibaba ay hindi na bukas na trabaho. Ang buhay
+> na estado ay nasa `CLAUDE.md` at `docs/PROJECT_PROGRESS.md`. Hindi ito
+> ina-update nang paisa-isa: ang pag-aayos ng isang linya lang dito ang
+> magpapamukha sa buong seksyon na maintained, na siyang mismong babala sa
+> README.
+
 - [x] `database/schema.sql` — 18 tables
 - [x] `database/seed.sql` — subjects, students, settings
 - [x] `server/` — Auth API (login, users, approve/reject)
