@@ -16,7 +16,7 @@ accepts it). 20 of 23 sections have no adviser and, with Admin → Sections not
 being built, no screen can assign one — so attendance cannot be recorded in
 them. Sections, Excuse Letters, Events and Messages will not be built. Memos
 live on Admin → Announcements (Darryl, 2026-09-14) — the only place a memo can
-be written. 20 tables.)
+be written. 22 tables, 85 handlers in `server/routes/` + `GET /api/health`.)
 
 **Decided and applied 2026-09-18 (Darryl):** the five admin nav entries with
 no page — Sections, Excuse Letters, Memos, Events, Messages — are **removed**
@@ -73,6 +73,60 @@ that bite". Nothing was deleted: all 1,611 substantial lines of the previous
 version still exist, and all 23 `##` headings are present. Two mirror gaps
 between CLAUDE.md and `docs/FRONTEND_CONVENTIONS.md` were found while
 measuring and closed. **144,967 → 108,102 bytes.**
+
+**Account recovery — DONE 2026-09-19 (R1 server, R2 client, R3 docs).**
+Manuscript p. 49 promises "Forgot Password"; until this dispatch the Login
+page said, in words, that there was no such thing. There is now, and the
+BUILD ORDER line that made it wait on a school answer is closed — the
+decision was **Darryl's, not the school's**: self-service by emailed code,
+with an admin-issued temporary password as the fallback.
+
+**What exists.** A 22nd table, `auth_codes`, created by the repo's second
+migration script (the first, `migrate-notifications.js`, is the template it
+copied: never drop, be idempotent, print the evidence, mirror into
+`schema.sql`). **Five endpoints** — `POST /auth/forgot-password`,
+`POST /auth/reset-password`, `POST /auth/verify-email/request`,
+`POST /auth/verify-email/confirm`, and `POST /users/:id/temp-password`. Codes
+are six digits from `crypto.randomInt`, bcrypt-hashed at rest, good for ten
+minutes and one use, five attempts, three per account per hour and ten per
+IP per hour, with only the newest code for an account valid at a time. Mail
+goes out through nodemailer — the one new dependency — over the school's
+Gmail account; a file transport exists for the suite and is chosen ONCE at
+module load, so no request can turn it on. On the client: a Forgot password
+link that now leads somewhere, `/forgot-password` (two steps, one route,
+because the login id typed there is a child's LRN and may not go in a URL),
+a forced-change screen outside the app shell, Verify email in Settings, and
+Reset password in Admin → Users showing the generated password exactly once.
+
+**Session revocation took three attempts and the two dead ends are written
+into `middleware/auth.js`.** Comparing the JWT's `iat` against a
+`password_changed_at` timestamp cannot work: `iat` has one-second
+resolution, and a temporary password, the login that follows it and the
+forced change all land inside the same second. Minting the replacement a
+second forward only moved the hole — it then outlived the next change. What
+shipped is a `users.token_version` counter carried as the token's `v` claim
+and compared for equality, so every earlier token dies the instant it is
+bumped. The endpoint that bumps it hands back a replacement, and the client
+stores it — which is why changing your password still leaves you signed in
+on the device you did it from.
+
+**What the uniform reply costs, and why it stays.** `forgot-password`
+answers `202` with one sentence for a verified account, an unverified one,
+an unknown login id and its own internal failure alike, because a parent's
+`login_id` IS their child's LRN and any other answer would be an oracle for
+it. The price is that a broken mailer is invisible from the outside —
+recorded in KNOWN ISSUES, along with the sharper hazard that the seed ships
+a single admin whose email is never verified, so both routes back in can be
+shut at once.
+
+**Verified end to end in the browser by Darryl on 2026-09-19** over real
+Gmail SMTP: admin and parent resets both completed, an older code and six
+random digits gave the same refusal as each other, a temporary password
+drove the forced-change screen and revoked an incognito session, and —
+unplanned — the fallback was used for real when the new password was
+forgotten. The check found two defects, both fixed before merge: an own-row
+email edit in Admin → Users left Settings showing the previous address, and
+three copy branches told an admin to ask an office they ARE.
 
 **Notifications — DONE 2026-09-19 (N1 server, N2 client, N3 docs).** The
 manuscript promises notifications on pp. 10, 24, 37, 39, 52, 71 and 74; the

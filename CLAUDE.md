@@ -13,7 +13,7 @@ Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 21 tables |
+| Database | `parents_portal` — 22 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -30,9 +30,11 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 80** handlers defined in
-> `server/routes/`, and **the endpoints table below has 81 rows** because
+> different things: **`docs/API_REFERENCE.md` counts 85** handlers defined in
+> `server/routes/`, and the API answers **86 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
+> Both were recounted from the code on 2026-09-19; the archived endpoint
+> table's 81 rows are a dated snapshot of that day, not a third figure.
 >
 > Dated CHANGELOG entries are exempt — they record what was true on their date
 > and must not be back-edited. It is present-tense claims that have to agree.
@@ -72,7 +74,7 @@ Restore was the last page: every Figure 5 admin process has a page. **Admin
 nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; teacher (11) and parent (9) are
-unchanged, and **no role now has a `built: false` item**. 21 tables, 80
+unchanged, and **no role now has a `built: false` item**. 22 tables, 85
 handlers + `/api/health`. 20 of 23 sections have no adviser and no screen can
 assign one — see KNOWN ISSUES.)
 
@@ -105,9 +107,12 @@ there before the move, with request/response detail this table never had.
 
 **Read `docs/API_REFERENCE.md` for any endpoint question.** What still
 belongs here is only the arithmetic, because two numbers are both correct
-and mean different things: **80 handlers** are defined in `server/routes/`,
-and the archived table has **81 rows** because `GET /api/health` is mounted
-directly in `server.js`. State which you mean.
+and mean different things: **85 handlers** are defined in `server/routes/`,
+and the API answers **86 endpoints** because `GET /api/health` is mounted
+directly in `server.js`. State which you mean. The archived table's **81
+rows** are neither — it is a snapshot dated 2026-09-19, taken before
+Notifications' 4 and account recovery's 5 landed, and it is not the live
+record.
 
 
 **A scope change removes future authority, never past records.** Three
@@ -118,7 +123,7 @@ a new send; and the subjects-reseed CASCADE is the **opposite** case
 (destroying `subjects.id` wiped assignments *and* grades). Do not add a
 grades-exist guard on `DELETE /api/assignments/:id`.
 
-**Full request/response detail for all 80 endpoints — every body field,
+**Full request/response detail for all 86 endpoints — every body field,
 the exact response wrapper key, role-scope codes, and the 404-vs-403
 convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
 the quick list; that document is what Stage 4 screen work should
@@ -663,6 +668,46 @@ audiences and the accessibility contract are in
   currently excluded means changing BOTH places; flipping a nav flag will
   not do it.
 
+### 11. Account recovery — what may be said, and what revokes a session
+
+**Frozen 2026-09-19 (R1 server, R2 client).** Four rules; the endpoint
+detail is `docs/API_REFERENCE.md` → Auth, and the dump exclusion is in
+`docs/RESTORE.md`.
+
+- **`POST /api/auth/forgot-password` answers the same sentence, always.**
+  Verified account, unverified, inactive, unknown `login_id`, rate-limited,
+  internal failure — one `202` and one message. A parent's `login_id` IS
+  their child's LRN (§5c), so anything else is an LRN oracle. The client
+  advances its step on that reply and **must not branch on whether a code
+  was really sent**. Two timing mitigations hold the line the message draws:
+  a miss burns a bcrypt, and the response goes out before the SMTP call. The
+  reset endpoint has **one** failure message for every cause and **no count
+  of tries remaining** — that is the same oracle, slower.
+- **`users.token_version` is the revocation mechanism, not a timestamp.**
+  Bumped by a password change, a reset and an admin temporary password; the
+  token carries it as `v` and `middleware/auth.js` compares for equality.
+  **`password_changed_at` is audit only** — two attempts to revoke on it
+  failed, because `iat` has one-second resolution and a scripted flow fits
+  inside one second. Do not reintroduce it as the check.
+- **A write that revokes must hand back a replacement, and the client must
+  store it.** `PUT /auth/change-password` returns `token`;
+  `AuthContext.applyToken()` stores it and re-reads `/auth/me`, in that
+  order, because the interceptor reads storage per request. A caller that
+  drops it signs its own user out on the success path.
+- **The forced change is routed on the FIELD, never on the 403.** The server
+  refuses every other route with `code: 'MUST_CHANGE_PASSWORD'`, and that is
+  a backstop for direct API callers: §2 says a 403 never redirects, and the
+  client already has `user.must_change_password` from `/auth/me`.
+  `/change-password` sits outside `Shell` (a nav of pages the server will
+  refuse is an interface that lies) and outside `ProtectedRoute` (which is
+  what redirects there).
+
+**A screen may not tell someone to ask an office they ARE.** All three email
+branches on Settings → Account information name Admin → Users for an admin
+and the school office for everyone else; an admin's own way back in is
+*another* admin, because the temporary-password endpoint is admin-only and
+refuses your own id (§5i, browser check 2026-09-19).
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, never in this file, recorded so they cannot
@@ -1033,6 +1078,13 @@ RESTORE section".
 - **Automatic safety dump first**, `pre_restore_<timestamp>.sql`, via the
   same `createBackupRecord()` as a manual backup. If it fails, the restore
   aborts and nothing is changed — the single most important line.
+- **`auth_codes`' ROWS are never in a dump either** (R1, 2026-09-19) — a
+  second `--ignore-table` plus the table on the `--no-data` pass, and
+  **no** `stripBackupsTableDdl()` counterpart is needed, because a restore
+  recreating it empty is the correct state. A six-digit code is a
+  credential with a 10⁶ plaintext space, so bcrypt is not enough on a file
+  that is never deleted. Full reasoning: `docs/RESTORE.md`. Do not remove
+  either flag to "make the dump complete".
 - **`backups`' own data is never in a dump** (`--ignore-table` on the main
   pass, a `--no-data` pass appended for its structure), and
   `stripBackupsTableDdl()` removes its `DROP`/`CREATE TABLE` from the SQL the
@@ -1104,7 +1156,7 @@ is still open, needing its own dispatch:**
 
 | Issue | Where | Note |
 |---|---|---|
-| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (21 since `notifications` landed 2026-09-19). Do not delete or edit the old dumps |
+| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (22 since `auth_codes` landed 2026-09-19). Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `admin/SettingsPage.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
@@ -1113,6 +1165,8 @@ is still open, needing its own dispatch:**
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
+| **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email or create a second admin.** Do not let an admin set their own temporary password |
+| **A broken mailer is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` before believing a user typed their login id wrong.** Fix is a health probe, never a different response body |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
@@ -1253,9 +1307,9 @@ at the end of each session.
 
 ### Stage 1 — Foundation ✅ DONE
 
-- [x] Database schema — 21 tables (was 18 when Stage 1 closed; the Grades
-      rebuild and `auth_security_state` added four, `notifications` added one,
-      and Feature 7's two
+- [x] Database schema — 22 tables (was 18 when Stage 1 closed; the Grades
+      rebuild and `auth_security_state` added four, `notifications` and
+      `auth_codes` added one each, and Feature 7's two
       tables were dropped 2026-09-13)
 - [x] Seed data
 - [x] Auth backend — login, JWT, RBAC, approve/reject
@@ -1415,16 +1469,31 @@ is the order, not the record.
       `PasswordField`.
 - [x] **Notifications, N1 server + N2 client + N3 docs** — the 21st table, four
       endpoints, seven fan-out hooks, the bell and the badges. §10.
+- [x] **Account recovery, R1 server + R2 client + R3 docs (2026-09-19)** — the
+      22nd table (`auth_codes`), five endpoints, the `token_version`
+      revocation counter, and the screens: a Forgot password link that now
+      leads somewhere, `/forgot-password`, the forced-change screen and the
+      admin temporary password. §11. **The school question that used to block
+      this was answered by Darryl, not the school** — self-service by email
+      code, with an admin-only temporary password as the fallback — so the
+      line that stood here asking who may reset whom is answered, not
+      dropped.
 
 **Queued before Stage 5, in this order:**
 
-- [ ] **Account recovery (forgot password)** — TO BE PLANNED. There is no
-      reset endpoint today and Login says so in words rather than offering a
-      link (§5i). Needs a school answer on who may reset whom before any
-      code: the adviser, the office, or admin only.
 - [ ] **Dashboards, all three roles** — content was deliberately deferred when
       the nav trim landed (2026-09-18); the three pages still derive "Open
       now" from `navForRole` and nothing else.
+- [ ] **Data views redesign — MOCKUP FIRST, no code until it is approved.**
+      Three pieces: a `DataTable` restyle for every list, with a **card
+      layout below `sm`** (a row of six columns on a 390px phone is the
+      parent's normal case, not an edge one); an **SF9-style Grades report
+      card**; and a **monthly Attendance calendar**. Two rules it inherits
+      and cannot bend: **no verdict badges anywhere** (§4 — the system counts
+      and displays, it never concludes), and **Grade 1's A–E stays as it is
+      until the school answers** how the letter is produced (OPEN QUESTIONS),
+      so the report card must render both modes without implying the letter
+      is computed.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
@@ -1835,6 +1904,9 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Account recovery R3 (docs): the five endpoints and the recovery flow's four deliberate silences in `docs/API_REFERENCE.md`, plus a new §5b for the two whole-session refusals; its Verification table **recounted from the code — 85 handlers, 86 endpoints** (it had drifted three ways at once, none from this dispatch, and Darryl's dispatch figure of 84 was an estimate); `auth_codes`' dump exclusion in `docs/RESTORE.md`; here, 21 → 22 tables and 80 → 85 handlers everywhere, new §11, the recovery line moved to done, and a queued **Data views redesign — mockup first**. One code file, comment only: `routes/auth.js` still described the abandoned timestamp mechanism. |
+| 2026-09-19 | Account recovery R2 (client, `feat/account-recovery-ui`): `applyToken()`, routing on `must_change_password` and never on the 403, `/forgot-password` (two steps one route — the login id is an LRN, §5c), the forced-change screen outside `Shell`, Verify email in Settings, admin Reset password shown once. Browser check passed over real Gmail SMTP; **two defects found and fixed** — a stale own-email after editing your own row in Users, and three branches telling an admin to ask an office they ARE. oxlint 44, SSR 37/37 with a negative control. |
+| 2026-09-19 | Account recovery R1 (server, `feat/account-recovery-api`): the 22nd table `auth_codes` via the repo's second migration, five endpoints, bcrypt-hashed 6-digit codes with DB-side rate limits, nodemailer, two timing mitigations, `auth_codes` rows excluded from every dump. **Amendment A1 landed on the third mechanism — a `token_version` counter**; both timestamp attempts are recorded in `middleware/auth.js`. `test:recovery` 62; every suite run because middleware changed; `test:auth` fixed to 56 under a declared scope expansion. |
 | 2026-09-19 | CLAUDE.md section trim: 144,967 → 108,102 bytes. Five blocks moved verbatim to `docs/ARCHIVE.md` (the 81-row endpoint table as a dated snapshot — `docs/API_REFERENCE.md` §8 is the live record and was verified to hold all 81; `Files that exist`; the `client/src` tree; `sections table`; `Class Board`), each leaving its heading, a pointer and its conclusion. Ten per-file rules stated nowhere else stayed as "File rules that bite". §7c added to the companion and §9 to this file, closing two mirror gaps. |
 | 2026-09-19 | Notifications N1 (server) + N2 (client): the 21st table via the repo’s first migration script, 4 endpoints, 7 fan-out hooks, `notification_counts`; the header bell, sidebar badges, LiveStatus ungated again. oxlint 42 → 44. |
 | 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |

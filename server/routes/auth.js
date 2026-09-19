@@ -166,11 +166,14 @@ router.put('/change-password', authenticate, async (req, res) => {
 
     const hashed = await hashPassword(new_password);
     // AMENDMENT A1 (Darryl, 2026-09-19): changing a password invalidates
-    // every JWT issued before it. `password_changed_at` is the per-user
-    // twin of `auth_security_state.token_valid_after` — same comparison
-    // against the token’s `iat`, one concept in middleware/auth.js rather
-    // than two. `must_change_password` is cleared here because this IS the
-    // change that was demanded.
+    // every JWT issued before it. The mechanism is the `token_version`
+    // counter bumped on this line — NOT `password_changed_at`, which is
+    // written here for audit only. An earlier attempt did compare that
+    // timestamp against the token's `iat` and could not work: `iat` has
+    // one-second resolution and every step of a scripted flow lands inside
+    // the same second. See the long note in middleware/auth.js.
+    // `must_change_password` is cleared because this IS the change that was
+    // demanded.
     await pool.query(
       'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
       [hashed, req.user.id]
@@ -178,23 +181,19 @@ router.put('/change-password', authenticate, async (req, res) => {
     await logActivity(req.user.id, 'change_password', 'Password updated');
 
     // A REPLACEMENT TOKEN at the new version, or this endpoint would log the
-    // caller out along with every other session.
-    // Their current token was issued before the timestamp we just wrote,
-    // so it is now dead — correct for every OTHER session, wrong for this
-    // one. The client must store this. Until it does (R2), a password
-    // change signs you out: safe, but abrupt, and CLAUDE.md’s "stays
-    // logged in after a password change" is stale until R2 lands.
-    // `iat` rounded UP to the next whole second past the cutoff we just
-    // wrote, so middleware/auth.js's strict millisecond comparison keeps this
-    // token and drops every earlier one. Without it the library stamps `iat`
-    // with the floor of the current second, which is BEHIND a cutoff written
-    // moments earlier in the same second — and change-password would hand
-    // back a token that was already dead.
+    // caller out along with every other session. The bump above killed every
+    // token this account was carrying — which is the point for the other
+    // sessions and wrong for this one, so it gets a new one.
     //
-    // Read back rather than assumed: NOW(3) is the database's clock, not this
-    // process's, and the two are not guaranteed to agree.
-    // Read the bumped counter back and mint with it, so this caller keeps a
-    // working session while every other one dies.
+    // The counter is READ BACK rather than assumed to be the old value plus
+    // one: another write could land between the UPDATE and here, and minting
+    // a token at a version the row no longer has produces a 401 on the very
+    // next request.
+    //
+    // CONSUMED BY THE CLIENT SINCE R2 (2026-09-19) — AuthContext.applyToken()
+    // stores it and re-reads /auth/me. Settings → Change password and the
+    // forced-change screen are the two callers. Anything new that calls this
+    // endpoint must do the same or it signs its own caller out.
     const [[v]] = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const token = mintToken({ id: req.user.id, role: req.user.role }, v.token_version);
 

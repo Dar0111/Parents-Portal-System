@@ -131,7 +131,34 @@ below is in the shipped code, not a plan:
   a second `--ignore-table` plus teaching `stripBackupsTableDdl()` a second
   table, and it would leave a restored database holding notifications that
   point at items the restore has just rewound — strictly worse than dots
-  coming back. `GET /api/backups` now also reconciles the table against
+  coming back.
+
+- **`auth_codes` IS excluded — its ROWS, not its structure (R1,
+  2026-09-19), and the reasoning is the opposite of the one above.**
+  A second `--ignore-table=<db>.auth_codes` on the main pass, and the table
+  added to the `--no-data` pass, so a dump carries the table and never a
+  row of it. It is the only table besides `backups` treated this way, and
+  the reason is not tidiness:
+
+  A reset code is a **credential** for the ten minutes it lives. The codes
+  are bcrypt-hashed, which is the right storage and is not enough here — the
+  plaintext space is **10⁶**, so a hash of a six-digit code is brute-forced
+  in seconds by anyone holding the file. And **no backup file is ever
+  deleted** in this system (that rule is elsewhere in this document and it
+  is not changing), so without the exclusion every dump would be a permanent
+  copy of every reset code issued up to the moment it was taken.
+
+  A row's usefulness also expires in ten minutes, so there is nothing to
+  preserve: restoring a dump that contained them would restore codes that
+  were dead long before the restore ran. Unlike `backups`, the exclusion
+  needs **no** `stripBackupsTableDdl()` counterpart — nothing breaks when a
+  restore recreates `auth_codes` empty, which is the correct post-restore
+  state anyway. In-flight resets are collateral, and that is right: a
+  restore invalidates every session too.
+
+  **Do not remove either flag to "make the dump complete".** Regression-
+  tested in `test:backups` against real dump content, the same way the
+  `backups` exclusion is. `GET /api/backups` now also reconciles the table against
   `server/backups/` on every read and returns any `.sql` file with no
   matching row as `orphaned_files` — read-only, never auto-inserted; an
   unexpected file is reported, not silently adopted into the table as

@@ -2,9 +2,11 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**76 endpoints** across 13 route files (16 feature tables below, since
+**85 handlers** across 14 route files (17 feature tables below, since
 `content.js` holds three separate resources and `assignments.js` holds
-two). If this document and the
+two), plus `GET /api/health` in `server.js` = **86 endpoints**. Recounted
+from the code on 2026-09-19; see Verification at the bottom for the
+per-file arithmetic and for which number to quote. If this document and the
 code disagree, the code is correct and this file needs fixing — same
 rule as CLAUDE.md.
 
@@ -215,6 +217,33 @@ another teacher is `403`, not `404`. Anti-enumeration does not apply —
 `GET /api/messages/contacts` already lists every teacher this caller may
 see, by name. A 404 would hide nothing and cost clarity. Do not "fix" it.
 
+### 5b. Two whole-session refusals every endpoint can return (R1, 2026-09-19)
+
+Both come from `middleware/auth.js`, before any handler runs, so they are
+not listed per row.
+
+- **`401` "Your password was changed. Please log in again."** — the token's
+  `v` claim does not equal the account's `users.token_version`. **That
+  counter is the revocation mechanism**, bumped by a password change, a
+  reset and an admin temporary password. A token with no `v` reads as 0, so
+  tokens predating the column keep working until that account next changes
+  its password. It is **not** `password_changed_at`, which is audit only: a
+  timestamp cannot do this job, because `iat` has one-second resolution and
+  every step of a scripted flow lands inside the same second. Two attempts
+  failed that way before the counter; the long note is in
+  `middleware/auth.js`.
+- **`403` `{ message: "You must change your password before continuing.",
+  code: "MUST_CHANGE_PASSWORD" }`** — `users.must_change_password` is set.
+  Only `PUT /api/auth/change-password` and `GET /api/auth/me` are allowed
+  through. **This 403 is a backstop for direct API callers, not a redirect
+  signal**: §2 of CLAUDE.md's frontend conventions says a 403 never
+  redirects, and the web client routes on the `must_change_password` field
+  it already has from `/auth/me`. Do not add a client branch on this code.
+
+The **global** cutoff (`auth_security_state.token_valid_after`, set only by
+a restore) is unchanged and still a timestamp — it revokes everything at
+once, where whole seconds are precise enough.
+
 ---
 
 ## 6. Socket.io
@@ -390,9 +419,9 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 82.
+the bottom must equal 85 handlers (86 with `GET /api/health`).
 
-### Auth (4) — `/api/auth`
+### Auth (8) — `/api/auth`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
@@ -400,8 +429,52 @@ the bottom must equal 82.
 | GET | `/me` | any authenticated | — | `user` |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
 | PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule since 2026-09-18 — exactly 11 digits starting with 09 after spaces and dashes are stripped, stored digits-only, `server/utils/contactRule.js`; a refusal is `400` with `field: "contact_number"`) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
+| POST | `/forgot-password` | **public** | `login_id`* | message only — **`202` on every path**, see below |
+| POST | `/reset-password` | **public** | `login_id`*, `code`* (6 digits), `new_password`* (the password rule) | message only |
+| POST | `/verify-email/request` | any authenticated | — | message only (`202` when a code is sent) |
+| POST | `/verify-email/confirm` | any authenticated | `code`* (6 digits) | message only |
 
-### Users (9) — `/api/users`
+**`PUT /change-password` also returns `token`** since R1 (2026-09-19) — a
+replacement JWT at the account's new `token_version`. It is **not optional**:
+the write revokes every token the account was carrying, including the
+caller's, so a client that drops it signs its own user out on the next
+request. `client/src/auth/AuthContext.jsx` → `applyToken()` is what stores it.
+
+#### The recovery flow, and the four things it deliberately will not tell you
+
+Added R1 (server) / R2 (client), 2026-09-19. Codes are 6 digits, **bcrypt-
+hashed at rest** in `auth_codes`, valid 10 minutes, 5 attempts, single use,
+3 per account per hour and 10 per IP per hour, and **only the newest code
+for an account+purpose is valid** — issuing one consumes the older ones.
+
+1. **`POST /forgot-password` answers `202` with one sentence, always** —
+   *"If this account has a verified email, we sent a code."* — for a verified
+   account, an unverified one, an inactive one, an unknown `login_id`, a
+   rate-limited account, and its own internal failure. A parent's `login_id`
+   IS their child's LRN (§5c in CLAUDE.md), so any other answer is an LRN
+   oracle. The **only** `400` describes the request (a blank field), never
+   the account. Two timing mitigations back this up: a miss burns a bcrypt it
+   would otherwise skip, and the response is sent **before** the SMTP round
+   trip.
+2. **`POST /reset-password` has one failure message** — *"That code is not
+   valid. Request a new one."* — for wrong, expired, already used, out of
+   attempts, unknown `login_id` and ineligible account alike. **No count of
+   tries remaining**; that is the same oracle, slower. The password rule is
+   checked **before** the code, so a weak password does not burn an attempt
+   (`400` with `field: "new_password"`).
+3. **The verify-email pair is honest, because it is authenticated** — this
+   caller already knows their own address. No email on the account is `400`,
+   already confirmed is `200` (not an error), rate-limited is `429`, and mail
+   that will not send is `503` with the code burned.
+4. **A reset bumps `token_version` and returns no token.** The caller is not
+   signed in; they go and log in. That is the point of a reset — every
+   session the old password left open dies.
+
+**Eligibility is `status = 'active'` AND an email AND `email_verified_at`.**
+An admin changing a user's email through `PUT /users/:id` clears
+`email_verified_at`, so the address must be confirmed again.
+
+### Users (10) — `/api/users`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
@@ -414,6 +487,7 @@ the bottom must equal 82.
 | GET | `/:id` | `admin` | — | `user` |
 | PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset; `contact_number` follows the contact rule since 2026-09-18 — `400` with `field: "contact_number"`, an empty string clears it) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `user` |
+| POST | `/:id/temp-password` | `admin` | — | message + **`temporary_password`** | The office fallback for an account that cannot use `/forgot-password` (no email, unverified, or an inbox they cannot reach). Generates a rule-satisfying password with `crypto`, bumps `token_version` (every session of that account dies now) and sets `must_change_password = 1`. **The password is in this response and nowhere else** — never stored in plain form, never logged, not retrievable again. Your own id is `400` "Use Change password for your own account.", a nonexistent id is `404`. |
 
 ### Students (5) — `/api/students`
 
@@ -608,30 +682,46 @@ but never concludes (CLAUDE.md §4).
 
 ## Verification
 
-| Table | Endpoints |
-|---|---|
-| Auth | 4 |
-| Users | 9 |
-| Students | 5 |
-| Sections | 3 |
-| Subjects | 1 |
-| Assignments | 3 |
-| Grades | 10 |
-| Attendance | 6 |
-| Announcements | 4 |
-| Memos | 4 |
-| Events | 4 |
-| Excuse Letters | 6 |
-| Settings | 4 |
-| Backups | 5 |
-| Messages | 6 |
-| **Total** | **74** |
+**Recounted from the code on 2026-09-19 (R3), because this table had drifted
+three separate ways at once** — it still said Auth 4 after `/auth/contact`
+made it 5, Grades 10 when the Grades table above is 11, it omitted
+`GET /grading-modes` and all four Notifications rows, and a paragraph under
+it reconciled the gap with arithmetic instead of fixing the rows. The rule
+this file states for everyone else applies to it: **one number, one place.**
 
-Matches the Auth bump in this dispatch: 4+9+5+3+1+3+10+6+4+4+4+6+4+5+6 = 74 (Contributions' 8 removed 2026-09-13).
-`GET /grading-modes` has its own table above and is not in this sum (pre-existing).
-`GET /api/health` is in `server.js`, not a route file.
+Every row below is `grep -cE "^[A-Za-z_]+\.(get|post|put|patch|delete)\("`
+over the file that serves it, so a sub-router (`announcementsRouter`,
+`memosRouter`, `eventsRouter`, `subjectsRouter`, `assignmentsRouter`) counts
+the same as `router`.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Later additions: assignments/subjects (2026-09-08), grading-modes, `DELETE /grades/:id`, and `PUT /auth/contact` (2026-09-09). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+| Table | Endpoints | Route file |
+|---|---|---|
+| Auth | 8 | `auth.js` |
+| Users | 10 | `users.js` |
+| Students | 5 | `students.js` |
+| Sections | 3 | `sections.js` |
+| Subjects | 1 | `assignments.js` |
+| Assignments | 3 | `assignments.js` |
+| Grades | 11 | `grades.js` |
+| Grading modes | 1 | `gradingModes.js` |
+| Attendance | 6 | `attendance.js` |
+| Announcements | 4 | `content.js` |
+| Memos | 4 | `content.js` |
+| Events | 4 | `content.js` |
+| Excuse Letters | 6 | `excuses.js` |
+| Settings | 4 | `settings.js` |
+| Backups | 5 | `backups.js` |
+| Messages | 6 | `messages.js` |
+| Notifications | 4 | `notifications.js` |
+| **Total** | **85** | |
 
-**Why CLAUDE.md's table has 85 rows and this verification says 82.**
-This verification table is Auth 4 after `PUT /auth/contact`. It still lists Grades as 10 while the Grades table above is **11** (includes `DELETE /:id`), and it still omits `GET /grading-modes` (own table). 82 + those two = **84** handlers in `server/routes/`. Plus `GET /api/health` in `server.js` = **85**. Do not treat 82 as 84.
+8+10+5+3+1+3+11+1+6+4+4+4+6+4+5+6+4 = **85 handlers in `server/routes/`**.
+Plus `GET /api/health`, mounted directly in `server.js` = **86** endpoints in
+total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+
+**State which number you mean.** 85 is handlers in route files; 86 is every
+endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
+dated 2026-09-19 snapshot taken before Notifications and account recovery
+landed, and it is not the live record. This document is.
+
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1). Re-run the existence diff after a dispatch that adds or removes an endpoint.
