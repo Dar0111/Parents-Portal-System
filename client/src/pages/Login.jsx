@@ -116,7 +116,15 @@ export default function Login() {
         <p className="hidden text-xs uppercase tracking-[0.18em] text-brand-panel-muted lg:block">Est. 1961</p>
       </aside>
 
-      <main className="page-dots flex items-center justify-center px-4 pb-10 lg:min-h-screen lg:px-8 lg:py-16">
+      {/* `relative z-10` is what keeps the card ABOVE the band below lg, and it
+          is not decoration. The addendum gave `.brand-panel-art` a
+          `position: relative` (it has to, for the glow and rings to be inset
+          against it), and a positioned element paints over a static one
+          whatever the DOM order — so the <aside> started covering this <main>
+          even though it comes first, and "Welcome back" ended up half under
+          the band at 440px. Found in browser review 2026-09-19. At lg the two
+          are grid columns side by side and this does nothing. */}
+      <main className="page-dots relative z-10 flex items-center justify-center px-4 pb-10 lg:min-h-screen lg:px-8 lg:py-16">
         <div className="-mt-12 w-full max-w-sm rounded-2xl border border-edge bg-surface p-8 shadow-xl lg:mt-0">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-fg">Welcome back</h2>
@@ -136,10 +144,15 @@ export default function Login() {
               required
               render={({ id, describedBy, invalid }) => (
                 <div className="relative">
-                  <i
+                  {/* Same mechanism as PasswordField's leadingIcon, and for the
+                      same reason: the flex must sit on the wrapper, not on the
+                      element carrying `fa-solid`. See the comment there. */}
+                  <span
                     aria-hidden="true"
-                    className="fa-solid fa-user pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-fg-faint"
-                  />
+                    className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-fg-faint"
+                  >
+                    <i className="fa-solid fa-user" />
+                  </span>
                   <input
                     id={id}
                     type="text"

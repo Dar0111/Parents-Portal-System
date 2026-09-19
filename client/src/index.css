@@ -358,7 +358,12 @@
    colors stay tokens and the page only ever names a class.
    --------------------------------------------------------------------------- */
 
-/* The brand panel / mobile band. Children are lifted above the two layers. */
+/* The brand panel / mobile band. Children are lifted above the two layers.
+   NOTE the consequence of `position: relative` here, which this class cannot
+   avoid (the glow and the rings are inset against it): a positioned element
+   paints OVER a static one whatever the DOM order, so anything that must sit
+   above this panel needs its own `relative z-10`. Below lg the Login card is
+   exactly that — without it the band covers the top of the card. */
 .brand-panel-art {
   position: relative;
   isolation: isolate;

@@ -61,6 +61,17 @@ takes one shared `filterSelectClass` (`w-full sm:w-72`, sized to the longest
 real option — 30 characters) so the control no longer resizes with the
 selection. See CLAUDE.md §7c and `docs/CHANGELOG.md`, 2026-09-18.
 
+**Two Login defects, 2026-09-19.** Browser review found the leading icons
+sitting at the top-left of their inputs and, at 440px, the brand band
+painting over the top of the card. One cause each, both worth remembering.
+Font Awesome ships its `display: inline-block` rule UNLAYERED, so it beats
+Tailwind’s layered `.flex` and any `flex` written on an element that also
+carries `fa-solid` is silently dropped — the flex now goes on a wrapping
+span, which is how the reveal button always did it. And `.brand-panel-art`
+is `position: relative` for the decoration, so it painted over the static
+`<main>` that follows it; the card takes `relative z-10`, which does nothing
+at `lg`. See `docs/CHANGELOG.md`, 2026-09-19.
+
 **Login decoration, 2026-09-19 (addendum).** The panel and band gained a
 decorative layer — a soft glow from the top-left, a masked dot pattern, two
 large thin rings at the bottom-right corner and a halo around the seal — and

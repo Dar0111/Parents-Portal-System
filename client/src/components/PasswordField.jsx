@@ -53,11 +53,21 @@ export default function PasswordField({
       render={({ id, describedBy, invalid }) => (
         <>
           <div className="relative">
+            {/* THE FLEX GOES ON THE SPAN, NEVER ON THE <i>. Font Awesome ships
+                `.fa-solid { display: var(--fa-display, inline-block) }`
+                UNLAYERED, and Tailwind's `.flex` lives in `@layer utilities` —
+                unlayered CSS beats layered CSS whatever the order, so `flex`
+                on an element that also carries `fa-solid` is silently ignored
+                and the glyph sits at the top of the box. Found in browser
+                review 2026-09-19, after exactly that. The reveal button below
+                never had the bug because the flex is on the <button>. */}
             {leadingIcon ? (
-              <i
+              <span
                 aria-hidden="true"
-                className={`fa-solid ${leadingIcon} pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-fg-faint`}
-              />
+                className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-fg-faint"
+              >
+                <i className={`fa-solid ${leadingIcon}`} />
+              </span>
             ) : null}
             <input
               ref={inputRef}
