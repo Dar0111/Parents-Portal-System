@@ -571,8 +571,11 @@ export default function UiGallery() {
             <Card title="Warning tone" icon="fa-user-clock" to="/dev/ui" tone="warning" linkLabel="Review">
               <Stat value={3} caption="parent accounts" />
             </Card>
-            <Card title="Danger tone — the lockout hazard only" icon="fa-shield-halved" tone="danger">
-              <CardEmpty>Reserved for a real dead end, never for a judgement about a person.</CardEmpty>
+            <Card title="Danger tone — defined, deliberately unused" icon="fa-shield-halved" tone="danger">
+              <CardEmpty>
+                No dashboard card is red. Red means something HAS failed, and the only thing that
+                can is a request — which the error state above already renders.
+              </CardEmpty>
             </Card>
             <Card title="No link" icon="fa-comments">
               <CardEmpty>A card with no page to open renders no footer.</CardEmpty>

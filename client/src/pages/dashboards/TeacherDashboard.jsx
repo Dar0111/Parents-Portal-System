@@ -3,7 +3,8 @@ import api from '../../api/axios';
 import { useAuth } from '../../auth/AuthContext';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { todayLocalDateString } from '../../format/date';
-import Card, { CardEmpty, Stat, useCard } from './Card';
+import Card, { CardEmpty, Stat } from './Card';
+import { useCard } from './useCard';
 
 // Teacher dashboard (DB2, 2026-09-19). Same structure as the parent's: one
 // request per card, one failure per card, no Promise.all rejecting as a unit.

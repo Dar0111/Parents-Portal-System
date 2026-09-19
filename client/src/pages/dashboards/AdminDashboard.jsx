@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { useSocket } from '../../realtime/SocketProvider';
-import Card, { CardEmpty, Stat, useCard } from './Card';
+import Card, { CardEmpty, Stat } from './Card';
+import { useCard } from './useCard';
 
 // Admin dashboard (DB2, 2026-09-19). Four cards, and one of them only
 // appears when something is wrong.
@@ -19,9 +20,12 @@ import Card, { CardEmpty, Stat, useCard } from './Card';
 // Activity Log page with its own endpoint. Do not add a card that fakes it
 // from something else.
 //
-// NO VERDICTS (§4). Amber means "there is something to do", never "this is
-// bad". Nothing here is ever red except the lockout hazard, which is a real
-// dead end rather than a judgement.
+// NO VERDICTS (§4), AND NOTHING ON THIS PAGE IS RED. Amber means "there is
+// something to do"; red would mean something has already failed, and nothing
+// here has. The lockout hazard was built red and corrected on review — it
+// warns about a state that COULD strand you, which is precisely a warning
+// and not an error. Red is reserved for a request that actually failed,
+// which is ErrorAlert's job inside a card.
 
 // Green at or under a week, amber beyond it or never — and NEVER red
 // (spec). A stale backup is a prompt, not a failure: the data is still
@@ -56,8 +60,8 @@ export default function AdminDashboard() {
           there is only one it could be about, and a login id must never
           appear on screen (§5c). */}
       {d?.hazard?.single_unverified_admin ? (
-        <div className="rounded-xl border border-danger-edge bg-danger-soft px-5 py-4">
-          <p className="text-sm font-semibold text-danger-strong">
+        <div className="rounded-xl border border-warning-edge bg-warning-soft px-5 py-4">
+          <p className="text-sm font-semibold text-warning-strong">
             This is the only admin account, and its email is not confirmed
           </p>
           <p className="mt-1 text-sm text-fg-body">

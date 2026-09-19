@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
@@ -40,9 +38,13 @@ export default function Card({
   children,
 }) {
   // `tone` colours the FRAME, never a verdict (§4). It says "this needs
-  // attention", not "this is bad" — amber for a queue with something in it,
-  // danger only for the lockout hazard, which is a real dead end rather than
-  // a judgement about a person.
+  // attention", not "this is bad" — amber for a queue with something in it.
+  //
+  // NO DASHBOARD CARD IS RED. `danger` exists for completeness and is
+  // deliberately unused: red means something HAS failed, and the only thing
+  // on a dashboard that can fail is a request, which ErrorAlert already
+  // renders inside the card. The admin lockout hazard was built red and
+  // corrected on review — a state that could strand you later is a warning.
   const toneClass =
     tone === 'warning'
       ? 'border-warning-edge bg-warning-soft'
@@ -109,45 +111,4 @@ export function Stat({ value, caption, muted = false }) {
 // inside a 5rem card reads as a broken layout.
 export function CardEmpty({ children }) {
   return <p className="text-sm text-fg-muted">{children}</p>;
-}
-
-
-// ONE CARD, ONE REQUEST, ONE RETRY — the hook every dashboard card uses.
-//
-// It lives beside Card rather than in its own file because it is the other
-// half of the same decision: the card renders three states, and this is what
-// produces them. Nothing outside pages/dashboards/ uses either.
-//
-// `reload` refetches THIS CARD ALONE. A page-level reload to recover one
-// failed card would re-request every card that already succeeded, which on a
-// dashboard is most of them.
-//
-// `skip` is for a request that must not be made at all — an unlinked parent
-// has no student_id, and asking anyway would be a 404 rendered as an error
-// where the honest answer is an empty state.
-export function useCard(loader, deps, { skip = false } = {}) {
-  const [state, setState] = useState({ data: null, loading: !skip, error: null });
-
-  const load = useCallback(() => {
-    if (skip) {
-      setState({ data: null, loading: false, error: null });
-      return;
-    }
-    let live = true;
-    setState((s) => ({ ...s, loading: true, error: null }));
-    loader()
-      .then((data) => live && setState({ data, loading: false, error: null }))
-      .catch((err) => live && setState({ data: null, loading: false, error: extractError(err) }));
-    return () => {
-      live = false;
-    };
-    // `loader` is a new function on every render, so it cannot be a
-    // dependency — the caller passes the values that really decide when
-    // this is a different request.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, skip]);
-
-  useEffect(load, [load]);
-
-  return { ...state, reload: load };
 }

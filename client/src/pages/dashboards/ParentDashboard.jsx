@@ -3,7 +3,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { todayLocalDateString } from '../../format/date';
 import StatusBadge from '../../components/StatusBadge';
-import Card, { CardEmpty, Stat, useCard } from './Card';
+import Card, { CardEmpty, Stat } from './Card';
+import { useCard } from './useCard';
 
 // Parent dashboard (DB2, 2026-09-19). Seven cards, seven independent
 // requests, seven independent failures.
