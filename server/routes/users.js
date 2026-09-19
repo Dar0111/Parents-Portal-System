@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const pool = require('../config/db');
 const { hashPassword } = require('../utils/password');
@@ -465,6 +466,13 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'name must not be empty.' });
     }
 
+    // An email change UNVERIFIES the address (R1, 2026-09-19): a verified
+    // flag is a claim that someone proved they read that inbox, and the new
+    // address has proved nothing. This is the ONLY path that changes an
+    // email — no self-service screen writes it — so this is the only place
+    // the flag has to be cleared. `<=>` is the NULL-safe comparison; a
+    // change from NULL to an address must count.
+    await pool.query('UPDATE users SET email_verified_at = NULL WHERE id = ? AND NOT (email <=> ?)', [id, nextEmail]);
     await pool.query('UPDATE users SET name = ?, email = ?, contact_number = ? WHERE id = ?', [
       nextName,
       nextEmail,
@@ -547,6 +555,60 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
   } catch (error) {
     console.error('Update user status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update user status.' });
+  }
+});
+
+// POST /api/users/:id/temp-password — admin only.
+//
+// THE FALLBACK for the self-service flow: a parent with no email, an
+// unverified one, or an inbox they cannot reach still has to get in, and the
+// answer is the school office rather than a support queue that does not
+// exist. Darryl, 2026-09-19.
+//
+// The password is returned ONCE, in this response, and is never stored in
+// plain form, never logged, and never retrievable again. The account is put
+// into forced-change, so the temporary value is good for exactly one login.
+router.post('/:id/temp-password', authenticate, authorize('admin'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    return res.status(400).json({ success: false, message: 'Invalid user id.' });
+  }
+  if (id === req.user.id) {
+    // Same shape as the self-deactivation guard on PATCH /:id/status: an
+    // admin locking themselves into a forced change helps nobody.
+    return res.status(400).json({
+      success: false,
+      message: 'Use Change password for your own account.',
+    });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT id, name FROM users WHERE id = ? LIMIT 1', [id]);
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    // crypto, not Math.random — this is a credential. Satisfies the shared
+    // password rule (12 chars, and a digit is appended so it always does).
+    const temporary = crypto.randomBytes(9).toString('base64url').slice(0, 11) + crypto.randomInt(0, 10);
+    const hashed = await hashPassword(temporary);
+
+    // A1: every session this account had dies now, and it cannot do anything
+    // but change this password on the way back in.
+    await pool.query(
+      'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 1 WHERE id = ?',
+      [hashed, id]
+    );
+    await logActivity(req.user.id, 'admin_temp_password', `Set a temporary password for user #${id}`);
+
+    return res.json({
+      success: true,
+      message: 'Temporary password set. Give it to the account holder — it is shown once and cannot be retrieved again.',
+      temporary_password: temporary,
+    });
+  } catch (error) {
+    console.error('Temp password error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to set a temporary password.' });
   }
 });
 

@@ -19,6 +19,38 @@ CREATE TABLE users (
   status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'pending',
   name VARCHAR(100) NOT NULL,
   email VARCHAR(100) DEFAULT NULL,
+  -- NULL until the account proves it reads that inbox. Seeded NULL for
+  -- everyone (Darryl, 2026-09-19): a seeded "verified" for an address
+  -- nobody controls is a claim the system cannot back.
+  email_verified_at TIMESTAMP NULL DEFAULT NULL,
+  -- Per-user JWT cutoff, the twin of auth_security_state.token_valid_after.
+  -- Set by a password change, a reset and an admin temporary password;
+  -- middleware/auth.js rejects any token issued before it.
+  --
+  -- AUDIT ONLY — WHEN a password last changed. Revocation is token_version
+  -- below; do not reintroduce this as the check, and see that column's note
+  -- for why a timestamp cannot do that job.
+  password_changed_at TIMESTAMP(3) NULL DEFAULT NULL,
+  -- THE JWT REVOCATION MECHANISM. Bumped by every password change, by a
+  -- reset and by an admin temporary password. The value rides in the token as
+  -- `v` and middleware/auth.js compares it for equality, so every token
+  -- minted before the bump stops working at once.
+  --
+  -- A COUNTER, NOT A TIMESTAMP, and the reason is worth keeping. The first
+  -- attempt compared the JWT `iat` against password_changed_at. That cannot
+  -- work: `iat` has ONE-SECOND resolution, and a temp password, the login
+  -- that follows it and the forced change all land inside the same second, so
+  -- the dead token and the live one carry an identical `iat`. Minting the new
+  -- token a second forward only moved the hole — it then outlived the NEXT
+  -- change. A counter has no resolution to run out of.
+  --
+  -- A token with no `v` reads as 0, which matches a never-changed account, so
+  -- tokens predating this column keep working until that account next changes
+  -- its password.
+  token_version INT UNSIGNED NOT NULL DEFAULT 0,
+  -- Set by an admin temporary password. Until it is cleared the account can
+  -- only read itself and change its password.
+  must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   contact_number VARCHAR(20) DEFAULT NULL,
   profile_pic VARCHAR(255) DEFAULT NULL,
   student_id INT UNSIGNED DEFAULT NULL,
@@ -394,6 +426,34 @@ CREATE TABLE notifications (
   INDEX idx_notifications_unread (user_id, read_at, created_at),
   INDEX idx_notifications_item (item_type, item_id)
 ) ENGINE=InnoDB;
+-- Account recovery (R1, 2026-09-19). ONE table for both code purposes: they
+-- share a lifecycle (six digits, hashed, ten-minute expiry, five attempts,
+-- single use, the same per-account and per-IP limits), so `purpose` is a
+-- discriminator rather than a difference in shape.
+--
+-- code_hash is bcrypt, via the same helper passwords use: a code is a
+-- credential for the length of its life. email_snapshot records where it was
+-- actually sent, because an admin can change the address in between.
+--
+-- ITS ROWS ARE EXCLUDED FROM EVERY mysqldump (routes/backups.js). A hash of
+-- a six-digit code is a 10^6 search space; a dump on disk containing live
+-- rows is a reset credential, and no backup file is ever deleted.
+CREATE TABLE auth_codes (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  purpose ENUM('password_reset','email_verification') NOT NULL,
+  code_hash VARCHAR(255) NOT NULL,
+  email_snapshot VARCHAR(100) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  consumed_at TIMESTAMP NULL DEFAULT NULL,
+  request_ip VARCHAR(45) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_auth_codes_lookup (user_id, purpose, consumed_at, expires_at),
+  INDEX idx_auth_codes_rate (user_id, purpose, created_at),
+  INDEX idx_auth_codes_ip (request_ip, created_at)
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------------
 -- Foreign keys (added after all tables exist)
 -- ---------------------------------------------------------------------------
@@ -459,3 +519,6 @@ ALTER TABLE backups
 ALTER TABLE notifications
   ADD CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE auth_codes
+  ADD CONSTRAINT fk_auth_codes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

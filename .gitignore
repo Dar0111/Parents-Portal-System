@@ -6,6 +6,10 @@ server/.env
 *.pem
 *.key
 
+# Test-only mail drop: utils/mailer.js writes here when MAIL_TRANSPORT=file.
+# These files contain live reset codes — never commit one.
+server/tmp/
+
 # --- Dependencies ---
 node_modules/
 server/node_modules/

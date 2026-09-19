@@ -8,6 +8,7 @@
     "dev": "node --watch server.js",
     "db:setup": "node scripts/setup-db.js",
     "db:migrate:notifications": "node scripts/migrate-notifications.js",
+    "db:migrate:auth-codes": "node scripts/migrate-auth-codes.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
@@ -24,7 +25,8 @@
     "test:messages": "node scripts/test-messages-flows.js",
     "test:restore": "node scripts/test-restore-flows.js",
     "test:excuses": "node scripts/test-excuses-flows.js",
-    "test:notifications": "node scripts/test-notifications-flows.js"
+    "test:notifications": "node scripts/test-notifications-flows.js",
+    "test:recovery": "node scripts/test-recovery-flows.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -33,6 +35,7 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.12.0",
+    "nodemailer": "^10.0.10",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

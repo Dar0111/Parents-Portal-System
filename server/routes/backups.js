@@ -143,6 +143,18 @@ async function dumpDatabase(outputPath) {
     '--databases',
     dbName,
     `--ignore-table=${dbName}.backups`,
+    // auth_codes ROWS are excluded for the same reason backups’ are, but a
+    // sharper one (R1, 2026-09-19): the table holds bcrypt hashes of SIX-DIGIT
+    // codes. That is a 10^6 search space — brute-forcible in well under a
+    // second — so a dump file containing live rows is a password-reset
+    // credential sitting on disk. Ten un-adoptable orphan .sql files are
+    // already in server/backups/, and no backup file is ever deleted, so
+    // "on disk" means "indefinitely".
+    //
+    // Excluding the rows also stops a restore resurrecting consumed or
+    // expired codes. The STRUCTURE is still dumped, by the --no-data pass
+    // below, so a bare-metal restore rebuilds the table empty.
+    `--ignore-table=${dbName}.auth_codes`,
     '-h',
     host,
     '-P',
@@ -151,12 +163,14 @@ async function dumpDatabase(outputPath) {
     user,
   ]);
 
-  // backups' structure only, no rows, appended to the same file. No FK
-  // references INTO backups from any other table, so its position at the
-  // end of the file is safe — nothing needs it to exist earlier.
+  // backups' and auth_codes' structure only, no rows, appended to the same
+  // file. No FK references INTO backups from any other table, so its
+  // position at the end of the file is safe — nothing needs it to exist
+  // earlier. auth_codes DOES have an FK, but it points OUT (to users), and
+  // users is created earlier in the file, so appending it here is safe too.
   await runMysqldump(
     outputPath,
-    ['--no-data', '-h', host, '-P', port, '-u', user, dbName, 'backups'],
+    ['--no-data', '-h', host, '-P', port, '-u', user, dbName, 'backups', 'auth_codes'],
     { append: true }
   );
 }
