@@ -112,7 +112,9 @@ export default function ParentExcuseLettersPage() {
     return {
       icon: 'fa-envelope-open-text',
       title: 'No excuse letters yet',
-      message: 'Submit a letter when your child is absent. The adviser reviews it; the attendance record stays Absent.',
+      // §5f: the header's Submit letter is always visible when a letter can
+      // be submitted, so the empty state names it instead of repeating it.
+      message: 'Use Submit letter when your child is absent. The adviser reviews it; the attendance record stays Absent.',
       showReset: false,
     };
   })();
@@ -276,8 +278,6 @@ export default function ParentExcuseLettersPage() {
             >
               Show all letters
             </button>
-          ) : canSubmit && status === 'All' ? (
-            submitButton
           ) : null
         }
       />

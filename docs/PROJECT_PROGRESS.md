@@ -94,6 +94,14 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**`fix/empty-state-duplicates` (2026-09-19):** Parent → Excuse Letters'
+empty state no longer repeats the header's Submit letter; its message names
+the button ("Use Submit letter when your child is absent…"). An audit of every
+`emptyAction` found this and the Messages case (fixed on D2) to be the only
+two; the twelve filter/range resets stay. Rule added to §5f. Build 0, oxlint
+42, lint:tokens 0, lint:contrast 0, SSR proof with a negative control; no
+server files. Full row: `docs/CHANGELOG.md`, 2026-09-19.
+
 **Dark mode, `feat/dark-mode` (2026-09-19, D2):** the 60 tokens get a second
 block of values under `[data-theme="dark"]` in `client/src/index.css` (slate
 950 / 900 / 800 base, an in-between `surface-subtle`, inverted primary

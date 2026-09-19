@@ -366,6 +366,17 @@ reusing one flag for both. That conflation is what caused this.
 > them, where a flag would silently absorb it. That is the point — silently
 > absorbing it is what produced wrong copy twice.
 
+**An empty state never repeats an action that is always visible in the page
+header (added 2026-09-19).** Its message names the header button instead —
+*"Use New message to start a conversation."*, *"Use Submit letter when your
+child is absent…"* — so the one button stays the one place to look. A filter
+or range reset MAY sit in the empty state, because it changes what the empty
+state is describing, and it is not a header action. Audit of every
+`emptyAction` on 2026-09-19: two primary actions were duplicated (both
+Messages pages' "New message", fixed on D2; Parent → Excuse Letters'
+"Submit letter", fixed on `fix/empty-state-duplicates`); the other twelve are
+all filter or range resets and stay.
+
 ### 5g. When a live channel fails, say so — never fake liveness
 
 **A real-time surface that dies quietly is worse than one that was never

@@ -818,7 +818,10 @@ must be structurally impossible outside its own filter. Whether the form
 differs from its default is its own value (`canReset`), never reused as the
 copy flag — that conflation produced wrong copy twice. The branch count
 differs per endpoint (Events three, Announcements two, Memos one, Admin →
-Attendance five) and that is a finding, not an inconsistency.
+Attendance five) and that is a finding, not an inconsistency. **An empty
+state never repeats an action that is always visible in the page header
+(2026-09-19); its message names the header button instead. A filter or range
+reset may sit in the empty state.**
 
 ### 5g. When a live channel fails, say so — never fake liveness
 
@@ -2077,6 +2080,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | `fix/empty-state-duplicates`: Parent → Excuse Letters' empty state no longer repeats the header's Submit letter and names it instead; §5f gains the rule (an empty state never repeats an always-visible header action; filter/range resets may stay). Audit: this and the D2 Messages case were the only two duplicates. |
 | 2026-09-19 | Dark mode (D2, `feat/dark-mode`): Light / Dark / System in Settings → Personalization (`pp.theme`, default Light, `data-theme` on `<html>` set by `theme.js` and an `index.html` inline script before the bundle, one `prefers-color-scheme` listener); the 60 tokens' dark values under `[data-theme="dark"]`; light AA fixes (table header, placeholders, Approve buttons, 41 faint labels); Messages empty-state button removed; `/dev/ui` theme preview + token strip; `npm run lint:contrast` = 0 with nine waived pairs each on a KNOWN ISSUES row. |
 | 2026-09-19 | Design tokens (D1, `feat/design-tokens`): 60 semantic color tokens in `client/src/index.css` (`@theme inline`), 1,029 raw utilities in 51 files replaced by codemod (75 class strings, 33 line overrides, six accepted light-mode exceptions E1–E6), `npm run lint:tokens` = 0 enforced by `client/scripts/check-color-tokens.mjs`; SSR snapshot 38/38 identical with classes stripped; new §8 above. No dark values yet — D2. |
 | 2026-09-19 | `fix/copy-nits`: Teacher → Attendance footer verb follows the unset count ("1 student has"); the "N students" line under both Students pagers removed; the three decorative px sizes (DataTable sort icon + chevrons, thread timestamps) converted to rem so Large text scales them — KNOWN ISSUES row added and closed. `textSize.js`'s comment still calls them out of scope: stale, not edited. |
