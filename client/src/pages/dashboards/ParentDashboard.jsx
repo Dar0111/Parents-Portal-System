@@ -129,8 +129,15 @@ export default function ParentDashboard() {
     []
   );
 
+  // `sort=event_date&order=asc` is NOT a display preference, and leaving it
+  // off was a real defect (browser check, 2026-09-19). GET /api/events
+  // defaults to `event_date DESC`, which is right for the Events page's
+  // full list and exactly wrong here: combined with `limit=3` it returns the
+  // three FURTHEST-AWAY events and puts them in reverse order, so a parent
+  // with ten things coming up would never see the one that is tomorrow.
+  // Ascending + limit is what makes these the next three.
   const events = useCard(
-    () => api.get(`/events?from=${today}&limit=3`, { unwrap: 'events' }),
+    () => api.get(`/events?from=${today}&sort=event_date&order=asc&limit=3`, { unwrap: 'events' }),
     [today]
   );
 

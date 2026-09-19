@@ -136,7 +136,13 @@ export default function TeacherDashboard() {
     []
   );
 
-  const events = useCard(() => api.get(`/events?from=${today}&limit=3`, { unwrap: 'events' }), [today]);
+  // Ascending, and see the note on the parent dashboard's events card for
+  // why: the endpoint defaults to event_date DESC, so `limit=3` without this
+  // returns the three furthest-away events instead of the next three.
+  const events = useCard(
+    () => api.get(`/events?from=${today}&sort=event_date&order=asc&limit=3`, { unwrap: 'events' }),
+    [today]
+  );
 
   const d = summary.data;
   const advisory = sections.data || [];

@@ -64,20 +64,29 @@ export default function AdminDashboard() {
           <p className="text-sm font-semibold text-warning-strong">
             This is the only admin account, and its email is not confirmed
           </p>
+          {/* ONE LINK, NOT TWO. This card shipped with a "Create a second
+              admin →" link to Admin → Users, and that page cannot do it:
+              POST /api/users/teachers hardcodes role 'teacher' and
+              /parents hardcodes 'parent'. NO endpoint in the API creates an
+              admin — 'admin' appears only as a filter value on GET /users —
+              so the only admin is the seeded one. A link offering an action
+              the code does not have is the §5i failure exactly, and it was
+              worse than a dead end here: it would have sent someone hunting
+              for a control on the one screen where being wrong costs them
+              their way back in. Removed on review, 2026-09-19. Do not
+              re-add it until an endpoint exists. */}
           <p className="mt-1 text-sm text-fg-body">
             If this password is lost there is no way back in through the app: resetting your own
             password needs a confirmed email, and a temporary password can only be issued by a
-            different admin. Fix either one.
+            different admin — and a second admin account cannot be created from inside the app.
+            Confirming your email is the fix available here.
           </p>
-          <p className="mt-3 flex flex-wrap gap-4">
+          <p className="mt-3">
             <Link
               to="/admin/settings/account"
               className="text-sm font-medium text-brand underline-offset-2 hover:underline"
             >
               Confirm your email →
-            </Link>
-            <Link to="/admin/users" className="text-sm font-medium text-brand underline-offset-2 hover:underline">
-              Create a second admin →
             </Link>
           </p>
         </div>
