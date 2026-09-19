@@ -6,13 +6,8 @@ import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
+import Header from './Header';
 import seal from '../assets/school-seal.png';
-
-const ROLE_LABEL = {
-  admin: 'Admin',
-  teacher: 'Teacher',
-  parent: 'Parent',
-};
 
 // The school's seal beside the product name, at the top of the sidebar and of
 // the mobile drawer (D3, 2026-09-19). The seal always sits on its own white
@@ -173,7 +168,12 @@ function ShellChrome() {
 
   return (
     <div className="flex min-h-screen bg-page">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-edge bg-surface sm:flex">
+      {/* STICKY (D3, 2026-09-19): the sidebar pins to the viewport (sticky
+          top-0, h-screen, self-start so it keeps its own height in the flex
+          row) and its nav scrolls INSIDE itself only when taller than the
+          viewport (min-h-0 + overflow-y-auto on the nav box). The document
+          stays the only scroller: one scrollbar, no layout shift. */}
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col self-start border-r border-edge bg-surface sm:flex">
         <Brand />
         <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
       </aside>
@@ -202,34 +202,12 @@ function ShellChrome() {
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-edge bg-surface px-4 py-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              aria-label="Open menu"
-              onClick={() => setMobileNavOpen(true)}
-              className="rounded-lg border border-edge-strong px-2.5 py-1.5 text-fg-body sm:hidden"
-            >
-              <i className="fa-solid fa-bars" />
-            </button>
-            <h1 className="truncate text-base font-semibold text-fg">{title}</h1>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden text-right text-sm sm:block">
-              <div className="font-medium text-fg">{user?.name || user?.login_id}</div>
-              <div className="text-xs text-fg-muted">{ROLE_LABEL[user?.role] || user?.role}</div>
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              <i className="fa-solid fa-right-from-bracket" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </header>
+        <Header
+          title={title}
+          user={user}
+          onOpenMenu={() => setMobileNavOpen(true)}
+          onLogout={handleLogout}
+        />
 
         <main className="min-w-0 flex-1 space-y-4 p-4 sm:p-6">
           {/* CONVENTION 5g, and specifically WHERE the notice belongs: the
