@@ -187,8 +187,7 @@ export default function ParentMessagesPage() {
         onSortChange={changeSort}
         emptyIcon="fa-comments"
         emptyTitle="No messages yet"
-        emptyMessage="Start a conversation with your child's teacher or the school admin."
-        emptyAction={newMessageButton}
+        emptyMessage="Use New message to start a conversation."
       />
 
       <Modal open={picking} onClose={() => setPicking(false)} title="New message" size="lg">

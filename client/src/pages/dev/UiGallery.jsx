@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DataTable from '../../components/DataTable';
+import { applyTheme, readTheme } from '../settings/theme';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
@@ -63,6 +64,90 @@ function PasswordDemo() {
         onToggleReveal={() => {}}
         disabled
       />
+    </div>
+  );
+}
+
+// Page-only theme preview: sets data-theme on <html> for this visit and puts the
+// STORED preference back on unmount. Never persisted — Settings does that.
+const PREVIEWS = ['light', 'dark', 'system'];
+function ThemePreviewToggle() {
+  const [preview, setPreview] = useState(readTheme);
+  useEffect(() => {
+    applyTheme(preview);
+  }, [preview]);
+  useEffect(() => () => applyTheme(readTheme()), []);
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-fg-muted">Preview theme (this page only, not saved):</span>
+      {PREVIEWS.map((value) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => setPreview(value)}
+          aria-pressed={preview === value}
+          className={`rounded-lg border px-2.5 py-1 capitalize transition ${
+            preview === value
+              ? 'border-primary bg-primary text-primary-fg'
+              : 'border-edge-strong bg-surface text-fg-body hover:bg-surface-muted'
+          }`}
+        >
+          {value}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// One swatch per token, grouped as index.css groups them. The class list is
+// the whole point — each swatch is the real utility, so a missing token shows
+// up as an unstyled box rather than a wrong color.
+const TOKEN_GROUPS = [
+  ['surfaces', ['bg-page', 'bg-surface', 'bg-surface-muted', 'bg-surface-subtle', 'bg-backdrop']],
+  ['edges', ['bg-edge', 'bg-edge-soft', 'bg-edge-strong', 'bg-focus-edge', 'bg-focus-ring', 'bg-focus-accent']],
+  ['text', ['bg-fg', 'bg-fg-secondary', 'bg-fg-body', 'bg-fg-muted', 'bg-fg-faint', 'bg-fg-ghost']],
+  ['primary', ['bg-primary', 'bg-primary-hover', 'bg-primary-fg', 'bg-primary-disabled', 'bg-solid-fg']],
+  ['neutral', ['bg-neutral-soft', 'bg-neutral-edge', 'bg-neutral-fg']],
+  ['success', ['bg-success-soft', 'bg-success-edge', 'bg-success-fg', 'bg-success-strong', 'bg-success-icon', 'bg-success-solid', 'bg-success-solid-hover']],
+  ['warning', ['bg-warning-soft', 'bg-warning-soft-hover', 'bg-warning-edge', 'bg-warning-edge-strong', 'bg-warning-fg', 'bg-warning-strong', 'bg-warning-icon']],
+  ['danger', ['bg-danger-soft', 'bg-danger-edge', 'bg-danger-edge-strong', 'bg-danger-edge-focus', 'bg-danger-ring-focus', 'bg-danger-fg', 'bg-danger-strong', 'bg-danger-text', 'bg-danger-icon', 'bg-danger-solid', 'bg-danger-solid-hover']],
+  ['info', ['bg-info-soft', 'bg-info-edge', 'bg-info-fg', 'bg-info-strong']],
+  ['bubbles', ['bg-bubble-mine', 'bg-bubble-mine-fg', 'bg-bubble-mine-meta', 'bg-bubble-theirs', 'bg-bubble-theirs-fg', 'bg-bubble-theirs-meta']],
+];
+function TokenStrip() {
+  return (
+    <div className="space-y-3">
+      {TOKEN_GROUPS.map(([group, classes]) => (
+        <div key={group}>
+          <p className="mb-1 text-xs text-fg-muted">{group}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {classes.map((cls) => (
+              <span key={cls} title={cls} className={`h-6 w-6 rounded border border-edge-strong ${cls}`} />
+            ))}
+          </div>
+        </div>
+      ))}
+      <div className="space-y-1 rounded-lg border border-edge bg-surface p-3 text-sm">
+        <p className="text-fg">fg on surface</p>
+        <p className="text-fg-secondary">fg-secondary</p>
+        <p className="text-fg-body">fg-body</p>
+        <p className="text-fg-muted">fg-muted</p>
+        <p className="text-fg-faint">fg-faint (icons only in dark)</p>
+        <p className="text-fg-ghost">fg-ghost (icons)</p>
+        <p className="text-danger-text">danger-text (a form error)</p>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <StatusBadge status="active" />
+          <StatusBadge status="pending" />
+          <StatusBadge status="absent" />
+          <StatusBadge status="excused" />
+          <StatusBadge status="locked" />
+        </div>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <span className="rounded-lg bg-primary px-3 py-1 text-primary-fg">Primary</span>
+          <span className="rounded-lg bg-danger-solid px-3 py-1 text-solid-fg">Danger</span>
+          <span className="rounded-lg bg-success-solid px-3 py-1 text-solid-fg">Approve</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -133,7 +218,24 @@ export default function UiGallery() {
           <p className="mt-1 text-sm text-fg-muted">
             Dev-only gallery. Not in any nav, not in a production build.
           </p>
+          <ThemePreviewToggle />
         </header>
+
+        <Section
+          title="Tokens — light and dark side by side"
+          note="Every semantic color token (docs/FRONTEND_CONVENTIONS.md §8), rendered twice: once in the page's theme, once inside a data-theme=&quot;dark&quot; subtree. The right column is always dark whatever the toggle above says — that is the point: any element can re-scope the tokens for its subtree."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-edge bg-page p-4">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">This page's theme</p>
+              <TokenStrip />
+            </div>
+            <div data-theme="dark" className="rounded-xl border border-edge bg-page p-4">
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">data-theme="dark"</p>
+              <TokenStrip />
+            </div>
+          </div>
+        </Section>
 
         <Section
           title="StatusBadge"
@@ -185,7 +287,7 @@ export default function UiGallery() {
 
         <Section
           title="DataTable — paged"
-          note="A `page` prop switches the table to one page of a server-sorted list: the footer reads 51–54 of 812, Previous is enabled, Next is enabled while has_more is true, and header clicks call onSortChange instead of sorting locally (this fixture logs to the console)."
+          note="A `page` prop switches the table to one page of a server-sorted list: the footer reads 51–56 of 812 (six fixture rows), Previous is enabled, Next is enabled while has_more is true, and header clicks call onSortChange instead of sorting locally (this fixture logs to the console)."
         >
           <DataTable
             columns={COLUMNS}
