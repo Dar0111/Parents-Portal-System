@@ -61,6 +61,20 @@ takes one shared `filterSelectClass` (`w-full sm:w-72`, sized to the longest
 real option — 30 characters) so the control no longer resizes with the
 selection. See CLAUDE.md §7c and `docs/CHANGELOG.md`, 2026-09-18.
 
+**Login redesign, 2026-09-19.** The sign-in screen is a two-column grid at
+`lg` — a solid brand panel on the left carrying the district line, the seal
+on its white disc, the portal and school names and "Est. 1961" (the year on
+the seal itself) — with the form card centred on the right. Below `lg` the
+same panel becomes a band and the card overlaps its bottom edge; the two
+smallest lines are hidden there. Three tokens were added for it
+(`brand-panel`, `brand-panel-fg`, `brand-panel-muted`, palette 63 → 66)
+because neither `primary` nor `brand-soft` is a brand field in BOTH themes.
+The page also stopped hand-rolling its inputs: Login ID is a `FormField`
+whose hint carries the parent/staff helper, Password is `PasswordField`, so
+Login has a reveal toggle for the first time, and the error box is announced
+(`role="alert"`). "Forgot your password?" is text, not a link — there is no
+reset endpoint. See CLAUDE.md §8 and `docs/CHANGELOG.md`, 2026-09-19.
+
 **Verified 2026-09-18 (Darryl, browser):** the 2026-09-15 status-code fixes
 behave on screen — a wrong restore step-up password shows "Incorrect password."
 inline with a **403** and the admin stays logged in; a wrong current password on

@@ -109,6 +109,7 @@ const TOKEN_GROUPS = [
   ['text', ['bg-fg', 'bg-fg-secondary', 'bg-fg-body', 'bg-fg-muted', 'bg-fg-faint', 'bg-fg-ghost']],
   ['primary', ['bg-primary', 'bg-primary-hover', 'bg-primary-fg', 'bg-primary-disabled', 'bg-solid-fg']],
   ['brand', ['bg-brand', 'bg-brand-soft', 'bg-seal-bg']],
+  ['brand panel', ['bg-brand-panel', 'bg-brand-panel-fg', 'bg-brand-panel-muted']],
   ['neutral', ['bg-neutral-soft', 'bg-neutral-edge', 'bg-neutral-fg']],
   ['success', ['bg-success-soft', 'bg-success-edge', 'bg-success-fg', 'bg-success-strong', 'bg-success-icon', 'bg-success-solid', 'bg-success-solid-hover']],
   ['warning', ['bg-warning-soft', 'bg-warning-soft-hover', 'bg-warning-edge', 'bg-warning-edge-strong', 'bg-warning-fg', 'bg-warning-strong', 'bg-warning-icon']],
@@ -155,6 +156,17 @@ function TokenStrip() {
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-seal-bg">
             <img src={seal} alt="Captain H. Francisco Elementary School seal" width="40" height="40" className="h-10 w-10 rounded-full" />
           </span>
+        </div>
+        {/* The Login panel in miniature. It is the one place brand-panel is
+            used, and the one place a token pair has to look right against a
+            LARGE solid field rather than as text on a card — worth being able
+            to flip themes against without logging out. */}
+        <div className="flex items-center gap-3 rounded-lg bg-brand-panel px-4 py-3 pt-1 text-brand-panel-fg">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-seal-bg">
+            <img src={seal} alt="" width="40" height="40" className="h-10 w-10 rounded-full" />
+          </span>
+          <span className="text-sm font-semibold">Login panel</span>
+          <span className="text-xs uppercase tracking-[0.18em] text-brand-panel-muted">Est. 1961</span>
         </div>
       </div>
     </div>

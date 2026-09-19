@@ -60,6 +60,17 @@
   --brand-soft: #ECEBFC;                          /* brand navy tint — active nav item background */
   --seal-bg: #fff;                                /* white in BOTH themes: the seal's disc is artwork, not a surface */
 
+  /* brand panel — the Login split panel only. NOT primary and NOT brand-soft,
+     and the reason is the dark values: `primary` is #ABA8F7 in dark (a LIGHT
+     indigo, so the panel would be a bright slab) and `brand-soft` is #ECEBFC in
+     light (1.18:1 on surface — no brand presence at all). A panel that is a
+     solid brand field in BOTH themes needs its own pair. The dark value is the
+     same #23204F the dark sidebar uses for brand-soft, so the panel belongs to
+     the same family as the active nav item rather than being a second navy. */
+  --brand-panel: #08027C;                         /* brand navy — same value as primary, different role */
+  --brand-panel-fg: #fff;                         /* white — 16.03 on the light panel, 15.10 on the dark */
+  --brand-panel-muted: #C9C7EE;                   /* navy tint — the district and Est. lines; 9.84 / 9.27 */
+
   /* tones */
   --neutral-soft: oklch(96.8% 0.007 247.896);     /* slate-100 */
   --neutral-edge: oklch(92.9% 0.013 255.508);     /* slate-200 */
@@ -136,6 +147,9 @@
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
   --color-seal-bg: var(--seal-bg);
+  --color-brand-panel: var(--brand-panel);
+  --color-brand-panel-fg: var(--brand-panel-fg);
+  --color-brand-panel-muted: var(--brand-panel-muted);
 
   --color-neutral-soft: var(--neutral-soft);
   --color-neutral-edge: var(--neutral-edge);
@@ -237,6 +251,14 @@
   --brand: #ABA8F7;                               /* brand, dark */
   --brand-soft: #23204F;                          /* brand tint on the dark sidebar */
   --seal-bg: #fff;                                /* white in BOTH themes — the seal's disc */
+
+  /* brand panel — see the light block for why this is not primary/brand-soft.
+     fg and muted keep their light values: both are already high-contrast on
+     this background (15.10 and 9.27), and a panel that reads the same in both
+     themes is the point. */
+  --brand-panel: #23204F;                         /* brand tint, dark — matches the dark sidebar */
+  --brand-panel-fg: #fff;
+  --brand-panel-muted: #C9C7EE;
 
   /* tones */
   --neutral-soft: oklch(27.9% 0.041 260.031);     /* slate-800 */

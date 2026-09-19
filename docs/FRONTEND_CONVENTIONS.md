@@ -633,7 +633,7 @@ width. A page that cannot fit `lg` is the trigger to reconsider the scale.**
 ### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
 
 **Frozen 2026-09-19, `feat/design-tokens` (D1 of the Dark mode plan).** Every
-color a page uses is one of the 60 semantic tokens defined once in
+color a page uses is one of the 66 semantic tokens defined once in
 `client/src/index.css`: `page` / `surface` / `surface-muted` /
 `surface-subtle` / `backdrop`; `edge` / `edge-soft` / `edge-strong` /
 `focus-edge` / `focus-ring` / `focus-accent`; `fg` / `fg-secondary` /

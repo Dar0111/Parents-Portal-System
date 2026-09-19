@@ -3,7 +3,14 @@ import FormField, { controlClassFor } from './FormField';
 // FormField shape 4 (render) + controlClass. Show/hide is per field.
 // Third copy extracted from Teacher Settings and Parent Settings; create-
 // parent on Teacher → Students is the consumer that hit three.
-// Do not add a fifth FormField shape. Login is not this component.
+// Do not add a fifth FormField shape.
+//
+// LOGIN USES THIS TOO, since 2026-09-19. This header used to end "Login is not
+// this component", written when Login had two hand-rolled inputs and no reveal
+// toggle at all — it was a description of that page, not a rule about this
+// one. The Login redesign gave the page a real password field rather than a
+// fourth copy of the toggle, so the sentence was retired with the thing it
+// described.
 //
 // 2026-09-18 (Settings redesign): `error` renders the message under the field
 // AND turns the border red — shape 4 never got the red border before, so a

@@ -70,6 +70,9 @@ const PAIRS = [
   // brand (D3): content links, the active nav item, the seal disc
   ['brand', 'surface', 'text', 'content links on cards'], ['brand', 'page', 'text', 'content links on the page'], ['brand', 'surface-subtle', 'text', 'content links in bands'], ['brand', 'surface-muted', 'text', 'content links on a hovered row'], ['brand', 'brand-soft', 'text', 'active nav / settings tab'],
   ['brand-soft', 'surface', 'boundary', 'active-nav tint vs sidebar'], ['seal-bg', 'surface', 'boundary', 'seal disc vs sidebar'],
+  // brand panel — the Login split panel / mobile band
+  ['brand-panel-fg', 'brand-panel', 'text', 'Login panel headings and name lines'], ['brand-panel-muted', 'brand-panel', 'text', 'Login panel district and Est. lines'],
+  ['seal-bg', 'brand-panel', 'boundary', 'seal disc vs the Login panel'],
   ['bubble-mine', 'surface', 'boundary', 'own bubble vs card'], ['bubble-theirs', 'surface', 'boundary', 'their bubble vs card'], ['edge', 'surface', 'boundary', 'card border'], ['surface', 'page', 'boundary', 'card vs page'], ['surface-subtle', 'surface', 'boundary', 'band vs card'], ['surface-muted', 'surface-subtle', 'boundary', 'active nav vs hovered'],
 ];
 const NEED = { text: 4.5, ui: 3, disabled: 0, boundary: 0 };
