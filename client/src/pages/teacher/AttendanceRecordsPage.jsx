@@ -168,7 +168,7 @@ export default function AttendanceRecordsPage() {
       To change a mark, open{' '}
       <Link
         to="/teacher/attendance"
-        className="font-medium text-fg-secondary underline decoration-fg-ghost underline-offset-2 hover:text-fg"
+        className="font-medium text-brand underline decoration-fg-ghost underline-offset-2 hover:decoration-brand"
       >
         Attendance
       </Link>{' '}

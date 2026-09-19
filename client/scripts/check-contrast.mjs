@@ -67,6 +67,9 @@ const PAIRS = [
   ['success-fg', 'surface', 'text', 'checklist passed'], ['success-icon', 'surface', 'ui', 'checklist icon'], ['warning-icon', 'surface', 'ui', 'blocked-nav icon'],
   ['bubble-mine-fg', 'bubble-mine', 'text', 'own message'], ['bubble-mine-meta', 'bubble-mine', 'text', 'own timestamp'], ['bubble-theirs-fg', 'bubble-theirs', 'text', 'their message'], ['bubble-theirs-meta', 'bubble-theirs', 'text', 'their timestamp'],
   ['focus-accent', 'surface', 'ui', 'grade-cell focus ring'], ['edge-strong', 'surface', 'ui', 'control border'],
+  // brand (D3): content links, the active nav item, the seal disc
+  ['brand', 'surface', 'text', 'content links on cards'], ['brand', 'page', 'text', 'content links on the page'], ['brand', 'surface-subtle', 'text', 'content links in bands'], ['brand', 'surface-muted', 'text', 'content links on a hovered row'], ['brand', 'brand-soft', 'text', 'active nav / settings tab'],
+  ['brand-soft', 'surface', 'boundary', 'active-nav tint vs sidebar'], ['seal-bg', 'surface', 'boundary', 'seal disc vs sidebar'],
   ['bubble-mine', 'surface', 'boundary', 'own bubble vs card'], ['bubble-theirs', 'surface', 'boundary', 'their bubble vs card'], ['edge', 'surface', 'boundary', 'card border'], ['surface', 'page', 'boundary', 'card vs page'], ['surface-subtle', 'surface', 'boundary', 'band vs card'], ['surface-muted', 'surface-subtle', 'boundary', 'active nav vs hovered'],
 ];
 const NEED = { text: 4.5, ui: 3, disabled: 0, boundary: 0 };

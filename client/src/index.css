@@ -48,12 +48,17 @@
   --fg-faint: oklch(70.4% 0.04 256.788);          /* slate-400 */
   --fg-ghost: oklch(86.9% 0.022 252.894);         /* slate-300 */
 
-  /* primary action */
-  --primary: oklch(20.8% 0.042 265.755);          /* slate-900 */
-  --primary-hover: oklch(37.2% 0.044 257.287);    /* slate-700 */
+  /* primary action — the school's brand navy (the seal's blue), D3 2026-09-19 */
+  --primary: #08027C;                             /* brand navy — was slate-900 (D3, named light change) */
+  --primary-hover: #1C15A3;                       /* brand navy, lighter — was slate-700 */
   --primary-fg: #fff;                             /* white */
-  --primary-disabled: oklch(86.9% 0.022 252.894); /* slate-300 */
+  --primary-disabled: #B5B3E6;                    /* brand navy tint — was slate-300 */
   --solid-fg: #fff;                               /* white — text on a danger/success solid button */
+
+  /* brand — text and icons in the school color, the active-nav tint, the seal's disc */
+  --brand: #08027C;                               /* brand navy (same value as primary, different role) */
+  --brand-soft: #ECEBFC;                          /* brand navy tint — active nav item background */
+  --seal-bg: #fff;                                /* white in BOTH themes: the seal's disc is artwork, not a surface */
 
   /* tones */
   --neutral-soft: oklch(96.8% 0.007 247.896);     /* slate-100 */
@@ -128,6 +133,9 @@
   --color-primary-fg: var(--primary-fg);
   --color-primary-disabled: var(--primary-disabled);
   --color-solid-fg: var(--solid-fg);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-seal-bg: var(--seal-bg);
 
   --color-neutral-soft: var(--neutral-soft);
   --color-neutral-edge: var(--neutral-edge);
@@ -217,12 +225,18 @@
   --fg-faint: oklch(70.4% 0.04 256.788);          /* slate-400 — collapses with fg-muted in dark */
   --fg-ghost: oklch(55.4% 0.046 257.417);         /* slate-500 */
 
-  /* primary action — inverted */
-  --primary: oklch(96.8% 0.007 247.896);          /* slate-100 */
-  --primary-hover: oklch(86.9% 0.022 252.894);    /* slate-300 */
-  --primary-fg: oklch(20.8% 0.042 265.755);       /* slate-900 */
-  --primary-disabled: oklch(44.6% 0.043 257.281); /* slate-600 */
+  /* primary action — the brand navy lightened for dark (D3): a light indigo
+     fill with near-black text, so the button still reads as the brand */
+  --primary: #ABA8F7;                             /* brand, dark */
+  --primary-hover: #C4C2FA;                       /* brand, dark, lighter */
+  --primary-fg: oklch(12.9% 0.042 264.695);       /* slate-950 */
+  --primary-disabled: #4B4890;                    /* brand, dark, dimmed */
   --solid-fg: #fff;                               /* white */
+
+  /* brand */
+  --brand: #ABA8F7;                               /* brand, dark */
+  --brand-soft: #23204F;                          /* brand tint on the dark sidebar */
+  --seal-bg: #fff;                                /* white in BOTH themes — the seal's disc */
 
   /* tones */
   --neutral-soft: oklch(27.9% 0.041 260.031);     /* slate-800 */

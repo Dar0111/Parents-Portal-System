@@ -46,7 +46,7 @@ export default function SettingsLayout() {
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                     isActive
-                      ? 'bg-surface-muted font-medium text-fg'
+                      ? 'bg-brand-soft font-medium text-brand'
                       : 'text-fg-body hover:bg-surface-subtle hover:text-fg'
                   }`
                 }

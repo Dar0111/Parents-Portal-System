@@ -356,7 +356,7 @@ export default function StudentsPage() {
       render: (row) => (
         <Link
           to={`/teacher/students/${row.id}`}
-          className="font-medium text-fg underline-offset-2 hover:underline"
+          className="font-medium text-brand underline-offset-2 hover:underline"
         >
           {row.last_name}, {row.first_name}
         </Link>

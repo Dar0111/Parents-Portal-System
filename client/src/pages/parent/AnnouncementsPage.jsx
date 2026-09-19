@@ -141,7 +141,7 @@ export default function ParentAnnouncementsPage() {
             <button
               type="button"
               onClick={() => setReading(row)}
-              className="text-left font-medium text-fg underline-offset-2 hover:underline"
+              className="text-left font-medium text-brand underline-offset-2 hover:underline"
             >
               {row.title}
             </button>

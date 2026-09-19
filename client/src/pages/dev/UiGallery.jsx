@@ -107,6 +107,7 @@ const TOKEN_GROUPS = [
   ['edges', ['bg-edge', 'bg-edge-soft', 'bg-edge-strong', 'bg-focus-edge', 'bg-focus-ring', 'bg-focus-accent']],
   ['text', ['bg-fg', 'bg-fg-secondary', 'bg-fg-body', 'bg-fg-muted', 'bg-fg-faint', 'bg-fg-ghost']],
   ['primary', ['bg-primary', 'bg-primary-hover', 'bg-primary-fg', 'bg-primary-disabled', 'bg-solid-fg']],
+  ['brand', ['bg-brand', 'bg-brand-soft', 'bg-seal-bg']],
   ['neutral', ['bg-neutral-soft', 'bg-neutral-edge', 'bg-neutral-fg']],
   ['success', ['bg-success-soft', 'bg-success-edge', 'bg-success-fg', 'bg-success-strong', 'bg-success-icon', 'bg-success-solid', 'bg-success-solid-hover']],
   ['warning', ['bg-warning-soft', 'bg-warning-soft-hover', 'bg-warning-edge', 'bg-warning-edge-strong', 'bg-warning-fg', 'bg-warning-strong', 'bg-warning-icon']],

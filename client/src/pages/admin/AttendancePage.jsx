@@ -208,7 +208,7 @@ export default function AdminAttendancePage() {
       render: (row) => (
         <Link
           to={`/admin/students/${row.student_id}`}
-          className="font-medium text-fg underline-offset-2 hover:underline"
+          className="font-medium text-brand underline-offset-2 hover:underline"
         >
           {row.last_name}, {row.first_name}
         </Link>
