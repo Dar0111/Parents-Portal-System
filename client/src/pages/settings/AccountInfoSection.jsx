@@ -149,6 +149,11 @@ export default function AccountInfoSection() {
 
   const emailVerifiedAt = user?.email_verified_at || null;
   const hasEmail = Boolean(user?.email);
+  // Every "ask the school office" sentence on this page is a dead end for
+  // the admin, who IS the office — and is also the only role that can reach
+  // PUT /api/users/:id. All three email branches name the page instead
+  // (browser check, 2026-09-19).
+  const isAdmin = role === 'admin';
   // 'idle' until a code has been asked for; 'code' once one is on its way.
   // Not derived from anything stored — a code in an inbox outlives a page
   // refresh, so "Enter the code" stays available through the button below.
@@ -319,17 +324,14 @@ export default function AccountInfoSection() {
         <h3 className="text-sm font-semibold text-fg">Email address</h3>
         {!hasEmail ? (
           <p className="text-sm text-fg-muted">
-            There is no email address on this account. Ask the school office to add one — without
-            it you cannot reset your own password, and the office has to do it for you.
+            {isAdmin
+              ? 'There is no email address on this account. Add one by editing your account in Admin → Users — without it you cannot reset your own password, and only another admin can get you back in.'
+              : 'There is no email address on this account. Ask the school office to add one — without it you cannot reset your own password, and the office has to do it for you.'}
           </p>
         ) : emailVerifiedAt ? (
           <p className="text-sm text-fg-muted">
             This address is confirmed, so you can reset your own password from the sign-in page.{' '}
-            {/* An admin IS the school office — telling them to ask it is a
-                dead end (browser check, 2026-09-19). They are also the only
-                role that can reach PUT /api/users/:id, so naming the page is
-                a true instruction, not a suggestion (§5i). */}
-            {role === 'admin'
+            {isAdmin
               ? 'To change it, edit your account in Admin → Users.'
               : 'To change the address itself, ask the school office.'}
           </p>
@@ -337,8 +339,14 @@ export default function AccountInfoSection() {
           <>
             <p className="text-sm text-fg-muted">
               This address is not confirmed yet. Confirming it is what lets you reset your own
-              password from the sign-in page. Until then, only the school office can get you back
-              in.
+              password from the sign-in page. Until then,{' '}
+              {/* True for both, and worth the distinction: the temporary-password
+                  fallback is admin-only AND refuses your own id, so an admin's
+                  way back in is a DIFFERENT admin — not themselves, and not a
+                  queue they can join (§5i). */}
+              {isAdmin
+                ? 'only another admin can get you back in.'
+                : 'only the school office can get you back in.'}
             </p>
             {emailStep === 'code' ? (
               <form onSubmit={confirmEmailCode} className="space-y-3">
