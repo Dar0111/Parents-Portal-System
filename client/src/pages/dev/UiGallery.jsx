@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import DataTable from '../../components/DataTable';
 import { applyTheme, readTheme } from '../settings/theme';
+import seal from '../../assets/school-seal.png';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
@@ -147,6 +148,13 @@ function TokenStrip() {
           <span className="rounded-lg bg-primary px-3 py-1 text-primary-fg">Primary</span>
           <span className="rounded-lg bg-danger-solid px-3 py-1 text-solid-fg">Danger</span>
           <span className="rounded-lg bg-success-solid px-3 py-1 text-solid-fg">Approve</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <span className="rounded-lg bg-brand-soft px-3 py-1 font-medium text-brand">Active nav</span>
+          <span className="font-medium text-brand underline-offset-2 hover:underline">A content link</span>
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-seal-bg">
+            <img src={seal} alt="Captain H. Francisco Elementary School seal" width="40" height="40" className="h-10 w-10 rounded-full" />
+          </span>
         </div>
       </div>
     </div>

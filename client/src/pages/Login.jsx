@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
 import extractError from '../api/extractError';
 import { takeLogoutReason } from '../api/axios';
+import seal from '../assets/school-seal.png';
 
 export default function Login() {
   const { user, loading, login } = useAuth();
@@ -48,6 +49,18 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-page px-4">
       <div className="w-full max-w-sm rounded-xl border border-edge bg-surface p-8 shadow-sm">
         <div className="mb-6 text-center">
+          {/* The seal always sits on its own white disc (seal-bg is white in
+              both themes): the JPG's white field and its blue ring need it on
+              a dark card. rounded-full clips the square image to the disc. */}
+          <div className="mx-auto mb-4 flex h-26 w-26 items-center justify-center rounded-full bg-seal-bg">
+            <img
+              src={seal}
+              alt="Captain H. Francisco Elementary School seal"
+              width="96"
+              height="96"
+              className="h-24 w-24 rounded-full"
+            />
+          </div>
           <h1 className="text-lg font-semibold text-fg">Parent's Portal</h1>
           <p className="mt-1 text-sm text-fg-muted">
             Captain H. Francisco Elementary School

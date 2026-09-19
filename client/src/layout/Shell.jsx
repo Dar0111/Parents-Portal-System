@@ -6,12 +6,39 @@ import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
+import seal from '../assets/school-seal.png';
 
 const ROLE_LABEL = {
   admin: 'Admin',
   teacher: 'Teacher',
   parent: 'Parent',
 };
+
+// The school's seal beside the product name, at the top of the sidebar and of
+// the mobile drawer (D3, 2026-09-19). The seal always sits on its own white
+// disc — seal-bg is white in BOTH themes, because the JPG's white field and
+// its blue ring vanish on a dark surface otherwise; rounded-full clips the
+// square image to the disc. 40px inside a 44px disc; the 192px asset is 2x
+// the largest render (Login's 96px).
+function Brand() {
+  return (
+    <div className="flex items-center gap-3 px-4 py-4">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-seal-bg">
+        <img
+          src={seal}
+          alt="Captain H. Francisco Elementary School seal"
+          width="40"
+          height="40"
+          className="h-10 w-10 rounded-full"
+        />
+      </div>
+      <div className="min-w-0 leading-tight">
+        <div className="truncate text-sm font-semibold text-fg">Parent&rsquo;s Portal</div>
+        <div className="truncate text-xs text-fg-muted">Capt. H. Francisco ES</div>
+      </div>
+    </div>
+  );
+}
 
 // Three states, not two — see nav.js. `blocked` is a stronger claim than
 // `built: false` and takes precedence: an unbuilt page is merely unwritten, a
@@ -147,7 +174,7 @@ function ShellChrome() {
   return (
     <div className="flex min-h-screen bg-page">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-edge bg-surface sm:flex">
-        <div className="px-4 py-5 text-sm font-semibold text-fg">Parent&rsquo;s Portal</div>
+        <Brand />
         <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
       </aside>
 
@@ -158,8 +185,8 @@ function ShellChrome() {
             onClick={() => setMobileNavOpen(false)}
           />
           <aside className="absolute inset-y-0 left-0 flex w-60 flex-col bg-surface shadow-xl">
-            <div className="flex items-center justify-between px-4 py-5">
-              <span className="text-sm font-semibold text-fg">Parent&rsquo;s Portal</span>
+            <div className="flex items-center justify-between pr-3">
+              <Brand />
               <button
                 type="button"
                 aria-label="Close menu"
