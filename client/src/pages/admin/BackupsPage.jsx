@@ -404,6 +404,18 @@ export default function AdminBackupsPage() {
         <FormStatus status={status.list} />
 
         <DataTable
+          // THE NON-PERSON CASE, and it is here in DV1 on purpose: a row is
+          // a FILE, so there is no `avatar` — a backup with an initials disc
+          // would read as a member of staff. It also has no primary action:
+          // download, delete and restore are three peers, and restore is
+          // irreversible, so a whole-card tap is exactly the wrong shape.
+          // Static card, no chevron, the same action buttons underneath.
+          renderCard={(row) => ({
+            title: row.filename,
+            subtitle: isSafetyCopy(row) ? 'Safety copy' : 'Manual backup',
+            meta: `${formatWhen(row.created_at)} · ${formatSize(row.file_size)}`,
+            actions: columns[columns.length - 1].render(row),
+          })}
           columns={columns}
           rows={backups}
           loading={loading}

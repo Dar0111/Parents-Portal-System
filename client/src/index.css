@@ -229,6 +229,35 @@
 
 :root {
   color-scheme: light;
+
+  /* -----------------------------------------------------------------------
+     THE APP HEADER'S HEIGHT, so a sticky table header can clear it (DV1).
+
+     NOT A COLOUR — `lint:tokens` polices raw colour utilities and does not
+     look at lengths, so this variable is outside its remit and belongs here
+     next to the other runtime values rather than in a Tailwind config.
+
+     WHY A VARIABLE AND NOT A NUMBER AT THE CALL SITE. layout/Header.jsx is
+     `sticky top-0 z-30`, and the document is the only scroller (§9). A table
+     header stuck at `top-0` therefore slides UNDER the app header instead of
+     resting below it. The offset has to be the header's real height, and it
+     has to be written once — a literal repeated per table is a number that
+     goes stale the first time the header changes.
+
+     DERIVED FROM Header.jsx's OWN CLASSES, not measured by eye:
+       py-3               0.75rem top + 0.75rem bottom   = 1.5rem
+       tallest child      NotificationBell is h-9 (2.25rem); the two-line
+                          user block is text-sm (1.25rem) + text-xs (1rem)
+                          = 2.25rem — the same, so either governs
+       border-b           1px
+     => 1.5rem + 2.25rem + 1px.
+
+     REM, SO IT FOLLOWS "Large text" (Settings -> Personalization scales the
+     root font size). The 1px border is deliberately NOT scaled: a hairline
+     stays a hairline. Confirm in DevTools during the browser check — if the
+     header is ever not 61px at the default root size, this is the one line
+     to fix. */
+  --header-h: calc(3.75rem + 1px);
 }
 
 [data-theme="dark"] {

@@ -5,6 +5,7 @@ import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
+import { PersonCell } from '../../components/Avatar';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
@@ -57,12 +58,46 @@ const EMPTY_TEACHER = {
 
 const EMPTY_EDIT = { name: '', email: '', contact_number: '' };
 
+// 36px square, rem-based (h-9 = 2.25rem) so "Large text" scales it. One
+// string, because three buttons that drift apart is how a row of actions
+// stops looking like a row of actions.
+const ICON_BTN =
+  'inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body transition hover:bg-surface-muted';
+
 const ROLE_FILTERS = ['', 'parent', 'teacher', 'admin'];
 const STATUS_FILTERS = ['', 'pending', 'active', 'rejected', 'inactive'];
 
 function displayRole(role) {
   if (typeof role !== 'string' || !role) return '';
   return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+// A PARENT'S login_id IS THEIR CHILD'S LRN (§5c), so the directory shows the
+// last four digits and nothing more (DV1, 2026-09-20). Teacher and admin ids
+// are ordinary staff identifiers and stay whole.
+//
+// THIS IS NOT THE HELPER IN Settings, AND THE DIFFERENCE IS DELIBERATE — the
+// dispatch asked to "reuse the mask parent Settings already uses", and that
+// one is a different thing: `MaskedLoginId` in settings/AccountInfoSection.jsx
+// is a stateful COMPONENT that hides the value completely and offers a
+// Show/Hide toggle. That is right for one field on your own account page and
+// wrong in a table, where it would mean fifty reveal buttons, and wrong on a
+// card, where a button inside a link is the nested-interactive fault this
+// dispatch exists to avoid. So: two rules, on purpose.
+//
+// Second occurrence of "mask a login id". A THIRD is the trigger to extract
+// both into client/src/format/loginId.js and reconcile the rules — the same
+// rule-of-three this codebase already applied to dateFormat and TermValue.
+// Not done now: it would mean editing a file outside this branch's whitelist
+// to serve one caller.
+function maskLoginId(user) {
+  const value = user?.login_id;
+  if (typeof value !== 'string' || !value) return '—';
+  if (user.role !== 'parent') return value;
+  // Short ids would leak most of themselves to a "last four", so they are
+  // hidden outright rather than partially.
+  if (value.length <= 4) return '••••';
+  return `••••${value.slice(-4)}`;
 }
 
 export default function UsersPage() {
@@ -488,7 +523,7 @@ export default function UsersPage() {
         key: 'name',
         header: 'Guardian',
         sortable: true,
-        render: (row) => <span className="font-medium text-fg">{row.name}</span>,
+        render: (row) => <PersonCell name={row.name} secondary={row.email || null} />,
       },
       {
         key: 'student',
@@ -507,6 +542,8 @@ export default function UsersPage() {
       {
         key: 'login_id',
         header: 'Login ID',
+        // Every row here is a parent, so every one of these is an LRN.
+        render: (row) => <span className="font-mono">{maskLoginId({ ...row, role: 'parent' })}</span>,
       },
       {
         key: 'created_by_name',
@@ -518,10 +555,14 @@ export default function UsersPage() {
         header: '',
         align: 'right',
         render: (row) => (
+          // The pending row's ONE action, amber rather than primary: it is
+          // the only thing to do here, and the queue is the one place on
+          // this page where something is waiting on the admin.
           <button
             type="button"
             onClick={() => openReview(row)}
-            className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
+            aria-label={`Review ${row.name}`}
+            className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-1.5 text-sm font-medium text-warning-strong transition hover:bg-warning-soft-hover"
           >
             Review
           </button>
@@ -535,13 +576,15 @@ export default function UsersPage() {
         header: 'Name',
         sortable: true,
         render: (row) => (
-          <div>
-            <div className="font-medium text-fg">{row.name}</div>
-            {row.id === me?.id ? <div className="text-xs text-fg-muted">You</div> : null}
-          </div>
+          <PersonCell name={row.name} secondary={row.id === me?.id ? 'You' : row.email || null} />
         ),
       },
-      { key: 'login_id', header: 'Login ID', sortable: true },
+      {
+        key: 'login_id',
+        header: 'Login ID',
+        sortable: true,
+        render: (row) => <span className="font-mono">{maskLoginId(row)}</span>,
+      },
       {
         key: 'role',
         header: 'Role',
@@ -568,12 +611,19 @@ export default function UsersPage() {
           const isSelf = row.id === me?.id;
           return (
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* Icon buttons, each NAMING ITS ROW in the aria-label. A
+                  column of buttons all announced as "Edit" is unusable with
+                  a screen reader, and the visible label was the only thing
+                  disambiguating them before. `title` carries the same text
+                  so a sighted mouse user keeps the wording too. */}
               <button
                 type="button"
                 onClick={() => openEdit(row)}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+                aria-label={`Edit ${row.name}`}
+                title={`Edit ${row.name}`}
+                className={ICON_BTN}
               >
-                Edit
+                <i aria-hidden="true" className="fa-solid fa-pen" />
               </button>
               {/* Hidden on your own row: the handler answers 400 "Use Change
                   password for your own account.", same shape as the
@@ -582,9 +632,11 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={() => openReset(row)}
-                  className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+                  aria-label={`Reset password for ${row.name}`}
+                  title={`Reset password for ${row.name}`}
+                  className={ICON_BTN}
                 >
-                  Reset password
+                  <i aria-hidden="true" className="fa-solid fa-key" />
                 </button>
               )}
               {canToggle && isSelf && row.status === 'active' ? (
@@ -595,15 +647,16 @@ export default function UsersPage() {
                   type="button"
                   disabled={busy}
                   onClick={() => setUserStatus(row, row.status === 'active' ? 'inactive' : 'active')}
-                  className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+                  aria-label={`${row.status === 'active' ? 'Deactivate' : 'Activate'} ${row.name}`}
+                  title={`${row.status === 'active' ? 'Deactivate' : 'Activate'} ${row.name}`}
+                  className={`${ICON_BTN} disabled:opacity-50`}
                 >
-                  {busy ? (
-                    <i className="fa-solid fa-circle-notch fa-spin" />
-                  ) : row.status === 'active' ? (
-                    'Deactivate'
-                  ) : (
-                    'Activate'
-                  )}
+                  <i
+                    aria-hidden="true"
+                    className={`fa-solid ${
+                      busy ? 'fa-circle-notch fa-spin' : row.status === 'active' ? 'fa-user-slash' : 'fa-user-check'
+                    }`}
+                  />
                 </button>
               ) : null}
             </div>
@@ -618,6 +671,15 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      {/* The page title lives in Shell's header, so the sentence that says
+          WHO CREATES WHAT goes here. It is the one thing about this screen
+          that is not obvious from it: an admin can create a teacher but not
+          a parent, and not another admin. */}
+      <p className="text-sm text-fg-muted">
+        Teacher accounts are created here. Parent accounts are created by teachers and approved
+        here.
+      </p>
+
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-fg">Waiting for approval</h2>
@@ -638,6 +700,14 @@ export default function UsersPage() {
           emptyIcon="fa-envelope-open-text"
           emptyTitle="No parent accounts waiting for approval"
           emptyMessage="A teacher creates the account. It appears here until you approve or reject it."
+          renderCard={(row) => ({
+            onSelect: () => openReview(row),
+            avatar: row.name,
+            title: row.name,
+            subtitle: `Parent of ${row.student_first_name} ${row.student_last_name}`,
+            meta: `Grade ${row.grade_level} - ${row.section}`,
+            status: 'pending',
+          })}
         />
       </section>
 
@@ -719,6 +789,19 @@ export default function UsersPage() {
           emptyIcon={directoryEmpty.icon}
           emptyTitle={directoryEmpty.title}
           emptyMessage={directoryEmpty.message}
+          // NO `to` AND NO `onSelect`: Edit, Reset password and Deactivate
+          // are three peers, so there is no primary action to tap and the
+          // card renders static with its actions underneath. Inventing a
+          // primary here — "tap to edit" — would make the other two feel
+          // secondary when they are not.
+          renderCard={(row) => ({
+            avatar: row.name,
+            title: row.name,
+            subtitle: row.email || null,
+            meta: `${displayRole(row.role)} · ${maskLoginId(row)}`,
+            status: row.status,
+            actions: userColumns[userColumns.length - 1].render(row),
+          })}
           emptyAction={
             directoryEmpty.showReset ? (
               <button

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import { PersonCell } from '../../components/Avatar';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
@@ -178,11 +179,12 @@ export default function StudentsPage() {
       sortable: true,
       sortValue: (row) => `${row.last_name}, ${row.first_name}`,
       render: (row) => (
-        <Link
-          to={`/admin/students/${row.id}`}
-          className="font-medium text-brand underline-offset-2 hover:underline"
-        >
-          {row.last_name}, {row.first_name}
+        <Link to={`/admin/students/${row.id}`} className="inline-flex min-w-0 underline-offset-2 hover:underline">
+          <PersonCell
+            name={`${row.last_name}, ${row.first_name}`}
+            secondary={`Grade ${row.grade_level} - ${row.section}`}
+            nameClass="text-brand"
+          />
         </Link>
       ),
     },
@@ -320,6 +322,16 @@ export default function StudentsPage() {
       <FormStatus status={status.list} />
 
       <DataTable
+        // Same primary action as the teacher roster, same reason the LRN is
+        // not on the card (§5c) even though the table column keeps it — the
+        // table is a desk screen, the card is a phone.
+        renderCard={(row) => ({
+          to: `/admin/students/${row.id}`,
+          avatar: `${row.first_name} ${row.last_name}`,
+          title: `${row.last_name}, ${row.first_name}`,
+          subtitle: `Grade ${row.grade_level} - ${row.section}`,
+          status: row.status,
+        })}
         columns={columns}
         rows={students}
         loading={loading}

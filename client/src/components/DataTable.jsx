@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import Avatar from './Avatar';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
 import LoadingSpinner from './LoadingSpinner';
+import StatusBadge from './StatusBadge';
 
 // Presentational only — it never fetches. The page owns the request and hands
 // down rows/loading/error, so the same table renders a roster, a grade list,
@@ -31,6 +34,36 @@ import LoadingSpinner from './LoadingSpinner';
 // Loading / error / empty are rendered INSIDE the table frame rather than left
 // to the page, so no page has to re-implement the three-state dance and none
 // of them can quietly disagree about what "no rows" looks like.
+//
+// ---------------------------------------------------------------------------
+// CARD LAYOUT BELOW `sm` (DV1, 2026-09-20) — opt-in via `renderCard`
+// ---------------------------------------------------------------------------
+// A six-column table on a 390px phone is the parent's NORMAL case, not an edge
+// one, and the answer to it was a horizontal scrollbar. A page that supplies
+// `renderCard` gets stacked cards under `sm` instead, and the table from `sm`
+// up; a page that does not is completely unchanged. That opt-in is what lets
+// this land six pages at a time instead of twenty-two in one review.
+//
+// `renderCard(row)` returns DATA, NEVER JSX:
+//
+//   { to?, onSelect?, avatar?, title, subtitle?, meta?, status?, statusTone?,
+//     actions? }
+//
+// and the reason is the accessibility rule below. A column's `render` returns
+// cell JSX full of buttons — reusing it here would put a button inside a link.
+// Returning data makes that unrepresentable rather than merely discouraged.
+//
+// EXACTLY ONE INTERACTIVE ELEMENT PER CARD, and it is a real <Link> or
+// <button>: focusable, Enter/Space, a visible focus ring, no `onClick` on a
+// div anywhere. A card with `to` or `onSelect` is that one element and shows a
+// chevron. A page with no single primary action — the Users directory, where
+// Edit / Reset password / Deactivate are three peers — passes NEITHER, and the
+// card renders STATIC with no chevron and its actions in a row underneath. A
+// card that looks tappable and is not is worse than one that never claimed to
+// be.
+//
+// The table is unchanged in this respect: rows stay non-interactive <tr>s and
+// actions stay real buttons in the Actions cell.
 
 const ALIGN = {
   left: 'text-left',
@@ -65,6 +98,68 @@ function lastPageOffset(page) {
   return Math.floor((page.total - 1) / page.limit) * page.limit;
 }
 
+// The inside of a card, shared by all three outer shapes (link, button,
+// static) so they cannot drift apart. `interactive` only decides whether the
+// chevron is drawn — it is not a style switch.
+function CardBody({ card, interactive }) {
+  return (
+    <>
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        {card.avatar ? <Avatar name={card.avatar} /> : null}
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold text-fg">{card.title}</div>
+          {card.subtitle ? <div className="mt-0.5 truncate text-sm text-fg-muted">{card.subtitle}</div> : null}
+          {card.meta ? <div className="mt-0.5 truncate text-xs text-fg-muted">{card.meta}</div> : null}
+          {card.status ? (
+            <div className="mt-2">
+              <StatusBadge status={card.status} tone={card.statusTone} />
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {interactive ? (
+        <i aria-hidden="true" className="fa-solid fa-chevron-right mt-1 shrink-0 text-xs text-fg-faint" />
+      ) : null}
+    </>
+  );
+}
+
+const CARD_SHELL =
+  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3 text-left last:border-0';
+
+function Card({ card }) {
+  // A link wins over a handler when a page supplies both: a real href is
+  // openable in a new tab and survives a middle click, which an onClick is
+  // not and does not.
+  if (card.to) {
+    return (
+      <Link to={card.to} className={`${CARD_SHELL} transition hover:bg-surface-subtle`}>
+        <CardBody card={card} interactive />
+      </Link>
+    );
+  }
+  if (card.onSelect) {
+    return (
+      <button type="button" onClick={card.onSelect} className={`${CARD_SHELL} transition hover:bg-surface-subtle`}>
+        <CardBody card={card} interactive />
+      </button>
+    );
+  }
+  // No primary action: static, no chevron, no hover affordance. Actions —
+  // when the page gives any — sit in their own row beneath, where they are
+  // siblings rather than children of something clickable.
+  return (
+    <div className={CARD_SHELL}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-3">
+          <CardBody card={card} interactive={false} />
+        </div>
+        {card.actions ? <div className="mt-3 flex flex-wrap items-center gap-2">{card.actions}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 export default function DataTable({
   columns,
   rows,
@@ -82,6 +177,8 @@ export default function DataTable({
   onPageChange,
   sort: controlledSort,
   onSortChange,
+  // Card mode below `sm`. Omitted = today's behaviour, table at every width.
+  renderCard = null,
 }) {
   const paged = Boolean(page);
   const [localSort, setLocalSort] = useState(null);
@@ -175,9 +272,21 @@ export default function DataTable({
   const canPrev = paged && page.offset > 0;
   const canNext = paged && page.has_more;
 
+  const cards = renderCard ? sortedRows.map((row, index) => ({ key: row[keyField] ?? index, card: renderCard(row) })) : null;
+
   return (
     <div className={frame}>
-      <div className="overflow-x-auto">
+      {cards ? <div className="sm:hidden">{cards.map(({ key, card }) => <Card key={key} card={card} />)}</div> : null}
+
+      {/* `sm:overflow-x-visible` is what makes the sticky header work, and it
+          is not cosmetic. `overflow-x-auto` alone makes this div a scroll
+          CONTAINER on both axes (CSS computes the other axis from `visible`
+          to `auto`), so a sticky <th> would resolve against a box with no
+          scroll range and never stick while the page scrolled. Releasing it
+          from `sm` up is safe precisely because the card layout has taken
+          over below `sm`, which is the only width the horizontal scroller
+          was ever for. */}
+      <div className={`overflow-x-auto sm:overflow-x-visible ${cards ? 'hidden sm:block' : ''}`}>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-edge bg-surface-subtle">
@@ -187,9 +296,18 @@ export default function DataTable({
                   <th
                     key={column.key}
                     scope="col"
-                    style={column.width ? { width: column.width } : undefined}
                     aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                    className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-body ${
+                    // ONE style object. `top` is the app header's height —
+                    // see --header-h in index.css for why and how it is
+                    // derived — and `width` is the caller's optional column
+                    // width, which used to live in a style prop of its own.
+                    // Two `style` props on one element is not an override,
+                    // it is the first one silently disappearing, so the
+                    // column widths would have stopped working.
+                    // bg-surface-subtle below is required, not decorative: a
+                    // transparent sticky header lets rows show through it.
+                    style={{ top: 'var(--header-h)', ...(column.width ? { width: column.width } : null) }}
+                    className={`sticky z-10 bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body ${
                       ALIGN[column.align] || ALIGN.left
                     }`}
                   >
@@ -228,7 +346,7 @@ export default function DataTable({
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-4 py-2.5 text-fg-secondary ${ALIGN[column.align] || ALIGN.left}`}
+                    className={`px-4 py-3 text-fg-secondary ${ALIGN[column.align] || ALIGN.left}`}
                   >
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
@@ -245,7 +363,7 @@ export default function DataTable({
           data-testid="datatable-pager"
         >
           <span>
-            {first}–{last} of {page.total}
+            Showing {first}–{last} of {page.total}
           </span>
           <span className="inline-flex gap-2">
             <button

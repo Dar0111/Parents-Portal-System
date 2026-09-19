@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import { PersonCell } from '../../components/Avatar';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
@@ -354,11 +355,12 @@ export default function StudentsPage() {
       // shape a shared primitive around a single caller. If a second page
       // needs whole-row clicking, that is the trigger to add it.
       render: (row) => (
-        <Link
-          to={`/teacher/students/${row.id}`}
-          className="font-medium text-brand underline-offset-2 hover:underline"
-        >
-          {row.last_name}, {row.first_name}
+        <Link to={`/teacher/students/${row.id}`} className="inline-flex min-w-0 underline-offset-2 hover:underline">
+          <PersonCell
+            name={`${row.last_name}, ${row.first_name}`}
+            secondary={`Grade ${row.grade_level} - ${row.section}`}
+            nameClass="text-brand"
+          />
         </Link>
       ),
     },
@@ -439,6 +441,17 @@ export default function StudentsPage() {
       <FormStatus status={status.list} />
 
       <DataTable
+        // A real primary action: the detail page. The card is one <Link>,
+        // which is why the LRN column does not come along — a card shows
+        // what identifies the learner, and the name plus the class does
+        // that without putting an LRN on a phone screen (§5c).
+        renderCard={(row) => ({
+          to: `/teacher/students/${row.id}`,
+          avatar: `${row.first_name} ${row.last_name}`,
+          title: `${row.last_name}, ${row.first_name}`,
+          subtitle: `Grade ${row.grade_level} - ${row.section}`,
+          status: row.status,
+        })}
         columns={columns}
         rows={students}
         loading={loading}

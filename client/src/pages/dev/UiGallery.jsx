@@ -14,6 +14,7 @@ import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
 import { VerifiedMark } from '../settings/AccountInfoSection';
 import Card, { CardEmpty, Stat } from '../dashboards/Card';
+import { PersonCell } from '../../components/Avatar';
 import { NavItem } from '../../layout/Shell';
 
 // Dev-only component gallery (routed in App.jsx behind import.meta.env.DEV).
@@ -545,6 +546,68 @@ export default function UiGallery() {
             </span>
             <span className="text-sm text-fg-muted">the bell itself, with a count chip</span>
           </div>
+        </Section>
+
+        <Section
+          title="Avatar + PersonCell (DV1)"
+          note="Initials only — users.profile_pic exists in the schema, is NULL on every row, and has no upload endpoint. brand-on-brand-soft is an already-checked contrast pair. Note AC, not AM, for a four-word name, and one letter for a single word."
+        >
+          <div className="space-y-3 rounded-xl border border-edge bg-surface p-4">
+            <PersonCell name="Maria Santos" secondary="msantos@chfes.edu.ph" />
+            <PersonCell name="Ana Maria Reyes Cruz" secondary="Four words — first and LAST initial" />
+            <PersonCell name="Jea-Mae Bargaso" secondary="Hyphen is a separator" />
+            <PersonCell name="Cher" secondary="Single word — one letter, not a doubled one" />
+            <PersonCell name="Lito Bautista" secondary="Linked name" nameClass="text-brand" />
+            <PersonCell name="" secondary="No name: no circle at all, never an empty disc or a ?" />
+          </div>
+        </Section>
+
+        <Section
+          title="DataTable — card layout below sm (DV1)"
+          note="Resize under 640px to swap. Opt-in per page via renderCard, which returns DATA, never JSX — that is what makes a button-inside-a-link unrepresentable. Exactly one interactive element per card; a card with no primary action is static with no chevron and its actions in a row underneath."
+        >
+          <DataTable
+            columns={COLUMNS}
+            rows={STUDENTS}
+            renderCard={(row) => ({
+              to: '/dev/ui',
+              avatar: row.name,
+              title: row.name,
+              subtitle: row.section,
+              status: row.status,
+            })}
+          />
+          <p className="mt-3 text-sm text-fg-muted">
+            The same rows with NO primary action — static card, no chevron, actions underneath:
+          </p>
+          <DataTable
+            className="mt-2"
+            columns={COLUMNS}
+            rows={STUDENTS}
+            renderCard={(row) => ({
+              title: row.name,
+              subtitle: row.section,
+              status: row.status,
+              actions: (
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Edit ${row.name}`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body"
+                  >
+                    <i aria-hidden="true" className="fa-solid fa-pen" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Deactivate ${row.name}`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body"
+                  >
+                    <i aria-hidden="true" className="fa-solid fa-user-slash" />
+                  </button>
+                </>
+              ),
+            })}
+          />
         </Section>
 
         <Section
