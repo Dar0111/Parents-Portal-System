@@ -1531,11 +1531,19 @@ is the order, not the record.
       client, DB3 docs). `GET /api/dashboard`, the deliberately thin one, plus
       `pages/dashboards/Card.jsx` and `useCard.js`. The three pages no longer
       derive their content from `navForRole`. See §12.
-      **OPEN CHECK, not a defect:** the teacher attendance banner was never
-      seen in a browser — DB2's check fell on Saturday 2026-09-19 and the
-      banner is hidden at weekends by design. **Verify on a weekday:** amber
-      "Not recorded" for the advisory section, then green once attendance is
-      recorded that day. Do not fake the date to close this.
+      **The teacher attendance banner is now checked too (2026-09-20).** It
+      could not be seen during DB2's check — that fell on Saturday and the
+      banner is weekend-hidden by design — so Darryl moved the Windows clock
+      to Monday 2026-09-21 09:00 and verified both states: amber "Grade 6 -
+      Malikhain — Not recorded" with a Record attendance button that opens
+      Attendance with the section and date preselected, then green
+      "Recorded — 1 present, 0 absent" after saving. **He overrode his own
+      "do not fake the date" rule for this one check, deliberately** — the
+      alternative was carrying an unverified page for a day. 09:00 so that
+      PH and UTC were both Monday, since the banner reads a local weekday
+      and the server stores a DATE. Clock restored to automatic; the one
+      attendance row was removed and the three `activity_logs` rows it
+      produced stay, dated 2026-09-21 — **do not "fix" those timestamps.**
 - [ ] **Data views redesign — MOCKUP FIRST, no code until it is approved.**
       Three pieces: a `DataTable` restyle for every list, with a **card
       layout below `sm`** (a row of six columns on a 390px phone is the
@@ -1968,6 +1976,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-20 | Teacher attendance banner verified and DB2's one open check closed: Darryl moved the Windows clock to Monday 2026-09-21 09:00 (PH and UTC both Monday), saw amber "Not recorded" then green "Recorded — 1 present, 0 absent", and restored the clock. **This overrides his own "do not fake the date" line in DB2's entry — his call, recorded, not quietly done.** No code changed; the banner was unseen, not broken. Cleanup removed the one attendance row; the three `activity_logs` rows dated 2026-09-21 stay. |
 | 2026-09-20 | Dashboards DB3 (docs): a Dashboard section in `docs/API_REFERENCE.md` (per-role payload, the thin-endpoint rule, the scope rule, and why the dashboards ask `GET /api/events` for ascending dates while the endpoint default stays DESC); counts move to **86 handlers / 87 endpoints**; new **§12** here; BUILD ORDER ticks Dashboards and keeps the Monday teacher-banner check open; two items added to Data views redesign (the Attendance intro naming an absent percentage, and Dark’s amber reading as rust); the single-admin lockout row corrected — **the app cannot create an admin**, so confirming the email is the only in-app remedy; new row on direct-insert fixtures firing no fan-out. |
 | 2026-09-20 | Dashboards DB2 (client, `feat/dashboards`): three real dashboards, `Card.jsx` + `useCard.js`, each card owning its own loading/error/empty state with no bare `Promise.all`. Browser check passed with **one defect** — upcoming events were DESC, so a "next three" card returned the three furthest-away events backwards — plus four review corrections (hazard card red → amber, its impossible "create a second admin" link removed, the locks label now names its term, the hook moved to its own file). oxlint 44, SSR 36/36. Fixtures cleaned up; Seeded baseline confirmed. |
 | 2026-09-20 | Dashboards DB1 (server, `feat/dashboard-api`): `GET /api/dashboard`, deliberately thin — only the teacher class-encoding progress, the admin counts and lock count, and the parent grades summary (A1: computed server-side with the report card’s own `roundTo2`). Recent activity dropped — no `activity_logs` read endpoint exists. `test:dashboard` 75/75 ×3. |

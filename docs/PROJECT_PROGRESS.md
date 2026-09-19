@@ -114,9 +114,14 @@ and no endpoint in the system creates an admin, so it was removed.
 accounts, at desktop and 390px, in both themes. The check found one real
 defect: every "upcoming events" card was ordered newest-first, which for a
 three-item card meant showing the three furthest-away events rather than the
-next three. One item could not be checked — the teacher's attendance banner
-is hidden at weekends by design and the check fell on a Saturday; it is
-recorded in BUILD ORDER as an open check rather than assumed working.
+next three. One item could not be checked on the day — the teacher's
+attendance banner is hidden at weekends by design and the check fell on a
+Saturday — so it was recorded as an open check rather than assumed working,
+and **closed the next day (2026-09-20)**: Darryl moved the machine's clock
+to Monday morning and saw both states, amber "Not recorded" with a button
+that opens Attendance on the right section and date, then green "Recorded —
+1 present, 0 absent" once he saved. Every dashboard is now verified in a
+browser.
 
 **Account recovery — DONE 2026-09-19 (R1 server, R2 client, R3 docs).**
 Manuscript p. 49 promises "Forgot Password"; until this dispatch the Login
