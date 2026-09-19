@@ -630,6 +630,36 @@ one page" failure the foundation dispatch existed to prevent. That page was
 removed with Feature 7 on 2026-09-13, so **no current page reaches `lg`'s
 width. A page that cannot fit `lg` is the trigger to reconsider the scale.**
 
+### 7c. A write's result renders next to the control that caused it
+
+**Frozen 2026-09-18, after Teacher → Settings.** `FormStatus` is the only
+renderer for the outcome of a write. Three rules:
+
+- **Placement.** Under that form's submit button; **inside the Modal**, under
+  its action row, for a modal write; **above the list it describes** when the
+  message outlives its modal ("Parent approved." after the dialog closes). A
+  page with two lists gets two keys. **Never a single slot at the top of the
+  page** — nothing in `Shell` is sticky, so on a long page the confirmation for
+  a button near the bottom renders off-screen and the write looks like it did
+  nothing.
+- **One value, not two.** `{ tone, text }`, so a success and a failure cannot
+  both be on screen. The XOR that each page used to re-derive by hand — and
+  got wrong twice — is now unrepresentable.
+- **One object per page, keyed by form.** Writing a key REPLACES the object,
+  clearing every other form's message: a message describes the action just
+  taken, and a stale success next to a fresh one gets read as the new result.
+
+An error still goes through `ErrorAlert`, so §2's rule that the API's own
+wording reaches the user is untouched; a success carries `role="status"` to
+`ErrorAlert`'s `role="alert"`. An error slot already rendered inside its own
+modal is already correct — do not convert it for uniformity.
+
+**Added to this file on 2026-09-19.** It was frozen on 2026-09-18 and
+recorded in `CLAUDE.md` only; the mirror gap was found while measuring for
+the section trim, not caused by it. This is the CLAUDE.md text verbatim —
+the worked examples behind it are on the 2026-09-18 `docs/CHANGELOG.md`
+row and in `client/src/components/FormStatus.jsx`’s own header.
+
 ### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
 
 **Frozen 2026-09-19, `feat/design-tokens` (D1 of the Dark mode plan).** Every

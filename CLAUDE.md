@@ -98,89 +98,17 @@ return the database to this table, not to a remembered older snapshot.
 
 ### Working endpoints — this is the entire API
 
-| Method | Path | Role |
-|--------|------|------|
-| GET | `/api/health` | Public |
-| POST | `/api/auth/login` | Public |
-| GET | `/api/auth/me` | Authenticated |
-| PUT | `/api/auth/change-password` | Authenticated |
-| PUT | `/api/auth/contact` | Authenticated — own `contact_number` only; identity fields in the body rejected with 400 |
-| POST | `/api/users/teachers` | admin |
-| POST | `/api/users/parents` | teacher — assigned to the student's class OR adviser of its section; one query resolves LRN + scope, so unknown LRN and out-of-scope are the same `403`, checked BEFORE the duplicate `409`s |
-| GET | `/api/users/parents/pending` | admin |
-| PUT | `/api/users/parents/:id/approve` | admin |
-| PUT | `/api/users/parents/:id/reject` | admin |
-| GET | `/api/users` | admin — filter by role, status, search on name/login_id |
-| GET | `/api/users/:id` | admin |
-| PUT | `/api/users/:id` | admin — name/email/contact_number only, forbidden fields rejected with 400 |
-| PATCH | `/api/users/:id/status` | admin — active/inactive only, self and last-active-admin blocked |
-| GET | `/api/students` | teacher (assigned OR adviser of the student's section), admin |
-| GET | `/api/students/:id` | teacher (assigned OR adviser), admin, parent (own child only) |
-| POST | `/api/students` | teacher (own assignment only), admin — stores `section_id`; duplicate LRN `409` before section resolve; missing year `409`; unmatched section `400` |
-| PUT | `/api/students/:id` | teacher (own assignment only — `403` naming the reason if adviser-visible but unassigned, `404` if outside both), admin — class change `400`; matching PUT writes `section_id` only when NULL |
-| PATCH | `/api/students/:id/status` | admin |
-| GET | `/api/sections` | all roles — unscoped reference data, no per-role filtering |
-| GET | `/api/sections/:id` | all roles — `404` only for a genuinely nonexistent id |
-| PATCH | `/api/sections/:id/adviser` | admin — assigns/clears a section's adviser, one teacher may advise more than one section |
-| GET | `/api/subjects` | all roles — unscoped reference data (the 40-row curriculum), optional `?grade_level=` |
-| GET | `/api/assignments` | teacher (own rows only), admin (anyone) — teacher naming another `teacher_id` is `403`, not `404` (anti-enumeration does not apply; `/api/messages/contacts` already lists teachers by name) |
-| POST | `/api/assignments` | admin — `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for the current `academic_year`; duplicate is `409` |
-| DELETE | `/api/assignments/:id` | admin — does **not** refuse when grades exist; a scope change removes future authority, never past records |
-| GET | `/api/grading-modes` | authenticated — `grade_level` required (1–6); `school_year` optional, defaults to `system_settings.academic_year`; missing config is `409` (same status both `grades.js` readers already use). Not a `system_settings` key. Wrapper `grading_mode` is an **object** here; the report card uses the same key as a **string** |
-| GET | `/api/grades` | teacher (wide view-scope: grade+section, any subject), admin (unscoped), parent (own child only) — filters `student_id`/`subject_id`/`term`/`school_year`, all optional, no hidden defaults; never includes `grade_components` |
-| GET | `/api/grades/:id` | teacher (wide view-scope), admin, parent (own child) — includes `grade_components` and a qualitative/letter `descriptor`; `404` on out-of-scope or nonexistent |
-| GET | `/api/grades/student/:studentId` | teacher (wide view-scope), admin, parent (own child) — full report card: every subject at the grade level (including ones with zero grade rows), all three terms, computed Final Grade and General Average; `school_year` defaults to `system_settings.academic_year` when omitted |
-| POST | `/api/grades` | teacher (subject teacher via `teacher_assignments`), admin (unscoped) — creates a shell row, no computation |
-| POST | `/api/grades/:id/components` | teacher (subject teacher), admin — adds one WW/PT raw score, full recompute; `403` naming the subject if within view-scope but not the encoding teacher, `404` if outside view-scope entirely |
-| PATCH | `/api/grades/:id/exam` | teacher (subject teacher), admin — sets any subset of ST1/ST2/TE, full recompute; `403`/`404` same distinction as above |
-| PATCH | `/api/grades/:id/descriptive` | teacher (subject teacher), admin — Grade 1 only, manual A-E letter, no computation; `403`/`404` same distinction as above |
-| PUT | `/api/grades/:id/components/:componentId` | teacher (subject teacher), admin — corrects score/max_score/label/date_recorded, full recompute; `type` not editable; `403`/`404` same distinction as above, or `404` for a mismatched componentId |
-| DELETE | `/api/grades/:id/components/:componentId` | teacher (subject teacher), admin — removes a component, full recompute; `403`/`404` same distinction as above, or `404` for a mismatched componentId |
-| PATCH | `/api/grades/:id/lock` | admin only, unscoped — toggles `is_locked`; no completeness gate, no extra friction on unlock |
-| DELETE | `/api/grades/:id` | admin only, unscoped — hard delete; `403` when locked (`This grade is locked and cannot be deleted.`), `404` when missing; `logActivity` `'delete_grade'`; `grade_components` cascade |
-| GET | `/api/attendance` | teacher (section adviser), admin |
-| GET | `/api/attendance/student/:studentId` | teacher (adviser), admin, parent (own child only) |
-| GET | `/api/attendance/summary/:studentId` | teacher (adviser), admin, parent (own child only) — raw counts, no rate |
-| POST | `/api/attendance` | teacher (adviser of student's section), admin (unscoped) |
-| POST | `/api/attendance/bulk` | teacher (adviser of section_id), admin (unscoped) — primary path, all-or-nothing |
-| PUT | `/api/attendance/:id` | teacher (adviser of record's section), admin (unscoped) |
-| GET | `/api/announcements` | all roles — scoped by audience (target_grade/target_section) |
-| POST | `/api/announcements` | teacher (own assignment only), admin |
-| PUT | `/api/announcements/:id` | author or admin |
-| DELETE | `/api/announcements/:id` | author or admin — hard delete |
-| GET | `/api/memos` | all roles — no targeting, school-wide by schema design |
-| POST | `/api/memos` | admin |
-| PUT | `/api/memos/:id` | admin |
-| DELETE | `/api/memos/:id` | admin — hard delete |
-| GET | `/api/events` | all roles — scoped by audience (target_grade only, no target_section column) |
-| POST | `/api/events` | teacher (own grade only), admin |
-| PUT | `/api/events/:id` | author or admin |
-| DELETE | `/api/events/:id` | author or admin — hard delete |
-| POST | `/api/excuse-letters` | parent — status always Pending, forbidden fields in body ignored; unlinked (`users.student_id` NULL) is 409 |
-| GET | `/api/excuse-letters/mine` | parent — own letters only |
-| GET | `/api/excuse-letters` | teacher (assigned OR adviser of the student's section), admin (all) — filters: status, student_id, from, to |
-| GET | `/api/excuse-letters/:id` | all roles, scoped — `404` on violation |
-| PUT | `/api/excuse-letters/:id` | parent, own letter, only while `status='Pending'` — `404` if not theirs, `403` naming the reason if already reviewed |
-| PATCH | `/api/excuse-letters/:id/review` | teacher (adviser of student's section only), admin — `Approved`/`Declined`, never touches `attendance` |
-| GET | `/api/settings` | authenticated — all settings, flat key-value object |
-| GET | `/api/settings/:key` | authenticated — `404` if not one of the 5 allow-listed keys |
-| PUT | `/api/settings/:key` | admin — per-key validation, unknown key rejected naming the allow-list |
-| PATCH | `/api/settings` | admin — bulk update, all-or-nothing in a transaction |
-| GET | `/api/backups` | admin — list, newest first, each row flags `file_exists` |
-| POST | `/api/backups` | admin — real `mysqldump`, row inserted only after success |
-| GET | `/api/backups/:id/download` | admin — streams the `.sql` file, `404` if missing on disk |
-| DELETE | `/api/backups/:id` | admin — removes row + file; row still removed if file already gone |
-| POST | `/api/backups/:id/restore` | admin — step-up password + `confirm_filename`, automatic safety dump first, invalidates every JWT |
-| GET | `/api/messages/contacts` | authenticated — who this user may start a conversation with; inverse of `canMessage()`; parent sees their own child's teachers + admin, teacher sees parents of their own students + teachers + admin, admin sees everyone; ACTIVE accounts only; `?search=` filters within scope, never widens it; parent rows carry `student_name` + `student_grade_level` + `student_section` (the child's class); teacher/admin rows null for all three. Teacher → Messages thread reads them to name and preselect the class (2026-09-13) — the only client that does |
-| GET | `/api/messages/conversations` | authenticated — one row per person messaged, last message + unread count |
-| GET | `/api/messages/with/:userId` | authenticated — full thread, participant-scoped (no re-check of `canMessage` on read) |
-| POST | `/api/messages` | authenticated — `canMessage()` boundary, `403` naming the reason on violation |
-| PATCH | `/api/messages/:id/read` | recipient only — sender or a third party gets `403` |
-| PATCH | `/api/messages/read-all/:userId` | recipient only — marks a whole thread read |
-| GET | `/api/notifications` | authenticated — the caller’s own rows only, newest first; paginated; `?unread_only=`. Text is composed from the LIVE item and every row is re-checked for visibility on read, so a notification whose item was deleted (or whose audience no longer includes the caller) is not returned |
-| GET | `/api/notifications/unread-counts` | authenticated — `{ total, announcements, memos, events, excuse_letters, users, grades }`, keyed by nav section. `total` may EXCEED the sum of the badged sections: grades count here and are deliberately never badged |
-| PATCH | `/api/notifications/:id/read` | authenticated — own row only; another user’s is `404`, not `403`; an already-read row is absorbed |
-| PATCH | `/api/notifications/read-all` | authenticated — **no `:userId`**, unlike the messages equivalent: the caller is the only possible subject |
+**The full 81-row table moved to `docs/ARCHIVE.md` on 2026-09-19** ("Moved
+from CLAUDE.md … section trim") as a dated snapshot. **The live record is
+`docs/API_REFERENCE.md` §8** — every one of the 81 rows was verified present
+there before the move, with request/response detail this table never had.
+
+**Read `docs/API_REFERENCE.md` for any endpoint question.** What still
+belongs here is only the arithmetic, because two numbers are both correct
+and mean different things: **80 handlers** are defined in `server/routes/`,
+and the archived table has **81 rows** because `GET /api/health` is mounted
+directly in `server.js`. State which you mean.
+
 
 **A scope change removes future authority, never past records.** Three
 places, one principle: deleting a `teacher_assignments` row does not
@@ -246,188 +174,48 @@ deterministic (pure functions).
 
 ### Files that exist
 
-Purpose per file plus the one rule each carries. The long per-file
-narratives — the Grades stage history, every suite's fixture design — are
-verbatim in `docs/ARCHIVE.md` → Files that exist.
+Purpose per file, the long narratives and the one rule each carries moved to
+`docs/ARCHIVE.md` on 2026-09-19 ("Moved from CLAUDE.md … section trim");
+the per-file *narratives* were already there under CURRENT STATE → Files
+that exist. **Shape:** `server/` is `routes/` (one file per module) +
+`utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
+`scripts/` (setup, the one migration, the sixteen test files); `database/`
+is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 
-```
-server/
-  server.js                    Express app + explicit http.createServer wrapping it (Socket.io shares
-                                the same server; app.listen() replaced with httpServer.listen()).
-                                Mounts /api/auth, /api/users, /api/students, /api/sections,
-                                /api/subjects, /api/assignments, /api/grades, /api/grading-modes,
-                                /api/attendance, /api/announcements, /api/memos, /api/events,
-                                /api/settings, /api/backups, /api/messages
-  socket.js                    initSocket(httpServer) — JWT auth at connection time, one room per user
-  package.json                 socket.io (dependency), socket.io-client (devDependency, test-only)
-  .env.example                 documents optional MYSQLDUMP_PATH override
-  config/db.js                 MySQL pool behind a proxy object — resetPool() swaps in a fresh pool
-                                after a restore (a plain module.exports reassignment could not reach
-                                existing requires). dateStrings: ['DATE'] — DATE columns come back as
-                                raw 'YYYY-MM-DD' strings, never JS Date objects, so no UTC round-trip
-                                bug is possible; TIMESTAMP/DATETIME unaffected
-  middleware/auth.js           authenticate + authorize; authenticate also checks
-                                auth_security_state.token_valid_after against the JWT's iat
-  routes/auth.js               login, me, change-password, contact. fetchUserByLoginId LEFT JOINs
-                                student names / grade / section; does not SELECT s.lrn — login_id is
-                                the one LRN copy on the session
-  routes/users.js              create teacher/parent, pending, approve/reject, list/view/edit/status
-  routes/students.js           list/view/create/update. Teacher READ scope = assigned OR adviser
-                                (utils/teacherScope.js); writes stay teacher_assignments-only. POST
-                                resolves and writes section_id (duplicate-LRN 409 runs BEFORE that
-                                resolve); PUT refuses a class change (400) and writes section_id only
-                                when NULL. Never inserts NULL section_id
-  routes/sections.js           GET /, GET /:id (all roles, unscoped reference data), PATCH /:id/adviser
-                                (admin only, the one mutable field). No POST/DELETE — the 23 sections
-                                are fixed for the year. student_count via a correlated subquery, not
-                                JOIN + GROUP BY
-  routes/assignments.js        GET /api/subjects (unscoped 40-row curriculum, ?grade_level=) plus
-                                GET/POST/DELETE /api/assignments. grade_level comes from the subject
-                                row, never the body; section_id resolved and stored on this row.
-                                Teacher naming another teacher_id is 403, not 404. DELETE never
-                                refuses when grades exist
-  routes/grades.js             Grades write path + reads (G2b–G3); scope, preflight order and the
-                                NULL-until-complete rule are under BLOCKED / RESOLVED → Grades. The
-                                subject/student grade-level mismatch check runs AFTER scope on
-                                purpose — an out-of-scope teacher must not learn a grade level by
-                                probing with a wrong subject_id; do not reorder it. A nonexistent
-                                student is 404 for admin but 403 for a teacher (anti-enumeration).
-                                preflightGradeWrite(expectedMode) is shared by every write; a write
-                                and its recomputeGrade() run in one transaction, always recomputing
-                                from source. POST /:id/components returns component + grade;
-                                PATCH /:id/exam returns grade only (deliberate). A no-op lock/unlock
-                                is 200 with no log entry. school_year defaults to the academic year
-                                on GET /student/:studentId alone
-  routes/gradingModes.js       GET /api/grading-modes — its own router so /api/grades/:id does not eat
-                                the path. Missing config is 409 (write-preflight wording). Wrapper
-                                grading_mode is an OBJECT here and a STRING on the report card; do not
-                                flatten. Third copy of the YYYY-YYYY check — extract on a fourth
-  routes/attendance.js         per DAY (Stage B1), no subject_id anywhere. Scoped by sections.adviser_id
-                                via students.section_id, never teacher_assignments. POST /bulk
-                                { section_id, date, entries } is the primary path, all-or-nothing,
-                                ON DUPLICATE KEY UPDATE. GET /summary returns raw counts, no rate
-  routes/content.js            announcements/memos/events — 3 routers, one file. Nine returning
-                                SELECTs INNER JOIN users for posted_by_name. No GET /:id on any of
-                                the three. Adviser write/read clause matches sections by grade+name
-                                (NOT a section_id reader)
-  routes/settings.js           allow-listed key-value store. readAllowedSettings() shared by GET / and
-                                the PATCH response; normalizeValue() trims once on entry; current_term
-                                validated against ['1','2','3']
-  routes/backups.js            real mysqldump via spawn (MYSQL_PWD on the child env only), collision-safe
-                                filenames; dumpDatabase() runs mysqldump twice so backups' rows are
-                                never in a file; stripBackupsTableDdl() removes backups' DROP/CREATE
-                                from the SQL a restore executes (the file keeps them for bare-metal
-                                recovery); GET / reports orphaned_files, never adopts them;
-                                POST /:id/restore — see RESTORE. logRestoreRefusal() on every
-                                step-up / confirm_filename refusal
-  routes/messages.js           canMessage() boundary on send only; reads are participant-scoped; emits
-                                new_message to the recipient's room after persisting. GET /contacts
-                                LEFT JOINs students for student_name + student_grade_level +
-                                student_section (null on teacher/admin rows); Teacher → Messages
-                                thread is the only client reading the class columns
-  routes/excuses.js            submit/mine/list/view/edit/review. parent_id/student_id/status always from
-                                req.user, never req.body. Read scope = assigned OR adviser (the shared
-                                predicate, applied INCLUDING the existence query inside review); review
-                                authority = adviser only (403 naming it, not 404); review writes only
-                                status/teacher_remarks/reviewed_by — never attendance. Unlinked
-                                parent POST is 409 naming the school office
-  backups/                     .sql dump files land here — gitignored except .gitkeep
-  routes/notifications.js      the bell: list, unread-counts, mark one read, mark all read. NO user id
-                                is accepted from a request in any form — every statement filters on
-                                req.user.id. Another user’s row is 404, not 403. Two argued departures
-                                from the auth template, both in the file header: no sanitizeUser (every
-                                query names its columns) and NO logActivity on mark-read (a row per
-                                notification opened would drown the audit trail the restore machinery
-                                counts). Text is composed from the LIVE item; every read re-checks
-                                visibility through the matching list endpoint’s own WHERE
-  utils/notify.js              the fan-out, one place, seven event types. THE RULE: a recipient set is
-                                the matching list endpoint’s own WHERE, or a DECLARED NARROWING of it,
-                                never a widening. Three narrowings are in force and each is named at
-                                its query: active accounts only; excuse_submitted to the section
-                                ADVISER alone (review authority is narrower than read scope); and NO
-                                events to admin, who has no Events page. The actor is never a recipient
-                                (Amendment A1) — applied once, in insertNotifications, not in seven
-                                queries. Insert inside the caller’s transaction, emit AFTER it commits
-  utils/jwt.js                 sign/verify
-  utils/password.js            bcrypt hash/compare
-  utils/activity.js            insert into activity_logs
-  utils/validateId.js          parseId() — validates :id route params before any query
-  utils/sanitizeUser.js        strips any key containing "password", case-insensitive
-  utils/dateFormat.js          isValidDateFormat() + todayLocalDateString() — never toISOString()
-  utils/teacherScope.js        TEACHER_VIEW_SCOPE_SQL + teacherViewScopeParams(userId) — the shared
-                                assigned-OR-adviser predicate (students, excuses, messages). The
-                                helper exists because the hazard is the parameter COUNT (two)
-  utils/gradeComputation.js    pure functions, no DB/HTTP: componentPercentage, subTestPercentage,
-                                exPercentage (ST1×0.30 + ST2×0.30 + TE×0.40), weighted, initialGrade,
-                                roundTo2 (half-up, Number.EPSILON nudge), qualitativeDescriptor
-                                (Table 11), descriptiveGradeMeaning (Table 8). Every function returns
-                                null on a missing input — never a partial number. Percentages over
-                                100 are deliberately NOT clamped
-  scripts/setup-db.js          runs schema + seed, hashes seed passwords. backfillSectionIds() fills
-                                section_id from the VARCHAR values and REPORTS any row left NULL —
-                                do not remove the reporting step. buildUserSeedSql() also creates
-                                TCH-002 (adviser-only) and TCH-003 (Grade 1 adviser + all five
-                                subjects). Counts: Seeded baseline. NEVER run with a non-default
-                                DB_NAME (KNOWN ISSUES hazard)
-  scripts/migrate-notifications.js THE MIGRATION TEMPLATE, and the first one this repo ever had.
-                                Before it the only schema tool was setup-db.js, which opens with
-                                DROP DATABASE and is therefore never run against anything that
-                                matters. Copy its four rules for the next migration: NEVER drop;
-                                be idempotent and PRINT the evidence (--print-state, so two runs
-                                are compared by diff rather than by reading the code); announce
-                                created / already present per object; and mirror the change into
-                                database/schema.sql so a clean db:setup matches. MySQL 8 has no
-                                ADD CONSTRAINT IF NOT EXISTS — guard each FK with an
-                                information_schema lookup
-  scripts/verify-grading-seed.js direct-DB check of the Grades seed (41-row transmutation table with
-                                no gaps/overlaps, 40 subjects, 35 weight rows, modes, Grade 1 fixture)
-                                — not one of the fifteen suites; run after db:setup
-  scripts/test-*-flows.js      the fourteen HTTP suites (counts under Tests, above). BASE falls back
-                                to http://127.0.0.1:${PORT}; API_BASE wins. Every row a run creates is
-                                deleted in finally. test-grades-flows.js has a local requireFixture()
-                                that STOPS the run when a fixture fails; the other scripts share a
-                                record-only assert() (KNOWN ISSUES). test-attendance-flows.js's
-                                cleanup deletes every attendance row on three dates, not only its
-                                own (KNOWN ISSUES). test-restore-flows.js never triggers a real
-                                restore and puts back the cutoff it finds
-  scripts/test-sanitize-user.js, scripts/test-grade-computation.js
-                                direct-call unit tests — no server, no DB
-database/
-  schema.sql                   21 tables (contributions + contribution_records dropped 2026-09-13;
-                                notifications added 2026-09-19 — see the migration note below).
-                                sections — UNIQUE (grade_level, name, school_year), adviser FK
-                                ON DELETE SET NULL; nullable section_id FK on students (RESTRICT),
-                                teacher_assignments (CASCADE), announcements (CASCADE). attendance —
-                                no subject_id; UNIQUE (student_id, date). grades — term TINYINT CHECK
-                                1–3; dual-mode term_grade / descriptive_grade (exactly one populated;
-                                do not drop or merge them); ex_st1/ex_st2/ex_te hold RAW scores with
-                                ex_*_max columns; grade_components ENUM('WW','PT') only, no
-                                'formative'; transmutation_table (41 rows, school_year-scoped — a
-                                year with no rows means "use the Initial Grade directly", no code
-                                change); grading_mode_configs per (grade_level, school_year);
-                                grade_weight_configs keyed (subject_id, school_year), CHECK sums to
-                                100.00; auth_security_state — single row, set only by restore;
-                                users.status includes 'inactive'; backups.file_size
-  seed.sql                     23 sections for SY 2026-2027 (the school's real names — 'Mabini' and
-                                'Rizal' were fictional and are gone); academic_year '2026-2027';
-                                current_term '1'; 40 subjects (5/5/6/8/8/8; Grade 4 INFERRED, flagged
-                                in-file; Grade 6 under the SF9's names GMRC/EPP); 35 weight rows via
-                                SELECT ... JOIN grading_mode_configs WHERE mode = 'numerical' (not a
-                                hardcoded grade comparison — Grade 1 gets zero rows and the exclusion
-                                follows the mode table automatically); transmutation table verbatim
-                                from GRADING_SPEC §5; Nino's five descriptive rows are illustrative
-                                fixture data, not a computed result. Adviser assignments keyed by
-                                login_id subquery, never a numeric id
-scripts/
-  create-backup-zip.js         source-code archiver — NOT the DB backup (that is routes/backups.js)
-client/
-  package.json                 Vite + React 19 + Tailwind v4 + Font Awesome; socket.io-client pinned to
-                                the server's socket.io version
-  vite.config.js               dev server pinned to port 3000 (matches the server's CORS_ORIGIN default)
-  src/                         see "React web app" below
-```
+#### File rules that bite
 
-Full text: `docs/ARCHIVE.md` → CURRENT STATE → Files that exist.
+Stated nowhere else in this file; each costs a dispatch when forgotten.
+
+- **`config/db.js` — two.** `dateStrings: ['DATE']`: DATE columns come back
+  as raw `YYYY-MM-DD` strings, never JS `Date`, or `res.json()` calls
+  `toISOString()` and a DATE is a full calendar day off at UTC+8 — wrong
+  every time, not an edge case (TIMESTAMP/DATETIME unaffected). And the pool
+  is a **proxy**, so `resetPool()` can swap it after a restore; a plain
+  `module.exports` reassignment could not reach existing `require`s.
+- **`utils/teacherScope.js` — the hazard is the parameter COUNT (two).**
+  Use `teacherViewScopeParams()`; passing one where two are needed shifts
+  every later placeholder, and a swap is undetectable because both values
+  are the same id.
+- **`routes/grades.js` — the subject/student grade-level mismatch check runs
+  AFTER the scope check on purpose. Do not reorder it:** an out-of-scope
+  teacher must not learn a grade level by probing with a wrong `subject_id`.
+- **`routes/gradingModes.js` — the `grading_mode` wrapper is an OBJECT here
+  and a STRING on the report card. Do not flatten either to match.**
+- **`routes/auth.js` — `fetchUserByLoginId` does not SELECT `s.lrn`.**
+  `login_id` is the one LRN copy on the session (§5c).
+- **`utils/gradeComputation.js` — every function returns `null` on a missing
+  input, never a partial number; percentages over 100 are deliberately NOT
+  clamped.** A cap belongs in route validation as explicit policy, if ever.
+- **`scripts/setup-db.js` — `backfillSectionIds()` REPORTS every row left
+  NULL. Do not remove the reporting step.**
+- **`scripts/migrate-notifications.js` is THE MIGRATION TEMPLATE** — the
+  first this repo ever had. Never drop; be idempotent and PRINT the evidence;
+  announce created / already present per object; mirror into `schema.sql`.
+- **`seed.sql` — adviser assignments are keyed by a `login_id` subquery,
+  never a numeric id.**
+
+Full per-file text: `docs/ARCHIVE.md` → CURRENT STATE → Files that exist,
+and the 2026-09-19 section-trim block.
 
 ### Not started — zero handlers
 
@@ -467,243 +255,58 @@ blockers (who approves, does approval touch attendance) are resolved and
 
 ### sections table — one route reads it (attendance), one route manages it (sections), Class Board investigated and found to need nothing from it
 
-**The thing a fresh session will get wrong.** `sections` exists in
-`schema.sql`, is seeded with the school's 23 real section names, and has a
-nullable `section_id` FK on `students`, `teacher_assignments`, and
-`announcements`. `routes/attendance.js` scopes entirely through
-`sections.adviser_id` via `students.section_id`, and `POST /bulk`'s body is
-keyed on `section_id` directly. **Every other route still scopes on the
-VARCHAR columns** (`students.section`, `teacher_assignments.section`,
-`announcements.target_section`) — attendance is the one deliberate exception,
-not the start of a silent migration. A full VARCHAR → FK cutover changes the
-API contract for no user-facing gain and is deliberately deferred.
+**The rule, kept because a fresh session gets it wrong:** `section_id` is
+READ in exactly FOUR places — attendance scoping, and the teacher read scope
+in `routes/students.js`, `routes/excuses.js` and `routes/messages.js` (the
+last three via the one shared constant in `utils/teacherScope.js`).
+**Everything else scopes on the VARCHAR columns**, and that is deliberate,
+not a half-finished migration — do not migrate a fifth route without
+checking here first. Writes are not readers: `POST /api/students` resolves
+and stores `section_id` and **never inserts NULL**, and `PUT` writes it only
+when the stored FK is NULL and refuses a class change with `400`.
+`routes/content.js` is NOT a reader — it matches `sections` by
+`grade_level` + `name`. `routes/sections.js` is the management interface for
+the table itself, not part of any migration; there is no admin UI for
+`PATCH /:id/adviser` (KNOWN ISSUES).
 
-**`section_id` is read in exactly FOUR places: attendance scoping, and the
-teacher READ scope in `routes/students.js`, `routes/excuses.js` and
-`routes/messages.js`** — the last three via the one shared constant in
-`utils/teacherScope.js`. Each was checked against this note first, and the
-note is the gate working, not a rule repeatedly overridden. The cause was the
-same each time: attendance and excuse-letter review scope on
-`sections.adviser_id` while those files' read scopes were
-`teacher_assignments`-only, so an adviser with no assignment rows (TCH-002 is
-exactly that account) could record attendance for a student they could not
-list, and was the sole permitted reviewer of a queue they could not see. The
-adviser leg matches `s.section_id` — the same column attendance uses — so the
-two sets coincide by construction. `routes/content.js` was widened for
-advisers in the same dispatch and did NOT become a reader: its scoping runs on
-`target_grade`/`target_section`, so it has its own clause matching `sections`
-by `grade_level` + `name`. **Write authority did not move in `students.js`
-(`PUT`/`POST` stay `teacher_assignments`-only) or `excuses.js` (review stays
-the adviser check after the visibility query).** Do not migrate a fifth route
-without checking here first.
-
-**Writes of `section_id`, which are not readers:** `POST /api/students`
-(2026-09-10) resolves `sections` by name + grade_level +
-`system_settings.academic_year` and stores the id — duplicate-LRN `409` runs
-before that resolve, missing year is `409`, unmatched section is `400` naming
-it. **Do not insert with NULL `section_id`.** `PUT /api/students/:id` writes
-`section_id` only when the stored FK is NULL and refuses a class change with
-`400`; it never overwrites a non-null FK. `POST /api/assignments` stores it on
-its own row the same way. These writes exist so the readers stay honest for a
-newly enrolled student; they are not a cutover.
-
-**The Class Board needs nothing from `section_id`.** `target_grade` +
-`target_section` already does the identical scoping job, and
-`POST /api/announcements` never sets `section_id` — `backfillSectionIds()`
-runs once at `db:setup` — so every announcement created in normal operation
-has it NULL and any reader would silently return nothing.
-
-**`routes/sections.js` is a different thing from that migration.** It is the
-CRUD-minus-create management interface for the `sections` table itself, and
-what makes an unassigned section usable by attendance — before it, setting
-`adviser_id` meant a direct DB write. Which sections have an adviser: Seeded
-baseline. TCH-002 remains the assignment-less adviser fixture. There is no
-admin UI page for `PATCH /api/sections/:id/adviser` (Admin → Sections is out
-by the Figure 5 scope decision), so attendance for an unassigned section has
-no valid adviser until a direct API call lands — see KNOWN ISSUES.
-
-Full text: `docs/ARCHIVE.md` → CURRENT STATE → sections table.
+The full investigation moved to `docs/ARCHIVE.md` on 2026-09-19 ("Moved from
+CLAUDE.md … section trim"); the original long text is there under CURRENT
+STATE → sections table.
 
 ### Class Board — investigated, zero code needed (extension of Feature 4)
 
-**2026-09-06.** The school asked for a group chat so teachers would stop
-answering the same question in twenty private messages. A group chat was
-rejected deliberately: thirty parents in one thread see each other's names and
-messages, the teacher becomes a moderator, and minors are involved. The Class
-Board is a section-scoped announcement instead — teacher posts, every parent
-in the section reads, no parent sees another parent. **It is NOT an eleventh
-feature.** It is Feature 4 with school-wide as admin-only and section-level as
-teacher-capable — no change to the IPO framework or the manuscript's feature
-count.
+**The conclusion, which is the whole point: the Class Board is Feature 4,
+not an eleventh feature, and it needed ZERO new code.** A teacher’s only
+legal announcement target is an exact `target_grade` + `target_section` they
+are connected to, so `teacher/AnnouncementsPage.jsx` already IS the Class
+Board — and it carries no "Class Board" affordance, because a separate
+control would offer a choice that does not exist. **Parents never reply —
+permanently, not "not yet"** (a section-visible reply recreates the group
+chat that was rejected; a teacher-only reply is a private message arriving
+through a second inbox). No new column, no flag, no link back to an
+originating message. "Announce to a class" from Messages opens this same
+form — **do not build a second composer.**
 
-The existing `announcements` endpoints in `routes/content.js` already deliver
-every stated behaviour, unchanged: a teacher must name an exact `target_grade`
-+ `target_section` they are connected to (`403` naming it otherwise); the
-parent branch of `GET /api/announcements` returns school-wide posts plus the
-child's own section; `authorize('teacher', 'admin')` excludes parents from
-posting; and **no endpoint anywhere exposes a section roster to a parent**.
-Zero new endpoints, zero changes to `content.js`.
-
-**Three decisions, recorded so they are not re-argued:**
-
-- **Parents never reply — permanently, not "not yet."** A reply visible to the
-  section recreates the rejected group chat; a reply visible only to the
-  teacher is a private message arriving through a second inbox. Messages is
-  the channel for a question about a post.
-- **No new column or flag.** A Class Board post is identified by its shape
-  alone — teacher-posted, both `target_grade` and `target_section` set. Visual
-  distinction is a rendering decision, not a schema one.
-- **No link back to the originating message.** A `source_message_id` would be
-  a provenance feature nobody asked for.
-
-**BUILT 2026-09-07 — with deliberately no "Class Board" affordance in the
-UI.** `client/src/pages/teacher/AnnouncementsPage.jsx` is the Class Board: a
-teacher's ONLY legal target is an exact section, so every announcement a
-teacher posts is already a Class Board post and a separate control would offer
-a choice that does not exist. The compose form names the audience — *"Parents
-of this section will see this post."* — and the term appears nowhere on screen.
-
-**"Announce to a class" from Messages opens this form (built 2026-09-13). Do
-not build a second composer.** `MessageThreadPage` navigates to Announcements
-with `location.state.compose = { content, target? }` — `content` is the unsent
-draft, never the incoming message; consume-once `replace` stops a refresh
-reopening the form. On a parent thread the class is named and preselected
-(**Announce to Grade 6 - Malikhain**, `target: '6|Malikhain'`) from
-`GET /messages/contacts`, fetched once in its own effect keyed on `otherId` —
-**not inside `load()`**, which re-runs on every socket message. Every other
-case is an unnamed **Announce to a class** with no target: contacts not
-loaded or failed, a teacher/admin thread, or **no contacts row at all** (a
-deactivated parent, or scope changed with history still readable) — do not
-preselect a class for a parent you can no longer reach. **The client
-preselects; it does not authorize** — Announcements re-validates `target`
-against its own list (unknown target → blank picker + stale notice, never
-another section) and the server decides on POST. The hint is visible text
-under the button row, not only a `title`; "This conversation will not" is the
-sentence that stops a teacher believing they replied to the parent. An empty
-target list on arrival does not open compose and shows the draft instead of
-discarding it. `GET /conversations` and `GET /with/:userId` carry no class;
-reconstructing it by matching `student_name` to `GET /students` is refused —
-two students can share a name.
-
-Full text: `docs/ARCHIVE.md` → CURRENT STATE → Class Board.
+The full investigation and the Messages hand-off detail moved to
+`docs/ARCHIVE.md` on 2026-09-19 ("Moved from CLAUDE.md … section trim");
+the original long text is there under CURRENT STATE → Class Board.
 
 ### React web app — Stage 4 foundation built, primitives frozen
 
-`client/` builds clean (`npm run build`) and lints clean (`oxlint`, two
-pre-existing `AuthContext.jsx` warnings aside; the running oxlint baseline is
-**44 as of 2026-09-19**, measured and recorded on each dispatch's CHANGELOG row). On top of the auth
-slice: role-aware `Shell` with nested layout routes, seven shared UI
-primitives, and a dev-only component gallery at `/dev/ui` — registered behind
-`import.meta.env.DEV` and **verified absent from the production bundle**
-(grepped, not asserted). **Every Teacher page, every Parent page and every
-Figure 5 admin page exists — Stage 4 is complete (2026-09-14).** See STAGE 4
-FRONTEND CONVENTIONS for what every one of them inherits.
+`client/` builds clean (`npm run build`) and lints to the recorded oxlint
+baseline. **Every Teacher page, every Parent page and every Figure 5 admin
+page exists — Stage 4 is complete (2026-09-14).** Two claims worth keeping
+here because they are checked, not assumed: the dev-only gallery at
+`/dev/ui` is registered behind `import.meta.env.DEV` and **verified absent
+from the production bundle** (grepped, not asserted), and the auth
+round-trip is browser-verified (admin login redirects, a wrong password
+shows inline, a pending account shows the approval message, a refresh shows
+the spinner with no login flash).
 
-Auth round-trip verified in the browser: admin login (`ADMIN001` /
-`Admin@2026`) redirects to `/admin`; a wrong password shows an inline error
-without leaving the login page; a pending parent account shows the
-approval-pending message inline; refreshing a logged-in session shows the
-loading spinner with no login-page flash.
-
-```
-client/src/
-  App.jsx                 /login, then nested layout routes per role under ProtectedRoute + Shell
-  api/axios.js            Bearer interceptor; mandatory unwrap on success; 401-only redirect, storing
-                          the server's reason in sessionStorage (never the URL) for Login to show once —
-                          "Account is not active." and the restore message verbatim, token-shaped 401s
-                          as "Your session has ended. Please log in again." No per-call opt-out exists —
-                          if an endpoint answers a live session with 401, fix its status code, never
-                          add an interceptor exception
-  api/extractError.js     { success:false, message } -> string, with an offline case
-  auth/AuthContext.jsx    login/logout/refresh/user/loading — awaits GET /auth/me on load
-  auth/ProtectedRoute.jsx role-gated route wrapper
-  pages/Login.jsx         Login ID + password, no role dropdown; extractError for sign-in failures; shows
-                          the 401 logout reason once (takeLogoutReason in its error initialiser), never
-                          after a refresh or a manual Logout
-  format/grade.jsx        GradeValue + GradeLegend — the NULL-grade rule (§3). No branch for a
-                          descriptive A–E letter (KNOWN ISSUES)
-  format/TermValue.jsx    the shared term cell — extracted at the third copy (2026-09-14); Parent,
-                          Teacher and Admin → Grades import it
-  format/date.js          todayLocalDateString() — never toISOString()
-  assets/school-seal.png  the school seal, 192 px / 49,256 bytes, from the school's 447 px JPG (white
-                          field, no alpha) — rendered on a bg-seal-bg disc, never bare (§9)
-  layout/Shell.jsx        role-aware STICKY sidebar (top-0 h-screen; the nav scrolls inside itself) with
-                          the seal + "Parent's Portal / Capt. H. Francisco ES", <Outlet/>, page title,
-                          the LiveStatus strip above the routed page, the unread badge (only on a BUILT
-                          Messages item); exports NavItem. The document is the only scroller
-  layout/Header.jsx       the sticky (top-0 z-30) header: title, the notification bell, user,
-                          Logout, hamburger below sm. The bell sits BEFORE the user block so the
-                          rightmost control stays Logout at every width.
-                          Extracted on D3 so the Notifications dispatch has a file to put the bell in —
-                          no bell slot yet
-  layout/nav.js           NAV_BY_ROLE — built / blocked / unbuilt flags; the single source of nav
-  layout/usePageTitle.js  detail pages override the nav-derived title
-  realtime/               SocketProvider (connected; subscribe -> new_message, subscribeNotifications
-                          -> notification_counts — TWO separate listener sets, because one carries a
-                          message and the other carries nothing and means "refetch"), LiveStatus
-                          (ungated for every role since N2), UnreadProvider ({ unread, refresh },
-                          request skipped unless that role's Messages item is built),
-                          NotificationProvider ({ counts, refresh }; a SIBLING of UnreadProvider, never
-                          summed with it — CLAUDE.md §9)
-  hooks/useTeacherTargets.js  assigned (GET /assignments, distinct grade+section) OR adviser
-                          (GET /sections). Announcements and Events only — never Grades
-  components/             NotificationBell (the header bell + its dropdown: real button with
-                          aria-expanded/-controls/-haspopup, the count also as words, Escape closes
-                          AND returns focus, outside click on mousedown, role="menu" with focus NOT
-                          trapped, z-40 over the z-30 header, full-bleed below sm, pages in place —
-                          there is deliberately no /notifications route),
-                          DataTable, Modal, FormField, PasswordField, StatusBadge, EmptyState,
-                          ErrorAlert, LoadingSpinner, FormStatus. FormStatus (2026-09-18) is the
-                          outcome of ONE write, rendered under the control that caused it — under
-                          that form's submit button, or inside the Modal whose action produced it;
-                          a message that outlives its modal goes above the list it describes.
-                          ONE value ({ tone, text }), so a success and a failure cannot both be on
-                          screen — the XOR is structural, not re-derived per page. An error
-                          delegates to ErrorAlert (§2 wording untouched); a success carries
-                          role="status". Pages hold one `status` object keyed by form, and writing
-                          one key replaces the object, which clears the others.
-                          FormField also exports `filterSelectClass` — the fixed width every
-                          filter-bar select takes (`w-full sm:w-72`, sized to the longest real
-                          option, 30 chars). A bare flex item with no width is content-sized, so
-                          without it a select resizes as you pick
-  pages/dev/UiGallery.jsx every primitive in every state — DEV builds only
-  pages/dashboards/       all three derive "Open now" from navForRole — no edit when a page lands
-  pages/teacher/          11 nav items. Attendance (encode; adviser-scoped; ?status=active roster;
-                          unset rows omitted). Attendance records (read-only; never sends `date`).
-                          Students + detail (enroll wizard + create parent; Edit only for classes in
-                          GET /assignments). Excuse Letters (review; adviser-only predicted before
-                          the click; confirmation names the decision). Announcements (the Class
-                          Board). Memos (read-only; posted_by_name column). Events. Messages + thread
-                          (Announce to a class). Grades (view + encode, one page; encode scope from
-                          GET /assignments, mode from GET /grading-modes; no client IG preview; no
-                          lock control). Settings (password + contact; identity locked)
-  pages/parent/           8 pages. Grades (report card + term breakdown modal via GET /grades/:id —
-                          no IG, no weights, no remarks, no rank). Attendance (counts + day list +
-                          "Present on recorded days" = (Present + Late) / total over recorded days;
-                          Month vs All). Excuse Letters (submit + edit while Pending; no withdraw).
-                          Announcements, Memos, Events (read-only; modal, not a route). Messages +
-                          thread (table = GET /conversations; contacts = picker only). Settings
-                          (password + contact; identity locked — the one parent screen that shows
-                          the LRN). Grades and Attendance skip their request when user.student_id
-                          is null; Excuse Letters hides Submit then. Never GET /api/settings or
-                          PUT /api/users/:id
-  pages/admin/            Users (pending queue + directory + create teacher + edit + status; never
-                          POST /users/parents; no :id route). Students + detail (unscoped;
-                          status=all default; deactivate/activate no confirm, list reloads; Edit
-                          only). Settings (SCHOOL settings; two saves via PATCH; school year locked
-                          on this page only). Attendance (VIEW ONLY; nothing fetched until a grade
-                          or date range is applied; counts, no rate). Announcements & memos (one
-                          route; body always sends BOTH target keys; edit own / delete any).
-                          Grades (student-first report card; LOCK/unlock in a modal, NOT delete).
-                          Backup & Restore (orphans read-only, no adopt; delete manual backups
-                          only; restore with step-up password + typed file name; NO request after
-                          a successful restore)
-```
-
-Full text, including each page's dated verification: `docs/ARCHIVE.md` →
-CURRENT STATE → React web app, and each page's CHANGELOG row.
-
----
+**The `client/src/` tree moved to `docs/ARCHIVE.md` on 2026-09-19** ("Moved
+from CLAUDE.md … section trim"); each page’s dated verification was already
+there under CURRENT STATE → React web app. Every page inherits STAGE 4
+FRONTEND CONVENTIONS — read those before building any screen.
 
 ## STAGE 4 FRONTEND CONVENTIONS — frozen 2026-09-06
 
@@ -1010,6 +613,25 @@ dispatch, next to `lint:tokens` and oxlint's 44; a failing pair is waived
 only by an allow-list entry whose marker sits on a KNOWN ISSUES row. Full
 text, the proof method, the six accepted light-mode changes (E1–E6) and the
 dark values: `docs/FRONTEND_CONVENTIONS.md` §8.
+
+### 9. Shell chrome is sticky, and the seal is always on its white disc
+
+**Frozen 2026-09-19 (D3).** `layout/Header.jsx` is `sticky top-0 z-30`; the
+sidebar is `sticky top-0 h-screen self-start` with its nav box
+`min-h-0 flex-1 overflow-y-auto`. **The document is the only scroller** —
+one scrollbar, no layout shift. **Do not add a second scroll container to
+`<main>`.** z-order: header 30, mobile drawer 40, the notification panel 40
+(closed when the drawer opens), Modal backdrop 50.
+
+**The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
+image** — the source is a JPG with a white field and no alpha, so the disc
+is what makes it work on a dark surface, and it is white in BOTH themes on
+purpose. Alt text is "Captain H. Francisco Elementary School seal"
+everywhere. The favicon set is generated from the same file by a one-off
+script, **not a build step** — regenerate by hand if the school supplies a
+new seal.
+
+Full text: `docs/FRONTEND_CONVENTIONS.md` §9.
 
 ### 10. Notifications — the bell, the badges, and what a count may be
 
@@ -2213,6 +1835,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | CLAUDE.md section trim: 144,967 → 108,102 bytes. Five blocks moved verbatim to `docs/ARCHIVE.md` (the 81-row endpoint table as a dated snapshot — `docs/API_REFERENCE.md` §8 is the live record and was verified to hold all 81; `Files that exist`; the `client/src` tree; `sections table`; `Class Board`), each leaving its heading, a pointer and its conclusion. Ten per-file rules stated nowhere else stayed as "File rules that bite". §7c added to the companion and §9 to this file, closing two mirror gaps. |
 | 2026-09-19 | Notifications N1 (server) + N2 (client): the 21st table via the repo’s first migration script, 4 endpoints, 7 fan-out hooks, `notification_counts`; the header bell, sidebar badges, LiveStatus ungated again. oxlint 42 → 44. |
 | 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |
 

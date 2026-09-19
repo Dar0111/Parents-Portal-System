@@ -61,6 +61,19 @@ takes one shared `filterSelectClass` (`w-full sm:w-72`, sized to the longest
 real option — 30 characters) so the control no longer resizes with the
 selection. See CLAUDE.md §7c and `docs/CHANGELOG.md`, 2026-09-18.
 
+**CLAUDE.md trimmed, 2026-09-19.** The file had reached 33 bytes of headroom
+against its working limit, which meant no dispatch could write to it at all.
+Five blocks moved verbatim to `docs/ARCHIVE.md` — the 81-row endpoint table
+(a dated snapshot; `docs/API_REFERENCE.md` §8 is the live record and was
+verified to hold every row), the per-file list, the `client/src` tree, and
+the `sections table` and `Class Board` investigations — each leaving its
+heading, a pointer, and, for the two investigations, its conclusion. Ten
+per-file rules that are stated nowhere else stayed behind as "File rules
+that bite". Nothing was deleted: all 1,611 substantial lines of the previous
+version still exist, and all 23 `##` headings are present. Two mirror gaps
+between CLAUDE.md and `docs/FRONTEND_CONVENTIONS.md` were found while
+measuring and closed. **144,967 → 108,102 bytes.**
+
 **Notifications — DONE 2026-09-19 (N1 server, N2 client, N3 docs).** The
 manuscript promises notifications on pp. 10, 24, 37, 39, 52, 71 and 74; the
 system now has them, on the web, for all three roles. Expo will reuse the
