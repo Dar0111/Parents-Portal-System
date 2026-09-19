@@ -279,6 +279,10 @@ async function main() {
       !has(await notificationsOf(admin.token), 'event', evId),
       'admin is NOT notified about events — admin has no Events page (nav trimmed 2026-09-18)'
     );
+    // NOT a vacuous A1 case, unlike the grade ones: TCH-001 is assigned to
+    // Grade 6, so the event audience genuinely contains the poster and only
+    // the actor filter keeps them out.
+    assert(!has(await notificationsOf(tch1.token), 'event', evId), 'A1: the teacher who posted the event is not notified');
 
     // -----------------------------------------------------------------------
     console.log('\nExcuse letter — submitted goes to the ADVISER alone');
@@ -546,6 +550,10 @@ async function main() {
       JSON.stringify(g1Row?.body)
     );
     assert(!/\bA\b(?![a-z])/.test((g1Row?.body || '').replace(g1Subject.name, '')), 'the LETTER never appears in the text');
+    assert(
+      !has(await notificationsOf(admin.token), 'grade_available', g1GradeId),
+      'A1: the admin who recorded the letter is not notified'
+    );
 
     const descAgain = await request('PATCH', `/api/grades/${g1GradeId}/descriptive`, {
       token: admin.token,
@@ -666,21 +674,37 @@ async function main() {
     console.log('\nCleanup');
     // -------------------------------------------------------------------
     const adminToken = admin?.token;
+
+    // EVERY cleanup request is individually guarded. request() does not throw
+    // on a non-2xx, but it DOES throw if fetch itself fails — a restarting API
+    // server, a dropped connection — and an unguarded loop then abandons every
+    // later loop: one run of this suite aborted mid-test and left two
+    // announcements and a memo behind for exactly that reason, which then made
+    // the NEXT run's baseline assertions fail. Cleanup must be the one part of
+    // a test that keeps going after something breaks.
+    const tryDelete = async (path) => {
+      try {
+        await request('DELETE', path, { token: adminToken });
+      } catch (e) {
+        console.error(`  ! cleanup DELETE ${path} threw: ${e.message}`);
+      }
+    };
+
     try {
       for (const id of created.components) {
-        await request('DELETE', `/api/grades/${created.grades[0]}/components/${id}`, { token: adminToken });
+        await tryDelete(`/api/grades/${created.grades[0]}/components/${id}`);
       }
       for (const id of created.grades) {
-        await request('DELETE', `/api/grades/${id}`, { token: adminToken });
+        await tryDelete(`/api/grades/${id}`);
       }
       for (const id of created.events) {
-        await request('DELETE', `/api/events/${id}`, { token: adminToken });
+        await tryDelete(`/api/events/${id}`);
       }
       for (const id of created.memos) {
-        await request('DELETE', `/api/memos/${id}`, { token: adminToken });
+        await tryDelete(`/api/memos/${id}`);
       }
       for (const id of created.announcements) {
-        await request('DELETE', `/api/announcements/${id}`, { token: adminToken });
+        await tryDelete(`/api/announcements/${id}`);
       }
 
       // Excuse letters, the throwaway student, the throwaway parent and the
