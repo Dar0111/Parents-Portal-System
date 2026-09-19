@@ -18,6 +18,30 @@
         }
       } catch (e) {}
     </script>
+    <!-- Theme (Settings -> Personalization), same idea: read BEFORE the bundle so
+         the first paint is already Light or Dark. Mirrors
+         src/pages/settings/theme.js (same key, same rules: 'dark' is dark,
+         'system' follows prefers-color-scheme, anything else is light); keep
+         the two in step by hand. Dark also paints <html> itself (background +
+         color-scheme) because in dev the stylesheet arrives from JS and the
+         canvas would flash white first; theme.js clears those two inline styles
+         on every apply so a runtime switch back to Light does not keep them. -->
+    <script>
+      try {
+        var pref = localStorage.getItem('pp.theme');
+        var dark =
+          pref === 'dark' ||
+          (pref === 'system' &&
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var html = document.documentElement;
+        html.setAttribute('data-theme', dark ? 'dark' : 'light');
+        if (dark) {
+          html.style.colorScheme = 'dark';
+          html.style.backgroundColor = 'oklch(12.9% 0.042 264.695)'; /* slate-950, as in theme.js */
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
