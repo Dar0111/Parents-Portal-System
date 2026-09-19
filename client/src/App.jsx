@@ -4,6 +4,8 @@ import ProtectedRoute from './auth/ProtectedRoute';
 import { roleHome } from './auth/roles';
 import Shell from './layout/Shell';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ForcedPasswordChange from './pages/ForcedPasswordChange';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import AdminUsers from './pages/admin/UsersPage';
 import AdminStudents from './pages/admin/StudentsPage';
@@ -57,6 +59,16 @@ export default function App() {
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
+          {/* Public: the reset code is the credential, so this route is
+              reachable signed out — which is the only state it is used
+              from. */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          {/* Top-level, with NO ProtectedRoute and NO Shell. ProtectedRoute
+              redirects here when users.must_change_password is set, so
+              wrapping this route in it would be a loop; the page does its
+              own signed-in / flag-still-set checks. Outside every role
+              prefix because all three roles land on the same screen. */}
+          <Route path="/change-password" element={<ForcedPasswordChange />} />
 
           <Route
             path="/admin"

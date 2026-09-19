@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
 import extractError from '../api/extractError';
@@ -205,11 +205,17 @@ export default function Login() {
             </button>
           </form>
 
-          {/* TEXT, not a link, and deliberately so: there is no password-reset
-              endpoint and no self-service route to one. A link would be a
-              claim about behaviour the code does not have (§5i). */}
+          {/* A LINK SINCE R2 (2026-09-19). It was plain text for as long as
+              there was no reset endpoint — a link then would have been a
+              claim about behaviour the code did not have (§5i) — and
+              /forgot-password now exists, so the claim is true.
+              The office line stays, shortened, because it is still the only
+              route for an account with no confirmed email address. */}
           <p className="mt-5 text-sm text-fg-muted">
-            Forgot your password? Ask your child&rsquo;s adviser or the school office.
+            <Link to="/forgot-password" className="font-medium text-brand underline-offset-2 hover:underline">
+              Forgot your password?
+            </Link>{' '}
+            No email on your account? Ask the school office.
           </p>
         </div>
       </main>

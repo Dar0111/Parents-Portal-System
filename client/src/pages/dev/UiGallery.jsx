@@ -12,6 +12,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
+import { VerifiedMark } from '../settings/AccountInfoSection';
 import { NavItem } from '../../layout/Shell';
 
 // Dev-only component gallery (routed in App.jsx behind import.meta.env.DEV).
@@ -543,6 +544,36 @@ export default function UiGallery() {
             </span>
             <span className="text-sm text-fg-muted">the bell itself, with a count chip</span>
           </div>
+        </Section>
+
+        <Section
+          title="Account recovery (R2)"
+          note="States that are hard to reach by hand: an address is only confirmed once, and a temporary password is shown once and never again."
+        >
+          <Row label="VerifiedMark — the real component from Settings → Account information, both states">
+            <div className="space-y-1 text-sm text-fg">
+              <div>
+                parent@example.com
+                <VerifiedMark at="2026-09-19T02:14:00.000Z" />
+              </div>
+              <div>
+                parent@example.com
+                <VerifiedMark at={null} />
+              </div>
+            </div>
+          </Row>
+          <Row label="The reset request reply — the SAME sentence for a verified account, an unverified one and an unknown login id">
+            <FormStatus status={ok('If this account has a verified email, we sent a code.')} />
+          </Row>
+          <Row label="The one reset failure message — wrong, expired, already used and out of attempts all read alike, with no count of tries left">
+            <FormStatus status={fail('That code is not valid. Request a new one.')} />
+          </Row>
+          <Row label="Shown-once warning (Admin → Users owns the live one, inside its modal)">
+            <p role="alert" className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-strong">
+              This is shown once. It is not stored anywhere in readable form and cannot be looked
+              up again — if you close this without passing it on, set another one.
+            </p>
+          </Row>
         </Section>
 
         <Section title="Modal" note="Escape closes, backdrop click closes, body scroll locks while open.">

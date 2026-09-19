@@ -57,8 +57,33 @@ export function AuthProvider({ children }) {
     return me;
   }
 
+  // R2 (2026-09-19) — SWAP THE STORED TOKEN FOR A REPLACEMENT THE SERVER
+  // JUST MINTED, then re-read the user behind it.
+  //
+  // WHY THIS EXISTS AT ALL. R1 gave every account a `token_version`, bumped
+  // by every password write, and middleware/auth.js rejects any token
+  // carrying an older value. That is the point — a reset must kill the
+  // sessions the old password left open. But it also kills the session of
+  // the person doing the changing, so PUT /auth/change-password hands back a
+  // token at the new version. Without this function the client throws that
+  // token away and the caller's very next request 401s: changing your
+  // password in Settings would sign you out of the tab you did it in.
+  //
+  // THE ORDER MATTERS AND IS NOT INTERCHANGEABLE. The token goes into
+  // storage BEFORE /auth/me is called, because the axios interceptor reads
+  // it per request — calling refresh() first would send the dead one, take
+  // a 401, and log the user out on the success path.
+  //
+  // It also clears `must_change_password` in context, which is what lets the
+  // forced-change screen route away from itself: that flag comes from the
+  // server row, never from a local assumption about what we just wrote.
+  async function applyToken(token) {
+    localStorage.setItem(TOKEN_KEY, token);
+    return refresh();
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh, applyToken }}>
       {children}
     </AuthContext.Provider>
   );

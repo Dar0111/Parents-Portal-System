@@ -125,6 +125,27 @@ export default function UsersPage() {
 
   const [statusSavingId, setStatusSavingId] = useState(null);
 
+  // Reset password (R2, 2026-09-19) — POST /users/:id/temp-password, the
+  // office fallback for an account that cannot use /forgot-password: no
+  // email on file, an unconfirmed one, or an inbox the parent cannot reach.
+  //
+  // TWO PHASES IN ONE MODAL, and the second one is the reason this is not a
+  // plain confirm. Phase one confirms by ACCOUNT NAME (§5e: irreversible —
+  // the old password is gone the instant this returns, and there is no
+  // undo). Phase two shows the generated password, ONCE: the server hashes
+  // it and returns it in that one response, nothing stores it in plain form
+  // and no endpoint can produce it again. Closing the dialog is what throws
+  // it away, so the footer button says so.
+  //
+  // `tempPassword` is what separates the phases, and it is cleared on close
+  // — not on open — so a mis-click on a second row cannot show the previous
+  // row's password.
+  const [resetting, setResetting] = useState(null);
+  const [resetError, setResetError] = useState(null);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [tempPassword, setTempPassword] = useState(null);
+  const [tempCopied, setTempCopied] = useState(false);
+
   // Two paged tables, two pager states (2026-09-19). Each is one page of a
   // server-sorted list (C1); a filter or sort change resets its offset (C6);
   // a page emptied by an approval steps back on its own (C7, in DataTable).
@@ -352,6 +373,54 @@ export default function UsersPage() {
     }
   }
 
+  function openReset(row) {
+    setResetting(row);
+    setResetError(null);
+    setTempPassword(null);
+    setTempCopied(false);
+  }
+
+  function closeReset() {
+    if (resetSaving) return;
+    setResetting(null);
+    setResetError(null);
+    setTempPassword(null);
+    setTempCopied(false);
+  }
+
+  async function submitReset() {
+    if (!resetting) return;
+    setResetError(null);
+    setResetSaving(true);
+    try {
+      const temporary = await api.post(
+        `/users/${resetting.id}/temp-password`,
+        {},
+        { unwrap: 'temporary_password' }
+      );
+      setTempPassword(temporary);
+      setFormStatus({ directory: ok(`Temporary password set for ${resetting.name}.`) });
+      // No load(): nothing this write changes is a column on this table.
+      // The row's status, name and role are untouched.
+    } catch (err) {
+      setResetError(extractError(err));
+    } finally {
+      setResetSaving(false);
+    }
+  }
+
+  async function copyTempPassword() {
+    try {
+      await navigator.clipboard.writeText(tempPassword);
+      setTempCopied(true);
+    } catch {
+      // Clipboard access can be refused (permissions, an insecure origin).
+      // The password is on screen and selectable, so this is a convenience
+      // failing, not the task failing — say nothing and let them select it.
+      setTempCopied(false);
+    }
+  }
+
   function openReview(row) {
     setReviewing(row);
     setDecision(null);
@@ -499,6 +568,18 @@ export default function UsersPage() {
               >
                 Edit
               </button>
+              {/* Hidden on your own row: the handler answers 400 "Use Change
+                  password for your own account.", same shape as the
+                  self-deactivate guard beside it. */}
+              {isSelf ? null : (
+                <button
+                  type="button"
+                  onClick={() => openReset(row)}
+                  className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+                >
+                  Reset password
+                </button>
+              )}
               {canToggle && isSelf && row.status === 'active' ? (
                 <span className="text-xs text-fg-muted">You cannot deactivate yourself</span>
               ) : null}
@@ -787,6 +868,85 @@ export default function UsersPage() {
               error={editContactError}
             />
           </form>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(resetting)}
+        onClose={closeReset}
+        title={resetting ? `Reset password — ${resetting.name}` : ''}
+        size="sm"
+        closeOnBackdrop={!resetSaving && !tempPassword}
+        footer={
+          tempPassword ? (
+            <button
+              type="button"
+              onClick={closeReset}
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
+            >
+              Done — I have given it to them
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={closeReset}
+                disabled={resetSaving}
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitReset}
+                disabled={resetSaving}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
+              >
+                {resetSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+                Yes, set a temporary password
+              </button>
+            </>
+          )
+        }
+      >
+        {resetting ? (
+          <div className="space-y-3">
+            {resetError ? <ErrorAlert message={resetError} /> : null}
+            {tempPassword ? (
+              <>
+                <p className="text-sm text-fg-body">
+                  Give this to <span className="font-medium text-fg">{resetting.name}</span>. They
+                  will be asked to choose their own password the next time they sign in.
+                </p>
+                <div className="flex items-center gap-2 rounded-lg border border-edge bg-surface-subtle px-3 py-2">
+                  <code className="flex-1 break-all font-mono text-sm text-fg">{tempPassword}</code>
+                  <button
+                    type="button"
+                    onClick={copyTempPassword}
+                    className="shrink-0 rounded-lg border border-edge-strong px-2 py-1 text-xs text-fg-body transition hover:bg-surface-muted"
+                  >
+                    {tempCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <p role="alert" className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-strong">
+                  This is shown once. It is not stored anywhere in readable form and cannot be
+                  looked up again — if you close this without passing it on, set another one.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-fg-body">
+                  Set a temporary password for{' '}
+                  <span className="font-medium text-fg">{resetting.name}</span>?
+                </p>
+                <p className="text-sm text-fg-muted">
+                  Their current password stops working immediately and they are signed out
+                  everywhere. The new one is shown once, on the next screen, and they must choose
+                  their own before they can use the portal again. This cannot be undone.
+                </p>
+              </>
+            )}
+          </div>
         ) : null}
       </Modal>
 
