@@ -19,6 +19,7 @@ const backupsRoutes = require('./routes/backups');
 const messagesRoutes = require('./routes/messages');
 const excusesRoutes = require('./routes/excuses');
 const notificationsRoutes = require('./routes/notifications');
+const dashboardRoutes = require('./routes/dashboard');
 const { initSocket } = require('./socket');
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/backups', backupsRoutes);
 app.use('/api/messages', messagesRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found.' });

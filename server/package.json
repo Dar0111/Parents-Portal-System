@@ -26,6 +26,7 @@
     "test:restore": "node scripts/test-restore-flows.js",
     "test:excuses": "node scripts/test-excuses-flows.js",
     "test:notifications": "node scripts/test-notifications-flows.js",
+    "test:dashboard": "node scripts/test-dashboard-flows.js",
     "test:recovery": "node scripts/test-recovery-flows.js"
   },
   "dependencies": {
