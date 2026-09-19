@@ -1570,6 +1570,19 @@ is the order, not the record.
       only its own; `GET /api/health` returning a static 200 with no DB check;
       and the shared helper that clears the orphan `notifications` rows the six
       older suites leave behind. Every one is a `docs/KNOWN_ISSUES.md` row.
+      **Plus one INVESTIGATE item, new 2026-09-20 and not yet a known-issue
+      row because the cause is unknown:** Teacher → Attendance logged
+      `bulk_record_attendance` **twice, one second apart, for a single Save
+      click** (seen during the 2026-09-21 banner check; Darryl confirms he
+      clicked once). **Find the cause before fixing** — a double submit, an
+      effect firing twice, or no `disabled` while saving are three different
+      bugs with three different fixes, and guessing would paper over
+      whichever one it is. The DATA is correct either way: `POST
+      /api/attendance/bulk` is `ON DUPLICATE KEY UPDATE`, so the second call
+      overwrote the first with the same values. **The audit trail is not
+      correct**, and that is the actual defect — `activity_logs` is what the
+      restore machinery counts and what a reviewer reads to reconstruct who
+      did what.
 - [ ] **Docs pass** — the README suite table, the `docs/API_REFERENCE.md` scope
       labels stale for every widened read, and the dead pointers recorded in
       KNOWN ISSUES.

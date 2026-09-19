@@ -123,6 +123,17 @@ that opens Attendance on the right section and date, then green "Recorded —
 1 present, 0 absent" once he saved. Every dashboard is now verified in a
 browser.
 
+**That check also turned up something unrelated to dashboards, and it is
+queued rather than guessed at.** Saving the attendance once wrote **two**
+`bulk_record_attendance` entries to the audit log, a second apart. The
+recorded attendance is right — the endpoint absorbs a repeat by design — so
+nothing a teacher or parent sees is wrong. What is wrong is the history: a
+single action appears twice to anyone reconstructing who did what, and that
+log is also what the restore machinery counts. It is on the pre-Stage-5
+server list as an **investigate-first** item, because a double submit, an
+effect running twice and a button that stays clickable while saving are
+three different faults and only one of them is the real one.
+
 **Account recovery — DONE 2026-09-19 (R1 server, R2 client, R3 docs).**
 Manuscript p. 49 promises "Forgot Password"; until this dispatch the Login
 page said, in words, that there was no such thing. There is now, and the
