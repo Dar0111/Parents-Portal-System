@@ -94,6 +94,23 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Dark mode, `feat/dark-mode` (2026-09-19, D2):** the 60 tokens get a second
+block of values under `[data-theme="dark"]` in `client/src/index.css` (slate
+950 / 900 / 800 base, an in-between `surface-subtle`, inverted primary
+button, X-950/300/200 tones, `color-scheme`, a dark-only autofill rule);
+Light / Dark / System in Settings → Personalization, stored on the device
+under `pp.theme` (default Light), applied as `data-theme` on `<html>` by
+`pages/settings/theme.js` and by an inline script in `index.html` before
+the bundle, with one `prefers-color-scheme` listener keeping System live.
+Light AA fixes as named light changes: table header text, placeholders, the
+Approve buttons, 41 faint text labels. Extras: the Messages empty states lose
+their duplicate button; `/dev/ui` gains a page-only theme toggle and a
+side-by-side token strip. `npm run lint:contrast`
+(`client/scripts/check-contrast.mjs`) checks 55 occurring pairs in both
+themes and reports 0 unwaived; the nine waived pairs are KNOWN ISSUES rows.
+Proofs: theme script 18/18, dark SSR 10/10 (38 renders), build 0, oxlint 42,
+lint:tokens 0. Full row: `docs/CHANGELOG.md`, 2026-09-19.
+
 **Design tokens, `feat/design-tokens` (2026-09-19, D1 of the Dark mode
 plan):** 60 semantic color tokens defined once in `client/src/index.css`
 (`:root` light values equal to the Tailwind palette, `@theme inline` names so

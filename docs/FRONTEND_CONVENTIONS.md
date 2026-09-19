@@ -675,6 +675,55 @@ slate-500; E4 one `emerald-900` note is `success-strong` (800); E5 Login's
 error box is `danger-soft`/`danger-strong` (rose) instead of red; E6 the
 ErrorAlert retry link hovers to `danger-strong` (800) instead of rose-900.
 
+**Dark theme (D2, 2026-09-19, `feat/dark-mode`).** The same 60 variables get a
+second block of values under `[data-theme="dark"]` in `index.css` — that block
+IS the theme; no page changed for it. Base: page slate-950, surface slate-900,
+surface-muted slate-800, and `surface-subtle` a value BETWEEN slate-900 and
+slate-800 (`oklch(24.3% 0.041 262)`, the one non-palette value) so a table
+band and a hovered row stay distinguishable from an active nav item; text
+slate-100 / 200 / 300 / 400; the primary button INVERTS (slate-100 with
+slate-900 text, hover slate-300); tones use X-950 soft, X-800 edge, X-300
+fg, X-200 strong, X-400 icon; the own bubble is slate-700 and theirs
+slate-800 on the slate-900 card. Two dark-only collapses, accepted: `fg-faint`
+= `fg-muted` = slate-400 (faint was used as text; slate-500 on slate-900 is
+3.74), and `fg-ghost` = slate-500 (icons need 3.0). `backdrop` is slate-950 at
+60% in dark (40% of slate-900 in light). `:root { color-scheme: light }` and
+`[data-theme="dark"] { color-scheme: dark }` make date pickers, select
+lists, scrollbars and radios follow; a dark-only `input:-webkit-autofill`
+rule (inset box-shadow, the only thing Chrome honors) stops autofilled Login
+fields lighting up pale blue. Shadows are kept as they are — cards and
+controls carry a border, the modal and drawer sit on the backdrop — so nothing
+depends on a shadow being visible.
+
+**How the theme is chosen.** Light / Dark / System in Settings →
+Personalization, stored on the device only under `pp.theme` (like text size,
+same reasons), applied as `data-theme` on `<html>` by `pages/settings/theme.js`
+(`readTheme` / `resolveTheme` / `applyTheme` / `saveTheme` / `initTheme`). A
+fresh device is **Light**, not System. An invalid stored value reads as Light
+and is left alone until the user picks. An inline script in `index.html`
+mirrors the rules and sets the attribute BEFORE the bundle so the first paint
+is right — it also paints `<html>` dark (background + color-scheme) because in
+dev the stylesheet arrives from JS; `applyTheme` clears those two inline
+styles on every apply so a runtime switch to Light leaves nothing behind (A2).
+`initTheme()` in `main.jsx` registers the ONE `prefers-color-scheme` listener
+that keeps System live. Login needs no code: the attribute is on `<html>`.
+Any element with `data-theme="dark"` re-scopes its subtree — `/dev/ui` uses
+that for a side-by-side token strip next to a page-only preview toggle.
+
+**Contrast is checked, not eyeballed.** `npm run lint:contrast`
+(`client/scripts/check-contrast.mjs`) computes every text / background token
+pair that occurs (55 pairs) in both themes from `index.css` itself: text
+must reach 4.5, icons and UI parts 3.0; a failing pair is allowed only by an
+in-script allow-list whose entries must each carry a marker in
+`docs/KNOWN_ISSUES.md` — a pair can only be waived by writing it down. Add a
+pair to the script when a page puts a token on a background it was not on
+before. Light-mode AA fixes taken on D2 as named light changes: the table
+header text (`fg-body`, 7.23), placeholders (`fg-muted`, 4.77), the Approve
+buttons (`success-solid` emerald-700, 5.37; hover 800), and the 41 `fg-faint`
+TEXT labels moved to `fg-muted` at their call sites (`fg-faint` is now icons,
+the spinner, close buttons and `disabled:` states only). The nine waived pairs
+are the KNOWN ISSUES rows marked `[contrast: …]`.
+
 ### Corrections — three claims retired here
 
 These circulated in planning and are **wrong**. None of them ever appeared

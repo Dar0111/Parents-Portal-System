@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "lint:tokens": "node scripts/check-color-tokens.mjs",
+    "lint:contrast": "node scripts/check-contrast.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
