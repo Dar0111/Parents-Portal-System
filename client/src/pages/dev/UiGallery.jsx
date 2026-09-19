@@ -13,6 +13,7 @@ import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
 import { VerifiedMark } from '../settings/AccountInfoSection';
+import Card, { CardEmpty, Stat } from '../dashboards/Card';
 import { NavItem } from '../../layout/Shell';
 
 // Dev-only component gallery (routed in App.jsx behind import.meta.env.DEV).
@@ -543,6 +544,39 @@ export default function UiGallery() {
               </span>
             </span>
             <span className="text-sm text-fg-muted">the bell itself, with a count chip</span>
+          </div>
+        </Section>
+
+        <Section
+          title="Dashboard Card (DB2)"
+          note="Each card owns its own loading, error and empty state and renders them inside its own frame — one failing card never blanks a dashboard. `tone` colours the frame to say &quot;there is something to do&quot;, never a verdict (§4)."
+        >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card title="With a number" icon="fa-user-graduate" to="/dev/ui">
+              <Stat value={128} caption="on the roll" />
+            </Card>
+            <Card title="Muted / pending" icon="fa-chart-simple" to="/dev/ui">
+              <Stat value="Pending" muted caption="Term 2 — 5 of 8 subjects recorded" />
+            </Card>
+            <Card title="Empty" icon="fa-envelope-open-text" to="/dev/ui">
+              <CardEmpty>Nothing waiting.</CardEmpty>
+            </Card>
+            <Card title="Loading" icon="fa-clock" loading />
+            <Card
+              title="Failed — retry reloads THIS card only"
+              icon="fa-triangle-exclamation"
+              error="Cannot reach the server. Check that it is running, then try again."
+              onRetry={() => {}}
+            />
+            <Card title="Warning tone" icon="fa-user-clock" to="/dev/ui" tone="warning" linkLabel="Review">
+              <Stat value={3} caption="parent accounts" />
+            </Card>
+            <Card title="Danger tone — the lockout hazard only" icon="fa-shield-halved" tone="danger">
+              <CardEmpty>Reserved for a real dead end, never for a judgement about a person.</CardEmpty>
+            </Card>
+            <Card title="No link" icon="fa-comments">
+              <CardEmpty>A card with no page to open renders no footer.</CardEmpty>
+            </Card>
           </div>
         </Section>
 
