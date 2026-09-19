@@ -30,8 +30,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 85** handlers defined in
-> `server/routes/`, and the API answers **86 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 86** handlers defined in
+> `server/routes/`, and the API answers **87 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 > Both were recounted from the code on 2026-09-19; the archived endpoint
 > table's 81 rows are a dated snapshot of that day, not a third figure.
@@ -74,7 +74,7 @@ Restore was the last page: every Figure 5 admin process has a page. **Admin
 nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; teacher (11) and parent (9) are
-unchanged, and **no role now has a `built: false` item**. 22 tables, 85
+unchanged, and **no role now has a `built: false` item**. 22 tables, 86
 handlers + `/api/health`. 20 of 23 sections have no adviser and no screen can
 assign one — see KNOWN ISSUES.)
 
@@ -107,8 +107,8 @@ there before the move, with request/response detail this table never had.
 
 **Read `docs/API_REFERENCE.md` for any endpoint question.** What still
 belongs here is only the arithmetic, because two numbers are both correct
-and mean different things: **85 handlers** are defined in `server/routes/`,
-and the API answers **86 endpoints** because `GET /api/health` is mounted
+and mean different things: **86 handlers** are defined in `server/routes/`,
+and the API answers **87 endpoints** because `GET /api/health` is mounted
 directly in `server.js`. State which you mean. The archived table's **81
 rows** are neither — it is a snapshot dated 2026-09-19, taken before
 Notifications' 4 and account recovery's 5 landed, and it is not the live
@@ -123,7 +123,7 @@ a new send; and the subjects-reseed CASCADE is the **opposite** case
 (destroying `subjects.id` wiped assignments *and* grades). Do not add a
 grades-exist guard on `DELETE /api/assignments/:id`.
 
-**Full request/response detail for all 86 endpoints — every body field,
+**Full request/response detail for all 87 endpoints — every body field,
 the exact response wrapper key, role-scope codes, and the 404-vs-403
 convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
 the quick list; that document is what Stage 4 screen work should
@@ -708,6 +708,52 @@ and the school office for everyone else; an admin's own way back in is
 *another* admin, because the temporary-password endpoint is admin-only and
 refuses your own id (§5i, browser check 2026-09-19).
 
+### 12. Dashboards — seven rules, and one of them is structural
+
+**Frozen 2026-09-20 (DB1 server, DB2 client).** The endpoint detail is
+`docs/API_REFERENCE.md` → Dashboard.
+
+- **Each card owns its own loading, error and empty state, and renders them
+  inside its own frame.** A dashboard is the one screen where several
+  independent failures are normal, so **no bare `Promise.all` across cards**
+  — it rejects as a unit, and one timed-out request would blank every card
+  that worked. `pages/dashboards/useCard.js` is the hook; `onRetry`
+  refetches that card alone. `allSettled` INSIDE one card is fine.
+- **No dashboard card is red.** `Card`'s `danger` tone is defined and
+  deliberately unused. Red means something HAS failed, and the only thing
+  that can fail is a request — which `ErrorAlert` already renders inside the
+  card. Amber means "there is something to do". The admin lockout hazard
+  shipped red and was corrected on review: a state that could strand you
+  later is a warning, not an error.
+- **"Present on recorded days", never "attendance rate"** (§5i), and the
+  card shows the FRACTION only. The percentage and its half-up rounding
+  belong to Parent → Attendance; a copy here would be a second
+  implementation of a number the two screens must agree on.
+- **The parent grades summary is computed server-side** (amendment A1) with
+  the same `roundTo2` the report card imports — the latest term, "N of M
+  subjects recorded", and an average returned ONLY when the term is
+  complete. Do not recompute any of it in the client, and do not show a
+  partial average.
+- **The teacher banner is one row per advisory section**, hidden on Saturday
+  and Sunday, and not rendered at all for a teacher who advises nothing.
+  Green requires FULL coverage; anything partial is amber "N of M recorded",
+  because the encode screen omits unset rows rather than defaulting them.
+  Dates come from `todayLocalDateString()`, never `toISOString()`.
+- **An "upcoming" list asks for `sort=event_date&order=asc` explicitly.**
+  `GET /api/events` defaults to DESC for the Events page, so a `limit=3`
+  card without this returns the three FURTHEST-AWAY events, backwards. The
+  endpoint default is not changing; the caller asks for what it needs.
+- **A card never links to an action the app cannot perform** (§5i). The
+  hazard card shipped with "Create a second admin →" pointing at Admin →
+  Users, which cannot do it — `POST /api/users/teachers` hardcodes role
+  `teacher`, `/parents` hardcodes `parent`, and no endpoint anywhere creates
+  an admin. Removed. **Before adding a link, check the handler.**
+
+**Recent activity is deliberately absent from the admin dashboard.** There
+is no read endpoint for `activity_logs`, and building one needs a redaction
+rule for free text written by twenty-odd call sites. It belongs to a future
+Admin Activity Log page. Do not fake it from another source.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, never in this file, recorded so they cannot
@@ -1165,7 +1211,7 @@ is still open, needing its own dispatch:**
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
-| **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email or create a second admin.** Do not let an admin set their own temporary password |
+| **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` before believing a user typed their login id wrong.** Fix is a health probe, never a different response body |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
 
@@ -1481,9 +1527,15 @@ is the order, not the record.
 
 **Queued before Stage 5, in this order:**
 
-- [ ] **Dashboards, all three roles** — content was deliberately deferred when
-      the nav trim landed (2026-09-18); the three pages still derive "Open
-      now" from `navForRole` and nothing else.
+- [x] **Dashboards, all three roles — DONE 2026-09-20** (DB1 server, DB2
+      client, DB3 docs). `GET /api/dashboard`, the deliberately thin one, plus
+      `pages/dashboards/Card.jsx` and `useCard.js`. The three pages no longer
+      derive their content from `navForRole`. See §12.
+      **OPEN CHECK, not a defect:** the teacher attendance banner was never
+      seen in a browser — DB2's check fell on Saturday 2026-09-19 and the
+      banner is hidden at weekends by design. **Verify on a weekday:** amber
+      "Not recorded" for the advisory section, then green once attendance is
+      recorded that day. Do not fake the date to close this.
 - [ ] **Data views redesign — MOCKUP FIRST, no code until it is approved.**
       Three pieces: a `DataTable` restyle for every list, with a **card
       layout below `sm`** (a row of six columns on a 390px phone is the
@@ -1494,6 +1546,15 @@ is the order, not the record.
       until the school answers** how the letter is produced (OPEN QUESTIONS),
       so the report card must render both modes without implying the letter
       is computed.
+      **Two items found during the dashboards check (2026-09-19/20), both
+      deferred here on purpose:** (a) Parent → Attendance's intro says "The
+      percentage counts Late as present…" **even when no percentage is on
+      screen**, which is every account with zero recorded days — §5i, copy
+      describing something that is not there; (b) **in Dark, the amber card
+      fill reads as rust/brown** and edges toward "danger", which undoes the
+      amber-is-not-a-verdict rule (§12) exactly where it matters. Tune the
+      dark amber surface token toward a clearer amber — **mockup first**, and
+      re-run `lint:contrast`, since that token has passing pairs today.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
@@ -1904,6 +1965,9 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-20 | Dashboards DB3 (docs): a Dashboard section in `docs/API_REFERENCE.md` (per-role payload, the thin-endpoint rule, the scope rule, and why the dashboards ask `GET /api/events` for ascending dates while the endpoint default stays DESC); counts move to **86 handlers / 87 endpoints**; new **§12** here; BUILD ORDER ticks Dashboards and keeps the Monday teacher-banner check open; two items added to Data views redesign (the Attendance intro naming an absent percentage, and Dark’s amber reading as rust); the single-admin lockout row corrected — **the app cannot create an admin**, so confirming the email is the only in-app remedy; new row on direct-insert fixtures firing no fan-out. |
+| 2026-09-20 | Dashboards DB2 (client, `feat/dashboards`): three real dashboards, `Card.jsx` + `useCard.js`, each card owning its own loading/error/empty state with no bare `Promise.all`. Browser check passed with **one defect** — upcoming events were DESC, so a "next three" card returned the three furthest-away events backwards — plus four review corrections (hazard card red → amber, its impossible "create a second admin" link removed, the locks label now names its term, the hook moved to its own file). oxlint 44, SSR 36/36. Fixtures cleaned up; Seeded baseline confirmed. |
+| 2026-09-20 | Dashboards DB1 (server, `feat/dashboard-api`): `GET /api/dashboard`, deliberately thin — only the teacher class-encoding progress, the admin counts and lock count, and the parent grades summary (A1: computed server-side with the report card’s own `roundTo2`). Recent activity dropped — no `activity_logs` read endpoint exists. `test:dashboard` 75/75 ×3. |
 | 2026-09-19 | Account recovery R3 (docs): the five endpoints and the recovery flow's four deliberate silences in `docs/API_REFERENCE.md`, plus a new §5b for the two whole-session refusals; its Verification table **recounted from the code — 85 handlers, 86 endpoints** (it had drifted three ways at once, none from this dispatch, and Darryl's dispatch figure of 84 was an estimate); `auth_codes`' dump exclusion in `docs/RESTORE.md`; here, 21 → 22 tables and 80 → 85 handlers everywhere, new §11, the recovery line moved to done, and a queued **Data views redesign — mockup first**. One code file, comment only: `routes/auth.js` still described the abandoned timestamp mechanism. |
 | 2026-09-19 | Account recovery R2 (client, `feat/account-recovery-ui`): `applyToken()`, routing on `must_change_password` and never on the 403, `/forgot-password` (two steps one route — the login id is an LRN, §5c), the forced-change screen outside `Shell`, Verify email in Settings, admin Reset password shown once. Browser check passed over real Gmail SMTP; **two defects found and fixed** — a stale own-email after editing your own row in Users, and three branches telling an admin to ask an office they ARE. oxlint 44, SSR 37/37 with a negative control. |
 | 2026-09-19 | Account recovery R1 (server, `feat/account-recovery-api`): the 22nd table `auth_codes` via the repo's second migration, five endpoints, bcrypt-hashed 6-digit codes with DB-side rate limits, nodemailer, two timing mitigations, `auth_codes` rows excluded from every dump. **Amendment A1 landed on the third mechanism — a `token_version` counter**; both timestamp attempts are recorded in `middleware/auth.js`. `test:recovery` 62; every suite run because middleware changed; `test:auth` fixed to 56 under a declared scope expansion. |

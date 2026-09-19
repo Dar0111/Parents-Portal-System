@@ -2,9 +2,9 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**85 handlers** across 14 route files (17 feature tables below, since
+**86 handlers** across 15 route files (18 feature tables below, since
 `content.js` holds three separate resources and `assignments.js` holds
-two), plus `GET /api/health` in `server.js` = **86 endpoints**. Recounted
+two), plus `GET /api/health` in `server.js` = **87 endpoints**. Recounted
 from the code on 2026-09-19; see Verification at the bottom for the
 per-file arithmetic and for which number to quote. If this document and the
 code disagree, the code is correct and this file needs fixing — same
@@ -419,7 +419,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 85 handlers (86 with `GET /api/health`).
+the bottom must equal 86 handlers (87 with `GET /api/health`).
 
 ### Auth (8) — `/api/auth`
 
@@ -680,6 +680,112 @@ but never concludes (CLAUDE.md §4).
 
 ---
 
+### Dashboard (1) — `/api/dashboard`
+
+One read-only endpoint, branched by `req.user.role`. No parameters, no
+pagination, no writes — every result is a fixed-size summary, so there is
+nothing to filter and nothing to page.
+
+| Method | Path | Roles | Request | Response key |
+|---|---|---|---|---|
+| GET | `/` | any authenticated | — | `dashboard` |
+
+**It is deliberately THIN, and that is the rule for extending it.** Most
+dashboard cards are answered by endpoints that already exist and must keep
+using them — the parent's attendance counts, recent announcements, upcoming
+events, the excuse-letter status, the teacher's today-banner and the unread
+badge all fan out to their own list endpoints. This carries only the three
+things fan-out cannot do. **Do not move a card here because it would be
+tidier**; duplicating a list's filter means two copies of the same scope
+rule, and the second one is the one that goes stale.
+
+**SCOPE: every query repeats the `WHERE` of the endpoint its card links to,
+never a widening.** Same rule the notification fan-out carries, and the same
+failure mode if broken — a summary is the easiest place in the API to leak a
+row a caller cannot open, because nothing on screen names where it came
+from. The admin totals in particular mirror the page each card opens, so a
+card reading 42 cannot lead to a list of 37.
+
+Common to every role: `role`, `school_year`. A missing `academic_year` or
+`current_term` in `system_settings` is `500` naming the key — both are
+seeded and validated by `PUT /api/settings/:key`, so absence is a real
+misconfiguration, not an empty state.
+
+**teacher** — `term`, `classes[]`, `classes_complete`, `classes_total`.
+
+Each `classes[]` row is `{ assignment_id, subject_id, subject_name,
+grade_level, section, students, recorded, complete }`, one per
+`teacher_assignments` row for this teacher (that endpoint's own `WHERE`).
+`students` counts ACTIVE learners matching the class by `grade_level` +
+`section`; `recorded` counts distinct learners holding a grade for that
+subject and the current term **where EITHER `term_grade` OR
+`descriptive_grade` is present** — Grade 1 rows carry a letter and a NULL
+number, so counting only the number would report every Grade 1 class as 0
+forever, and a shell row from `POST /api/grades` has neither and correctly
+does not count. `complete` is `students > 0 && recorded === students`: a
+class with no learners is NOT complete, because vacuous truth would let
+"fully recorded" reach X of Y with nothing encoded.
+
+**admin** — `term`, `totals { students, teachers, active_parents }`,
+`pending_parents`, `grade_locks { term, locked, total }`,
+`hazard { single_unverified_admin }`.
+
+`grade_locks` is a COUNT for the current term, not a state: there is no
+global lock and no `is_locked` filter on `GET /api/grades`, so the only
+meaning available is how many of this term's rows are finalized. `total`
+counts every grade row for the current school year AND term, across all
+students and both grading modes. `hazard.single_unverified_admin` is true
+when there is exactly one ACTIVE admin and their email is unverified —
+both routes back in are then closed at once, because a self-service reset
+needs a confirmed email and the temporary-password endpoint is admin-only
+AND refuses your own id. It is a flag, never a message: the client owns the
+wording, and no account is named.
+
+**parent** — `student_id`, `grades`.
+
+`grades` is `null` for an account with no linked learner, and
+`{ unavailable: "grading_mode_not_configured" }` when the learner's grade
+level has no `grading_mode_configs` row. **That last one is deliberately
+NOT the `409` the report card gives**: one unconfigured grade level must not
+blank every other card on the page, so the card reports its own gap.
+
+Otherwise `{ descriptive, term, subjects_recorded, subjects_total, complete,
+general_average }`, scoped to `users.student_id` exactly as the report card
+is — never a query parameter.
+
+**AMENDMENT A1 (Darryl, 2026-09-19): these numbers are computed SERVER-SIDE,
+with the same `roundTo2` the report card imports.** A client-side mean would
+be a second implementation of a figure parents check against their child's
+card, and the two would eventually disagree in the last digit.
+
+- `term` is the greatest term 1–3 in which any subject has a non-null
+  `term_grade` — deliberately NOT `system_settings.current_term`, which an
+  admin can advance before anyone encodes, leaving the card reading
+  "Pending — 0 of 8" for a term nobody has started.
+- `complete` means every subject AT THE GRADE LEVEL has a non-null term
+  grade for that term, including subjects with no grade row at all.
+- `general_average` is returned **only when `complete`**, `null` otherwise —
+  so a client cannot render a partial average even by mistake. Same rule as
+  Initial Grade, Final Grade and General Average.
+- Descriptive (Grade 1) returns `descriptive: true` and **nulls for
+  everything else including the counts**: a descriptive subject is
+  inapplicable at every computed level, not incomplete, so there is no
+  progress to report.
+
+#### The dashboards' own call to `GET /api/events`
+
+Both the parent and teacher dashboards request
+`/events?from=<today>&sort=event_date&order=asc&limit=3`. **The `sort` and
+`order` are required, not cosmetic.** The endpoint's default is
+`event_date DESC`, which is right for the Events page's full list and
+exactly wrong for a "next three" card: combined with `limit=3` it returns
+the three FURTHEST-AWAY events and lists them backwards, so a parent with
+ten things coming up would never see the one that is tomorrow. Found in the
+browser on 2026-09-19. **The endpoint default is unchanged** — the Events
+page depends on it — and the caller asks for what it needs.
+
+---
+
 ## Verification
 
 **Recounted from the code on 2026-09-19 (R3), because this table had drifted
@@ -713,15 +819,16 @@ the same as `router`.
 | Backups | 5 | `backups.js` |
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
-| **Total** | **85** | |
+| Dashboard | 1 | `dashboard.js` |
+| **Total** | **86** | |
 
-8+10+5+3+1+3+11+1+6+4+4+4+6+4+5+6+4 = **85 handlers in `server/routes/`**.
-Plus `GET /api/health`, mounted directly in `server.js` = **86** endpoints in
+8+10+5+3+1+3+11+1+6+4+4+4+6+4+5+6+4+1 = **86 handlers in `server/routes/`**.
+Plus `GET /api/health`, mounted directly in `server.js` = **87** endpoints in
 total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 
-**State which number you mean.** 85 is handlers in route files; 86 is every
+**State which number you mean.** 86 is handlers in route files; 87 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1). Re-run the existence diff after a dispatch that adds or removes an endpoint.

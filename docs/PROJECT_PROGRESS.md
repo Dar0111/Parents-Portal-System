@@ -16,7 +16,7 @@ accepts it). 20 of 23 sections have no adviser and, with Admin → Sections not
 being built, no screen can assign one — so attendance cannot be recorded in
 them. Sections, Excuse Letters, Events and Messages will not be built. Memos
 live on Admin → Announcements (Darryl, 2026-09-14) — the only place a memo can
-be written. 22 tables, 85 handlers in `server/routes/` + `GET /api/health`.)
+be written. 22 tables, 86 handlers in `server/routes/` + `GET /api/health`.)
 
 **Decided and applied 2026-09-18 (Darryl):** the five admin nav entries with
 no page — Sections, Excuse Letters, Memos, Events, Messages — are **removed**
@@ -73,6 +73,50 @@ that bite". Nothing was deleted: all 1,611 substantial lines of the previous
 version still exist, and all 23 `##` headings are present. Two mirror gaps
 between CLAUDE.md and `docs/FRONTEND_CONVENTIONS.md` were found while
 measuring and closed. **144,967 → 108,102 bytes.**
+
+**Dashboards — DONE 2026-09-20 (DB1 server, DB2 client, DB3 docs).** The
+manuscript shows a dashboard for each role (pp. 52, 61, 71); until this
+dispatch all three pages said only which sidebar items were open, derived
+from `nav.js`. They now show the school's actual state.
+
+**What exists.** One read-only endpoint, `GET /api/dashboard`, branched by
+role and **deliberately thin**: most cards keep calling the endpoints that
+already existed, and this carries only the three things a client cannot
+assemble cheaply — teacher class-encoding progress, the admin counts and
+lock count, and the parent grades summary. On the client, three pages built
+from one local `Card` component and a `useCard` hook.
+
+Parent sees seven cards: their child with the class adviser, the term
+average, attendance this month, unread messages, the latest excuse letter,
+recent announcements and memos, and what is coming up. Teacher sees a
+per-advisory-section attendance banner for the day, the review queue,
+encoding progress, their classes and upcoming events. Admin sees the roll,
+the accounts waiting for approval, and the system's own state — school
+year, term, how many grade records are locked, whether the live channel is
+up, and how old the last backup is.
+
+**The rule that shaped every page: one failing card must never blank the
+others.** A dashboard makes seven requests, and seven things can fail
+independently, so each card owns its own loading, error and empty state and
+renders them inside its own frame. There is no `Promise.all` across cards —
+it rejects as a unit. Retrying one card refetches that card alone.
+
+**Three decisions worth recording.** The parent's average is computed on the
+server with the same rounding the report card uses, so the two screens
+cannot disagree — and it is withheld entirely until every subject for that
+term is recorded, because a partial average reads as settled. Nothing on a
+dashboard is red: amber means "there is something to do", and red would mean
+something had already failed. And no card links to an action the app cannot
+perform — the admin hazard card shipped with a "create a second admin" link
+and no endpoint in the system creates an admin, so it was removed.
+
+**Verified in the browser by Darryl on 2026-09-19/20** across all five
+accounts, at desktop and 390px, in both themes. The check found one real
+defect: every "upcoming events" card was ordered newest-first, which for a
+three-item card meant showing the three furthest-away events rather than the
+next three. One item could not be checked — the teacher's attendance banner
+is hidden at weekends by design and the check fell on a Saturday; it is
+recorded in BUILD ORDER as an open check rather than assumed working.
 
 **Account recovery — DONE 2026-09-19 (R1 server, R2 client, R3 docs).**
 Manuscript p. 49 promises "Forgot Password"; until this dispatch the Login
