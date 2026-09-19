@@ -6,6 +6,7 @@ import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
+import NotificationProvider, { useNotifications } from '../realtime/NotificationProvider';
 import Header from './Header';
 import seal from '../assets/school-seal.png';
 
@@ -120,10 +121,51 @@ export default function Shell() {
   return (
     <SocketProvider>
       <UnreadProvider enabled={messagesBuilt}>
-        <ShellChrome />
+        {/* A SIBLING of UnreadProvider, not a replacement. Messages keep
+            their own count and their own badge; the bell counts everything
+            else. Nothing adds the two together — see the header of
+            NotificationProvider for why one fact must not have two stores. */}
+        <NotificationProvider>
+          <ShellChrome />
+        </NotificationProvider>
       </UnreadProvider>
     </SocketProvider>
   );
+}
+
+// Which nav item each unread count badges. Two counts, two sources, joined
+// only at the point of rendering a number — never summed:
+//
+//   Messages          UnreadProvider, from GET /messages/conversations
+//   everything else   NotificationProvider, from GET /notifications/unread-counts
+//
+// GRADES IS ABSENT ON PURPOSE (Darryl, 2026-09-19): a new grade rings the
+// bell and is never badged in the sidebar. The consequence is that the bell
+// total is larger than the sum of the badges for a parent, which is correct
+// and is the kind of thing that reads as a bug if nobody writes it down.
+//
+// Keyed by the nav path suffix rather than by label, because the label is
+// display text and the path is the identity — the same reason the Messages
+// badge has always tested `to.endsWith`.
+const BADGE_BY_PATH = {
+  '/excuse-letters': 'excuse_letters',
+  '/announcements': 'announcements',
+  '/memos': 'memos',
+  '/events': 'events',
+  '/users': 'users',
+};
+
+// Admin has no Memos page — memos live on Admin -> Announcements, and that
+// page is the only place one can be written (2026-09-14). So the admin
+// Announcements badge carries BOTH counts, or a posted memo would ring the
+// bell with no badge anywhere to lead the admin to it.
+function badgeFor(item, role, counts, unread) {
+  if (item.to.endsWith('/messages')) return unread;
+  if (role === 'admin' && item.to.endsWith('/announcements')) {
+    return counts.announcements + counts.memos;
+  }
+  const key = BADGE_BY_PATH[Object.keys(BADGE_BY_PATH).find((p) => item.to.endsWith(p)) || ""];
+  return key ? counts[key] : 0;
 }
 
 function ShellChrome() {
@@ -140,11 +182,11 @@ function ShellChrome() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const items = navForRole(user?.role);
-  // Same test as Shell()'s `enabled` above, derived from the list this
-  // component already has rather than threaded down as a prop. It gates the
-  // LiveStatus strip: see the 5g note at its render below.
-  const messagesBuilt = Boolean(items.find((i) => i.to.endsWith('/messages'))?.built);
+  // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the
+  // LiveStatus strip, and that gate is gone (see the note at its render).
+  // Shell() above still computes its own, for UnreadProvider's `enabled`.
   const { unread } = useUnread();
+  const { counts } = useNotifications();
   const title =
     customTitle || navTitleForPath(user?.role, location.pathname) || "Parent's Portal";
 
@@ -160,7 +202,7 @@ function ShellChrome() {
           key={item.to}
           item={item}
           onNavigate={() => setMobileNavOpen(false)}
-          badge={item.to.endsWith('/messages') ? unread : 0}
+          badge={badgeFor(item, user?.role, counts, unread)}
         />
       ))}
     </nav>
@@ -207,6 +249,7 @@ function ShellChrome() {
           user={user}
           onOpenMenu={() => setMobileNavOpen(true)}
           onLogout={handleLogout}
+          drawerOpen={mobileNavOpen}
         />
 
         <main className="min-w-0 flex-1 space-y-4 p-4 sm:p-6">
@@ -218,25 +261,27 @@ function ShellChrome() {
               with a badge that had silently stopped updating and nothing to
               say so, which is 5g's own failure mode one level out.
 
-              GATED ON `messagesBuilt` SINCE 2026-09-18, which closes 5g's
-              INVERSE — the case the convention left ownerless. 5g's rule is
-              "say so wherever something channel-fed is shown"; for a role with
-              no Messages item nothing on screen is channel-fed, so the strip
-              announced a failure with no consequence the viewer could act on.
-              Admin is that role and will stay that way: Admin -> Messages has
-              no Figure 5 process and will not be built. This is the whole fix —
-              a render condition. `SocketProvider` still connects for every
-              role; an admin socket now feeds nothing, which is harmless and is
-              recorded rather than optimised away here. */}
-          {messagesBuilt ? (
-            <LiveStatus
+              GATED ON `messagesBuilt` FROM 2026-09-18 TO 2026-09-19, AND THAT
+              GATE IS NOW GONE. The 2026-09-18 reasoning was sound at the time:
+              5g says "say so wherever something channel-fed is shown", and for
+              a role with no Messages item nothing on screen was channel-fed, so
+              the strip announced a failure the viewer could do nothing about.
+              N1 changed the fact it rested on. Every role now has a bell and
+              sidebar badges fed by the SAME socket, and admin in particular
+              receives `parent_pending` live — so an admin whose channel dies
+              now has a silently frozen bell, which is exactly the thing 5g
+              exists to prevent. The strip is unconditional again.
+
+              `messagesBuilt` still gates UnreadProvider, above: that is about
+              not FETCHING a count nobody can see, which is a different
+              question from whether to admit the channel is down. */}
+          <LiveStatus
               // A full reload rather than a per-page refetch: Shell cannot know
               // what the routed page fetches, and a Refresh that silently
               // refreshed only the badge would be its own small lie. Reloading
               // re-runs every fetch on the page and re-attempts the socket.
               onRefresh={() => window.location.reload()}
-            />
-          ) : null}
+          />
           <PageTitleContext.Provider value={titleContext}>
             <Outlet />
           </PageTitleContext.Provider>

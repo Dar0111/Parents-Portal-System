@@ -486,6 +486,65 @@ export default function UiGallery() {
           </div>
         </Section>
 
+        <Section
+          title="Notification bell — the three states"
+          note="Static mock-ups of the dropdown, not the live bell: the real one is in the header and needs a logged-in session and real rows. What is worth checking here is the palette in both themes — the unread dot is bg-primary on surface (16.03 light, 8.22 dark), and a read row drops to fg-muted with no dot, which is the only thing distinguishing the two."
+        >
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <p className="mb-2 text-xs font-medium text-fg-muted">empty</p>
+              <div className="rounded-xl border border-edge bg-surface">
+                <div className="border-b border-edge px-4 py-3 text-sm font-semibold text-fg">Notifications</div>
+                <p className="px-4 py-8 text-center text-sm text-fg-muted">No notifications yet.</p>
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-fg-muted">unread</p>
+              <div className="rounded-xl border border-edge bg-surface">
+                <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+                  <span className="text-sm font-semibold text-fg">Notifications</span>
+                  <span className="text-sm font-medium text-brand">Mark all as read</span>
+                </div>
+                <div className="flex items-start gap-3 border-b border-edge px-4 py-3">
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-fg">New announcement</span>
+                    <span className="mt-0.5 block text-sm text-fg-muted">
+                      Principal Admin posted &ldquo;Classes suspended&rdquo;.
+                    </span>
+                    <span className="mt-1 block text-xs text-fg-muted">5m ago</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-fg-muted">read</p>
+              <div className="rounded-xl border border-edge bg-surface">
+                <div className="border-b border-edge px-4 py-3 text-sm font-semibold text-fg">Notifications</div>
+                <div className="flex items-start gap-3 border-b border-edge px-4 py-3">
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-transparent" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm text-fg-muted">A grade is ready to view</span>
+                    <span className="mt-0.5 block text-sm text-fg-muted">
+                      Mathematics &mdash; Term 1 is now on the report card.
+                    </span>
+                    <span className="mt-1 block text-xs text-fg-muted">2d ago</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-3 rounded-xl border border-edge bg-surface p-4">
+            <span className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body">
+              <i aria-hidden="true" className="fa-solid fa-bell" />
+              <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-medium leading-5 text-primary-fg">
+                3
+              </span>
+            </span>
+            <span className="text-sm text-fg-muted">the bell itself, with a count chip</span>
+          </div>
+        </Section>
+
         <Section title="Modal" note="Escape closes, backdrop click closes, body scroll locks while open.">
           <button
             type="button"

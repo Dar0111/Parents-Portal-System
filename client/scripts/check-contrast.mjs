@@ -79,6 +79,11 @@ const PAIRS = [
   // ever changes.
   ['brand-panel-fg', 'brand-panel-lit', 'text', 'Login panel text over the glow'], ['brand-panel-muted', 'brand-panel-lit', 'text', 'Login panel muted lines over the glow'],
   ['seal-bg', 'brand-panel', 'boundary', 'seal disc vs the Login panel'],
+  // the notification bell (N2): the unread dot and its count chip sit on the
+  // header and on the dropdown panel, both `surface`; a row hover is
+  // `surface-muted`. The dot is a meaningful UI part, not decoration — it is
+  // the ONLY thing distinguishing an unread row — so it is scored as `ui`.
+  ['primary', 'surface', 'ui', 'bell unread dot and count chip'], ['primary', 'surface-muted', 'ui', 'unread dot on a hovered row'],
   ['bubble-mine', 'surface', 'boundary', 'own bubble vs card'], ['bubble-theirs', 'surface', 'boundary', 'their bubble vs card'], ['edge', 'surface', 'boundary', 'card border'], ['surface', 'page', 'boundary', 'card vs page'], ['surface-subtle', 'surface', 'boundary', 'band vs card'], ['surface-muted', 'surface-subtle', 'boundary', 'active nav vs hovered'],
 ];
 const NEED = { text: 4.5, ui: 3, disabled: 0, boundary: 0 };

@@ -13,9 +13,14 @@ export default function LiveStatus({ onRefresh }) {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-2.5">
+      {/* "new updates", not "new messages" (N2, 2026-09-19). The strip is no
+          longer only about Messages: since N1 the same channel carries
+          notification_counts, and the strip is now shown to admin, who has no
+          Messages page at all. Naming messages there would have been a claim
+          about the wrong thing (§5i). */}
       <p className="text-sm text-warning-strong">
         <i className="fa-solid fa-plug-circle-xmark mr-2" />
-        Live updates paused — new messages will not appear on their own.
+        Live updates paused — new updates will not appear on their own.
       </p>
       {onRefresh ? (
         <button

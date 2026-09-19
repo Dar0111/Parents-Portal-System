@@ -30,7 +30,11 @@ import { useAuth } from '../auth/AuthContext';
 // channel that looks live while silently delivering nothing is worse in a
 // parent-teacher context than one that admits it is paused.
 
-const SocketContext = createContext({ connected: false, subscribe: () => () => {} });
+const SocketContext = createContext({
+  connected: false,
+  subscribe: () => () => {},
+  subscribeNotifications: () => () => {},
+});
 
 export function useSocket() {
   return useContext(SocketContext);
@@ -43,6 +47,12 @@ export default function SocketProvider({ children }) {
   // Listeners are kept in a ref so subscribing does not re-create the socket,
   // and so a page mounting/unmounting never disturbs the connection itself.
   const listenersRef = useRef(new Set());
+  // A SECOND set, for `notification_counts` (N2, 2026-09-19). Deliberately a
+  // separate set rather than an event name passed to subscribe(): making
+  // subscribe() generic would change a signature UnreadProvider already uses,
+  // for no gain today, and the two channels mean different things — one
+  // carries a message, the other carries nothing at all and means "refetch".
+  const notifListenersRef = useRef(new Set());
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -66,6 +76,15 @@ export default function SocketProvider({ children }) {
       for (const fn of listenersRef.current) fn(message);
     });
 
+    // Carries NO payload, on purpose (server/utils/notify.js says so at the
+    // emit): it means "the server changed your notifications, go and read the
+    // counts again". Nothing here computes a count from a pushed value — that
+    // is convention 5b one component out, and the defect UnreadProvider's own
+    // header records from 2026-09-07.
+    socket.on('notification_counts', () => {
+      for (const fn of notifListenersRef.current) fn();
+    });
+
     return () => {
       // Logout clears `user`, which lands here — the socket is torn down rather
       // than left open and authenticated after the session ends.
@@ -84,6 +103,12 @@ export default function SocketProvider({ children }) {
       subscribe(fn) {
         listenersRef.current.add(fn);
         return () => listenersRef.current.delete(fn);
+      },
+      // The same contract for the notifications channel. `fn` takes no
+      // argument — there is nothing to hand it.
+      subscribeNotifications(fn) {
+        notifListenersRef.current.add(fn);
+        return () => notifListenersRef.current.delete(fn);
       },
     }),
     [connected]
