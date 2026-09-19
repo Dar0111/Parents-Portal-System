@@ -269,6 +269,14 @@ async function run() {
     const seededStillWorks = await login('13567454', 'Parent@2026');
     assert(seededStillWorks.status === 200, 'Seeded password still logs in — the rule never runs at login');
 
+    // A1 (2026-09-19): changing a password now BUMPS users.token_version and
+    // revokes every token minted before it, so `parentToken` — captured at the
+    // top of this run and used to change the password above — is dead from
+    // here on. The contact section below needs the token from the login that
+    // just succeeded. Falls back to the old one so this file still runs on a
+    // build without A1.
+    const parentTokenNow = seededStillWorks.data?.token || parentToken;
+
     // --- Own contact number (parent Settings) ---
     // Seeded parent 13567454 is 09170000003. Restore via a direct UPDATE in
     // finally so a failed assertion cannot leave the demo account dirty.
@@ -282,7 +290,7 @@ async function run() {
     assert(noAuthContact.status === 401, 'Unauthenticated contact update rejected');
 
     const forbiddenContact = await request('PUT', '/api/auth/contact', {
-      token: parentToken,
+      token: parentTokenNow,
       body: { contact_number: '09171111111', name: 'Hacker', lrn: '000', role: 'admin' },
     });
     assert(
@@ -291,26 +299,26 @@ async function run() {
     );
 
     const missingContact = await request('PUT', '/api/auth/contact', {
-      token: parentToken,
+      token: parentTokenNow,
       body: {},
     });
     assert(missingContact.status === 400, 'Missing contact_number rejected');
 
     const emptyContact = await request('PUT', '/api/auth/contact', {
-      token: parentToken,
+      token: parentTokenNow,
       body: { contact_number: '   ' },
     });
     assert(emptyContact.status === 400, 'Blank contact_number rejected');
 
     const tooLongContact = await request('PUT', '/api/auth/contact', {
-      token: parentToken,
+      token: parentTokenNow,
       body: { contact_number: '1'.repeat(21) },
     });
     assert(tooLongContact.status === 400, 'Contact number over 20 characters rejected');
 
     try {
       const updatedContact = await request('PUT', '/api/auth/contact', {
-        token: parentToken,
+        token: parentTokenNow,
         body: { contact_number: '09171111111' },
       });
       assert(
@@ -330,7 +338,7 @@ async function run() {
         'Contact update user has no lrn key'
       );
 
-      const meAfterContact = await request('GET', '/api/auth/me', { token: parentToken });
+      const meAfterContact = await request('GET', '/api/auth/me', { token: parentTokenNow });
       assert(
         meAfterContact.data?.user?.contact_number === '09171111111',
         'GET /me reflects new contact'
@@ -343,7 +351,7 @@ async function run() {
       );
     }
 
-    const restoredContact = await request('GET', '/api/auth/me', { token: parentToken });
+    const restoredContact = await request('GET', '/api/auth/me', { token: parentTokenNow });
     assert(
       restoredContact.data?.user?.contact_number === '09170000003',
       'Seeded parent contact restored'
