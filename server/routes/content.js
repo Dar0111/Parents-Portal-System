@@ -5,6 +5,13 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const {
+  announcementAudience,
+  memoAudience,
+  eventAudience,
+  insertNotifications,
+  emitNotifications,
+} = require('../utils/notify');
 
 function isValidGradeLevel(value) {
   const n = Number(value);
@@ -291,6 +298,24 @@ announcementsRouter.post('/', authenticate, authorize('teacher', 'admin'), async
     );
     await logActivity(req.user.id, 'create_announcement', `Posted announcement "${title}"`);
 
+    // Fan-out is best effort, exactly like logActivity above it: the thing
+    // this describes is already written and logged, so a failure here must
+    // not turn a successful post into a 500. Emit only after the write.
+    try {
+      const audience = await announcementAudience(pool, rows[0]);
+      const notified = await insertNotifications(pool, {
+        type: 'announcement',
+        itemType: 'announcement',
+        itemId: rows[0].id,
+        actorId: req.user.id,
+        titleSnapshot: rows[0].title,
+        userIds: audience,
+      });
+      emitNotifications(req, notified);
+    } catch (notifyError) {
+      console.error('Announcement notification fan-out failed:', notifyError);
+    }
+
     return res.status(201).json({ success: true, message: 'Announcement posted.', announcement: rows[0] });
   } catch (error) {
     console.error('Create announcement error:', error);
@@ -439,6 +464,24 @@ memosRouter.post('/', authenticate, authorize('admin'), async (req, res) => {
       [result.insertId]
     );
     await logActivity(req.user.id, 'create_memo', `Posted memo "${title}"`);
+
+    // Fan-out is best effort, exactly like logActivity above it: the thing
+    // this describes is already written and logged, so a failure here must
+    // not turn a successful post into a 500. Emit only after the write.
+    try {
+      const audience = await memoAudience(pool);
+      const notified = await insertNotifications(pool, {
+        type: 'memo',
+        itemType: 'memo',
+        itemId: rows[0].id,
+        actorId: req.user.id,
+        titleSnapshot: rows[0].title,
+        userIds: audience,
+      });
+      emitNotifications(req, notified);
+    } catch (notifyError) {
+      console.error('Memo notification fan-out failed:', notifyError);
+    }
 
     return res.status(201).json({ success: true, message: 'Memo posted.', memo: rows[0] });
   } catch (error) {
@@ -628,6 +671,24 @@ eventsRouter.post('/', authenticate, authorize('teacher', 'admin'), async (req, 
       [result.insertId]
     );
     await logActivity(req.user.id, 'create_event', `Posted event "${title}" on ${event_date}`);
+
+    // Fan-out is best effort, exactly like logActivity above it: the thing
+    // this describes is already written and logged, so a failure here must
+    // not turn a successful post into a 500. Emit only after the write.
+    try {
+      const audience = await eventAudience(pool, rows[0]);
+      const notified = await insertNotifications(pool, {
+        type: 'event',
+        itemType: 'event',
+        itemId: rows[0].id,
+        actorId: req.user.id,
+        titleSnapshot: rows[0].title,
+        userIds: audience,
+      });
+      emitNotifications(req, notified);
+    } catch (notifyError) {
+      console.error('Event notification fan-out failed:', notifyError);
+    }
 
     return res.status(201).json({ success: true, message: 'Event posted.', event: rows[0] });
   } catch (error) {

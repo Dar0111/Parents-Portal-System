@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { parentOfStudent, insertNotifications, emitNotifications } = require('../utils/notify');
 const { isValidDateFormat } = require('../utils/dateFormat');
 const gc = require('../utils/gradeComputation');
 const { readListParams, pageMeta } = require('../utils/pagination');
@@ -217,7 +218,28 @@ async function preflightGradeWrite(grade, expectedMode) {
 // correctly with no special-casing. Runs on the SAME transaction
 // connection as the write that triggered it (see the two route handlers
 // below), so a failure here rolls back that write too.
-async function recomputeGrade(conn, gradeId) {
+// THE GRADE-AVAILABLE HOOK LIVES HERE, not at the four call sites, because
+// this is the only place that can see the transition: it holds the row as it
+// was (loaded on the next line) and the value about to replace it, inside the
+// caller's transaction.
+//
+// THE TRIGGER IS term_grade GOING FROM NULL TO NON-NULL -- the moment the
+// parent first has something to look at. Not "a component was recorded"
+// (that fires while the card still reads "-- Pending", convention 3), and not
+// "the row was locked" (admin-driven, may never happen, and locking is a
+// finalization boundary rather than a publication event).
+//
+// ONCE PER SUBJECT + TERM COSTS NO CODE: uq_notifications_once is
+// (user_id, type, item_id) and a grades row already IS one
+// (student, subject, term, school_year), so INSERT IGNORE does it. A later
+// correction that clears the grade back to NULL and recomputes will not
+// re-notify, which is correct -- the parent was already told it is there.
+//
+// `pending` collects recipient ids for the CALLER to emit AFTER conn.commit().
+// The insert belongs inside the transaction (a notification for a grade that
+// rolled back would be a lie); the socket event must not be, for the same
+// reason.
+async function recomputeGrade(conn, gradeId, pending = null, actorId = null) {
   const [gradeRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
   const grade = gradeRows[0];
 
@@ -272,6 +294,19 @@ async function recomputeGrade(conn, gradeId) {
      WHERE id = ?`,
     [wwPercentage, wwWeighted, ptPercentage, ptWeighted, exPercentage, exWeighted, ig, termGrade, gradeId]
   );
+
+  if (pending && grade.term_grade === null && termGrade !== null) {
+    const audience = await parentOfStudent(conn, grade.student_id);
+    const notified = await insertNotifications(conn, {
+      type: 'grade_available',
+      itemType: 'grade',
+      itemId: gradeId,
+      actorId,
+      titleSnapshot: null,
+      userIds: audience,
+    });
+    pending.push(...notified);
+  }
 
   const [updatedRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
   return updatedRows[0];
@@ -839,9 +874,11 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
       [gradeId, type, score, max_score, label, date_recorded || null]
     );
 
-    const updatedGrade = await recomputeGrade(conn, gradeId);
+    const notified = [];
+    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
 
     await conn.commit();
+    emitNotifications(req, notified);
 
     const [componentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [result.insertId]);
     await logActivity(
@@ -966,9 +1003,11 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
       componentId,
     ]);
 
-    const updatedGrade = await recomputeGrade(conn, gradeId);
+    const notified = [];
+    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
 
     await conn.commit();
+    emitNotifications(req, notified);
 
     const [updatedComponentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [componentId]);
     await logActivity(req.user.id, 'update_grade_component', `Updated component #${componentId} on grade #${gradeId}`);
@@ -1041,9 +1080,11 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
 
     await conn.query('DELETE FROM grade_components WHERE id = ?', [componentId]);
 
-    const updatedGrade = await recomputeGrade(conn, gradeId);
+    const notified = [];
+    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
 
     await conn.commit();
+    emitNotifications(req, notified);
 
     await logActivity(
       req.user.id,
@@ -1211,9 +1252,11 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
       ]
     );
 
-    const updatedGrade = await recomputeGrade(conn, gradeId);
+    const notified = [];
+    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
 
     await conn.commit();
+    emitNotifications(req, notified);
 
     await logActivity(req.user.id, 'record_grade_exam', `Updated exam sub-scores for grade #${gradeId}`);
 
@@ -1283,6 +1326,12 @@ router.patch('/:id/descriptive', authenticate, authorize('teacher', 'admin'), as
       return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
     }
 
+    // Captured BEFORE the write: this is the same NULL -> non-NULL test
+    // recomputeGrade makes for term_grade, on the column Grade 1 actually
+    // uses. A descriptive row never sets term_grade, so without this hook the
+    // one descriptive parent in the seed would never be notified of a grade.
+    const descriptiveWasNull = loaded.grade.descriptive_grade === null;
+
     await pool.query('UPDATE grades SET descriptive_grade = ? WHERE id = ?', [descriptive_grade, gradeId]);
 
     const [updatedRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
@@ -1291,6 +1340,24 @@ router.patch('/:id/descriptive', authenticate, authorize('teacher', 'admin'), as
       'record_descriptive_grade',
       `Set descriptive_grade to ${descriptive_grade === null ? 'NULL (cleared)' : descriptive_grade} for grade #${gradeId}`
     );
+
+    // Best effort, after the write, like logActivity above it.
+    if (descriptiveWasNull && descriptive_grade !== null) {
+      try {
+        const audience = await parentOfStudent(pool, updatedRows[0].student_id);
+        const notified = await insertNotifications(pool, {
+          type: 'grade_available',
+          itemType: 'grade',
+          itemId: gradeId,
+          actorId: req.user.id,
+          titleSnapshot: null,
+          userIds: audience,
+        });
+        emitNotifications(req, notified);
+      } catch (notifyError) {
+        console.error('Descriptive grade notification fan-out failed:', notifyError);
+      }
+    }
 
     return res.json({ success: true, message: 'Descriptive grade recorded.', grade: updatedRows[0] });
   } catch (error) {

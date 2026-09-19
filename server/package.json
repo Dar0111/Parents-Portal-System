@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "db:setup": "node scripts/setup-db.js",
+    "db:migrate:notifications": "node scripts/migrate-notifications.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
@@ -22,7 +23,8 @@
     "test:grade-computation": "node scripts/test-grade-computation.js",
     "test:messages": "node scripts/test-messages-flows.js",
     "test:restore": "node scripts/test-restore-flows.js",
-    "test:excuses": "node scripts/test-excuses-flows.js"
+    "test:excuses": "node scripts/test-excuses-flows.js",
+    "test:notifications": "node scripts/test-notifications-flows.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

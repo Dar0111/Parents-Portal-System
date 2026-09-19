@@ -8,6 +8,7 @@ const { readListParams, pageMeta } = require('../utils/pagination');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const { activeAdmins, insertNotifications, emitNotifications } = require('../utils/notify');
 const { sanitizeUser } = require('../utils/sanitizeUser');
 
 const router = express.Router();
@@ -159,6 +160,34 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
       'create_parent',
       `Created pending parent account #${result.insertId} for student #${student.id}`
     );
+
+    // Fan-out is best effort, exactly like logActivity above it: the account
+    // is already created, so a failure here must not turn a successful
+    // creation into a 500. Emit only after the write.
+    //
+    // The notification names the STUDENT, never the login id. A parent
+    // login_id IS that child's LRN (convention 5c), and an admin queue entry
+    // is exactly the kind of place it would leak. The text is composed in
+    // routes/notifications.js from the live users -> students join, so this
+    // hook stores no name at all.
+    //
+    // Self-healing: the admin visibility clause requires the item row to
+    // still be status = 'pending', so approving or rejecting the account
+    // retires its notification with nothing deleting it.
+    try {
+      const audience = await activeAdmins(pool);
+      const notified = await insertNotifications(pool, {
+        type: 'parent_pending',
+        itemType: 'user',
+        itemId: result.insertId,
+        actorId: req.user.id,
+        titleSnapshot: null,
+        userIds: audience,
+      });
+      emitNotifications(req, notified);
+    } catch (notifyError) {
+      console.error('Pending parent notification fan-out failed:', notifyError);
+    }
 
     return res.status(201).json({
       success: true,

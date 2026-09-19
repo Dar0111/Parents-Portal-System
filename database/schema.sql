@@ -362,6 +362,38 @@ CREATE TABLE auth_security_state (
   token_valid_after TIMESTAMP NULL DEFAULT NULL
 ) ENGINE=InnoDB;
 
+-- Notifications (N1, 2026-09-19). The bell.
+--
+-- item_id is POLYMORPHIC and therefore carries NO FOREIGN KEY: it points at
+-- announcements, memos, events, excuse_letters, users or grades depending on
+-- item_type. This is the one deliberate break from the convention that every
+-- reference in this file is a real FK. What compensates is a read-time
+-- visibility re-check in routes/notifications.js, which joins each row back to
+-- the item through that same list WHERE: a notification whose item was deleted,
+-- or whose audience no longer includes this user, simply stops being returned.
+-- Do not add a cleanup job for orphans; there is nothing to clean, by design.
+--
+-- uq_notifications_once does double duty: it makes every fan-out idempotent
+-- under a retry, AND it is the entire implementation of the grades rule
+-- "at most once per subject + term" -- a grades row already IS one
+-- (student, subject, term, school_year), so its id is that key.
+--
+-- read_at is a nullable TIMESTAMP rather than a boolean: NULL is the unread
+-- dot, and a value is also when it was read, at no extra cost.
+CREATE TABLE notifications (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  type ENUM('announcement','memo','event','excuse_submitted','excuse_reviewed','parent_pending','grade_available') NOT NULL,
+  item_type ENUM('announcement','memo','event','excuse_letter','user','grade') NOT NULL,
+  item_id INT UNSIGNED NOT NULL,
+  title_snapshot VARCHAR(200) DEFAULT NULL,
+  actor_id INT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_notifications_once (user_id, type, item_id),
+  INDEX idx_notifications_unread (user_id, read_at, created_at),
+  INDEX idx_notifications_item (item_type, item_id)
+) ENGINE=InnoDB;
 -- ---------------------------------------------------------------------------
 -- Foreign keys (added after all tables exist)
 -- ---------------------------------------------------------------------------
@@ -423,3 +455,7 @@ ALTER TABLE activity_logs
 
 ALTER TABLE backups
   ADD CONSTRAINT fk_backups_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
+
+ALTER TABLE notifications
+  ADD CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL;

@@ -3,6 +3,12 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
+const {
+  excuseAdviserAudience,
+  activeUserById,
+  insertNotifications,
+  emitNotifications,
+} = require('../utils/notify');
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, pageMeta } = require('../utils/pagination');
@@ -245,6 +251,32 @@ router.post('/', authenticate, authorize('parent'), async (req, res) => {
       `Submitted excuse letter for student #${req.user.student_id}, absence on ${absence_date}`
     );
 
+    // Fan-out is best effort, exactly like logActivity above it: the thing
+    // this describes is already written and logged, so a failure here must
+    // not turn a successful post into a 500. Emit only after the write.
+    //
+    // NARROWING (see utils/notify.js): the section ADVISER alone, not every
+    // teacher the list would show this letter to. Review authority is
+    // adviser-only, so announcing it to an assigned-but-not-adviser teacher
+    // would point at a queue they cannot act on. 20 of the 23 seeded
+    // sections have no adviser, so a letter from one of those notifies
+    // nobody -- accepted 2026-09-19, and the fix is an adviser on every real
+    // section before the pilot, not a fallback recipient here.
+    try {
+      const audience = await excuseAdviserAudience(pool, req.user.student_id);
+      const notified = await insertNotifications(pool, {
+        type: 'excuse_submitted',
+        itemType: 'excuse_letter',
+        itemId: rows[0].id,
+        actorId: req.user.id,
+        titleSnapshot: null,
+        userIds: audience,
+      });
+      emitNotifications(req, notified);
+    } catch (notifyError) {
+      console.error('Excuse letter notification fan-out failed:', notifyError);
+    }
+
     return res.status(201).json({ success: true, message: 'Excuse letter submitted.', excuse_letter: rows[0] });
   } catch (error) {
     console.error('Submit excuse letter error:', error);
@@ -427,6 +459,30 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       'review_excuse_letter',
       `Reviewed excuse letter #${id}: ${existing.status} -> ${status}`
     );
+
+    // Fan-out is best effort, exactly like logActivity above it: the thing
+    // this describes is already written and logged, so a failure here must
+    // not turn a successful post into a 500. Emit only after the write.
+    //
+    // A DISTINCT TYPE from excuse_submitted on the same item_id. The two are
+    // different events on one row and the unique key is
+    // (user_id, type, item_id), so both can exist. They could not be told
+    // apart by a read-marker design: excuse_letters has no reviewed_at, and
+    // updated_at also moves when a parent edits a Pending letter.
+    try {
+      const audience = await activeUserById(pool, updated[0].parent_id);
+      const notified = await insertNotifications(pool, {
+        type: 'excuse_reviewed',
+        itemType: 'excuse_letter',
+        itemId: id,
+        actorId: req.user.id,
+        titleSnapshot: null,
+        userIds: audience,
+      });
+      emitNotifications(req, notified);
+    } catch (notifyError) {
+      console.error('Excuse review notification fan-out failed:', notifyError);
+    }
 
     return res.json({ success: true, message: 'Excuse letter reviewed.', excuse_letter: updated[0] });
   } catch (error) {
