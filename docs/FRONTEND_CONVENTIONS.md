@@ -728,12 +728,52 @@ must reach 4.5, icons and UI parts 3.0; a failing pair is allowed only by an
 in-script allow-list whose entries must each carry a marker in
 `docs/KNOWN_ISSUES.md` — a pair can only be waived by writing it down. Add a
 pair to the script when a page puts a token on a background it was not on
-before. Light-mode AA fixes taken on D2 as named light changes: the table
+before. **Brand (D3, 2026-09-19, `feat/brand-chrome`).** `primary` IS the
+school's color: the seal's navy `#08027C` in light (hover `#1C15A3`, disabled
+`#B5B3E6`, white text) and a lighter indigo `#ABA8F7` in dark (hover
+`#C4C2FA`, disabled `#4B4890`, slate-950 text) — every primary button, unread
+badge and segmented control took it with no page edit. Three tokens joined
+(63): `brand` (text and icons in the school color: the seven content links,
+the active nav item and Settings tab), `brand-soft` (the active-nav tint,
+`#ECEBFC` / `#23204F`) and `seal-bg` (white in BOTH themes — the seal's disc
+is artwork, not a surface, and `bg-white` is banned). The seal's green, gold
+and red are never tokens; they would collide with the success, warning and
+danger tones. `focus-accent` stays sky so a focus ring never reads as
+"selected" beside brand links. Which links are brand: the in-content
+link-styled controls (`text-brand … hover:underline`); the "← All …" back
+links stay `fg-muted`, the ErrorAlert retry stays `danger-fg`. Numbers:
+brand on surface 16.03 / 8.22, on `brand-soft` 13.63 / 6.96, button text
+16.03 / 9.29 — all in `lint:contrast`, nothing waived for it. Light-mode AA fixes taken on D2 as named light changes: the table
 header text (`fg-body`, 7.23), placeholders (`fg-muted`, 4.77), the Approve
 buttons (`success-solid` emerald-700, 5.37; hover 800), and the 41 `fg-faint`
 TEXT labels moved to `fg-muted` at their call sites (`fg-faint` is now icons,
 the spinner, close buttons and `disabled:` states only). The nine waived pairs
 are the KNOWN ISSUES rows marked `[contrast: …]`.
+
+### 9. Shell chrome is sticky, and the seal is always on its white disc
+
+**Frozen 2026-09-19 (D3).** The header (`layout/Header.jsx`, extracted from
+Shell so a later dispatch can put a bell in it — there is no bell slot yet)
+is `sticky top-0 z-30`; the sidebar is `sticky top-0 h-screen self-start`
+with its nav box `min-h-0 flex-1 overflow-y-auto`, so the nav scrolls inside
+itself only when taller than the viewport. **The document is the only
+scroller**: one scrollbar, no layout shift, content scrolls under the header.
+z-order: header 30, mobile drawer 40, Modal backdrop 50 — the drawer and any
+modal cover the header. Below `sm` the sidebar is hidden and the drawer takes
+over, unchanged. Do not add a second scroll container to `<main>`.
+
+**The seal** (`client/src/assets/school-seal.png`, 192 px, 24-bit, under 50
+KB — rendered from the school's 447 px JPG, which has a white field and no
+alpha) appears at the top of the sidebar and the drawer (40 px) beside
+"Parent's Portal" / "Capt. H. Francisco ES", and above the Login title
+(96 px). It always sits on a `bg-seal-bg` disc with `rounded-full` on the
+image: the JPG's white field and the seal's blue ring need the white disc on
+a dark surface, and the disc is white in both themes on purpose. Alt text is
+"Captain H. Francisco Elementary School seal" everywhere. The favicon set
+(`public/favicon.ico` with 16/32/48 PNG entries, `favicon-32.png`,
+`apple-touch-icon.png`) is generated from the same JPG on a white disc, by a
+one-off System.Drawing script — not a build step; regenerate by hand if the
+school ever supplies a new seal. `favicon.svg` is gone.
 
 ### Corrections — three claims retired here
 

@@ -94,6 +94,25 @@ modal's "Incorrect password." renders above the password field; five
 `activity_logs` descriptions embed the LRN. Full row: `docs/CHANGELOG.md`,
 2026-09-18.
 
+**Brand chrome, `feat/brand-chrome` (2026-09-19, D3):** `primary` is now
+the school's navy (`#08027C` light, `#ABA8F7` dark) so every primary button,
+unread badge and segmented control is brand-colored; `brand`, `brand-soft`
+and `seal-bg` added (63 tokens) for the seven content links, the active nav
+item and Settings tab, and the seal's white disc. The school seal
+(`client/src/assets/school-seal.png`, 192 px, 49,256 bytes, from the
+school's 447 px JPG) sits at the top of the sidebar and the mobile drawer
+beside "Parent's Portal / Capt. H. Francisco ES" and above the Login title,
+always on a white disc in both themes; `favicon.ico` (16/32/48),
+`favicon-32.png` and `apple-touch-icon.png` are generated from it and
+`favicon.svg` is gone. The header is extracted to `layout/Header.jsx` and
+sticky (`top-0 z-30`); the sidebar is sticky `h-screen` with its nav
+scrolling inside itself; the document stays the only scroller; no bell slot.
+Two more content links (`parent/ExcuseLettersPage.jsx:188`,
+`settings/AccountInfoSection.jsx:72`) were found after the plan's seven and
+left unchanged as a declared scope expansion. Build 0, oxlint 42, lint:tokens
+0, lint:contrast 0 unwaived (62 pairs), SSR 12/12 with a negative control.
+Full row: `docs/CHANGELOG.md`, 2026-09-19.
+
 **`fix/empty-state-duplicates` (2026-09-19):** Parent → Excuse Letters'
 empty state no longer repeats the header's Submit letter; its message names
 the button ("Use Submit letter when your child is absent…"). An audit of every

@@ -594,8 +594,15 @@ client/src/
   format/TermValue.jsx    the shared term cell — extracted at the third copy (2026-09-14); Parent,
                           Teacher and Admin → Grades import it
   format/date.js          todayLocalDateString() — never toISOString()
-  layout/Shell.jsx        role-aware sidebar, <Outlet/>, page title, the LiveStatus strip above the
-                          routed page, the unread badge (only on a BUILT Messages item); exports NavItem
+  assets/school-seal.png  the school seal, 192 px / 49,256 bytes, from the school's 447 px JPG (white
+                          field, no alpha) — rendered on a bg-seal-bg disc, never bare (§9)
+  layout/Shell.jsx        role-aware STICKY sidebar (top-0 h-screen; the nav scrolls inside itself) with
+                          the seal + "Parent's Portal / Capt. H. Francisco ES", <Outlet/>, page title,
+                          the LiveStatus strip above the routed page, the unread badge (only on a BUILT
+                          Messages item); exports NavItem. The document is the only scroller
+  layout/Header.jsx       the sticky (top-0 z-30) header: title, user, Logout, hamburger below sm.
+                          Extracted on D3 so the Notifications dispatch has a file to put the bell in —
+                          no bell slot yet
   layout/nav.js           NAV_BY_ROLE — built / blocked / unbuilt flags; the single source of nav
   layout/usePageTitle.js  detail pages override the nav-derived title
   realtime/               SocketProvider (connected), LiveStatus, UnreadProvider ({ unread, refresh },
@@ -929,11 +936,14 @@ modal is already correct — do not convert it for uniformity.
 
 ### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
 
-**Frozen 2026-09-19.** Every color a page uses is one of the 60 semantic
+**Frozen 2026-09-19.** Every color a page uses is one of the 63 semantic
 tokens in `client/src/index.css` (`bg-surface`, `text-fg-muted`,
 `border-edge`, `ring-focus-ring`, the `neutral/success/warning/danger/info-*`
-tone sets, the six `bubble-*`) — never `bg-white`, `text-slate-500`, an
-arbitrary color, or a `dark:` variant. `:root` holds the raw values, each
+tone sets, the six `bubble-*`, and since D3 `primary` = the school's navy
+plus `brand` / `brand-soft` / `seal-bg`) — never `bg-white`,
+`text-slate-500`, an arbitrary color, or a `dark:` variant. The seal's green,
+gold and red are never tokens (they collide with the tones); the seal always
+sits on a `bg-seal-bg` disc (§9). `:root` holds the raw values, each
 line naming the palette color it equals; `@theme inline` maps them so a
 `[data-theme]` block can swap values at runtime. **`npm run lint:tokens`
 (`client/scripts/check-color-tokens.mjs`) must report 0 on every client
@@ -2080,6 +2090,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Brand chrome (D3, `feat/brand-chrome`): `primary` is the school's navy (`#08027C` / `#ABA8F7` dark) — buttons, badges, segmented controls; `brand`, `brand-soft`, `seal-bg` added (63 tokens) for the active nav, seven content links and the seal's disc; the seal (192 px, 49 KB, from the school's JPG — a JPG with a white field, not the named transparent PNG) in the sidebar, drawer and Login, favicon set generated, `favicon.svg` gone; header extracted to `layout/Header.jsx` and sticky, sidebar sticky, one scrollbar, no bell slot. Two extra content links declared as scope expansion, not edited. |
 | 2026-09-19 | `fix/empty-state-duplicates`: Parent → Excuse Letters' empty state no longer repeats the header's Submit letter and names it instead; §5f gains the rule (an empty state never repeats an always-visible header action; filter/range resets may stay). Audit: this and the D2 Messages case were the only two duplicates. |
 | 2026-09-19 | Dark mode (D2, `feat/dark-mode`): Light / Dark / System in Settings → Personalization (`pp.theme`, default Light, `data-theme` on `<html>` set by `theme.js` and an `index.html` inline script before the bundle, one `prefers-color-scheme` listener); the 60 tokens' dark values under `[data-theme="dark"]`; light AA fixes (table header, placeholders, Approve buttons, 41 faint labels); Messages empty-state button removed; `/dev/ui` theme preview + token strip; `npm run lint:contrast` = 0 with nine waived pairs each on a KNOWN ISSUES row. |
 | 2026-09-19 | Design tokens (D1, `feat/design-tokens`): 60 semantic color tokens in `client/src/index.css` (`@theme inline`), 1,029 raw utilities in 51 files replaced by codemod (75 class strings, 33 line overrides, six accepted light-mode exceptions E1–E6), `npm run lint:tokens` = 0 enforced by `client/scripts/check-color-tokens.mjs`; SSR snapshot 38/38 identical with classes stripped; new §8 above. No dark values yet — D2. |
