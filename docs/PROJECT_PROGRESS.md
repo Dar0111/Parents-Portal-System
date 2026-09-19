@@ -61,6 +61,21 @@ takes one shared `filterSelectClass` (`w-full sm:w-72`, sized to the longest
 real option — 30 characters) so the control no longer resizes with the
 selection. See CLAUDE.md §7c and `docs/CHANGELOG.md`, 2026-09-18.
 
+**Login decoration, 2026-09-19 (addendum).** The panel and band gained a
+decorative layer — a soft glow from the top-left, a masked dot pattern, two
+large thin rings at the bottom-right corner and a halo around the seal — and
+the area behind the card gained a faint dot grid. Every layer is a
+pseudo-element or an aria-hidden node with no content and no pointer events,
+and all of it is defined in `index.css` off five new tokens (palette 66 → 71)
+because gradients, patterns and masks have no token-shaped utility and would
+otherwise mean raw colors in a page file. One of the five,
+`brand-panel-lit`, is not a paint at all: it is the panel composited with the
+glow at its strongest point, pinned so the contrast checker can test the
+panel text against the worst case rather than the flat colour. The card is
+now "Welcome back" / "Sign in to continue." with `fa-user` and `fa-lock`
+inside the fields and an arrow on the button. See `docs/CHANGELOG.md`,
+2026-09-19.
+
 **Login redesign, 2026-09-19.** The sign-in screen is a two-column grid at
 `lg` — a solid brand panel on the left carrying the district line, the seal
 on its white disc, the portal and school names and "Est. 1961" (the year on

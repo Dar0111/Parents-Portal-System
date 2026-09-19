@@ -70,6 +70,22 @@
   --brand-panel: #08027C;                         /* brand navy — same value as primary, different role */
   --brand-panel-fg: #fff;                         /* white — 16.03 on the light panel, 15.10 on the dark */
   --brand-panel-muted: #C9C7EE;                   /* navy tint — the district and Est. lines; 9.84 / 9.27 */
+  /* Decoration on the panel. Alpha values, so they sit on --brand-panel in
+     either theme without a second set. They are NEVER text or a meaningful
+     UI part — check-contrast cannot read rgba() and does not need to; what
+     it checks instead is --brand-panel-lit below. */
+  --brand-panel-glow: rgb(255 255 255 / 0.14);    /* the radial wash from the top-left corner */
+  --brand-panel-dot: rgb(255 255 255 / 0.07);     /* the dot pattern over the panel */
+  --brand-panel-ring: rgb(255 255 255 / 0.10);    /* the corner rings and the seal halo */
+  /* THE CONTRAST PROBE, not a paint. The glow lightens the panel, so the
+     honest background for the panel text is not --brand-panel but the panel
+     WITH the glow at its strongest point. This is that composite, computed
+     once (white at 0.14 over the panel) and pinned here so lint:contrast can
+     actually check the worst case: #08027C -> #2B258E, #23204F -> #423F68.
+     If the glow alpha changes, recompute this in the same edit. */
+  --brand-panel-lit: #2B258E;
+  /* The dot grid behind the card, on --page. Dark in light, light in dark. */
+  --page-dot: rgb(8 2 124 / 0.055);
 
   /* tones */
   --neutral-soft: oklch(96.8% 0.007 247.896);     /* slate-100 */
@@ -150,6 +166,8 @@
   --color-brand-panel: var(--brand-panel);
   --color-brand-panel-fg: var(--brand-panel-fg);
   --color-brand-panel-muted: var(--brand-panel-muted);
+  --color-brand-panel-lit: var(--brand-panel-lit);
+  --color-page-dot: var(--page-dot);
 
   --color-neutral-soft: var(--neutral-soft);
   --color-neutral-edge: var(--neutral-edge);
@@ -259,6 +277,15 @@
   --brand-panel: #23204F;                         /* brand tint, dark — matches the dark sidebar */
   --brand-panel-fg: #fff;
   --brand-panel-muted: #C9C7EE;
+  /* The three decoration alphas are white in both themes — the dark panel is
+     still a dark field, so the same wash reads the same way. Repeated here
+     rather than inherited so the dark block stays a complete theme, which is
+     how every other token in this file is written. */
+  --brand-panel-glow: rgb(255 255 255 / 0.14);
+  --brand-panel-dot: rgb(255 255 255 / 0.07);
+  --brand-panel-ring: rgb(255 255 255 / 0.10);
+  --brand-panel-lit: #423F68;    /* the same composite over the dark panel */
+  --page-dot: rgb(171 168 247 / 0.07);
 
   /* tones */
   --neutral-soft: oklch(27.9% 0.041 260.031);     /* slate-800 */
@@ -317,6 +344,94 @@
   -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
   -webkit-text-fill-color: var(--fg);
   caret-color: var(--fg);
+}
+
+/* ---------------------------------------------------------------------------
+   Login decoration (2026-09-19 addendum). Purely decorative: every layer here
+   is a pseudo-element or an aria-hidden node, carries no content, and takes no
+   pointer events.
+
+   WHY IT IS CSS HERE RATHER THAN UTILITIES ON THE PAGE: radial gradients, a
+   repeating dot pattern and a mask have no token-shaped utility, so writing
+   them inline would mean arbitrary color values in a page file — exactly what
+   lint:tokens exists to refuse. index.css is the one exempt file, so the
+   colors stay tokens and the page only ever names a class.
+   --------------------------------------------------------------------------- */
+
+/* The brand panel / mobile band. Children are lifted above the two layers. */
+.brand-panel-art {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.brand-panel-art > * {
+  position: relative;
+  z-index: 1;
+}
+/* the soft glow, anchored at the top-left corner */
+.brand-panel-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(48rem 34rem at 0% 0%, var(--brand-panel-glow), transparent 70%);
+}
+/* the dot pattern, faded out towards the bottom so it never fights the text */
+.brand-panel-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(var(--brand-panel-dot) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 88%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 88%);
+}
+
+/* Two large thin rings anchored at the bottom-right corner. Its own node
+   rather than a third pseudo-element on .brand-panel-art, which has only two. */
+.brand-panel-rings {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.brand-panel-rings::before,
+.brand-panel-rings::after {
+  content: "";
+  position: absolute;
+  border: 1px solid var(--brand-panel-ring);
+  border-radius: 9999px;
+}
+.brand-panel-rings::before {
+  width: 34rem;
+  height: 34rem;
+  right: -13rem;
+  bottom: -15rem;
+}
+.brand-panel-rings::after {
+  width: 21rem;
+  height: 21rem;
+  right: -6rem;
+  bottom: -8rem;
+}
+
+/* The halo around the seal disc: two concentric bands of the same translucent
+   ring color, so the outer one reads softer where they do not overlap. */
+.seal-halo {
+  box-shadow:
+    0 0 0 0.5rem var(--brand-panel-ring),
+    0 0 0 1.125rem var(--brand-panel-ring);
+}
+
+/* The faint dot grid behind the form card — the right column at lg, and the
+   whole page area under the band below it. */
+.page-dots {
+  background-image: radial-gradient(var(--page-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 body {

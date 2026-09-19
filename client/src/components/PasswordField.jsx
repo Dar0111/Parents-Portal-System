@@ -21,6 +21,14 @@ import FormField, { controlClassFor } from './FormField';
 // field — the live password checklist — kept out of FormField's `hint`
 // because a <ul> cannot live inside that <p>.
 
+// `leadingIcon` (2026-09-19, the Login addendum) is an optional Font Awesome
+// class — `fa-lock` on Login. One prop rather than a new FormField shape: the
+// reveal button already occupies the right inset of this control, so the left
+// inset is the symmetrical slot and nothing else about the field changes. It
+// is inert by construction — `pointer-events-none` and no aria, so it never
+// takes focus and adds nothing to the accessible name; the label still says
+// what the field is. Omitted, the control renders exactly as before, which is
+// what every existing caller gets.
 export default function PasswordField({
   label,
   value,
@@ -34,6 +42,7 @@ export default function PasswordField({
   disabled = false,
   required = false,
   below,
+  leadingIcon,
 }) {
   return (
     <FormField
@@ -44,6 +53,12 @@ export default function PasswordField({
       render={({ id, describedBy, invalid }) => (
         <>
           <div className="relative">
+            {leadingIcon ? (
+              <i
+                aria-hidden="true"
+                className={`fa-solid ${leadingIcon} pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-fg-faint`}
+              />
+            ) : null}
             <input
               ref={inputRef}
               id={id}
@@ -55,7 +70,7 @@ export default function PasswordField({
               required={required}
               aria-invalid={invalid || undefined}
               aria-describedby={describedBy}
-              className={`${controlClassFor(invalid)} pr-10`}
+              className={`${controlClassFor(invalid)} pr-10 ${leadingIcon ? 'pl-10' : ''}`}
             />
             <button
               type="button"

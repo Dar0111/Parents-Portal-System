@@ -72,6 +72,12 @@ const PAIRS = [
   ['brand-soft', 'surface', 'boundary', 'active-nav tint vs sidebar'], ['seal-bg', 'surface', 'boundary', 'seal disc vs sidebar'],
   // brand panel — the Login split panel / mobile band
   ['brand-panel-fg', 'brand-panel', 'text', 'Login panel headings and name lines'], ['brand-panel-muted', 'brand-panel', 'text', 'Login panel district and Est. lines'],
+  // …and the same two over `brand-panel-lit`, the panel composited with the
+  // decorative glow at its strongest point. The glow LIGHTENS the panel, so
+  // the flat token is not the worst case for the text on it — this is. See the
+  // --brand-panel-lit comment in index.css; recompute it if the glow's alpha
+  // ever changes.
+  ['brand-panel-fg', 'brand-panel-lit', 'text', 'Login panel text over the glow'], ['brand-panel-muted', 'brand-panel-lit', 'text', 'Login panel muted lines over the glow'],
   ['seal-bg', 'brand-panel', 'boundary', 'seal disc vs the Login panel'],
   ['bubble-mine', 'surface', 'boundary', 'own bubble vs card'], ['bubble-theirs', 'surface', 'boundary', 'their bubble vs card'], ['edge', 'surface', 'boundary', 'card border'], ['surface', 'page', 'boundary', 'card vs page'], ['surface-subtle', 'surface', 'boundary', 'band vs card'], ['surface-muted', 'surface-subtle', 'boundary', 'active nav vs hovered'],
 ];

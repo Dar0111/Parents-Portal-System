@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
 import extractError from '../api/extractError';
 import { takeLogoutReason } from '../api/axios';
-import FormField from '../components/FormField';
+import FormField, { controlClassFor } from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import seal from '../assets/school-seal.png';
 
@@ -82,7 +82,13 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-page lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <aside className="flex flex-col items-center bg-brand-panel px-6 pb-16 pt-8 text-center text-brand-panel-fg lg:min-h-screen lg:justify-between lg:px-12 lg:py-16">
+      <aside className="brand-panel-art flex flex-col items-center bg-brand-panel px-6 pb-16 pt-8 text-center text-brand-panel-fg lg:min-h-screen lg:justify-between lg:px-12 lg:py-16">
+        {/* Decoration only. `.brand-panel-art` supplies the corner glow and the
+            dot pattern as its own two pseudo-elements; this node is the two
+            large rings, which need a third layer. Everything is defined in
+            index.css so the colors stay tokens — see the comment there. */}
+        <div className="brand-panel-rings" aria-hidden="true" />
+
         <p className="hidden text-xs font-medium uppercase tracking-[0.18em] text-brand-panel-muted lg:block">
           Pateros District · Metro Manila
         </p>
@@ -92,7 +98,7 @@ export default function Login() {
               both themes): the source is a JPG with a solid white field and a
               blue ring, which needs the disc on a brand background.
               rounded-full clips the square image to it. */}
-          <div className="mb-5 flex h-26 w-26 items-center justify-center rounded-full bg-seal-bg lg:mb-8 lg:h-46 lg:w-46">
+          <div className="seal-halo mb-5 flex h-26 w-26 items-center justify-center rounded-full bg-seal-bg lg:mb-8 lg:h-46 lg:w-46">
             <img
               src={seal}
               alt="Captain H. Francisco Elementary School seal"
@@ -110,24 +116,43 @@ export default function Login() {
         <p className="hidden text-xs uppercase tracking-[0.18em] text-brand-panel-muted lg:block">Est. 1961</p>
       </aside>
 
-      <main className="flex items-center justify-center px-4 pb-10 lg:min-h-screen lg:px-8 lg:py-16">
-        <div className="-mt-12 w-full max-w-sm rounded-xl border border-edge bg-surface p-8 shadow-sm lg:mt-0">
+      <main className="page-dots flex items-center justify-center px-4 pb-10 lg:min-h-screen lg:px-8 lg:py-16">
+        <div className="-mt-12 w-full max-w-sm rounded-2xl border border-edge bg-surface p-8 shadow-xl lg:mt-0">
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-fg">Sign in</h2>
-            <p className="mt-1 text-sm text-fg-muted">
-              Parent&rsquo;s Portal · Captain H. Francisco Elementary School
-            </p>
+            <h2 className="text-lg font-semibold text-fg">Welcome back</h2>
+            <p className="mt-1 text-sm text-fg-muted">Sign in to continue.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* FormField shape 4 rather than a new leading-icon prop on
+                FormField itself: shape 4 exists exactly so a caller can own
+                the control's markup, and `controlClassFor` gives it the same
+                border every other field gets, error state included. The icon
+                is aria-hidden and pointer-events-none — the label is what
+                names the field. */}
             <FormField
               label="Login ID"
               hint="Parents: use your child's LRN. Teachers and staff: your assigned ID."
-              type="text"
-              autoComplete="username"
               required
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
+              render={({ id, describedBy, invalid }) => (
+                <div className="relative">
+                  <i
+                    aria-hidden="true"
+                    className="fa-solid fa-user pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-fg-faint"
+                  />
+                  <input
+                    id={id}
+                    type="text"
+                    autoComplete="username"
+                    required
+                    value={loginId}
+                    onChange={(e) => setLoginId(e.target.value)}
+                    aria-invalid={invalid || undefined}
+                    aria-describedby={describedBy}
+                    className={`${controlClassFor(invalid)} pl-10`}
+                  />
+                </div>
+              )}
             />
 
             <PasswordField
@@ -136,6 +161,7 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               required
+              leadingIcon="fa-lock"
               revealed={revealed}
               onToggleReveal={() => setRevealed((r) => !r)}
             />
@@ -159,6 +185,10 @@ export default function Login() {
             >
               {submitting && <i className="fa-solid fa-circle-notch fa-spin" />}
               {submitting ? 'Signing in…' : 'Sign in'}
+              {/* The arrow is decoration on the label, not a second message:
+                  aria-hidden, so the button still announces just "Sign in".
+                  It is dropped while submitting — the spinner is the state. */}
+              {submitting ? null : <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs" />}
             </button>
           </form>
 

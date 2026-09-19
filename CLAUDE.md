@@ -936,7 +936,7 @@ modal is already correct — do not convert it for uniformity.
 
 ### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
 
-**Frozen 2026-09-19.** Every color a page uses is one of the 66 semantic
+**Frozen 2026-09-19.** Every color a page uses is one of the 71 semantic
 tokens in `client/src/index.css` (`bg-surface`, `text-fg-muted`,
 `border-edge`, `ring-focus-ring`, the `neutral/success/warning/danger/info-*`
 tone sets, the six `bubble-*`, and since D3 `primary` = the school's navy
@@ -2090,6 +2090,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Login addendum (same branch): card copy is "Welcome back" / "Sign in to continue."; `fa-user` and `fa-lock` inside the inputs (Login ID via `FormField` shape 4, Password via one new optional `leadingIcon` prop — declared scope expansion) and `fa-arrow-right` on the button; a decorative glow, dot pattern, two corner rings, a seal halo and a dot grid behind the card, all defined in `index.css` off five new tokens (palette 66 → 71) including `brand-panel-lit`, the precomputed panel-plus-glow composite that `lint:contrast` checks the text against. |
 | 2026-09-19 | Login redesign (`feat/login-redesign`): a brand split panel at `lg` and a band below it with the card overlapping (`-mt-12` against `pb-16`, not absolute); three new tokens `brand-panel` / `-fg` / `-muted` because `primary` is a LIGHT indigo in dark and `brand-soft` is near-white in light (palette 63 → 66, two stale counts corrected); Login ID becomes a `FormField` and Password a `PasswordField`, so the page has a reveal toggle and `PasswordField` no longer says Login is not its consumer; `role="alert"` on the error box. |
 | 2026-09-19 | Brand chrome (D3, `feat/brand-chrome`): `primary` is the school's navy (`#08027C` / `#ABA8F7` dark) — buttons, badges, segmented controls; `brand`, `brand-soft`, `seal-bg` added (63 tokens) for the active nav, seven content links and the seal's disc; the seal (192 px, 49 KB, from the school's JPG — a JPG with a white field, not the named transparent PNG) in the sidebar, drawer and Login, favicon set generated, `favicon.svg` gone; header extracted to `layout/Header.jsx` and sticky, sidebar sticky, one scrollbar, no bell slot. Two extra content links declared as scope expansion, not edited. |
 | 2026-09-19 | `fix/empty-state-duplicates`: Parent → Excuse Letters' empty state no longer repeats the header's Submit letter and names it instead; §5f gains the rule (an empty state never repeats an always-visible header action; filter/range resets may stay). Audit: this and the D2 Messages case were the only two duplicates. |
