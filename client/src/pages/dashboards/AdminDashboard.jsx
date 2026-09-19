@@ -168,7 +168,16 @@ export default function AdminDashboard() {
                 <dd className="text-sm font-medium text-fg">Term {d.term}</dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-sm text-fg-muted">Grade records locked</dt>
+                {/* The term is NAMED because the denominator is scoped to it
+                    and the bare label did not say so: the count is every
+                    grade row for the current school year AND current term,
+                    across all students and both grading modes — which read
+                    as "all grade rows" and matched neither that nor any one
+                    student's (browser check, 2026-09-19). It renders
+                    `d.term`, the same value the Current term row above uses
+                    and the same one the server filtered on, so the label
+                    cannot drift from the number beside it. */}
+                <dt className="text-sm text-fg-muted">Grade records locked (Term {d.term})</dt>
                 {/* A COUNT, not a state (Q3, option b). There is no global
                     lock: is_locked is per grade row, so this is how many of
                     this term's rows are finalized. */}
