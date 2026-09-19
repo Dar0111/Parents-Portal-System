@@ -189,7 +189,7 @@ export default function DataTable({
                     scope="col"
                     style={column.width ? { width: column.width } : undefined}
                     aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                    className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted ${
+                    className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-body ${
                       ALIGN[column.align] || ALIGN.left
                     }`}
                   >

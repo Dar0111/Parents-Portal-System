@@ -73,7 +73,7 @@ export default function GradeValue({ value, mode, className = '' }) {
   const reason = reasonFor(mode);
 
   return (
-    <span className={`whitespace-nowrap text-fg-faint ${className}`} title={reason.title}>
+    <span className={`whitespace-nowrap text-fg-muted ${className}`} title={reason.title}>
       <span aria-hidden="true">—</span>{' '}
       <span className="text-xs italic">{reason.short}</span>
     </span>

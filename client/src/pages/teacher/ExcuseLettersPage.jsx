@@ -283,7 +283,7 @@ export default function ExcuseLettersPage() {
             // Seen but not actionable. Named rather than left blank, and never
             // rendered as a button that would only produce a 403 — the same
             // precedent the Students page set by omitting Edit.
-            <span className="text-xs text-fg-faint">Adviser only</span>
+            <span className="text-xs text-fg-muted">Adviser only</span>
           ) : null,
       },
     ],
@@ -415,22 +415,22 @@ export default function ExcuseLettersPage() {
 
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Absence date</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Absence date</dt>
                 <dd className="mt-0.5 text-sm text-fg">{reviewing.absence_date}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Class</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Class</dt>
                 <dd className="mt-0.5 text-sm text-fg">
                   Grade {reviewing.grade_level} - {reviewing.section}
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Reason</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Reason</dt>
                 <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reviewing.reason}</dd>
               </div>
               {reviewing.details ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Details</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Details</dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reviewing.details}</dd>
                 </div>
               ) : null}

@@ -116,7 +116,7 @@ export default function MessagesPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-fg">{row.other_user_name}</span>
-            <span className="text-xs text-fg-faint">{row.other_user_role}</span>
+            <span className="text-xs text-fg-muted">{row.other_user_role}</span>
           </div>
           <div className="line-clamp-1 max-w-xl text-xs text-fg-muted">{row.last_message_body}</div>
         </div>
@@ -211,7 +211,7 @@ export default function MessagesPage() {
           ) : (
             groups.map((group) => (
               <div key={group.role}>
-                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-faint">
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-muted">
                   {group.label}
                 </p>
                 {group.rows.length === 0 ? (

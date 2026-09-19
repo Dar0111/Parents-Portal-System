@@ -12,7 +12,7 @@ import { useId } from 'react';
 // different class but NOT emitting the slate state classes when invalid:
 // controlClassFor(invalid) picks one state or the other, never both.
 const controlBaseClass =
-  'block w-full rounded-lg border bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-faint focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
+  'block w-full rounded-lg border bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
 const normalStateClass = 'border-edge-strong focus:border-focus-edge focus:ring-focus-ring';
 
 // Exported for shape-4 callers: the render object tells them `invalid`, and

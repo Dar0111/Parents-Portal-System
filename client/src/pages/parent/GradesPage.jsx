@@ -97,7 +97,7 @@ function TermCell({ entry, mode, onOpen }) {
 
 function ScorePair({ score, max }) {
   if (score == null && max == null) {
-    return <span className="text-sm text-fg-faint">Not yet recorded</span>;
+    return <span className="text-sm text-fg-muted">Not yet recorded</span>;
   }
   return (
     <span className="tabular-nums text-sm text-fg">
@@ -119,7 +119,7 @@ function ComponentList({ title, rows, empty }) {
               <div className="min-w-0">
                 <p className="text-sm text-fg-secondary">{row.label}</p>
                 {row.date_recorded ? (
-                  <p className="text-xs text-fg-faint">{row.date_recorded}</p>
+                  <p className="text-xs text-fg-muted">{row.date_recorded}</p>
                 ) : null}
               </div>
               <ScorePair score={row.score} max={row.max_score} />

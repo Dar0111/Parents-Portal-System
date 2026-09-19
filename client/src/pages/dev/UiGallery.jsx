@@ -80,7 +80,7 @@ function Section({ title, note, children }) {
 function Row({ label, children }) {
   return (
     <div className="mb-4">
-      <p className="mb-2 text-xs font-medium text-fg-faint">{label}</p>
+      <p className="mb-2 text-xs font-medium text-fg-muted">{label}</p>
       {children}
     </div>
   );
@@ -321,19 +321,19 @@ export default function UiGallery() {
           <div className="rounded-xl border border-edge bg-surface p-6">
             <div className="grid gap-4 sm:grid-cols-4">
               <div>
-                <p className="mb-1 text-xs font-medium text-fg-faint">a real grade</p>
+                <p className="mb-1 text-xs font-medium text-fg-muted">a real grade</p>
                 <GradeValue value="88.05" mode="numerical" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-fg-faint">a real zero</p>
+                <p className="mb-1 text-xs font-medium text-fg-muted">a real zero</p>
                 <GradeValue value="0.00" mode="numerical" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-fg-faint">null, numerical</p>
+                <p className="mb-1 text-xs font-medium text-fg-muted">null, numerical</p>
                 <GradeValue value={null} mode="numerical" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-medium text-fg-faint">null, descriptive</p>
+                <p className="mb-1 text-xs font-medium text-fg-muted">null, descriptive</p>
                 <GradeValue value={null} mode="descriptive" />
               </div>
             </div>

@@ -292,28 +292,28 @@ export default function ParentExcuseLettersPage() {
           <div className="max-h-[70vh] space-y-4 overflow-y-auto">
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Absence date</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Absence date</dt>
                 <dd className="mt-0.5 text-sm text-fg">{reading.absence_date}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Status</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Status</dt>
                 <dd className="mt-0.5">
                   <StatusBadge status={reading.status} />
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Reason</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Reason</dt>
                 <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.reason}</dd>
               </div>
               {reading.details ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Details</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Details</dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.details}</dd>
                 </div>
               ) : null}
               {reading.teacher_remarks ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Adviser remarks</dt>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Adviser remarks</dt>
                   <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.teacher_remarks}</dd>
                 </div>
               ) : null}

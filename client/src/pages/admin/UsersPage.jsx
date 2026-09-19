@@ -500,7 +500,7 @@ export default function UsersPage() {
                 Edit
               </button>
               {canToggle && isSelf && row.status === 'active' ? (
-                <span className="text-xs text-fg-faint">You cannot deactivate yourself</span>
+                <span className="text-xs text-fg-muted">You cannot deactivate yourself</span>
               ) : null}
               {canToggle && !(isSelf && row.status === 'active') ? (
                 <button
@@ -846,21 +846,21 @@ export default function UsersPage() {
             {reviewError ? <ErrorAlert message={reviewError} /> : null}
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Student</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Student</dt>
                 <dd className="mt-0.5 text-sm text-fg">{studentLabel}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Class</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Class</dt>
                 <dd className="mt-0.5 text-sm text-fg">
                   Grade {reviewing.grade_level} - {reviewing.section}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Login ID</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Login ID</dt>
                 <dd className="mt-0.5 text-sm text-fg">{reviewing.login_id}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">Created by</dt>
+                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Created by</dt>
                 <dd className="mt-0.5 text-sm text-fg">{reviewing.created_by_name || '—'}</dd>
               </div>
             </dl>

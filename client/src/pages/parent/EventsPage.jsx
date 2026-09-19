@@ -178,7 +178,7 @@ export default function ParentEventsPage() {
             {row.description ? (
               <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
             ) : null}
-            <div className="mt-1 text-xs text-fg-faint">{audienceLabel(row)}</div>
+            <div className="mt-1 text-xs text-fg-muted">{audienceLabel(row)}</div>
           </div>
         ),
       },

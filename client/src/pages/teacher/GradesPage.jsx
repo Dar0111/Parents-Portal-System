@@ -756,7 +756,7 @@ export default function TeacherGradesPage() {
             );
           }
           if (!canEncode) {
-            return <span className="text-xs text-fg-faint">Not yours</span>;
+            return <span className="text-xs text-fg-muted">Not yours</span>;
           }
           const stored = recorded.get(row.id);
           const locked = isLocked(stored);
@@ -1279,7 +1279,7 @@ function EncodePanel({
                       <td className="py-2 pr-3 font-medium text-fg-secondary">{part.label}</td>
                       <td className="py-2 pr-3 tabular-nums text-fg-body">
                         {scoreMaxLabel(part.score, part.max) || (
-                          <span className="text-fg-faint">Not recorded</span>
+                          <span className="text-fg-muted">Not recorded</span>
                         )}
                       </td>
                       <td className="py-2 pr-3">

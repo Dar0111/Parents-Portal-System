@@ -232,7 +232,7 @@ export default function ParentMessageThreadPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Write a message…"
-                className="block w-full rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-faint focus:border-focus-edge focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                className="block w-full rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-muted focus:border-focus-edge focus:outline-none focus:ring-2 focus:ring-focus-ring"
               />
               <button
                 type="submit"

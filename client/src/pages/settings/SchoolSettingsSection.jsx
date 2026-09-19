@@ -45,9 +45,9 @@ const TERMS = ['1', '2', '3'];
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
       <dd className="mt-1 text-sm text-fg">
-        {value ? value : <span className="text-fg-faint">{empty}</span>}
+        {value ? value : <span className="text-fg-muted">{empty}</span>}
       </dd>
     </div>
   );

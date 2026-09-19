@@ -65,8 +65,8 @@
   --success-fg: oklch(50.8% 0.118 165.612);       /* emerald-700 */
   --success-strong: oklch(43.2% 0.095 166.913);   /* emerald-800 */
   --success-icon: oklch(59.6% 0.145 163.225);     /* emerald-600 */
-  --success-solid: oklch(59.6% 0.145 163.225);    /* emerald-600 */
-  --success-solid-hover: oklch(50.8% 0.118 165.612); /* emerald-700 */
+  --success-solid: oklch(50.8% 0.118 165.612);    /* emerald-700 — was 600 (white on it 3.67); named light change, D2 */
+  --success-solid-hover: oklch(43.2% 0.095 166.913); /* emerald-800 */
 
   --warning-soft: oklch(98.7% 0.022 95.277);      /* amber-50 */
   --warning-soft-hover: oklch(96.2% 0.059 95.617); /* amber-100 */

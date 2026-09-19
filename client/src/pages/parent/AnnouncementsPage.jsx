@@ -146,7 +146,7 @@ export default function ParentAnnouncementsPage() {
               {row.title}
             </button>
             <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-faint">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
               <span>{audienceLabel(row)}</span>
               {row.category ? (
                 <span className="rounded-full bg-surface-muted px-2 py-0.5 text-fg-muted">

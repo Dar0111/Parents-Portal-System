@@ -52,9 +52,9 @@ function titleCase(value) {
 function Field({ label, value }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
       <dd className="mt-1 text-sm text-fg">
-        {value || <span className="text-fg-faint">Not recorded</span>}
+        {value || <span className="text-fg-muted">Not recorded</span>}
       </dd>
     </div>
   );

@@ -211,7 +211,7 @@ export default function AttendancePage() {
         recorded.has(row.id) ? (
           <StatusBadge status={recorded.get(row.id)} />
         ) : (
-          <span className="text-sm text-fg-faint">Not recorded</span>
+          <span className="text-sm text-fg-muted">Not recorded</span>
         ),
     },
     {

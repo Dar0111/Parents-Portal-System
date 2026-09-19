@@ -36,9 +36,9 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 function Field({ label, value, empty = 'Not recorded', children }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-faint">{label}</dt>
+      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
       <dd className="mt-1 text-sm text-fg">
-        {children ?? (value ? value : <span className="text-fg-faint">{empty}</span>)}
+        {children ?? (value ? value : <span className="text-fg-muted">{empty}</span>)}
       </dd>
     </div>
   );
@@ -58,7 +58,7 @@ function childClass(user) {
 
 function MaskedLoginId({ value }) {
   const [shown, setShown] = useState(false);
-  if (!value) return <span className="text-fg-faint">—</span>;
+  if (!value) return <span className="text-fg-muted">—</span>;
   return (
     <span className="inline-flex items-center gap-3">
       <span className="font-mono tracking-wider" aria-live="polite">
