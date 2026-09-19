@@ -1762,7 +1762,8 @@ what it deliberately did not, how it was verified — is verbatim in
 Sections, Excuse Letters, Memos, Events and Messages are not built by the
 scope decision (ADMIN SCOPE AUDIT → SCOPE DECISION) — not unfinished work.
 **They were removed from the admin nav on 2026-09-18** rather than left
-dimmed; see that date's SCOPE DECISION. Next in BUILD ORDER is Stage 5 (Expo).
+dimmed; see that date's SCOPE DECISION. What comes next is the interleaved
+block below, then Stage 5 (Expo).
 
 **Backend work interleaved with Stage 4:**
 
@@ -1772,6 +1773,46 @@ dimmed; see that date's SCOPE DECISION. Next in BUILD ORDER is Stage 5 (Expo).
 - [x] `DELETE /api/grades/:id` — **DONE 2026-09-08.** Admin-only, `403` when
       locked.
 - [x] `GET /api/messages/contacts` **plus the endpoint audit** — done 2026-09-07.
+
+### After Stage 4 — interleaved, before Stage 5
+
+**Stage 4 is closed and stays closed.** Nothing here reopens it; this is the
+work that has landed on top of it, and the work that must land before Expo
+starts. Full write-ups are on each dispatch’s `docs/CHANGELOG.md` row — this
+is the order, not the record.
+
+**Done (all 2026-09-18 / 2026-09-19):**
+
+- [x] **Server hardening A, B, C** — validation (12-digit LRN, one contact
+      rule at six writes); authorization (`POST /users/parents` scope-gated,
+      `Account is not active.` now `401`); pagination on every list endpoint.
+- [x] **D1 design tokens** · **D2 dark mode** · **D3 brand + sticky chrome** —
+      71 semantic tokens, `lint:tokens` and `lint:contrast` both enforced at 0.
+- [x] **Empty-state duplicate fix** (§5f gained the rule).
+- [x] **Login redesign** — brand split panel, the page moved onto `FormField` /
+      `PasswordField`.
+- [x] **Notifications, N1 server + N2 client + N3 docs** — the 21st table, four
+      endpoints, seven fan-out hooks, the bell and the badges. §10.
+
+**Queued before Stage 5, in this order:**
+
+- [ ] **Account recovery (forgot password)** — TO BE PLANNED. There is no
+      reset endpoint today and Login says so in words rather than offering a
+      link (§5i). Needs a school answer on who may reset whom before any
+      code: the adviser, the office, or admin only.
+- [ ] **Dashboards, all three roles** — content was deliberately deferred when
+      the nav trim landed (2026-09-18); the three pages still derive "Open
+      now" from `navForRole` and nothing else.
+- [ ] **Pre-Stage-5 server fixes**, one dispatch: `GET /api/attendance` where
+      `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
+      Admin → Users role sort in A–Z rather than ENUM order; email validation;
+      `test:attendance`’s cleanup deleting every row on three dates rather than
+      only its own; `GET /api/health` returning a static 200 with no DB check;
+      and the shared helper that clears the orphan `notifications` rows the six
+      older suites leave behind. Every one is a `docs/KNOWN_ISSUES.md` row.
+- [ ] **Docs pass** — the README suite table, the `docs/API_REFERENCE.md` scope
+      labels stale for every widened read, and the dead pointers recorded in
+      KNOWN ISSUES.
 
 ### Stage 5 — Mobile (Expo)
 
@@ -2172,14 +2213,12 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-19 | Notifications N1 (server) + N2 (client): the 21st table via the repo’s first migration script, 4 endpoints, 7 fan-out hooks, `notification_counts`; the header bell, sidebar badges, LiveStatus ungated again. oxlint 42 → 44. |
 | 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |
-| 2026-09-19 | Login defect fixes (same branch): the leading icons were not centred because Font Awesome ships `.fa-solid { display: inline-block }` UNLAYERED and beats Tailwind’s layered `.flex` — the flex now sits on a wrapping span, never on the `<i>`; and the band painted over the card below `lg` because `.brand-panel-art` is `position: relative` and a positioned element covers a static sibling whatever the DOM order — the card’s `<main>` takes `relative z-10`. Both found in browser review; three SSR controls prove the new assertions actually fail on the old code. |
-| 2026-09-19 | Login addendum (same branch): card copy is "Welcome back" / "Sign in to continue."; `fa-user` and `fa-lock` inside the inputs (Login ID via `FormField` shape 4, Password via one new optional `leadingIcon` prop — declared scope expansion) and `fa-arrow-right` on the button; a decorative glow, dot pattern, two corner rings, a seal halo and a dot grid behind the card, all defined in `index.css` off five new tokens (palette 66 → 71) including `brand-panel-lit`, the precomputed panel-plus-glow composite that `lint:contrast` checks the text against. |
-| 2026-09-19 | Login redesign (`feat/login-redesign`): a brand split panel at `lg` and a band below it with the card overlapping (`-mt-12` against `pb-16`, not absolute); three new tokens `brand-panel` / `-fg` / `-muted` because `primary` is a LIGHT indigo in dark and `brand-soft` is near-white in light (palette 63 → 66, two stale counts corrected); Login ID becomes a `FormField` and Password a `PasswordField`, so the page has a reveal toggle and `PasswordField` no longer says Login is not its consumer; `role="alert"` on the error box. |
 
 Older stub lines are verbatim in `docs/ARCHIVE.md` — 14 (2026-09-14 →
 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on 2026-09-19", and
-11 more (all 2026-09-18 and 2026-09-19) under the "second batch, N3"
+14 more (all 2026-09-18 and 2026-09-19) under the "second batch, N3"
 heading below it. **Every full row is in `docs/CHANGELOG.md`**; this table
 holds only the newest one-line summaries, and a stub is moved out when this
 file approaches its size limit, never deleted.
