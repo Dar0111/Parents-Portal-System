@@ -185,7 +185,7 @@ export default function ParentExcuseLettersPage() {
         <button
           type="button"
           onClick={() => setReading(row)}
-          className="line-clamp-2 max-w-md text-left text-fg-secondary underline-offset-2 hover:underline"
+          className="line-clamp-2 max-w-md text-left text-brand underline-offset-2 hover:underline"
         >
           {row.reason}
         </button>

@@ -69,7 +69,7 @@ function MaskedLoginId({ value }) {
         type="button"
         onClick={() => setShown((s) => !s)}
         aria-pressed={shown}
-        className="text-xs font-medium text-fg-body underline-offset-2 hover:underline"
+        className="text-xs font-medium text-brand underline-offset-2 hover:underline"
       >
         {shown ? 'Hide' : 'Show'}
       </button>
