@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
@@ -157,6 +157,35 @@ export default function AccountInfoSection() {
   const [emailCodeError, setEmailCodeError] = useState(null);
   const [emailBusy, setEmailBusy] = useState(false);
 
+  // RE-READ /auth/me ON MOUNT (browser check, 2026-09-19). AuthContext holds
+  // the row fetched at sign-in and only rewrites it when this page or the
+  // forced-change screen asks it to — so anything that changes YOUR row from
+  // somewhere else leaves this page showing the old value until a manual
+  // reload. Found with an admin: ADMIN001 edited its own email in
+  // Admin → Users and this screen still showed the previous address, which
+  // matters more than a cosmetic staleness because the Verify email button
+  // would then have sent a code about an address that is no longer on the
+  // account.
+  //
+  // §5b, one level out: what a screen claims is stored comes from a read,
+  // not from whatever happened to be in memory. Admin → Users now refreshes
+  // the auth user itself after you edit your own row, and this mount read is
+  // the backstop for every other route to the same state (a second tab, a
+  // direct API call, a future page).
+  //
+  // The ref keeps `refresh` current without making it a reason to re-run:
+  // it is redeclared on every AuthProvider render, so listing it as a
+  // dependency would refetch in a loop. Same shape as Modal's onClose (§7b).
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  });
+  useEffect(() => {
+    // Swallowed on purpose: the page still renders the last known row, and a
+    // dead session is already handled by the 401 interceptor.
+    refreshRef.current().catch(() => {});
+  }, []);
+
   async function saveContact(event) {
     event.preventDefault();
     setStatus({});
@@ -295,8 +324,14 @@ export default function AccountInfoSection() {
           </p>
         ) : emailVerifiedAt ? (
           <p className="text-sm text-fg-muted">
-            This address is confirmed, so you can reset your own password from the sign-in page.
-            To change the address itself, ask the school office.
+            This address is confirmed, so you can reset your own password from the sign-in page.{' '}
+            {/* An admin IS the school office — telling them to ask it is a
+                dead end (browser check, 2026-09-19). They are also the only
+                role that can reach PUT /api/users/:id, so naming the page is
+                a true instruction, not a suggestion (§5i). */}
+            {role === 'admin'
+              ? 'To change it, edit your account in Admin → Users.'
+              : 'To change the address itself, ask the school office.'}
           </p>
         ) : (
           <>

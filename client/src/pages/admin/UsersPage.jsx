@@ -67,7 +67,7 @@ function displayRole(role) {
 
 export default function UsersPage() {
   usePageTitle('Users');
-  const { user: me } = useAuth();
+  const { user: me, refresh: refreshMe } = useAuth();
 
   const [pending, setPending] = useState([]);
   const [users, setUsers] = useState([]);
@@ -343,6 +343,13 @@ export default function UsersPage() {
         },
         { unwrap: 'user' }
       );
+      // Editing YOUR OWN row changes the user AuthContext is holding — the
+      // header name, and everything Settings → Account information renders.
+      // Without this the admin who just changed their own email sees the old
+      // one on that page until a manual reload (browser check, 2026-09-19).
+      // Best effort: the directory write succeeded, so a failed re-read must
+      // not turn it into an error.
+      if (editing.id === me?.id) await refreshMe().catch(() => {});
       setEditing(null);
       setFormStatus({ directory: ok('User updated.') });
       await load();
