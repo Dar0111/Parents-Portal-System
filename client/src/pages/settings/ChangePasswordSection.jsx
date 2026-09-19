@@ -5,6 +5,7 @@ import FormStatus, { ok, fail } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
+import { useAuth } from '../../auth/AuthContext';
 
 // Settings → Change password, all three roles. The one write is
 // PUT /auth/change-password; the rule it enforces (at least 8 characters and
@@ -23,13 +24,27 @@ import PasswordChecklist, { confirmError, passwordFormReady } from '../../compon
 // §5e: the confirmation Modal stays (matched Teacher and Parent Settings,
 // 2026-09-10) — the stored password is never on screen, so a misclick while
 // typing a test value is how a demo credential changes with nothing to put
-// it back. Stay logged in after success: PUT /auth/change-password does not
-// invalidate JWTs.
+// it back.
+//
+// STAYING LOGGED IN IS NOW SOMETHING THIS PAGE DOES, not something the API
+// leaves alone (R2, 2026-09-19). The comment here used to read "PUT
+// /auth/change-password does not invalidate JWTs", and R1 made that false:
+// the write bumps users.token_version and middleware/auth.js rejects every
+// token carrying an older value — which is the point, because a password
+// change has to kill the sessions the old password left open. The endpoint
+// therefore returns a REPLACEMENT token at the new version, and the unwrap
+// below takes it. Drop it and this page signs the user out of the tab they
+// changed their password in.
+//
+// Multi-key unwrap, not raw: if the server ever stopped returning `token`,
+// that must fail loudly here rather than leave a dead token in storage and
+// 401 on the next request (§1).
 //
 // Show/hide is per field. Fields are never pre-filled and never shown as
 // stored.
 
 export default function ChangePasswordSection() {
+  const { applyToken } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -60,11 +75,15 @@ export default function ChangePasswordSection() {
   async function save() {
     setSaving(true);
     try {
-      const message = await api.put(
+      const { message, token } = await api.put(
         '/auth/change-password',
         { current_password: currentPassword, new_password: newPassword },
-        { unwrap: 'message' }
+        { unwrap: ['message', 'token'] }
       );
+      // Before anything else that touches the API: the old token is already
+      // dead server-side, so the next request on it would 401 and log the
+      // user out on the success path.
+      await applyToken(token);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
