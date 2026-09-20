@@ -1267,6 +1267,33 @@ async function run() {
       grade1ReportCard.data?.general_average === null,
       'Grade 1 general_average is null — GA does not apply to descriptive mode'
     );
+    // THE RESPONSE CONTRACT — the whole top-level key set, in one assertion.
+    // Its reason is STAGE 5: Expo will read this same payload with its own
+    // client, and a key quietly added, renamed or dropped is the kind of
+    // change that two independent consumers discover at different times. The
+    // set does not vary by grading mode (the handler returns one object
+    // literal), so asserting it once, here, covers both.
+    //
+    // THIS DOES NOT CATCH THE DV3 UNWRAP DEFECT and must not be read as
+    // doing so: that defect was a key the CLIENT never asked for, while the
+    // server returned it correctly. No server assertion can see it. The guard
+    // for that lives in the client render proof.
+    const cardKeys = Object.keys(grade1ReportCard.data || {}).sort();
+    const expectedCardKeys = [
+      'general_average',
+      'general_average_descriptor',
+      'grading_mode',
+      'school_year',
+      'student',
+      'subjects',
+      'success',
+      'term_averages',
+    ];
+    assert(
+      JSON.stringify(cardKeys) === JSON.stringify(expectedCardKeys),
+      `Report card returns exactly the documented keys — the seven payload keys plus the success envelope (got ${JSON.stringify(cardKeys)})`
+    );
+
     // term_averages (DV3): three keys ALWAYS present so a caller can render
     // three cells without checking, and all three null in descriptive mode
     // for the same reason GA is — an average of letters is not a number.

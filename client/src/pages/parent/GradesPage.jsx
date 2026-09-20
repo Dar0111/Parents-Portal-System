@@ -30,7 +30,7 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // that has a grade_id (opens the breakdown modal). Pending / null terms are
 // not buttons and must not fire a request.
 //
-// TWO READS. The card is GET /api/grades/student/:studentId (six-key unwrap).
+// TWO READS. The card is GET /api/grades/student/:studentId (seven-key unwrap).
 // GET / is still not called: it returns bare grade rows with no subject-
 // coverage overlay, so a subject with zero grade rows would vanish. GET /:id
 // is called only when a parent taps a term that already has a grade_id —
@@ -210,7 +210,27 @@ function BreakdownBody({ mode, detail }) {
             ) : null}
             {hasExam ? <ExamList grade={grade} /> : null}
           </div>
-        ) : null}
+        ) : (
+          // Found in the browser check (2026-09-20): with no components the
+          // modal showed the letter and its descriptor — exactly what the cell
+          // the parent tapped already showed — and nothing else. It degraded
+          // without error, but a dialog that answers with what you already
+          // knew reads as a broken one.
+          //
+          // This says why rather than suppressing the modal, because the
+          // FETCH IS THE HEDGE AND THE HEDGE STAYS: informational WW/PT/EX may
+          // exist on a descriptive row, and if they ever do the branch above
+          // renders them. Making the cell non-interactive would retire that,
+          // which is a decision, not a fix.
+          //
+          // §5i — true of the write path: numerical encodes against a
+          // descriptive row are 400, so there is nothing for this grade level
+          // to have recorded. It says component scores, NOT "how the letter is
+          // produced", which is still an open school question.
+          <p className="border-t border-edge-soft pt-3 text-sm text-fg-muted">
+            Component scores are not recorded for this grade level.
+          </p>
+        )}
       </div>
     );
   }
@@ -289,19 +309,29 @@ export default function ParentGradesPage() {
     setLoading(true);
     setError(null);
     try {
-      // Six keys, not five. This endpoint has no `grade`/`grades` wrapper at
-      // all — six flat top-level keys — and dropping
-      // general_average_descriptor would silence the missing-key guard on a
-      // field this page renders. The array form's guard uses hasOwnProperty,
-      // so general_average: null (the state for most of the school year)
-      // passes rather than throwing.
+      // This endpoint has no `grade`/`grades` wrapper at all — seven flat
+      // top-level keys — and dropping general_average_descriptor would
+      // silence the missing-key guard on a field this page renders. The array
+      // form's guard uses hasOwnProperty, so general_average: null (the state
+      // for most of the school year) passes rather than throwing.
       setReport(
         await api.get(`/grades/student/${studentId}`, {
+          // SEVEN keys, not six. `term_averages` was missing here for the
+          // whole of the first DV3 build and the browser check found it: the
+          // general-average row read "— Pending" in all four columns while the
+          // API was returning {"1":87.5,...} correctly. The interceptor copies
+          // ONLY the named keys (api/axios.js), so an UNNAMED key is not an
+          // error — it is silently undefined, and undefined renders as
+          // Pending, which is a plausible-looking value rather than a visible
+          // break. The missing-key guard protects a renamed key, never a
+          // forgotten one; this list is the only thing that binds the page to
+          // what ReportCard reads off `report`.
           unwrap: [
             'student',
             'school_year',
             'grading_mode',
             'subjects',
+            'term_averages',
             'general_average',
             'general_average_descriptor',
           ],

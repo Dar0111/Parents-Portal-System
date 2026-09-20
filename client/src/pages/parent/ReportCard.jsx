@@ -205,10 +205,29 @@ function Legend({ mode }) {
 //   "all three examination scores"  -> exPercentage() returns null unless
 //                                      ST1, ST2 and TE are all present, and
 //                                      initialGrade() returns null without EX.
+//   "the transmutation table"       -> recomputeGrade() looks the Initial
+//                                      Grade up in transmutation_table and
+//                                      STORES the result as term_grade.
 //   "all three terms"               -> computeFinalGrade()
+//   "that term recorded"            -> computeTermAverages(), which is null
+//                                      unless EVERY subject has that term
 //   "every learning area"           -> computeGeneralAverage()
 //   "no numerical final grade"      -> both short-circuit on mode
-//   "tap a term"                    -> only rendered when a grade_id exists
+//   "select any grade"              -> only rendered when a grade_id exists
+//
+// THE GENERAL-AVERAGE SENTENCE IS TWO SENTENCES (browser check, 2026-09-20).
+// One line said "the general average appears once every learning area has a
+// final grade", which describes computeGeneralAverage and was silently also
+// claiming to describe the three term cells beside it — a different rule, one
+// level down. Two rules, two sentences.
+//
+// THE TRANSMUTATION LINE is the one piece of copy here that exists because of
+// something the card deliberately does NOT show. Initial Grade and the weights
+// stay hidden (CLAUDE.md, Parent grade breakdown), so a parent who adds up the
+// raw scores in the modal gets 88% and reads 90.00 on the card with nothing to
+// explain the gap. Naming the transmutation table closes that without putting
+// the number that raises "why isn't this 90?" on screen. It is NOT on the
+// descriptive layout: nothing is transmuted there.
 //
 // Nothing here explains HOW a Grade 1 letter is arrived at. That is still an
 // open school question, and the sentence that used to guess at it was removed
@@ -222,8 +241,10 @@ function ReadingNote({ mode, canOpen }) {
         ]
       : [
           'A term shows "Pending" until its grade can be computed — Written Works, Performance Tasks and all three examination scores must be recorded first.',
+          'Term grades follow the DepEd transmutation table, so a term grade is not the same as the percentage of the scores below.',
           'The final grade for a learning area appears once all three terms are recorded.',
-          'The general average appears once every learning area has a final grade.',
+          "A term's general average appears once every learning area has that term recorded.",
+          'The final general average appears once every learning area has a final grade.',
         ];
 
   return (
@@ -233,7 +254,13 @@ function ReadingNote({ mode, canOpen }) {
         {lines.map((line) => (
           <li key={line}>{line}</li>
         ))}
-        {canOpen ? <li>Select a term that has a grade to see the scores behind it.</li> : null}
+        {/* ONE sentence, true of BOTH layouts. This footer sits outside the
+            table/term-view switch, so it is in the DOM and read aloud on both;
+            the old wording said "select a term", which is a cell click on the
+            wide layout and a segment PLUS a subject row on the narrow one.
+            Per-layout copy would mean two nodes, one always hidden, and a
+            second place for the wording to drift. */}
+        {canOpen ? <li>Select any grade to see the scores behind it.</li> : null}
       </ul>
     </section>
   );
@@ -260,7 +287,7 @@ function TermCell({ entry, mode, onOpen, label }) {
 }
 
 // ---------------------------------------------------------------------------
-// THE TABLE (from `sm` up)
+// THE TABLE (from 36rem of CONTAINER width up — see the crossover note below)
 // ---------------------------------------------------------------------------
 // The horizontal scroller stays, at every width, for the reason recorded in
 // DataTable: containing a too-wide table requires a scrollport, and the page
@@ -366,7 +393,7 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
 }
 
 // ---------------------------------------------------------------------------
-// THE TERM VIEW (below `sm`)
+// THE TERM VIEW (below 36rem of container width)
 // ---------------------------------------------------------------------------
 // Buttons with `aria-pressed` inside a labelled group — NOT role="tablist".
 // The three existing segmented controls in this codebase are built this way
@@ -503,7 +530,43 @@ export default function ReportCard({
   emptyTitle,
   emptyMessage,
 }) {
-  const frame = 'rounded-xl border border-edge bg-surface';
+  // ---------------------------------------------------------------------
+  // THE CROSSOVER IS MEASURED ON THIS CARD, NOT ON THE WINDOW (DV3 review,
+  // 2026-09-21). `@container` makes the frame a size container; the two
+  // layouts below switch on `@min-[36rem]` instead of `sm:`.
+  // ---------------------------------------------------------------------
+  // The browser check found the full five-column table rendering at 200%
+  // zoom on a 1366px window — viewport ~683px, so `sm:` (640px) was met —
+  // inside a container of roughly 394px, where it scrolled sideways and the
+  // Learning area column scrolled out with it, leaving rows unlabelled.
+  //
+  // NO VIEWPORT BREAKPOINT CAN BE RIGHT HERE, because the container is not
+  // monotonic in the viewport. Shell reveals its 240px sidebar at the SAME
+  // `sm`, and <main> goes from p-4 to p-6 there:
+  //
+  //     viewport 639px -> no sidebar, 32px padding -> 607px of card
+  //     viewport 640px -> sidebar + 48px padding   -> 351px of card
+  //
+  // Crossing `sm` upward CUTS the card from 607px to 351px, so the table
+  // switched on at the one width where its container was narrowest it would
+  // ever be. Raising the breakpoint moves that cliff; it does not remove it.
+  //
+  // 36rem = 576px, against a measured-by-arithmetic minimum of ~558px for
+  // the widest realistic row: the four `nowrap` headers (~144 + 80×3 + 120
+  // with px-4 either side) against body cells of "Panlipunan" (~107) and
+  // "— Pending" (~98 each). 30rem was considered and is too low — at 480px
+  // the table still overflows and the reported defect returns in a narrower
+  // window. The estimate is arithmetic, not a measurement, and the trade is
+  // deliberately asymmetric: too low reproduces the defect, too high shows a
+  // layout that works. `overflow-x-auto` stays either way, so a wrong guess
+  // degrades to a scroller rather than to breakage.
+  //
+  // DELIBERATE INCONSISTENCY: every DataTable page still crosses over on
+  // `sm:` viewport width. This card is a fixed-width document with a known
+  // minimum, which is what makes a container threshold meaningful for it.
+  // A future browser check must MEASURE THE CARD, not the window — a
+  // container query does not move with the responsive-mode width readout.
+  const frame = '@container rounded-xl border border-edge bg-surface';
 
   const student = report?.student ?? null;
   const mode = report?.grading_mode ?? 'numerical';
@@ -590,7 +653,7 @@ export default function ReportCard({
       {header}
       {info}
 
-      <div className="hidden sm:block">
+      <div className="hidden @min-[36rem]:block">
         <DesktopTable
           subjects={subjects}
           mode={mode}
@@ -601,7 +664,7 @@ export default function ReportCard({
         />
       </div>
 
-      <div className="sm:hidden">
+      <div className="@min-[36rem]:hidden">
         <TermView
           subjects={subjects}
           mode={mode}
