@@ -296,15 +296,61 @@ export default function DataTable({
     <div className={frame}>
       {cards ? <div className="sm:hidden">{cards.map(({ key, card }) => <Card key={key} card={card} />)}</div> : null}
 
-      {/* `sm:overflow-x-visible` is what makes the sticky header work, and it
-          is not cosmetic. `overflow-x-auto` alone makes this div a scroll
-          CONTAINER on both axes (CSS computes the other axis from `visible`
-          to `auto`), so a sticky <th> would resolve against a box with no
-          scroll range and never stick while the page scrolled. Releasing it
-          from `sm` up is safe precisely because the card layout has taken
-          over below `sm`, which is the only width the horizontal scroller
-          was ever for. */}
-      <div className={`overflow-x-auto sm:overflow-x-visible ${cards ? 'hidden sm:block' : ''}`}>
+      {/* ---------------------------------------------------------------
+          A STICKY HEADER AND A HORIZONTAL SCROLLER CANNOT COEXIST, so the
+          table is made UNABLE TO OVERFLOW instead of being allowed to and
+          then contained. (Browser review 2026-09-20, second round.)
+
+          The conflict is exact: sticky resolves against the nearest
+          scrollport, and containing horizontal overflow requires an
+          ancestor to BE one. Releasing the scroller at `sm` fixed sticky
+          and created a worse bug — at 200% zoom `parent/grades` was wider
+          than <main>, and with nothing to contain it THE WHOLE PAGE
+          scrolled sideways, cutting off Final Grade. A page body that
+          scrolls sideways is the failure WCAG 1.4.10 is about, and it
+          would hit tablets, narrow laptops and Large text too.
+
+          Rejected, with reasons:
+          - Give the frame its own max-height + overflow-auto and stick at
+            top:0 inside it. Works, but it is a nested scroll area inside a
+            paginated 50-row table, and §9 says the document is the only
+            scroller precisely so two scrollbars never fight.
+          - Sticky only at `lg`. Moves the boundary without removing it:
+            Large text at `lg` overflows just the same.
+
+          What is done instead: every cell is `wrap-anywhere`
+          (`overflow-wrap: anywhere`), which — unlike `break-words` — also
+          shrinks the cell's MIN-CONTENT contribution. An auto-layout table
+          at `w-full` can then always shrink to its container, so it never
+          becomes wider than <main> and there is nothing to contain. No
+          scrollport on the sticky path, no page-level sideways scroll.
+
+          THE GATE IS `lg`, NOT `sm`, AND THE NUMBERS DECIDED IT. Below the
+          gate the scroller stays and the header is static — contained, no
+          sticky, no page scroll. Above it there is provably room, so the
+          scroller is released and sticky works. Width available to the
+          table is viewport − 240px sidebar (w-60, shown from `sm`) − 48px
+          of `sm:p-6`:
+
+            at sm  640 − 288 = 352px
+            at lg 1024 − 288 = 736px
+
+          Worst table is Admin → Users' six columns, whose min-content with
+          `wrap-anywhere` is set by the things that CANNOT wrap — the 38px
+          avatar, a 36px icon button (its row is flex-wrap, so three stack),
+          the status pill — plus 32px of cell padding each: ≈338px, and
+          ≈380px at Large text (root 112.5%).
+
+          352px vs 380px is a table that overflows the moment Large text is
+          on, which is why `sm` was the wrong gate. 736px vs 380px is 1.9×
+          headroom, which holds at Large text and at the zoom levels that
+          keep the viewport at lg or above.
+
+          COST, stated plainly: no sticky header between 640px and 1023px.
+          That is the honest trade — a contained table with a normal header
+          beats a sticky header on a page that scrolls sideways.
+          --------------------------------------------------------------- */}
+      <div className={`overflow-x-auto lg:overflow-x-visible ${cards ? 'hidden sm:block' : ''}`}>
         <table className="w-full border-collapse text-sm">
           <thead>
             {/* The background lives on the CELLS, not on this row: a sticky
@@ -328,17 +374,17 @@ export default function DataTable({
                     // bg-surface-subtle below is required, not decorative: a
                     // transparent sticky header lets rows show through it.
                     style={{ top: 'var(--header-h)', ...(column.width ? { width: column.width } : null) }}
-                    // `sm:sticky`, NOT `sticky`. Below `sm` the wrapper above
-                    // is still `overflow-x-auto` — it has to be, for the
-                    // sixteen pages that have no card layout yet — so it is
+                    // `lg:sticky`, NOT `sticky`. Below `lg` the wrapper above
+                    // is still `overflow-x-auto` — it has to be, to contain a
+                    // table too wide for the viewport — so it is
                     // a scrollport there and a sticky header would be offset
                     // inside it exactly as it was inside the frame. Static
-                    // below `sm` is the honest answer: a phone scrolls the
-                    // page, and those pages already scroll sideways.
+                    // below `lg` is the honest answer; see the arithmetic on
+                    // the wrapper above for why the gate is lg and not sm.
                     //
                     // first/last rounding replaces the frame's old
                     // `overflow-hidden`; see the note on `frame`.
-                    className={`sm:sticky z-10 bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl ${
+                    className={`lg:sticky z-10 wrap-anywhere bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl ${
                       ALIGN[column.align] || ALIGN.left
                     }`}
                   >
@@ -377,7 +423,10 @@ export default function DataTable({
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-4 py-3 text-fg-secondary ${ALIGN[column.align] || ALIGN.left}`}
+                    // `wrap-anywhere` is load-bearing, not typography: it is
+                    // what lets this table shrink to its container instead
+                    // of widening the page. See the note above the wrapper.
+                    className={`wrap-anywhere px-4 py-3 text-fg-secondary ${ALIGN[column.align] || ALIGN.left}`}
                   >
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
