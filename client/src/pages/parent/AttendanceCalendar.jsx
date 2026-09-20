@@ -80,12 +80,24 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
       <span className="mt-1 block">
         {record ? (
           <>
-            {/* Full word from sm up, single letter below it. Both are TEXT —
-                the pill is never colour alone. */}
-            <span className="hidden sm:inline">
+            {/* THE WORD ONLY WHERE IT FITS, AND `xl` IS DERIVED, NOT PICKED.
+                At 200% zoom the word pills overflowed their cells (browser
+                review, 2026-09-20). Cell content width is
+                (main − 240px sidebar − 48px page padding − 48px card padding
+                − 20rem side panel − gap) ÷ 5 columns, minus the cell's own
+                24px of padding:
+
+                  at lg  1024 → (736 − 48 − 336) ÷ 5 − 24 ≈  46px
+                  at xl  1280 → (992 − 48 − 336) ÷ 5 − 24 ≈  97px
+
+                A "Present" pill is about 69px, and 78px at Large text. So
+                `lg` still overflows and `xl` clears it with room. Below xl
+                the LETTER pill carries the meaning — it is still text, and
+                the legend and the accessible name both spell it out. */}
+            <span className="hidden xl:inline">
               <StatusBadge status={record.status} />
             </span>
-            <span className="sm:hidden">
+            <span className="xl:hidden">
               <StatusBadge status={record.status} label={LETTER[record.status] || record.status} />
             </span>
           </>
@@ -94,8 +106,16 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
         )}
       </span>
       {letter ? (
-        <span className="mt-1 block truncate text-[0.625rem] text-fg-muted">
-          Excuse letter · {letter.status}
+        // An ICON below xl: the text line truncated to "Excuse…" in a narrow
+        // cell, which says less than nothing. The icon is aria-hidden and
+        // carries no accessible text of its own ON PURPOSE — the day's
+        // aria-label already ends "…, excuse letter pending", and an
+        // aria-label on the button replaces its inner text entirely, so
+        // sr-only text here would never be announced. The full line is in
+        // the day detail card, and in the cell from xl where it fits whole.
+        <span className="mt-1 flex items-center gap-1 text-[0.625rem] text-fg-muted">
+          <i aria-hidden="true" className="fa-solid fa-envelope" />
+          <span className="hidden xl:inline">Excuse letter · {letter.status}</span>
         </span>
       ) : null}
     </>
@@ -198,18 +218,24 @@ export default function AttendanceCalendar({
 
       {/* Legend for the single-letter pills. Below sm only, because from sm
           up the badge already spells the word out. */}
-      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted sm:hidden">
+      {/* The legend follows the pill: visible wherever the cells show
+          letters, hidden once they show the word. */}
+      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted xl:hidden">
         <span>P = Present</span>
         <span>L = Late</span>
         <span>A = Absent</span>
         <span>E = Excused</span>
+        <span className="inline-flex items-center gap-1">
+          <i aria-hidden="true" className="fa-solid fa-envelope" /> = excuse letter
+        </span>
       </p>
 
       {alsoRecorded.length ? (
         <div className="mt-4 rounded-lg border border-edge bg-surface-subtle px-4 py-3">
           <p className="text-xs font-semibold text-fg">Also recorded this month</p>
           <p className="mt-1 text-xs text-fg-muted">
-            These fall on a weekend, so they are not in the grid above — but they ARE counted below.
+            These fall on a weekend, so they are not in the grid above — but they are counted in the
+            totals.
           </p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {alsoRecorded.map((row) => (

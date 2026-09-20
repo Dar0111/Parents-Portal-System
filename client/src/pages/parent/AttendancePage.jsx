@@ -284,7 +284,47 @@ export default function ParentAttendancePage() {
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
-      <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
+      {/* THE SUMMARY COMES FIRST IN THE DOM and is placed to the RIGHT from
+          `lg` up (browser review, 2026-09-20). It is the number a parent
+          opens this page for, so on a phone — and for a screen reader, which
+          follows DOM order — it must not sit below a 22-cell grid. From `lg`
+          the grid has room beside it and the panel moves to the second
+          column; below that they simply stack, summary on top. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="lg:col-start-2 lg:row-start-1 lg:self-start">
+          <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
+            <h2 className="text-sm font-semibold text-fg">{monthLabel}</h2>
+            {fraction ? (
+              <>
+                <p className="mt-2 text-2xl font-semibold text-fg">
+                  {fraction.present} of {fraction.total}
+                </p>
+                <p className="text-sm text-fg-muted">Present on recorded days</p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {COUNTS.map((key) => (
+                    <span key={key} className="inline-flex items-center gap-1.5">
+                      <StatusBadge status={key} />
+                      <span className="text-sm text-fg-body">{countOf(summary, key)}</span>
+                    </span>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-fg-muted">
+                  Late counts as present · Excused counts as absent
+                </p>
+              </>
+            ) : (
+              // No pills when there is nothing to count: four zeros next to
+              // "Nothing recorded" said the same thing four more times, and
+              // a 0 beside "Absent" reads as a fact about the learner rather
+              // than about the record (browser review, 2026-09-20).
+              <p className="mt-2 text-sm text-fg-muted">Nothing recorded this month.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
         <div className="mb-4 flex items-center justify-between gap-3">
           <button
             type="button"
@@ -347,31 +387,7 @@ export default function ParentAttendancePage() {
             </div>
           ) : null}
         </div>
-      </div>
-
-      <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-fg">{monthLabel}</h2>
-        {fraction ? (
-          <>
-            <p className="mt-2 text-2xl font-semibold text-fg">
-              {fraction.present} of {fraction.total}
-            </p>
-            <p className="text-sm text-fg-muted">Present on recorded days</p>
-          </>
-        ) : (
-          <p className="mt-2 text-sm text-fg-muted">Nothing recorded this month.</p>
-        )}
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {COUNTS.map((key) => (
-            <span key={key} className="inline-flex items-center gap-1.5">
-              <StatusBadge status={key} />
-              <span className="text-sm text-fg-body">{countOf(summary, key)}</span>
-            </span>
-          ))}
         </div>
-
-        <p className="mt-3 text-xs text-fg-muted">Late counts as present · Excused counts as absent</p>
       </div>
 
       <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
@@ -390,8 +406,7 @@ export default function ParentAttendancePage() {
         <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-fg">School year record</h2>
           <p className="mt-1 text-xs text-fg-muted">
-            Months are the ones with records, earliest to latest. A month with no records shows a
-            dash, not a zero — nothing was recorded, which is not the same as nothing attended.
+            Only months with recorded days are shown. A dash means nothing was recorded that month.
           </p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full border-collapse text-sm">
