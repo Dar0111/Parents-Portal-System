@@ -330,6 +330,107 @@ The SSR proof for any date-bearing screen should include a **leap February**,
 a **month starting on a weekend**, and a **December → January wrap** — three
 cases that arithmetic gets wrong in three different ways.
 
+#### 5a-v. The report card is a DOCUMENT, not a list — the one page that leaves DataTable
+
+**Frozen 2026-09-21 (DV3).** `pages/parent/ReportCard.jsx` is the only
+feature screen in the system that renders a table without `DataTable`, and
+the exemption is narrow: **a fixed-order printed document with a known
+minimum width**. Anything that is a list of records still uses `DataTable`.
+
+**Why it could not be `DataTable`, in the order the reasons matter:**
+
+1. **The printed order IS the content.** The card is read beside the paper
+   the school hands out, so re-ordering the learning areas does not filter
+   the document, it produces a different and wrong one. A sortable report
+   card is not a smaller version of this feature.
+2. **The general-average row lives INSIDE the table and is emphasised.**
+   `DataTable` sorts every row it is handed, so a summary row sorts
+   alongside the subjects it summarises — which is exactly why the old page
+   kept the general average in a strip *outside* the table.
+3. **The narrow layout is term segments plus a list** — pick a term, see the
+   subjects — the opposite shape from §5a-iii's `renderCard`, which is one
+   card per subject carrying all three terms.
+
+**What it inherits anyway, because §5 is about the page and not the file:**
+it **never fetches** (the page owns `report`/`loading`/`error`), and loading,
+error — with `onRetry` — and empty all render **inside its own frame**,
+behaving identically to `DataTable`'s. Being presentational is also what
+makes the SSR proof possible at all.
+
+**Four rules this card carries that are not `DataTable`'s:**
+
+- **The printed subject order is a client constant.** `subjects` is
+  `id, name, grade_level` with **no display-order column**, so the API can
+  only sort by name and the card was alphabetical by accident of the query.
+  Grades 4–6 use the SF9's own eight rows; **Grade 1 is PROVISIONAL** (the
+  only Grade 1 sequence this repo holds is a class program, which is a
+  timetable — see OPEN QUESTIONS); Grades 2, 3 and 5 are deliberately absent
+  and fall back to the server's order. A subject the constant does not name
+  is **appended, never dropped**. **Revisit trigger: Expo**, which cannot
+  import a client constant — the order then belongs in
+  `subjects.display_order`.
+- **No descriptor on a numerical row.** The band word appears **once**, on
+  the general average, with the legend below carrying the scale. `remarks`
+  (`Passed`/`Failed`) is on the wire inside `descriptor` and reaches nothing
+  (§4). Grade 1 keeps letter + descriptor per cell, because a bare letter
+  means nothing without its word.
+- **Descriptive mode OMITS the Final-grade column and the general-average
+  row entirely** rather than filling them with "— N/A". §3 forbids a bare
+  dash, and five rows of N/A is noise for something inapplicable to the
+  grade level; one sentence in "Reading this report" says it instead. The
+  Final segment is likewise absent from the narrow layout's term selector.
+- **Term status is COUNTED, never computed.** "Term 2 partly recorded (2 of
+  8)" comes from counting subjects whose term carries a value — the same
+  definition `routes/dashboard.js` uses, so a shell row from
+  `POST /api/grades` is correctly not counted. Green only at full coverage.
+
+#### 5a-vi. This card's layout crossover is measured on the CONTAINER, not the viewport
+
+**Frozen 2026-09-21 (DV3).** The table/segments switch is
+`@min-[36rem]` against the card's own `@container`, **not** `sm:`. Every
+`DataTable` page still crosses over on `sm:` viewport width. **The
+inconsistency is deliberate and this is the reason.**
+
+**Found in the browser check:** at 200% zoom on a 1366px window the full
+five-column table rendered — viewport ~683px, so `sm:` (640px) was met —
+inside a container of roughly 394px, where it scrolled sideways and the
+Learning area column scrolled out with it, leaving rows unlabelled.
+
+**NO VIEWPORT BREAKPOINT CAN BE CORRECT HERE, because the container is not
+monotonic in the viewport.** `Shell` reveals its 240px sidebar at the **same
+`sm`**, and `<main>` goes from `p-4` to `sm:p-6` there:
+
+| Viewport | Sidebar | `<main>` padding | **Card width** |
+|---|---|---|---|
+| 639px | hidden | 32px | **607px** |
+| 640px | 240px + 1px | 48px | **351px** |
+| 683px (200% on 1366) | shown | 48px | **~394px** |
+| 768px | shown | 48px | **479px** |
+
+Crossing `sm` **upward cuts the card from 607px to 351px**, so the table
+switched on at the one width where its container was narrowest it would ever
+be. Raising the breakpoint moves that cliff; it does not remove it.
+
+**36rem = 576px, against a recounted minimum of ~558px** for the widest
+realistic row: the four `nowrap` headers (~144 for "LEARNING AREA" + 80×3 +
+120 for "FINAL GRADE", `px-4` either side) against body cells of
+"Panlipunan" (~107) and `— Pending` (~98 each, and those cells are
+`whitespace-nowrap`). **30rem was considered and is too low** — at 480px the
+table still overflows and the defect returns in a narrower window. An
+earlier estimate of ~474px in the same review was a rough count and was
+superseded by this one. `overflow-x-auto` stays either way, so a wrong
+threshold degrades to a scroller rather than to breakage. Confirmed in the
+browser by sweeping 1100 / 1000 / 950 / 900 / 850: the table holds with no
+horizontal scrollbar down to 900 and flips to segments between 900 and 850.
+
+**A FUTURE BROWSER CHECK MUST MEASURE THE CARD, NOT THE WINDOW.** A container
+query does not move with the responsive-mode width readout, and a tester
+reading the window width will conclude the breakpoint is broken when it is
+working. Tailwind v4 ships container queries in core — no plugin — and the
+generated rule should be grepped out of the built CSS (`container-type:
+inline-size` plus `@container (width>=36rem)`), because **a variant that
+generates nothing fails silently**, exactly as `h-9.5` did in DV1.
+
 ### 5c. The LRN is half a credential, not an ordinary identifier
 
 **A parent's `login_id` IS their child's LRN** (locked decision: parents log in

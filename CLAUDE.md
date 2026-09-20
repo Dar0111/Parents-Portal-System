@@ -152,7 +152,7 @@ never triggers an actual restore — see the RESTORE section.
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — 41/41
 - `npm run test:grading-modes` — 13/13
-- `npm run test:grades` — 167/167 (confirmed twice 2026-09-15; was broken 2026-09-10 → 2026-09-13 — see CHANGELOG)
+- `npm run test:grades` — 189/189 (confirmed twice 2026-09-21. **The 167 recorded here until then was three dispatches stale** — pagination took it to 182 and never updated this line, DV3's `term_averages` assertions to 188, and DV3's contract assertion to 189. Was broken 2026-09-10 → 2026-09-13 — see CHANGELOG)
 - `npm run test:auth` — 56/56
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 62/62
@@ -447,6 +447,24 @@ concludes.** Adding one requires the school to have said otherwise first.
   neither and gets a **static card, no chevron**, actions in a row beneath
   (Users directory, Backups). A page without `renderCard` is unchanged.
   Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-iii.
+- **ONE page leaves DataTable, and the exemption is narrow (DV3,
+  2026-09-21).** `pages/parent/ReportCard.jsx` is a **fixed-order printed
+  document**: sorting it produces a different document, not a filtered one,
+  and its emphasised general-average row must sit INSIDE a table that does
+  not sort. Anything that is a list of records still uses `DataTable`. It
+  still never fetches and still owns loading / error / empty in its own
+  frame. Its printed subject order is a client constant — `subjects` has
+  **no display-order column** — and **Grade 1's order is PROVISIONAL**.
+  Rules: `docs/FRONTEND_CONVENTIONS.md` §5a-v.
+- **That card's crossover is measured on the CONTAINER (`@min-[36rem]`),
+  every DataTable page on `sm:` viewport width — deliberately
+  inconsistent.** No viewport breakpoint can be right: `Shell` reveals its
+  240px sidebar at the same `sm`, so crossing 640px **cuts a page body from
+  607px to 351px** and the table switched on exactly where its container was
+  narrowest (a five-column table scrolling sideways at 200% zoom). **A
+  browser check must measure the CARD, not the window**, and a container
+  variant that generates no CSS fails silently — grep the built stylesheet
+  (the `h-9.5` lesson). Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-vi.
 
 ### 5b. A column showing DATABASE state must never derive from form state
 
@@ -1603,7 +1621,19 @@ is the order, not the record.
         Attendance did NOT come with it** — that is a teacher ENCODE screen
         whose row is a form control, a different design problem from a
         display card; it stays with DV1b.
-  - [ ] **DV3 — SF9-style Grades report card.** Replaces Parent → Grades.
+  - [x] **DV3 — SF9-style Grades report card. DONE 2026-09-21.** Parent →
+        Grades is the school's printed Learner's Performance Report: SF9
+        subject order, no LRN, a term-status pill counted from the payload,
+        the general-average row INSIDE the table, the legend and "Reading
+        this report"; term segments below the crossover.
+        **`GET /grades/student/:studentId` gained `term_averages`** (per-term
+        GA, same null-until-every-subject rule) because the client may not
+        compute a grade. **The one page that leaves DataTable** (§5a-v), and
+        the one whose crossover is a container query (§5a-vi). The first
+        browser check found five things, all fixed on `fix/dv3-review`;
+        **the GA row read "Pending" in all four columns because
+        `term_averages` was never named in the page's unwrap list** — the API
+        had been right all along.
   - [ ] **DV4 — dashboards + the dark amber.** In Dark the amber card fill
         reads as rust/brown and edges toward "danger", undoing §12's
         amber-is-not-a-verdict rule exactly where it matters. Tune the dark
@@ -1651,7 +1681,21 @@ is the order, not the record.
      during the DV2 check (2026-09-20). The tabs keep their full width while
      the panel takes what is left, so the fix is in that layout's
      breakpoints, not in the panel's content.
-- [ ] **Pre-Stage-5 server fixes**, one dispatch: `GET /api/attendance` where
+- [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
+      (2026-09-21); the first two are what Expo hits first.**
+      **(a) `subjects.display_order`** — the printed order is a client
+      constant because the table has no ordering column, and Expo cannot
+      import a constant (migration + `schema.sql` + `seed.sql` + `ORDER BY`
+      in `routes/grades.js` and `routes/subjects.js`). **Grade 1's order is
+      PROVISIONAL** — ask the school before seeding it as fact.
+      **(b) `AuthContext` must tell a 401 from a network error or 5xx** —
+      today any `/auth/me` failure clears the token, so a refresh during an
+      outage discards a valid session; frequent on a school LAN.
+      **(c) the school-calendar work (CAL)** — term dates, school-year range,
+      a real `current_term`; nothing in the schema holds a term boundary,
+      which is why Parent → Attendance derives its months from data. DV3 does
+      not depend on it. **(d) a fixture learner who is nobody's test target**
+      (KNOWN_ISSUES). Then the originals: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
       `test:attendance`’s cleanup deleting every row on three dates rather than
@@ -1832,7 +1876,17 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (three)
+### School questions — still open (four)
+
+- **What order do the learning areas print in on a Grade 1 report card?**
+  Asked 2026-09-21, because DV3 had to pick one. The SF9's eight
+  intermediate rows are recorded for Grades 4–6 (`docs/GRADING_SPEC.md` §6c),
+  but **no printed order exists anywhere for Key Stage 1**. The card uses
+  Makabansa, Mathematics, GMRC, Language, Reading — which is the **class
+  program**, a timetable, not the report card — marked provisional in
+  `ReportCard.jsx`. Grades 2, 3 and 5 are in the same position and
+  deliberately fall back to alphabetical rather than guess. A one-line answer
+  from the school settles all four.
 
 - **Grade 1 descriptive grading — how is the A–E letter produced?**
   Manual teacher judgment, or computed? Still unanswered. The write
@@ -1888,6 +1942,22 @@ CLAUDE.md until 2026-09-19".
 Not answered by a school conversation. Do not trim them alongside the school
 questions.
 
+- **Should `DataTable` get a sticky first COLUMN? DEFERRED to DV1b
+  (2026-09-21) — and §5a-i does NOT close it.** That section closed the
+  sticky HEADER on a structural conflict: it needs the page as its
+  scrollport while containing a too-wide table needs the wrapper to be one.
+  **A sticky column wants its `left` resolved against that same horizontal
+  scroller**, the thing §5a-i kept, so the conflict does not arise; §9 is
+  about vertical scroll and is unaffected. DV3 did not implement it — its
+  container query means the table never renders in a container too narrow
+  for it. DV1b inherits it for the other consumers. Cost to weigh: each
+  sticky cell needs its own background repainted on hover and on the
+  emphasised row, or scrolled content shows through.
+- **Should the report card's header, info row and legend move to container
+  units too?** DV3 converted only the crossover (§5a-vi), so those three
+  still use viewport `sm:` inside a card that now measures itself. The
+  re-check found no visible mismatch on a real window and called no action —
+  recorded so the mixed basis is known rather than a later surprise.
 - Adviser response to the 5 revision requests.
 - Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
   Undecided; blocks the Figure 1 hardware requirements in the manuscript.
@@ -2105,6 +2175,9 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-21 | DV3 docs: `term_averages` in `docs/API_REFERENCE.md`; **§5a-v** (the ONE page that leaves DataTable, and why the exemption is narrow) and **§5a-vi** (its crossover is a CONTAINER query at 36rem — the **607px → 351px sidebar cliff** is why no viewport breakpoint can work; browser checks must measure the card, not the window). Four KNOWN_ISSUES rows; three OPEN QUESTIONS (sticky first COLUMN deferred to DV1b — **§5a-i does not close it**; the card's mixed units; Grade 1's printed order, now a school question). Pre-Stage-5 gains `subjects.display_order`, the 401-vs-network fix, CAL and a neutral fixture learner. `test:grades` corrected **167 → 189** (three dispatches stale). **One flag WITHDRAWN as false — `DELETE /grades/:id` does not orphan its components** (`schema.sql:487` cascades, proved during cleanup). |
+| 2026-09-21 | DV3 review fixes (`fix/dv3-review`): **the GA row read "Pending" in all four columns because `term_averages` was never named in the unwrap list** — the interceptor copies only named keys, so a FORGOTTEN key is silently `undefined` while the guard protects only a RENAMED one. The card now measures itself (`@container`, `@min-[36rem]`) after the table rendered at 200% zoom in a 394px container. F5 proved NOT a defect (88% → IG 88.00 → transmuted 90); one sentence names the transmutation table, IG stays hidden. SSR 62/62 with a control that reproduces the defect verbatim and **caught a weak assertion of my own**. |
+| 2026-09-20 | DV3 (`feat/dv3-grades`): Parent → Grades is the school's Learner's Performance Report — SF9 order from a client constant (`subjects` has **no display-order column**), no LRN, term status counted, the GA row INSIDE the table, legend, "Reading this report", term segments below the crossover. `GET /grades/student/:studentId` gained **`term_averages`**. `test:grades` 182 → 188, `test:dashboard` 75, SSR 50/50, one new contrast pair. |
 | 2026-09-20 | DV2 docs: BUILD ORDER ticks DV2 and marks the "percentage copy" item CLOSED (the percentage is gone); the 390px Status select moves to DV1b. `docs/FRONTEND_CONVENTIONS.md` §5a-iv — **`format/date.js` is the only home for date maths**: identity is a `YYYY-MM-DD` string, a `Date` is for placement only, never `new Date(string)` or `toISOString()`. New KNOWN_ISSUES row and a **third OPEN QUESTION**: `POST /attendance/bulk` accepts weekend dates — are there Saturday classes? UI polish gains Settings → Personalization at 200% zoom. |
 | 2026-09-20 | DV2 (client, `feat/dv2-attendance`): Parent → Attendance is a month calendar — `format/date.js` month maths, `AttendanceCalendar.jsx`, a summary panel, and a school-year table whose months are derived from data. **The percentage is gone; the fraction replaced it** and `presentOnRecordedDays` was deleted. A weekend record shows in an "Also recorded" strip and still counts. Browser check found five things, all fixed (summary position, pills overflowing at 200% zoom → word gated at `xl`, truncated excuse line → icon, copy, zero pills). oxlint 44, SSR 60/60. |
 | 2026-09-20 | DV1 docs: `docs/FRONTEND_CONVENTIONS.md` §5 gains §5a-i (**the sticky table header is a CLOSED QUESTION**, with all three failure modes named so nobody retries it), §5a-ii (`nowrap`; never wrap an identifier) and §5a-iii (`renderCard`); short form in §5 here. BUILD ORDER: Data views split into DV1 (done) → DV2 → DV3 → DV4 → **DV1b last**, since DV2/DV3 replace the two parent pages outright. New UI polish list. Working agreement: never `git checkout --` on uncommitted work. |

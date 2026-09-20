@@ -139,12 +139,20 @@ by side. Nothing here is guessed — every line traces to a specific file.
 - **DECIMAL-as-string applies to *stored* grade columns, not *computed*
   ones — same module, two behaviors.** `grades` table columns read
   directly (`ww_percentage`, `term_grade`, etc., see Conventions above)
-  come back as strings. But `final_grade` and `general_average` on
-  `GET /api/grades/student/:studentId` are computed in JavaScript at
+  come back as strings. But `final_grade`, `term_averages` and
+  `general_average` on `GET /api/grades/student/:studentId` are computed
+  in JavaScript at
   read time (`utils/gradeComputation.js`'s `roundTo2`) and come back as
   **real numbers already** — no coercion needed, and coercing them again
   is harmless but pointless. Same grades module, two different wire
   types depending on whether the field is stored or derived.
+- **`term_averages` keys are STRINGS, and all three are always present**
+  (DV3, 2026-09-20). `{"1": 87.5, "2": null, "3": null}` — JSON has no
+  numeric keys, so a caller indexing with a number works only because
+  JavaScript coerces the property name; a language that does not will
+  need the string. A key is never absent, so a caller can render three
+  cells without checking, which is the opposite of `terms` on a subject,
+  where a missing term is `null` because the grade ROW does not exist.
 - **`is_locked` is `0`/`1` on the bare row, `true`/`false` inside the
   report card.** Every endpoint that returns a bare `grades` row
   (`POST /`, `POST /:id/components`, `PATCH /:id/exam`, etc., and the
@@ -384,7 +392,7 @@ what to expect on the wire.
 | `grade_components` | array | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `descriptor` | object or `null` | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `component` | object | `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId` (secondary key, alongside `grade`) |
-| `student`, `school_year`, `grading_mode`, `subjects`, `general_average`, `general_average_descriptor` | 6 flat top-level keys, no `grade`/`grades` key at all; `grading_mode` here is a **string** (`numerical`\|`descriptive`) | `GET /grades/student/:studentId` only — see `GET /grading-modes` above for the object shape of the same key |
+| `student`, `school_year`, `grading_mode`, `subjects`, `term_averages`, `general_average`, `general_average_descriptor` | **7** flat top-level keys, no `grade`/`grades` key at all; `grading_mode` here is a **string** (`numerical`\|`descriptive`). A client that unwraps by naming keys must name all seven — DV3 shipped with `term_averages` missing from the list and the general-average row rendered "Pending" while the API was answering correctly | `GET /grades/student/:studentId` only — see `GET /grading-modes` above for the object shape of the same key |
 | `attendance` | object (single-record endpoints) **or** array (list endpoints) — same key name, cardinality depends on which endpoint | `GET /attendance`, `GET /attendance/student/:studentId`, `POST /attendance`, `POST /attendance/bulk`, `PUT /attendance/:id` |
 | `summary` | object | `GET /attendance/summary/:studentId` |
 | `announcement` | object | `POST /announcements`, `PUT /announcements/:id` |
@@ -529,7 +537,7 @@ An admin changing a user's email through `PUT /users/:id` clears
 |---|---|---|---|---|---|
 | GET | `/` | `teacher(wide)`, `admin`, `parent(own)` | query: `student_id`, `subject_id`, `term`, `school_year` (all optional, no defaults) | `grades` | parent naming a different `student_id` → `403` |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `grade` + `grade_components` + `descriptor` | `404` out-of-scope |
-| GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
+| GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
 | POST | `/` | `teacher(subject)`, `admin` | `student_id`*, `subject_id`*, `term`*, `school_year`* | `grade` | teacher out-of-scope → `403`; nonexistent `student_id` → `404` admin / `403` teacher |
 | POST | `/:id/components` | `teacher(subject)`, `admin` | `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`*, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely |
 | PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
@@ -538,6 +546,33 @@ An admin changing a user's email through `PUT /users/:id` clears
 | PATCH | `/:id/descriptive` | `teacher(subject)`, `admin` | `descriptive_grade`* (`A`-`E` or `null`) | `grade` | same `403`/`404` split |
 | PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split; already that value → `200` "Grade is already locked/unlocked. Nothing was changed.", no log entry (2026-09-15) |
 | DELETE | `/:id` | `admin` only | — | message only | unscoped; `403` when locked (`This grade is locked and cannot be deleted.`); `404` when missing; `grade_components` cascade |
+
+**`term_averages` on the report card (DV3, 2026-09-20).** One average per
+term across every learning area at the student's grade level — the general
+average computed one level *earlier*, before the three terms collapse into a
+Final Grade.
+
+```json
+"term_averages": { "1": 87.5, "2": null, "3": null }
+```
+
+- **The same NULL-until-complete rule, for the third time in the chain.** A
+  term's average is `null` unless **every** subject has that term recorded,
+  exactly as `final_grade` needs all three terms and `general_average` needs
+  every final grade. Never a running average of whatever exists so far.
+- **All three keys are always present, and they are STRINGS** — see the
+  gotcha above. Distinct from a subject's `terms`, where a missing entry is
+  `null` because the grade row does not exist.
+- **Descriptive mode returns three nulls**, for the same reason
+  `general_average` is null there: an average of letters is not a number.
+- **No descriptor.** The band words (Advancing, Benchmarking…) belong to
+  values the school's own report card prints; a per-term average across
+  subjects is ours, and attaching a band to it would be a verdict the system
+  formed rather than a restatement of a printed number.
+- **Why it exists:** the parent report card prints a general-average row per
+  term, and the client is not allowed to compute a grade. Without it that row
+  could only ever carry the final figure, which is `null` for most of the
+  school year.
 
 ### Grading modes (1) — `/api/grading-modes`
 
