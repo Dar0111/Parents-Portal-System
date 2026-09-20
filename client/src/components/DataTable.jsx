@@ -124,8 +124,11 @@ function CardBody({ card, interactive }) {
   );
 }
 
+// `first:rounded-t-xl` so a hovered first card does not paint a square
+// corner over the frame's rounded one — the same job the frame's old
+// `overflow-hidden` used to do.
 const CARD_SHELL =
-  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3 text-left last:border-0';
+  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3 text-left first:rounded-t-xl last:border-0';
 
 function Card({ card }) {
   // A link wins over a handler when a page supplies both: a real href is
@@ -234,7 +237,22 @@ export default function DataTable({
     setLocalSort((current) => nextSort(current, column));
   }
 
-  const frame = `overflow-hidden rounded-xl border border-edge bg-surface ${className}`;
+  // NO `overflow-hidden` HERE, AND THAT IS THE STICKY HEADER'S WHOLE STORY.
+  //
+  // This frame carried `overflow-hidden` to clip the table's square corners
+  // to its own rounded ones. But ANY ancestor whose overflow is not
+  // `visible` — hidden included, even though nothing can scroll it — becomes
+  // the nearest scrollport, and a `position: sticky` descendant resolves its
+  // `top` against THAT box instead of the viewport. So `top: var(--header-h)`
+  // offset the header 61px DOWN INSIDE THE CARD: an empty band above the
+  // table and the header sitting on top of row 1, on every DataTable page
+  // including the sixteen this dispatch never touched. Found in browser
+  // review 2026-09-20.
+  //
+  // The corners are clipped by rounding the pieces that actually paint
+  // instead — the outer header cells and the pager — which costs three
+  // classes and no containing block. Do not put `overflow-hidden` back.
+  const frame = `rounded-xl border border-edge bg-surface ${className}`;
 
   if (error) {
     return (
@@ -289,7 +307,10 @@ export default function DataTable({
       <div className={`overflow-x-auto sm:overflow-x-visible ${cards ? 'hidden sm:block' : ''}`}>
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-edge bg-surface-subtle">
+            {/* The background lives on the CELLS, not on this row: a sticky
+                <th> paints its own background, and a row background behind
+                it would show through at the rounded corners. */}
+            <tr className="border-b border-edge">
               {columns.map((column) => {
                 const active = sort?.key === column.key;
                 return (
@@ -307,7 +328,17 @@ export default function DataTable({
                     // bg-surface-subtle below is required, not decorative: a
                     // transparent sticky header lets rows show through it.
                     style={{ top: 'var(--header-h)', ...(column.width ? { width: column.width } : null) }}
-                    className={`sticky z-10 bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body ${
+                    // `sm:sticky`, NOT `sticky`. Below `sm` the wrapper above
+                    // is still `overflow-x-auto` — it has to be, for the
+                    // sixteen pages that have no card layout yet — so it is
+                    // a scrollport there and a sticky header would be offset
+                    // inside it exactly as it was inside the frame. Static
+                    // below `sm` is the honest answer: a phone scrolls the
+                    // page, and those pages already scroll sideways.
+                    //
+                    // first/last rounding replaces the frame's old
+                    // `overflow-hidden`; see the note on `frame`.
+                    className={`sm:sticky z-10 bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl ${
                       ALIGN[column.align] || ALIGN.left
                     }`}
                   >
@@ -359,7 +390,7 @@ export default function DataTable({
 
       {paged && (
         <div
-          className="flex flex-wrap items-center justify-between gap-3 border-t border-edge bg-surface-subtle px-4 py-2 text-xs text-fg-body"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-edge bg-surface-subtle px-4 py-2 text-xs text-fg-body"
           data-testid="datatable-pager"
         >
           <span>
