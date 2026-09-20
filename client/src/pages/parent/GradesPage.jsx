@@ -1,17 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
-import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
-import GradeValue, { GradeLegend } from '../../format/grade';
+import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
+import ReportCard from './ReportCard';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Parent report card — READ ONLY, and the first feature page to consume
 // GradeValue (convention 3). Every absence below is deliberate.
+//
+// DV3 (2026-09-20) rebuilt the document itself into `ReportCard.jsx` — the
+// printed order, the in-table general-average row, the descriptor legend and
+// the phone's term view all live there, and this file is now the request
+// layer plus the breakdown modal. The reasoning for leaving DataTable is in
+// that file's header; what did NOT change is everything below, which is why
+// it is still written down here.
 //
 // NO WRITES OF ANY KIND. All seven write endpoints on /api/grades are
 // authorize('teacher','admin') or authorize('admin'), so a parent never
@@ -44,6 +51,17 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // half of a live credential. Nothing puts it on screen, in the URL, or in an
 // error string — and the route is /parent/grades with no :id at all, because a
 // parent has exactly one child.
+//
+// TWO MORE READS, BOTH DELIBERATELY NON-BLOCKING (DV3). The school name comes
+// from GET /api/settings (`authenticate` only — every role may read the
+// allow-listed keys) rather than a second hardcoded copy of the string on
+// Login.jsx, which has to hardcode it because it runs before there is a token.
+// The adviser's name comes from GET /api/sections?grade_level=…, matched on
+// the section NAME and school year, because the report card payload has no
+// adviser in it. NEITHER failure may take the card down: each has its own
+// state and renders as absent, because a report card without a school name is
+// still a report card, and an ErrorAlert about /settings over a page of real
+// grades would be a lie about what failed.
 //
 // NO FILTERS. student_id is fixed (naming another child is 403 — a control
 // whose only other value is a refusal is not a filter); subject_id and term
@@ -80,20 +98,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // is handled outside GradeValue. This page keeps only its own wrapper below.
 
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
-
-function TermCell({ entry, mode, onOpen }) {
-  const inner = <TermValue entry={entry} mode={mode} />;
-  if (!entry?.grade_id || !onOpen) return inner;
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(entry)}
-      className="-mx-1 rounded px-1 text-right hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
-    >
-      {inner}
-    </button>
-  );
-}
 
 function ScorePair({ score, max }) {
   if (score == null && max == null) {
@@ -253,6 +257,13 @@ export default function ParentGradesPage() {
   const [detailError, setDetailError] = useState(null);
   const detailSeq = useRef(0);
 
+  // Their own state, never merged into `report` — §5b's rule one level out:
+  // these describe what came back from two OTHER endpoints, and folding them
+  // into the report object would make a failed settings read look like a
+  // property of the grades payload.
+  const [schoolName, setSchoolName] = useState(null);
+  const [adviser, setAdviser] = useState(null);
+
   const studentId = user?.student_id ?? null;
 
   // UNLIKE the parent content pages, this one SKIPS the request when the
@@ -308,6 +319,58 @@ export default function ParentGradesPage() {
     load();
   }, [load]);
 
+  // Swallowed on purpose, and this is the one place in the client that does
+  // it: there is no user action to retry and nothing the parent could do
+  // about it, so the card renders without the school's name rather than
+  // sending someone to the office over a heading.
+  useEffect(() => {
+    let live = true;
+    api
+      .get('/settings', { unwrap: 'settings' })
+      .then((settings) => {
+        if (live) setSchoolName(settings?.school_name ?? null);
+      })
+      .catch(() => {
+        if (live) setSchoolName(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // Depends on the report, because the grade level and the section name only
+  // arrive with it. Matched on BOTH name and school year: `sections` is keyed
+  // by school_year, so a second year would otherwise produce two "Malikhain"
+  // rows and this would silently take the first.
+  const gradeLevel = report?.student?.grade_level ?? null;
+  const sectionName = report?.student?.section ?? null;
+  const schoolYear = report?.school_year ?? null;
+
+  // No synchronous setState in the no-report branch: it would be a second
+  // render for nothing, and a stale adviser is unreachable anyway — the info
+  // row that carries it only renders when `report.student` exists, and a
+  // parent has exactly one child, so the name can never move to another
+  // learner. The only writer is the fetch below.
+  useEffect(() => {
+    if (gradeLevel == null || !sectionName) return undefined;
+    let live = true;
+    api
+      .get(`/sections?grade_level=${gradeLevel}`, { unwrap: 'sections' })
+      .then((sections) => {
+        if (!live) return;
+        const match = sections.find(
+          (section) => section.name === sectionName && (!schoolYear || section.school_year === schoolYear)
+        );
+        setAdviser(match?.adviser_name ?? null);
+      })
+      .catch(() => {
+        if (live) setAdviser(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [gradeLevel, sectionName, schoolYear]);
+
   const openTerm = useCallback(async (entry, subjectName, term) => {
     if (!entry?.grade_id) return;
     const seq = ++detailSeq.current;
@@ -345,7 +408,6 @@ export default function ParentGradesPage() {
 
   const student = report?.student ?? null;
   const mode = report?.grading_mode ?? 'numerical';
-  const subjects = report?.subjects ?? [];
 
   // Empty-state copy derived from the cause that produced it (convention 5f),
   // and the finding here is that the USUAL branch is structurally unreachable:
@@ -382,138 +444,29 @@ export default function ParentGradesPage() {
             "The school office sets up the subject list for each grade level. Your child's grades appear here once it exists.",
         };
 
-  const columns = useMemo(
-    () => [
-      { key: 'subject_name', header: 'Subject', sortable: true },
-      {
-        key: 'term1',
-        header: 'Term 1',
-        align: 'right',
-        render: (row) => (
-          <TermCell
-            entry={row.terms[1]}
-            mode={mode}
-            onOpen={(entry) => openTerm(entry, row.subject_name, 1)}
-          />
-        ),
-      },
-      {
-        key: 'term2',
-        header: 'Term 2',
-        align: 'right',
-        render: (row) => (
-          <TermCell
-            entry={row.terms[2]}
-            mode={mode}
-            onOpen={(entry) => openTerm(entry, row.subject_name, 2)}
-          />
-        ),
-      },
-      {
-        key: 'term3',
-        header: 'Term 3',
-        align: 'right',
-        render: (row) => (
-          <TermCell
-            entry={row.terms[3]}
-            mode={mode}
-            onOpen={(entry) => openTerm(entry, row.subject_name, 3)}
-          />
-        ),
-      },
-      {
-        key: 'final_grade',
-        header: 'Final Grade',
-        align: 'right',
-        // Subject and Final Grade are the only sortable columns. "Sort by
-        // Term 2" is not a question a parent has, and three more sort
-        // affordances on an eight-row table is clutter — the inconsistency is
-        // deliberate, not an oversight.
-        //
-        // sortValue reads row.final_grade so DataTable's nulls-last rule
-        // actually runs on the real value rather than on rendered markup.
-        // Worth knowing: nulls-FIRST-on-descending was a real bug in that
-        // comparator, and sorting Final Grade descending to find best marks is
-        // the exact case it broke.
-        sortable: true,
-        sortValue: (row) => row.final_grade,
-        render: (row) => (
-          <div className="whitespace-nowrap">
-            <GradeValue value={row.final_grade} mode={mode} />
-            {row.final_grade_descriptor ? (
-              <div className="text-xs text-fg-muted">{row.final_grade_descriptor.descriptor}</div>
-            ) : null}
-          </div>
-        ),
-      },
-    ],
-    [mode, openTerm]
-  );
-
+  // THE SORT CONTROLS ARE GONE, and that is the DV3 decision, not an
+  // oversight. This page used to sort on Subject and Final Grade. A report
+  // card is read beside the paper one, so its order is the school's printed
+  // order and re-ordering it produces a different document, not a filtered
+  // one. `final_grade_descriptor` went with them (D2): the band word now
+  // appears once, on the general average, with the legend carrying the scale.
   return (
     <div className="space-y-4">
-      {/* Header from the report payload only — see the file header on why not
-          from useAuth(). A name is not an identifier; no LRN, no login_id, and
-          the numeric student.id is not shown either. */}
-      {student ? (
-        <div>
-          <h2 className="text-base font-semibold text-fg">
-            {student.first_name} {student.last_name}
-          </h2>
-          <p className="text-xs text-fg-muted">
-            Grade {student.grade_level} · {student.section} · School year {report.school_year}
-          </p>
-        </div>
-      ) : null}
-
-      <div>
-        <DataTable
-          columns={columns}
-          rows={subjects}
-          keyField="subject_id"
-          loading={loading}
-          error={error}
-          onRetry={load}
-          emptyIcon={empty.icon}
-          emptyTitle={empty.title}
-          emptyMessage={empty.message}
-        />
-
-        {/* Both flags come from the API's own grading_mode, never from inspecting
-            a null. A numerical report card can only ever show Pending. A
-            descriptive one can show both: an unrecorded letter is Pending,
-            while Final Grade and General Average are genuinely N/A, since
-            computeFinalGrade and computeGeneralAverage short-circuit on
-            mode !== 'numerical' before looking at any data. */}
-        {subjects.length ? (
-          <GradeLegend pending notApplicable={mode === 'descriptive'} />
-        ) : null}
-      </div>
-
-      {/* General Average appears ONCE, outside the table — not as a row and
-          not as a column. The reason is mechanical rather than aesthetic:
-          DataTable sorts every row it is given, so a "General Average" row
-          would sort alongside the subjects it summarises, landing under G
-          alphabetically or drifting into the middle of a grade sort.
-          It is null until EVERY subject has a Final Grade — deliberately not a
-          running average, the same rule as Final Grade and Initial Grade. A
-          partial average determines promotion and prints on the SF9, so a
-          parent seeing one in October would reasonably treat it as settled. */}
-      {report && subjects.length ? (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-edge bg-surface px-4 py-3">
-          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-            General Average
-          </span>
-          <span className="text-base">
-            <GradeValue value={report.general_average} mode={mode} />
-          </span>
-          {report.general_average_descriptor ? (
-            <span className="text-xs text-fg-muted">
-              {report.general_average_descriptor.descriptor}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
+      {/* Everything on the card comes from the report payload — see the file
+          header on why not from useAuth(). A name is not an identifier; no
+          LRN, no login_id, and the numeric student.id is not shown either. */}
+      <ReportCard
+        report={report}
+        schoolName={schoolName}
+        adviser={adviser}
+        loading={loading}
+        error={error}
+        onRetry={load}
+        onOpenTerm={openTerm}
+        emptyIcon={empty.icon}
+        emptyTitle={empty.title}
+        emptyMessage={empty.message}
+      />
 
       <Modal
         open={Boolean(selected)}

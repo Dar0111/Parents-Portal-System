@@ -54,6 +54,10 @@ function contrast(theme, fg, bg) {
 // [fg, bg, kind, where]  kind: text (4.5) | ui (3.0) | disabled | boundary (reported only)
 const PAIRS = [
   ['fg', 'surface', 'text', 'body text on cards'], ['fg', 'page', 'text', 'headings on the page'], ['fg', 'surface-muted', 'text', 'active nav / settings tab'], ['fg', 'surface-subtle', 'text', 'dl values in bands'],
+  // DV3: the report card's general-average row is body text on the brand
+  // tint. `brand` on `brand-soft` was already checked (the active nav item);
+  // this is the other foreground that now sits on it.
+  ['fg', 'brand-soft', 'text', 'the report card general-average row'],
   ['fg-secondary', 'surface', 'text', 'form labels'], ['fg-secondary', 'surface-subtle', 'text', 'labels in bands'],
   ['fg-body', 'surface', 'text', 'secondary buttons, copy'], ['fg-body', 'page', 'text', 'nav inactive'], ['fg-body', 'surface-subtle', 'text', 'DataTable header and pager'], ['fg-body', 'surface-muted', 'text', 'secondary button hover'],
   ['fg-muted', 'surface', 'text', 'muted copy, placeholders, dt labels'], ['fg-muted', 'page', 'text', 'muted copy on the page'], ['fg-muted', 'surface-subtle', 'text', 'muted copy in bands'], ['fg-muted', 'surface-muted', 'text', 'count chip on the parent announcement row'],

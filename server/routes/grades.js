@@ -391,6 +391,48 @@ function computeGeneralAverage(subjectReport, mode) {
   return { general_average: ga, general_average_descriptor: gc.qualitativeDescriptor(ga) };
 }
 
+// One average per term across every subject at this grade level — the
+// general average computed one level EARLIER, before the three terms are
+// collapsed into a Final Grade. Added 2026-09-20 (DV3) because the parent
+// report card prints a general-average row per term and the client is not
+// allowed to compute a grade; without this the row could only ever carry
+// the final figure, which is null for most of the school year.
+//
+// THE SAME NULL-UNTIL-COMPLETE RULE, for the third time: a term's average
+// is null unless EVERY subject has that term recorded. A partial figure
+// reads as settled, and this one would be read as "the average so far",
+// which is exactly the number DepEd does not define.
+//
+// Deliberately NOT a descriptor. The band words belong to a value the
+// school's own report card prints; a per-term class-wide average is ours,
+// and attaching Advancing/Developing to it would be a verdict the system
+// formed rather than a restatement of a printed number.
+//
+// Descriptive mode returns three nulls for the same reason GA does — an
+// average of letters is not a number, and grading_mode already tells a
+// caller which kind of null this is.
+//
+// NOTE the shape: keys '1','2','3' always present, so a caller can render
+// three cells without checking for the key. Distinct from `terms`, where a
+// missing entry is null because the subject has no grade ROW at all.
+function computeTermAverages(subjectReport, mode) {
+  const empty = { 1: null, 2: null, 3: null };
+  if (mode !== 'numerical' || subjectReport.length === 0) {
+    return empty;
+  }
+
+  const averages = {};
+  for (const term of [1, 2, 3]) {
+    const values = subjectReport.map((subject) => subject.terms[term]?.term_grade ?? null);
+    if (values.some((value) => value === null || value === undefined)) {
+      averages[term] = null;
+      continue;
+    }
+    averages[term] = gc.roundTo2(values.reduce((sum, value) => sum + value, 0) / values.length);
+  }
+  return averages;
+}
+
 // GET /api/grades — list, scoped by role, never includes grade_components
 // (see GET /:id for that — a list response returning full raw-score
 // history on every row would bloat a payload whose purpose is FINDING a
@@ -572,8 +614,9 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
 // rows at all yet — a missing subject and an unencoded one are different
 // things, and this response must be able to tell a caller apart which is
 // which), each with per-term data, a computed Final Grade (or null, see
-// computeFinalGrade), and a top-level General Average (or null, see
-// computeGeneralAverage). grading_mode appears at both the student level
+// computeFinalGrade), a top-level General Average (or null, see
+// computeGeneralAverage) and, since DV3, one average PER TERM (see
+// computeTermAverages). grading_mode appears at both the student level
 // and would be identical per-subject (mode is keyed by grade_level+
 // school_year, never per-subject, so no student ever mixes modes across
 // subjects) — this is how a caller distinguishes "null, still in
@@ -673,6 +716,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     });
 
     const { general_average, general_average_descriptor } = computeGeneralAverage(subjectReport, mode);
+    const term_averages = computeTermAverages(subjectReport, mode);
 
     return res.json({
       success: true,
@@ -686,6 +730,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
       school_year: schoolYear,
       grading_mode: mode,
       subjects: subjectReport,
+      term_averages,
       general_average,
       general_average_descriptor,
     });

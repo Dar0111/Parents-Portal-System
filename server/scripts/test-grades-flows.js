@@ -1267,6 +1267,18 @@ async function run() {
       grade1ReportCard.data?.general_average === null,
       'Grade 1 general_average is null — GA does not apply to descriptive mode'
     );
+    // term_averages (DV3): three keys ALWAYS present so a caller can render
+    // three cells without checking, and all three null in descriptive mode
+    // for the same reason GA is — an average of letters is not a number.
+    const g1TermAverages = grade1ReportCard.data?.term_averages;
+    assert(
+      g1TermAverages !== undefined &&
+        g1TermAverages !== null &&
+        g1TermAverages[1] === null &&
+        g1TermAverages[2] === null &&
+        g1TermAverages[3] === null,
+      `Grade 1 term_averages is present with all three terms null (got ${JSON.stringify(g1TermAverages)})`
+    );
 
     // Seeded Grade 1 card (Nino / 1090001 / Mabait). READ-ONLY.
     // The throwaway Matipid student above is still the write target for
@@ -1400,6 +1412,18 @@ async function run() {
       oneTermReport.data?.general_average === null,
       'General Average is null while any subject (this one) still lacks a Final Grade'
     );
+    // term_averages (DV3) rides on this same progression, and it is the
+    // point of the field: Term 1 is COMPLETE across all five subjects here
+    // while the General Average below is still null, so the report card can
+    // print a real number months before the final one exists.
+    assert(
+      num(oneTermReport.data?.term_averages?.[1]) === 83.2,
+      `Term 1 average populates once every subject has term 1: 83.20 = (84.00x4 + 80.00)/5 by hand (got ${oneTermReport.data?.term_averages?.[1]})`
+    );
+    assert(
+      oneTermReport.data?.term_averages?.[2] === null && oneTermReport.data?.term_averages?.[3] === null,
+      'Terms 2 and 3 averages are null while the fifth subject has neither — null-until-complete, never a running average'
+    );
 
     const [term2Insert] = await withDb((conn) =>
       conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, 85)', [
@@ -1417,6 +1441,10 @@ async function run() {
       `Final Grade is still null with 2 of 3 terms present (got ${twoTermEntry?.final_grade})`
     );
     assert(twoTermReport.data?.general_average === null, 'General Average still null with 2 of 3 terms on the last subject');
+    assert(
+      num(twoTermReport.data?.term_averages?.[2]) === 89.0 && twoTermReport.data?.term_averages?.[3] === null,
+      `Term 2 average populates independently of term 3: 89.00 = (90.00x4 + 85.00)/5 by hand (got ${twoTermReport.data?.term_averages?.[2]})`
+    );
 
     const [term3Insert] = await withDb((conn) =>
       conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 3, ?, 90)', [
@@ -1436,6 +1464,27 @@ async function run() {
     assert(
       num(completeReport.data?.general_average) === 86.6,
       `General Average populates once every subject has a Final Grade: 86.60 = (87.00x4 + 85.00)/5 by hand (got ${completeReport.data?.general_average})`
+    );
+    assert(
+      num(completeReport.data?.term_averages?.[3]) === 87.6,
+      `Term 3 average populates last: 87.60 = (87.00x4 + 90.00)/5 by hand (got ${completeReport.data?.term_averages?.[3]})`
+    );
+    // Cross-check, not a restatement: the three term averages and the
+    // General Average are computed down two DIFFERENT paths — GA averages
+    // the per-subject Final Grades, term_averages averages across subjects
+    // within a term — and on a complete card they must agree. Computed by
+    // hand: (83.20 + 89.00 + 87.60)/3 = 86.60, the GA asserted above.
+    const termAvgMean = num(
+      (
+        (num(completeReport.data?.term_averages?.[1]) +
+          num(completeReport.data?.term_averages?.[2]) +
+          num(completeReport.data?.term_averages?.[3])) /
+        3
+      ).toFixed(2)
+    );
+    assert(
+      termAvgMean === num(completeReport.data?.general_average),
+      `The mean of the three term averages equals the General Average on a complete card (got ${termAvgMean} vs ${completeReport.data?.general_average})`
     );
 
     // --- DELETE /api/grades/:id (admin-only hard delete) ---
