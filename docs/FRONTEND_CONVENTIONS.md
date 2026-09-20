@@ -297,6 +297,39 @@ inputs write to. In `AttendancePage.jsx` the fix was to split one `marks`
 object into `marks` (selection) and `recorded` (database), with `loadRoster()`
 the only writer of the second. Comments at both declarations say so.
 
+#### 5a-iv. `format/date.js` is the ONLY home for date maths
+
+**Frozen 2026-09-20 (DV2).** A page may format a date for display; it may
+not compute one. `monthBounds` had lived in `parent/AttendancePage.jsx`
+since 2026-09-09 and moved here the moment a second caller appeared, along
+with `monthGrid`, `addMonths`, `daysInMonth`, `monthName`, `longDate` and
+`weekdayName`. This is the file whose entire purpose is "local dates, never
+UTC"; a second implementation anywhere else is how the bug comes back.
+
+**Three rules, and the third is the one that gets forgotten:**
+
+1. **IDENTITY IS A `YYYY-MM-DD` STRING, compared with `===`.** `config/db.js`
+   sets `dateStrings: ['DATE']`, so a DATE column arrives from the API as
+   exactly that text. Nothing is parsed, so there is no instant to shift and
+   no timezone to get wrong. The attendance calendar matches a record to a
+   day, and an excuse letter to an absence, by string equality — never by
+   comparing two `Date` objects.
+2. **A `Date` IS FOR PLACEMENT ONLY** — which weekday column a day falls in,
+   how many days a month has — and always through the **local constructor**
+   `new Date(y, monthIndex, d)`.
+3. **Never `new Date(someString)`, and never `toISOString()`.**
+   `new Date("2026-09-14")` parses as UTC midnight, which is 14 September
+   08:00 in Manila but **13 September** anywhere west of Greenwich — the same
+   class of bug as `toISOString`, and less obvious because it looks like
+   ordinary parsing. `toISOString` has already cost this project two
+   server-side bugs (a DATE column round-tripping a day backwards at UTC+8,
+   and own-day attendance rejected as "in the future" for the first eight
+   hours of every day).
+
+The SSR proof for any date-bearing screen should include a **leap February**,
+a **month starting on a weekend**, and a **December → January wrap** — three
+cases that arithmetic gets wrong in three different ways.
+
 ### 5c. The LRN is half a credential, not an ordinary identifier
 
 **A parent's `login_id` IS their child's LRN** (locked decision: parents log in

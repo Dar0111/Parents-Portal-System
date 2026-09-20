@@ -74,6 +74,46 @@ version still exist, and all 23 `##` headings are present. Two mirror gaps
 between CLAUDE.md and `docs/FRONTEND_CONVENTIONS.md` were found while
 measuring and closed. **144,967 → 108,102 bytes.**
 
+**Data views redesign, DV2 — DONE 2026-09-20 (client + docs).** Parent →
+Attendance is now a month calendar instead of a list of dates.
+
+**What a parent sees.** The month, with arrows to step back and forward; a
+grid of school days where each recorded day carries its status; and beside
+it — above it on a phone — the one number they came for: how many of the
+recorded days their child was present for. Days nobody marked are drawn as
+empty dashed squares, because a school day with no record is **left out of
+the count, not treated as an absence**. An absent day that has an excuse
+letter says so, with the letter's status. Below all of it, a school-year
+table in the shape of the SF9's attendance record.
+
+**The percentage is gone.** The page used to show a figure like 91.3%;
+it now shows "21 of 23" and nothing else. A percentage invites comparison
+with the SF9 number a parent already knows, and the two are not the same
+thing — ours counts only the days that were actually recorded. Removing it
+also closed a copy defect found during the dashboards check: the page
+explained how "the percentage" was calculated even on accounts that had no
+percentage on screen at all.
+
+**Two decisions worth recording.** The school-year table lists the months
+that actually have records, earliest to latest, rather than a fixed June to
+April — the system has no term-start date anywhere, so a fixed range would
+have been a guess printed as fact. And a month with no records shows a dash,
+never a zero: nothing recorded is not the same as nothing attended.
+
+**Something the school needs to decide.** The system accepts attendance on a
+Saturday — nothing in the code prevents it, and it was recorded twice during
+testing. Rather than hide those days, the calendar shows them in a small
+"Also recorded" note beneath the grid and counts them, so the figures always
+add up. Whether that should be possible at all is a question for the school:
+are there Saturday or make-up classes? If yes, this is already right; if no,
+the server should refuse the date.
+
+**Verified in the browser** at desktop, at 390px, at 200% zoom and in both
+themes. That check found five presentation faults — the summary sitting
+below the grid, status pills overflowing their cells when zoomed, a
+truncated excuse-letter line, two copy problems, and a row of zeroes on an
+empty month — all fixed before merge.
+
 **Data views redesign, DV1 — DONE 2026-09-20 (client + docs).** The first
 of five pieces. Every list in the system is drawn by one shared table
 component, and it had been built for a desk: six columns side by side, and a

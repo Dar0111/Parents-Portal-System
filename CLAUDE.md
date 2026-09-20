@@ -432,6 +432,14 @@ concludes.** Adding one requires the school to have said otherwise first.
   formatted dates, and the actions column, whose cluster must keep one row
   or the neighbouring text appears to run into it. Header cells are always
   `nowrap`.
+- **`format/date.js` is the ONLY home for date maths (DV2, 2026-09-20).** A
+  page formats a date; it never computes one. **Identity is a `YYYY-MM-DD`
+  STRING compared with `===`** — `dateStrings: ['DATE']` means nothing is
+  ever parsed, so nothing can shift. A `Date` is for PLACEMENT only
+  (weekday column, days in month) and always via the local constructor
+  `new Date(y, monthIndex, d)`. **Never `new Date(string)`** — it parses as
+  UTC midnight and is a day early west of Greenwich — **and never
+  `toISOString()`**. Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-iv.
 - **`renderCard` — the card layout below `sm`, opt-in per page.** It returns
   **DATA, never JSX**, which is what makes a button-inside-a-link
   unrepresentable: **exactly one interactive element per card**, a real
@@ -1584,10 +1592,17 @@ is the order, not the record.
         dropped** — see §5 and `docs/FRONTEND_CONVENTIONS.md` §5a-i; do not
         reopen it. **Users filter tabs were NOT built:** the Role dropdown
         already does that job, and tabs with counts need a server change.
-  - [ ] **DV2 — monthly Attendance calendar.** Replaces Parent →
-        Attendance. Also owns the 390px Status select on Teacher →
-        Attendance, which is narrow and partly off-screen inside the
-        horizontal scroller, and the Parent → Attendance intro copy below.
+  - [x] **DV2 — monthly Attendance calendar. DONE 2026-09-20.** Parent →
+        Attendance is a month grid with Previous/Next, a summary panel, the
+        "How this is counted" note and a school-year table whose months are
+        DERIVED FROM DATA. `format/date.js` gained the month maths;
+        `pages/parent/AttendanceCalendar.jsx` is the grid. **The percentage
+        is gone — the fraction replaced it**, which closes the carried
+        "percentage copy shown with no percentage on screen" item outright
+        rather than rewording it. **The 390px Status select on Teacher →
+        Attendance did NOT come with it** — that is a teacher ENCODE screen
+        whose row is a form control, a different design problem from a
+        display card; it stays with DV1b.
   - [ ] **DV3 — SF9-style Grades report card.** Replaces Parent → Grades.
   - [ ] **DV4 — dashboards + the dark amber.** In Dark the amber card fill
         reads as rust/brown and edges toward "danger", undoing §12's
@@ -1602,10 +1617,12 @@ is the order, not the record.
         Parent → Grades outright, so converting them to cards first would be
         work thrown away.
 
-  **Carried into DV2, not DV1's to fix:** Parent → Attendance's intro says
-  "The percentage counts Late as present…" **even when no percentage is on
-  screen**, which is every account with zero recorded days — §5i, copy
-  describing something that is not there.
+  **CLOSED by DV2 (2026-09-20):** Parent → Attendance's intro used to say
+  "The percentage counts Late as present…" **even when no percentage was on
+  screen**, which was every account with zero recorded days. The percentage
+  itself is gone — the page shows the fraction — so the copy had nothing
+  left to overstate (§5i). Recorded here rather than deleted so the item is
+  visibly answered.
 
 - [ ] **UI polish — small client items, opened 2026-09-20.** A list, not a
       dispatch: fold each into whichever branch is already touching that
@@ -1625,9 +1642,15 @@ is the order, not the record.
      column is right there. It earns its place on a CARD, where there are no
      columns, so the fix is per-surface rather than deleting it.
   3. **Teacher → Attendance at 390px: the Status select is narrow and partly
-     off-screen** inside the horizontal scroller. **Owned by DV2**, which
-     replaces that row's controls with the calendar's — do not patch the
-     select in isolation first.
+     off-screen** inside the horizontal scroller. **Moved to DV1b** — DV2
+     turned out to own only the PARENT page, and this is a teacher encode
+     screen whose row is a form control, which is a card of a different kind.
+     Do not patch the select in isolation first.
+  4. **Settings → Personalization at 200% zoom squeezes its content into a
+     narrow column** beside the side tabs — one or two words a line. Found
+     during the DV2 check (2026-09-20). The tabs keep their full width while
+     the panel takes what is left, so the fix is in that layout's
+     breakpoints, not in the panel's content.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
@@ -1809,7 +1832,7 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (two)
+### School questions — still open (three)
 
 - **Grade 1 descriptive grading — how is the A–E letter produced?**
   Manual teacher judgment, or computed? Still unanswered. The write
@@ -1827,6 +1850,17 @@ the same way.**
   keys on `students.section_id`. Rewriting the FK without an answer
   would move that authority — the exact write the gate exists to
   refuse. Do not add a transfer endpoint until this is answered.
+
+- **Are there Saturday or make-up classes?** Asked because the code
+  already permits them and nobody decided that it should:
+  `POST /api/attendance/bulk` has **no weekday validation**, so a
+  Saturday is accepted, and two fixtures have recorded one. Parent →
+  Attendance shows such a day in an "Also recorded" strip beneath the
+  Mon–Fri grid and counts it (DV2, 2026-09-20). **If the school holds
+  weekend classes, everything is already right.** If it does not, the
+  answer is a server-side `400`, never a client filter — hiding a row
+  the database holds would make the calendar disagree with its own
+  totals. `docs/KNOWN_ISSUES.md` has the full row.
 
 ### School questions — answered
 
@@ -2071,6 +2105,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-20 | DV2 docs: BUILD ORDER ticks DV2 and marks the "percentage copy" item CLOSED (the percentage is gone); the 390px Status select moves to DV1b. `docs/FRONTEND_CONVENTIONS.md` §5a-iv — **`format/date.js` is the only home for date maths**: identity is a `YYYY-MM-DD` string, a `Date` is for placement only, never `new Date(string)` or `toISOString()`. New KNOWN_ISSUES row and a **third OPEN QUESTION**: `POST /attendance/bulk` accepts weekend dates — are there Saturday classes? UI polish gains Settings → Personalization at 200% zoom. |
+| 2026-09-20 | DV2 (client, `feat/dv2-attendance`): Parent → Attendance is a month calendar — `format/date.js` month maths, `AttendanceCalendar.jsx`, a summary panel, and a school-year table whose months are derived from data. **The percentage is gone; the fraction replaced it** and `presentOnRecordedDays` was deleted. A weekend record shows in an "Also recorded" strip and still counts. Browser check found five things, all fixed (summary position, pills overflowing at 200% zoom → word gated at `xl`, truncated excuse line → icon, copy, zero pills). oxlint 44, SSR 60/60. |
 | 2026-09-20 | DV1 docs: `docs/FRONTEND_CONVENTIONS.md` §5 gains §5a-i (**the sticky table header is a CLOSED QUESTION**, with all three failure modes named so nobody retries it), §5a-ii (`nowrap`; never wrap an identifier) and §5a-iii (`renderCard`); short form in §5 here. BUILD ORDER: Data views split into DV1 (done) → DV2 → DV3 → DV4 → **DV1b last**, since DV2/DV3 replace the two parent pages outright. New UI polish list. Working agreement: never `git checkout --` on uncommitted work. |
 | 2026-09-20 | DV1 (client, `feat/dv1-datatable`): DataTable restyle, `Avatar`/`PersonCell`, the `renderCard` card layout below `sm` (data not JSX; one interactive element per card), the `nowrap` column option, masked parent login ids in Admin → Users, six pages converted. **The sticky header broke three different ways across three browser checks and was dropped** — it cannot coexist with the in-table horizontal scroller. oxlint 44, SSR 58/58, all 22 consumers audited. |
 | 2026-09-20 | Teacher attendance banner verified and DB2's one open check closed: Darryl moved the Windows clock to Monday 2026-09-21 09:00 (PH and UTC both Monday), saw amber "Not recorded" then green "Recorded — 1 present, 0 absent", and restored the clock. **This overrides his own "do not fake the date" line in DB2's entry — his call, recorded, not quietly done.** No code changed; the banner was unseen, not broken. Cleanup removed the one attendance row; the three `activity_logs` rows dated 2026-09-21 stay. |
