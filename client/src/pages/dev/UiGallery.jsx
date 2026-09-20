@@ -15,6 +15,7 @@ import GradeValue, { GradeLegend } from '../../format/grade';
 import { VerifiedMark } from '../settings/AccountInfoSection';
 import Card, { CardEmpty, Stat } from '../dashboards/Card';
 import { PersonCell } from '../../components/Avatar';
+import AttendanceCalendar from '../parent/AttendanceCalendar';
 import { NavItem } from '../../layout/Shell';
 
 // Dev-only component gallery (routed in App.jsx behind import.meta.env.DEV).
@@ -545,6 +546,45 @@ export default function UiGallery() {
               </span>
             </span>
             <span className="text-sm text-fg-muted">the bell itself, with a count chip</span>
+          </div>
+        </Section>
+
+        <Section
+          title="Attendance calendar (DV2)"
+          note="Colour is never the only carrier: a recorded day is a StatusBadge, which is colour AND text. Below sm the badge is a single letter with the full word in the accessible name, and the legend maps them. An unrecorded weekday is dashed and says 'not recorded' — never Absent. A weekend record cannot be a grid cell, so it appears in 'Also recorded' and still counts."
+        >
+          <div className="rounded-xl border border-edge bg-surface p-4">
+            <AttendanceCalendar
+              year={2026}
+              month={9}
+              monthLabel="September 2026"
+              today="2026-09-14"
+              selected={null}
+              onSelect={() => {}}
+              records={[
+                { id: 1, date: '2026-09-01', status: 'Present' },
+                { id: 2, date: '2026-09-02', status: 'Late' },
+                { id: 3, date: '2026-09-03', status: 'Absent' },
+                { id: 4, date: '2026-09-04', status: 'Excused' },
+                { id: 5, date: '2026-09-19', status: 'Present' },
+              ]}
+              letters={[
+                { id: 7, absence_date: '2026-09-03', status: 'Pending', created_at: '2026-09-03T01:00:00Z' },
+              ]}
+            />
+          </div>
+          <p className="mt-3 text-sm text-fg-muted">
+            A month with nothing recorded — every weekday dashed, no strip, no badges:
+          </p>
+          <div className="mt-2 rounded-xl border border-edge bg-surface p-4">
+            <AttendanceCalendar
+              year={2026}
+              month={11}
+              monthLabel="November 2026"
+              today={null}
+              records={[]}
+              letters={[]}
+            />
           </div>
         </Section>
 
