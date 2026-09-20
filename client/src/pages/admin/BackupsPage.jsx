@@ -290,9 +290,9 @@ export default function AdminBackupsPage() {
           <span className="text-fg-secondary">Manual backup</span>
         ),
     },
-    { key: 'created_at', header: 'Created', sortable: true, render: (row) => formatWhen(row.created_at) },
+    { key: 'created_at', header: 'Created', sortable: true, nowrap: true, render: (row) => formatWhen(row.created_at) },
     { key: 'created_by_name', header: 'Created by', render: (row) => row.created_by_name || '—' },
-    { key: 'file_size', header: 'Size', align: 'right', render: (row) => formatSize(row.file_size) },
+    { key: 'file_size', header: 'Size', align: 'right', nowrap: true, render: (row) => formatSize(row.file_size) },
     {
       key: 'actions',
       header: '',
@@ -364,8 +364,8 @@ export default function AdminBackupsPage() {
       header: 'File',
       render: (row) => <span className="font-mono text-xs text-fg-secondary">{row.filename}</span>,
     },
-    { key: 'file_size', header: 'Size', align: 'right', render: (row) => formatSize(row.file_size) },
-    { key: 'mtime', header: 'Modified', render: (row) => formatWhen(row.mtime) },
+    { key: 'file_size', header: 'Size', align: 'right', nowrap: true, render: (row) => formatSize(row.file_size) },
+    { key: 'mtime', header: 'Modified', nowrap: true, render: (row) => formatWhen(row.mtime) },
   ];
 
   const restoreDate = restoring ? formatWhen(restoring.created_at) : '';

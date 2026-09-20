@@ -542,6 +542,7 @@ export default function UsersPage() {
       {
         key: 'login_id',
         header: 'Login ID',
+        nowrap: true,
         // Every row here is a parent, so every one of these is an LRN.
         render: (row) => <span className="font-mono">{maskLoginId({ ...row, role: 'parent' })}</span>,
       },
@@ -554,6 +555,7 @@ export default function UsersPage() {
         key: 'action',
         header: '',
         align: 'right',
+        nowrap: true,
         render: (row) => (
           // The pending row's ONE action, amber rather than primary: it is
           // the only thing to do here, and the queue is the one place on
@@ -583,6 +585,7 @@ export default function UsersPage() {
         key: 'login_id',
         header: 'Login ID',
         sortable: true,
+        nowrap: true,
         render: (row) => <span className="font-mono">{maskLoginId(row)}</span>,
       },
       {
@@ -605,6 +608,10 @@ export default function UsersPage() {
         key: 'action',
         header: '',
         align: 'right',
+        // nowrap so the three icon buttons keep ONE row and this column
+        // claims its own width. Without it they wrap under each other and
+        // the email beside them runs into the cluster (browser review).
+        nowrap: true,
         render: (row) => {
           const busy = statusSavingId === row.id;
           const canToggle = row.status === 'active' || row.status === 'inactive';

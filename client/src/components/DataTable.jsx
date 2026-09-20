@@ -297,60 +297,36 @@ export default function DataTable({
       {cards ? <div className="sm:hidden">{cards.map(({ key, card }) => <Card key={key} card={card} />)}</div> : null}
 
       {/* ---------------------------------------------------------------
-          A STICKY HEADER AND A HORIZONTAL SCROLLER CANNOT COEXIST, so the
-          table is made UNABLE TO OVERFLOW instead of being allowed to and
-          then contained. (Browser review 2026-09-20, second round.)
+          THE HORIZONTAL SCROLLER IS BACK AT EVERY WIDTH, AND THERE IS NO
+          STICKY HEADER. Darryl's decision, 2026-09-20, after three fixes
+          in a row each traded one breakage for another:
 
-          The conflict is exact: sticky resolves against the nearest
-          scrollport, and containing horizontal overflow requires an
-          ancestor to BE one. Releasing the scroller at `sm` fixed sticky
-          and created a worse bug — at 200% zoom `parent/grades` was wider
-          than <main>, and with nothing to contain it THE WHOLE PAGE
-          scrolled sideways, cutting off Final Grade. A page body that
-          scrolls sideways is the failure WCAG 1.4.10 is about, and it
-          would hit tablets, narrow laptops and Large text too.
+            1. sticky + the frame's `overflow-hidden` → the header was
+               offset 61px INSIDE the card, covering row 1 everywhere.
+            2. released the scroller at `sm` → at 200% zoom the table was
+               wider than <main> and THE PAGE scrolled sideways.
+            3. `wrap-anywhere` to make the table unable to overflow → it
+               shrinks min-content by breaking words mid-letter, so a
+               squeezed table read "S/U/BJ/E/C/T", "Mathemat/ics", and —
+               worst — split an LRN across four lines.
 
-          Rejected, with reasons:
-          - Give the frame its own max-height + overflow-auto and stick at
-            top:0 inside it. Works, but it is a nested scroll area inside a
-            paginated 50-row table, and §9 says the document is the only
-            scroller precisely so two scrollbars never fight.
-          - Sticky only at `lg`. Moves the boundary without removing it:
-            Large text at `lg` overflows just the same.
+          The root cause is structural and was never going to yield to a
+          fourth attempt: sticky resolves against the nearest scrollport,
+          and containing horizontal overflow REQUIRES an ancestor to be
+          one. They cannot both be true of the same table.
 
-          What is done instead: every cell is `wrap-anywhere`
-          (`overflow-wrap: anywhere`), which — unlike `break-words` — also
-          shrinks the cell's MIN-CONTENT contribution. An auto-layout table
-          at `w-full` can then always shrink to its container, so it never
-          becomes wider than <main> and there is nothing to contain. No
-          scrollport on the sticky path, no page-level sideways scroll.
+          So the feature is dropped rather than balanced. These lists are
+          paginated at 50 rows; a header that scrolls away after 50 rows
+          costs little, and every alternative cost more — a nested scroll
+          area (against §9, which makes the document the only scroller), a
+          breakpoint that only moves the failure, or mangled text.
 
-          THE GATE IS `lg`, NOT `sm`, AND THE NUMBERS DECIDED IT. Below the
-          gate the scroller stays and the header is static — contained, no
-          sticky, no page scroll. Above it there is provably room, so the
-          scroller is released and sticky works. Width available to the
-          table is viewport − 240px sidebar (w-60, shown from `sm`) − 48px
-          of `sm:p-6`:
-
-            at sm  640 − 288 = 352px
-            at lg 1024 − 288 = 736px
-
-          Worst table is Admin → Users' six columns, whose min-content with
-          `wrap-anywhere` is set by the things that CANNOT wrap — the 38px
-          avatar, a 36px icon button (its row is flex-wrap, so three stack),
-          the status pill — plus 32px of cell padding each: ≈338px, and
-          ≈380px at Large text (root 112.5%).
-
-          352px vs 380px is a table that overflows the moment Large text is
-          on, which is why `sm` was the wrong gate. 736px vs 380px is 1.9×
-          headroom, which holds at Large text and at the zoom levels that
-          keep the viewport at lg or above.
-
-          COST, stated plainly: no sticky header between 640px and 1023px.
-          That is the honest trade — a contained table with a normal header
-          beats a sticky header on a page that scrolls sideways.
+          KEPT from those attempts, because they were right on their own
+          merits: the frame has no `overflow-hidden` (it was only ever
+          there to clip corners, and it made the frame a scrollport), and
+          the corners are clipped by rounding the pieces that paint.
           --------------------------------------------------------------- */}
-      <div className={`overflow-x-auto lg:overflow-x-visible ${cards ? 'hidden sm:block' : ''}`}>
+      <div className={`overflow-x-auto ${cards ? 'hidden sm:block' : ''}`}>
         <table className="w-full border-collapse text-sm">
           <thead>
             {/* The background lives on the CELLS, not on this row: a sticky
@@ -364,27 +340,16 @@ export default function DataTable({
                     key={column.key}
                     scope="col"
                     aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                    // ONE style object. `top` is the app header's height —
-                    // see --header-h in index.css for why and how it is
-                    // derived — and `width` is the caller's optional column
-                    // width, which used to live in a style prop of its own.
-                    // Two `style` props on one element is not an override,
-                    // it is the first one silently disappearing, so the
-                    // column widths would have stopped working.
-                    // bg-surface-subtle below is required, not decorative: a
-                    // transparent sticky header lets rows show through it.
-                    style={{ top: 'var(--header-h)', ...(column.width ? { width: column.width } : null) }}
-                    // `lg:sticky`, NOT `sticky`. Below `lg` the wrapper above
-                    // is still `overflow-x-auto` — it has to be, to contain a
-                    // table too wide for the viewport — so it is
-                    // a scrollport there and a sticky header would be offset
-                    // inside it exactly as it was inside the frame. Static
-                    // below `lg` is the honest answer; see the arithmetic on
-                    // the wrapper above for why the gate is lg and not sm.
+                    style={column.width ? { width: column.width } : undefined}
+                    // NOT sticky, and no `wrap-anywhere` — the note on the
+                    // wrapper above says why both were tried and dropped.
+                    // `whitespace-nowrap` keeps a label like "Grade &
+                    // section" on one line rather than stacking it into a
+                    // column of single words when the table is squeezed.
                     //
                     // first/last rounding replaces the frame's old
                     // `overflow-hidden`; see the note on `frame`.
-                    className={`lg:sticky z-10 wrap-anywhere bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl ${
+                    className={`whitespace-nowrap bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl ${
                       ALIGN[column.align] || ALIGN.left
                     }`}
                   >
@@ -423,10 +388,21 @@ export default function DataTable({
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    // `wrap-anywhere` is load-bearing, not typography: it is
-                    // what lets this table shrink to its container instead
-                    // of widening the page. See the note above the wrapper.
-                    className={`wrap-anywhere px-4 py-3 text-fg-secondary ${ALIGN[column.align] || ALIGN.left}`}
+                    // NO `wrap-anywhere`. Default wrapping breaks at spaces
+                    // only, so a word is never split mid-letter and an LRN,
+                    // a grade or a date — none of which contain a space —
+                    // cannot be broken at all. That is the whole fix for
+                    // "13/56/74/54" and "Mathemat/ics".
+                    //
+                    // `nowrap` on a column is the stronger promise, for
+                    // values that must not break even at a space: a
+                    // formatted date ("Sep 20, 2026, 1:30 AM"), a class
+                    // ("Grade 6 - Malikhain"), or an action cluster whose
+                    // buttons should keep one row and claim their width
+                    // rather than wrap under the text beside them.
+                    className={`px-4 py-3 text-fg-secondary ${column.nowrap ? 'whitespace-nowrap' : ''} ${
+                      ALIGN[column.align] || ALIGN.left
+                    }`}
                   >
                     {column.render ? column.render(row) : row[column.key]}
                   </td>

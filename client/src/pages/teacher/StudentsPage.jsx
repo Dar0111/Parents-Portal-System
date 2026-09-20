@@ -364,7 +364,8 @@ export default function StudentsPage() {
         </Link>
       ),
     },
-    { key: 'lrn', header: 'LRN' },
+    // nowrap: an LRN is an identifier, never text to reflow (§5c).
+    { key: 'lrn', header: 'LRN', nowrap: true },
     {
       key: 'class',
       header: 'Grade & section',
