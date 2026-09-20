@@ -166,6 +166,102 @@ adding one requires the school to have said otherwise first.
   cannot catch a regression — `100.00` can, being numerically largest but
   lexicographically second-smallest. Do not "tidy" either row away.
 
+#### 5a-i. THE STICKY TABLE HEADER IS A CLOSED QUESTION (dropped 2026-09-20)
+
+**Do not add one.** It was built, broke three different ways in three
+successive fixes, and was removed by decision (Darryl, DV1). This is written
+at length because "the header should stay visible while you scroll" is an
+obvious-sounding improvement that a later dispatch will otherwise propose
+again and rediscover all of this.
+
+**The reason is structural, not a bug that was left unfixed.** A `sticky`
+element resolves its `top` against the nearest ancestor whose `overflow` is
+not `visible`. Containing a too-wide table REQUIRES exactly such an ancestor.
+So a sticky header and an in-table horizontal scroller cannot both be true of
+the same table — and the scroller is the one that cannot be given up, because
+without it a wide table widens the page instead.
+
+The three failures, in order, each found in a browser and each fixed into the
+next one:
+
+1. **Offset inside the frame.** The table frame carried `overflow-hidden`,
+   purely to clip the table's square corners to its rounded ones. That made
+   the frame the nearest scrollport, so `top: var(--header-h)` positioned the
+   header 61px DOWN INSIDE the card: an empty band above the table and the
+   header sitting on top of row 1, on all 22 consumers at once.
+2. **The page scrolled sideways.** Releasing the scroller at `sm` fixed the
+   offset and, at 200% zoom, let a table wider than `<main>` push the whole
+   document sideways — a horizontal scrollbar on the window and a clipped
+   Final Grade column. A page body that scrolls sideways is the failure
+   WCAG 1.4.10 exists for, and it would equally hit tablets, narrow laptops
+   and Large text.
+3. **Mangled text.** Making the table unable to overflow, via
+   `wrap-anywhere` (`overflow-wrap: anywhere`) on every cell, works by
+   shrinking each cell's min-content — which means breaking words
+   MID-LETTER. A squeezed table read `S/U/BJ/E/C/T`, `Mathemat/ics`,
+   `Aral/ing Panl/ipu/nan`, and split an LRN across four lines
+   (`13/56/74/54`). An identifier that wraps is not a styling defect; it is
+   a wrong value on screen.
+
+**What was kept from the attempts, because it was right anyway:** the frame
+has NO `overflow-hidden` — corners are clipped by rounding the pieces that
+actually paint (first/last header cell, the pager, the first card) — and the
+horizontal scroller is back at every width, exactly as before DV1.
+
+**Why dropping it costs little:** every list endpoint pages at 50 rows
+(§5 above), so a header scrolls out of view only near the bottom of one page.
+Weigh that against a nested scroll area, which is what the only remaining
+alternative needs, and which §9 rules out by making the document the only
+scroller.
+
+#### 5a-ii. `nowrap`, and never wrapping an identifier
+
+A column may set **`nowrap: true`**, which puts `whitespace-nowrap` on its
+cells. Header cells are always `nowrap`, so a label like "Grade & section"
+cannot stack into a column of single words.
+
+**Default wrapping already breaks at SPACES ONLY**, so with `wrap-anywhere`
+gone an LRN, a grade or a date — none of which contain a space — cannot be
+broken at all. `nowrap` is the stronger promise, for values that DO contain
+spaces and still must not break:
+
+| Use `nowrap` for | Why |
+|---|---|
+| LRN, login id | an identifier that reflows is a wrong value (§5c) |
+| grades, dates, times | `Sep 20, 2026, 1:30 AM` has spaces and must read as one value |
+| an actions column | the icon cluster keeps one row and claims its own width — without it the buttons wrap under the text beside them and the neighbouring column appears to run into them |
+
+Let names and free text wrap normally, at spaces. Only a genuinely
+unbreakable long string in its own cell (an email, a backup filename) may
+use `break-words`.
+
+#### 5a-iii. `renderCard` — the card layout below `sm`
+
+Opt-in per page. A page that supplies `renderCard` gets stacked cards under
+`sm` and the table from `sm` up; a page that does not is unchanged, which is
+what let DV1 convert six consumers instead of twenty-two in one review.
+
+**It returns DATA, never JSX** — `{ to?, onSelect?, avatar?, title,
+subtitle?, meta?, status?, statusTone?, actions? }`. That is not a style
+preference. A column's `render` returns cell JSX full of buttons, and reusing
+it inside a card that is itself a link would nest a button in a link;
+returning data makes that **unrepresentable** rather than merely discouraged.
+
+**Exactly one interactive element per card**, a real `<Link>` or `<button>` —
+focusable, Enter/Space, a visible focus ring, never an `onClick` on a div.
+**A page with no single primary action passes neither `to` nor `onSelect`**
+and gets a STATIC card: no chevron, actions in their own row beneath, where
+they are siblings rather than children of something clickable. The Users
+directory (Edit / Reset password / Deactivate are three peers) and Backups
+(download / delete / restore, one of them irreversible) are both that case. A
+card that looks tappable and is not is worse than one that never claimed to
+be.
+
+The table is unchanged by all of this: rows stay non-interactive `<tr>`s and
+actions stay real buttons in the Actions cell, each with an `aria-label`
+naming its row ("Edit Maria Santos") — a column of buttons all announced as
+"Edit" is unusable with a screen reader.
+
 ### 5b. A column showing DATABASE state must never derive from form state
 
 **Found in browser review of Teacher → Attendance, the first Stage 4 page,

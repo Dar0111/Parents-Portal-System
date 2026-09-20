@@ -74,6 +74,43 @@ version still exist, and all 23 `##` headings are present. Two mirror gaps
 between CLAUDE.md and `docs/FRONTEND_CONVENTIONS.md` were found while
 measuring and closed. **144,967 → 108,102 bytes.**
 
+**Data views redesign, DV1 — DONE 2026-09-20 (client + docs).** The first
+of five pieces. Every list in the system is drawn by one shared table
+component, and it had been built for a desk: six columns side by side, and a
+horizontal scrollbar for anyone on a phone. Parents are mostly on phones.
+
+**What changed.** Lists now look deliberate rather than default — a proper
+header row, roomier cells, hairline rules, and an initials circle beside
+every name so a roster reads as people rather than rows. **Below phone width
+a list becomes a stack of cards**, each one a single tap target that opens
+the thing it describes; where there is no single obvious action — the admin
+user directory, where Edit, Reset password and Deactivate are equals — the
+card stays put and shows its buttons instead of pretending to be tappable.
+Six pages were converted; the rest keep their old behaviour untouched until
+DV1b, which is what made the change reviewable at all.
+
+**Parent login ids are now masked in the admin directory**, showing only the
+last four digits, because a parent's login id IS their child's LRN. Teacher
+and admin ids are ordinary staff identifiers and stay whole.
+
+**One feature was attempted three times and then deliberately abandoned: a
+table header that stays visible while you scroll.** It is worth recording
+why, because it sounds like an easy win. Keeping a header pinned and keeping
+a too-wide table inside its own frame turn out to be mutually exclusive in
+the browser — each needs the opposite thing from the element around the
+table. The first attempt pushed the header down over the first row of every
+list in the system; the second stopped the table overflowing but made the
+whole page scroll sideways at 200% zoom, hiding a column; the third fitted
+the table by breaking words in the middle, which turned "Mathematics" into
+"Mathemat/ics" and split a learner's LRN across four lines. The feature was
+dropped. Lists show 50 rows at a time, so a header that scrolls away costs
+very little, and the decision is written into the conventions so it is not
+rediscovered later.
+
+**Verified in the browser across three rounds**, at desktop, at 390px, at
+200% zoom and in both themes — each round finding a real defect the previous
+fix had introduced, which is the honest record of this one.
+
 **Dashboards — DONE 2026-09-20 (DB1 server, DB2 client, DB3 docs).** The
 manuscript shows a dashboard for each role (pp. 52, 61, 71); until this
 dispatch all three pages said only which sidebar items were open, derived

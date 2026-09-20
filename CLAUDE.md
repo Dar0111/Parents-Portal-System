@@ -414,6 +414,31 @@ concludes.** Adding one requires the school to have said otherwise first.
   before `localeCompare`. The gallery fixture carries `87.50` **and**
   `100.00` — only `100.00` catches a lexicographic regression. Do not tidy
   either away.
+- **NO STICKY TABLE HEADER — a closed question, not a gap (dropped
+  2026-09-20, DV1).** Sticky resolves against the nearest scrollport and
+  containing a too-wide table REQUIRES one, so a sticky header and the
+  in-table horizontal scroller cannot coexist. Three attempts each broke
+  differently: offset 61px inside the `overflow-hidden` frame, covering row
+  1 on all 22 consumers; then the whole PAGE scrolling sideways at 200% zoom
+  once the scroller was released; then `wrap-anywhere` splitting words
+  mid-letter (`Mathemat/ics`) and an LRN across four lines. Lists page at 50
+  rows, so the cost of no sticky header is small. Full account:
+  `docs/FRONTEND_CONVENTIONS.md` §5a-i. **Kept from those attempts:** the
+  frame has no `overflow-hidden` (corners are clipped by rounding the pieces
+  that paint) and the scroller is back at every width.
+- **`nowrap: true` on a column, and NEVER wrap an identifier.** Default
+  wrapping breaks at spaces only, so an LRN, a grade or a date cannot break
+  at all; `nowrap` is for values that contain spaces and still must not —
+  formatted dates, and the actions column, whose cluster must keep one row
+  or the neighbouring text appears to run into it. Header cells are always
+  `nowrap`.
+- **`renderCard` — the card layout below `sm`, opt-in per page.** It returns
+  **DATA, never JSX**, which is what makes a button-inside-a-link
+  unrepresentable: **exactly one interactive element per card**, a real
+  `<Link>` or `<button>`. A page with no single primary action passes
+  neither and gets a **static card, no chevron**, actions in a row beneath
+  (Users directory, Backups). A page without `renderCard` is unchanged.
+  Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-iii.
 
 ### 5b. A column showing DATABASE state must never derive from form state
 
@@ -1544,25 +1569,65 @@ is the order, not the record.
       and the server stores a DATE. Clock restored to automatic; the one
       attendance row was removed and the three `activity_logs` rows it
       produced stay, dated 2026-09-21 — **do not "fix" those timestamps.**
-- [ ] **Data views redesign — MOCKUP FIRST, no code until it is approved.**
-      Three pieces: a `DataTable` restyle for every list, with a **card
-      layout below `sm`** (a row of six columns on a 390px phone is the
-      parent's normal case, not an edge one); an **SF9-style Grades report
-      card**; and a **monthly Attendance calendar**. Two rules it inherits
-      and cannot bend: **no verdict badges anywhere** (§4 — the system counts
-      and displays, it never concludes), and **Grade 1's A–E stays as it is
-      until the school answers** how the letter is produced (OPEN QUESTIONS),
-      so the report card must render both modes without implying the letter
-      is computed.
-      **Two items found during the dashboards check (2026-09-19/20), both
-      deferred here on purpose:** (a) Parent → Attendance's intro says "The
-      percentage counts Late as present…" **even when no percentage is on
-      screen**, which is every account with zero recorded days — §5i, copy
-      describing something that is not there; (b) **in Dark, the amber card
-      fill reads as rust/brown** and edges toward "danger", which undoes the
-      amber-is-not-a-verdict rule (§12) exactly where it matters. Tune the
-      dark amber surface token toward a clearer amber — **mockup first**, and
-      re-run `lint:contrast`, since that token has passing pairs today.
+- **Data views redesign — MOCKUP FIRST, no code until it is approved.**
+      Mockups exist and are approved (Darryl, 2026-09-20). Two rules every
+      piece inherits and cannot bend: **no verdict badges anywhere** (§4 —
+      the system counts and displays, it never concludes), and **Grade 1's
+      A–E stays as it is until the school answers** how the letter is
+      produced (OPEN QUESTIONS), so the report card must render both modes
+      without implying the letter is computed.
+
+  - [x] **DV1 — DataTable restyle + card layout below `sm`. DONE
+        2026-09-20.** `components/Avatar.jsx`, the `renderCard` card layout,
+        the `nowrap` column option, masked parent login ids in Admin →
+        Users, and six pages converted. **The sticky table header was
+        dropped** — see §5 and `docs/FRONTEND_CONVENTIONS.md` §5a-i; do not
+        reopen it. **Users filter tabs were NOT built:** the Role dropdown
+        already does that job, and tabs with counts need a server change.
+  - [ ] **DV2 — monthly Attendance calendar.** Replaces Parent →
+        Attendance. Also owns the 390px Status select on Teacher →
+        Attendance, which is narrow and partly off-screen inside the
+        horizontal scroller, and the Parent → Attendance intro copy below.
+  - [ ] **DV3 — SF9-style Grades report card.** Replaces Parent → Grades.
+  - [ ] **DV4 — dashboards + the dark amber.** In Dark the amber card fill
+        reads as rust/brown and edges toward "danger", undoing §12's
+        amber-is-not-a-verdict rule exactly where it matters. Tune the dark
+        amber surface token toward a clearer amber — **mockup first**, and
+        re-run `lint:contrast`, since that token has passing pairs today.
+  - [ ] **DV1b — the remaining 16 DataTable consumers → `renderCard`**, plus
+        explicit `nowrap` on the LRN columns of Teacher → Attendance and
+        Teacher → Grades (both are safe today, because default wrapping
+        cannot break a space-free value; the annotation is belt-and-braces).
+        **LAST, deliberately:** DV2 and DV3 replace Parent → Attendance and
+        Parent → Grades outright, so converting them to cards first would be
+        work thrown away.
+
+  **Carried into DV2, not DV1's to fix:** Parent → Attendance's intro says
+  "The percentage counts Late as present…" **even when no percentage is on
+  screen**, which is every account with zero recorded days — §5i, copy
+  describing something that is not there.
+
+- [ ] **UI polish — small client items, opened 2026-09-20.** A list, not a
+      dispatch: fold each into whichever branch is already touching that
+      page. Ordered by cost to the user, not by effort.
+
+  1. **Teacher → Grades opens on a subject the teacher is not assigned, so
+     the page loads with a red error** — "Araling Panlipunan (not yours)".
+     **This is a defect, not cosmetic**, and it is first here for that
+     reason: a normal page load showing an error trains people to ignore
+     errors. The default should be the teacher's FIRST ASSIGNED subject
+     from `GET /assignments`, which the page already fetches for its encode
+     scope. Also a `docs/KNOWN_ISSUES.md` row.
+  2. **The person cell's secondary line repeats a column that is already on
+     screen** — Admin → Users shows the email under the name AND in the
+     Email column; both Students pages show the class under the name AND in
+     Grade & section. Harmless but redundant at desktop width, where the
+     column is right there. It earns its place on a CARD, where there are no
+     columns, so the fix is per-surface rather than deleting it.
+  3. **Teacher → Attendance at 390px: the Status select is narrow and partly
+     off-screen** inside the horizontal scroller. **Owned by DV2**, which
+     replaces that row's controls with the calendar's — do not patch the
+     select in isolation first.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
@@ -1583,6 +1648,17 @@ is the order, not the record.
       correct**, and that is the actual defect — `activity_logs` is what the
       restore machinery counts and what a reviewer reads to reconstruct who
       did what.
+      **Two more from DV1 (2026-09-20), both needing a server change the
+      client cannot fake:** (a) **counts for the Admin → Users filter tabs**
+      — `GET /api/users` returns `page.total` for the filters SENT, so four
+      tabs would mean four requests fetched only to read a number; a
+      `counts { all, teachers, parents, pending }` sibling computed by one
+      grouped query is the fix, and the tabs stay unbuilt until it exists.
+      (b) **"Linked to" on the same page** — `linked_student_name` (a
+      `LEFT JOIN students` on `users.student_id`) and `advises[]` (a grouped
+      subquery on `sections.adviser_id`, because a teacher may advise more
+      than one). Neither is in the payload today, which is why the column
+      was dropped from DV1.
 - [ ] **Docs pass** — the README suite table, the `docs/API_REFERENCE.md` scope
       labels stale for every widened read, and the dead pointers recorded in
       KNOWN ISSUES.
@@ -1848,6 +1924,12 @@ questions.
 - Write or edit file content only with the Write/Edit tools — never through
   `python -c`, `echo`, heredocs or any shell quoting (CLAUDE.md was once
   truncated to 0 bytes this way).
+- **Never `git checkout --` (or any restore from HEAD) on uncommitted work.**
+  It restores from the last COMMIT, not from where you were, so every
+  uncommitted change in that file is gone with no warning. **Before a
+  negative control, copy the file** (`cp x x.bak`) and put it back from the
+  copy. `DataTable.jsx` lost a whole dispatch's edits this way on
+  2026-09-20 and had to be rebuilt from scratch.
 - Before writing code for a new module, state the exact list of files you
   will create or modify. If you later need a file outside that list, stop
   and say "SCOPE EXPANSION — need `<path>` because `<reason>`" rather than
@@ -1989,6 +2071,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-20 | DV1 docs: `docs/FRONTEND_CONVENTIONS.md` §5 gains §5a-i (**the sticky table header is a CLOSED QUESTION**, with all three failure modes named so nobody retries it), §5a-ii (`nowrap`; never wrap an identifier) and §5a-iii (`renderCard`); short form in §5 here. BUILD ORDER: Data views split into DV1 (done) → DV2 → DV3 → DV4 → **DV1b last**, since DV2/DV3 replace the two parent pages outright. New UI polish list. Working agreement: never `git checkout --` on uncommitted work. |
+| 2026-09-20 | DV1 (client, `feat/dv1-datatable`): DataTable restyle, `Avatar`/`PersonCell`, the `renderCard` card layout below `sm` (data not JSX; one interactive element per card), the `nowrap` column option, masked parent login ids in Admin → Users, six pages converted. **The sticky header broke three different ways across three browser checks and was dropped** — it cannot coexist with the in-table horizontal scroller. oxlint 44, SSR 58/58, all 22 consumers audited. |
 | 2026-09-20 | Teacher attendance banner verified and DB2's one open check closed: Darryl moved the Windows clock to Monday 2026-09-21 09:00 (PH and UTC both Monday), saw amber "Not recorded" then green "Recorded — 1 present, 0 absent", and restored the clock. **This overrides his own "do not fake the date" line in DB2's entry — his call, recorded, not quietly done.** No code changed; the banner was unseen, not broken. Cleanup removed the one attendance row; the three `activity_logs` rows dated 2026-09-21 stay. |
 | 2026-09-20 | Dashboards DB3 (docs): a Dashboard section in `docs/API_REFERENCE.md` (per-role payload, the thin-endpoint rule, the scope rule, and why the dashboards ask `GET /api/events` for ascending dates while the endpoint default stays DESC); counts move to **86 handlers / 87 endpoints**; new **§12** here; BUILD ORDER ticks Dashboards and keeps the Monday teacher-banner check open; two items added to Data views redesign (the Attendance intro naming an absent percentage, and Dark’s amber reading as rust); the single-admin lockout row corrected — **the app cannot create an admin**, so confirming the email is the only in-app remedy; new row on direct-insert fixtures firing no fan-out. |
 | 2026-09-20 | Dashboards DB2 (client, `feat/dashboards`): three real dashboards, `Card.jsx` + `useCard.js`, each card owning its own loading/error/empty state with no bare `Promise.all`. Browser check passed with **one defect** — upcoming events were DESC, so a "next three" card returned the three furthest-away events backwards — plus four review corrections (hazard card red → amber, its impossible "create a second admin" link removed, the locks label now names its term, the hook moved to its own file). oxlint 44, SSR 36/36. Fixtures cleaned up; Seeded baseline confirmed. |
