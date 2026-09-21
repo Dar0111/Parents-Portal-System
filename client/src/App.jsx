@@ -27,6 +27,7 @@ import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
 import TeacherGrades from './pages/teacher/GradesPage';
+import TeacherClassRecord from './pages/teacher/ClassRecordPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAttendance from './pages/parent/AttendancePage';
 import ParentAnnouncements from './pages/parent/AnnouncementsPage';
@@ -108,6 +109,10 @@ export default function App() {
           >
             <Route index element={<TeacherDashboard />} />
             <Route path="grades" element={<TeacherGrades />} />
+            {/* The encode screen. No nav item: it needs a subject, a section
+                and a term chosen first, so it is reached from Grades — the
+                same way a student detail is. */}
+            <Route path="class-record" element={<TeacherClassRecord />} />
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="attendance-records" element={<TeacherAttendanceRecords />} />
             <Route path="students" element={<TeacherStudents />} />

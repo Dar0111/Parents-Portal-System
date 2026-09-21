@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
 import TermValue from '../../format/TermValue';
-import { todayLocalDateString } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher grades — viewing + encoding, one page. The teacher does not choose
@@ -100,14 +99,8 @@ const REPORT_UNWRAP = [
   'general_average_descriptor',
 ];
 
-const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
-
-// Grade 1 calls its third component Summative, not Examinations. Same three
-// stored columns (ex_st1 / ex_st2 / ex_te) and the same endpoint — only the
-// heading differs, because that is the word the school uses in Key Stage 1.
-function examSectionLabel(mode) {
-  return mode === 'descriptive' ? 'Summative' : 'Examinations';
-}
+// DETAIL_UNWRAP and examSectionLabel moved to the class record with the
+// encoding they served. This page reads the report card, not one grade.
 
 function classKeyOf(student) {
   return `${student.grade_level}|${student.section}`;
@@ -127,67 +120,16 @@ function classesFromStudents(students) {
   });
 }
 
-function isEncodeRefusal(err) {
-  const message = err?.response?.data?.message;
-  return (
-    err?.response?.status === 403 &&
-    typeof message === 'string' &&
-    message.startsWith('You are not assigned to teach')
-  );
-}
-
 function isLocked(row) {
   return Boolean(row?.is_locked);
 }
 
-function emptyComponentDraft() {
-  return { type: 'WW', label: '', score: '', max_score: '', date_recorded: todayLocalDateString() };
-}
+// parsePair and parseScoreMax went with the encode panel. The class record
+// has its own parseCell — one rule, stricter, because the server now refuses
+// a decimal score outright.
 
-function examDraftFromGrade(grade) {
-  const field = (value) => (value === null || value === undefined ? '' : String(value));
-  return {
-    st1_score: field(grade?.ex_st1),
-    st1_max: field(grade?.ex_st1_max),
-    st2_score: field(grade?.ex_st2),
-    st2_max: field(grade?.ex_st2_max),
-    te_score: field(grade?.ex_te),
-    te_max: field(grade?.ex_te_max),
-  };
-}
-
-function parsePair(scoreStr, maxStr) {
-  const scoreEmpty = scoreStr === '' || scoreStr == null;
-  const maxEmpty = maxStr === '' || maxStr == null;
-  if (scoreEmpty && maxEmpty) return { score: null, max: null };
-  if (scoreEmpty || maxEmpty) {
-    return { error: 'Score and max must both be filled, or both empty to clear.' };
-  }
-  const score = Number(scoreStr);
-  const max = Number(maxStr);
-  if (!Number.isFinite(score) || score < 0) return { error: 'Score must be 0 or greater.' };
-  if (!Number.isFinite(max) || max <= 0) return { error: 'Max must be greater than 0.' };
-  return { score, max };
-}
-
-function parseScoreMax(scoreStr, maxStr) {
-  const score = Number(scoreStr);
-  const max = Number(maxStr);
-  if (scoreStr === '' || !Number.isFinite(score) || score < 0) {
-    return { error: 'Score must be 0 or greater.' };
-  }
-  if (maxStr === '' || !Number.isFinite(max) || max <= 0) {
-    return { error: 'Max must be greater than 0.' };
-  }
-  return { score, max };
-}
-
-const btnPrimary =
-  'inline-flex items-center justify-center rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled';
 const btnSecondary =
   'inline-flex items-center justify-center rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm font-medium text-fg-secondary transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:text-fg-faint';
-const btnDanger =
-  'inline-flex items-center justify-center rounded-lg border border-danger-edge bg-surface px-2.5 py-1.5 text-xs font-medium text-danger-fg transition hover:bg-danger-soft disabled:cursor-not-allowed disabled:text-fg-faint';
 
 export default function TeacherGradesPage() {
   usePageTitle('Grades');
@@ -222,40 +164,14 @@ export default function TeacherGradesPage() {
   const [recordedLoading, setRecordedLoading] = useState(false);
   const [recordedError, setRecordedError] = useState(null);
 
-  const [encodingStudent, setEncodingStudent] = useState(null);
-  const [shellLoading, setShellLoading] = useState(false);
-
-  // GET /:id payload. The ONLY writer is loadDetail() (and the reset on
-  // close). Component lists, stored exam pairs, stored letter, stored IG/TG
-  // in the panel all read this.
-  const [detail, setDetail] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  const [examDraft, setExamDraft] = useState(() => examDraftFromGrade(null));
-  const [newComponent, setNewComponent] = useState(emptyComponentDraft);
-  const [editId, setEditId] = useState(null);
-  const [editDraft, setEditDraft] = useState({ label: '', score: '', max_score: '', date_recorded: '' });
-
-  const [saving, setSaving] = useState(false);
-  // Keyed status, one key: every write on this page comes from the encode
-  // panel, so the result renders directly above that panel rather than at
-  // the top of the page, above the roster table.
-  const [status, setStatus] = useState({});
-
-  // One outcome on screen. Two flags internally, XOR at render: error
-  // wins. Every writer of either flag clears the other, including
-  // validation early-returns. Splitting them under exam vs add-score is
-  // the same bug in a different shape.
-  // The XOR these three enforced by hand is now structural — one value.
-  function clearSaveFeedback() {
-    setStatus({});
-  }
-  function showSaveError(message) {
-    setStatus({ encode: fail(message) });
-  }
-  function showSaveSuccess(message) {
-    setStatus({ encode: ok(message) });
-  }
+  // THIS PAGE NO LONGER WRITES ANYTHING (CR2, 2026-09-22), so it carries no
+  // draft state, no saving flag and no FormStatus. Every piece of that went
+  // with the encode panel. What is left reads: `recorded` for the roster's
+  // stored columns, `report` for the subject list and term grid.
+  //
+  // `showSaveError` survives under a different job — it is the one place a
+  // failed READ is surfaced, which is why it is a plain error setter now
+  // rather than half of a success/failure XOR.
 
   const classes = useMemo(() => classesFromStudents(students), [students]);
   const selectedClass = useMemo(
@@ -288,6 +204,21 @@ export default function TeacherGradesPage() {
 
   const canEncode = canEncodeSubject(subjectId);
   const subjectUnassigned = assignmentsLoaded && subjectId != null && !canEncode;
+
+  // The assignment row behind the current class + subject, so the Class
+  // record link can open on the class already chosen here rather than
+  // making the teacher pick it a second time.
+  const currentAssignment = useMemo(() => {
+    if (!assignmentsLoaded || !selectedClass || subjectId == null) return null;
+    return (
+      assignments.find(
+        (row) =>
+          Number(row.grade_level) === Number(selectedClass.grade_level) &&
+          String(row.section) === String(selectedClass.section) &&
+          Number(row.subject_id) === Number(subjectId)
+      ) || null
+    );
+  }, [assignments, assignmentsLoaded, selectedClass, subjectId]);
 
   const loadStudents = useCallback(async () => {
     setStudentsLoading(true);
@@ -339,27 +270,11 @@ export default function TeacherGradesPage() {
     loadAssignments();
   }, [loadAssignments]);
 
-  const closePanel = useCallback(() => {
-    setEncodingStudent(null);
-    setDetail(null);
-    setExamDraft(examDraftFromGrade(null));
-    setNewComponent(emptyComponentDraft());
-    setEditId(null);
-    setShellLoading(false);
-    setDetailLoading(false);
-    setStatus({});
-  }, []);
-
-  const handleEncodeError = useCallback(
-    (err) => {
-      if (isEncodeRefusal(err)) {
-        closePanel();
-      }
-      showSaveError(extractError(err));
-      return isEncodeRefusal(err);
-    },
-    [closePanel]
-  );
+  // closePanel and handleEncodeError went with the encode panel. Nothing on
+  // this page opens, closes or writes any more — the class record does.
+  // `no-undef`, enabled on 2026-09-22, is what caught them still calling
+  // deleted setters after the panel was removed; the previous lint run would
+  // have shipped the page silently broken, exactly as it did once before.
 
   const classGradeLevel = selectedClass?.grade_level ?? null;
 
@@ -406,14 +321,12 @@ export default function TeacherGradesPage() {
   useEffect(() => {
     let cancelled = false;
 
-    closePanel();
     setReport(null);
     setReportError(null);
     setNotSubjectTeacher(false);
     setSubjectId(null);
     setRecorded(new Map());
     setRecordedError(null);
-    setStatus({});
 
     if (!classKey) return undefined;
     const classRoster = students.filter((s) => classKeyOf(s) === classKey);
@@ -446,7 +359,7 @@ export default function TeacherGradesPage() {
     return () => {
       cancelled = true;
     };
-  }, [classKey, students, closePanel]);
+  }, [classKey, students]);
 
   const loadRecorded = useCallback(async () => {
     if (!subjectId || !term || !year || !roster.length) {
@@ -481,202 +394,24 @@ export default function TeacherGradesPage() {
     loadRecorded();
   }, [loadRecorded]);
 
-  const loadDetail = useCallback(async (gradeId) => {
-    setDetailLoading(true);
-    try {
-      const payload = await api.get(`/grades/${gradeId}`, { unwrap: DETAIL_UNWRAP });
-      setDetail(payload);
-      setExamDraft(examDraftFromGrade(payload.grade));
-      setNewComponent(emptyComponentDraft());
-      setEditId(null);
-      return payload;
-    } catch (err) {
-      showSaveError(extractError(err));
-      setDetail(null);
-      return null;
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
-
-  async function ensureShell(student) {
-    const existing = recorded.get(student.id);
-    // Existing row: the shell is already there. Scope was decided from
-    // GET /assignments before this click, not by this POST.
-    if (existing?.id) return existing;
-
-    try {
-      return await api.post(
-        '/grades',
-        { student_id: student.id, subject_id: subjectId, term, school_year: year },
-        { unwrap: 'grade' }
-      );
-    } catch (err) {
-      if (isEncodeRefusal(err)) {
-        showSaveError(extractError(err));
-        return null;
-      }
-      if (err?.response?.status === 409) {
-        const rows = await fetchAll('/grades', {
-          unwrap: 'grades',
-          params: { student_id: student.id, subject_id: subjectId, term, school_year: year },
-        });
-        return rows[0] || null;
-      }
-      showSaveError(extractError(err));
-      return null;
-    }
-  }
-
-  async function openEncode(student) {
-    if (!canEncode) return;
-    clearSaveFeedback();
-    setShellLoading(true);
-    try {
-      const shell = await ensureShell(student);
-      if (!shell) return;
-      setEncodingStudent(student);
-      await loadRecorded();
-      await loadDetail(shell.id);
-    } finally {
-      setShellLoading(false);
-    }
-  }
-
-  async function afterWrite() {
-    const gradeId = detail?.grade?.id;
-    await loadRecorded();
-    if (gradeId) await loadDetail(gradeId);
-  }
-
-  // saveLetter() is GONE (2026-09-22). A Grade 1 letter is computed from the
-  // same scores every other grade level uses, so there is nothing for a
-  // teacher to pick and PATCH /:id/descriptive no longer exists. The letter
-  // this screen shows comes back from the server after a score write, the
-  // same way an Initial Grade always has.
-
-  async function saveExam() {
-    const gradeId = detail?.grade?.id;
-    if (!gradeId) return;
-    const st1 = parsePair(examDraft.st1_score, examDraft.st1_max);
-    const st2 = parsePair(examDraft.st2_score, examDraft.st2_max);
-    const te = parsePair(examDraft.te_score, examDraft.te_max);
-    const firstError = st1.error || st2.error || te.error;
-    if (firstError) {
-      showSaveError(firstError);
-      return;
-    }
-    setSaving(true);
-    clearSaveFeedback();
-    try {
-      await api.patch(
-        `/grades/${gradeId}/exam`,
-        {
-          st1_score: st1.score,
-          st1_max: st1.max,
-          st2_score: st2.score,
-          st2_max: st2.max,
-          te_score: te.score,
-          te_max: te.max,
-        },
-        { unwrap: 'grade' }
-      );
-      showSaveSuccess('Exam scores saved.');
-      await afterWrite();
-    } catch (err) {
-      handleEncodeError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function addComponent() {
-    const gradeId = detail?.grade?.id;
-    if (!gradeId) return;
-    if (!newComponent.label.trim()) {
-      showSaveError('Label is required.');
-      return;
-    }
-    const parsed = parseScoreMax(newComponent.score, newComponent.max_score);
-    if (parsed.error) {
-      showSaveError(parsed.error);
-      return;
-    }
-    setSaving(true);
-    clearSaveFeedback();
-    try {
-      await api.post(
-        `/grades/${gradeId}/components`,
-        {
-          type: newComponent.type,
-          label: newComponent.label.trim(),
-          score: parsed.score,
-          max_score: parsed.max,
-          date_recorded: newComponent.date_recorded || null,
-        },
-        { unwrap: ['component', 'grade'] }
-      );
-      showSaveSuccess('Score added.');
-      setNewComponent(emptyComponentDraft());
-      await afterWrite();
-    } catch (err) {
-      handleEncodeError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveEdit() {
-    const gradeId = detail?.grade?.id;
-    if (!gradeId || editId == null) return;
-    if (!editDraft.label.trim()) {
-      showSaveError('Label is required.');
-      return;
-    }
-    const parsed = parseScoreMax(editDraft.score, editDraft.max_score);
-    if (parsed.error) {
-      showSaveError(parsed.error);
-      return;
-    }
-    setSaving(true);
-    clearSaveFeedback();
-    try {
-      await api.put(
-        `/grades/${gradeId}/components/${editId}`,
-        {
-          label: editDraft.label.trim(),
-          score: parsed.score,
-          max_score: parsed.max,
-          date_recorded: editDraft.date_recorded ? editDraft.date_recorded : null,
-        },
-        { unwrap: ['component', 'grade'] }
-      );
-      showSaveSuccess('Score updated.');
-      setEditId(null);
-      await afterWrite();
-    } catch (err) {
-      handleEncodeError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function deleteComponent(componentId) {
-    const gradeId = detail?.grade?.id;
-    if (!gradeId) return;
-    setSaving(true);
-    clearSaveFeedback();
-    try {
-      await api.delete(`/grades/${gradeId}/components/${componentId}`, { unwrap: 'grade' });
-      showSaveSuccess('Score removed.');
-      if (editId === componentId) setEditId(null);
-      await afterWrite();
-    } catch (err) {
-      handleEncodeError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
+  // ENCODING LEFT THIS PAGE (CR2, 2026-09-22).
+  //
+  // openEncode, ensureShell, afterWrite, saveExam, addComponent, saveEdit and
+  // deleteComponent are gone with the per-learner EncodePanel they drove.
+  // Recording one quiz for forty learners through that modal was up to eighty
+  // requests; the class record does it in one save, and two encode paths
+  // writing the same data is the "do not build a second composer" problem the
+  // Class Board decision already settled once.
+  //
+  // WHAT STAYS HERE is the report-card VIEW: the class picker, the subject and
+  // term filters, and the roster with each learner's stored term grade. That
+  // is a read, and it is still the fastest way to see where a class stands.
+  // The Actions column links to the class record with this class and term
+  // already chosen.
+  //
+  // `recorded` is still loaded and still the only writer of the roster's
+  // stored columns (§5b) — it simply has no drafts to be confused with any
+  // more.
 
   const columns = [
       {
@@ -751,7 +486,9 @@ export default function TeacherGradesPage() {
         key: 'action',
         header: '',
         align: 'right',
-        render: (row) => {
+        // The action is the same for every learner now — the class record is
+        // per CLASS, not per row — so the row itself is unused here.
+        render: () => {
           if (!assignmentsLoaded) {
             return (
               <button type="button" className={btnSecondary} disabled>
@@ -762,25 +499,22 @@ export default function TeacherGradesPage() {
           if (!canEncode) {
             return <span className="text-xs text-fg-muted">Not yours</span>;
           }
-          const stored = recorded.get(row.id);
-          const locked = isLocked(stored);
-          const open = encodingStudent?.id === row.id;
-          if (locked) {
-            return (
-              <button type="button" className={btnSecondary} onClick={() => openEncode(row)}>
-                View
-              </button>
-            );
-          }
+          // ENCODING LEFT THIS PAGE (CR2, 2026-09-22). The per-learner panel
+          // that used to open here is gone: one quiz for forty learners was
+          // up to eighty requests through it. This page keeps the report-card
+          // VIEW and hands encoding to the class record, which records the
+          // whole class in one save.
+          //
+          // The link carries the assignment and term so the grid opens on
+          // the class already chosen here, rather than making the teacher
+          // pick it twice.
           return (
-            <button
-              type="button"
-              className={open ? btnSecondary : btnPrimary}
-              disabled={shellLoading}
-              onClick={() => (open ? closePanel() : openEncode(row))}
+            <Link
+              to={`/teacher/class-record?assignment=${encodeURIComponent(currentAssignment?.id ?? '')}&term=${term}`}
+              className={btnSecondary}
             >
-              {open ? 'Close' : stored ? 'Edit' : 'Record'}
-            </button>
+              Class record
+            </Link>
           );
         },
       },
@@ -837,10 +571,7 @@ export default function TeacherGradesPage() {
               as="select"
               className={filterSelectClass}
               value={subjectId ?? ''}
-              onChange={(e) => {
-                closePanel();
-                setSubjectId(Number(e.target.value));
-              }}
+              onChange={(e) => setSubjectId(Number(e.target.value))}
             >
               {subjects.map((s) => (
                 <option key={s.subject_id} value={s.subject_id}>
@@ -855,10 +586,7 @@ export default function TeacherGradesPage() {
               as="select"
               className={filterSelectClass}
               value={term}
-              onChange={(e) => {
-                closePanel();
-                setTerm(Number(e.target.value));
-              }}
+              onChange={(e) => setTerm(Number(e.target.value))}
             >
               <option value={1}>Term 1</option>
               <option value={2}>Term 2</option>
@@ -923,392 +651,9 @@ export default function TeacherGradesPage() {
           />
           <GradeLegend pending notApplicable={mode === 'descriptive'} />
 
-          {encodingStudent ? (
-            <>
-              <FormStatus status={status.encode} />
-              <EncodePanel
-              student={encodingStudent}
-              mode={mode}
-              subjectName={selectedSubject?.subject_name}
-              term={term}
-              locked={isLocked(detail?.grade) || isLocked(recorded.get(encodingStudent.id))}
-              loading={shellLoading || detailLoading}
-              detail={detail}
-              examDraft={examDraft}
-              setExamDraft={setExamDraft}
-              newComponent={newComponent}
-              setNewComponent={setNewComponent}
-              editId={editId}
-              setEditId={setEditId}
-              editDraft={editDraft}
-              setEditDraft={setEditDraft}
-              saving={saving}
-              onSaveExam={saveExam}
-              onAddComponent={addComponent}
-              onSaveEdit={saveEdit}
-              onDeleteComponent={deleteComponent}
-              onClose={closePanel}
-              />
-            </>
-          ) : null}
         </>
       ) : null}
     </div>
   );
 }
 
-function scoreMaxLabel(score, max) {
-  if (score === null || score === undefined || max === null || max === undefined) {
-    return null;
-  }
-  return `${score}/${max}`;
-}
-
-function ComponentList({ title, rows, locked, editId, editDraft, setEditId, setEditDraft, saving, onSaveEdit, onDelete }) {
-  if (!rows.length) {
-    return (
-      <p className="text-sm text-fg-muted">
-        No {title} recorded yet.
-      </p>
-    );
-  }
-
-  return (
-    <ul className="divide-y divide-edge-soft rounded-lg border border-edge">
-      {rows.map((row) => {
-        const editing = editId === row.id;
-        return (
-          <li key={row.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
-            {editing ? (
-              <>
-                <FormField
-                  label="Label"
-                  className="min-w-[10rem] flex-1"
-                  value={editDraft.label}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, label: e.target.value }))}
-                  disabled={saving}
-                />
-                <FormField
-                  label="Score"
-                  type="number"
-                  className="w-24"
-                  value={editDraft.score}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, score: e.target.value }))}
-                  disabled={saving}
-                />
-                <FormField
-                  label="Max"
-                  type="number"
-                  className="w-24"
-                  value={editDraft.max_score}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, max_score: e.target.value }))}
-                  disabled={saving}
-                />
-                <FormField
-                  label="Date"
-                  type="date"
-                  className="w-40"
-                  value={editDraft.date_recorded}
-                  onChange={(e) => setEditDraft((d) => ({ ...d, date_recorded: e.target.value }))}
-                  disabled={saving}
-                />
-                <button type="button" className={btnPrimary} disabled={saving} onClick={onSaveEdit}>
-                  Save
-                </button>
-                <button type="button" className={btnSecondary} disabled={saving} onClick={() => setEditId(null)}>
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="min-w-0 flex-1 text-sm text-fg-secondary">{row.label}</span>
-                <span className="tabular-nums text-sm text-fg-secondary">
-                  {scoreMaxLabel(row.score, row.max_score)}
-                </span>
-                {row.date_recorded ? (
-                  <span className="text-xs text-fg-muted">{row.date_recorded}</span>
-                ) : null}
-                {locked ? null : (
-                  <>
-                    <button
-                      type="button"
-                      className={btnSecondary}
-                      disabled={saving}
-                      onClick={() => {
-                        setEditId(row.id);
-                        setEditDraft({
-                          label: row.label || '',
-                          score: row.score === null || row.score === undefined ? '' : String(row.score),
-                          max_score:
-                            row.max_score === null || row.max_score === undefined ? '' : String(row.max_score),
-                          date_recorded: row.date_recorded || '',
-                        });
-                      }}
-                    >
-                      Correct
-                    </button>
-                    <button
-                      type="button"
-                      className={btnDanger}
-                      disabled={saving}
-                      onClick={() => onDelete(row.id)}
-                    >
-                      Delete
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function EncodePanel({
-  student,
-  mode,
-  subjectName,
-  term,
-  locked,
-  loading,
-  detail,
-  examDraft,
-  setExamDraft,
-  newComponent,
-  setNewComponent,
-  editId,
-  setEditId,
-  editDraft,
-  setEditDraft,
-  saving,
-  onSaveExam,
-  onAddComponent,
-  onSaveEdit,
-  onDeleteComponent,
-  onClose,
-}) {
-  const grade = detail?.grade;
-  const components = detail?.grade_components || [];
-  const ww = components.filter((c) => c.type === 'WW');
-  const pt = components.filter((c) => c.type === 'PT');
-
-  return (
-    <section className="rounded-xl border border-edge bg-surface p-4">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-fg">
-            {student.last_name}, {student.first_name}
-          </h2>
-          <p className="text-sm text-fg-muted">
-            {subjectName} · Term {term}
-            {locked ? (
-              <span className="ml-2 inline-block align-middle">
-                <StatusBadge status="locked" />
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <button type="button" className={btnSecondary} onClick={onClose}>
-          Close
-        </button>
-      </div>
-
-      {loading ? (
-        <LoadingSpinner className="py-10" label="Opening grade record…" />
-      ) : !grade ? (
-        <p className="text-sm text-fg-muted">Could not open this grade record.</p>
-      ) : (
-        // ONE ENCODE FORM FOR EVERY GRADE LEVEL (2026-09-22). This used to
-        // fork: Grades 2-6 got component entry, Grade 1 got a five-option
-        // letter picker. The school's answer made the letter a computed
-        // result, so the fork is gone and Grade 1 encodes Written Works,
-        // Performance Tasks and three Summative parts like everyone else.
-        // What still differs is what the SERVER sends back — a letter rather
-        // than a Term Grade — and that difference is read-only here.
-        <div className="space-y-6">
-          <div className="flex flex-wrap gap-6 text-sm">
-            <p>
-              <span className="text-fg-muted">Initial Grade </span>
-              <GradeValue value={grade.initial_grade} mode="numerical" />
-            </p>
-            {mode === 'descriptive' ? (
-              // A TEACHER may see the raw Initial Grade beside the letter —
-              // they encoded the scores it comes from. A PARENT never does;
-              // Key Stage 1 reports letters only. That split is the whole
-              // reason this reads `mode="numerical"` above: the Initial Grade
-              // is a number in both modes, and rendering it through the
-              // descriptive branch would print "— N/A" over a real value.
-              <p>
-                <span className="text-fg-muted">Letter </span>
-                <TermValue
-                  entry={{
-                    descriptive_grade: grade.descriptive_grade,
-                    descriptor: detail.descriptor,
-                  }}
-                  mode={mode}
-                />
-              </p>
-            ) : (
-              <p>
-                <span className="text-fg-muted">Term Grade </span>
-                <GradeValue value={grade.term_grade} mode={mode} whole />
-              </p>
-            )}
-            {detail.descriptor?.descriptor ? (
-              <p className="text-fg-muted">{detail.descriptor.descriptor}</p>
-            ) : null}
-          </div>
-          <p className="text-xs text-fg-muted">
-            {mode === 'descriptive'
-              ? 'The letter appears after Written Works, Performance Tasks, and all three Summative parts are recorded. It is computed by the server after you save — this screen does not preview it, and the letter cannot be set by hand.'
-              : 'Initial Grade appears after Written Works, Performance Tasks, and all three exam parts are recorded. The number comes from the server after you save — this screen does not preview it.'}
-          </p>
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-fg">Written Works</h3>
-              <ComponentList
-                title="Written Works"
-                rows={ww}
-                locked={locked}
-                editId={editId}
-                editDraft={editDraft}
-                setEditId={setEditId}
-                setEditDraft={setEditDraft}
-                saving={saving}
-                onSaveEdit={onSaveEdit}
-                onDelete={onDeleteComponent}
-              />
-            </div>
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-fg">Performance Tasks</h3>
-              <ComponentList
-                title="Performance Tasks"
-                rows={pt}
-                locked={locked}
-                editId={editId}
-                editDraft={editDraft}
-                setEditId={setEditId}
-                setEditDraft={setEditDraft}
-                saving={saving}
-                onSaveEdit={onSaveEdit}
-                onDelete={onDeleteComponent}
-              />
-            </div>
-          </div>
-
-          {locked ? null : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-              <FormField
-                label="Type"
-                as="select"
-                value={newComponent.type}
-                disabled={saving}
-                onChange={(e) => setNewComponent((d) => ({ ...d, type: e.target.value }))}
-              >
-                <option value="WW">Written Work</option>
-                <option value="PT">Performance Task</option>
-              </FormField>
-              <FormField
-                label="Label"
-                className="lg:col-span-2"
-                value={newComponent.label}
-                disabled={saving}
-                onChange={(e) => setNewComponent((d) => ({ ...d, label: e.target.value }))}
-              />
-              <FormField
-                label="Score"
-                type="number"
-                value={newComponent.score}
-                disabled={saving}
-                onChange={(e) => setNewComponent((d) => ({ ...d, score: e.target.value }))}
-              />
-              <FormField
-                label="Max"
-                type="number"
-                value={newComponent.max_score}
-                disabled={saving}
-                onChange={(e) => setNewComponent((d) => ({ ...d, max_score: e.target.value }))}
-              />
-              <FormField
-                label="Date"
-                type="date"
-                value={newComponent.date_recorded}
-                disabled={saving}
-                onChange={(e) => setNewComponent((d) => ({ ...d, date_recorded: e.target.value }))}
-              />
-              <div className="flex items-end">
-                <button type="button" className={btnPrimary} disabled={saving} onClick={onAddComponent}>
-                  Add score
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <h3 className="mb-3 text-sm font-semibold text-fg">{examSectionLabel(mode)}</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full max-w-xl border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-edge text-left text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                    <th className="py-2 pr-3">Part</th>
-                    <th className="py-2 pr-3">Recorded</th>
-                    <th className="py-2 pr-3">Score</th>
-                    <th className="py-2">Max</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { key: 'st1', label: 'ST1', score: grade.ex_st1, max: grade.ex_st1_max, dScore: 'st1_score', dMax: 'st1_max' },
-                    { key: 'st2', label: 'ST2', score: grade.ex_st2, max: grade.ex_st2_max, dScore: 'st2_score', dMax: 'st2_max' },
-                    { key: 'te', label: 'TE', score: grade.ex_te, max: grade.ex_te_max, dScore: 'te_score', dMax: 'te_max' },
-                  ].map((part) => (
-                    <tr key={part.key} className="border-b border-edge-soft">
-                      <td className="py-2 pr-3 font-medium text-fg-secondary">{part.label}</td>
-                      <td className="py-2 pr-3 tabular-nums text-fg-body">
-                        {scoreMaxLabel(part.score, part.max) || (
-                          <span className="text-fg-muted">Not recorded</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-3">
-                        <input
-                          type="number"
-                          className="w-24 rounded-lg border border-edge-strong px-2 py-1.5 text-sm disabled:bg-surface-subtle"
-                          value={examDraft[part.dScore]}
-                          disabled={locked || saving}
-                          onChange={(e) =>
-                            setExamDraft((d) => ({ ...d, [part.dScore]: e.target.value }))
-                          }
-                        />
-                      </td>
-                      <td className="py-2">
-                        <input
-                          type="number"
-                          className="w-24 rounded-lg border border-edge-strong px-2 py-1.5 text-sm disabled:bg-surface-subtle"
-                          value={examDraft[part.dMax]}
-                          disabled={locked || saving}
-                          onChange={(e) =>
-                            setExamDraft((d) => ({ ...d, [part.dMax]: e.target.value }))
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {locked ? (
-              <p className="mt-3 text-sm text-fg-muted">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
-            ) : (
-              <button type="button" className={`${btnPrimary} mt-3`} disabled={saving} onClick={onSaveExam}>
-                Save {examSectionLabel(mode).toLowerCase()}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
