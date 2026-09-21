@@ -159,6 +159,48 @@ async function run() {
     }
   }
 
+  // SLOT FIXTURES (CR1, 2026-09-22). Every component write now needs a
+  // slot_id — a score with no column is a score nobody can find on the class
+  // record. This suite is not testing slot MANAGEMENT (that is
+  // test:class-record); it just needs a valid slot to hang scores on, so it
+  // inserts one directly, keyed off the grade's own class so the API's
+  // same-class check passes.
+  //
+  // Auto-numbering per (grade, type) keeps every call site a one-liner: the
+  // suite writes several WW rows to one grade, and they must land in
+  // DIFFERENT slots, because one slot holds at most one score per learner.
+  const createdSlotIds = [];
+  const slotCounters = new Map();
+
+  async function makeSlot(gradeId, type, maxScore) {
+    const [rows] = await withDb((conn) =>
+      conn.query(
+        `SELECT g.subject_id, g.term, g.school_year, s.grade_level, s.section
+           FROM grades g JOIN students s ON s.id = g.student_id
+          WHERE g.id = ? LIMIT 1`,
+        [gradeId]
+      )
+    );
+    const g = rows[0];
+    if (!g) throw new Error(`makeSlot: grade #${gradeId} not found`);
+
+    const counterKey = `${gradeId}-${type}`;
+    const slotNo = (slotCounters.get(counterKey) || 0) + 1;
+    slotCounters.set(counterKey, slotNo);
+
+    const [result] = await withDb((conn) =>
+      conn.query(
+        `INSERT INTO assessment_slots
+           (subject_id, grade_level, section, term, school_year, type, slot_no, max_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE max_score = VALUES(max_score), id = LAST_INSERT_ID(id)`,
+        [g.subject_id, g.grade_level, g.section, g.term, g.school_year, type, slotNo, maxScore]
+      )
+    );
+    createdSlotIds.push(result.insertId);
+    return result.insertId;
+  }
+
   async function resolveSubjectId(name, gradeLevel) {
     const [rows] = await withDb((conn) =>
       conn.query('SELECT id FROM subjects WHERE name = ? AND grade_level = ? LIMIT 1', [name, gradeLevel])
@@ -232,6 +274,14 @@ async function run() {
     }
     if (deleteStudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [deleteStudentFixtureId]));
+    }
+    // SLOTS LAST, after EVERY grade delete above. The FK is ON DELETE
+    // RESTRICT, so a slot still holding a component cannot be dropped —
+    // deleting the grades cascades their components away first, which is
+    // what frees the slots. Put this any earlier and cleanup fails on
+    // whichever grade list had not been deleted yet.
+    if (createdSlotIds.length) {
+      await withDb((conn) => conn.query('DELETE FROM assessment_slots WHERE id IN (?)', [createdSlotIds]));
     }
   }
 
@@ -407,7 +457,7 @@ async function run() {
 
     const parentComponent = await request('POST', `/api/grades/${grade1Id}/components`, {
       token: parentToken,
-      body: { type: 'WW', score: 1, max_score: 1, label: 'x' },
+      body: { type: 'WW', score: 1, max_score: 1, label: 'x', slot_id: await makeSlot(grade1Id, 'WW', 1) },
     });
     assert(parentComponent.status === 403, 'Parent cannot add a grade component');
 
@@ -419,7 +469,7 @@ async function run() {
 
     const ww1 = await request('POST', `/api/grades/${grade1Id}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1' },
+      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1', slot_id: await makeSlot(grade1Id, 'WW', 50) },
     });
     assert(
       ww1.status === 201 && num(ww1.data?.grade?.ww_percentage) === 90.0 && num(ww1.data?.grade?.initial_grade) === null,
@@ -432,7 +482,7 @@ async function run() {
 
     const ww2 = await request('POST', `/api/grades/${grade1Id}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 42, max_score: 50, label: 'Quiz 2' },
+      body: { type: 'WW', score: 42, max_score: 50, label: 'Quiz 2', slot_id: await makeSlot(grade1Id, 'WW', 50) },
     });
     assert(
       ww2.status === 201 && num(ww2.data?.grade?.ww_percentage) === 87.0 && num(ww2.data?.grade?.initial_grade) === null,
@@ -441,11 +491,11 @@ async function run() {
 
     await request('POST', `/api/grades/${grade1Id}/components`, {
       token: teacherToken,
-      body: { type: 'PT', score: 88, max_score: 100, label: 'Performance Task 1' },
+      body: { type: 'PT', score: 88, max_score: 100, label: 'Performance Task 1', slot_id: await makeSlot(grade1Id, 'PT', 100) },
     });
     const pt2 = await request('POST', `/api/grades/${grade1Id}/components`, {
       token: teacherToken,
-      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 2' },
+      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 2', slot_id: await makeSlot(grade1Id, 'PT', 100) },
     });
     assert(
       pt2.status === 201 && num(pt2.data?.grade?.pt_percentage) === 90.0 && num(pt2.data?.grade?.initial_grade) === null,
@@ -502,19 +552,19 @@ async function run() {
 
     await request('POST', `/api/grades/${mapehGradeId}/components`, {
       token: adminToken,
-      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1' },
+      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1', slot_id: await makeSlot(mapehGradeId, 'WW', 50) },
     });
     await request('POST', `/api/grades/${mapehGradeId}/components`, {
       token: adminToken,
-      body: { type: 'WW', score: 42, max_score: 50, label: 'Quiz 2' },
+      body: { type: 'WW', score: 42, max_score: 50, label: 'Quiz 2', slot_id: await makeSlot(mapehGradeId, 'WW', 50) },
     });
     await request('POST', `/api/grades/${mapehGradeId}/components`, {
       token: adminToken,
-      body: { type: 'PT', score: 88, max_score: 100, label: 'Performance Task 1' },
+      body: { type: 'PT', score: 88, max_score: 100, label: 'Performance Task 1', slot_id: await makeSlot(mapehGradeId, 'PT', 100) },
     });
     await request('POST', `/api/grades/${mapehGradeId}/components`, {
       token: adminToken,
-      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 2' },
+      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 2', slot_id: await makeSlot(mapehGradeId, 'PT', 100) },
     });
     await request('PATCH', `/api/grades/${mapehGradeId}/exam`, {
       token: adminToken,
@@ -549,21 +599,27 @@ async function run() {
     const validationGradeId = validationCreate.data?.grade?.id;
     if (validationGradeId) createdGradeIds.push(validationGradeId);
 
+    // One real slot, reused by every refusal below. They are all rejected by
+    // field validation long before the slot is looked at, but sending a
+    // VALID slot_id is what proves that — a bad one would make every
+    // assertion here pass for the wrong reason.
+    const validationSlotId = await makeSlot(validationGradeId, 'WW', 50);
+
     const negativeScore = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: -5, max_score: 50, label: 'Bad' },
+      body: { type: 'WW', score: -5, max_score: 50, label: 'Bad', slot_id: validationSlotId },
     });
     assert(negativeScore.status === 400, 'Negative score rejected');
 
     const zeroMax = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 5, max_score: 0, label: 'Bad' },
+      body: { type: 'WW', score: 5, max_score: 0, label: 'Bad', slot_id: validationSlotId },
     });
     assert(zeroMax.status === 400, 'max_score of 0 rejected');
 
     const bonusPoints = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 110, max_score: 100, label: 'Bonus points' },
+      body: { type: 'WW', score: 110, max_score: 100, label: 'Bonus points', slot_id: validationSlotId },
     });
     assert(
       bonusPoints.status === 201 && num(bonusPoints.data?.grade?.ww_percentage) === 110.0,
@@ -579,7 +635,7 @@ async function run() {
 
     const decimalScore = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 42.5, max_score: 50, label: 'Half point' },
+      body: { type: 'WW', score: 42.5, max_score: 50, label: 'Half point', slot_id: validationSlotId },
     });
     assert(
       decimalScore.status === 400 && /whole number/i.test(decimalScore.data?.message || ''),
@@ -594,7 +650,7 @@ async function run() {
 
     const decimalMax = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 40, max_score: 50.5, label: 'Half point max' },
+      body: { type: 'WW', score: 40, max_score: 50.5, label: 'Half point max', slot_id: validationSlotId },
     });
     assert(
       decimalMax.status === 400 && /max_score/.test(decimalMax.data?.message || ''),
@@ -608,7 +664,7 @@ async function run() {
     // be reported as a rounding problem.
     const negativeDecimal = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: -1.5, max_score: 50, label: 'Both wrong' },
+      body: { type: 'WW', score: -1.5, max_score: 50, label: 'Both wrong', slot_id: validationSlotId },
     });
     assert(
       negativeDecimal.status === 400 && /0 or greater/.test(negativeDecimal.data?.message || ''),
@@ -630,15 +686,145 @@ async function run() {
     // kind of slip this asserts against.
     const zeroScore = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 0, max_score: 20, label: 'Absent, scored zero' },
+      body: {
+        type: 'WW',
+        score: 0,
+        max_score: 20,
+        label: 'Absent, scored zero',
+        slot_id: await makeSlot(validationGradeId, 'WW', 20),
+      },
     });
     assert(zeroScore.status === 201, `A score of 0 is still accepted — 0 is a whole number (${why(zeroScore)})`);
 
     const wholeStillWorks = await request('POST', `/api/grades/${validationGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'PT', score: 18, max_score: 20, label: 'Ordinary whole score' },
+      body: {
+        type: 'PT',
+        score: 18,
+        max_score: 20,
+        label: 'Ordinary whole score',
+        slot_id: await makeSlot(validationGradeId, 'PT', 20),
+      },
     });
     assert(wholeStillWorks.status === 201, `An ordinary whole score still saves (${why(wholeStillWorks)})`);
+
+    // --- slot_id is REQUIRED, and must belong to THIS class (CR1) ---
+    // The grid is the only way a score gets a column, so a component with no
+    // slot is a mark nobody can find on the class record.
+    console.log('\nslot_id on the per-row component endpoints:');
+
+    const noSlot = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 20, label: 'No slot' },
+    });
+    assert(
+      noSlot.status === 400 && /slot_id is required/.test(noSlot.data?.message || ''),
+      `POST /components without slot_id is 400 (${why(noSlot)})`
+    );
+
+    const missingSlot = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 20, label: 'Ghost slot', slot_id: 999999 },
+    });
+    assert(missingSlot.status === 404, `A slot_id that does not exist is 404 (${why(missingSlot)})`);
+
+    // THE CROSS-CLASS CHECK, and it is the one that matters. `mapehGradeId`
+    // is a different SUBJECT in this same suite, so its slots pass the FK
+    // and pass every scope check — the teacher really is allowed to write to
+    // both grades. Only the same-class rule stops the score landing in the
+    // wrong subject's column, where the other class's next HPS change would
+    // silently rewrite it.
+    const foreignSlotId = await makeSlot(mapehGradeId, 'WW', 50);
+    const crossClass = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: adminToken,
+      body: { type: 'WW', score: 10, max_score: 50, label: 'Wrong class', slot_id: foreignSlotId },
+    });
+    assert(
+      crossClass.status === 400 && /different class/i.test(crossClass.data?.message || ''),
+      `A slot from another class is refused, saying so (${why(crossClass)})`
+    );
+
+    // A WW score in a PT slot would compute under the wrong weight — caught
+    // here rather than noticed on a report card.
+    const wrongTypeSlotId = await makeSlot(validationGradeId, 'PT', 50);
+    const wrongType = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 50, label: 'Wrong type', slot_id: wrongTypeSlotId },
+    });
+    assert(
+      wrongType.status === 400 && /slot of its own type/i.test(wrongType.data?.message || ''),
+      `A WW score in a PT slot is refused (${why(wrongType)})`
+    );
+
+    // slot_id may be MOVED on an edit (a mark typed into the wrong column is
+    // a real correction) but never CLEARED — a component with no slot is
+    // exactly the state CR1 removed.
+    const clearSlot = await request('PUT', `/api/grades/${validationGradeId}/components/${wholeStillWorks.data.component.id}`, {
+      token: teacherToken,
+      body: { slot_id: null },
+    });
+    assert(
+      clearSlot.status === 400 && /cannot be cleared/i.test(clearSlot.data?.message || ''),
+      `PUT cannot clear slot_id (${why(clearSlot)})`
+    );
+
+    const movedSlotId = await makeSlot(validationGradeId, 'PT', 20);
+    const movedSlot = await request('PUT', `/api/grades/${validationGradeId}/components/${wholeStillWorks.data.component.id}`, {
+      token: teacherToken,
+      body: { slot_id: movedSlotId },
+    });
+    assert(
+      movedSlot.status === 200 && Number(movedSlot.data?.component?.slot_id) === movedSlotId,
+      `PUT can MOVE a score to another slot of the same class and type (${why(movedSlot)})`
+    );
+
+    const movedCrossClass = await request('PUT', `/api/grades/${validationGradeId}/components/${wholeStillWorks.data.component.id}`, {
+      token: adminToken,
+      body: { slot_id: foreignSlotId },
+    });
+    assert(movedCrossClass.status === 400, `PUT cannot move a score into another class's slot (${why(movedCrossClass)})`);
+
+    // label is OPTIONAL now and the column is nullable: a slot-backed row
+    // renders the slot's display_label instead, so storing a copy of it on
+    // the row would be a snapshot that goes stale the moment it is renamed.
+    const noLabel = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 12, max_score: 20, slot_id: await makeSlot(validationGradeId, 'WW', 20) },
+    });
+    assert(
+      noLabel.status === 201 && noLabel.data?.component?.label === null,
+      `label may be omitted and stores NULL (${why(noLabel)})`
+    );
+
+    // ...and the read endpoint resolves what to SHOW, so no client has to.
+    // The expected text is built from the slot row as STORED, not from a
+    // number typed into this test: makeSlot auto-numbers, so a hardcoded
+    // "Written Work 5" would break every time an earlier slot is added and
+    // would be asserting the test's own bookkeeping rather than the server's
+    // fallback. Reading slot_no back is not circular — it is data, not the
+    // function under test.
+    const [[noLabelSlot]] = await withDb((conn) =>
+      conn.query('SELECT slot_no FROM assessment_slots WHERE id = ?', [noLabel.data.component.slot_id])
+    );
+    const withDisplay = await request('GET', `/api/grades/${validationGradeId}`, { token: teacherToken });
+    const displayRow = withDisplay.data?.grade_components?.find((row) => row.id === noLabel.data.component.id);
+    assert(
+      displayRow?.display_label === `Written Work ${noLabelSlot.slot_no}`,
+      `An unnamed slot resolves a display_label from its type and number (expected "Written Work ${noLabelSlot.slot_no}", got "${displayRow?.display_label}")`
+    );
+
+    // A NAMED slot wins over the fallback, and that is the whole reason the
+    // column exists — the parent breakdown modal shows "Long quiz", not
+    // "Written Work 3".
+    await withDb((conn) =>
+      conn.query('UPDATE assessment_slots SET name = ? WHERE id = ?', ['Long quiz', noLabel.data.component.slot_id])
+    );
+    const withName = await request('GET', `/api/grades/${validationGradeId}`, { token: teacherToken });
+    const namedRow = withName.data?.grade_components?.find((row) => row.id === noLabel.data.component.id);
+    assert(
+      namedRow?.display_label === 'Long quiz',
+      `A named slot's name is the display_label (got "${namedRow?.display_label}")`
+    );
 
     // --- Exam edge cases (own grade row, kept separate from the worked example) ---
     console.log('\nExam edge cases:');
@@ -760,7 +946,13 @@ async function run() {
     // inside the band.
     const g1Ww = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: adminToken,
-      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1' },
+      body: {
+        type: 'WW',
+        score: 45,
+        max_score: 50,
+        label: 'Quiz 1',
+        slot_id: await makeSlot(grade1DescriptiveId, 'WW', 50),
+      },
     });
     assert(g1Ww.status === 201, `A Grade 1 row ACCEPTS a WW component — it is computed now, not hand-picked (${why(g1Ww)})`);
     assert(
@@ -770,7 +962,13 @@ async function run() {
 
     const g1Pt = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: adminToken,
-      body: { type: 'PT', score: 90, max_score: 100, label: 'Performance Task 1' },
+      body: {
+        type: 'PT',
+        score: 90,
+        max_score: 100,
+        label: 'Performance Task 1',
+        slot_id: await makeSlot(grade1DescriptiveId, 'PT', 100),
+      },
     });
     assert(g1Pt.status === 201, `A Grade 1 row ACCEPTS a PT component (${why(g1Pt)})`);
     assert(
@@ -815,7 +1013,16 @@ async function run() {
     const outOfScopeGradeId = adminCreates.data?.grade?.id; // Jea, Mathematics, Grade 5 — TCH-001 has no assignment there
     const outOfScopeComponent = await request('POST', `/api/grades/${outOfScopeGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Should be 404' },
+      // A slot for the OTHER class, created so the request fails on SCOPE
+      // rather than on a missing slot_id — otherwise this would assert 404
+      // for the wrong reason.
+      body: {
+        type: 'WW',
+        score: 10,
+        max_score: 10,
+        label: 'Should be 404',
+        slot_id: await makeSlot(outOfScopeGradeId, 'WW', 10),
+      },
     });
     assert(outOfScopeComponent.status === 404, 'Fully out-of-scope teacher gets 404 on POST /:id/components (fails wide view-scope too)');
 
@@ -825,9 +1032,15 @@ async function run() {
     });
     assert(outOfScopeExam.status === 404, 'Fully out-of-scope teacher gets 404 on PATCH /:id/exam (fails wide view-scope too)');
 
+    // A REAL slot id, from another class, on purpose. Body validation runs
+    // before the grade is looked up, so with no slot_id this returns 400
+    // ("slot_id is required") and the assertion would pass for the wrong
+    // reason — it would no longer be testing the missing GRADE at all.
+    // Sending a valid slot forces the request past every field check so the
+    // 404 can only come from grade #999999 not existing.
     const nonexistentGradeComponent = await request('POST', '/api/grades/999999/components', {
       token: adminToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'x' },
+      body: { type: 'WW', score: 10, max_score: 10, label: 'x', slot_id: validationSlotId },
     });
     assert(nonexistentGradeComponent.status === 404, 'Nonexistent grade id on POST /:id/components returns 404, even for admin');
 
@@ -856,7 +1069,13 @@ async function run() {
 
     const viewScopeComponent = await request('POST', `/api/grades/${scienceGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Should be 403, not 404' },
+      body: {
+        type: 'WW',
+        score: 10,
+        max_score: 10,
+        label: 'Should be 403, not 404',
+        slot_id: await makeSlot(scienceGradeId, 'WW', 10),
+      },
     });
     assert(
       viewScopeComponent.status === 403 && /not assigned to teach Science/i.test(viewScopeComponent.data?.message || ''),
@@ -1011,7 +1230,13 @@ async function run() {
 
     const parentDescriptive = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: parentToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Parent should not' },
+      body: {
+        type: 'WW',
+        score: 10,
+        max_score: 10,
+        label: 'Parent should not',
+        slot_id: await makeSlot(grade1DescriptiveId, 'WW', 10),
+      },
     });
     assert(parentDescriptive.status === 403, 'Parent cannot encode a Grade 1 score');
 
@@ -1033,13 +1258,13 @@ async function run() {
 
     const wwA = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 40, max_score: 50, label: 'WW1' },
+      body: { type: 'WW', score: 40, max_score: 50, label: 'WW1', slot_id: await makeSlot(editDeleteGradeId, 'WW', 50) },
     });
     const wwAId = wwA.data?.component?.id;
 
     const wwB = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 30, max_score: 50, label: 'WW2' },
+      body: { type: 'WW', score: 30, max_score: 50, label: 'WW2', slot_id: await makeSlot(editDeleteGradeId, 'WW', 50) },
     });
     const wwBId = wwB.data?.component?.id;
     assert(
@@ -1049,7 +1274,7 @@ async function run() {
 
     const ptFixture = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'PT', score: 90, max_score: 100, label: 'PT1' },
+      body: { type: 'PT', score: 90, max_score: 100, label: 'PT1', slot_id: await makeSlot(editDeleteGradeId, 'PT', 100) },
     });
     const ptComponentId = ptFixture.data?.component?.id;
     assert(
@@ -1189,7 +1414,7 @@ async function run() {
 
     const postOnLocked = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 1, max_score: 1, label: 'Should be 403' },
+      body: { type: 'WW', score: 1, max_score: 1, label: 'Should be 403', slot_id: await makeSlot(editDeleteGradeId, 'WW', 1) },
     });
     assert(postOnLocked.status === 403, 'POST /:id/components on a locked grade is 403');
 
@@ -1221,7 +1446,7 @@ async function run() {
 
     const postAfterUnlock = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 20, max_score: 20, label: 'After unlock' },
+      body: { type: 'WW', score: 20, max_score: 20, label: 'After unlock', slot_id: await makeSlot(editDeleteGradeId, 'WW', 20) },
     });
     assert(postAfterUnlock.status === 201, 'Writes work again after unlocking');
 
@@ -1252,7 +1477,7 @@ async function run() {
 
     const componentOnLockedGrade1 = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Locked' },
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Locked', slot_id: await makeSlot(grade1DescriptiveId, 'WW', 10) },
     });
     assert(componentOnLockedGrade1.status === 403, 'A component write against a LOCKED Grade 1 row is 403');
 
@@ -1511,11 +1736,23 @@ async function run() {
       // above: the score IS the percentage, and a decimal is refused.
       await request('POST', `/api/grades/${id}/components`, {
         token: adminToken,
-        body: { type: 'WW', score: percent, max_score: 100, label: `Quiz T${term}` },
+        body: {
+          type: 'WW',
+          score: percent,
+          max_score: 100,
+          label: `Quiz T${term}`,
+          slot_id: await makeSlot(id, 'WW', 100),
+        },
       });
       await request('POST', `/api/grades/${id}/components`, {
         token: adminToken,
-        body: { type: 'PT', score: percent, max_score: 100, label: `PT T${term}` },
+        body: {
+          type: 'PT',
+          score: percent,
+          max_score: 100,
+          label: `PT T${term}`,
+          slot_id: await makeSlot(id, 'PT', 100),
+        },
       });
       const exam = await request('PATCH', `/api/grades/${id}/exam`, {
         token: adminToken,
@@ -1953,7 +2190,7 @@ async function run() {
 
     const deleteComponent = await request('POST', `/api/grades/${deleteGradeId}/components`, {
       token: adminToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Cascade check' },
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Cascade check', slot_id: await makeSlot(deleteGradeId, 'WW', 10) },
     });
     requireFixture(deleteComponent.status === 201, 'Fixture: one WW component so CASCADE can be asserted', why(deleteComponent));
 

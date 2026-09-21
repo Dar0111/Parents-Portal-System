@@ -49,4 +49,36 @@ function wholeNumberMessage(field, value) {
   return `${field} must be a whole number — the school does not award half points (got ${value}).`;
 }
 
-module.exports = { isWholeNumber, wholeNumberMessage };
+// A slot's display name: what the grid header and the parent breakdown
+// modal show. Resolved HERE, on the server, and never in a renderer —
+// two clients will read it (the web grid now, Expo later) and a fallback
+// computed twice is a fallback that drifts. Every read endpoint that
+// returns a slot or a slot-backed component emits this already resolved.
+//
+// `grade_components.label` is NOT this value. A slot row leaves label NULL
+// and renders display_label instead: storing the resolved text on the row
+// would be a snapshot that goes stale the moment the slot is renamed.
+// Legacy rows (no slot_id) keep whatever label they were written with, and
+// that is what they display.
+function slotDisplayLabel(type, slotNo, name) {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (trimmed) return trimmed;
+  return `${type === 'WW' ? 'Written Work' : 'Performance Task'} ${slotNo}`;
+}
+
+// A slot name is optional. Empty-after-trim normalises to NULL rather than
+// '' so there is ONE representation of "unnamed" — otherwise a name of a
+// single space would defeat the fallback above and print a blank header.
+// Returns { value } or { error }.
+function normalizeSlotName(name) {
+  if (name === undefined || name === null) return { value: null };
+  if (typeof name !== 'string') return { error: 'A slot name must be text.' };
+  const trimmed = name.trim();
+  if (!trimmed) return { value: null };
+  if (trimmed.length > 100) {
+    return { error: `A slot name may be at most 100 characters (got ${trimmed.length}).` };
+  }
+  return { value: trimmed };
+}
+
+module.exports = { isWholeNumber, wholeNumberMessage, slotDisplayLabel, normalizeSlotName };

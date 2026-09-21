@@ -5,7 +5,12 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { parentOfStudent, insertNotifications, emitNotifications } = require('../utils/notify');
 const { isValidDateFormat } = require('../utils/dateFormat');
-const { isWholeNumber, wholeNumberMessage } = require('../utils/validateScore');
+const {
+  isWholeNumber,
+  wholeNumberMessage,
+  slotDisplayLabel,
+  normalizeSlotName,
+} = require('../utils/validateScore');
 const gc = require('../utils/gradeComputation');
 const { readListParams, pageMeta } = require('../utils/pagination');
 
@@ -22,6 +27,56 @@ function isValidScore(value) {
 // than dividing by zero) if this check were somehow bypassed.
 function isValidMax(value) {
   return typeof value === 'number' && value > 0;
+}
+
+// A slot belongs to ONE class — subject + grade level + section + term +
+// school year. A component may only reference a slot from its own grade's
+// class, and this is the check that enforces it (CR1, 2026-09-22).
+//
+// WITHOUT IT the FK alone would happily accept any slot id in the table, so
+// a teacher who legitimately encodes for Grade 6 - Malikhain could attach a
+// score to Grade 5 - Masigasig's "Written Work 1" — passing every scope
+// check on the way, because the scope check looks at the GRADE, not the
+// slot. The row would then be rewritten by the other class's next HPS
+// change. Scope answers "may you write here"; this answers "does this
+// column belong to the thing you are writing to", and they are different
+// questions.
+//
+// Returns the slot row, or an { errorStatus, errorMessage } shaped like
+// every other guard in this file.
+// `expectedType` is the WW/PT the caller is about to write. A WW score in a
+// PT slot would compute under the wrong weight, so it is refused here
+// rather than left to be noticed on the report card.
+async function loadSlotForGrade(slotId, grade, expectedType) {
+  const [rows] = await pool.query('SELECT * FROM assessment_slots WHERE id = ? LIMIT 1', [slotId]);
+  const slot = rows[0];
+  if (!slot) {
+    return { errorStatus: 404, errorMessage: 'Assessment slot not found.' };
+  }
+
+  const sameClass =
+    Number(slot.subject_id) === Number(grade.subject_id) &&
+    Number(slot.grade_level) === Number(grade.student_grade_level) &&
+    slot.section === grade.student_section &&
+    Number(slot.term) === Number(grade.term) &&
+    slot.school_year === grade.school_year;
+
+  if (!sameClass) {
+    return {
+      errorStatus: 400,
+      errorMessage:
+        'That assessment slot belongs to a different class. A slot is specific to one subject, section, term and school year.',
+    };
+  }
+
+  if (expectedType && slot.type !== expectedType) {
+    return {
+      errorStatus: 400,
+      errorMessage: `That slot is a ${slot.type} slot; this score is a ${expectedType}. A score must go in a slot of its own type.`,
+    };
+  }
+
+  return { slot };
 }
 
 function isValidTerm(value) {
@@ -658,6 +713,656 @@ router.get('/', authenticate, authorize('teacher', 'admin', 'parent'), async (re
   }
 });
 
+// ===========================================================================
+// THE CLASS RECORD (CR1, 2026-09-22)
+// ===========================================================================
+// One screen per subject + section + term, shaped like the DepEd E-Class
+// Record: learners as rows, assessment slots as columns. Before this, a
+// teacher encoded ONE learner at a time through a modal — one quiz for 40
+// learners was up to 80 requests.
+//
+// REGISTERED BEFORE `/:id` ON PURPOSE. Express matches in order, so
+// `GET /api/grades/class-record` would otherwise hit `GET /:id`, fail
+// parseId and answer "Invalid grade id." — a confusing 400 for a correct
+// request. Do not move these below.
+//
+// NO PAGINATION, and that is a deliberate exception to "every list endpoint
+// pages". A class record is a DOCUMENT, not a list of records: a section is
+// at most ~50 learners, the grid shows every learner against every slot at
+// once, and a page of 50 would cut a class in half for no benefit. Same
+// exemption, for the same reason, as the report card.
+
+// Parses and validates the five identifiers that name a class. Shared by
+// the read and the write so the two cannot disagree about what a class is.
+function readClassKey(source) {
+  const subjectId = parseId(source.subject_id);
+  const gradeLevel = Number(source.grade_level);
+  const section = typeof source.section === 'string' ? source.section.trim() : '';
+  const term = source.term;
+  const schoolYear = source.school_year;
+
+  if (subjectId === null) return { error: 'subject_id is required.' };
+  if (!Number.isInteger(gradeLevel) || gradeLevel < 1 || gradeLevel > 6) {
+    return { error: 'grade_level must be a whole number from 1 to 6.' };
+  }
+  if (!section) return { error: 'section is required.' };
+  if (!isValidTerm(term)) return { error: 'term must be 1, 2, or 3.' };
+  if (!isValidSchoolYear(schoolYear)) return { error: 'school_year must be in YYYY-YYYY format with consecutive years.' };
+
+  return { key: { subjectId, gradeLevel, section, term: Number(term), schoolYear } };
+}
+
+// Every slot for a class, ordered the way the grid prints them.
+async function loadSlots(conn, key) {
+  const [rows] = await conn.query(
+    `SELECT * FROM assessment_slots
+      WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ?
+      ORDER BY type ASC, slot_no ASC`,
+    [key.subjectId, key.gradeLevel, key.section, key.term, key.schoolYear]
+  );
+  return rows.map((slot) => ({
+    id: slot.id,
+    type: slot.type,
+    slot_no: slot.slot_no,
+    name: slot.name,
+    display_label: slotDisplayLabel(slot.type, slot.slot_no, slot.name),
+    max_score: slot.max_score === null ? null : Number(slot.max_score),
+    // An UNUSED slot is one with no highest possible score. Its cells are
+    // disabled in the grid and it is left out of the computation entirely —
+    // never counted as zero, which would drag every learner's average down
+    // for an assessment that never happened.
+    in_use: slot.max_score !== null,
+  }));
+}
+
+// GET /api/grades/class-record — the whole grid in one request.
+//
+// READ SCOPE IS VIEW SCOPE (grade+section, any subject), matching GET / and
+// GET /:id, with `can_encode` in the payload so a teacher who may look but
+// not encode gets a read-only grid rather than a 404. That follows the
+// existing two-tier split instead of inventing a third rule.
+router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const parsed = readClassKey(req.query);
+  if (parsed.error) {
+    return res.status(400).json({ success: false, message: parsed.error });
+  }
+  const key = parsed.key;
+
+  try {
+    if (req.user.role === 'teacher') {
+      const canView = await teacherCanViewGrade(req.user.id, key.gradeLevel, key.section);
+      if (!canView) {
+        return res.status(404).json({ success: false, message: 'Class record not found.' });
+      }
+    }
+    const canEncode =
+      req.user.role === 'admin' ||
+      (await teacherCanEncodeGrade(req.user.id, key.subjectId, key.gradeLevel, key.section));
+
+    const [subjectRows] = await pool.query('SELECT * FROM subjects WHERE id = ? LIMIT 1', [key.subjectId]);
+    const subject = subjectRows[0];
+    if (!subject) {
+      return res.status(404).json({ success: false, message: 'Subject not found.' });
+    }
+    if (Number(subject.grade_level) !== key.gradeLevel) {
+      return res.status(400).json({
+        success: false,
+        message: `${subject.name} is a Grade ${subject.grade_level} subject; this class is Grade ${key.gradeLevel}.`,
+      });
+    }
+
+    const [modeRows] = await pool.query(
+      'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
+      [key.gradeLevel, key.schoolYear]
+    );
+    if (!modeRows.length) {
+      return res.status(409).json({
+        success: false,
+        message: `No grading_mode_configs row exists for Grade ${key.gradeLevel}, school year ${key.schoolYear}. An admin must configure the grading mode before this class can be recorded.`,
+      });
+    }
+    const mode = modeRows[0].mode;
+
+    const [weightRows] = await pool.query(
+      'SELECT ww_weight, pt_weight, ex_weight FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
+      [key.subjectId, key.schoolYear]
+    );
+    if (!weightRows.length) {
+      return res.status(409).json({
+        success: false,
+        message: `No grade_weight_configs row exists for this subject and school year (${key.schoolYear}). An admin must configure WW/PT/EX weights before this class can be computed.`,
+      });
+    }
+    const weights = weightRows[0];
+
+    const slots = await loadSlots(pool, key);
+
+    // ACTIVE learners only — the same filter Teacher → Attendance uses for
+    // its roster. An inactive learner is not in the class any more and a
+    // column of disabled cells for them is noise.
+    const [students] = await pool.query(
+      `SELECT id, lrn, first_name, last_name FROM students
+        WHERE grade_level = ? AND section = ? AND status = 'active'
+        ORDER BY last_name ASC, first_name ASC`,
+      [key.gradeLevel, key.section]
+    );
+
+    const studentIds = students.map((s) => s.id);
+    let gradeRows = [];
+    let componentRows = [];
+    if (studentIds.length) {
+      [gradeRows] = await pool.query(
+        'SELECT * FROM grades WHERE student_id IN (?) AND subject_id = ? AND term = ? AND school_year = ?',
+        [studentIds, key.subjectId, key.term, key.schoolYear]
+      );
+      const gradeIds = gradeRows.map((g) => g.id);
+      if (gradeIds.length) {
+        [componentRows] = await pool.query(
+          'SELECT * FROM grade_components WHERE grade_id IN (?)',
+          [gradeIds]
+        );
+      }
+    }
+
+    const gradeByStudent = new Map(gradeRows.map((g) => [g.student_id, g]));
+    const componentsByGrade = new Map();
+    for (const row of componentRows) {
+      if (!componentsByGrade.has(row.grade_id)) componentsByGrade.set(row.grade_id, []);
+      componentsByGrade.get(row.grade_id).push(row);
+    }
+
+    const learners = students.map((student) => {
+      const grade = gradeByStudent.get(student.id) || null;
+      const components = grade ? componentsByGrade.get(grade.id) || [] : [];
+
+      // Scores keyed by slot id, so the client never matches on a label.
+      const scores = {};
+      for (const row of components) {
+        if (row.slot_id) scores[row.slot_id] = Number(row.score);
+      }
+
+      return {
+        student_id: student.id,
+        name: `${student.last_name}, ${student.first_name}`,
+        lrn: student.lrn,
+        grade_id: grade ? grade.id : null,
+        is_locked: grade ? !!grade.is_locked : false,
+        scores,
+        // LEGACY ROWS ARE COUNTED BUT NOT SHOWN AS CELLS. A component with
+        // no slot_id predates the grid and has no column to sit in; it
+        // still feeds the learner's totals, which is why the grid's own
+        // arithmetic would disagree with the server's without this flag.
+        // The client says so rather than silently differing.
+        legacy_components: components.filter((row) => !row.slot_id).length,
+        ex_st1: numOrNull(grade?.ex_st1),
+        ex_st1_max: numOrNull(grade?.ex_st1_max),
+        ex_st2: numOrNull(grade?.ex_st2),
+        ex_st2_max: numOrNull(grade?.ex_st2_max),
+        ex_te: numOrNull(grade?.ex_te),
+        ex_te_max: numOrNull(grade?.ex_te_max),
+        // Every computed value comes from the SERVER, already worked out
+        // and stored by recomputeGrade. The grid displays; it never
+        // calculates a grade (CLAUDE.md: no client-side IG preview).
+        ww_percentage: numOrNull(grade?.ww_percentage),
+        ww_weighted: numOrNull(grade?.ww_weighted),
+        pt_percentage: numOrNull(grade?.pt_percentage),
+        pt_weighted: numOrNull(grade?.pt_weighted),
+        ex_percentage: numOrNull(grade?.ex_percentage),
+        ex_weighted: numOrNull(grade?.ex_weighted),
+        initial_grade: numOrNull(grade?.initial_grade),
+        term_grade: numOrNull(grade?.term_grade),
+        descriptive_grade: grade?.descriptive_grade ?? null,
+      };
+    });
+
+    return res.json({
+      success: true,
+      subject: { id: subject.id, name: subject.name, grade_level: subject.grade_level },
+      grade_level: key.gradeLevel,
+      section: key.section,
+      term: key.term,
+      school_year: key.schoolYear,
+      grading_mode: mode,
+      weights: {
+        ww: Number(weights.ww_weight),
+        pt: Number(weights.pt_weight),
+        ex: Number(weights.ex_weight),
+      },
+      can_encode: canEncode,
+      slots,
+      learners,
+    });
+  } catch (error) {
+    console.error('Get class record error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load the class record.' });
+  }
+});
+
+// PUT /api/grades/class-record — ONE save for the whole class.
+//
+// SCOPE IS CHECKED ONCE, NOT FORTY TIMES. The grid is a single subject +
+// grade + section, which is exactly teacherCanEncodeGrade's four columns —
+// so encode authority is settled before any row is touched. It deliberately
+// does NOT run loadAuthorizedGrade per learner: that loads a grade by id and
+// re-derives scope from the student, forty times, for an answer already
+// known. preflightGradeWrite runs once too — mode and weights key on the
+// class, not the learner.
+//
+// What IS per learner: the lock check, and creating a shell row for a
+// learner who has none (the grid must work on an empty class).
+//
+// DRY RUN. `dry_run: true` runs the entire save inside the transaction and
+// then ROLLS BACK, returning what every affected row WOULD hold. That is how
+// the grid shows live totals, PS, WS and a term grade as the teacher types
+// without doing any grade arithmetic in the client — the one rule this
+// module has never bent (CLAUDE.md: no client-side Initial Grade preview; a
+// second implementation of the computation would drift the first time DepEd
+// changed anything). A dry run writes nothing, notifies nobody and logs
+// nothing.
+router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const parsed = readClassKey(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ success: false, message: parsed.error });
+  }
+  const key = parsed.key;
+  const dryRun = req.body.dry_run === true;
+  const slots = Array.isArray(req.body.slots) ? req.body.slots : [];
+  const entries = Array.isArray(req.body.entries) ? req.body.entries : [];
+
+  if (!slots.length && !entries.length) {
+    return res.status(400).json({ success: false, message: 'Nothing to save — send slots, entries, or both.' });
+  }
+
+  // ---- shape and whole-number validation, before anything is loaded ----
+  for (const slot of slots) {
+    if (slot?.type !== 'WW' && slot?.type !== 'PT') {
+      return res.status(400).json({ success: false, message: "Each slot needs a type of 'WW' or 'PT'." });
+    }
+    const slotNo = Number(slot.slot_no);
+    if (!Number.isInteger(slotNo) || slotNo < 1 || slotNo > 20) {
+      return res.status(400).json({ success: false, message: 'Each slot needs a slot_no from 1 to 20.' });
+    }
+    const named = normalizeSlotName(slot.name);
+    if (named.error) {
+      return res.status(400).json({ success: false, message: named.error });
+    }
+    if (slot.max_score !== null && slot.max_score !== undefined) {
+      if (!isValidMax(slot.max_score)) {
+        return res.status(400).json({ success: false, message: 'A slot max_score must be greater than 0.' });
+      }
+      if (!isWholeNumber(slot.max_score)) {
+        return res
+          .status(400)
+          .json({ success: false, message: wholeNumberMessage(`${slot.type} ${slotNo} max_score`, slot.max_score) });
+      }
+    }
+  }
+
+  const seenStudents = new Set();
+  for (const entry of entries) {
+    const studentId = parseId(entry?.student_id);
+    if (studentId === null) {
+      return res.status(400).json({ success: false, message: 'Each entry needs a valid student_id.' });
+    }
+    if (seenStudents.has(studentId)) {
+      return res.status(400).json({ success: false, message: `Duplicate student_id ${studentId} in entries.` });
+    }
+    seenStudents.add(studentId);
+
+    for (const item of Array.isArray(entry.scores) ? entry.scores : []) {
+      const slotId = parseId(item?.slot_id);
+      if (slotId === null) {
+        return res.status(400).json({ success: false, message: 'Each score needs a valid slot_id.' });
+      }
+      if (item.score === null) continue; // an explicit null clears the score
+      if (!isValidScore(item.score)) {
+        return res.status(400).json({ success: false, message: 'A score must be 0 or greater.' });
+      }
+      if (!isWholeNumber(item.score)) {
+        return res.status(400).json({ success: false, message: wholeNumberMessage('score', item.score) });
+      }
+    }
+
+    for (const field of ['st1_score', 'st1_max', 'st2_score', 'st2_max', 'te_score', 'te_max']) {
+      const value = entry[field];
+      if (value === undefined || value === null) continue;
+      const rangeOk = field.endsWith('_max') ? isValidMax(value) : isValidScore(value);
+      if (!rangeOk) {
+        return res.status(400).json({
+          success: false,
+          message: field.endsWith('_max') ? `${field} must be greater than 0.` : `${field} must be 0 or greater.`,
+        });
+      }
+      if (!isWholeNumber(value)) {
+        return res.status(400).json({ success: false, message: wholeNumberMessage(field, value) });
+      }
+    }
+  }
+
+  let conn;
+  try {
+    // ---- authority, once ----
+    if (req.user.role === 'teacher') {
+      const canEncode = await teacherCanEncodeGrade(req.user.id, key.subjectId, key.gradeLevel, key.section);
+      if (!canEncode) {
+        const canView = await teacherCanViewGrade(req.user.id, key.gradeLevel, key.section);
+        // The same 403-vs-404 split every :id-keyed grades write uses: in
+        // view scope but not encode scope is an informative refusal naming
+        // the subject; outside both, the class does not exist for you.
+        if (!canView) {
+          return res.status(404).json({ success: false, message: 'Class record not found.' });
+        }
+        const [subjectRows] = await pool.query('SELECT name FROM subjects WHERE id = ? LIMIT 1', [key.subjectId]);
+        const subjectName = subjectRows[0] ? subjectRows[0].name : 'this subject';
+        return res.status(403).json({
+          success: false,
+          message: `You are not assigned to teach ${subjectName} in Grade ${key.gradeLevel} - ${key.section}.`,
+        });
+      }
+    }
+
+    const [students] = await pool.query(
+      `SELECT id, first_name, last_name FROM students
+        WHERE grade_level = ? AND section = ? AND status = 'active'`,
+      [key.gradeLevel, key.section]
+    );
+    const studentById = new Map(students.map((s) => [s.id, s]));
+    for (const studentId of seenStudents) {
+      if (!studentById.has(studentId)) {
+        return res.status(400).json({
+          success: false,
+          message: `Student #${studentId} is not an active learner in Grade ${key.gradeLevel} - ${key.section}.`,
+        });
+      }
+    }
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    // ---- slots: upsert, and guard the two HPS rules ----
+    const existingSlots = await loadSlots(conn, key);
+    const slotByKey = new Map(existingSlots.map((s) => [`${s.type}-${s.slot_no}`, s]));
+    const touchedSlotIds = new Set();
+
+    for (const slot of slots) {
+      const slotNo = Number(slot.slot_no);
+      const named = normalizeSlotName(slot.name);
+      const nextMax = slot.max_score === undefined || slot.max_score === null ? null : slot.max_score;
+      const existing = slotByKey.get(`${slot.type}-${slotNo}`);
+
+      if (existing) {
+        const [[scored]] = await conn.query(
+          'SELECT COUNT(*) n FROM grade_components WHERE slot_id = ?',
+          [existing.id]
+        );
+        const scoreCount = Number(scored.n);
+
+        // CLEARING an HPS that already holds scores is REFUSED. Blank means
+        // "this slot was never used", and an unused slot holding 34 marks is
+        // a contradiction — clearing it would silently orphan every one of
+        // them. Deleting the scores is a separate, deliberate action.
+        if (nextMax === null && scoreCount > 0) {
+          await conn.rollback();
+          return res.status(409).json({
+            success: false,
+            message: `${slotDisplayLabel(slot.type, slotNo, existing.name)} cannot be cleared — ${scoreCount} learner${
+              scoreCount === 1 ? ' has a score' : 's have scores'
+            } in it. Remove the scores first.`,
+          });
+        }
+
+        await conn.query('UPDATE assessment_slots SET name = ?, max_score = ? WHERE id = ?', [
+          named.value,
+          nextMax,
+          existing.id,
+        ]);
+
+        // CHANGING an HPS rewrites the materialised max_score on every row
+        // in that slot, inside this transaction — the slot is the
+        // declaration, the row is the copy, and this endpoint is the only
+        // writer of both. Without this the two disagree and every affected
+        // learner's percentage is computed against a stale max.
+        if (nextMax !== null && Number(existing.max_score) !== Number(nextMax)) {
+          await conn.query('UPDATE grade_components SET max_score = ? WHERE slot_id = ?', [nextMax, existing.id]);
+          touchedSlotIds.add(existing.id);
+        }
+        slotByKey.set(`${slot.type}-${slotNo}`, { ...existing, name: named.value, max_score: nextMax });
+      } else {
+        const [result] = await conn.query(
+          `INSERT INTO assessment_slots (subject_id, grade_level, section, term, school_year, type, slot_no, name, max_score)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [key.subjectId, key.gradeLevel, key.section, key.term, key.schoolYear, slot.type, slotNo, named.value, nextMax]
+        );
+        slotByKey.set(`${slot.type}-${slotNo}`, {
+          id: result.insertId,
+          type: slot.type,
+          slot_no: slotNo,
+          name: named.value,
+          max_score: nextMax,
+        });
+      }
+    }
+
+    const slotById = new Map([...slotByKey.values()].map((s) => [s.id, s]));
+
+    // ---- learners whose stored grade must be recomputed ----
+    const affected = new Set();
+    if (touchedSlotIds.size) {
+      const [rows] = await conn.query(
+        'SELECT DISTINCT grade_id FROM grade_components WHERE slot_id IN (?)',
+        [[...touchedSlotIds]]
+      );
+      for (const row of rows) affected.add(row.grade_id);
+    }
+
+    const lockedNames = [];
+    for (const entry of entries) {
+      const studentId = parseId(entry.student_id);
+      const student = studentById.get(studentId);
+
+      const [gradeRows] = await conn.query(
+        'SELECT * FROM grades WHERE student_id = ? AND subject_id = ? AND term = ? AND school_year = ? LIMIT 1',
+        [studentId, key.subjectId, key.term, key.schoolYear]
+      );
+      let grade = gradeRows[0];
+
+      if (grade && grade.is_locked) {
+        // A LOCKED LEARNER FAILS THE WHOLE SAVE, naming them. A partial save
+        // has no undo, and 39 saved with 1 silently skipped is the worst
+        // outcome available. This should also be nearly unreachable: the read
+        // endpoint returns is_locked per learner, so the grid disables those
+        // cells before anyone types — the only way here is an admin locking
+        // mid-edit, which is a race where stopping is correct.
+        lockedNames.push(`${student.first_name} ${student.last_name}`);
+        continue;
+      }
+
+      if (!grade) {
+        const [created] = await conn.query(
+          'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?)',
+          [studentId, key.subjectId, key.term, key.schoolYear]
+        );
+        const [freshRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [created.insertId]);
+        grade = freshRows[0];
+      }
+
+      let changed = false;
+
+      for (const item of Array.isArray(entry.scores) ? entry.scores : []) {
+        const slotId = parseId(item.slot_id);
+        const slot = slotById.get(slotId);
+        if (!slot) {
+          await conn.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `Slot #${slotId} does not belong to this class record.`,
+          });
+        }
+        if (slot.max_score === null) {
+          await conn.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `${slotDisplayLabel(slot.type, slot.slot_no, slot.name)} has no highest possible score yet — set one before recording marks in it.`,
+          });
+        }
+
+        const [existingRows] = await conn.query(
+          'SELECT id FROM grade_components WHERE grade_id = ? AND slot_id = ? LIMIT 1',
+          [grade.id, slotId]
+        );
+        const existingComponent = existingRows[0];
+
+        if (item.score === null) {
+          if (existingComponent) {
+            await conn.query('DELETE FROM grade_components WHERE id = ?', [existingComponent.id]);
+            changed = true;
+          }
+          continue;
+        }
+
+        if (existingComponent) {
+          await conn.query('UPDATE grade_components SET score = ?, max_score = ? WHERE id = ?', [
+            item.score,
+            slot.max_score,
+            existingComponent.id,
+          ]);
+        } else {
+          // label stays NULL: a slot-backed row renders the slot's
+          // display_label, never a snapshot of it.
+          await conn.query(
+            'INSERT INTO grade_components (grade_id, slot_id, type, score, max_score, label) VALUES (?, ?, ?, ?, ?, NULL)',
+            [grade.id, slotId, slot.type, item.score, slot.max_score]
+          );
+        }
+        changed = true;
+      }
+
+      // The three Summative parts, reusing the same pairing rule PATCH
+      // /:id/exam uses: score and max travel together, an explicit null on
+      // either clears both.
+      const examUpdates = {};
+      for (const part of ['st1', 'st2', 'te']) {
+        const scoreKey = `${part}_score`;
+        const maxKey = `${part}_max`;
+        const scoreSent = entry[scoreKey] !== undefined;
+        const maxSent = entry[maxKey] !== undefined;
+        if (!scoreSent && !maxSent) continue;
+
+        if (scoreSent && maxSent && (entry[scoreKey] === null) !== (entry[maxKey] === null)) {
+          await conn.rollback();
+          return res.status(400).json({
+            success: false,
+            message: `${part.toUpperCase()}: send a score and a max together, or null to clear both.`,
+          });
+        }
+        if ((scoreSent && entry[scoreKey] === null) || (maxSent && entry[maxKey] === null)) {
+          examUpdates[`ex_${part}`] = null;
+          examUpdates[`ex_${part}_max`] = null;
+        } else {
+          const nextScore = scoreSent ? entry[scoreKey] : numOrNull(grade[`ex_${part}`]);
+          const nextMax = maxSent ? entry[maxKey] : numOrNull(grade[`ex_${part}_max`]);
+          if (nextScore === null || nextMax === null) {
+            await conn.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `${part.toUpperCase()}: a score needs a max, and this learner has none stored yet.`,
+            });
+          }
+          examUpdates[`ex_${part}`] = nextScore;
+          examUpdates[`ex_${part}_max`] = nextMax;
+        }
+        changed = true;
+      }
+
+      if (Object.keys(examUpdates).length) {
+        const sets = Object.keys(examUpdates).map((col) => `${col} = ?`).join(', ');
+        await conn.query(`UPDATE grades SET ${sets} WHERE id = ?`, [...Object.values(examUpdates), grade.id]);
+      }
+
+      if (changed) affected.add(grade.id);
+    }
+
+    if (lockedNames.length) {
+      await conn.rollback();
+      return res.status(409).json({
+        success: false,
+        message: `Nothing was saved. ${lockedNames.join(', ')} ${
+          lockedNames.length === 1 ? 'has a locked grade' : 'have locked grades'
+        } for this subject and term — ask an admin to unlock before saving.`,
+      });
+    }
+
+    // ---- recompute, only what changed ----
+    const preflight = await preflightGradeWrite(
+      { student_grade_level: key.gradeLevel, school_year: key.schoolYear, subject_id: key.subjectId, is_locked: 0 },
+      'score'
+    );
+    if (preflight.errorStatus) {
+      await conn.rollback();
+      return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
+    }
+
+    // ONE shared pending array across every recompute, emitted once after
+    // commit — a notification for a write that rolled back would be a lie.
+    const notified = [];
+    const results = [];
+    for (const gradeId of affected) {
+      const updated = await recomputeGrade(conn, gradeId, preflight.mode, dryRun ? null : notified, req.user.id);
+      results.push({
+        grade_id: updated.id,
+        student_id: updated.student_id,
+        ww_percentage: numOrNull(updated.ww_percentage),
+        ww_weighted: numOrNull(updated.ww_weighted),
+        pt_percentage: numOrNull(updated.pt_percentage),
+        pt_weighted: numOrNull(updated.pt_weighted),
+        ex_percentage: numOrNull(updated.ex_percentage),
+        ex_weighted: numOrNull(updated.ex_weighted),
+        initial_grade: numOrNull(updated.initial_grade),
+        term_grade: numOrNull(updated.term_grade),
+        descriptive_grade: updated.descriptive_grade,
+      });
+    }
+
+    if (dryRun) {
+      await conn.rollback();
+      return res.json({
+        success: true,
+        dry_run: true,
+        message: 'Nothing was saved. These are the values this save would produce.',
+        results,
+      });
+    }
+
+    await conn.commit();
+    emitNotifications(req, notified);
+
+    await logActivity(
+      req.user.id,
+      'save_class_record',
+      `Saved the class record for subject #${key.subjectId}, Grade ${key.gradeLevel} - ${key.section}, term ${key.term}: ${slots.length} slot(s), ${entries.length} learner(s), ${affected.size} grade(s) recomputed`
+    );
+
+    return res.json({
+      success: true,
+      slots: await loadSlots(pool, key),
+      results,
+    });
+  } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch {
+        // rollback failure is reported by the 500 below; swallowing it here
+        // keeps the original error as the one the caller sees.
+      }
+    }
+    console.error('Save class record error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save the class record.' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // GET /api/grades/:id — one grade record WITH its full grade_components
 // history (the detail view — see GET / above for why the list omits it).
 // Teacher/admin scope reuses loadAuthorizedGrade's wide view-scope check
@@ -701,10 +1406,28 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
       grade = loaded.grade;
     }
 
-    const [components] = await pool.query(
-      'SELECT * FROM grade_components WHERE grade_id = ? ORDER BY date_recorded ASC, id ASC',
+    // display_label is resolved HERE, on the server, and joined from the
+    // slot — the parent breakdown modal reads this endpoint and must show
+    // the column's name ("Long quiz") or its fallback ("Written Work 1"),
+    // never a raw NULL label. Legacy rows have no slot: they fall back to
+    // the label they were written with, so an old row still reads the way
+    // it always did. The ordering adds slot type and number so a card
+    // reads down the class record rather than by whenever a score happened
+    // to be typed.
+    const [componentRows] = await pool.query(
+      `SELECT c.*, s.name AS slot_name, s.slot_no, s.type AS slot_type
+         FROM grade_components c
+         LEFT JOIN assessment_slots s ON s.id = c.slot_id
+        WHERE c.grade_id = ?
+        ORDER BY s.type ASC, s.slot_no ASC, c.date_recorded ASC, c.id ASC`,
       [gradeId]
     );
+    const components = componentRows.map((row) => ({
+      ...row,
+      display_label: row.slot_id
+        ? slotDisplayLabel(row.slot_type, row.slot_no, row.slot_name)
+        : row.label || `${row.type === 'WW' ? 'Written Work' : 'Performance Task'}`,
+    }));
 
     // Inferred from which of the two dual-mode columns is populated,
     // rather than a separate grading_mode_configs lookup — the grades
@@ -994,10 +1717,21 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
     return res.status(400).json({ success: false, message: 'Invalid grade id.' });
   }
 
-  const { type, score, max_score, label, date_recorded } = req.body;
+  const { type, score, max_score, label, date_recorded, slot_id } = req.body;
 
   if (type !== 'WW' && type !== 'PT') {
     return res.status(400).json({ success: false, message: "type must be 'WW' or 'PT'." });
+  }
+  // REQUIRED since CR1 (2026-09-22). Every component belongs to a class
+  // assessment slot; a score with no column is a score nobody can find on
+  // the class record. Legacy rows keep slot_id NULL and are never
+  // back-filled, but nothing new may be written without one.
+  const slotId = parseId(slot_id);
+  if (slotId === null) {
+    return res.status(400).json({
+      success: false,
+      message: 'slot_id is required — a score must belong to an assessment slot on the class record.',
+    });
   }
   if (!isValidScore(score)) {
     return res.status(400).json({ success: false, message: 'score must be 0 or greater.' });
@@ -1014,8 +1748,11 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
   if (!isWholeNumber(max_score)) {
     return res.status(400).json({ success: false, message: wholeNumberMessage('max_score', max_score) });
   }
-  if (!label || !String(label).trim()) {
-    return res.status(400).json({ success: false, message: 'label is required.' });
+  // `label` is now OPTIONAL and the column is nullable (CR1). A slot-backed
+  // row leaves it NULL and renders the slot's display_label instead; it used
+  // to be required because a component had no other way to identify itself.
+  if (label !== undefined && label !== null && !String(label).trim()) {
+    return res.status(400).json({ success: false, message: 'label must not be blank if it is sent.' });
   }
   if (date_recorded !== undefined && date_recorded !== null && !isValidDateFormat(date_recorded)) {
     return res.status(400).json({ success: false, message: 'date_recorded must be in YYYY-MM-DD format.' });
@@ -1032,6 +1769,14 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
       return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
 
+    // AFTER the scope check, deliberately, and for the same reason the
+    // grade-level mismatch check is: an out-of-scope teacher must not learn
+    // anything about another class by probing slot ids.
+    const slotCheck = await loadSlotForGrade(slotId, loaded.grade, type);
+    if (slotCheck.errorStatus) {
+      return res.status(slotCheck.errorStatus).json({ success: false, message: slotCheck.errorMessage });
+    }
+
     const preflight = await preflightGradeWrite(loaded.grade, 'score');
     if (preflight.errorStatus) {
       return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
@@ -1041,8 +1786,8 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
     await conn.beginTransaction();
 
     const [result] = await conn.query(
-      'INSERT INTO grade_components (grade_id, type, score, max_score, label, date_recorded) VALUES (?, ?, ?, ?, ?, ?)',
-      [gradeId, type, score, max_score, label, date_recorded || null]
+      'INSERT INTO grade_components (grade_id, slot_id, type, score, max_score, label, date_recorded) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [gradeId, slotId, type, score, max_score, label ?? null, date_recorded || null]
     );
 
     const notified = [];
@@ -1098,10 +1843,15 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
     return res.status(400).json({ success: false, message: 'Invalid component id.' });
   }
 
-  const { type, score, max_score, label, date_recorded } = req.body;
+  const { type, score, max_score, label, date_recorded, slot_id } = req.body;
 
   const touchesAny =
-    type !== undefined || score !== undefined || max_score !== undefined || label !== undefined || date_recorded !== undefined;
+    type !== undefined ||
+    score !== undefined ||
+    max_score !== undefined ||
+    label !== undefined ||
+    date_recorded !== undefined ||
+    slot_id !== undefined;
   if (!touchesAny) {
     return res.status(400).json({ success: false, message: 'At least one field must be provided.' });
   }
@@ -1121,11 +1871,26 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
   if (max_score !== undefined && !isWholeNumber(max_score)) {
     return res.status(400).json({ success: false, message: wholeNumberMessage('max_score', max_score) });
   }
-  if (label !== undefined && (!label || !String(label).trim())) {
-    return res.status(400).json({ success: false, message: 'label must not be empty.' });
+  if (label !== undefined && label !== null && !String(label).trim()) {
+    return res.status(400).json({ success: false, message: 'label must not be blank if it is sent.' });
   }
   if (date_recorded !== undefined && date_recorded !== null && !isValidDateFormat(date_recorded)) {
     return res.status(400).json({ success: false, message: 'date_recorded must be in YYYY-MM-DD format.' });
+  }
+  // slot_id is OPTIONAL on an edit — the row already has one — but it can
+  // never be cleared. Sending it MOVES the score to another column of the
+  // same class, which is a legitimate correction (a mark typed into
+  // Written Work 2 that belonged in Written Work 3); sending null is not,
+  // because a component with no slot is exactly the state CR1 removed.
+  if (slot_id === null) {
+    return res.status(400).json({
+      success: false,
+      message: 'slot_id cannot be cleared — every score belongs to an assessment slot.',
+    });
+  }
+  const newSlotId = slot_id === undefined ? null : parseId(slot_id);
+  if (slot_id !== undefined && newSlotId === null) {
+    return res.status(400).json({ success: false, message: 'Invalid slot_id.' });
   }
 
   let conn;
@@ -1164,21 +1929,30 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
       });
     }
 
+    // A move is validated against the SAME class rules as a create — the
+    // slot must belong to this grade's class and match the component's
+    // type. `type` is immutable (above), so `existing.type` is the right
+    // thing to check against.
+    if (newSlotId !== null) {
+      const slotCheck = await loadSlotForGrade(newSlotId, loaded.grade, existing.type);
+      if (slotCheck.errorStatus) {
+        return res.status(slotCheck.errorStatus).json({ success: false, message: slotCheck.errorMessage });
+      }
+    }
+
     const nextScore = score !== undefined ? score : existing.score;
     const nextMax = max_score !== undefined ? max_score : existing.max_score;
     const nextLabel = label !== undefined ? label : existing.label;
     const nextDateRecorded = date_recorded !== undefined ? date_recorded || null : existing.date_recorded;
+    const nextSlotId = newSlotId !== null ? newSlotId : existing.slot_id;
 
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    await conn.query('UPDATE grade_components SET score = ?, max_score = ?, label = ?, date_recorded = ? WHERE id = ?', [
-      nextScore,
-      nextMax,
-      nextLabel,
-      nextDateRecorded,
-      componentId,
-    ]);
+    await conn.query(
+      'UPDATE grade_components SET score = ?, max_score = ?, label = ?, date_recorded = ?, slot_id = ? WHERE id = ?',
+      [nextScore, nextMax, nextLabel, nextDateRecorded, nextSlotId, componentId]
+    );
 
     const notified = [];
     const updatedGrade = await recomputeGrade(conn, gradeId, preflight.mode, notified, req.user.id);

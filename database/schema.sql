@@ -216,16 +216,88 @@ CREATE TABLE grades (
 -- s.2026) — if ever tracked, that belongs in a separate, unlinked table,
 -- not a third value here. EX's three sub-scores (ST1/ST2/TE) live as
 -- fixed columns on `grades` instead — see the comment there.
+-- ONE ASSESSMENT SLOT PER CLASS, added 2026-09-22 for the class-record
+-- grid. A slot is a COLUMN on the DepEd E-Class Record — "Written Work 1"
+-- for this subject, this section, this term — and its highest possible
+-- score belongs to the CLASS, not to any one learner's row.
+--
+-- WHY A TABLE AND NOT "max_score per grade_components row with an agreement
+-- check". With the max only on the rows, it exists only where a score
+-- exists — so "a slot nobody has used" and "a slot nobody has scored YET"
+-- become the same state, and the school's rule (a blank HPS means the slot
+-- is unused and is left out of the computation, never counted as zero) is
+-- literally unrepresentable. An agreement check can only DETECT a
+-- divergence; this prevents one.
+--
+-- max_score NULL = the slot is unused. That is the only meaning of NULL
+-- here, and it is why clearing an HPS that already has scores is refused by
+-- the API rather than silently dropping them.
+--
+-- KEYED ON (grade_level, section) AS VARCHARs, deliberately, matching
+-- teacher_assignments — which is what teacherCanEncodeGrade already scopes
+-- on. CLAUDE.md records that section_id is READ in exactly four places;
+-- this would have been a fifth and should not be.
+--
+-- `name` is optional. Named, the grid header and the parent breakdown modal
+-- show it ("Long quiz"); unnamed, the server resolves a display_label of
+-- "Written Work 1" / "Performance Task 1". The fallback is computed
+-- SERVER-SIDE, once, because two clients will read it (web now, Expo later)
+-- and a fallback computed twice drifts.
+CREATE TABLE assessment_slots (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  subject_id INT UNSIGNED NOT NULL,
+  grade_level TINYINT UNSIGNED NOT NULL,
+  section VARCHAR(50) NOT NULL,
+  term TINYINT UNSIGNED NOT NULL CHECK (term BETWEEN 1 AND 3),
+  school_year VARCHAR(9) NOT NULL,
+  type ENUM('WW', 'PT') NOT NULL,
+  slot_no TINYINT UNSIGNED NOT NULL,
+  name VARCHAR(100) DEFAULT NULL,
+  max_score DECIMAL(5,2) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_slot (subject_id, grade_level, section, term, school_year, type, slot_no)
+) ENGINE=InnoDB;
+
+-- WW (Written Works) and PT (Performance Tasks) only — an arbitrary
+-- number of raw scores per grade, averaged. Renamed from quiz/activity
+-- to match DO 015's actual terms. Deliberately no 'formative' value:
+-- formative assessments are never included in grade computation (DO 015
+-- s.2026) — if ever tracked, that belongs in a separate, unlinked table,
+-- not a third value here. EX's three sub-scores (ST1/ST2/TE) live as
+-- fixed columns on `grades` instead — see the comment there.
+--
+-- slot_id (2026-09-22) ties a row to its class's slot. REQUIRED by every
+-- API write path since CR1; nullable in the column because rows recorded
+-- before the grid existed have none, and a legacy row is kept, never
+-- back-filled with an invented slot. It becomes NOT NULL only once there
+-- is nothing left to back-fill.
+--
+-- max_score STAYS on the row and is still what the computation reads
+-- (componentPercentage sums score/max_score per row). The slot is the
+-- class-level DECLARATION; this is the materialised copy, and the
+-- class-record endpoint is the ONLY writer of both — when a slot's HPS
+-- changes it rewrites every row on that slot in the same transaction.
+-- That is a denormalisation on purpose: the alternative is a join inside
+-- recomputeGrade, and the computation chain is the last place to add one.
+-- The guard is an invariant test, not a comment.
+--
+-- label is NULLABLE since 2026-09-22. A slot row leaves it NULL and
+-- renders display_label instead; storing the resolved label here would be
+-- a snapshot that goes stale the moment a slot is renamed. Legacy rows
+-- keep the label they were written with.
 CREATE TABLE grade_components (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   grade_id INT UNSIGNED NOT NULL,
+  slot_id INT UNSIGNED DEFAULT NULL,
   type ENUM('WW', 'PT') NOT NULL,
   score DECIMAL(5,2) NOT NULL,
   max_score DECIMAL(5,2) NOT NULL,
-  label VARCHAR(100) NOT NULL,
+  label VARCHAR(100) DEFAULT NULL,
   date_recorded DATE DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_grade_components_grade (grade_id)
+  INDEX idx_grade_components_grade (grade_id),
+  INDEX idx_grade_components_slot (slot_id)
 ) ENGINE=InnoDB;
 
 -- Adjusted Transmutation Table, SY 2026-2027 ONLY (DO 015 s.2026,
@@ -484,8 +556,19 @@ ALTER TABLE grades
   ADD CONSTRAINT fk_grades_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_grades_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
 
+ALTER TABLE assessment_slots
+  ADD CONSTRAINT fk_slot_subject FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE;
+
+-- ON DELETE RESTRICT on the slot, not CASCADE, and the asymmetry with the
+-- grade FK beside it is the point: deleting a GRADE row should take its
+-- components (they describe that learner's work and nothing else), but
+-- deleting a SLOT that still holds scores must be impossible — it would
+-- silently destroy every learner's mark for that column. The API refuses
+-- it first with a 409 naming the count; this is the backstop for a direct
+-- DB write.
 ALTER TABLE grade_components
-  ADD CONSTRAINT fk_grade_components_grade FOREIGN KEY (grade_id) REFERENCES grades(id) ON DELETE CASCADE;
+  ADD CONSTRAINT fk_grade_components_grade FOREIGN KEY (grade_id) REFERENCES grades(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_grade_components_slot FOREIGN KEY (slot_id) REFERENCES assessment_slots(id) ON DELETE RESTRICT;
 
 ALTER TABLE attendance
   ADD CONSTRAINT fk_attendance_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,

@@ -129,6 +129,57 @@ async function deleteNotificationsFor(pairs) {
   }
 }
 
+// SLOT FIXTURES (CR1, 2026-09-22). Every component write needs a slot_id
+// now. This suite is not testing slots — it is testing the grade_available
+// fan-out — so it makes one directly, keyed off the grade's own class so the
+// API's same-class check passes. Auto-numbered per (grade, type), because
+// one slot holds at most one score per learner and this suite writes two WW
+// rows to the same grade.
+const createdSlotIds = [];
+const slotCounters = new Map();
+
+async function makeSlot(gradeId, type, maxScore) {
+  const mysql = require('mysql2/promise');
+  const conn = await mysql.createConnection(dbConfig);
+  try {
+    const [rows] = await conn.query(
+      `SELECT g.subject_id, g.term, g.school_year, s.grade_level, s.section
+         FROM grades g JOIN students s ON s.id = g.student_id
+        WHERE g.id = ? LIMIT 1`,
+      [gradeId]
+    );
+    const g = rows[0];
+    if (!g) throw new Error(`makeSlot: grade #${gradeId} not found`);
+
+    const counterKey = `${gradeId}-${type}`;
+    const slotNo = (slotCounters.get(counterKey) || 0) + 1;
+    slotCounters.set(counterKey, slotNo);
+
+    const [result] = await conn.query(
+      `INSERT INTO assessment_slots
+         (subject_id, grade_level, section, term, school_year, type, slot_no, max_score)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE max_score = VALUES(max_score), id = LAST_INSERT_ID(id)`,
+      [g.subject_id, g.grade_level, g.section, g.term, g.school_year, type, slotNo, maxScore]
+    );
+    createdSlotIds.push(result.insertId);
+    return result.insertId;
+  } finally {
+    await conn.end();
+  }
+}
+
+async function deleteSlots() {
+  if (!createdSlotIds.length) return;
+  const mysql = require('mysql2/promise');
+  const conn = await mysql.createConnection(dbConfig);
+  try {
+    await conn.query('DELETE FROM assessment_slots WHERE id IN (?)', [createdSlotIds]);
+  } finally {
+    await conn.end();
+  }
+}
+
 async function dbCount(table, where = '', params = []) {
   const mysql = require('mysql2/promise');
   const conn = await mysql.createConnection(dbConfig);
@@ -424,7 +475,7 @@ async function main() {
 
     const ww = await request('POST', `/api/grades/${gradeId}/components`, {
       token: admin.token,
-      body: { type: 'WW', score: 40, max_score: 50, label: 'NOTIF TEST ww' },
+      body: { type: 'WW', score: 40, max_score: 50, label: 'NOTIF TEST ww', slot_id: await makeSlot(gradeId, 'WW', 50) },
     });
     requireFixture(ww.status === 201, 'a WW component is recorded', why(ww));
     created.components.push(ww.data.component.id);
@@ -435,7 +486,7 @@ async function main() {
 
     const pt = await request('POST', `/api/grades/${gradeId}/components`, {
       token: admin.token,
-      body: { type: 'PT', score: 45, max_score: 50, label: 'NOTIF TEST pt' },
+      body: { type: 'PT', score: 45, max_score: 50, label: 'NOTIF TEST pt', slot_id: await makeSlot(gradeId, 'PT', 50) },
     });
     requireFixture(pt.status === 201, 'a PT component is recorded', why(pt));
     created.components.push(pt.data.component.id);
@@ -470,7 +521,7 @@ async function main() {
 
     const ww2 = await request('POST', `/api/grades/${gradeId}/components`, {
       token: admin.token,
-      body: { type: 'WW', score: 30, max_score: 50, label: 'NOTIF TEST ww2' },
+      body: { type: 'WW', score: 30, max_score: 50, label: 'NOTIF TEST ww2', slot_id: await makeSlot(gradeId, 'WW', 50) },
     });
     requireFixture(ww2.status === 201, 'a second WW component is recorded', why(ww2));
     created.components.push(ww2.data.component.id);
@@ -548,12 +599,18 @@ async function main() {
     // the hook fires on the LETTER appearing, not on a score being written.
     const g1Ww = await request('POST', `/api/grades/${g1GradeId}/components`, {
       token: admin.token,
-      body: { type: 'WW', score: 92, max_score: 100, label: 'Quiz 1' },
+      body: { type: 'WW', score: 92, max_score: 100, label: 'Quiz 1', slot_id: await makeSlot(g1GradeId, 'WW', 100) },
     });
     requireFixture(g1Ww.status === 201, 'admin records a WW score on the Grade 1 row', why(g1Ww));
     const g1Pt = await request('POST', `/api/grades/${g1GradeId}/components`, {
       token: admin.token,
-      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 1' },
+      body: {
+        type: 'PT',
+        score: 92,
+        max_score: 100,
+        label: 'Performance Task 1',
+        slot_id: await makeSlot(g1GradeId, 'PT', 100),
+      },
     });
     requireFixture(g1Pt.status === 201, 'admin records a PT score on the Grade 1 row', why(g1Pt));
     assert(
@@ -747,6 +804,10 @@ async function main() {
       for (const id of created.grades) {
         await tryDelete(`/api/grades/${id}`);
       }
+      // Slots AFTER the grades: the FK is ON DELETE RESTRICT, so a slot
+      // still holding a component cannot be dropped. Deleting the grades
+      // cascades their components away, which is what frees the slots.
+      await deleteSlots();
       for (const id of created.events) {
         await tryDelete(`/api/events/${id}`);
       }

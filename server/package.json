@@ -11,6 +11,7 @@
     "db:migrate:auth-codes": "node scripts/migrate-auth-codes.js",
     "db:migrate:reading-and-literacy": "node scripts/migrate-reading-and-literacy.js",
     "db:migrate:grade1-weights": "node scripts/migrate-grade1-weights.js",
+    "db:migrate:assessment-slots": "node scripts/migrate-assessment-slots.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
@@ -29,6 +30,7 @@
     "test:excuses": "node scripts/test-excuses-flows.js",
     "test:notifications": "node scripts/test-notifications-flows.js",
     "test:dashboard": "node scripts/test-dashboard-flows.js",
+    "test:class-record": "node scripts/test-class-record-flows.js",
     "test:recovery": "node scripts/test-recovery-flows.js"
   },
   "dependencies": {
