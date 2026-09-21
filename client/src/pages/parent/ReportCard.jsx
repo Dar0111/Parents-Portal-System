@@ -357,7 +357,10 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
               ))}
               {showFinal ? (
                 <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                  <GradeValue value={subject.final_grade} mode={mode} />
+                  {/* `whole`: a Final Grade is an integer on the printed card.
+                      The general-average row below deliberately does NOT pass
+                      it — 721/8 = 90.13 is the school's own figure. */}
+                  <GradeValue value={subject.final_grade} mode={mode} whole />
                 </td>
               ) : null}
             </tr>
@@ -462,7 +465,7 @@ function TermView({
           const entry = isFinal ? null : subject.terms?.[term];
           const openable = Boolean(entry?.grade_id) && Boolean(onOpenTerm);
           const value = isFinal ? (
-            <GradeValue value={subject.final_grade} mode={mode} />
+            <GradeValue value={subject.final_grade} mode={mode} whole />
           ) : (
             <TermValue entry={entry} mode={mode} />
           );

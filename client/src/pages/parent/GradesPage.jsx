@@ -238,7 +238,9 @@ function BreakdownBody({ mode, detail }) {
   return (
     <div className="space-y-4">
       <div>
-        <GradeValue value={grade.term_grade} mode={mode} />
+        {/* The modal header. `whole` so it reads "90 Advancing", matching the
+            cell the parent tapped to open it — the two must not disagree. */}
+        <GradeValue value={grade.term_grade} mode={mode} whole />
         {detail.descriptor?.descriptor ? (
           <span className="ml-1.5 text-xs text-fg-muted">{detail.descriptor.descriptor}</span>
         ) : null}

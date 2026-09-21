@@ -721,7 +721,10 @@ export default function TeacherGradesPage() {
               />
             );
           }
-          return <GradeValue value={stored?.term_grade ?? null} mode={mode} />;
+          // `whole` — a Term Grade is an integer. The Initial Grade column
+          // immediately below keeps two decimals, deliberately: it is the
+          // pre-transmutation figure and is not a whole number.
+          return <GradeValue value={stored?.term_grade ?? null} mode={mode} whole />;
         },
       },
       ...(mode === 'numerical'
@@ -1164,7 +1167,7 @@ function EncodePanel({
             </p>
             <p>
               <span className="text-fg-muted">Term Grade </span>
-              <GradeValue value={grade.term_grade} mode={mode} />
+              <GradeValue value={grade.term_grade} mode={mode} whole />
             </p>
             {detail.descriptor?.descriptor ? (
               <p className="text-fg-muted">{detail.descriptor.descriptor}</p>

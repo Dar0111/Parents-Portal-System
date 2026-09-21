@@ -254,7 +254,9 @@ export default function AdminGradesPage() {
       sortValue: (row) => row.final_grade,
       render: (row) => (
         <div className="whitespace-nowrap">
-          <GradeValue value={row.final_grade} mode={mode} />
+          {/* `whole` — a Final Grade is an integer. The General Average at
+              the foot of this page keeps two decimals and is untouched. */}
+          <GradeValue value={row.final_grade} mode={mode} whole />
           {row.final_grade_descriptor ? (
             <div className="text-xs text-fg-muted">{row.final_grade_descriptor.descriptor}</div>
           ) : null}

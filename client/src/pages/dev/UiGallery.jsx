@@ -445,8 +445,8 @@ export default function UiGallery() {
         </Section>
 
         <Section
-          title="GradeValue — the four states"
-          note="NULL is never a bare dash: the reason is inline text, because tooltips do not exist on touch and the report card is a phone screen."
+          title="GradeValue — four states, two precisions"
+          note="NULL is never a bare dash: the reason is inline text, because tooltips do not exist on touch and the report card is a phone screen. `whole` is for Term and Final Grades only — a General Average keeps two decimals, because 721/8 = 90.13 is the figure on the school's own sheet."
         >
           <div className="rounded-xl border border-edge bg-surface p-6">
             <div className="grid gap-4 sm:grid-cols-4">
@@ -467,6 +467,31 @@ export default function UiGallery() {
                 <GradeValue value={null} mode="descriptive" />
               </div>
             </div>
+
+            {/* The `whole` precision, beside the default, so the difference is
+                visible rather than described. The third cell is the one that
+                matters: from SY 2027-2028 a term grade inherits the Initial
+                Grade's decimals, and `whole` must show them rather than
+                rounding a stored 89.5 into a 90 the database never held. */}
+            <div className="mt-6 grid gap-4 border-t border-edge-soft pt-6 sm:grid-cols-4">
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">whole — a term grade</p>
+                <GradeValue value="91.00" mode="numerical" whole />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">whole — a final grade</p>
+                <GradeValue value={89} mode="numerical" whole />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">whole — not integral</p>
+                <GradeValue value="89.50" mode="numerical" whole />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">default — a general average</p>
+                <GradeValue value="87.50" mode="numerical" />
+              </div>
+            </div>
+
             <GradeLegend pending notApplicable />
           </div>
         </Section>

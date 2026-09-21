@@ -63,8 +63,46 @@ function formatGrade(value) {
   return asNumber.toFixed(2);
 }
 
-export default function GradeValue({ value, mode, className = '' }) {
-  const formatted = formatGrade(value);
+// A TERM GRADE and a FINAL GRADE are whole numbers (2026-09-22). The school's
+// Summary of Grades and DO 015 both print them that way, and since the
+// rounding fix the server stores them that way too — a Term Grade comes out
+// of transmutation_table (an INT column) and computeFinalGrade now rounds to
+// a whole number. Two decimals on screen made a correct 89 read as 89.00.
+//
+// THIS IS NOT toFixed(0), AND THE DIFFERENCE MATTERS. From SY 2027-2028 the
+// transmutation table has no rows, recomputeGrade falls back to
+// term_grade = the Initial Grade, and Initial Grades carry two decimals. A
+// stored 89.5 under toFixed(0) would display as "90" — a number the database
+// does not hold. So this renders the integer only when the value IS integral
+// and otherwise shows what is actually stored:
+//
+//     "87.00" -> "87"        89 -> "89"        89.5 -> "89.5"
+//
+// The same reasoning rules out Math.round for display. Rounding is the
+// server's job and it has already happened; the client's job is to not add
+// decimals that are not there, never to remove ones that are.
+//
+// General Average and Initial Grade keep formatGrade above — the general
+// average is 721/8 = 90.13 on the school's own sheet, so two decimals there
+// is the correct answer, not an oversight. Two precisions one level apart is
+// a real distinction in the school's records.
+// `String(Number(x))` is the whole implementation: Number("87.00") is 87 and
+// String(87) is "87", while String(89.5) is "89.5". No branch on
+// Number.isInteger is needed — JavaScript's own number-to-string already
+// drops trailing zeros and keeps real decimals, which is exactly the rule.
+function formatWholeGrade(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const asNumber = Number(value);
+  if (Number.isNaN(asNumber)) return null;
+  return String(asNumber);
+}
+
+// `whole` is opt-in, so every call site that does not pass it keeps two
+// decimals. That is deliberate: the sites that must change are the six term
+// and final grades, and leaving the general averages and Initial Grades
+// untouched is what proves they were not caught by accident.
+export default function GradeValue({ value, mode, whole = false, className = '' }) {
+  const formatted = whole ? formatWholeGrade(value) : formatGrade(value);
 
   if (formatted !== null) {
     return <span className={`tabular-nums text-fg ${className}`}>{formatted}</span>;

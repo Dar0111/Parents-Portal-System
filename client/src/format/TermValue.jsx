@@ -37,5 +37,12 @@ export default function TermValue({ entry, mode }) {
   // `mode` is the API's own grading_mode, never inferred from the null itself:
   // "null because incomplete" and "null because inapplicable" are
   // indistinguishable from the value alone.
-  return <GradeValue value={entry?.term_grade} mode={mode} />;
+  //
+  // `whole` (2026-09-22): a Term Grade is a whole number on the school's
+  // Summary of Grades and in DO 015. Setting it HERE rather than at each
+  // caller is the point of this component existing — it covers all seven term
+  // cells in the system (the parent card's table and its 390px segments, the
+  // parent breakdown wrapper, Teacher → Grades' roster and modal, Admin →
+  // Grades' table and modal) from one line, so they cannot drift apart.
+  return <GradeValue value={entry?.term_grade} mode={mode} whole />;
 }
