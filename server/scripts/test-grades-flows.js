@@ -1,9 +1,11 @@
 /**
  * Grades API tests — Stage G2b (POST /api/grades, row creation/scoping),
  * Stage G2c (POST /:id/components, PATCH /:id/exam — the first writes
- * that actually compute anything), Stage G2d (PATCH /:id/descriptive —
- * Grade 1's manual letter grade, the other side of the numerical/
- * descriptive gate), and Stage G2e (PUT/DELETE .../components/:componentId,
+ * that actually compute anything), Grade 1's COMPUTED letter — which was
+ * Stage G2d's hand-picked one through PATCH /:id/descriptive until the
+ * school answered on 2026-09-22 and that endpoint was retired, so the
+ * letter now comes out of the same four score writes every other grade
+ * level uses — and Stage G2e (PUT/DELETE .../components/:componentId,
  * PATCH /:id/lock). The centerpiece is a full worked example driven
  * through the real HTTP endpoints, step by step, reusing the EXACT
  * numbers from utils/gradeComputation.js's own unit tests
@@ -639,34 +641,61 @@ async function run() {
       `student ${why(createGrade1Student)}; grade ${why(grade1DescriptiveCreate)}`
     );
 
-    const [componentsBefore] = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id = ?', [grade1DescriptiveId])
-    );
-
-    const descriptiveModeComponent = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
+    // A GRADE 1 ROW NOW ACCEPTS SCORES (2026-09-22). These four assertions
+    // used to assert the exact opposite — a 400 with "record a letter
+    // instead" — because the letter was believed to be a manual judgment.
+    // The school answered that it is computed (GRADING_SPEC §6a), so the
+    // write path is the same one Grades 2-6 use and this block inverts.
+    //
+    // The worked example: every component at 90% of its max, so the Initial
+    // Grade is 90.00 whatever the weights are (30/50/20 for Grade 1), which
+    // bands to A — the top boundary, checked exactly rather than safely
+    // inside the band.
+    const g1Ww = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: adminToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Should be rejected' },
+      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1' },
     });
+    assert(g1Ww.status === 201, `A Grade 1 row ACCEPTS a WW component — it is computed now, not hand-picked (${why(g1Ww)})`);
     assert(
-      descriptiveModeComponent.status === 400,
-      'POST /:id/components on a descriptive-mode (Grade 1) grade is rejected with 400'
+      g1Ww.data?.grade?.descriptive_grade === null && g1Ww.data?.grade?.initial_grade === null,
+      'No letter yet with only WW recorded — NULL until every required input exists, the same rule as a numerical row'
     );
 
-    const descriptiveModeExam = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
+    const g1Pt = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: adminToken,
-      body: { st1_score: 10, st1_max: 10 },
+      body: { type: 'PT', score: 90, max_score: 100, label: 'Performance Task 1' },
     });
+    assert(g1Pt.status === 201, `A Grade 1 row ACCEPTS a PT component (${why(g1Pt)})`);
     assert(
-      descriptiveModeExam.status === 400,
-      'PATCH /:id/exam on a descriptive-mode (Grade 1) grade is rejected with 400'
+      g1Pt.data?.grade?.descriptive_grade === null,
+      'Still no letter with WW+PT but no Summative — all three components required'
     );
 
-    const [componentsAfter] = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id = ?', [grade1DescriptiveId])
+    const g1Exam = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
+      token: adminToken,
+      body: { st1_score: 27, st1_max: 30, st2_score: 27, st2_max: 30, te_score: 36, te_max: 40 },
+    });
+    assert(g1Exam.status === 200, `A Grade 1 row ACCEPTS Summative scores through PATCH /:id/exam (${why(g1Exam)})`);
+    assert(
+      num(g1Exam.data?.grade?.initial_grade) === 90.0,
+      `Grade 1 Initial Grade is computed from 30/50/20: every part at 90% gives 90.00 (got ${g1Exam.data?.grade?.initial_grade})`
     );
     assert(
-      componentsBefore[0].c === 0 && componentsAfter[0].c === 0,
-      `A rejected write leaves zero grade_components rows — the pre-flight gate runs before any insert is attempted, not insert-then-rollback (before=${componentsBefore[0].c}, after=${componentsAfter[0].c})`
+      g1Exam.data?.grade?.descriptive_grade === 'A',
+      `The letter is COMPUTED and banded from the raw score: 90.00 -> A, the exact band boundary (got ${g1Exam.data?.grade?.descriptive_grade})`
+    );
+    assert(
+      g1Exam.data?.grade?.term_grade === null,
+      `term_grade stays NULL on a descriptive row — the dual-mode invariant (got ${g1Exam.data?.grade?.term_grade})`
+    );
+
+    // NO TRANSMUTATION for Grade 1. An Initial Grade of 90.00 would transmute
+    // to 92 for a numerical grade level, and 92 is still an A — so a test
+    // that only checked the letter could not tell the two apart. Checking the
+    // stored initial_grade is what proves the transmutation step was skipped.
+    assert(
+      num(g1Exam.data?.grade?.initial_grade) === 90.0 && g1Exam.data?.grade?.term_grade === null,
+      'The RAW score is banded, not a transmuted one — initial_grade is 90.00 and no transmuted value was stored anywhere'
     );
 
     // --- Out-of-scope teacher: fully out of scope (different section) stays 404 ---
@@ -753,29 +782,32 @@ async function run() {
       `PATCH /:id/exam: same disagreement, 403 (got ${viewScopeExam.status})`
     );
 
-    const viewScopeDescriptive = await request('PATCH', `/api/grades/${scienceGradeId}/descriptive`, {
-      token: teacherToken,
+    // PATCH /:id/descriptive is RETIRED (2026-09-22) — the route is gone, so
+    // Express has nothing mounted at this path and answers 404 regardless of
+    // who asks. Asserted rather than deleted, because "the endpoint no longer
+    // exists" is itself the thing a future session needs proved: a letter is
+    // computed from scores now, and a second writer for the same column would
+    // be a way to set a letter the scores do not support.
+    const retiredDescriptive = await request('PATCH', `/api/grades/${scienceGradeId}/descriptive`, {
+      token: adminToken,
       body: { descriptive_grade: 'A' },
     });
     assert(
-      viewScopeDescriptive.status === 403 && /not assigned to teach Science/i.test(viewScopeDescriptive.data?.message || ''),
-      `PATCH /:id/descriptive: scope check runs BEFORE the mode check — 403 naming the subject, not 400 for mode mismatch (got ${viewScopeDescriptive.status})`
+      retiredDescriptive.status === 404,
+      `PATCH /:id/descriptive is retired — the route is unmounted, so even admin gets 404 (got ${retiredDescriptive.status})`
     );
 
-    // --- Descriptive grading (Stage G2d) ---
-    // Grade 1 is a MANUAL teacher judgment call — an ASSUMPTION, not a
-    // school-confirmed answer. DO 015 s.2026 defines no Initial-Grade-to-
-    // letter mapping at all, and descriptive grading exists specifically
-    // to avoid numerical labeling in Key Stage 1 — that reasoning, not a
-    // school confirmation, is why grade1DescriptiveId's letter is set
-    // directly here rather than computed. If the school later says a
-    // computation feeds the letter, this test (and the endpoint) change;
-    // the schema does not need to.
-    console.log('\nDescriptive grading (Stage G2d):');
+    // --- Descriptive grading: COMPUTED (2026-09-22, replacing Stage G2d) ---
+    // The school confirmed the Grade 1 letter is computed from WW 30 / PT 50 /
+    // Summative 20, banded on the RAW weighted score (GRADING_SPEC §6a). What
+    // this block used to assert — a teacher PATCHing a letter directly — is
+    // gone with the endpoint; what it asserts now is the band table, every
+    // boundary of it, driven through the real write path.
+    console.log('\nDescriptive grading — computed letters and their bands:');
 
-    // Fixture: give TCH-001 a real assignment for Grade 1 Mathematics in
-    // the fixture student's section, so "subject teacher succeeds" can be
-    // tested against an actual subject teacher, not just admin.
+    // Fixture: give TCH-001 a real assignment for Grade 1 Mathematics in the
+    // fixture student's section, so a SUBJECT TEACHER (not just admin) is
+    // proved able to encode a Grade 1 score.
     const [assignmentResult] = await withDb((conn) =>
       conn.query('INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section) VALUES (?, ?, 1, ?)', [
         teacherId,
@@ -785,114 +817,92 @@ async function run() {
     );
     grade1TeacherAssignmentId = assignmentResult.insertId;
 
-    const teacherSetsA = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
-      token: teacherToken,
-      body: { descriptive_grade: 'A' },
-    });
-    assert(
-      teacherSetsA.status === 200 && teacherSetsA.data?.grade?.descriptive_grade === 'A',
-      'Subject teacher sets A on a Grade 1 grade'
-    );
-    assert(
-      teacherSetsA.data?.grade?.ww_percentage === null &&
-        teacherSetsA.data?.grade?.ww_weighted === null &&
-        teacherSetsA.data?.grade?.pt_percentage === null &&
-        teacherSetsA.data?.grade?.pt_weighted === null &&
-        teacherSetsA.data?.grade?.ex_st1 === null &&
-        teacherSetsA.data?.grade?.ex_st1_max === null &&
-        teacherSetsA.data?.grade?.ex_st2 === null &&
-        teacherSetsA.data?.grade?.ex_st2_max === null &&
-        teacherSetsA.data?.grade?.ex_te === null &&
-        teacherSetsA.data?.grade?.ex_te_max === null &&
-        teacherSetsA.data?.grade?.ex_percentage === null &&
-        teacherSetsA.data?.grade?.ex_weighted === null &&
-        teacherSetsA.data?.grade?.initial_grade === null &&
-        teacherSetsA.data?.grade?.term_grade === null,
-      'Every numerical column is still NULL after setting a descriptive grade — the property that matters'
-    );
-
-    for (const letter of ['B', 'C', 'D', 'E']) {
-      const setLetter = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+    // EVERY BAND BOUNDARY, exactly — 90/80/75/65 and one below. A band table
+    // is all boundaries, so a test that only sampled the middle of each band
+    // would pass with every threshold off by one. Each case re-drives the
+    // same row through the real endpoints: all five parts at the same
+    // percentage, so the Initial Grade IS that percentage whatever the
+    // weights are, which makes the expected letter checkable by hand.
+    //
+    // EVERY MAX IS 100 ON PURPOSE. Scores are DECIMAL(5,2), so a
+    // just-below-the-boundary case scored out of 50 stores 44.995 as 45.00
+    // and the row then computes 90.00, not 89.99 — the assertion would fail
+    // against entirely correct code. Out of 100 the score IS the percentage
+    // and nothing is rounded on the way in. Found by this test failing four
+    // times on its four sub-boundary cases, all four for this reason.
+    async function setGrade1Score(percent) {
+      const ww = await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Ww.data.component.id}`, {
         token: teacherToken,
-        body: { descriptive_grade: letter },
+        body: { score: percent, max_score: 100 },
       });
+      const pt = await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Pt.data.component.id}`, {
+        token: teacherToken,
+        body: { score: percent, max_score: 100 },
+      });
+      const exam = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
+        token: teacherToken,
+        body: {
+          st1_score: percent,
+          st1_max: 100,
+          st2_score: percent,
+          st2_max: 100,
+          te_score: percent,
+          te_max: 100,
+        },
+      });
+      return { ww, pt, exam };
+    }
+
+    // The sub-boundary cases are x.9, not x.99, and that is a FINDING about
+    // the arithmetic rather than a convenience. Each weighted part is stored
+    // at two decimals, so an Initial Grade is the sum of three rounded
+    // numbers: 89.99 gives 26.997 + 44.995 + 17.998, which stores as
+    // 27.00 + 45.00 + 18.00 and sums to exactly 90.00 — an A. Nothing is
+    // wrong with that; it is the same arithmetic every numerical grade has
+    // always used. It does mean a test cannot probe closer than the second
+    // decimal of the WEIGHTED parts, and x.9 is inside that resolution.
+    for (const [percent, letter] of [
+      [90, 'A'], // exact boundary
+      [89.9, 'B'],
+      [80, 'B'], // exact boundary
+      [79.9, 'C'],
+      [75, 'C'], // exact boundary
+      [74.9, 'D'],
+      [65, 'D'], // exact boundary
+      [64.9, 'E'],
+    ]) {
+      const { exam } = await setGrade1Score(percent);
       assert(
-        setLetter.status === 200 && setLetter.data?.grade?.descriptive_grade === letter,
-        `descriptive_grade ${letter} accepted`
+        exam.status === 200 && exam.data?.grade?.descriptive_grade === letter,
+        `A raw weighted score of ${percent} bands to ${letter} (got ${exam.data?.grade?.descriptive_grade}, IG ${exam.data?.grade?.initial_grade})`
       );
     }
 
-    const clearDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+    // A SUBJECT TEACHER can encode Grade 1, not only admin — every write
+    // above went through teacherToken, and this pins the scope explicitly.
+    const g1TeacherWrite = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
       token: teacherToken,
-      body: { descriptive_grade: null },
+      body: { st1_score: 45, st1_max: 50 },
+    });
+    assert(g1TeacherWrite.status === 200, `The Grade 1 SUBJECT TEACHER can encode scores (${why(g1TeacherWrite)})`);
+
+    // Clearing an input clears the letter, the same way it clears a number.
+    const clearSummative = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: null, st1_max: null },
     });
     assert(
-      clearDescriptive.status === 200 && clearDescriptive.data?.grade?.descriptive_grade === null,
-      'descriptive_grade: null clears the column'
+      clearSummative.status === 200 &&
+        clearSummative.data?.grade?.descriptive_grade === null &&
+        clearSummative.data?.grade?.initial_grade === null,
+      'Clearing a Summative sub-score clears the LETTER too — null until every input exists, in both directions'
     );
 
-    const lowercase = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
-      token: teacherToken,
-      body: { descriptive_grade: 'a' },
-    });
-    assert(
-      lowercase.status === 400 && /uppercase/i.test(lowercase.data?.message || ''),
-      "Lowercase 'a' rejected, message mentions uppercase"
-    );
-
-    const invalidLetter = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
-      token: teacherToken,
-      body: { descriptive_grade: 'F' },
-    });
-    assert(invalidLetter.status === 400, "Invalid letter 'F' rejected");
-
-    const missingField = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
-      token: teacherToken,
-      body: {},
-    });
-    assert(missingField.status === 400, 'Missing descriptive_grade field rejected');
-
-    const onNumericalGrade = await request('PATCH', `/api/grades/${outOfScopeGradeId}/descriptive`, {
-      token: adminToken,
-      body: { descriptive_grade: 'A' },
-    });
-    assert(
-      onNumericalGrade.status === 400,
-      'PATCH /:id/descriptive against a Grade 5 (numerical) grade is rejected with 400'
-    );
-
-    const componentOnDescriptive = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
-      token: teacherToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Should still be rejected' },
-    });
-    assert(
-      componentOnDescriptive.status === 400,
-      'POST /:id/components against the Grade 1 grade is still 400 — the other side of the gate, re-asserted here'
-    );
-
-    const outOfScopeDescriptive = await request('PATCH', `/api/grades/${outOfScopeGradeId}/descriptive`, {
-      token: teacherToken,
-      body: { descriptive_grade: 'A' },
-    });
-    assert(
-      outOfScopeDescriptive.status === 404,
-      'Out-of-scope teacher (TCH-001 has no assignment for Grade 5) gets 404 on PATCH /:id/descriptive'
-    );
-
-    const parentDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+    const parentDescriptive = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: parentToken,
-      body: { descriptive_grade: 'A' },
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Parent should not' },
     });
-    assert(parentDescriptive.status === 403, 'Parent cannot set a descriptive grade');
-
-    const adminDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
-      token: adminToken,
-      body: { descriptive_grade: 'C' },
-    });
-    assert(
-      adminDescriptive.status === 200 && adminDescriptive.data?.grade?.descriptive_grade === 'C',
-      'Admin succeeds on any grade, unscoped'
-    );
+    assert(parentDescriptive.status === 403, 'Parent cannot encode a Grade 1 score');
 
     // --- Component edit/delete and lock (Stage G2e) ---
     // A dedicated fixture, built up to FULL completion (WW+PT+EX all
@@ -1104,23 +1114,65 @@ async function run() {
     });
     assert(postAfterUnlock.status === 201, 'Writes work again after unlocking');
 
-    // Grade 1 (descriptive) row already exists with initial_grade always
-    // NULL — locking it is exactly the case a naive "initial_grade IS NOT
-    // NULL" completeness gate would have permanently broken.
+    // The Grade 1 row is INCOMPLETE at this point — the block above cleared
+    // its Summative, so initial_grade and descriptive_grade are both NULL.
+    // That is exactly the case a naive "initial_grade IS NOT NULL"
+    // completeness gate would have permanently broken, and it is still the
+    // case now that Grade 1 computes: a term nobody finished must still be
+    // lockable when the school closes the term.
     const lockDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/lock`, {
       token: adminToken,
       body: { is_locked: true },
     });
     assert(
       lockDescriptive.status === 200 && num(lockDescriptive.data?.grade?.is_locked) === 1,
-      'Locking a Grade 1 descriptive row (initial_grade always NULL) succeeds — no completeness gate blocks it'
+      'Locking an INCOMPLETE Grade 1 row succeeds — no completeness gate blocks it'
     );
 
-    const descriptiveOnLocked = await request('PATCH', `/api/grades/${grade1DescriptiveId}/descriptive`, {
+    // The lock covers the Grade 1 write path too. It has to be asserted
+    // against a SCORE write now: the letter has no endpoint of its own any
+    // more, so a lock that only guarded PATCH /:id/descriptive would guard
+    // nothing at all.
+    const scoreOnLockedGrade1 = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
       token: adminToken,
-      body: { descriptive_grade: 'A' },
+      body: { st1_score: 45, st1_max: 50 },
     });
-    assert(descriptiveOnLocked.status === 403, 'PATCH /:id/descriptive on a locked grade is 403');
+    assert(scoreOnLockedGrade1.status === 403, 'A score write against a LOCKED Grade 1 row is 403');
+
+    const componentOnLockedGrade1 = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Locked' },
+    });
+    assert(componentOnLockedGrade1.status === 403, 'A component write against a LOCKED Grade 1 row is 403');
+
+    const unlockDescriptive = await request('PATCH', `/api/grades/${grade1DescriptiveId}/lock`, {
+      token: adminToken,
+      body: { is_locked: false },
+    });
+    assert(unlockDescriptive.status === 200, 'The Grade 1 row unlocks again');
+
+    // Put the row back on a KNOWN letter for the report-card assertions
+    // below, which read it. 75% of every part is an Initial Grade of exactly
+    // 75, the bottom of band C — so the letter the card shows is computed
+    // from these three writes, not set by hand anywhere.
+    await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Ww.data.component.id}`, {
+      token: teacherToken,
+      body: { score: 37.5, max_score: 50 },
+    });
+    await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Pt.data.component.id}`, {
+      token: teacherToken,
+      body: { score: 37.5, max_score: 50 },
+    });
+    const restoreGrade1C = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 37.5, st1_max: 50, st2_score: 37.5, st2_max: 50, te_score: 37.5, te_max: 50 },
+    });
+    assert(
+      restoreGrade1C.status === 200 &&
+        restoreGrade1C.data?.grade?.descriptive_grade === 'C' &&
+        num(restoreGrade1C.data?.grade?.initial_grade) === 75,
+      `The Grade 1 row is back on a computed C at an Initial Grade of 75.00 (got ${restoreGrade1C.data?.grade?.descriptive_grade} / ${restoreGrade1C.data?.grade?.initial_grade})`
+    );
 
     // --- Stage G3: GET endpoints ---
     console.log('\nGET /api/grades (list, scoped):');
@@ -1252,7 +1304,8 @@ async function run() {
     const nonexistentStudentGet = await request('GET', '/api/grades/student/999999', { token: adminToken });
     assert(nonexistentStudentGet.status === 404, 'GET /student/:studentId with a nonexistent student returns 404');
 
-    // --- Grade 1 (descriptive mode): FG/GA genuinely inapplicable, not "incomplete" ---
+    // --- Grade 1 (descriptive mode): a COMPUTED letter per term, a computed
+    // Final LETTER across three, and no General Average at all ---
     const grade1ReportCard = await request('GET', `/api/grades/student/${grade1StudentFixtureId}`, { token: adminToken });
     assert(
       grade1ReportCard.status === 200 && grade1ReportCard.data?.grading_mode === 'descriptive',
@@ -1261,19 +1314,24 @@ async function run() {
     const grade1MathEntry = grade1ReportCard.data?.subjects?.find((s) => s.subject_id === mathGrade1Id);
     assert(
       grade1MathEntry?.terms?.[1]?.descriptive_grade === 'C' && grade1MathEntry?.terms?.[1]?.term_grade === null,
-      `Grade 1 Mathematics term 1 shows letter C, term_grade null (got descriptive_grade=${grade1MathEntry?.terms?.[1]?.descriptive_grade}, term_grade=${grade1MathEntry?.terms?.[1]?.term_grade})`
+      `Grade 1 Mathematics term 1 shows the COMPUTED letter C, term_grade null (got descriptive_grade=${grade1MathEntry?.terms?.[1]?.descriptive_grade}, term_grade=${grade1MathEntry?.terms?.[1]?.term_grade})`
     );
     assert(
       grade1MathEntry?.terms?.[1]?.descriptor?.descriptor === 'Connecting',
       `Letter C resolves to descriptor Connecting on the report card (got ${grade1MathEntry?.terms?.[1]?.descriptor?.descriptor})`
     );
+    // A Final LETTER exists now, and it obeys the same null-until-complete
+    // rule a Final Grade does. One term of three is not a card.
     assert(
       grade1MathEntry?.final_grade === null,
-      'Grade 1 subject final_grade is null — not applicable for descriptive mode, not "incomplete"'
+      `Grade 1 subject final_grade is null with 1 of 3 terms recorded — INCOMPLETE, which is a different reason from the one this line used to assert (got ${grade1MathEntry?.final_grade})`
     );
+    // The one thing that IS still inapplicable rather than incomplete. There
+    // is no General Average in Key Stage 1 at all — an average of letters is
+    // not a number, and the school does not print one.
     assert(
       grade1ReportCard.data?.general_average === null,
-      'Grade 1 general_average is null — GA does not apply to descriptive mode'
+      'Grade 1 general_average is null — there is NO General Average in Key Stage 1, complete card or not'
     );
     // THE RESPONSE CONTRACT — the whole top-level key set, in one assertion.
     // Its reason is STAGE 5: Expo will read this same payload with its own
@@ -1315,10 +1373,89 @@ async function run() {
       `Grade 1 term_averages is present with all three terms null (got ${JSON.stringify(g1TermAverages)})`
     );
 
+    // --- The Final LETTER: the average of the three terms' RAW scores ---
+    // Term 1 is already a computed C at an Initial Grade of exactly 75.
+    // Terms 2 and 3 go on now, at 89 and 92, so the three letters are C, B, A
+    // and the Final is (75 + 89 + 92) / 3 = 85.333... -> 85.33 -> B.
+    //
+    // THE POINT OF THOSE NUMBERS: a Final computed by averaging the three
+    // LETTERS would have to pick between them by some other rule, and any
+    // such rule lands somewhere this one does not. The Final letter is banded
+    // from the mean of the scores, never from the letters the terms display.
+    for (const [term, percent] of [
+      [2, 89],
+      [3, 92],
+    ]) {
+      const create = await request('POST', '/api/grades', {
+        token: adminToken,
+        body: { student_id: grade1StudentFixtureId, subject_id: mathGrade1Id, term, school_year: schoolYear },
+      });
+      const id = create.data?.grade?.id;
+      if (id) createdGradeIds.push(id);
+      requireFixture(create.status === 201, `Fixture: Grade 1 Mathematics term ${term}`, why(create));
+
+      const half = (percent / 100) * 50;
+      await request('POST', `/api/grades/${id}/components`, {
+        token: adminToken,
+        body: { type: 'WW', score: half, max_score: 50, label: `Quiz T${term}` },
+      });
+      await request('POST', `/api/grades/${id}/components`, {
+        token: adminToken,
+        body: { type: 'PT', score: half, max_score: 50, label: `PT T${term}` },
+      });
+      const exam = await request('PATCH', `/api/grades/${id}/exam`, {
+        token: adminToken,
+        body: { st1_score: half, st1_max: 50, st2_score: half, st2_max: 50, te_score: half, te_max: 50 },
+      });
+      assert(
+        exam.status === 200 && num(exam.data?.grade?.initial_grade) === percent,
+        `Grade 1 Mathematics term ${term} computes an Initial Grade of ${percent}.00 (got ${exam.data?.grade?.initial_grade})`
+      );
+    }
+
+    const g1FinalCard = await request('GET', `/api/grades/student/${grade1StudentFixtureId}`, { token: adminToken });
+    const g1FinalMath = g1FinalCard.data?.subjects?.find((s) => s.subject_id === mathGrade1Id);
+    assert(
+      g1FinalMath?.terms?.[1]?.descriptive_grade === 'C' &&
+        g1FinalMath?.terms?.[2]?.descriptive_grade === 'B' &&
+        g1FinalMath?.terms?.[3]?.descriptive_grade === 'A',
+      `The three terms read C, B, A (got ${g1FinalMath?.terms?.[1]?.descriptive_grade}, ${g1FinalMath?.terms?.[2]?.descriptive_grade}, ${g1FinalMath?.terms?.[3]?.descriptive_grade})`
+    );
+    assert(
+      g1FinalMath?.final_grade === 'B',
+      `The Final LETTER populates once all three terms exist: (75 + 89 + 92)/3 = 85.33 -> B by hand (got ${g1FinalMath?.final_grade})`
+    );
+    assert(
+      g1FinalMath?.final_grade_descriptor?.descriptor === 'Benchmarking',
+      `The Final letter carries its descriptor (got ${g1FinalMath?.final_grade_descriptor?.descriptor})`
+    );
+    // The Final is a LETTER, not a number — the two columns never swap, at
+    // term level or at final level.
+    assert(
+      typeof g1FinalMath?.final_grade === 'string' &&
+        g1FinalCard.data?.subjects?.every((s) => s.terms?.[1] === null || s.terms?.[1]?.term_grade === null),
+      'The Grade 1 Final is a LETTER and no term on the card carries a numerical term_grade'
+    );
+    // STILL no General Average, on a card that now has a complete subject.
+    // This is the assertion that separates "inapplicable" from "incomplete":
+    // completeness arrived and the GA did not.
+    assert(
+      g1FinalCard.data?.general_average === null &&
+        g1FinalCard.data?.general_average_descriptor === null &&
+        g1FinalCard.data?.term_averages?.[1] === null,
+      `A Grade 1 card with a COMPLETE subject still has no General Average and no term averages (got ${g1FinalCard.data?.general_average})`
+    );
+
     // Seeded Grade 1 card (Nino / 1090001 / Mabait). READ-ONLY.
-    // The throwaway Matipid student above is still the write target for
-    // PATCH /:id/descriptive. Writing to this student would make the
-    // suite able to break the 2026-09-18 demo the fixture exists for.
+    // The throwaway Matipid student above is the only write target. Writing
+    // to this student would make the suite able to break the demo fixture.
+    //
+    // These five rows are LEGACY: they were seeded with hand-picked letters
+    // and no component or Summative scores at all, back when a teacher chose
+    // the letter. They keep their letters — nothing rewrites a stored grade —
+    // and the assertions below pin what that means now that the letter is
+    // computed: a term cell still reads, and everything DERIVED from the
+    // scores behind it is null, because there are no scores behind it.
     console.log('\nSeeded Grade 1 fixture (read-only — do not write):');
 
     const g1ParentLogin = await login('1090001', 'Parent@2026');
@@ -1344,9 +1481,20 @@ async function run() {
       mathCard?.terms?.[1]?.descriptive_grade === 'A' &&
         mathCard?.terms?.[2]?.descriptive_grade === 'B' &&
         mathCard?.terms?.[3]?.descriptive_grade === 'C' &&
-        mathCard?.terms?.[1]?.term_grade === null &&
+        mathCard?.terms?.[1]?.term_grade === null,
+      'Seeded Mathematics keeps its three hand-set letters A/B/C, term_grade null — a stored grade is never rewritten by a rule change'
+    );
+    // THE LEGACY CASE, and the reason it gets its own assertion: all three
+    // terms ARE recorded here, so "incomplete" cannot explain the null. The
+    // Final letter is the average of the three terms' Initial Grades, and
+    // these rows have none — the letters were typed, not computed. A Final
+    // letter invented from A/B/C would be a number the school never produced.
+    assert(
+      mathCard?.terms?.[1]?.initial_grade === null &&
+        mathCard?.terms?.[2]?.initial_grade === null &&
+        mathCard?.terms?.[3]?.initial_grade === null &&
         mathCard?.final_grade === null,
-      'Mathematics is fully lettered A/B/C, term_grade null, final_grade null (N/A, not incomplete)'
+      `A legacy Grade 1 subject with all three letters and NO scores has final_grade null (got ${mathCard?.final_grade})`
     );
 
     // "Reading and Literacy", the school's own name — renamed from "Reading"

@@ -355,6 +355,27 @@ async function run() {
     'Fixture check: Nino really does have descriptive letters recorded'
   );
 
+  // NO NUMBER REACHES A GRADE 1 PARENT — the whole payload, not one field.
+  // Since 2026-09-22 a Grade 1 row carries a real `initial_grade`: the letter
+  // is computed from scores, so the number exists in the database for the
+  // first time. Key Stage 1 does not report numbers to parents, so the
+  // temptation this creates — averaging those numbers into a General
+  // Average, or leaking the raw weighted score onto a card — is new, and
+  // this is the assertion that catches either one.
+  //
+  // It scans the SERIALIZED payload rather than named fields, because a
+  // field added later would not be in a list written today. Nino's rows are
+  // legacy and hold no scores, so this does not prove the computed case; a
+  // fixture for that needs a second Grade 1 learner and a parent account,
+  // which this suite's cleanup does not create or remove. Recorded as a gap,
+  // not as coverage.
+  const g1Payload = JSON.stringify(p2);
+  assert(!/initial_grade/.test(g1Payload), 'No initial_grade key anywhere in a Grade 1 parent dashboard payload');
+  assert(
+    p2.grades.general_average === null && p2.grades.term === null && p2.grades.subjects_recorded === null,
+    'Every numeric grade field on a Grade 1 parent dashboard is null — there is no General Average in Key Stage 1'
+  );
+
   // --- parent scope -----------------------------------------------------
   console.log('\nParent — scope');
   assert(p1.student_id !== p2.student_id, 'The two parents resolve to different learners');

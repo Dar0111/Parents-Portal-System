@@ -9,6 +9,8 @@
     "db:setup": "node scripts/setup-db.js",
     "db:migrate:notifications": "node scripts/migrate-notifications.js",
     "db:migrate:auth-codes": "node scripts/migrate-auth-codes.js",
+    "db:migrate:reading-and-literacy": "node scripts/migrate-reading-and-literacy.js",
+    "db:migrate:grade1-weights": "node scripts/migrate-grade1-weights.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",

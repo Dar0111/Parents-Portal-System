@@ -135,7 +135,10 @@ async function run() {
       [SCHOOL_YEAR]
     );
 
-    check(weightRows.length === 35, 'Exactly 35 weight rows seeded', `found ${weightRows.length}`);
+    // 40, not 35 (2026-09-22): Grade 1's five learning areas now carry weight
+    // rows too. One per subject at every grade level, which is the rule since
+    // the school confirmed a Grade 1 letter is computed (GRADING_SPEC §6a).
+    check(weightRows.length === 40, 'Exactly 40 weight rows seeded — one per subject, every grade level', `found ${weightRows.length}`);
 
     const badWeightRows = weightRows.filter(
       (r) => toCents(r.ww_weight) + toCents(r.pt_weight) + toCents(r.ex_weight) !== 10000
@@ -146,26 +149,40 @@ async function run() {
       badWeightRows.length ? `subject_id(s) ${badWeightRows.map((r) => r.subject_id).join(', ')} do not` : ''
     );
 
-    // Zero weight rows for any subject at a descriptive-mode grade level —
-    // the durable exclusion (JOIN against grading_mode_configs in seed.sql,
-    // not a hardcoded grade_level comparison) proven from the OUTPUT side,
-    // not just by re-reading the seed SQL's own intent.
-    const [modeByGrade] = await conn.query(
-      'SELECT grade_level, mode FROM grading_mode_configs WHERE school_year = ?',
-      [SCHOOL_YEAR]
-    );
-    const descriptiveGrades = new Set(modeByGrade.filter((r) => r.mode === 'descriptive').map((r) => r.grade_level));
-    const weightRowsOnDescriptiveGrades = weightRows.filter((r) => descriptiveGrades.has(r.grade_level));
+    // INVERTED 2026-09-22. This check used to assert the OPPOSITE — that a
+    // descriptive-mode grade level has ZERO weight rows — and it was not a
+    // stale number but a statement of a principle the school has since
+    // reversed: a Grade 1 letter is COMPUTED from weights (GRADING_SPEC §6a),
+    // so recomputeGrade reads a weight row for every mode. The rule now is
+    // that EVERY subject has one, and grading_mode_configs decides only how
+    // it is used. Still proven from the OUTPUT side rather than by re-reading
+    // the seed's intent, which is why this check exists at all.
+    const [allSubjects] = await conn.query('SELECT id, name, grade_level FROM subjects');
+    const weightedSubjectIds = new Set(weightRows.map((r) => r.subject_id));
+    const subjectsWithoutWeights = allSubjects.filter((s) => !weightedSubjectIds.has(s.id));
     check(
-      weightRowsOnDescriptiveGrades.length === 0,
-      'Zero weight rows exist for any subject at a descriptive-mode grade level',
-      weightRowsOnDescriptiveGrades.length
-        ? `found rows for grade(s) ${[...new Set(weightRowsOnDescriptiveGrades.map((r) => r.grade_level))].join(', ')}`
+      subjectsWithoutWeights.length === 0,
+      'Every subject at every grade level has a weight row — descriptive levels included',
+      subjectsWithoutWeights.length
+        ? `missing for ${subjectsWithoutWeights.map((s) => `${s.name} (G${s.grade_level})`).join(', ')}`
         : ''
     );
 
-    // MAPEH/EPP carry 20/60/20; every other subject carries 20/50/30.
+    // Grade 1 is 30/50/20 (ex_weight holds the SUMMATIVE weight there).
+    const grade1Wrong = weightRows.filter(
+      (r) =>
+        r.grade_level === 1 &&
+        (toCents(r.ww_weight) !== 3000 || toCents(r.pt_weight) !== 5000 || toCents(r.ex_weight) !== 2000)
+    );
+    check(
+      grade1Wrong.length === 0,
+      'Grade 1 carries exactly 30/50/20 on every learning area',
+      grade1Wrong.length ? `subject(s) ${grade1Wrong.map((r) => r.subject_name).join(', ')} do not` : ''
+    );
+
+    // Grades 2-6: MAPEH/EPP carry 20/60/20; every other subject 20/50/30.
     const wrongBucketRows = weightRows.filter((r) => {
+      if (r.grade_level === 1) return false;
       const isSpecial = r.subject_name === 'MAPEH' || r.subject_name === 'EPP';
       const expectedPt = isSpecial ? 6000 : 5000;
       const expectedEx = isSpecial ? 2000 : 3000;
@@ -173,7 +190,7 @@ async function run() {
     });
     check(
       wrongBucketRows.length === 0,
-      'MAPEH/EPP carry 20/60/20 and every other subject carries 20/50/30',
+      'Grades 2-6: MAPEH/EPP carry 20/60/20 and every other subject carries 20/50/30',
       wrongBucketRows.length
         ? `subject(s) ${wrongBucketRows.map((r) => `${r.subject_name} (G${r.grade_level})`).join(', ')} do not`
         : ''

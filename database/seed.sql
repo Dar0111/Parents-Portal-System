@@ -134,31 +134,42 @@ INSERT INTO grading_mode_configs (grade_level, school_year, mode) VALUES
 -- Stage G1b (2026-09-06): re-seeded against the real subjects above,
 -- replacing G1a's provisional seed against the placeholder list.
 --
--- Grade 1 deliberately gets NO weight rows at all — enforced here by the
--- JOIN against grading_mode_configs (mode = 'numerical'), not by a
--- hardcoded "WHERE grade_level >= 2". No code path can ever read a
--- weight row for a descriptive-mode grade (routes/grades.js rejects
--- numerical writes against one before recomputeGrade() ever runs), so
--- seeding one would be dead data implying a promise the system doesn't
--- keep. The JOIN form is deliberate, not the simpler grade_level
--- comparison: in SY 2027-2028 Grade 2 also becomes descriptive per the
--- KS1 rollout (see grading_mode_configs's own comment) — a hardcoded
--- ">= 2" would not fail loudly then, it would quietly reseed weight rows
--- for a now-descriptive grade with nothing to catch it. Changing one row
--- in grading_mode_configs is what should drive this, the same way the
--- transmutation table's disappearance is driven by data absence, not a
--- hardcoded year — see that table's own comment for the same principle
--- applied a second time in this file.
+-- EVERY GRADE LEVEL GETS WEIGHT ROWS, including descriptive ones (2026-09-22).
+--
+-- This REVERSES the rule that stood here until then, and the reversal is the
+-- school's, not a refactor. The old rule excluded Grade 1 by JOINing against
+-- grading_mode_configs (mode = 'numerical'), on the reasoning that "no code
+-- path can ever read a weight row for a descriptive-mode grade, so seeding
+-- one would be dead data implying a promise the system doesn't keep."
+--
+-- That reasoning was sound and is now simply false. GRADING_SPEC §6a records
+-- the school's answer: a Grade 1 letter is COMPUTED, from WW 30 / PT 50 /
+-- Summative 20 banded on the raw weighted score. recomputeGrade reads the
+-- weight row for a descriptive grade exactly as it does for a numerical one —
+-- the promise is kept, so the data is not dead.
+--
+-- Grade 1 is 30/50/20; the school has not stated per-subject variation at
+-- Key Stage 1, so all five learning areas share it. Grades 2-6 keep DO 015's
+-- split: core 20/50/30, MAPEH and EPP 20/60/20. `ex_weight` holds the
+-- SUMMATIVE weight for Grade 1 — the column keeps its numerical name because
+-- the three ex_* score columns do too (see the grades table).
+--
+-- grading_mode_configs ALONE now decides how a weight row is used, never
+-- whether one exists. That is the simpler rule and it survives the KS1
+-- rollout: when Grade 2 turns descriptive in SY 2027-2028, its weights stop
+-- being transmuted and start being banded, and NOTHING HERE CHANGES. Under
+-- the old JOIN that same rollout would have silently deleted Grade 2's weight
+-- rows on the next reseed and broken every Grade 2 grade.
 -- ---------------------------------------------------------------------------
 
 INSERT INTO grade_weight_configs (subject_id, school_year, ww_weight, pt_weight, ex_weight)
-SELECT s.id, '2026-2027', 20.00,
-       CASE WHEN s.name IN ('MAPEH', 'EPP') THEN 60.00 ELSE 50.00 END,
-       CASE WHEN s.name IN ('MAPEH', 'EPP') THEN 20.00 ELSE 30.00 END
-FROM subjects s
-JOIN grading_mode_configs gmc
-  ON gmc.grade_level = s.grade_level AND gmc.school_year = '2026-2027'
-WHERE gmc.mode = 'numerical';
+SELECT s.id, '2026-2027',
+       CASE WHEN s.grade_level = 1 THEN 30.00 ELSE 20.00 END,
+       CASE WHEN s.grade_level = 1 THEN 50.00
+            WHEN s.name IN ('MAPEH', 'EPP') THEN 60.00 ELSE 50.00 END,
+       CASE WHEN s.grade_level = 1 THEN 20.00
+            WHEN s.name IN ('MAPEH', 'EPP') THEN 20.00 ELSE 30.00 END
+FROM subjects s;
 
 -- ---------------------------------------------------------------------------
 -- Adjusted Transmutation Table, SY 2026-2027 ONLY (DO 015 s.2026, Section

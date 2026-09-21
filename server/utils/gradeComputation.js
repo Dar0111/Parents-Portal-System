@@ -147,19 +147,63 @@ function initialGrade(wwWeighted, ptWeighted, exWeighted) {
 // contract as every other function in this module — and for anything
 // outside 0-100, since Table 11 defines no band for it and this function
 // must not invent one silently.
+// ONE TABLE, TWO READERS (2026-09-22). Table 11's numerical bands and the
+// Grade 1 letter bands of GRADING_SPEC §6a are the same five thresholds —
+// 90 / 80 / 75 / 65 — and DepEd's letters are named after the qualitative
+// descriptors, so A *is* Advancing. Keeping two hardcoded ladders would let a
+// future edit move one and not the other, and nothing would catch it: a
+// Grade 1 learner would be banded D while the same score printed
+// "Connecting" for Grade 2. So the thresholds exist ONCE and both functions
+// read them.
+//
+// Ordered high to low and matched top-down, so a boundary value (exactly 90)
+// lands in the HIGHER band. The last row's `min` is -Infinity rather than 0:
+// the 0-100 range check happens before the walk, and a floor of 0 here would
+// silently make a negative score Emerging instead of null.
+const BANDS = [
+  { min: 90, letter: 'A', descriptor: 'Advancing', remarks: 'Passed' },
+  { min: 80, letter: 'B', descriptor: 'Benchmarking', remarks: 'Passed' },
+  { min: 75, letter: 'C', descriptor: 'Connecting', remarks: 'Passed' },
+  { min: 65, letter: 'D', descriptor: 'Developing', remarks: 'Failed' },
+  { min: -Infinity, letter: 'E', descriptor: 'Emerging', remarks: 'Failed' },
+];
+
+// Shared by both readers below. Returns null for a missing input and for
+// anything outside 0-100 — Table 11 and §6a both define bands only inside
+// that range, and this module's standing contract is to return null rather
+// than invent one. NOTE the consequence, because percentages are deliberately
+// NOT clamped elsewhere in this file: a weighted score above 100 (bonus
+// points) yields NO band and therefore no letter, which renders as Pending.
+// That is the honest answer — "the school's table does not say" — and a cap,
+// if the school ever wants one, belongs in route validation as explicit
+// policy, not hidden in here.
+function bandFor(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const numeric = Number(value);
+  if (Number.isNaN(numeric) || numeric < 0 || numeric > 100) {
+    return null;
+  }
+  return BANDS.find((band) => numeric >= band.min) || null;
+}
+
 function qualitativeDescriptor(grade) {
-  if (grade === null || grade === undefined) {
-    return null;
-  }
-  const value = Number(grade);
-  if (Number.isNaN(value) || value < 0 || value > 100) {
-    return null;
-  }
-  if (value >= 90) return { descriptor: 'Advancing', remarks: 'Passed' };
-  if (value >= 80) return { descriptor: 'Benchmarking', remarks: 'Passed' };
-  if (value >= 75) return { descriptor: 'Connecting', remarks: 'Passed' };
-  if (value >= 65) return { descriptor: 'Developing', remarks: 'Failed' };
-  return { descriptor: 'Emerging', remarks: 'Failed' };
+  const band = bandFor(grade);
+  return band ? { descriptor: band.descriptor, remarks: band.remarks } : null;
+}
+
+// GRADING_SPEC §6a — the Grade 1 letter, from the RAW weighted score. No
+// transmutation: Grade 1 never touches transmutation_table, so this takes the
+// Initial Grade exactly as computed and bands it.
+//
+// Returns the bare letter. The letter's meaning comes from
+// descriptiveGradeMeaning() below, which is already what every reader uses —
+// so a caller that stores this letter gets the same descriptor a
+// teacher-entered letter has always produced, through the same lookup.
+function bandForScore(score) {
+  const band = bandFor(score);
+  return band ? band.letter : null;
 }
 
 // Table 8 (GRADING_SPEC §6) — what a Grade 1 DESCRIPTIVE letter means, in
@@ -189,5 +233,6 @@ module.exports = {
   weighted,
   initialGrade,
   qualitativeDescriptor,
+  bandForScore,
   descriptiveGradeMeaning,
 };

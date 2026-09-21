@@ -152,15 +152,18 @@ function encodeScopeError(loaded) {
 }
 
 // Shared preconditions for every write endpoint below, checked in the
-// confirmed order: mode, then lock, then (numerical only) weight-config
-// presence — all BEFORE any write is attempted, so a rejection here costs
-// the caller nothing (nothing was ever accepted, so there is nothing to
-// lose on retry). expectedMode is 'numerical' (components, exam) or
-// 'descriptive' (the descriptive endpoint) — a single shared function
-// rather than two near-identical copies, specifically so scope/mode/lock
-// logic can't drift between them: a future fix applied to only one copy
-// would diverge silently, since both would still pass their own tests.
-// Returns null when every precondition passes.
+// confirmed order: mode config, then lock, then weight-config presence — all
+// BEFORE any write is attempted, so a rejection here costs the caller nothing
+// (nothing was ever accepted, so there is nothing to lose on retry). One
+// shared function rather than a copy per endpoint, so scope/mode/lock logic
+// cannot drift between them: a fix applied to one copy would diverge
+// silently, since both would still pass their own tests.
+//
+// RETURNS `{ mode }` ON SUCCESS, not null (2026-09-22). recomputeGrade needs
+// the grading mode to decide whether it writes a number or a letter, and this
+// function has already read it — handing it back is one query instead of two
+// inside the transaction, and removes any chance the two disagree about the
+// same row. Callers test `.errorStatus`, never truthiness.
 async function preflightGradeWrite(grade, expectedMode) {
   const [modeRows] = await pool.query(
     'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
@@ -173,19 +176,28 @@ async function preflightGradeWrite(grade, expectedMode) {
       errorMessage: `No grading_mode_configs row exists for Grade ${grade.student_grade_level}, school year ${grade.school_year}. An admin must configure the grading mode before this can be recorded.`,
     };
   }
-  if (modeConfig.mode !== expectedMode) {
-    const errorMessage =
-      expectedMode === 'numerical'
-        ? 'This grade uses descriptive grading — record a letter via PATCH /:id/descriptive instead of component or exam scores.'
-        : 'This grade uses numerical grading — record WW/PT/exam scores instead of a descriptive letter.';
-    return { errorStatus: 400, errorMessage };
+  // 'score' means WW / PT / exam — and since 2026-09-22 BOTH modes accept it.
+  // Grade 1 is computed from scores now (GRADING_SPEC §6a); what differs is
+  // what recomputeGrade writes at the end, a letter rather than a number, not
+  // whether a score may be recorded at all. The gate that used to answer 400
+  // here — "this grade uses descriptive grading, record a letter instead" —
+  // is gone with the endpoint it pointed at.
+  //
+  // Every other guard still runs, and for Grade 1 they now run for the first
+  // time: a missing mode config is still 409, a locked row is still 403, and
+  // the weights check below is no longer numerical-only.
+  if (expectedMode !== 'score') {
+    return {
+      errorStatus: 500,
+      errorMessage: `preflightGradeWrite called with an unknown mode "${expectedMode}".`,
+    };
   }
 
   if (grade.is_locked) {
     return { errorStatus: 403, errorMessage: 'This grade is locked and can no longer be edited.' };
   }
 
-  if (expectedMode === 'numerical') {
+  {
     const [weightRows] = await pool.query(
       'SELECT 1 FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
       [grade.subject_id, grade.school_year]
@@ -203,7 +215,7 @@ async function preflightGradeWrite(grade, expectedMode) {
     }
   }
 
-  return null;
+  return { mode: modeConfig.mode };
 }
 
 // The only DB-touching piece of the computation chain — deliberately kept
@@ -239,9 +251,10 @@ async function preflightGradeWrite(grade, expectedMode) {
 // The insert belongs inside the transaction (a notification for a grade that
 // rolled back would be a lie); the socket event must not be, for the same
 // reason.
-async function recomputeGrade(conn, gradeId, pending = null, actorId = null) {
+async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = null) {
   const [gradeRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
   const grade = gradeRows[0];
+  const isDescriptive = mode === 'descriptive';
 
   const [weightRows] = await conn.query(
     'SELECT ww_weight, pt_weight, ex_weight FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
@@ -271,8 +284,26 @@ async function recomputeGrade(conn, gradeId, pending = null, actorId = null) {
   const exWeighted = gc.weighted(exPercentage, weights.ex_weight);
   const ig = gc.initialGrade(wwWeighted, ptWeighted, exWeighted);
 
+  // THE FORK (2026-09-22). Everything above is identical for both modes —
+  // the same components, the same weights table, the same Initial Grade —
+  // because the school computes a Grade 1 letter from exactly the same raw
+  // material, just with different weights (30/50/20) and a different last
+  // step. Only this step differs.
   let termGrade = null;
-  if (ig !== null) {
+  let descriptiveGrade = null;
+
+  if (isDescriptive) {
+    // NO TRANSMUTATION (GRADING_SPEC §6a): Grade 1 bands the RAW weighted
+    // score. The transmutation table is a KS2-KS4 instrument for SY 2026-2027
+    // and banding a transmuted score would lift letters a band in a way the
+    // school does not do.
+    //
+    // bandForScore returns null for a null IG — an incomplete row keeps no
+    // letter, the same "NULL until every input exists" rule the numerical
+    // side follows — and also for a score above 100, where the school's table
+    // defines no band. See gradeComputation.js.
+    descriptiveGrade = gc.bandForScore(ig);
+  } else if (ig !== null) {
     const [transmutedRows] = await conn.query(
       'SELECT transmuted_grade FROM transmutation_table WHERE school_year = ? AND ig_min <= ? AND ig_max >= ? LIMIT 1',
       [grade.school_year, ig, ig]
@@ -285,17 +316,40 @@ async function recomputeGrade(conn, gradeId, pending = null, actorId = null) {
     termGrade = transmutedRows[0] ? transmutedRows[0].transmuted_grade : ig;
   }
 
+  // THE DUAL-MODE INVARIANT, enforced rather than assumed: exactly one of
+  // term_grade / descriptive_grade is ever populated on a row. Writing both
+  // columns on every recompute — one of them always NULL — is what makes a
+  // mode change leave no stale value behind, and is cheaper than trusting
+  // every future caller to remember. `initial_grade` IS stored for a
+  // descriptive row: it is the only audit trail for why a letter is the
+  // letter it is, and it is a teacher/admin-facing number that no
+  // parent-facing renderer reads (see the report card and the breakdown
+  // modal, both of which omit it deliberately).
+  if (isDescriptive && termGrade !== null) {
+    throw new Error(`recomputeGrade: refusing to write term_grade on a descriptive row (grade #${gradeId}).`);
+  }
+  if (!isDescriptive && descriptiveGrade !== null) {
+    throw new Error(`recomputeGrade: refusing to write descriptive_grade on a numerical row (grade #${gradeId}).`);
+  }
+
   await conn.query(
     `UPDATE grades SET
        ww_percentage = ?, ww_weighted = ?,
        pt_percentage = ?, pt_weighted = ?,
        ex_percentage = ?, ex_weighted = ?,
-       initial_grade = ?, term_grade = ?
+       initial_grade = ?, term_grade = ?, descriptive_grade = ?
      WHERE id = ?`,
-    [wwPercentage, wwWeighted, ptPercentage, ptWeighted, exPercentage, exWeighted, ig, termGrade, gradeId]
+    [wwPercentage, wwWeighted, ptPercentage, ptWeighted, exPercentage, exWeighted, ig, termGrade, descriptiveGrade, gradeId]
   );
 
-  if (pending && grade.term_grade === null && termGrade !== null) {
+  // MODE-AWARE: the trigger is the row's OWN grade value going null ->
+  // non-null, which is term_grade for a numerical row and descriptive_grade
+  // for a descriptive one. Before this, the condition named term_grade only,
+  // so a Grade 1 letter would never have notified anybody.
+  const wasNull = isDescriptive ? grade.descriptive_grade === null : grade.term_grade === null;
+  const nowSet = isDescriptive ? descriptiveGrade !== null : termGrade !== null;
+
+  if (pending && wasNull && nowSet) {
     const audience = await parentOfStudent(conn, grade.student_id);
     const notified = await insertNotifications(conn, {
       type: 'grade_available',
@@ -344,6 +398,16 @@ function buildTermEntry(gradeRow, mode) {
     descriptive_grade: gradeRow.descriptive_grade,
     descriptor,
     is_locked: !!gradeRow.is_locked,
+    // NOT rendered to a parent, and carried for exactly one reason: the Grade
+    // 1 Final letter averages the three terms' RAW weighted scores and bands
+    // that average (GRADING_SPEC §6a), so computeFinalLetter below needs the
+    // score behind each letter. Reading it here costs nothing — the row is
+    // already loaded — where a second query per subject would not be.
+    //
+    // THE CLIENT MUST NOT RENDER THIS. A Grade 1 parent never sees a number;
+    // the report card and the breakdown modal both omit `initial_grade`
+    // deliberately, the same way they do for numerical grades.
+    initial_grade: numOrNull(gradeRow.initial_grade),
   };
 }
 
@@ -358,6 +422,34 @@ function buildTermEntry(gradeRow, mode) {
 // computation chain (component -> IG, term -> FG, subject -> GA) is also
 // simply more defensible than three separate variations. Not applicable
 // at all for a descriptive-mode subject — see the subject-builder below.
+// The Grade 1 counterpart (GRADING_SPEC §6a), and the shape of it is the
+// point: average the three terms' RAW WEIGHTED SCORES and band the average —
+// NOT the three letters. Banding letters would need an arithmetic on A-E that
+// the school does not define, and would lose the distance between a bare 90
+// and a 99 that both read "A".
+//
+// Same null-until-complete rule as everything else: all three terms, or null.
+// roundTo2 before banding so the boundary is reproducible by hand — an
+// average of 89.995 is otherwise a band away from what a teacher computes on
+// paper.
+//
+// Nino's five seeded rows are exactly the case this must not guess at: they
+// carry letters but no components, so every initial_grade is NULL, the
+// average is null, and the Final renders "— Pending". That is the honest
+// answer for a row whose scores were never recorded.
+function computeFinalLetter(terms, mode) {
+  if (mode !== 'descriptive') {
+    return { final_grade: null, final_grade_descriptor: null };
+  }
+  const scores = [terms[1]?.initial_grade, terms[2]?.initial_grade, terms[3]?.initial_grade];
+  if (scores.some((value) => value === null || value === undefined)) {
+    return { final_grade: null, final_grade_descriptor: null };
+  }
+  const averaged = gc.roundTo2((scores[0] + scores[1] + scores[2]) / 3);
+  const letter = gc.bandForScore(averaged);
+  return { final_grade: letter, final_grade_descriptor: gc.descriptiveGradeMeaning(letter) };
+}
+
 function computeFinalGrade(terms, mode) {
   if (mode !== 'numerical') {
     return { final_grade: null, final_grade_descriptor: null };
@@ -725,7 +817,11 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
         2: buildTermEntry(byTerm[2], mode),
         3: buildTermEntry(byTerm[3], mode),
       };
-      const { final_grade, final_grade_descriptor } = computeFinalGrade(terms, mode);
+      // One of the two returns a value and the other returns nulls — each
+      // short-circuits on the mode it does not serve — so the merge is
+      // unambiguous and a mode can never produce two finals.
+      const { final_grade, final_grade_descriptor } =
+        mode === 'descriptive' ? computeFinalLetter(terms, mode) : computeFinalGrade(terms, mode);
       return {
         subject_id: subject.id,
         subject_name: subject.name,
@@ -926,9 +1022,9 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
       return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
 
-    const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
-    if (preflightError) {
-      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    const preflight = await preflightGradeWrite(loaded.grade, 'score');
+    if (preflight.errorStatus) {
+      return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
     conn = await pool.getConnection();
@@ -940,7 +1036,7 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
     );
 
     const notified = [];
-    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
+    const updatedGrade = await recomputeGrade(conn, gradeId, preflight.mode, notified, req.user.id);
 
     await conn.commit();
     emitNotifications(req, notified);
@@ -1027,9 +1123,9 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
       return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
 
-    const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
-    if (preflightError) {
-      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    const preflight = await preflightGradeWrite(loaded.grade, 'score');
+    if (preflight.errorStatus) {
+      return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
     const [componentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
@@ -1069,7 +1165,7 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
     ]);
 
     const notified = [];
-    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
+    const updatedGrade = await recomputeGrade(conn, gradeId, preflight.mode, notified, req.user.id);
 
     await conn.commit();
     emitNotifications(req, notified);
@@ -1126,9 +1222,9 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
       return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
     }
 
-    const preflightError = await preflightGradeWrite(loaded.grade, 'numerical');
-    if (preflightError) {
-      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    const preflight = await preflightGradeWrite(loaded.grade, 'score');
+    if (preflight.errorStatus) {
+      return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
     const [componentRows] = await pool.query('SELECT id, type FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
@@ -1146,7 +1242,7 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
     await conn.query('DELETE FROM grade_components WHERE id = ?', [componentId]);
 
     const notified = [];
-    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
+    const updatedGrade = await recomputeGrade(conn, gradeId, preflight.mode, notified, req.user.id);
 
     await conn.commit();
     emitNotifications(req, notified);
@@ -1254,9 +1350,9 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
     }
     const { grade } = loaded;
 
-    const preflightError = await preflightGradeWrite(grade, 'numerical');
-    if (preflightError) {
-      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
+    const preflight = await preflightGradeWrite(grade, 'score');
+    if (preflight.errorStatus) {
+      return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
     const st1Result = resolveSubTest(st1_score, st1_max, grade.ex_st1, grade.ex_st1_max);
@@ -1318,7 +1414,7 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
     );
 
     const notified = [];
-    const updatedGrade = await recomputeGrade(conn, gradeId, notified, req.user.id);
+    const updatedGrade = await recomputeGrade(conn, gradeId, preflight.mode, notified, req.user.id);
 
     await conn.commit();
     emitNotifications(req, notified);
@@ -1341,96 +1437,29 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
   }
 });
 
-// PATCH /api/grades/:id/descriptive — Grade 1 (and any grade level whose
-// grading_mode_configs entry is 'descriptive'). The teacher picks a
-// letter directly; nothing is computed. THIS IS A SCHOOL-VISIT ASSUMPTION,
-// NOT A CONFIRMED ANSWER: DO 015 s.2026 defines no Initial-Grade-to-letter
-// mapping at all, and descriptive grading exists specifically to avoid
-// numerical labeling in Key Stage 1 — that reasoning, not a school
-// confirmation, is why this is a manual judgment call rather than a
-// computed one. If the school later says a computation does feed the
-// letter, this endpoint changes; the schema (a single nullable
-// descriptive_grade column) does not need to.
+// PATCH /api/grades/:id/descriptive — RETIRED 2026-09-22.
 //
-// No transaction: a single UPDATE touching one column, with no follow-up
-// computation to make atomic with it — unlike POST /:id/components and
-// PATCH /:id/exam, nothing here derives from this write. Reuses the same
-// preflightGradeWrite() as those two endpoints (scope -> mode -> lock),
-// just with expectedMode = 'descriptive' and no weight-config check,
-// which does not apply to a letter grade — the is_locked gate comes along
-// for free by sharing that function, the same way it does for the other
-// two, even though nothing can set is_locked until Stage G2e.
-router.patch('/:id/descriptive', authenticate, authorize('teacher', 'admin'), async (req, res) => {
-  const gradeId = parseId(req.params.id);
-  if (gradeId === null) {
-    return res.status(400).json({ success: false, message: 'Invalid grade id.' });
-  }
-
-  const { descriptive_grade } = req.body;
-  const VALID_LETTERS = ['A', 'B', 'C', 'D', 'E'];
-
-  if (descriptive_grade !== null && !VALID_LETTERS.includes(descriptive_grade)) {
-    return res.status(400).json({
-      success: false,
-      message: 'descriptive_grade must be one of A, B, C, D, E (uppercase), or null to clear.',
-    });
-  }
-
-  try {
-    const loaded = await loadAuthorizedGrade(req, gradeId);
-    if (loaded.errorStatus) {
-      return res.status(loaded.errorStatus).json({ success: false, message: loaded.errorMessage });
-    }
-    const scopeError = encodeScopeError(loaded);
-    if (scopeError) {
-      return res.status(scopeError.errorStatus).json({ success: false, message: scopeError.errorMessage });
-    }
-
-    const preflightError = await preflightGradeWrite(loaded.grade, 'descriptive');
-    if (preflightError) {
-      return res.status(preflightError.errorStatus).json({ success: false, message: preflightError.errorMessage });
-    }
-
-    // Captured BEFORE the write: this is the same NULL -> non-NULL test
-    // recomputeGrade makes for term_grade, on the column Grade 1 actually
-    // uses. A descriptive row never sets term_grade, so without this hook the
-    // one descriptive parent in the seed would never be notified of a grade.
-    const descriptiveWasNull = loaded.grade.descriptive_grade === null;
-
-    await pool.query('UPDATE grades SET descriptive_grade = ? WHERE id = ?', [descriptive_grade, gradeId]);
-
-    const [updatedRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
-    await logActivity(
-      req.user.id,
-      'record_descriptive_grade',
-      `Set descriptive_grade to ${descriptive_grade === null ? 'NULL (cleared)' : descriptive_grade} for grade #${gradeId}`
-    );
-
-    // Best effort, after the write, like logActivity above it.
-    if (descriptiveWasNull && descriptive_grade !== null) {
-      try {
-        const audience = await parentOfStudent(pool, updatedRows[0].student_id);
-        const notified = await insertNotifications(pool, {
-          type: 'grade_available',
-          itemType: 'grade',
-          itemId: gradeId,
-          actorId: req.user.id,
-          titleSnapshot: null,
-          userIds: audience,
-        });
-        emitNotifications(req, notified);
-      } catch (notifyError) {
-        console.error('Descriptive grade notification fan-out failed:', notifyError);
-      }
-    }
-
-    return res.json({ success: true, message: 'Descriptive grade recorded.', grade: updatedRows[0] });
-  } catch (error) {
-    console.error('Update descriptive grade error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update descriptive grade.' });
-  }
-});
-
+// It existed because the Grade 1 letter was believed to be a manual teacher
+// judgment — and that belief was recorded honestly, as an assumption rather
+// than a school answer, precisely so it could be overturned. The school
+// answered on 2026-09-22: the letter is COMPUTED, from WW 30 / PT 50 /
+// Summative 20 banded on the raw weighted score (GRADING_SPEC §6a). A hand-
+// picked letter is no longer a thing the system has.
+//
+// So there is now ONE write path for every grade level: record WW, PT and
+// the Summative through the same endpoints Grades 2-6 use, and
+// recomputeGrade writes a number or a letter depending on the mode. Keeping
+// this endpoint alongside that would mean two writers for one column, where
+// the last one wins and neither knows about the other.
+//
+// Its notification fan-out went with it. recomputeGrade now fires
+// grade_available for both modes (see the hook there), so a letter still
+// reaches the parent — through the one path, once.
+//
+// Legacy rows are unaffected and NOT rewritten: the five seeded Grade 1
+// letters carry no components, so nothing recomputes them and they keep the
+// letters they were given. They can no longer be edited through the API,
+// which is the accepted cost of one write path.
 // PATCH /api/grades/:id/lock — admin only, unscoped. Toggles is_locked,
 // which every write endpoint above already checks (via
 // preflightGradeWrite) but which nothing could set until now.

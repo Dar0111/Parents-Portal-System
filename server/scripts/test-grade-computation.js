@@ -14,6 +14,7 @@ const {
   weighted,
   initialGrade,
   qualitativeDescriptor,
+  bandForScore,
   descriptiveGradeMeaning,
 } = require('../utils/gradeComputation');
 
@@ -223,6 +224,56 @@ assert(
 assert(descriptiveGradeMeaning('F') === null, "descriptiveGradeMeaning('F') is null — not a valid letter");
 assert(descriptiveGradeMeaning(null) === null, 'descriptiveGradeMeaning(null) is null');
 assert(descriptiveGradeMeaning('a') === null, "descriptiveGradeMeaning('a') is null — lowercase is not a valid key");
+
+// --- bandForScore: the Grade 1 ladder (2026-09-22) ---
+// The school's rule (GRADING_SPEC §6a) bands a RAW weighted score straight
+// to a letter, with no transmutation on the way. This is the function the
+// Grade 1 write path calls, and it shares one table with
+// qualitativeDescriptor — the assertion at the bottom of this block is what
+// makes "shares one table" a checked fact rather than a claim in a comment.
+console.log('\nbandForScore (Grade 1: a raw score -> a letter):');
+
+for (const [score, letter] of [
+  [100, 'A'],
+  [90, 'A'], // floor of the top band
+  [89.99, 'B'],
+  [80, 'B'], // floor
+  [79.99, 'C'],
+  [75, 'C'], // floor of the passing band
+  [74.99, 'D'],
+  [65, 'D'], // floor
+  [64.99, 'E'],
+  [0, 'E'],
+]) {
+  assert(bandForScore(score) === letter, `bandForScore(${score}) = ${letter} (got ${bandForScore(score)})`);
+}
+
+// Same missing-input contract as every other function in this module: null,
+// never a guess and never a partial answer.
+assert(bandForScore(null) === null, 'bandForScore(null) is null, not a guess');
+assert(bandForScore(undefined) === null, 'bandForScore(undefined) is null');
+assert(bandForScore(-1) === null, 'bandForScore(-1) is null — no band is defined below 0');
+assert(bandForScore(100.01) === null, 'bandForScore(100.01) is null — no band is defined above 100');
+// A NUMERIC STRING IS A VALID SCORE, and this is not laxness: mysql2 returns
+// every DECIMAL column as a string, so `initial_grade` arrives as "85.00" and
+// a function that refused it would band nothing at all. The guard is against
+// NaN and out-of-range, not against the type.
+assert(bandForScore('85.00') === 'B', 'bandForScore("85.00") = B — mysql2 hands DECIMALs over as strings');
+assert(bandForScore('abc') === null, 'bandForScore("abc") is null — a non-numeric string is not a score');
+
+// THE ANTI-DRIFT ASSERTION. Two ladders with the same five thresholds, read
+// by two different screens, are exactly the shape that drifts when one is
+// edited: a numerical 89 must be Benchmarking on the same day a Grade 1 89
+// is a B, forever. Checking every whole score from 0 to 100 costs nothing
+// and makes a one-sided edit impossible to land silently.
+const lettersToDescriptors = { A: 'Advancing', B: 'Benchmarking', C: 'Connecting', D: 'Developing', E: 'Emerging' };
+const laddersAgree = Array.from({ length: 101 }, (_, i) => i).every(
+  (score) => lettersToDescriptors[bandForScore(score)] === qualitativeDescriptor(score).descriptor
+);
+assert(
+  laddersAgree,
+  'The letter ladder and the descriptor ladder agree at EVERY whole score 0-100 — one table, two readings'
+);
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

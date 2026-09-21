@@ -480,13 +480,22 @@ async function main() {
     assert(afterSecond.length === 1, 'still exactly ONE grade notification after a later recompute', `got ${afterSecond.length}`);
 
     // -----------------------------------------------------------------------
-    console.log('\nGrade available — DESCRIPTIVE (Grade 1), the second hook');
+    console.log('\nGrade available — DESCRIPTIVE (Grade 1), the SAME hook');
     // -----------------------------------------------------------------------
-    // A descriptive row never sets term_grade, so recomputeGrade's transition
-    // never fires for it. Without its own hook at PATCH /:id/descriptive,
-    // Grade 1 parents would be the one group that never hears about a grade —
-    // which in the seed is Nino's parent account. This creates its OWN Grade 1
-    // student rather than writing anything near Nino's five rows (ids 1-5).
+    // This used to be "the second hook". It is not one any more (2026-09-22).
+    //
+    // A Grade 1 letter is computed now (GRADING_SPEC §6a), so it is written by
+    // the same four score endpoints Grades 2-6 use and PATCH /:id/descriptive
+    // is retired. That means there is exactly ONE fan-out site — the
+    // transition inside recomputeGrade — and this block exists to prove the
+    // mode-aware version of it still fires for a descriptive row, where the
+    // value that goes null -> non-null is descriptive_grade and term_grade
+    // stays null forever. A transition test written against term_grade only
+    // would silently stop covering Grade 1 parents, which in the seed is
+    // Nino's parent account.
+    //
+    // This creates its OWN Grade 1 student rather than writing anything near
+    // Nino's five rows (ids 1-5).
     const g1StuRes = await request('POST', '/api/students', {
       token: tch3.token,
       body: {
@@ -535,11 +544,35 @@ async function main() {
       'an empty descriptive row does not notify'
     );
 
-    const descRes = await request('PATCH', `/api/grades/${g1GradeId}/descriptive`, {
+    // Two of the three inputs. Still no letter, so still no notification —
+    // the hook fires on the LETTER appearing, not on a score being written.
+    const g1Ww = await request('POST', `/api/grades/${g1GradeId}/components`, {
       token: admin.token,
-      body: { descriptive_grade: 'A' },
+      body: { type: 'WW', score: 92, max_score: 100, label: 'Quiz 1' },
     });
-    requireFixture(descRes.status === 200, 'admin records the A-E letter', why(descRes));
+    requireFixture(g1Ww.status === 201, 'admin records a WW score on the Grade 1 row', why(g1Ww));
+    const g1Pt = await request('POST', `/api/grades/${g1GradeId}/components`, {
+      token: admin.token,
+      body: { type: 'PT', score: 92, max_score: 100, label: 'Performance Task 1' },
+    });
+    requireFixture(g1Pt.status === 201, 'admin records a PT score on the Grade 1 row', why(g1Pt));
+    assert(
+      !has(await notificationsOf(g1Parent.token), 'grade_available', g1GradeId),
+      'a partly-scored descriptive row does not notify — there is no letter yet'
+    );
+
+    // The third input completes it, the letter appears, and THAT is the
+    // transition the parent hears about.
+    const descRes = await request('PATCH', `/api/grades/${g1GradeId}/exam`, {
+      token: admin.token,
+      body: { st1_score: 92, st1_max: 100, st2_score: 92, st2_max: 100, te_score: 92, te_max: 100 },
+    });
+    requireFixture(descRes.status === 200, 'admin completes the Summative, computing the letter', why(descRes));
+    requireFixture(
+      descRes.data?.grade?.descriptive_grade === 'A' && descRes.data?.grade?.term_grade === null,
+      'the completed row holds a letter and no term_grade',
+      JSON.stringify({ d: descRes.data?.grade?.descriptive_grade, t: descRes.data?.grade?.term_grade })
+    );
 
     const g1Rows = await notificationsOf(g1Parent.token);
     assert(has(g1Rows, 'grade_available', g1GradeId), 'the Grade 1 parent IS notified when the letter is recorded');
@@ -555,11 +588,28 @@ async function main() {
       'A1: the admin who recorded the letter is not notified'
     );
 
-    const descAgain = await request('PATCH', `/api/grades/${g1GradeId}/descriptive`, {
+    // Re-encoding moves the letter A -> B. The row already had a letter, so
+    // there is no null -> non-null transition and no second notification:
+    // a correction is not news, and a parent who is pinged twice for one
+    // grade learns to ignore the bell.
+    //
+    // Only the SUMMATIVE is corrected, and it has to go well below the band
+    // to move the letter, because WW and PT still hold 92: the new Initial
+    // Grade is 0.3(92) + 0.5(92) + 0.2(50) = 27.6 + 46 + 10 = 83.6, a B.
+    // Correcting it to 85 would have left the total at 90.6 and the letter at
+    // A — which is exactly what the first attempt at this assertion did, and
+    // it would have passed the "no second notification" check while proving
+    // nothing about a changed letter.
+    const descAgain = await request('PATCH', `/api/grades/${g1GradeId}/exam`, {
       token: admin.token,
-      body: { descriptive_grade: 'B' },
+      body: { st1_score: 50, st1_max: 100, st2_score: 50, st2_max: 100, te_score: 50, te_max: 100 },
     });
-    requireFixture(descAgain.status === 200, 'the letter is corrected to B', why(descAgain));
+    requireFixture(descAgain.status === 200, 'the scores are corrected', why(descAgain));
+    requireFixture(
+      descAgain.data?.grade?.descriptive_grade === 'B',
+      'the correction really did change the letter to B',
+      JSON.stringify(descAgain.data?.grade?.descriptive_grade)
+    );
     const g1After = (await notificationsOf(g1Parent.token)).filter(
       (r) => r.type === 'grade_available' && Number(r.item_id) === Number(g1GradeId)
     );
