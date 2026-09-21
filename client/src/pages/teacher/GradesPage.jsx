@@ -61,8 +61,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // "can no longer be edited" line does not say why or who can unlock it
 // (KNOWN ISSUES; its own dispatch).
 //
-// §5e: encoding is repeatable (null clears a letter or exam pair; DELETE
-// component recomputes). No confirmation. Confirmation would not undo a
+// §5e: encoding is repeatable (null clears an exam pair; DELETE component
+// recomputes; clearing any required input clears a Grade 1 letter along with
+// the Initial Grade, because the letter is computed from them and is not a
+// value a teacher sets). No confirmation. Confirmation would not undo a
 // wrongly-created shell — DELETE /api/grades/:id is admin-only; a teacher
 // cannot remove a shell they created by mistake.
 //
@@ -336,7 +338,6 @@ export default function TeacherGradesPage() {
     setEncodingStudent(null);
     setDetail(null);
     setExamDraft(examDraftFromGrade(null));
-    setLetterDraft('');
     setNewComponent(emptyComponentDraft());
     setEditId(null);
     setShellLoading(false);
