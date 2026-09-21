@@ -366,13 +366,33 @@ function computeFinalGrade(terms, mode) {
   if (termGrades.some((value) => value === null || value === undefined)) {
     return { final_grade: null, final_grade_descriptor: null };
   }
-  const fg = gc.roundTo2((termGrades[0] + termGrades[1] + termGrades[2]) / 3);
+  // A WHOLE NUMBER, not two decimals (2026-09-22). The school's own records
+  // print a Final Grade as an integer, the way a Term Grade already is — the
+  // transmutation table returns an INT, so the three inputs are whole and
+  // only this average was carrying decimals. It shipped as roundTo2 and the
+  // report card read 89.33 for Marwin's Mathematics: (87+91+90)/3 = 89.333…,
+  // which is 89.
+  //
+  // The descriptor is computed from the ROUNDED value, deliberately, so the
+  // band always matches the number printed beside it. That can move a band —
+  // 89.5 rounds to 90 and becomes Advancing rather than Benchmarking — and
+  // matching the printed number is the behaviour the school's card implies.
+  const fg = gc.roundToWhole((termGrades[0] + termGrades[1] + termGrades[2]) / 3);
   return { final_grade: fg, final_grade_descriptor: gc.qualitativeDescriptor(fg) };
 }
 
 // General Average = average of Final Grades across every subject at this
 // grade level — the same NULL-until-complete rule one level higher, per
-// the same reasoning as computeFinalGrade above. Not built as a priority
+// the same reasoning as computeFinalGrade above.
+//
+// TWO DECIMALS, over the ROUNDED subject grades, and both halves of that
+// matter. The school's summary sheet computes 721 / 8 = 90.125 and prints
+// 90.13, so the average of eight whole Final Grades is itself not whole.
+// `roundTo2` is therefore correct HERE while `roundToWhole` is correct one
+// level down — the two precisions are a real distinction in the school's
+// records, not an inconsistency to tidy away. Averaging unrounded finals
+// would also disagree with the sheet, because the sheet adds up the numbers
+// a parent can see. Not built as a priority
 // in G2a; built now because it is the direct extension of a computation
 // that already exists at read time, GRADING_SPEC §4 lists it as the last
 // step of the same chain, and stopping one step short would be an

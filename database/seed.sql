@@ -51,7 +51,13 @@ INSERT INTO subjects (name, grade_level) VALUES
   ('Mathematics', 1),
   ('GMRC', 1),
   ('Language', 1),
-  ('Reading', 1);
+  -- "Reading and Literacy", not "Reading" — the school's own name for the
+  -- learning area. Corrected 2026-09-22; live databases were migrated by
+  -- scripts/migrate-reading-and-literacy.js, which RENAMES the row rather
+  -- than replacing it (a DELETE would cascade Nino's two seeded letters
+  -- away). client/src/pages/parent/ReportCard.jsx's PRINTED_ORDER[1] matches
+  -- on this string — change both together.
+  ('Reading and Literacy', 1);
 
 -- Grade 2
 INSERT INTO subjects (name, grade_level) VALUES
@@ -291,8 +297,8 @@ JOIN (
   SELECT 'Mathematics' AS subject_name, 1 AS term, 'A' AS letter
   UNION ALL SELECT 'Mathematics', 2, 'B'
   UNION ALL SELECT 'Mathematics', 3, 'C'
-  UNION ALL SELECT 'Reading', 1, 'D'
-  UNION ALL SELECT 'Reading', 2, 'E'
+  UNION ALL SELECT 'Reading and Literacy', 1, 'D'
+  UNION ALL SELECT 'Reading and Literacy', 2, 'E'
 ) v ON v.subject_name = s.name
 WHERE st.lrn = '1090001';
 

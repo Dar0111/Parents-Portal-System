@@ -34,6 +34,31 @@ function roundTo2(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+// The same rule at whole-number precision, for the values the school's own
+// records carry as integers: a Term Grade (already whole — it comes out of
+// transmutation_table, an INT column) and a FINAL GRADE, which DO 015 and the
+// school's summary sheet both print as a whole number. The General Average is
+// NOT one of these — it keeps roundTo2, because the sheet prints 721/8 as
+// 90.13, two decimals, computed over the rounded subject grades.
+//
+// Same EPSILON nudge, same reason as above: a value sitting mathematically on
+// .5 can be stored a hair below it and would round down without the nudge.
+//
+// NEVER toFixed() for this. toFixed rounds on the binary value and is
+// inconsistent across inputs — (1.005).toFixed(2) is "1.00", not "1.01" —
+// and it returns a STRING, so a caller that forgets Number() starts
+// concatenating grades instead of averaging them.
+//
+// Math.round is half-up toward +Infinity, so Math.round(-89.5) is -89, not
+// -90. Irrelevant here (no grade is negative) but stated so nobody reuses
+// this helper for a signed quantity expecting symmetry.
+function roundToWhole(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return null;
+  }
+  return Math.round(value + Number.EPSILON);
+}
+
 // WW/PT: an arbitrary number of raw scores, averaged as one combined
 // percentage — sum(score) / sum(max_score) x 100. Well-defined with as
 // few as one row; returns null only when there are no rows at all, or
@@ -157,6 +182,7 @@ function descriptiveGradeMeaning(letter) {
 
 module.exports = {
   roundTo2,
+  roundToWhole,
   componentPercentage,
   subTestPercentage,
   exPercentage,

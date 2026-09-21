@@ -199,6 +199,8 @@ async function run() {
   let grade1TeacherAssignmentId;
   let gaStudentFixtureId;
   const gaGradeIds = [];
+  let roundingStudentFixtureId;
+  const roundingGradeIds = [];
   let deleteStudentFixtureId;
 
   async function cleanup() {
@@ -219,6 +221,12 @@ async function run() {
     }
     if (gaStudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [gaStudentFixtureId]));
+    }
+    if (roundingGradeIds.length) {
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [roundingGradeIds]));
+    }
+    if (roundingStudentFixtureId) {
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [roundingStudentFixtureId]));
     }
     if (deleteStudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [deleteStudentFixtureId]));
@@ -1341,12 +1349,16 @@ async function run() {
       'Mathematics is fully lettered A/B/C, term_grade null, final_grade null (N/A, not incomplete)'
     );
 
-    const readingCard = seededCard.data?.subjects?.find((s) => s.subject_name === 'Reading');
+    // "Reading and Literacy", the school's own name — renamed from "Reading"
+    // on 2026-09-22 by scripts/migrate-reading-and-literacy.js. The row was
+    // UPDATEd in place, so these two letters are the same rows they always
+    // were; a delete-and-reinsert would have cascaded them away.
+    const readingCard = seededCard.data?.subjects?.find((s) => s.subject_name === 'Reading and Literacy');
     assert(
       readingCard?.terms?.[1]?.descriptive_grade === 'D' &&
         readingCard?.terms?.[2]?.descriptive_grade === 'E' &&
         readingCard?.terms?.[3] === null,
-      'Reading has terms 1-2 lettered and term 3 null — the Pending cell on a descriptive card'
+      'Reading and Literacy has terms 1-2 lettered and term 3 null — the Pending cell on a descriptive card'
     );
 
     const untouchedNames = ['GMRC', 'Language', 'Makabansa'];
@@ -1512,6 +1524,114 @@ async function run() {
     assert(
       termAvgMean === num(completeReport.data?.general_average),
       `The mean of the three term averages equals the General Average on a complete card (got ${termAvgMean} vs ${completeReport.data?.general_average})`
+    );
+
+    // --- ROUNDING: a whole-number Final Grade, a 2-decimal General Average ---
+    // The fixture above cannot prove either rule: its term grades happen to
+    // average to whole numbers (85 and 87), so it passed identically when
+    // computeFinalGrade still used roundTo2 and the report card was printing
+    // 89.33. These cases are built to land OFF a whole number on purpose.
+    //
+    // Eight subjects, so the General Average divides by 8 — the school's own
+    // summary sheet case, 721/8 = 90.125 -> 90.13. Five subjects cannot
+    // produce it: any sum of whole finals over 5 ends in .0/.2/.4/.6/.8 and
+    // never needs rounding at the second decimal at all.
+    //
+    // Term grades are inserted directly, exactly as the FG/GA fixture above
+    // does and for the same reason: the WW/PT/EX write path and the
+    // transmutation lookup are already proven by the worked examples earlier
+    // in this file, and only the read-time aggregation is under test here.
+    // A Grade 6 section OTHER than Malikhain, so nothing touches Marwin.
+    console.log('\nRounding — whole Final Grade, 2-decimal General Average:');
+
+    // Prefix 3: 1, 2, 6 and 7 are taken by the other fixtures in this file.
+    const roundingLrn = `3${lrnSuffix}`;
+    const createRoundingStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: { lrn: roundingLrn, first_name: 'Rounding', last_name: 'Fixture', grade_level: 6, section: 'Maunlad' },
+    });
+    roundingStudentFixtureId = createRoundingStudent.data?.student?.id;
+    requireFixture(
+      createRoundingStudent.status === 201 && Number.isInteger(roundingStudentFixtureId),
+      'Fixture: a fresh Grade 6 student for the rounding tests',
+      why(createRoundingStudent)
+    );
+
+    const [grade6Subjects] = await withDb((conn) =>
+      conn.query('SELECT id, name FROM subjects WHERE grade_level = 6 ORDER BY id ASC')
+    );
+    requireFixture(grade6Subjects.length === 8, `Fixture: Grade 6 has exactly 8 subjects (got ${grade6Subjects.length})`);
+
+    // Subject 0 is the reported defect verbatim: Marwin's Mathematics was
+    // 87 / 91 / 90, which is 268/3 = 89.333..., and the card read 89.33.
+    // The other seven are chosen so the eight finals sum to exactly 721.
+    const roundingPlan = [
+      [87, 91, 90], // -> 89.333... -> 89
+      [90, 90, 90], // -> 90
+      [90, 90, 90],
+      [90, 90, 90],
+      [90, 90, 90],
+      [90, 90, 90],
+      [90, 90, 90],
+      [92, 92, 92], // -> 92    89 + (90 x 6) + 92 = 721
+    ];
+    for (let i = 0; i < grade6Subjects.length; i += 1) {
+      const [t1, t2, t3] = roundingPlan[i];
+      for (const [term, termGrade] of [[1, t1], [2, t2], [3, t3]]) {
+        const [result] = await withDb((conn) =>
+          conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, ?, ?, ?)', [
+            roundingStudentFixtureId,
+            grade6Subjects[i].id,
+            term,
+            schoolYear,
+            termGrade,
+          ])
+        );
+        roundingGradeIds.push(result.insertId);
+      }
+    }
+
+    const roundingReport = await request('GET', `/api/grades/student/${roundingStudentFixtureId}`, { token: adminToken });
+    const mathLikeEntry = roundingReport.data?.subjects?.find((s) => s.subject_id === grade6Subjects[0].id);
+    assert(
+      roundingReport.status === 200 && num(mathLikeEntry?.final_grade) === 89,
+      `Final Grade is a WHOLE number: (87+91+90)/3 = 89.333... -> 89, not 89.33 (got ${mathLikeEntry?.final_grade})`
+    );
+    assert(
+      roundingReport.data.subjects.every((s) => Number.isInteger(num(s.final_grade))),
+      `Every Final Grade on the card is a whole number (got ${JSON.stringify(roundingReport.data.subjects.map((s) => s.final_grade))})`
+    );
+    assert(
+      num(roundingReport.data?.general_average) === 90.13,
+      `General Average is 2 decimals over the ROUNDED finals: 721/8 = 90.125 -> 90.13, the school's own sheet (got ${roundingReport.data?.general_average})`
+    );
+    // Guards the half-up direction specifically. 90.125 rounded half-DOWN or
+    // half-to-even would be 90.12, which is what a naive implementation and
+    // several rounding libraries return.
+    assert(
+      num(roundingReport.data?.general_average) !== 90.12,
+      'General Average rounds 90.125 UP to 90.13, never down to 90.12 (half-up, not half-to-even)'
+    );
+
+    // The half case at the Final Grade level, and the band it moves.
+    // WORTH KNOWING: x.5 is UNREACHABLE from three whole term grades — three
+    // integers can never average to .5 — so this uses decimal term grades.
+    // That is not a contrived state: from SY 2027-2028 the transmutation
+    // table has no rows, recomputeGrade falls back to term_grade = the
+    // Initial Grade, and Initial Grades carry two decimals. See the
+    // no-transmutation-row note in KNOWN_ISSUES.
+    for (const id of roundingGradeIds.slice(0, 3)) {
+      await withDb((conn) => conn.query('UPDATE grades SET term_grade = 89.50 WHERE id = ?', [id]));
+    }
+    const halfReport = await request('GET', `/api/grades/student/${roundingStudentFixtureId}`, { token: adminToken });
+    const halfEntry = halfReport.data?.subjects?.find((s) => s.subject_id === grade6Subjects[0].id);
+    assert(
+      num(halfEntry?.final_grade) === 90,
+      `A Final Grade of exactly 89.50 rounds half-UP to 90 (got ${halfEntry?.final_grade})`
+    );
+    assert(
+      halfEntry?.final_grade_descriptor?.descriptor === 'Advancing',
+      `The descriptor follows the ROUNDED Final Grade: 89.50 -> 90 -> Advancing, not Benchmarking (got ${halfEntry?.final_grade_descriptor?.descriptor})`
     );
 
     // --- DELETE /api/grades/:id (admin-only hard delete) ---

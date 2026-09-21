@@ -67,7 +67,7 @@ import TermValue from '../../format/TermValue';
 // the moment a mobile card exists the order belongs in `subjects.display_order`
 // and comes down with the payload. Queued with the pre-Stage-5 server fixes.
 const PRINTED_ORDER = {
-  1: ['Makabansa', 'Mathematics', 'GMRC', 'Language', 'Reading'],
+  1: ['Makabansa', 'Mathematics', 'GMRC', 'Reading and Literacy', 'Language'],
   4: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
   5: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
   6: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
