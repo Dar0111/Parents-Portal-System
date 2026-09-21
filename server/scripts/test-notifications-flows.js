@@ -673,6 +673,139 @@ async function main() {
     assert(g1After.length === 1, 'correcting the letter does not notify a second time', `got ${g1After.length}`);
 
     // -----------------------------------------------------------------------
+    console.log('\nGrade available — the CLASS RECORD bulk save (CR1)');
+    // -----------------------------------------------------------------------
+    // The one fan-out site is inside recomputeGrade, so a forty-learner save
+    // must produce one notification per learner whose grade FIRST becomes
+    // available — no more, no fewer, and none at all for a learner still
+    // incomplete. The bulk endpoint passes ONE shared pending array through
+    // every recompute and emits after commit; these assertions are what make
+    // that claim checkable rather than a comment.
+    //
+    // A SECOND throwaway learner, so "multi-learner" is literally true. The
+    // first (above) already has a letter and a notification, which makes it
+    // the natural subject of the "already available" case.
+    const g2StuRes = await request('POST', '/api/students', {
+      token: tch3.token,
+      body: { lrn: '990000000103', first_name: 'NotifG2', last_name: 'Fixture', grade_level: 1, section: 'Mabait' },
+    });
+    requireFixture(g2StuRes.status === 201, 'a second throwaway Grade 1 learner', why(g2StuRes));
+    const g2StuId = g2StuRes.data.student.id;
+    created.students.push(g2StuId);
+
+    const g2ParentRes = await request('POST', '/api/users/parents', {
+      token: tch3.token,
+      body: { lrn: '990000000103', password: 'Parent@2026', name: 'NotifG2 Guardian' },
+    });
+    requireFixture(g2ParentRes.status === 201, 'its parent account', why(g2ParentRes));
+    const g2ParentId = g2ParentRes.data.user.id;
+    created.users.push(g2ParentId);
+    notificationItems.push(['user', g2ParentId]);
+    requireFixture(
+      (await request('PUT', `/api/users/parents/${g2ParentId}/approve`, { token: admin.token })).status === 200,
+      'the second parent is approved'
+    );
+    const g2Login = await login('990000000103', 'Parent@2026');
+    requireFixture(g2Login.status === 200, 'the second parent logs in', why(g2Login));
+    const g2Parent = { token: g2Login.data.token, ...g2Login.data.user };
+
+    const classKey = {
+      subject_id: g1Subject.id,
+      grade_level: 1,
+      section: 'Mabait',
+      term: 1,
+      school_year: schoolYear,
+    };
+    const slotRes = await request('PUT', '/api/grades/class-record', {
+      token: admin.token,
+      body: {
+        ...classKey,
+        slots: [
+          { type: 'WW', slot_no: 9, max_score: 100 },
+          { type: 'PT', slot_no: 9, max_score: 100 },
+        ],
+      },
+    });
+    requireFixture(slotRes.status === 200, 'two slots for the bulk save', why(slotRes));
+    const bulkWw = slotRes.data.slots.find((s) => s.type === 'WW' && s.slot_no === 9);
+    const bulkPt = slotRes.data.slots.find((s) => s.type === 'PT' && s.slot_no === 9);
+    createdSlotIds.push(bulkWw.id, bulkPt.id);
+
+    // ONE save touching BOTH learners. Learner 1 already has a letter, so
+    // its grade cannot become available again; learner 2 gets WW and PT but
+    // no Summative, so its grade cannot become available yet.
+    const partial = await request('PUT', '/api/grades/class-record', {
+      token: admin.token,
+      body: {
+        ...classKey,
+        entries: [
+          { student_id: g1StuId, scores: [{ slot_id: bulkWw.id, score: 70 }] },
+          {
+            student_id: g2StuId,
+            scores: [
+              { slot_id: bulkWw.id, score: 80 },
+              { slot_id: bulkPt.id, score: 80 },
+            ],
+          },
+        ],
+      },
+    });
+    requireFixture(partial.status === 200, 'the multi-learner save succeeds', why(partial));
+    for (const row of partial.data.results) {
+      if (!created.grades.includes(row.grade_id)) created.grades.push(row.grade_id);
+      notificationItems.push(['grade', row.grade_id]);
+    }
+
+    const g2GradeId = partial.data.results.find((r) => Number(r.student_id) === Number(g2StuId)).grade_id;
+
+    assert(
+      !has(await notificationsOf(g2Parent.token), 'grade_available', g2GradeId),
+      'a learner left INCOMPLETE by a bulk save is not notified'
+    );
+    const g1AfterBulk = (await notificationsOf(g1Parent.token)).filter(
+      (r) => r.type === 'grade_available' && Number(r.item_id) === Number(g1GradeId)
+    );
+    assert(
+      g1AfterBulk.length === 1,
+      'a learner whose grade was ALREADY available is not notified again by a bulk save',
+      `got ${g1AfterBulk.length}`
+    );
+
+    // Now complete learner 2 in a save that ALSO touches learner 1 again.
+    const complete = await request('PUT', '/api/grades/class-record', {
+      token: admin.token,
+      body: {
+        ...classKey,
+        entries: [
+          { student_id: g1StuId, scores: [{ slot_id: bulkWw.id, score: 60 }] },
+          { student_id: g2StuId, st1_score: 80, st1_max: 100, st2_score: 80, st2_max: 100, te_score: 80, te_max: 100 },
+        ],
+      },
+    });
+    requireFixture(complete.status === 200, 'the completing save succeeds', why(complete));
+
+    const g2Rows = (await notificationsOf(g2Parent.token)).filter(
+      (r) => r.type === 'grade_available' && Number(r.item_id) === Number(g2GradeId)
+    );
+    assert(
+      g2Rows.length === 1,
+      'the learner completed by a bulk save is notified EXACTLY once',
+      `got ${g2Rows.length}`
+    );
+    const g1Final = (await notificationsOf(g1Parent.token)).filter(
+      (r) => r.type === 'grade_available' && Number(r.item_id) === Number(g1GradeId)
+    );
+    assert(
+      g1Final.length === 1,
+      'and the other learner in that same save still has exactly one',
+      `got ${g1Final.length}`
+    );
+    assert(
+      !has(await notificationsOf(admin.token), 'grade_available', g2GradeId),
+      'the admin who saved the class record is not notified about it'
+    );
+
+    // -----------------------------------------------------------------------
     console.log('\nRead state — per item, own rows only');
     // -----------------------------------------------------------------------
     const beforeCounts = await countsOf(parentMarwin.token);

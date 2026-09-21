@@ -432,7 +432,14 @@ async function main() {
     // -----------------------------------------------------------------
     const beforeDry = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
     const anaBeforeDry = beforeDry.data.learners.find((l) => l.student_id === learners[0].id);
+    // THREE counts, not one. A dry run must leave no trace of any kind:
+    // no component rows, no notifications (a parent pinged about a grade
+    // that was never saved is worse than no ping), and no activity_logs row
+    // (the audit trail is what a reviewer reads to reconstruct who did
+    // what, and a rolled-back save did not happen).
     const [componentsBefore] = await withDb((conn) => conn.query('SELECT COUNT(*) n FROM grade_components'));
+    const [notificationsBefore] = await withDb((conn) => conn.query('SELECT COUNT(*) n FROM notifications'));
+    const [logsBefore] = await withDb((conn) => conn.query('SELECT COUNT(*) n FROM activity_logs'));
 
     const dry = await request('PUT', '/api/grades/class-record', {
       token: adminToken,
@@ -462,6 +469,16 @@ async function main() {
     assert(
       Number(componentsBefore[0].n) === Number(componentsAfter[0].n),
       `a dry run created no component rows (${componentsBefore[0].n} -> ${componentsAfter[0].n})`
+    );
+    const [notificationsAfter] = await withDb((conn) => conn.query('SELECT COUNT(*) n FROM notifications'));
+    assert(
+      Number(notificationsBefore[0].n) === Number(notificationsAfter[0].n),
+      `a dry run notified nobody (${notificationsBefore[0].n} -> ${notificationsAfter[0].n})`
+    );
+    const [logsAfter] = await withDb((conn) => conn.query('SELECT COUNT(*) n FROM activity_logs'));
+    assert(
+      Number(logsBefore[0].n) === Number(logsAfter[0].n),
+      `a dry run wrote no activity_logs row (${logsBefore[0].n} -> ${logsAfter[0].n})`
     );
 
     // -----------------------------------------------------------------

@@ -76,6 +76,22 @@ async function loadSlotForGrade(slotId, grade, expectedType) {
     };
   }
 
+  // AN UNUSED SLOT CANNOT HOLD A SCORE. A NULL max_score means the
+  // assessment never happened, and the computation leaves such a slot out
+  // entirely — so a score parked in one would be invisible in every total
+  // while still occupying the learner's single row for that column.
+  //
+  // Added on review: the bulk endpoint refused this from the start and
+  // these two per-row endpoints did not, which is the worst version of a
+  // rule — one that holds on the path people use and not on the path a
+  // direct caller or Expo would take.
+  if (slot.max_score === null) {
+    return {
+      errorStatus: 400,
+      errorMessage: `${slotDisplayLabel(slot.type, slot.slot_no, slot.name)} has no highest possible score yet — set one before recording marks in it.`,
+    };
+  }
+
   return { slot };
 }
 

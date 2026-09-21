@@ -784,6 +784,50 @@ async function run() {
     });
     assert(movedCrossClass.status === 400, `PUT cannot move a score into another class's slot (${why(movedCrossClass)})`);
 
+    // AN UNUSED SLOT (no highest possible score) CANNOT TAKE A SCORE on
+    // either per-row endpoint. The bulk endpoint refused this from the
+    // start and these two did not — a rule that held on the path people
+    // use and not on the path a direct caller or Expo would take. A score
+    // parked in an unused slot is invisible in every total, because the
+    // computation leaves such a slot out, while still occupying the
+    // learner's one row for that column.
+    const unusedSlotId = await withDb(async (conn) => {
+      const [[g]] = await conn.query(
+        `SELECT g.subject_id, g.term, g.school_year, s.grade_level, s.section
+           FROM grades g JOIN students s ON s.id = g.student_id WHERE g.id = ?`,
+        [validationGradeId]
+      );
+      // A **PT** slot, matching the component that is moved into it below.
+      // A WW one would be refused on TYPE before the HPS check ran, and
+      // both assertions would then pass for the wrong reason.
+      const [res] = await conn.query(
+        `INSERT INTO assessment_slots
+           (subject_id, grade_level, section, term, school_year, type, slot_no, max_score)
+         VALUES (?, ?, ?, ?, ?, 'PT', 19, NULL)`,
+        [g.subject_id, g.grade_level, g.section, g.term, g.school_year]
+      );
+      createdSlotIds.push(res.insertId);
+      return res.insertId;
+    });
+
+    const postIntoUnused = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'PT', score: 5, max_score: 10, label: 'Into an unused slot', slot_id: unusedSlotId },
+    });
+    assert(
+      postIntoUnused.status === 400 && /highest possible score/i.test(postIntoUnused.data?.message || ''),
+      `POST into an UNUSED slot is refused (${why(postIntoUnused)})`
+    );
+
+    const moveIntoUnused = await request('PUT', `/api/grades/${validationGradeId}/components/${wholeStillWorks.data.component.id}`, {
+      token: teacherToken,
+      body: { slot_id: unusedSlotId },
+    });
+    assert(
+      moveIntoUnused.status === 400 && /highest possible score/i.test(moveIntoUnused.data?.message || ''),
+      `PUT cannot MOVE a score into an unused slot either (${why(moveIntoUnused)})`
+    );
+
     // label is OPTIONAL now and the column is nullable: a slot-backed row
     // renders the slot's display_label instead, so storing a copy of it on
     // the row would be a snapshot that goes stale the moment it is renamed.
