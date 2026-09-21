@@ -89,10 +89,49 @@ it as their child's grade having disappeared.
 
 | State | Renders |
 |---|---|
-| a number, including `0` | `0.00` / `88.05`, normal weight |
+| a number, including `0` — **default precision** | `0.00` / `88.05` / `87.50`, normal weight |
+| a number with **`whole`** | `87` / `89` / `89.5`, normal weight |
 | `null`, numerical mode | `— Pending` |
 | `null`, descriptive mode | `— N/A` |
 | failed request | never reaches here — `DataTable`'s error state owns the frame |
+
+#### TWO PRECISIONS, AND WHICH VALUE GETS WHICH (2026-09-22)
+
+**`whole` is for a TERM GRADE and a FINAL GRADE, and nothing else.** The
+school's Summary of Grades and DO 015 both print those as integers, and since
+the same-day server fix they are stored that way too. **The General Average
+(final and per-term) and the Initial Grade KEEP two decimals** — the school's
+own sheet computes 721 / 8 = 90.125 and prints **90.13**, so the average of
+eight whole grades is itself not whole. Two precisions one level apart is a
+real distinction in the school's records, not an inconsistency to tidy away.
+
+**`whole` is opt-in and the default is unchanged**, which is the point: the
+general averages and Initial Grades stayed correct by *not being touched*,
+and that is what proved they were not caught by accident.
+
+**`TermValue` sets it once, for all seven term cells** — the parent card's
+table and its 390px segments, the parent breakdown wrapper, Teacher → Grades'
+roster and modal, Admin → Grades' table and modal. That is what the component
+exists for; setting it per caller is how seven screens drift apart.
+
+**IT IS `String(Number(x))` — NEVER `toFixed(0)`, NEVER `Math.round`.**
+`"87.00"` → `"87"`, `89` → `"89"`, **`89.5` → `"89.5"`.** JavaScript's own
+number-to-string drops trailing zeros and keeps real decimals, which is
+exactly the rule, so there is no `Number.isInteger` branch to get wrong.
+
+**The reason a rounding display would be a defect, not a shortcut:** the
+transmutation table is seeded for SY 2026-2027 only. From SY 2027-2028 a
+year with no rows means "use the Initial Grade directly", and Initial Grades
+carry two decimals — so `toFixed(0)` would render a stored `89.5` as `90`, a
+number the database does not hold. **Rounding is the server's job and it has
+already happened; the client's job is to not add decimals that are not there,
+never to remove ones that are** (§5i).
+
+**The defect this replaced:** a correct Final Grade of 89 displayed as
+`89.00` on the parent card, its 390px segments, the breakdown modal header,
+and both the teacher and admin Grades screens. One `toFixed(2)` served all
+four kinds of value, so the fix had to split at the call site rather than in
+the formatter.
 
 **This convention is grade-specific — it does not apply to every page.**
 `GradeValue` is for grade-bearing values only (Initial/Final Grade, General

@@ -142,10 +142,31 @@ by side. Nothing here is guessed — every line traces to a specific file.
   come back as strings. But `final_grade`, `term_averages` and
   `general_average` on `GET /api/grades/student/:studentId` are computed
   in JavaScript at
-  read time (`utils/gradeComputation.js`'s `roundTo2`) and come back as
+  read time (`utils/gradeComputation.js`) and come back as
   **real numbers already** — no coercion needed, and coercing them again
   is harmless but pointless. Same grades module, two different wire
   types depending on whether the field is stored or derived.
+- **TWO PRECISIONS, ONE LEVEL APART, AND BOTH ARE DELIBERATE**
+  (2026-09-22). **`final_grade` is a WHOLE NUMBER** —
+  `roundToWhole((t1+t2+t3)/3)`, half-up — because the school's Summary
+  of Grades and DO 015 both print it as an integer, and its three inputs
+  are already whole (a `term_grade` comes out of `transmutation_table`,
+  an INT column). **`general_average` and `term_averages` are TWO
+  DECIMALS, half-up, computed over the ALREADY-ROUNDED subject grades**:
+  the school's own sheet adds eight whole finals and prints
+  721 / 8 = 90.125 as **90.13**, so the average of whole numbers is
+  itself not whole. Averaging unrounded finals would disagree with the
+  sheet, because the sheet adds up the numbers a parent can see.
+  `final_grade_descriptor` is computed from the ROUNDED value, so the
+  band always matches the number printed beside it — which means 89.5
+  becomes 90 and reads *Advancing*, not *Benchmarking*.
+- **A `term_grade` is whole today but will not always be.** The
+  transmutation table is seeded for SY 2026-2027 only; from
+  SY 2027-2028 a year with no rows means "use the Initial Grade
+  directly" (the data's absence drives it, by design), and Initial
+  Grades carry two decimals. A client must therefore render a term
+  grade as stored rather than forcing it to an integer — see
+  `docs/KNOWN_ISSUES.md`.
 - **`term_averages` keys are STRINGS, and all three are always present**
   (DV3, 2026-09-20). `{"1": 87.5, "2": null, "3": null}` — JSON has no
   numeric keys, so a caller indexing with a number works only because

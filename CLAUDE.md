@@ -4,8 +4,24 @@
 
 # Parent's Portal System
 
-Capstone project for **Captain H. Francisco Elementary School** (Grades 1–6),
-187 P. Rosales Street, Barangay Sta. Ana-Kaliwa, Pateros City.
+Capstone project for **Captain H. Francisco Elementary School – Main**
+(Grades 1–6), P. Rosales St., Sta. Ana, Pateros, Metro Manila.
+
+**The school's own details, confirmed 2026-09-22 — this is the one place they
+live.** `school_name` and `school_address` are `system_settings` rows, updated
+through Admin → Settings. The rest have **no field yet** (`routes/settings.js`
+allow-lists five keys) and are queued with the pre-Stage-5 fixes: **DepEd
+School ID 136893**, **136893@deped.gov.ph**, and the **DepEd Vision, Mission
+and Core Values, which the school adopts** (no About page exists to put them
+on). **Phone 3506114 — that is a PHONE number and NOT the School ID**; the
+mistake was made once and corrected.
+
+**Two process facts the code must keep matching.** **Advisers enrol learners
+and create parent accounts; an admin approves parent accounts and does not
+create them** (LOCKED DECISIONS; Admin → Users has no create-parent control).
+**Memos are school-wide and reach parents**, per the manuscript — `memos` has
+no audience column and `memoAudience()` notifies every active account, which
+matches `GET /api/memos` having no scope clause.
 
 | | |
 |---|---|
@@ -160,9 +176,9 @@ it tests every pre-flight gate and the `token_valid_after` mechanism, but
 never triggers an actual restore — see the RESTORE section.
 - `npm run test:students` — 65/65
 - `npm run test:sections` — 30/30
-- `npm run test:assignments` — 41/41
+- `npm run test:assignments` — 56/56 (2026-09-22; the Grade 1 rename moved two assertions)
 - `npm run test:grading-modes` — 13/13
-- `npm run test:grades` — 189/189 (confirmed twice 2026-09-21. **The 167 recorded here until then was three dispatches stale** — pagination took it to 182 and never updated this line, DV3's `term_averages` assertions to 188, and DV3's contract assertion to 189. Was broken 2026-09-10 → 2026-09-13 — see CHANGELOG)
+- `npm run test:grades` — 197/197 (2026-09-22; the grading fix added 8 rounding assertions. **The 167 that stood here until 2026-09-21 was three dispatches stale** — pagination took it to 182 and never updated this line, DV3 to 188, DV3's contract assertion to 189. Was broken 2026-09-10 → 2026-09-13 — see CHANGELOG)
 - `npm run test:auth` — 56/56
 - `npm run test:attendance` — 38/38
 - `npm run test:content` — 62/62
@@ -178,8 +194,10 @@ never triggers an actual restore — see the RESTORE section.
 above — it's a direct-DB verification script (no server, no HTTP, no
 `assert()` harness), checking the Grades seed (transmutation table,
 weights, modes, Grade 1 descriptive fixture) is internally consistent.
-Run it after `db:setup`, before trusting the seed. Pass count lives in
-the script's own output, not here.
+Run it after `db:setup`, before trusting the seed. **33/33 as of
+2026-09-22** — one check moved with the Grade 1 rename. **There is now a
+second reason to run it: after restoring any backup**, because every dump
+taken before 2026-09-22 carries the old subject name (KNOWN ISSUES).
 
 `npm run test:grade-computation` (Stage G2a, extended in G3 with the
 qualitative/letter descriptor lookups) is also not one of the fifteen
@@ -390,10 +408,22 @@ renderer for grade-bearing values:
 
 | State | Renders |
 |---|---|
-| a number, including `0` | `0.00` / `88.05`, normal weight |
+| a number, **default** (General Average, Initial Grade) | `0.00` / `88.05` / `87.50` |
+| a number, **`whole`** (Term Grade, Final Grade) | `87` / `89` / `89.5` |
 | `null`, numerical mode | `— Pending` |
 | `null`, descriptive mode | `— N/A` |
 | failed request | never reaches here — `DataTable`'s error state owns the frame |
+
+**TWO PRECISIONS (2026-09-22).** A Term Grade and a Final Grade print as
+**whole numbers** — DO 015 and the school's Summary of Grades both do — while
+the **General Average and Initial Grade keep two decimals**, because that
+same sheet computes 721/8 = 90.125 and prints **90.13**. `whole` is opt-in, so
+untouched call sites keep two decimals; `TermValue` sets it once for all seven
+term cells. **It is `String(Number(x))`, never `toFixed(0)` or `Math.round`:**
+`"87.00"` → `87`, but **`89.5` → `89.5`**, because from SY 2027-2028 a term
+grade inherits the Initial Grade's decimals and rounding one for display would
+show a number the database does not hold. Detail:
+`docs/FRONTEND_CONVENTIONS.md` §3.
 
 The label is inline text, not only a tooltip — touch has no hover and parents
 read the card on a phone. The pending-vs-N/A split comes from the API's own
@@ -1538,6 +1568,10 @@ is the order, not the record.
         amber-is-not-a-verdict rule exactly where it matters. Tune the dark
         amber surface token toward a clearer amber — **mockup first**, and
         re-run `lint:contrast`, since that token has passing pairs today.
+        **Also takes the `Stat` precision inconsistency (2026-09-22):**
+        `Card.jsx`'s `Stat` prints `{value}` with no formatter, so a general
+        average of 87.5 reads **`87.5`** on the dashboard against the report
+        card's **`87.50`** — same number, two spellings, two screens.
   - [ ] **DV1b — the remaining 16 DataTable consumers → `renderCard`**, plus
         explicit `nowrap` on the LRN columns of Teacher → Attendance and
         Teacher → Grades (both are safe today, because default wrapping
@@ -1545,6 +1579,37 @@ is the order, not the record.
         **LAST, deliberately:** DV2 and DV3 replace Parent → Attendance and
         Parent → Grades outright, so converting them to cards first would be
         work thrown away.
+
+- [ ] **Grade 1 computed letters — NEXT.** The school's rule is settled and
+      written out in full, including the four things building it touches, in
+      `docs/GRADING_SPEC.md` **§6a**: WW 30 / PT 50 / Summative 20, banded on
+      the **raw** weighted score, no transmutation, no General Average,
+      parents see letters only. **It is a DECISION, not code** — today every
+      Grade 1 component write is a `400`.
+- [ ] **Class-record grid — MOCKUP FIRST.** One screen per subject + section +
+      term, the shape of the DepEd E-Class Record: learners as rows,
+      WW/PT/ST1/ST2/TE as columns, one highest-possible-score row, Initial and
+      Term Grade live, one Save. Today a teacher encodes **one learner at a
+      time through a modal** — one quiz for 40 learners is up to 80 requests.
+      The open design questions (where a column's HPS lives, the bulk
+      endpoint's transaction and its 40-notification fan-out, save-vs-publish
+      for parent visibility, the adviser's Summary of Grades, ECR
+      import/export) are scoped on the 2026-09-22 CHANGELOG row. **Not before
+      the grading fixes above**, which it displays.
+
+- [x] **Grading fixes — DONE 2026-09-22** (`fix/grading-rounding`). **(a) A
+      Final Grade is a WHOLE number** (`roundToWhole`, half-up); it was
+      `roundTo2`, so a correct 89 displayed as 89.33. The **General Average
+      keeps two decimals over the rounded finals** — 721/8 = 90.13 on the
+      school's sheet — and the two precisions are a real distinction, not a
+      bug (`docs/GRADING_SPEC.md` §4a). **(b) Display follows storage:**
+      `GradeValue` gained an opt-in `whole`, `String(Number(x))` and **never
+      `toFixed(0)`**, because from SY 2027-2028 a term grade inherits the
+      Initial Grade's decimals (§3, KNOWN ISSUES). **(c) Grade 1's "Reading"
+      → "Reading and Literacy"**, the only naming mismatch in 40 subjects,
+      **renamed by a migration that UPDATEs rather than replaces** —
+      `subject_id` cascades, so a delete would have taken Nino's two seeded
+      letters with it. `test:grades` 189 → **197**.
 
   **CLOSED by DV2 (2026-09-20):** Parent → Attendance's intro used to say
   "The percentage counts Late as present…" **even when no percentage was on
@@ -1580,6 +1645,18 @@ is the order, not the record.
      during the DV2 check (2026-09-20). The tabs keep their full width while
      the panel takes what is left, so the fix is in that layout's
      breakpoints, not in the panel's content.
+  5. **Teacher → Excuse Letters says "Nothing waiting for review" when the
+     Status filter is Approved** (2026-09-22). **A §5f violation, not a
+     wording nit:** an empty state must be derived from the filter that
+     produced it, and "nothing is waiting" must be structurally impossible
+     outside the Pending filter. One branch per applied value.
+  6. **The breakdown modal prints raw scores verbatim — "42.50/50.00"**
+     (2026-09-22). Same rule as a Term Grade: an integral value renders whole
+     (`50`), a non-integral one as stored (`42.5`). `ScorePair` in
+     `parent/GradesPage.jsx` is its own renderer and does not go through
+     `GradeValue`, so it needs the same `String(Number(x))` treatment — never
+     a rounding one. **The class-record grid will likely take this**, since it
+     displays the same raw scores and highest possible scores.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
       (2026-09-21); the first two are what Expo hits first.**
       **(a) `subjects.display_order`** — the printed order is a client
@@ -1594,7 +1671,17 @@ is the order, not the record.
       a real `current_term`; nothing in the schema holds a term boundary,
       which is why Parent → Attendance derives its months from data. DV3 does
       not depend on it. **(d) a fixture learner who is nobody's test target**
-      (KNOWN_ISSUES). Then the originals: `GET /api/attendance` where
+      (KNOWN_ISSUES). **Four more added 2026-09-22: (e) ADVISER ENROLMENT** —
+      advisers enrol learners and create parent accounts, so confirm the
+      enrolment path matches that and not only the teacher-assignment one;
+      **(f) School ID and email settings fields** — `routes/settings.js`
+      allow-lists five keys, so 136893 and 136893@deped.gov.ph have nowhere to
+      live (the keys, their validators, the seed, and the Admin → Settings
+      inputs); **(g) an About page** for the DepEd Vision, Mission and Core
+      Values the school adopts — a new route, a nav item and a page, none of
+      which exist; **(h) the npm alias** `db:migrate:reading-and-literacy`,
+      deferred twice now because `package.json` keeps falling outside a
+      whitelist. Then the originals: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
       `test:attendance`’s cleanup deleting every row on three dates rather than
@@ -2048,6 +2135,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-22 | Grading docs: GRADING_SPEC gains **§4a (rounding)** and **§6a (the Grade 1 letter — DECIDED, NOT BUILT)**; its line-70 `G1–3: 30/50/20` is labelled **DISCARDED**, not the Grade 1 rule. API_REFERENCE gains the whole-vs-2-decimal contract; §3 gains `whole`. **Three KNOWN_ISSUES rows** — 14 backups carry the old `Reading` name; term grades go 2-decimal from SY 2027-2028; **the mid-year transfer attendance scope is INVERTED against the school's rule**, unreachable only because of a `400`. School facts in the front matter (**3506114 is the PHONE, not the School ID**). BUILD ORDER: grading fix ticked, Grade 1 letters and the class-record grid queued ahead of DV4, pre-Stage-5 gains four. Baselines 197 / 56 / 33. |
+| 2026-09-22 | Grading fixes (`fix/grading-rounding`): **a Final Grade is a WHOLE number** (`roundToWhole`) — the card printed 89.33 where the school prints 89 — while the **General Average keeps two decimals over the rounded finals** (721/8 = 90.13). Display split at the CALL SITE, since one `toFixed(2)` served four kinds of value: `GradeValue` gained `whole`, set once in `TermValue`. **`String(Number(x))`, never `toFixed(0)`** — a stored 89.5 must not show as 90. **"Reading" → "Reading and Literacy"** by a migration that UPDATEs, because a delete would cascade Nino's letters away. `test:grades` 189 → **197**; the negative control caught **two weak assertions of my own**. |
 | 2026-09-22 | CLAUDE.md trim, third batch: **141,099 → 128,050 bytes on disk.** Twelve CHANGELOG stubs, BUILD ORDER Stages 1–2, the AGENT SKILLS rationale and two Feature 7 narrative paragraphs moved verbatim to `docs/ARCHIVE.md`; Stage 4's 22 checkboxes, Stage 3 and the completed After-Stage-4 bullets compressed to ticked lists plus pointers. **Every moved block was grepped for a live rule first** — four Stage 4 page rules stated nowhere else were kept here, and §1 gained the DV3 lesson (**unwrap protects a RENAMED key, never a FORGOTTEN one**), which had lived only in a stub. **The Notifications N1 dispatch has no `docs/CHANGELOG.md` row of its own**, so its stub is its only record and was moved rather than dropped. New standing size rule at the top: report the delta every dispatch, justify over 2,000 bytes, trim at 138,000, never start above 142,000. |
 | 2026-09-21 | DV3 docs: `term_averages` in `docs/API_REFERENCE.md`; **§5a-v** (the ONE page that leaves DataTable, and why the exemption is narrow) and **§5a-vi** (its crossover is a CONTAINER query at 36rem — the **607px → 351px sidebar cliff** is why no viewport breakpoint can work; browser checks must measure the card, not the window). Four KNOWN_ISSUES rows; three OPEN QUESTIONS (sticky first COLUMN deferred to DV1b — **§5a-i does not close it**; the card's mixed units; Grade 1's printed order, now a school question). Pre-Stage-5 gains `subjects.display_order`, the 401-vs-network fix, CAL and a neutral fixture learner. `test:grades` corrected **167 → 189** (three dispatches stale). **One flag WITHDRAWN as false — `DELETE /grades/:id` does not orphan its components** (`schema.sql:487` cascades, proved during cleanup). |
 | 2026-09-21 | DV3 review fixes (`fix/dv3-review`): **the GA row read "Pending" in all four columns because `term_averages` was never named in the unwrap list** — the interceptor copies only named keys, so a FORGOTTEN key is silently `undefined` while the guard protects only a RENAMED one. The card now measures itself (`@container`, `@min-[36rem]`) after the table rendered at 200% zoom in a 394px container. F5 proved NOT a defect (88% → IG 88.00 → transmuted 90); one sentence names the transmutation table, IG stays hidden. SSR 62/62 with a control that reproduces the defect verbatim and **caught a weak assertion of my own**. |

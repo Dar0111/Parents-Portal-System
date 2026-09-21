@@ -62,21 +62,29 @@ code change.
 Same table as above for the learning areas they carry. **Makabansa uses
 20% / 50% / 30%.**
 
-### Known schema defect — must be fixed
+### Known schema defect — FIXED in Stage G1a (2026-09-05)
 
-`grade_weight_configs` is currently keyed by grade band:
+> **READ THIS BEFORE QUOTING THE NUMBERS BELOW.** The block that follows is
+> the **DISCARDED** grade-band scheme, kept as the record of what was wrong.
+> It is **NOT** the Grade 1 rule, even though `30/50/20` happens to match the
+> Grade 1 weights confirmed on 2026-09-22 (§6a). The resemblance is a
+> coincidence and has already invited one misreading. The live weights are
+> §2's table, keyed by learning area, and are verified correct for all 40
+> seeded subjects.
+
+`grade_weight_configs` **was** keyed by grade band:
 
 ```
-G1–3: 30/50/20
-G4–6: 40/40/20
+G1–3: 30/50/20          <- DISCARDED. Not the Grade 1 rule; see §6a.
+G4–6: 40/40/20          <- DISCARDED.
 ```
 
-Both the basis and the values are wrong. Two learners in the same Grade 5
+Both the basis and the values were wrong. Two learners in the same Grade 5
 section carry different weights depending on the subject: Mathematics is
 20/50/30 while MAPEH is 20/60/20.
 
-**Required change:** re-key the table to `subject_id`. Migration must happen
-before any grade computation is written.
+**Done:** the table is keyed `(subject_id, school_year)` with a `CHECK` that
+the three weights sum to 100.00.
 
 ---
 
@@ -121,6 +129,36 @@ Raw Score
 instruction only. Do not store them in a way that feeds computation.
 
 Minimum passing Final Grade: **75**.
+
+### 4a. Rounding — two precisions, confirmed against the school's sheet (2026-09-22)
+
+| Value | Precision | How |
+|---|---|---|
+| Percentage, Weighted, Initial Grade | **2 decimals**, half-up | `roundTo2` at every stored step |
+| **Term Grade** | **whole** | `transmutation_table.transmuted_grade` is an `INT` |
+| **Final Grade** | **whole**, half-up | `roundToWhole((t1+t2+t3)/3)` |
+| **General Average** (final and per term) | **2 decimals**, half-up | `roundTo2`, over the **already-rounded** grades |
+
+**The General Average averages the ROUNDED subject grades, and that is not an
+approximation.** The school's sheet adds eight whole Final Grades and prints
+721 / 8 = 90.125 as **90.13** — it adds up the numbers a parent can see.
+Averaging unrounded finals would produce a figure that disagrees with the
+paper.
+
+**Half-up at both precisions**, with a `Number.EPSILON` nudge, because a value
+mathematically on a `.5` or `.005` boundary can be stored just below it in
+IEEE 754 and would otherwise round down. **Never `toFixed`** — it rounds on
+the binary value, is inconsistent across inputs (`(1.005).toFixed(2)` is
+`"1.00"`), and returns a string.
+
+**A Term Grade is whole only while the transmutation table has rows.** From
+SY 2027-2028 (§5) a term grade inherits the Initial Grade's two decimals. No
+code rounds it at that point, and the display must show it as stored — see
+`docs/KNOWN_ISSUES.md`.
+
+**Display follows storage, never the reverse:** the client renders a whole
+number as whole and a non-integral one as-is, and never rounds for looks
+(`docs/FRONTEND_CONVENTIONS.md` §3).
 
 ---
 
@@ -186,6 +224,79 @@ Lookup must be inclusive on both bounds and handle the exact boundary values
 `grades` table needs either a nullable `descriptive_grade ENUM('A','B','C','D','E')`
 alongside the numeric columns, or a `grading_mode` discriminator. Parent-facing
 screens must render the descriptor and its meaning, never a number, for Grade 1.
+
+---
+
+## 6a. How the Grade 1 letter is produced — DECIDED 2026-09-22, NOT YET BUILT
+
+> **Status: a decision, not code.** Everything in this section is settled and
+> nothing here is implemented. Today `PATCH /api/grades/:id/descriptive` takes
+> a letter the teacher picks by hand, and `preflightGradeWrite` answers `400`
+> to any WW/PT/exam write on a descriptive row — so a Grade 1 component cannot
+> currently be stored at all. **Do not read this section as describing the
+> system.** Build order and scope: CLAUDE.md → BUILD ORDER.
+
+**This is the SCHOOL's practice, not DO 015.** DO 015 defines no
+Initial-Grade-to-letter mapping, and descriptive grading exists precisely to
+avoid numerical labelling in Key Stage 1. The school nevertheless computes the
+letter, and these are its rules.
+
+**Weights — Grade 1, every learning area:**
+
+| Component | Weight |
+|---|---|
+| Written Works | **30%** |
+| Performance Tasks | **50%** |
+| Summative | **20%** |
+
+Note the coincidence and do not be misled by it: `30/50/20` is also the
+discarded grade-band scheme quoted in §2's defect block. These are unrelated.
+
+**Summative is composite, the same shape as EX in Grades 2–6:**
+**ST1 30% · ST2 30% · TE 40%.**
+
+**The weighted score is banded RAW — there is no transmutation.** Grade 1 never
+touches `transmutation_table`.
+
+| Raw weighted score | Letter |
+|---|---|
+| 90 – 100 | **A** — Advancing |
+| 80 – 89 | **B** — Benchmarking |
+| 75 – 79 | **C** — Connecting |
+| 65 – 74 | **D** — Developing |
+| below 65 | **E** — Emerging |
+
+The same five bands as Table 11 (§6b), which is why the five English words are
+identical in both tables — one vocabulary, two uses.
+
+**A Final letter exists:** average the three terms' **raw weighted scores**,
+then band that average. **Only when all three terms are recorded** — the same
+NULL-until-complete rule as every other computed value; never a running
+average of whatever exists so far. Band the averaged score, not the letters.
+
+**No General Average for Grade 1**, per §7 — Key Stage 1 has no GA-based
+awards. The parent card says so in a sentence rather than printing N/A cells.
+
+**Parents see letters only.** The raw weighted score, the component weights
+and the band arithmetic are the teacher's; the card shows `A Advancing` and
+the legend. This matches the existing rule for numerical grades, where the
+Initial Grade is deliberately not shown.
+
+**Nino's five seeded rows have no components and are kept as legacy.** They
+were entered as letters before any computation existed, and a computed path
+must tolerate a letter with no inputs rather than back-filling invented
+assessment data — that is honestly what a transitional row looks like.
+
+**What building this will touch**, recorded so the size is not rediscovered:
+`preflightGradeWrite`'s mode gate (a Grade 1 component write must stop being a
+`400`); `grade_components.type`, which is `ENUM('WW','PT')` with no Summative
+— either reuse the `ex_st1/ex_st2/ex_te` columns or extend the ENUM;
+`grade_weight_configs`, which **can hold the Grade 1 row unchanged** (30+50+20
+sums to 100 and satisfies the `CHECK`), except that the seed's
+`JOIN grading_mode_configs WHERE mode = 'numerical'` deliberately excludes
+descriptive levels; and a descriptive branch in `recomputeGrade` that writes
+`descriptive_grade` and must **not** write `term_grade` — the dual-mode
+invariant is that exactly one of the two is ever populated.
 
 ---
 
@@ -284,12 +395,26 @@ with values 1–3.
 1. **Grade 4 learning areas** — not captured during the visit.
 2. **Is the school actually implementing DO 015 this year?** Mandatory for
    public schools, but confirm Grade 1 is on descriptive grading in practice.
-3. **Attendance rate formula** — does Excused count as present? Is Late
-   penalised? The SF9 records monthly Class Days / Days Present / Days Absent,
-   suggesting present ÷ class days, but the treatment of Late and Excused is
-   unstated.
+3. ~~**Attendance rate formula**~~ — **ANSWERED 2026-09-13** by the principal,
+   in conversation: **Late counts as present, Excused counts as absent.** A
+   school decision, not DepEd's — DO 015 prescribes no rate — so never
+   attribute it to DepEd in parent-facing copy. Built as "Present on recorded
+   days" on Parent → Attendance; it is recorded days, not SF9 Class Days,
+   because unmarked school days are not in the table.
+4. **What order do the learning areas print in on a Grade 1 card?** Raised
+   2026-09-22. §6c's per-grade tables come from CLASS PROGRAMS, which are
+   timetables; the only order transcribed from a report card is the SF9's
+   eight intermediate rows (Grades 4–6). The client uses the Grade 1 class
+   programme order provisionally, marked as such in `ReportCard.jsx`. Grades
+   2, 3 and 5 are in the same position and fall back to alphabetical rather
+   than guess. One answer settles all four.
 
 ### Resolved by the school visit
+
+- **How the Grade 1 letter is produced — ANSWERED 2026-09-22.** Computed from
+  WW 30 / PT 50 / Summative 20, banded on the raw weighted score. The full
+  rule, and everything building it will touch, is **§6a**. It is a decision;
+  no code implements it yet.
 
 - **Attendance does NOT feed grade computation.** The SF9 carries attendance as
   a separate section on the reverse side, distinct from Learning Progress. No
