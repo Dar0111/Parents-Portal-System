@@ -2,12 +2,13 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**86 handlers** across 15 route files, documented as **18 endpoint tables
+**85 handlers** across 15 route files, documented as **18 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **87 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
+`server.js` = **86 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
 FILE — it is not a database-table count, and the database has 22. Recounted
-from the code on 2026-09-19; see Verification at the bottom for the
+from the code on 2026-09-22, when `PATCH /grades/:id/descriptive` was
+retired and both figures dropped by one; see Verification at the bottom for the
 per-file arithmetic and for which number to quote. If this document and the
 code disagree, the code is correct and this file needs fixing — same
 rule as CLAUDE.md.
@@ -408,7 +409,7 @@ what to expect on the wire.
 | `assignments` | array | `GET /assignments` |
 | `assignment` | object | `POST /assignments` |
 | `grading_mode` | object `{ grade_level, school_year, mode }` | `GET /grading-modes` — **same key name, different shape** from the STRING on `GET /grades/student/:studentId` |
-| `grade` | object | `GET /grades/:id`, `POST /grades`, `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId`, `DELETE /grades/:id/components/:componentId`, `PATCH /grades/:id/exam`, `PATCH /grades/:id/descriptive`, `PATCH /grades/:id/lock` |
+| `grade` | object | `GET /grades/:id`, `POST /grades`, `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId`, `DELETE /grades/:id/components/:componentId`, `PATCH /grades/:id/exam`, `PATCH /grades/:id/lock` (`PATCH /grades/:id/descriptive` was an eighth until it was retired on 2026-09-22) |
 | `grades` | array | `GET /grades` |
 | `grade_components` | array | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `descriptor` | object or `null` | `GET /grades/:id` (secondary key, alongside `grade`) |
@@ -450,7 +451,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 86 handlers (87 with `GET /api/health`).
+the bottom must equal 85 handlers (86 with `GET /api/health`).
 
 ### Auth (8) — `/api/auth`
 
@@ -552,7 +553,7 @@ An admin changing a user's email through `PUT /users/:id` clears
 | POST | `/` | `admin` | `teacher_id`*, `subject_id`*, `section`* | `assignment` | `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for current `academic_year`; duplicate → `409`; inactive/non-teacher → `400` |
 | DELETE | `/:id` | `admin` | — | message only | does **not** refuse when grades exist; a scope change removes future authority, never past records |
 
-### Grades (11) — `/api/grades`
+### Grades (10) — `/api/grades`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
@@ -564,9 +565,60 @@ An admin changing a user's email through `PUT /users/:id` clears
 | PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
 | DELETE | `/:id/components/:componentId` | `teacher(subject)`, `admin` | — | `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
 | PATCH | `/:id/exam` | `teacher(subject)`, `admin` | any subset of `st1_score`/`st1_max`/`st2_score`/`st2_max`/`te_score`/`te_max` (score+max always paired; explicit `null` clears both) | `grade` | same `403`/`404` split |
-| PATCH | `/:id/descriptive` | `teacher(subject)`, `admin` | `descriptive_grade`* (`A`-`E` or `null`) | `grade` | same `403`/`404` split |
+| ~~PATCH~~ | ~~`/:id/descriptive`~~ | — | — | — | **RETIRED 2026-09-22 — the route is unmounted; every caller gets `404`.** See below |
 | PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split; already that value → `200` "Grade is already locked/unlocked. Nothing was changed.", no log entry (2026-09-15) |
 | DELETE | `/:id` | `admin` only | — | message only | unscoped; `403` when locked (`This grade is locked and cannot be deleted.`); `404` when missing; `grade_components` cascade |
+
+### Grade 1 writes: the four score endpoints, and the one that is gone (2026-09-22)
+
+**`PATCH /:id/descriptive` is RETIRED.** The route is not mounted, so any
+caller — including an admin — gets a plain `404`. It took a letter a teacher
+picked by hand, and the school confirmed the letter is **computed**
+(`docs/GRADING_SPEC.md` §6a). There is no replacement endpoint, because there
+is no longer anything to set.
+
+**A Grade 1 row now accepts scores through the same four endpoints Grades 2–6
+use** — `POST /:id/components`, `PUT` and `DELETE` on a component, and
+`PATCH /:id/exam`. They used to answer `400` ("record a letter instead") on a
+descriptive row. Consequences worth stating, because each one is a behaviour a
+caller can observe:
+
+- **`grade_components.type` is still `ENUM('WW','PT')`.** Summative rides on
+  the existing `ex_st1`/`ex_st2`/`ex_te` columns via `PATCH /:id/exam` with
+  the same 30/30/40 split. The request body is unchanged; only the *word* on
+  screen differs (the school calls it Summative in Key Stage 1).
+- **The response carries `descriptive_grade` and `initial_grade`, and
+  `term_grade` stays `null` forever.** The dual-mode invariant is enforced in
+  `recomputeGrade`, which throws rather than write both.
+- **`grade_weight_configs` is now required for descriptive levels too**, so a
+  Grade 1 subject with no weight row answers the usual `409` naming the gap
+  rather than the old `400`. A clean `db:setup` seeds all 40; an existing
+  database gets the five Grade 1 rows from
+  `npm run db:migrate:grade1-weights`.
+- **`grade_available` fires once per row**, on that row's own grade value
+  going `null` → non-null — `descriptive_grade` for Grade 1, `term_grade`
+  otherwise. Re-encoding a score that changes B to A does **not** notify again.
+
+**`initial_grade` is present on every term of `GET /student/:studentId`.**
+Added 2026-09-22 so the report card's Final *letter* can be computed from the
+three terms' raw scores. **A parent client must not render it** — Key Stage 1
+reports letters only, and the web card is covered by a render-time guard that
+fails if any spelling of the number reaches the markup. It is returned rather
+than hidden because the Final letter cannot be derived without it, and the
+server is the only place a grade may be computed.
+
+**`subjects[].final_grade` holds two types by mode.** A **number** in
+numerical mode and a **letter** (`A`–`E`) in descriptive mode, with
+`final_grade_descriptor` beside it in both. A client that formats it as a
+number will print a real `A` as "not applicable" — the web card routes the
+letter through its term renderer instead. `null` means *not all three terms
+are recorded*, which for a legacy Grade 1 row (a letter with no scores behind
+it) is permanent.
+
+**There is still no General Average for Grade 1.** `general_average`,
+`general_average_descriptor` and all three `term_averages` are `null` in
+descriptive mode regardless of how complete the card is — inapplicable, not
+pending.
 
 **`term_averages` on the report card (DV3, 2026-09-20).** One average per
 term across every learning area at the student's grade level — the general
@@ -866,7 +918,7 @@ the same as `router`.
 | Sections | 3 | `sections.js` |
 | Subjects | 1 | `assignments.js` |
 | Assignments | 3 | `assignments.js` |
-| Grades | 11 | `grades.js` |
+| Grades | 10 | `grades.js` |
 | Grading modes | 1 | `gradingModes.js` |
 | Attendance | 6 | `attendance.js` |
 | Announcements | 4 | `content.js` |
@@ -878,13 +930,16 @@ the same as `router`.
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
-| **Total** | **86** | |
+| **Total** | **85** | |
 
-8+10+5+3+1+3+11+1+6+4+4+4+6+4+5+6+4+1 = **86 handlers in `server/routes/`**.
-Plus `GET /api/health`, mounted directly in `server.js` = **87** endpoints in
+8+10+5+3+1+3+10+1+6+4+4+4+6+4+5+6+4+1 = **85 handlers in `server/routes/`**.
+Plus `GET /api/health`, mounted directly in `server.js` = **86** endpoints in
 total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+**Grades went 11 → 10 on 2026-09-22** when `PATCH /:id/descriptive` was
+retired — the only endpoint this system has ever removed other than
+Contributions' eight.
 
-**State which number you mean.** 86 is handlers in route files; 87 is every
+**State which number you mean.** 85 is handlers in route files; 86 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.

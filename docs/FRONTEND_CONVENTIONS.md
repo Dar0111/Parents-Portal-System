@@ -413,15 +413,52 @@ makes the SSR proof possible at all.
   (`Passed`/`Failed`) is on the wire inside `descriptor` and reaches nothing
   (§4). Grade 1 keeps letter + descriptor per cell, because a bare letter
   means nothing without its word.
-- **Descriptive mode OMITS the Final-grade column and the general-average
-  row entirely** rather than filling them with "— N/A". §3 forbids a bare
-  dash, and five rows of N/A is noise for something inapplicable to the
-  grade level; one sentence in "Reading this report" says it instead. The
-  Final segment is likewise absent from the narrow layout's term selector.
+- **"Has a Final" and "has a General Average" are TWO flags, not one
+  (2026-09-22).** They used to be the same boolean, spelled
+  `mode !== 'descriptive'`, because a Grade 1 card had neither. Once the
+  school's rule made the Grade 1 letter computed, a descriptive card gained
+  a **Final letter** and still has **no general average at all** — so one
+  flag could no longer stand for both, and conflating them would have put a
+  General Average row on a Key Stage 1 card the moment the Final column was
+  switched on. `showGeneralAverage` is keyed on the **mode**, never on
+  whether the values happen to be null: there is no general average in Key
+  Stage 1, complete card or not, which is a different statement from
+  "pending".
+  - **Descriptive mode renders the Final column** (headed *Final letter*,
+    not *Final grade*) **and keeps the Final segment in the narrow layout** —
+    a phone that silently drops a column the table has is a different report.
+  - **Descriptive mode still OMITS the general-average row and strip
+    entirely**, rather than filling them with "— N/A". §3 forbids a bare
+    dash, and a row of N/A is noise for something inapplicable; one sentence
+    in "Reading this report" says it instead.
+  - **The Final cell needs TWO renderers, because `final_grade` holds two
+    types.** A number in numerical mode, a letter in descriptive mode.
+    `GradeValue` has no branch for a string and would print a real `A` as
+    "— N/A", so the letter goes through `TermValue` — the same renderer the
+    term cells use, which carries the descriptor with it.
+- **A COMPUTED grade level may still have rows that compute nothing, and the
+  card must not explain that away.** A legacy Grade 1 row (a letter typed
+  before the rule existed, with no scores behind it) shows all three terms
+  and **no Final**, because the Final averages the three Initial Grades and
+  there are none. Two subjects reading A / B / C with different Finals is
+  correct. The breakdown modal says the **row** predates kept scores; it must
+  not say the grade level has none, which is what it used to say and is now
+  false of the write path (§5i).
 - **Term status is COUNTED, never computed.** "Term 2 partly recorded (2 of
   8)" comes from counting subjects whose term carries a value — the same
   definition `routes/dashboard.js` uses, so a shell row from
   `POST /api/grades` is correctly not counted. Green only at full coverage.
+- **A NUMBER THE PAYLOAD CARRIES BUT THE PAGE MAY NOT SHOW NEEDS A RENDER-TIME
+  GUARD, not a review (2026-09-22).** Every term on a descriptive card now
+  carries a real `initial_grade`, because the server needs it to compute the
+  Final letter — and Key Stage 1 reports letters to parents, not scores. "We
+  did not render it" is not checkable by reading the file, so the SSR proof
+  renders a descriptive payload holding known Initial Grades and asserts that
+  **no spelling of any of them** appears in the markup: plain, `toFixed(2)`,
+  `toFixed(1)` and rounded, across both layouts at once. Its negative control
+  prints the value into a term cell and must turn those assertions red. The
+  same guard belongs on any screen that receives a value it is forbidden to
+  display.
 
 #### 5a-vi. This card's layout crossover is measured on the CONTAINER, not the viewport
 
@@ -718,7 +755,7 @@ stated limit of the verification chain, not a preference.
 mounts. Typing a full word proves the input works. That is the same rule
 finding its own limit, not a separate convention.
 
-**Four browser-only defects**, all in code that ran — so there was nothing for
+**Five browser-only defects**, all in code that ran — so there was nothing for
 a build, a lint, or a server test suite to fail on:
 
 | Page | Defect | Why nothing caught it |
@@ -727,6 +764,7 @@ a build, a lint, or a server test suite to fail on:
 | Messages | `useEffect` used in `Shell.jsx` without importing it — **every route for every role rendered blank** | A bundler resolves *imports*, not undefined identifiers; the reference only throws when the component renders |
 | Contributions | Alert pair — success and error strips both visible after sequential actions | Each write was correct in isolation. Opening the page does not sequence two writes |
 | Every Modal compose | Title/Amount (and Announcements Title, Events Title, Excuse Letters remarks, Messages search) lose focus after one or two characters | `Modal` re-focused the dialog panel whenever `onClose` changed identity. SSR does not run effects. **The 2026-09-07 reviews of Announcements, Events, Excuse Letters and Messages were not wrong — they were shallow in the same place: nobody typed more than two characters into those fields.** |
+| Teacher → Grades (2026-09-22) | `closePanel()` still called `setLetterDraft('')` after the Grade 1 letter picker was deleted — **blank page for every teacher, not only Grade 1** | The same undefined-identifier shape as the Messages row above, but **one level worse: the call sits in a `useCallback` invoked from a `useEffect`, so SSR does not reach it either.** Measured, not assumed — an SSR proof rendering the page scored 32/32 with the defect in place |
 
 **What each step actually proves:**
 
@@ -735,26 +773,52 @@ a build, a lint, or a server test suite to fail on:
   is invisible to it. This is not a misconfiguration; it is out of scope for a
   bundler.
 - `oxlint` — the rules that are **on**. Its default category is `correctness`,
-  and **`eslint(no-undef)` is available but not in it** — while
-  `eslint(no-unused-vars)` IS on by default, so the linter will tell you about
-  an import you stopped using but not about one you never made. That asymmetry
-  is worth knowing: it caught the now-dead `useEffect` import the moment the
-  hook was removed, having said nothing when the same identifier was undefined. Verified: running
-  `npx oxlint -D no-undef` against the broken file reports
-  `'useEffect' is not defined` at the exact line. **Not enabled in this
-  dispatch, deliberately** — turning on a new rule across the whole client is
-  its own change with its own fallout, and it belongs to a dispatch that can
-  absorb whatever else it surfaces.
+  and `eslint(no-undef)` is **not** in it, while `eslint(no-unused-vars)` IS —
+  so out of the box the linter tells you about an import you stopped using but
+  not about one you never made. That asymmetry is what let the same defect ship
+  twice (Messages 2026-09-08, Teacher → Grades 2026-09-22).
+  **`no-undef` IS ENABLED since 2026-09-22** and the asymmetry is closed. It
+  took two config lines, not one, and the second is the reason it stayed off
+  for so long:
+
+  ```jsonc
+  "env": { "browser": true, "es2024": true },
+  "rules": { "no-undef": "error" },
+  "overrides": [{ "files": ["scripts/**"], "env": { "node": true } }]
+  ```
+
+  The config declared no environment, so the rule alone reported **46 findings
+  in `src/` and 6 more in `scripts/`** — every one a global (`window`,
+  `document`, `localStorage`, `console`, `setTimeout`, `navigator`, `Blob`,
+  `URL`, `sessionStorage`, and `process` in the two Node lint scripts), and
+  **not one a real bug.** With the environments declared, `no-undef` reports
+  **0** across the client and the oxlint total stays at the recorded **44**
+  baseline: nothing to fix first, no waivers. Control: putting the
+  `setLetterDraft` call back makes `npm run lint` name the exact line and exit
+  `1`. **Check the survey scope when measuring this kind of thing** — the first
+  survey ran against `src` only and reported 0 where the true figure was 6.
 - The server test suites — the API. They never load the client.
 
 **So the only step that proves a page renders is opening it.** Where a browser
-is not available, an SSR render of the component reaches the same failure: hooks
-are *called* during render even though their callbacks are skipped, so a missing
-hook import throws under `renderToStaticMarkup` exactly as it does in a browser.
-That is how the Messages blank-page bug was confirmed fixed, with a negative
-control reproducing the original `ReferenceError` before restoring the import.
+is not available, an SSR render of the component reaches *some* of the same
+failures: hooks are *called* during render even though their callbacks are
+skipped, so a missing hook import throws under `renderToStaticMarkup` exactly
+as it does in a browser. That is how the Messages blank-page bug was confirmed
+fixed, with a negative control reproducing the original `ReferenceError`
+before restoring the import.
 
-**SSR cannot catch the fourth defect.** `renderToStaticMarkup` does not run
+**SSR cannot catch an undefined identifier inside a callback (2026-09-22).**
+That is the harder half of the same shape and it is worth stating separately,
+because the Messages row above makes SSR look like a general answer to blank
+pages. It is not. An SSR render executes the **render path only** — a
+`useEffect` body never runs, and neither does a `useCallback` body, so a
+reference inside either is never evaluated. Teacher → Grades died on
+`setLetterDraft` inside a `useCallback` called from a `useEffect`, and an SSR
+proof extended to render that very page scored **32/32 with the defect in
+place**. The negative control failed to fail. **For this shape the guard is
+`no-undef`, not a render** — which is why it was enabled the same day.
+
+**SSR also cannot catch the Modal defect.** `renderToStaticMarkup` does not run
 effects. The Modal focus steal lived in an effect: it bundled two concerns
 with different lifetimes — "focus the panel when the dialog opens" (a one-time
 event) and "respond to the current `onClose`" (a value that changes freely).

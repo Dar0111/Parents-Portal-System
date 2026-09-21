@@ -227,14 +227,14 @@ screens must render the descriptor and its meaning, never a number, for Grade 1.
 
 ---
 
-## 6a. How the Grade 1 letter is produced — DECIDED 2026-09-22, NOT YET BUILT
+## 6a. How the Grade 1 letter is produced — DECIDED 2026-09-22, **BUILT 2026-09-22**
 
-> **Status: a decision, not code.** Everything in this section is settled and
-> nothing here is implemented. Today `PATCH /api/grades/:id/descriptive` takes
-> a letter the teacher picks by hand, and `preflightGradeWrite` answers `400`
-> to any WW/PT/exam write on a descriptive row — so a Grade 1 component cannot
-> currently be stored at all. **Do not read this section as describing the
-> system.** Build order and scope: CLAUDE.md → BUILD ORDER.
+> **Status: BUILT.** Server and client both shipped on 2026-09-22 and were
+> browser-checked. `PATCH /api/grades/:id/descriptive` is **retired** — a
+> letter can no longer be set by hand at all — and the four score writes
+> accept a Grade 1 row, so the letter comes out of the same endpoints Grades
+> 2–6 use. A teacher encodes Written Works, Performance Tasks and three
+> Summative parts; the server computes and stores the letter.
 
 **This is the SCHOOL's practice, not DO 015.** DO 015 defines no
 Initial-Grade-to-letter mapping, and descriptive grading exists precisely to
@@ -267,7 +267,28 @@ touches `transmutation_table`.
 | below 65 | **E** — Emerging |
 
 The same five bands as Table 11 (§6b), which is why the five English words are
-identical in both tables — one vocabulary, two uses.
+identical in both tables — one vocabulary, two uses. **As built they are
+literally one table**: `utils/gradeComputation.js` holds a single `BANDS`
+array behind both `bandForScore()` (the letter) and `qualitativeDescriptor()`
+(the words), and a unit test asserts the two agree at every whole score from
+0 to 100, so the two ladders cannot drift apart.
+
+### The rounding a band sits on — read this before disputing a boundary
+
+**An Initial Grade is the sum of three weighted parts, and each part is stored
+at two decimals before they are added.** So a component percentage just below
+a boundary can round its way over one:
+
+> WW/PT/Summative all at **89.99%** → `0.30(89.99)=26.997`,
+> `0.50(89.99)=44.995`, `0.20(89.99)=17.998` → stored as
+> **27.00 + 45.00 + 18.00 = 90.00** → banded **A**, not B.
+
+**This is not a Grade 1 rule and not a defect.** It is the same arithmetic
+every numerical grade has always used, at every grade level — the Initial
+Grade behind a Grade 6 transmutation rounds identically. The practical
+consequence is only that nothing can be probed closer than the second decimal
+of the *weighted* parts; `test-grades-flows.js` samples `x.9` rather than
+`x.99` for exactly this reason, and says so at the assertion.
 
 **A Final letter exists:** average the three terms' **raw weighted scores**,
 then band that average. **Only when all three terms are recorded** — the same
@@ -287,16 +308,44 @@ were entered as letters before any computation existed, and a computed path
 must tolerate a letter with no inputs rather than back-filling invented
 assessment data — that is honestly what a transitional row looks like.
 
-**What building this will touch**, recorded so the size is not rediscovered:
-`preflightGradeWrite`'s mode gate (a Grade 1 component write must stop being a
-`400`); `grade_components.type`, which is `ENUM('WW','PT')` with no Summative
-— either reuse the `ex_st1/ex_st2/ex_te` columns or extend the ENUM;
-`grade_weight_configs`, which **can hold the Grade 1 row unchanged** (30+50+20
-sums to 100 and satisfies the `CHECK`), except that the seed's
-`JOIN grading_mode_configs WHERE mode = 'numerical'` deliberately excludes
-descriptive levels; and a descriptive branch in `recomputeGrade` that writes
-`descriptive_grade` and must **not** write `term_grade` — the dual-mode
-invariant is that exactly one of the two is ever populated.
+**What that means on screen, and it is visible on the demo card:** a legacy
+subject with all three letters recorded still shows **no Final letter**,
+because the Final averages the three terms' Initial Grades and there are none
+behind a typed letter. Nino's Mathematics reads A / B / C with a blank Final,
+and that is correct, not a bug. The breakdown modal on such a row says the
+grade predates kept scores rather than claiming the grade level has none.
+
+### What it touched, as built
+
+Each line below was a prediction in the DECIDED version of this section; all
+five held, and the resolution is recorded rather than the guess.
+
+- **`preflightGradeWrite`** accepts a *score-bearing* mode — numerical and
+  descriptive both — and **returns the mode** to its caller, so
+  `recomputeGrade` forks on what preflight already read instead of
+  re-querying.
+- **`grade_components.type` stayed `ENUM('WW','PT')`.** Summative reuses the
+  existing `ex_st1`/`ex_st2`/`ex_te` columns with `exPercentage`'s 30/30/40 —
+  the ENUM was **not** extended. Only the heading differs on screen, because
+  Summative is the school's word for Key Stage 1.
+- **`grade_weight_configs` holds the Grade 1 rows unchanged** at 30/50/20.
+  The seed's `JOIN grading_mode_configs WHERE mode = 'numerical'` was the
+  blocker and is gone: the seed now writes a weight row for **every** grade
+  level and `grading_mode_configs` alone decides how the weights are used.
+  Live databases get the five rows from `scripts/migrate-grade1-weights.js`,
+  which **aborts rather than overwrite** a row carrying different weights.
+- **`recomputeGrade` has a descriptive branch** that bands the raw Initial
+  Grade with no transmutation, writes `descriptive_grade` **and**
+  `initial_grade`, and **throws** if `term_grade` ever became non-null on a
+  descriptive row — the dual-mode invariant is asserted in code, not just
+  documented.
+- **`PATCH /:id/descriptive` was retired rather than left in place.** One
+  write path for every grade level; a stored legacy letter keeps its value and
+  is simply no longer editable through the API.
+
+**Suite baselines after this work:** `test:grades` 212 · `test:grade-computation`
+68 · `test:notifications` 124 · `test:dashboard` 77 · `verify-grading-seed` 34 ·
+`test:assignments` 56 · `test:grading-modes` 13.
 
 ---
 
@@ -411,10 +460,10 @@ with values 1–3.
 
 ### Resolved by the school visit
 
-- **How the Grade 1 letter is produced — ANSWERED 2026-09-22.** Computed from
-  WW 30 / PT 50 / Summative 20, banded on the raw weighted score. The full
-  rule, and everything building it will touch, is **§6a**. It is a decision;
-  no code implements it yet.
+- **How the Grade 1 letter is produced — ANSWERED 2026-09-22, BUILT the same
+  day.** Computed from WW 30 / PT 50 / Summative 20, banded on the raw
+  weighted score. The full rule, and what building it actually touched, is
+  **§6a**.
 
 - **Attendance does NOT feed grade computation.** The SF9 carries attendance as
   a separate section on the reverse side, distinct from Learning Progress. No

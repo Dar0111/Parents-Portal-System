@@ -83,8 +83,13 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // does not go in a URL, a query string, or an error message. This page
 // has no :studentId route.
 //
-// Do not encode on Marwin (parent all-Pending demo) or Nino (demo
-// letters). That is a verification constraint, not a UI filter.
+// FIXTURE RULE (reworded 2026-09-22). Do not encode on Marwin — the parent
+// all-Pending demo depends on his card staying empty. For Nino: **never
+// modify his 5 seeded rows** (Mathematics terms 1-3, Reading and Literacy
+// terms 1-2 — grade ids 1-5, the legacy letters with no components), but
+// **fixtures on his EMPTY subjects are allowed** and were used for the
+// Grade 1 computed-letter browser check. A verification constraint, not a
+// UI filter — nothing in this file enforces it.
 
 const REPORT_UNWRAP = [
   'student',

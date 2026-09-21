@@ -5,6 +5,49 @@
 > Dated entries record what was true on their date and are never back-edited.
 
 
+## BLOCKED / RESOLVED → Grade 1's computed letter — CLOSED and moved 2026-09-22
+
+> Moved here under CLAUDE.md's REFILL RULE: *a closed BLOCKED / RESOLVED item
+> leaves CLAUDE.md permanently, in the dispatch that closes it.* The item was
+> open for one day — the school answered on 2026-09-22 and it was built the
+> same day. CLAUDE.md keeps the one-line rule and the pointer.
+>
+> **The live record is `docs/GRADING_SPEC.md` §6a**, which is marked BUILT and
+> carries the arithmetic, the bands, the rounding note and what the build
+> actually touched. Below is the CLAUDE.md paragraph as it stood while the
+> item was open, kept because it is the only place the *interim* state is
+> written down — the day when the rule was known and the code still did the
+> opposite.
+
+Verbatim, as it stood in CLAUDE.md → BLOCKED / RESOLVED → Grades module from
+2026-09-22 until this dispatch:
+
+> **Grade 1's letter: the school answered on 2026-09-22 — it is COMPUTED**, from
+> WW 30 / PT 50 / Summative 20, banded on the raw weighted score. **The rule is
+> `docs/GRADING_SPEC.md` §6a and NOTHING IMPLEMENTS IT YET** — today
+> `PATCH /:id/descriptive` takes a hand-picked letter and every Grade 1 component
+> write is a `400`. Do not read the built behaviour as the school's rule.
+
+**What closed it**, in one place so the shape of the change survives without
+re-reading two commits: `PATCH /:id/descriptive` was **retired** rather than
+kept alongside the computed path — one write path for every grade level, and a
+stored legacy letter keeps its value but can no longer be edited through the
+API. `preflightGradeWrite` began accepting a *score-bearing* mode and
+returning it, so `recomputeGrade` forks on what preflight already read;
+`grade_components.type` stayed `ENUM('WW','PT')` with Summative reusing the
+`ex_*` columns; the seed dropped its
+`JOIN grading_mode_configs WHERE mode = 'numerical'` so every grade level gets
+a weight row; and `scripts/migrate-grade1-weights.js` does the same to a live
+database, aborting rather than overwriting a row with different weights.
+
+**The one behaviour worth carrying forward**, because it looks like a bug and
+is not: a legacy Grade 1 row shows all three term letters and **no Final
+letter**, since the Final averages the three Initial Grades and a typed letter
+has none. On the seeded demo card, Nino's Mathematics reads A / B / C with a
+blank Final while Makabansa (encoded from scores) reads A / B / C with a
+Final. Both are correct.
+
+
 ## CURRENT STATE → Files that exist
 
 > Originally under CLAUDE.md → CURRENT STATE. Lines below are verbatim as of 2026-09-18.
@@ -3642,6 +3685,22 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 `my-records` gotcha, and the contributions half of the scope-width gotcha.
 
 ---
+
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-22 (fourth batch, the Grade 1 docs dispatch)
+
+> Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
+> table. Dated rows are never edited; every full row is in
+> `docs/CHANGELOG.md`. Moved because that dispatch added three stubs of its
+> own and pushed CLAUDE.md past the 138,000-byte trim trigger — this is the
+> documented mechanism, not a trim of its own. CLAUDE.md keeps the newest six.
+
+| Date | Change |
+|------|--------|
+| 2026-09-21 | DV3 docs: `term_averages` in `docs/API_REFERENCE.md`; **§5a-v** (the ONE page that leaves DataTable, and why the exemption is narrow) and **§5a-vi** (its crossover is a CONTAINER query at 36rem — the **607px → 351px sidebar cliff** is why no viewport breakpoint can work; browser checks must measure the card, not the window). Four KNOWN_ISSUES rows; three OPEN QUESTIONS (sticky first COLUMN deferred to DV1b — **§5a-i does not close it**; the card's mixed units; Grade 1's printed order, now a school question). Pre-Stage-5 gains `subjects.display_order`, the 401-vs-network fix, CAL and a neutral fixture learner. `test:grades` corrected **167 → 189** (three dispatches stale). **One flag WITHDRAWN as false — `DELETE /grades/:id` does not orphan its components** (`schema.sql:487` cascades, proved during cleanup). |
+| 2026-09-21 | DV3 review fixes (`fix/dv3-review`): **the GA row read "Pending" in all four columns because `term_averages` was never named in the unwrap list** — the interceptor copies only named keys, so a FORGOTTEN key is silently `undefined` while the guard protects only a RENAMED one. The card now measures itself (`@container`, `@min-[36rem]`) after the table rendered at 200% zoom in a 394px container. F5 proved NOT a defect (88% → IG 88.00 → transmuted 90); one sentence names the transmutation table, IG stays hidden. SSR 62/62 with a control that reproduces the defect verbatim and **caught a weak assertion of my own**. |
+| 2026-09-20 | DV3 (`feat/dv3-grades`): Parent → Grades is the school's Learner's Performance Report — SF9 order from a client constant (`subjects` has **no display-order column**), no LRN, term status counted, the GA row INSIDE the table, legend, "Reading this report", term segments below the crossover. `GET /grades/student/:studentId` gained **`term_averages`**. `test:grades` 182 → 188, `test:dashboard` 75, SSR 50/50, one new contrast pair. |
+| 2026-09-20 | DV2 docs: BUILD ORDER ticks DV2 and marks the "percentage copy" item CLOSED (the percentage is gone); the 390px Status select moves to DV1b. `docs/FRONTEND_CONVENTIONS.md` §5a-iv — **`format/date.js` is the only home for date maths**: identity is a `YYYY-MM-DD` string, a `Date` is for placement only, never `new Date(string)` or `toISOString()`. New KNOWN_ISSUES row and a **third OPEN QUESTION**: `POST /attendance/bulk` accepts weekend dates — are there Saturday classes? UI polish gains Settings → Personalization at 200% zoom. |
+| 2026-09-20 | DV2 (client, `feat/dv2-attendance`): Parent → Attendance is a month calendar — `format/date.js` month maths, `AttendanceCalendar.jsx`, a summary panel, and a school-year table whose months are derived from data. **The percentage is gone; the fraction replaced it** and `presentOnRecordedDays` was deleted. A weekend record shows in an "Also recorded" strip and still counts. Browser check found five things, all fixed (summary position, pills overflowing at 200% zoom → word gated at `xl`, truncated excuse line → icon, copy, zero pills). oxlint 44, SSR 60/60. |
 
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-22 (third batch, the DV3 trim)
 
