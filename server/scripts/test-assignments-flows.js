@@ -145,7 +145,8 @@ async function run() {
       'GET /?grade_level=1 returns the five Grade 1 subjects'
     );
     assert(
-      JSON.stringify(grade1Names) === JSON.stringify(['GMRC', 'Language', 'Makabansa', 'Mathematics', 'Reading'].sort()),
+      JSON.stringify(grade1Names) ===
+        JSON.stringify(['GMRC', 'Language', 'Makabansa', 'Mathematics', 'Reading and Literacy'].sort()),
       `Grade 1 names match the seeded curriculum (got ${grade1Names.join(', ')})`
     );
 
@@ -186,7 +187,7 @@ async function run() {
       tch003Own.status === 200 &&
         tch003Rows.length >= 5 &&
         tch003Rows.every((a) => a.teacher_id === tch003Id && a.grade_level === 1 && a.section === 'Mabait') &&
-        ['GMRC', 'Language', 'Makabansa', 'Mathematics', 'Reading'].every((n) => tch003Names.includes(n)),
+        ['GMRC', 'Language', 'Makabansa', 'Mathematics', 'Reading and Literacy'].every((n) => tch003Names.includes(n)),
       'TCH-003 sees own five Grade 1 Mabait assignments (seeded fixture, not deleted)'
     );
 

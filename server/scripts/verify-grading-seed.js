@@ -266,9 +266,9 @@ async function run() {
       lettersFor('Mathematics').join(',')
     );
     check(
-      lettersFor('Reading').join(',') === '1:D,2:E',
-      'Reading has terms 1-2 lettered and term 3 blank (Pending)',
-      lettersFor('Reading').join(',')
+      lettersFor('Reading and Literacy').join(',') === '1:D,2:E',
+      'Reading and Literacy has terms 1-2 lettered and term 3 blank (Pending)',
+      lettersFor('Reading and Literacy').join(',')
     );
     const untouched = ['GMRC', 'Language', 'Makabansa'].every((name) => lettersFor(name).length === 0);
     check(untouched, 'GMRC, Language, and Makabansa have zero grade rows (Pending)');
