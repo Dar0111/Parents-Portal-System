@@ -3535,4 +3535,136 @@ two students can share a name.
 
 Full text: `docs/ARCHIVE.md` → CURRENT STATE → Class Board.
 
+---
+
+## BUILD ORDER → Stages 1 and 2, moved from CLAUDE.md on 2026-09-22 (third trim)
+
+> Verbatim. Stage 3 and Stage 4 were already archived on 2026-09-18 under
+> "BUILD ORDER → Stage 3 and Stage 4" above; Stages 1 and 2 had never been,
+> so these are a MOVE, not a duplicate. CLAUDE.md keeps a one-line ticked
+> summary per stage and a pointer here.
+
+### Stage 1 — Foundation ✅ DONE
+
+- [x] Database schema — 22 tables (was 18 when Stage 1 closed; the Grades
+      rebuild and `auth_security_state` added four, `notifications` and
+      `auth_codes` added one each, and Feature 7's two
+      tables were dropped 2026-09-13)
+- [x] Seed data
+- [x] Auth backend — login, JWT, RBAC, approve/reject
+- [x] Auth tests
+
+### Stage 2 — Auth frontend ✅ DONE
+
+Do this before any other backend module. It is the only work with zero
+external dependencies, and it turns a terminal-only project into something
+you can actually see on screen.
+
+- [x] `client/` folder + React + Tailwind + Font Awesome setup
+- [x] Axios client with JWT interceptor and 401 handling
+- [x] Login page — Login ID + password, no role dropdown
+- [x] `ProtectedRoute` with a loading state (prevents the refresh flash)
+- [x] `/admin` `/teacher` `/parent` empty dashboards
+- [x] Shared layout — sidebar, header, logout
+
+Login round-trip verified in the browser — see "React web app" note under
+CURRENT STATE.
+
+---
+
+## AGENT SKILLS → the rationale, moved from CLAUDE.md on 2026-09-22 (third trim)
+
+> Verbatim. CLAUDE.md keeps the skill table, the auto-invoke warning, the
+> one-line "deliberately NOT installed" list, "do not install more without a
+> specific reason", and the no-`CONTEXT.md` rule — every live do-not. What
+> moved here is the reasoning behind them.
+
+**Why these two specifically.** Three bugs in the week of 2026-08-29 were found
+only by manual end-to-end testing, not by the 336-test suite — including the
+`stripBackupsTableDdl` case, where a test asserted the *anticipated symptom*
+("no `INSERT INTO backups`") and passed while the system was broken by a
+different mechanism sitting next to it (`DROP TABLE`). See the CHANGELOG. That
+is a diagnosis-discipline and test-design problem, which is what these two
+skills are for.
+
+**Deliberately NOT installed:** `grill-me`, `grill-with-docs`, `to-spec`,
+`to-tickets`, `implement`, `wayfinder`, `triage`,
+`improve-codebase-architecture`, and the remaining ~26. Reason: they are a
+planning and ticketing workflow, and this repo already has one — `CLAUDE.md`'s
+**BUILD ORDER**, **BLOCKED**, **LOCKED DECISIONS**, and **OPEN QUESTIONS**
+sections, plus the end-of-session update ritual. Two competing planning
+disciplines in one repo is how documents drift apart, which has already
+happened here once with `PROJECT_PROGRESS.md`. **Do not install more of them
+without a specific reason.** A future session finding only three skills present
+is looking at a decision, not an oversight.
+
+### Setup answers (recorded so they aren't re-asked)
+
+`/setup-matt-pocock-skills` was run once on 2026-08-30. Its answers:
+
+- **Issue tracker:** local markdown files, not GitHub Issues. See
+  `docs/agents/issue-tracker.md`. The repo does have a GitHub remote and the
+  skill defaults to GitHub — this was an explicit override, because this is a
+  solo capstone with no issues board.
+- **Triage labels:** none. Section skipped entirely, because `triage` is not
+  installed. There is no `docs/agents/triage-labels.md` and there should not be.
+- **Domain docs:** single-context. See `docs/agents/domain.md`.
+
+### No CONTEXT.md — the reasoning
+
+A second root-level context document would be a third thing to keep in sync
+with the code alongside this file and `docs/PROJECT_PROGRESS.md` — and the
+warning at the top of this file exists precisely because that sync failed once
+already.
+
+---
+
+## SCOPE DECISION → Feature 7, the two narrative paragraphs, moved from CLAUDE.md on 2026-09-22 (third trim)
+
+> Verbatim. CLAUDE.md keeps the consultation date and Principal Bajar's
+> statement, the Chapter 5 instruction, "Why not a flag", and "What stays,
+> deliberately" in full — the last of those carries the live do-not about the
+> 40 `activity_logs` rows.
+
+**What went:** 8 endpoints (`routes/contributions.js`), the
+`contributions` and `contribution_records` tables with their four FKs,
+Teacher → Contributions and Parent → Contributions, three nav items (teacher,
+parent, and the unbuilt admin one), `test:contributions` and its suite,
+and StatusBadge's `paid` tone (`pending` stays — users and excuse letters
+share it).
+
+**What the removal also closed:** consequence 5 (the adviser could not post a
+fee — a school question), the DELETE 409 that named a remedy which did not
+exist, the Download Statement KNOWN ISSUE (Figure 19's CSV export), the last
+expired NOW POSSIBLE workaround (Contributions compose built from
+`GET /students`), the DO 19 KNOWN ISSUES row, the unconfirmed OPEN QUESTION,
+and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
+`my-records` gotcha, and the contributions half of the scope-width gotcha.
+
+---
+
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-22 (third batch, the DV3 trim)
+
+> Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
+> table. Dated rows are never edited. **Every full row is in
+> `docs/CHANGELOG.md`** — with ONE exception worth recording: the
+> **Notifications N1 (server)** dispatch has no row of its own there (only N2
+> and N3 do), so the stub below is its only surviving summary. CLAUDE.md keeps
+> the newest five stubs.
+
+| Date | Change |
+|------|--------|
+| 2026-09-20 | DV1 docs: `docs/FRONTEND_CONVENTIONS.md` §5 gains §5a-i (**the sticky table header is a CLOSED QUESTION**, with all three failure modes named so nobody retries it), §5a-ii (`nowrap`; never wrap an identifier) and §5a-iii (`renderCard`); short form in §5 here. BUILD ORDER: Data views split into DV1 (done) → DV2 → DV3 → DV4 → **DV1b last**, since DV2/DV3 replace the two parent pages outright. New UI polish list. Working agreement: never `git checkout --` on uncommitted work. |
+| 2026-09-20 | DV1 (client, `feat/dv1-datatable`): DataTable restyle, `Avatar`/`PersonCell`, the `renderCard` card layout below `sm` (data not JSX; one interactive element per card), the `nowrap` column option, masked parent login ids in Admin → Users, six pages converted. **The sticky header broke three different ways across three browser checks and was dropped** — it cannot coexist with the in-table horizontal scroller. oxlint 44, SSR 58/58, all 22 consumers audited. |
+| 2026-09-20 | Teacher attendance banner verified and DB2's one open check closed: Darryl moved the Windows clock to Monday 2026-09-21 09:00 (PH and UTC both Monday), saw amber "Not recorded" then green "Recorded — 1 present, 0 absent", and restored the clock. **This overrides his own "do not fake the date" line in DB2's entry — his call, recorded, not quietly done.** No code changed; the banner was unseen, not broken. Cleanup removed the one attendance row; the three `activity_logs` rows dated 2026-09-21 stay. |
+| 2026-09-20 | Dashboards DB3 (docs): a Dashboard section in `docs/API_REFERENCE.md` (per-role payload, the thin-endpoint rule, the scope rule, and why the dashboards ask `GET /api/events` for ascending dates while the endpoint default stays DESC); counts move to **86 handlers / 87 endpoints**; new **§12** here; BUILD ORDER ticks Dashboards and keeps the Monday teacher-banner check open; two items added to Data views redesign (the Attendance intro naming an absent percentage, and Dark’s amber reading as rust); the single-admin lockout row corrected — **the app cannot create an admin**, so confirming the email is the only in-app remedy; new row on direct-insert fixtures firing no fan-out. |
+| 2026-09-20 | Dashboards DB2 (client, `feat/dashboards`): three real dashboards, `Card.jsx` + `useCard.js`, each card owning its own loading/error/empty state with no bare `Promise.all`. Browser check passed with **one defect** — upcoming events were DESC, so a "next three" card returned the three furthest-away events backwards — plus four review corrections (hazard card red → amber, its impossible "create a second admin" link removed, the locks label now names its term, the hook moved to its own file). oxlint 44, SSR 36/36. Fixtures cleaned up; Seeded baseline confirmed. |
+| 2026-09-20 | Dashboards DB1 (server, `feat/dashboard-api`): `GET /api/dashboard`, deliberately thin — only the teacher class-encoding progress, the admin counts and lock count, and the parent grades summary (A1: computed server-side with the report card’s own `roundTo2`). Recent activity dropped — no `activity_logs` read endpoint exists. `test:dashboard` 75/75 ×3. |
+| 2026-09-19 | Account recovery R3 (docs): the five endpoints and the recovery flow's four deliberate silences in `docs/API_REFERENCE.md`, plus a new §5b for the two whole-session refusals; its Verification table **recounted from the code — 85 handlers, 86 endpoints** (it had drifted three ways at once, none from this dispatch, and Darryl's dispatch figure of 84 was an estimate); `auth_codes`' dump exclusion in `docs/RESTORE.md`; here, 21 → 22 tables and 80 → 85 handlers everywhere, new §11, the recovery line moved to done, and a queued **Data views redesign — mockup first**. One code file, comment only: `routes/auth.js` still described the abandoned timestamp mechanism. |
+| 2026-09-19 | Account recovery R2 (client, `feat/account-recovery-ui`): `applyToken()`, routing on `must_change_password` and never on the 403, `/forgot-password` (two steps one route — the login id is an LRN, §5c), the forced-change screen outside `Shell`, Verify email in Settings, admin Reset password shown once. Browser check passed over real Gmail SMTP; **two defects found and fixed** — a stale own-email after editing your own row in Users, and three branches telling an admin to ask an office they ARE. oxlint 44, SSR 37/37 with a negative control. |
+| 2026-09-19 | Account recovery R1 (server, `feat/account-recovery-api`): the 22nd table `auth_codes` via the repo's second migration, five endpoints, bcrypt-hashed 6-digit codes with DB-side rate limits, nodemailer, two timing mitigations, `auth_codes` rows excluded from every dump. **Amendment A1 landed on the third mechanism — a `token_version` counter**; both timestamp attempts are recorded in `middleware/auth.js`. `test:recovery` 62; every suite run because middleware changed; `test:auth` fixed to 56 under a declared scope expansion. |
+| 2026-09-19 | CLAUDE.md section trim: 144,967 → 108,102 bytes. Five blocks moved verbatim to `docs/ARCHIVE.md` (the 81-row endpoint table as a dated snapshot — `docs/API_REFERENCE.md` §8 is the live record and was verified to hold all 81; `Files that exist`; the `client/src` tree; `sections table`; `Class Board`), each leaving its heading, a pointer and its conclusion. Ten per-file rules stated nowhere else stayed as "File rules that bite". §7c added to the companion and §9 to this file, closing two mirror gaps. |
+| 2026-09-19 | Notifications N1 (server) + N2 (client): the 21st table via the repo’s first migration script, 4 endpoints, 7 fan-out hooks, `notification_counts`; the header bell, sidebar badges, LiveStatus ungated again. oxlint 42 → 44. |
+| 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |
+
 

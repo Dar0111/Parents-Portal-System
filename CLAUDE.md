@@ -65,6 +65,16 @@ of every session) predate the split and are unchanged by it.
 a new narrative goes to `docs/ARCHIVE.md` (or the living file it belongs to)
 and this file gets the rule and the pointer. Never delete to make room.
 
+**THE SIZE RULE (2026-09-22).** Two trims in three days — 144,967 → 108,102
+on 2026-09-19, and back to 141,099 by 2026-09-21 — because growth was never
+measured per dispatch, only when it hurt. So: **every dispatch report states
+this file's delta, on-disk bytes, before → after.** A single dispatch adding
+more than **2,000 net bytes must say why** in its report. **Measure the
+ON-DISK (CRLF) size** — that is what a session actually reads — and quote
+`git cat-file -s HEAD:CLAUDE.md` alongside it, which runs ~2,200 lower
+because git stores LF. **Trigger a trim at 138,000 on-disk; never start a
+dispatch above 142,000.**
+
 ---
 
 ## CURRENT STATE
@@ -336,6 +346,13 @@ api.post('/backups/3/restore', body, { raw: true })       // -> the axios respon
 - **Throws when the named key is absent**, naming what was missing and what
   came back. It never returns `undefined` — a backend rename must fail loudly
   at the call site, not render an empty table.
+- **But it protects a RENAMED key, never a FORGOTTEN one.** The array form
+  copies only the keys you name, so a key the call site never asks for is
+  silently missing and renders as a plausible empty value, not as an error.
+  DV3 shipped that way: the report card's general-average row read
+  "— Pending" in all four columns for a week because `term_averages` was
+  not in the list, while the API had been returning it correctly all along.
+  **When an endpoint gains a field, the unwrap list is the line to change.**
 - **Array form** for multi-key responses (`GET /backups` + `orphaned_files`,
   `GET /grades/:id` + `grade_components` + `descriptor`).
 - **`raw` is for exactly two endpoints** — `POST /api/backups/:id/restore`
@@ -947,13 +964,6 @@ nine features. Do not describe it as unfinished or cut for time — it was
 built, tested (38 assertions) and working, and was removed because the
 school may not do the thing it tracked.
 
-**What went:** 8 endpoints (`routes/contributions.js`), the
-`contributions` and `contribution_records` tables with their four FKs,
-Teacher → Contributions and Parent → Contributions, three nav items (teacher,
-parent, and the unbuilt admin one), `test:contributions` and its suite,
-and StatusBadge's `paid` tone (`pending` stays — users and excuse letters
-share it).
-
 **Why not a flag, and why not leave the tables:** a removed feature with a
 live POST still mounted is a UI lie, and empty unused tables are how this
 file's counts drifted before.
@@ -966,13 +976,8 @@ Dated CHANGELOG entries, build-time data points, and the §5h defect row stay
 as the history they are. Pre-removal backups still contain both tables — see
 KNOWN ISSUES.
 
-**What the removal also closed:** consequence 5 (the adviser could not post a
-fee — a school question), the DELETE 409 that named a remedy which did not
-exist, the Download Statement KNOWN ISSUE (Figure 19's CSV export), the last
-expired NOW POSSIBLE workaround (Contributions compose built from
-`GET /students`), the DO 19 KNOWN ISSUES row, the unconfirmed OPEN QUESTION,
-and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
-`my-records` gotcha, and the contributions half of the scope-width gotcha.
+What was deleted, and the nine open items the removal also closed:
+`docs/ARCHIVE.md` → SCOPE DECISION → Feature 7.
 
 ---
 
@@ -1402,55 +1407,25 @@ ready — do not let that arrive without these done.
 Work top to bottom. Do not jump ahead. Update the checkboxes in this file
 at the end of each session.
 
-### Stage 1 — Foundation ✅ DONE
+### Stages 1–3 ✅ ALL CLOSED — one line each
 
-- [x] Database schema — 22 tables (was 18 when Stage 1 closed; the Grades
-      rebuild and `auth_security_state` added four, `notifications` and
-      `auth_codes` added one each, and Feature 7's two
-      tables were dropped 2026-09-13)
-- [x] Seed data
-- [x] Auth backend — login, JWT, RBAC, approve/reject
-- [x] Auth tests
+Full checkbox lists are verbatim in `docs/ARCHIVE.md` → BUILD ORDER (Stage 3
+under the 2026-09-18 heading, Stages 1 and 2 under the 2026-09-22 third-trim
+heading). Nothing here is outstanding.
 
-### Stage 2 — Auth frontend ✅ DONE
-
-Do this before any other backend module. It is the only work with zero
-external dependencies, and it turns a terminal-only project into something
-you can actually see on screen.
-
-- [x] `client/` folder + React + Tailwind + Font Awesome setup
-- [x] Axios client with JWT interceptor and 401 handling
-- [x] Login page — Login ID + password, no role dropdown
-- [x] `ProtectedRoute` with a loading state (prevents the refresh flash)
-- [x] `/admin` `/teacher` `/parent` empty dashboards
-- [x] Shared layout — sidebar, header, logout
-
-Login round-trip verified in the browser — see "React web app" note under
-CURRENT STATE.
-
-### Stage 3 — Backend modules
-
-Order mattered: Student Records first because everything references
-students; Grades last because it was blocked.
-
-- [x] Student Records API — list, view, create, update
-- [x] Sections API — `GET /`, `GET /:id` (unscoped), `PATCH /:id/adviser`
-      (admin). Not one of the core features; built so attendance's
-      adviser-scoping can assign still-NULL sections without a direct DB write
-- [x] Attendance API — per day, adviser-scoped (Stage B1 rebuild, 2026-09-04)
-- [x] Announcements + Memos + Events API. **Class Board (2026-09-06):
-      investigated, complete, zero new code** — Feature 4, not an eleventh
-- [x] Excuse Letters API — submit, mine, list, view, edit, review
-      (adviser-only, never touches attendance)
-- [x] ~~Contributions API~~ — **REMOVED 2026-09-13** (SCOPE DECISION)
-- [x] Messages API + Socket.io
-- [x] System Settings API (admin)
-- [x] User Management API — extended `routes/users.js`
-- [x] Backup/Restore API (admin, `mysqldump`, not a folder copy) — 5
-      endpoints; see RESTORE
-- [x] **Grades API — all nine stages (G1a, G1b, G2a–G2e, G3; 2026-09-05/06)**,
-      plus `DELETE /:id` and `GET /api/grading-modes` (2026-09-08). See
-      BLOCKED / RESOLVED → Grades module
+- [x] **Stage 1 — Foundation.** Schema, seed, auth backend, auth tests.
+- [x] **Stage 2 — Auth frontend.** `client/` set up, the axios client with its
+      JWT interceptor, Login, `ProtectedRoute`, three empty dashboards, the
+      shared layout. Built before the other backend modules on purpose: one
+      complete vertical slice beats ten invisible endpoints (see the note at
+      the end of this section).
+- [x] **Stage 3 — Backend modules, all ten.** Students · Sections ·
+      Attendance (per day, adviser-scoped) · Announcements + Memos + Events
+      (the Class Board needed zero new code) · **Excuse Letters — review is
+      adviser-only and NEVER touches `attendance`** (BLOCKED / RESOLVED) ·
+      ~~Contributions, REMOVED 2026-09-13~~ · Messages + Socket.io · Settings ·
+      User Management · Backup/Restore · **Grades, all nine stages** plus
+      `DELETE /:id` and `GET /api/grading-modes`.
 
 ### Stage 4 — Web pages
 
@@ -1460,76 +1435,29 @@ CONVENTIONS → Corrections). Every checkbox's full write-up — what it built,
 what it deliberately did not, how it was verified — is verbatim in
 `docs/ARCHIVE.md` → BUILD ORDER, and on its CHANGELOG row.
 
-- [x] **Foundation — 2026-09-06.** Role-aware `Shell`, `layout/nav.js`, seven
-      primitives, `format/grade.jsx`, mandatory unwrapping, `/dev/ui`. The
-      conventions are frozen — read them before building any screen.
-- [x] **Teacher → Attendance — 2026-09-06.** Encode only; adviser-scoped;
-      roster fetched with `?status=active`; pre-fill + in-place update; unset
-      rows omitted, never defaulted to Present.
-- [x] **Teacher → Attendance records — 2026-09-12.** Sibling route
-      `/teacher/attendance-records`, read only, never sends `date`; nav was
-      add, not flip. Correction path is the encode screen.
-- [x] **Teacher → Students — 2026-09-07.** List + detail on `students.id`.
-      Enroll wizard + create parent (2026-09-10; class picker is
-      `GET /assignments`, never `useTeacherTargets`). Edit (2026-09-12) only
-      for classes in `GET /assignments`; adviser-only gets muted copy; PUT
-      body omits class.
-- [x] **Teacher → Excuse Letters — 2026-09-07.** Queue + review; predicts
-      adviser-only before the click; review is irreversible so the modal
-      confirms naming the decision (§5e). Modal, not a detail route.
-- [x] **Teacher → Announcements, Memos, Events — 2026-09-07.** Three page
-      files. Announcements IS the Class Board. Memos is read-only for a
-      teacher; `posted_by_name` column on Memos only (2026-09-12). Events
-      target a grade with a required date. Delete confirms, edit does not.
-- [x] **Teacher → Messages — 2026-09-07.** List + thread, the first Socket.io
-      client. No optimistic append; unread is server-derived and cleared by a
-      request; badge only on a built nav item. **"Announce to a class" —
-      2026-09-13**, naming and preselecting the class from `GET /contacts`.
-- [x] **Parent → Announcements, Memos, Events — 2026-09-07.** No write
-      affordance; modal, not a route (no `GET /:id` exists); audience labels
-      from the target columns' nullness, never from `user.grade_level`; Events
-      has one filter (Upcoming vs All on `from`). `posted_by_name` in the modal
-      (2026-09-12).
-- [x] **Parent → Grades — 2026-09-07.** Report card from
-      `GET /grades/student/:studentId`, six-key unwrap, the first `GradeValue`
-      consumer; skips the request when `student_id` is null; renders
-      `descriptor`, never `remarks`. **Breakdown modal — 2026-09-11.**
-- [x] **Teacher → Grades — 2026-09-07.** View + encode, both modes, one page.
-      Encode scope from `GET /assignments`, mode from `GET /grading-modes`
-      (2026-09-12). No client IG preview, no lock control, no confirmation,
-      no unsaved-changes warning.
-- [x] ~~**Teacher → Contributions — 2026-09-08**~~ — **REMOVED 2026-09-13**
-      with Feature 7.
-- [x] **Parent → Excuse Letters, Messages, Contributions — 2026-09-09.**
-      Submit + edit while Pending, no withdraw; Messages copies the Teacher
-      fetch; Contributions later removed. Flipping Messages `built: true`
-      closed the 5g inverse for Parent with no `Shell.jsx` change.
-- [x] **Parent → Attendance — 2026-09-09.** Counts + day list, Month vs All;
-      skips when unlinked. **"Present on recorded days" — 2026-09-13** once
-      the school answered.
-- [x] **Admin → Users — 2026-09-09.** First admin page. Pending queue +
-      directory + create teacher + edit + status. Never `POST /users/parents`.
-      No `:id` route. `AdminDashboard` derives from nav.
-- [x] **Parent → Settings — 2026-09-09.** New `PUT /api/auth/contact`;
-      identity locked; password + contact only; `AuthContext.refresh()`.
-- [x] **Teacher → Settings — 2026-09-10.** Copy of Parent Settings; nav add,
-      not flip; stays logged in after a password change. **Teacher web role
-      complete.**
-- [x] **Parent → Grades breakdown — 2026-09-11.** Same page, no new nav.
-- [x] **Admin → Students — 2026-09-14.** Figure 5 1.23. Unscoped; `status=all`
-      default; deactivate/activate no confirm; Edit only.
-- [x] **Admin → Settings — 2026-09-14.** Figure 5 1.25. School settings; school
-      year locked on this page only; two saves via PATCH; no confirm.
-- [x] **Admin → Attendance — 2026-09-14.** Figure 5 1.15. View only; no fetch
-      until a grade or date range is applied; counts, no rate.
-- [x] **Admin → Announcements (with memos) — 2026-09-14.** Figure 5 1.18 +
-      Feature 4. This page is the only place a memo can be written; the admin
-      "Memos" nav item was `built: false` alongside it and was removed
-      2026-09-18.
-- [x] **Admin → Grades — 2026-09-14.** Figure 5 1.9. View + lock, NOT delete.
-      `TermValue` extracted at the third copy.
-- [x] **Admin → Backup & Restore — 2026-09-14.** Figure 5 1.27/1.28, Stage 4's
-      last page.
+**All 22 built and ticked, 2026-09-06 → 2026-09-14.** Foundation · Teacher →
+Attendance · Attendance records · Students · Excuse Letters · Announcements,
+Memos, Events · Messages · Grades · ~~Contributions (removed)~~ · Settings ·
+Parent → Announcements, Memos, Events · Grades · Grades breakdown · Excuse
+Letters, Messages · Attendance · Settings · Admin → Users · Students ·
+Settings · Attendance · Announcements (with memos) · Grades · Backup &
+Restore. **Parent → Attendance and Parent → Grades have since been replaced
+by DV2 and DV3** (see below); the dated entries record what shipped then.
+
+**Four page rules from those entries are stated nowhere else, so they stay
+here.** The rest of each write-up is verbatim in `docs/ARCHIVE.md` → BUILD
+ORDER and on its CHANGELOG row.
+
+- **Teacher → Attendance records never sends `date`** — it is the read-only
+  sibling route; the correction path is the encode screen.
+- **The Teacher → Students class picker is `GET /assignments`, never
+  `useTeacherTargets`** (that hook's union is assigned OR adviser — see NOW
+  POSSIBLE for the same warning about Grades).
+- **Parent content audience labels come from the target columns' nullness,
+  never from `user.grade_level`.**
+- **Admin → Users never calls `POST /users/parents`** and has no `:id` route;
+  a parent account is created by a teacher and approved by an admin (LOCKED
+  DECISIONS).
 
 **Stage 4 — CLOSED 2026-09-14.** Every Figure 5 admin process has a page.
 Sections, Excuse Letters, Memos, Events and Messages are not built by the
@@ -1556,25 +1484,17 @@ is the order, not the record.
 
 **Done (all 2026-09-18 / 2026-09-19):**
 
-- [x] **Server hardening A, B, C** — validation (12-digit LRN, one contact
-      rule at six writes); authorization (`POST /users/parents` scope-gated,
-      `Account is not active.` now `401`); pagination on every list endpoint.
-- [x] **D1 design tokens** · **D2 dark mode** · **D3 brand + sticky chrome** —
-      71 semantic tokens, `lint:tokens` and `lint:contrast` both enforced at 0.
+- [x] **Server hardening A, B, C** — validation · authorization · pagination.
+- [x] **D1 design tokens · D2 dark mode · D3 brand + sticky chrome** — §8, §9.
 - [x] **Empty-state duplicate fix** (§5f gained the rule).
-- [x] **Login redesign** — brand split panel, the page moved onto `FormField` /
-      `PasswordField`.
+- [x] **Login redesign** — brand split panel, moved onto `FormField`.
 - [x] **Notifications, N1 server + N2 client + N3 docs** — the 21st table, four
       endpoints, seven fan-out hooks, the bell and the badges. §10.
-- [x] **Account recovery, R1 server + R2 client + R3 docs (2026-09-19)** — the
-      22nd table (`auth_codes`), five endpoints, the `token_version`
-      revocation counter, and the screens: a Forgot password link that now
-      leads somewhere, `/forgot-password`, the forced-change screen and the
-      admin temporary password. §11. **The school question that used to block
-      this was answered by Darryl, not the school** — self-service by email
-      code, with an admin-only temporary password as the fallback — so the
-      line that stood here asking who may reset whom is answered, not
-      dropped.
+- [x] **Account recovery, R1 server + R2 client + R3 docs** — the 22nd table
+      (`auth_codes`), five endpoints, the `token_version` counter, the
+      screens. §11. **The school question that used to block this was answered
+      by Darryl, not the school** — self-service by email code with an
+      admin-only temporary password as the fallback; answered, not dropped.
 
 **Queued before Stage 5, in this order:**
 
@@ -1582,19 +1502,11 @@ is the order, not the record.
       client, DB3 docs). `GET /api/dashboard`, the deliberately thin one, plus
       `pages/dashboards/Card.jsx` and `useCard.js`. The three pages no longer
       derive their content from `navForRole`. See §12.
-      **The teacher attendance banner is now checked too (2026-09-20).** It
-      could not be seen during DB2's check — that fell on Saturday and the
-      banner is weekend-hidden by design — so Darryl moved the Windows clock
-      to Monday 2026-09-21 09:00 and verified both states: amber "Grade 6 -
-      Malikhain — Not recorded" with a Record attendance button that opens
-      Attendance with the section and date preselected, then green
-      "Recorded — 1 present, 0 absent" after saving. **He overrode his own
-      "do not fake the date" rule for this one check, deliberately** — the
-      alternative was carrying an unverified page for a day. 09:00 so that
-      PH and UTC were both Monday, since the banner reads a local weekday
-      and the server stores a DATE. Clock restored to automatic; the one
-      attendance row was removed and the three `activity_logs` rows it
-      produced stay, dated 2026-09-21 — **do not "fix" those timestamps.**
+      **The weekend-hidden teacher banner was verified by moving the machine's
+      clock to Monday 2026-09-21 09:00 — Darryl's deliberate override of his
+      own "do not fake the date" rule**, both states seen, clock restored.
+      The three `activity_logs` rows it produced are dated 2026-09-21 and
+      stay — **do not "fix" those timestamps.**
 - **Data views redesign — MOCKUP FIRST, no code until it is approved.**
       Mockups exist and are approved (Darryl, 2026-09-20). Two rules every
       piece inherits and cannot bend: **no verdict badges anywhere** (§4 —
@@ -1604,36 +1516,23 @@ is the order, not the record.
       without implying the letter is computed.
 
   - [x] **DV1 — DataTable restyle + card layout below `sm`. DONE
-        2026-09-20.** `components/Avatar.jsx`, the `renderCard` card layout,
-        the `nowrap` column option, masked parent login ids in Admin →
-        Users, and six pages converted. **The sticky table header was
-        dropped** — see §5 and `docs/FRONTEND_CONVENTIONS.md` §5a-i; do not
-        reopen it. **Users filter tabs were NOT built:** the Role dropdown
+        2026-09-20.** `Avatar.jsx`, `renderCard`, the `nowrap` option, masked
+        parent login ids, six pages converted. **The sticky table header was
+        dropped — do not reopen it** (§5, `docs/FRONTEND_CONVENTIONS.md`
+        §5a-i). **Users filter tabs were NOT built:** the Role dropdown
         already does that job, and tabs with counts need a server change.
   - [x] **DV2 — monthly Attendance calendar. DONE 2026-09-20.** Parent →
-        Attendance is a month grid with Previous/Next, a summary panel, the
-        "How this is counted" note and a school-year table whose months are
-        DERIVED FROM DATA. `format/date.js` gained the month maths;
-        `pages/parent/AttendanceCalendar.jsx` is the grid. **The percentage
-        is gone — the fraction replaced it**, which closes the carried
-        "percentage copy shown with no percentage on screen" item outright
-        rather than rewording it. **The 390px Status select on Teacher →
-        Attendance did NOT come with it** — that is a teacher ENCODE screen
-        whose row is a form control, a different design problem from a
-        display card; it stays with DV1b.
+        Attendance is a month grid; `format/date.js` gained the month maths
+        (§5a-iv). **The percentage is gone — the fraction replaced it.**
+        **The 390px Status select on Teacher → Attendance did NOT come with
+        it** — a teacher ENCODE row is a form control, a different design
+        problem from a display card; it stays with DV1b.
   - [x] **DV3 — SF9-style Grades report card. DONE 2026-09-21.** Parent →
-        Grades is the school's printed Learner's Performance Report: SF9
-        subject order, no LRN, a term-status pill counted from the payload,
-        the general-average row INSIDE the table, the legend and "Reading
-        this report"; term segments below the crossover.
-        **`GET /grades/student/:studentId` gained `term_averages`** (per-term
-        GA, same null-until-every-subject rule) because the client may not
-        compute a grade. **The one page that leaves DataTable** (§5a-v), and
-        the one whose crossover is a container query (§5a-vi). The first
-        browser check found five things, all fixed on `fix/dv3-review`;
-        **the GA row read "Pending" in all four columns because
-        `term_averages` was never named in the page's unwrap list** — the API
-        had been right all along.
+        Grades is the school's printed Learner's Performance Report, and
+        `GET /grades/student/:studentId` gained **`term_averages`** because
+        the client may not compute a grade. **The one page that leaves
+        DataTable** (§5a-v), and the one whose crossover is a container query
+        (§5a-vi).
   - [ ] **DV4 — dashboards + the dark amber.** In Dark the amber card fill
         reads as rust/brown and edges toward "danger", undoing §12's
         amber-is-not-a-verdict rule exactly where it matters. Tune the dark
@@ -2108,36 +2007,11 @@ being asked for. To make either opt-in only, add
 `disable-model-invocation: true` to its `SKILL.md` frontmatter; the files are
 copies this repo owns, so that edit sticks.
 
-**Why these two specifically.** Three bugs in the week of 2026-08-29 were found
-only by manual end-to-end testing, not by the 336-test suite — including the
-`stripBackupsTableDdl` case, where a test asserted the *anticipated symptom*
-("no `INSERT INTO backups`") and passed while the system was broken by a
-different mechanism sitting next to it (`DROP TABLE`). See the CHANGELOG. That
-is a diagnosis-discipline and test-design problem, which is what these two
-skills are for.
-
 **Deliberately NOT installed:** `grill-me`, `grill-with-docs`, `to-spec`,
 `to-tickets`, `implement`, `wayfinder`, `triage`,
-`improve-codebase-architecture`, and the remaining ~26. Reason: they are a
-planning and ticketing workflow, and this repo already has one — `CLAUDE.md`'s
-**BUILD ORDER**, **BLOCKED**, **LOCKED DECISIONS**, and **OPEN QUESTIONS**
-sections, plus the end-of-session update ritual. Two competing planning
-disciplines in one repo is how documents drift apart, which has already
-happened here once with `PROJECT_PROGRESS.md`. **Do not install more of them
-without a specific reason.** A future session finding only three skills present
-is looking at a decision, not an oversight.
-
-### Setup answers (recorded so they aren't re-asked)
-
-`/setup-matt-pocock-skills` was run once on 2026-08-30. Its answers:
-
-- **Issue tracker:** local markdown files, not GitHub Issues. See
-  `docs/agents/issue-tracker.md`. The repo does have a GitHub remote and the
-  skill defaults to GitHub — this was an explicit override, because this is a
-  solo capstone with no issues board.
-- **Triage labels:** none. Section skipped entirely, because `triage` is not
-  installed. There is no `docs/agents/triage-labels.md` and there should not be.
-- **Domain docs:** single-context. See `docs/agents/domain.md`.
+`improve-codebase-architecture` and the remaining ~26 — **do not install more
+of them without a specific reason.** A future session finding only three
+skills present is looking at a decision, not an oversight.
 
 ### No CONTEXT.md — deliberate
 
@@ -2146,10 +2020,9 @@ exists)". **This repo has no `CONTEXT.md` and should not get one.** This file is
 the context document. `docs/agents/domain.md` redirects those skills here, so
 they read the real source of truth instead of nothing.
 
-A second root-level context document would be a third thing to keep in sync
-with the code alongside this file and `docs/PROJECT_PROGRESS.md` — and the
-warning at the top of this file exists precisely because that sync failed once
-already.
+Why these two skills, the setup answers (issue tracker, triage labels, domain
+docs) and the reasoning behind both do-nots: `docs/ARCHIVE.md` → AGENT
+SKILLS.
 
 ---
 
@@ -2175,27 +2048,19 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-22 | CLAUDE.md trim, third batch: **141,099 → 128,050 bytes on disk.** Twelve CHANGELOG stubs, BUILD ORDER Stages 1–2, the AGENT SKILLS rationale and two Feature 7 narrative paragraphs moved verbatim to `docs/ARCHIVE.md`; Stage 4's 22 checkboxes, Stage 3 and the completed After-Stage-4 bullets compressed to ticked lists plus pointers. **Every moved block was grepped for a live rule first** — four Stage 4 page rules stated nowhere else were kept here, and §1 gained the DV3 lesson (**unwrap protects a RENAMED key, never a FORGOTTEN one**), which had lived only in a stub. **The Notifications N1 dispatch has no `docs/CHANGELOG.md` row of its own**, so its stub is its only record and was moved rather than dropped. New standing size rule at the top: report the delta every dispatch, justify over 2,000 bytes, trim at 138,000, never start above 142,000. |
 | 2026-09-21 | DV3 docs: `term_averages` in `docs/API_REFERENCE.md`; **§5a-v** (the ONE page that leaves DataTable, and why the exemption is narrow) and **§5a-vi** (its crossover is a CONTAINER query at 36rem — the **607px → 351px sidebar cliff** is why no viewport breakpoint can work; browser checks must measure the card, not the window). Four KNOWN_ISSUES rows; three OPEN QUESTIONS (sticky first COLUMN deferred to DV1b — **§5a-i does not close it**; the card's mixed units; Grade 1's printed order, now a school question). Pre-Stage-5 gains `subjects.display_order`, the 401-vs-network fix, CAL and a neutral fixture learner. `test:grades` corrected **167 → 189** (three dispatches stale). **One flag WITHDRAWN as false — `DELETE /grades/:id` does not orphan its components** (`schema.sql:487` cascades, proved during cleanup). |
 | 2026-09-21 | DV3 review fixes (`fix/dv3-review`): **the GA row read "Pending" in all four columns because `term_averages` was never named in the unwrap list** — the interceptor copies only named keys, so a FORGOTTEN key is silently `undefined` while the guard protects only a RENAMED one. The card now measures itself (`@container`, `@min-[36rem]`) after the table rendered at 200% zoom in a 394px container. F5 proved NOT a defect (88% → IG 88.00 → transmuted 90); one sentence names the transmutation table, IG stays hidden. SSR 62/62 with a control that reproduces the defect verbatim and **caught a weak assertion of my own**. |
 | 2026-09-20 | DV3 (`feat/dv3-grades`): Parent → Grades is the school's Learner's Performance Report — SF9 order from a client constant (`subjects` has **no display-order column**), no LRN, term status counted, the GA row INSIDE the table, legend, "Reading this report", term segments below the crossover. `GET /grades/student/:studentId` gained **`term_averages`**. `test:grades` 182 → 188, `test:dashboard` 75, SSR 50/50, one new contrast pair. |
 | 2026-09-20 | DV2 docs: BUILD ORDER ticks DV2 and marks the "percentage copy" item CLOSED (the percentage is gone); the 390px Status select moves to DV1b. `docs/FRONTEND_CONVENTIONS.md` §5a-iv — **`format/date.js` is the only home for date maths**: identity is a `YYYY-MM-DD` string, a `Date` is for placement only, never `new Date(string)` or `toISOString()`. New KNOWN_ISSUES row and a **third OPEN QUESTION**: `POST /attendance/bulk` accepts weekend dates — are there Saturday classes? UI polish gains Settings → Personalization at 200% zoom. |
 | 2026-09-20 | DV2 (client, `feat/dv2-attendance`): Parent → Attendance is a month calendar — `format/date.js` month maths, `AttendanceCalendar.jsx`, a summary panel, and a school-year table whose months are derived from data. **The percentage is gone; the fraction replaced it** and `presentOnRecordedDays` was deleted. A weekend record shows in an "Also recorded" strip and still counts. Browser check found five things, all fixed (summary position, pills overflowing at 200% zoom → word gated at `xl`, truncated excuse line → icon, copy, zero pills). oxlint 44, SSR 60/60. |
-| 2026-09-20 | DV1 docs: `docs/FRONTEND_CONVENTIONS.md` §5 gains §5a-i (**the sticky table header is a CLOSED QUESTION**, with all three failure modes named so nobody retries it), §5a-ii (`nowrap`; never wrap an identifier) and §5a-iii (`renderCard`); short form in §5 here. BUILD ORDER: Data views split into DV1 (done) → DV2 → DV3 → DV4 → **DV1b last**, since DV2/DV3 replace the two parent pages outright. New UI polish list. Working agreement: never `git checkout --` on uncommitted work. |
-| 2026-09-20 | DV1 (client, `feat/dv1-datatable`): DataTable restyle, `Avatar`/`PersonCell`, the `renderCard` card layout below `sm` (data not JSX; one interactive element per card), the `nowrap` column option, masked parent login ids in Admin → Users, six pages converted. **The sticky header broke three different ways across three browser checks and was dropped** — it cannot coexist with the in-table horizontal scroller. oxlint 44, SSR 58/58, all 22 consumers audited. |
-| 2026-09-20 | Teacher attendance banner verified and DB2's one open check closed: Darryl moved the Windows clock to Monday 2026-09-21 09:00 (PH and UTC both Monday), saw amber "Not recorded" then green "Recorded — 1 present, 0 absent", and restored the clock. **This overrides his own "do not fake the date" line in DB2's entry — his call, recorded, not quietly done.** No code changed; the banner was unseen, not broken. Cleanup removed the one attendance row; the three `activity_logs` rows dated 2026-09-21 stay. |
-| 2026-09-20 | Dashboards DB3 (docs): a Dashboard section in `docs/API_REFERENCE.md` (per-role payload, the thin-endpoint rule, the scope rule, and why the dashboards ask `GET /api/events` for ascending dates while the endpoint default stays DESC); counts move to **86 handlers / 87 endpoints**; new **§12** here; BUILD ORDER ticks Dashboards and keeps the Monday teacher-banner check open; two items added to Data views redesign (the Attendance intro naming an absent percentage, and Dark’s amber reading as rust); the single-admin lockout row corrected — **the app cannot create an admin**, so confirming the email is the only in-app remedy; new row on direct-insert fixtures firing no fan-out. |
-| 2026-09-20 | Dashboards DB2 (client, `feat/dashboards`): three real dashboards, `Card.jsx` + `useCard.js`, each card owning its own loading/error/empty state with no bare `Promise.all`. Browser check passed with **one defect** — upcoming events were DESC, so a "next three" card returned the three furthest-away events backwards — plus four review corrections (hazard card red → amber, its impossible "create a second admin" link removed, the locks label now names its term, the hook moved to its own file). oxlint 44, SSR 36/36. Fixtures cleaned up; Seeded baseline confirmed. |
-| 2026-09-20 | Dashboards DB1 (server, `feat/dashboard-api`): `GET /api/dashboard`, deliberately thin — only the teacher class-encoding progress, the admin counts and lock count, and the parent grades summary (A1: computed server-side with the report card’s own `roundTo2`). Recent activity dropped — no `activity_logs` read endpoint exists. `test:dashboard` 75/75 ×3. |
-| 2026-09-19 | Account recovery R3 (docs): the five endpoints and the recovery flow's four deliberate silences in `docs/API_REFERENCE.md`, plus a new §5b for the two whole-session refusals; its Verification table **recounted from the code — 85 handlers, 86 endpoints** (it had drifted three ways at once, none from this dispatch, and Darryl's dispatch figure of 84 was an estimate); `auth_codes`' dump exclusion in `docs/RESTORE.md`; here, 21 → 22 tables and 80 → 85 handlers everywhere, new §11, the recovery line moved to done, and a queued **Data views redesign — mockup first**. One code file, comment only: `routes/auth.js` still described the abandoned timestamp mechanism. |
-| 2026-09-19 | Account recovery R2 (client, `feat/account-recovery-ui`): `applyToken()`, routing on `must_change_password` and never on the 403, `/forgot-password` (two steps one route — the login id is an LRN, §5c), the forced-change screen outside `Shell`, Verify email in Settings, admin Reset password shown once. Browser check passed over real Gmail SMTP; **two defects found and fixed** — a stale own-email after editing your own row in Users, and three branches telling an admin to ask an office they ARE. oxlint 44, SSR 37/37 with a negative control. |
-| 2026-09-19 | Account recovery R1 (server, `feat/account-recovery-api`): the 22nd table `auth_codes` via the repo's second migration, five endpoints, bcrypt-hashed 6-digit codes with DB-side rate limits, nodemailer, two timing mitigations, `auth_codes` rows excluded from every dump. **Amendment A1 landed on the third mechanism — a `token_version` counter**; both timestamp attempts are recorded in `middleware/auth.js`. `test:recovery` 62; every suite run because middleware changed; `test:auth` fixed to 56 under a declared scope expansion. |
-| 2026-09-19 | CLAUDE.md section trim: 144,967 → 108,102 bytes. Five blocks moved verbatim to `docs/ARCHIVE.md` (the 81-row endpoint table as a dated snapshot — `docs/API_REFERENCE.md` §8 is the live record and was verified to hold all 81; `Files that exist`; the `client/src` tree; `sections table`; `Class Board`), each leaving its heading, a pointer and its conclusion. Ten per-file rules stated nowhere else stayed as "File rules that bite". §7c added to the companion and §9 to this file, closing two mirror gaps. |
-| 2026-09-19 | Notifications N1 (server) + N2 (client): the 21st table via the repo’s first migration script, 4 endpoints, 7 fan-out hooks, `notification_counts`; the header bell, sidebar badges, LiveStatus ungated again. oxlint 42 → 44. |
-| 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |
 
-Older stub lines are verbatim in `docs/ARCHIVE.md` — 14 (2026-09-14 →
-2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on 2026-09-19", and
-14 more (all 2026-09-18 and 2026-09-19) under the "second batch, N3"
-heading below it. **Every full row is in `docs/CHANGELOG.md`**; this table
-holds only the newest one-line summaries, and a stub is moved out when this
-file approaches its size limit, never deleted.
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in three dated batches —
+14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
+2026-09-19", 14 more under the "second batch, N3" heading below it, and **12
+(2026-09-19 → 2026-09-20) under "third batch, the DV3 trim" (2026-09-22)**.
+**Every full row is in `docs/CHANGELOG.md` with one exception: the
+Notifications N1 server dispatch has no row there**, so its stub in the third
+batch is the only surviving summary. This table holds only the newest
+one-line summaries, and a stub is moved out when this file approaches its
+size limit, never deleted.
