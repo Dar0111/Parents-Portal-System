@@ -229,15 +229,36 @@ function Legend({ mode }) {
 // the number that raises "why isn't this 90?" on screen. It is NOT on the
 // descriptive layout: nothing is transmuted there.
 //
-// Nothing here explains HOW a Grade 1 letter is arrived at. That is still an
-// open school question, and the sentence that used to guess at it was removed
-// from the breakdown modal on 2026-09-12. Silence is the honest state.
+// THE DESCRIPTIVE LINES CHANGED ON 2026-09-22, and the reason matters more
+// than the wording. They used to say there is "no numerical final grade",
+// which was true of a card whose letters were typed by a teacher. The school
+// answered that the letter is COMPUTED (GRADING_SPEC §6a), so a Grade 1
+// learning area now DOES get a final — a final LETTER — and the old sentence
+// had become a claim the handler no longer honours. Each replacement was
+// checked against the handler the same way the numerical ones were:
+//
+//   "written works, performance    -> initialGrade() returns null unless WW,
+//    tasks and all three            PT and exPercentage() are all present;
+//    summative scores"              exPercentage() needs ST1, ST2 and TE.
+//   "once all three terms"         -> computeFinalLetter() averages the three
+//                                     terms' initial_grade and returns null
+//                                     unless all three exist.
+//   "no general average for this   -> the report card handler short-circuits
+//    grade level"                   general_average AND term_averages to null
+//                                    in descriptive mode.
+//
+// Still nothing here explains HOW the letter is arrived at in numbers. The
+// rule exists now, but Key Stage 1 reports letters to parents and not the
+// score behind them, so naming a threshold would put a number on the card
+// through the copy. The breakdown modal is silent for the same reason.
 function ReadingNote({ mode, canOpen }) {
   const lines =
     mode === 'descriptive'
       ? [
-          'This grade level uses descriptive grading (A to E), so there is no numerical final grade and no general average.',
-          'A term shows "Pending" until a letter has been recorded for it.',
+          'This grade level uses descriptive grading (A to E).',
+          'A term shows "Pending" until its letter can be worked out — written works, performance tasks and all three summative scores must be recorded first.',
+          'The final letter for a learning area appears once all three terms are recorded.',
+          'There is no general average for this grade level.',
         ]
       : [
           'A term shows "Pending" until its grade can be computed — Written Works, Performance Tasks and all three examination scores must be recorded first.',
@@ -302,20 +323,26 @@ const TH =
   'whitespace-nowrap bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl';
 
 //
-// IN DESCRIPTIVE MODE THE FINAL-GRADE COLUMN IS NOT RENDERED AT ALL, rather
-// than filled with a placeholder. §3 forbids a bare dash, and "— N/A" five
-// times over is a column of noise for something that does not apply to this
-// grade level at all; the sentence in "Reading this report" says it once. Same
-// for the general-average row, and for the Final segment on a phone.
+// TWO FLAGS, NOT ONE (2026-09-22). `showFinal` and `showGeneralAverage` used
+// to be the same boolean — `mode !== 'descriptive'` — because a descriptive
+// card had neither. It has a final LETTER now (the school's rule, computed
+// from the three terms' Initial Grades) and still has no general average at
+// all, so one flag can no longer stand for both. Conflating them is what
+// would silently put a General Average row on a Grade 1 card the moment the
+// Final column was turned on.
+//
+// A column or row that does not apply is NOT RENDERED, rather than filled
+// with a placeholder: §3 forbids a bare dash, and "— N/A" five times over is
+// a column of noise. The sentence in "Reading this report" says it once.
 function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAverageDescriptor, onOpenTerm }) {
-  const showFinal = mode !== 'descriptive';
+  const showGeneralAverage = mode !== 'descriptive';
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <caption className="sr-only">
-          {showFinal
+          {showGeneralAverage
             ? 'Grades by learning area and term, with the final grade for each learning area.'
-            : 'Descriptive grades by learning area and term.'}
+            : 'Descriptive grades by learning area and term, with the final letter for each learning area.'}
         </caption>
         <thead>
           <tr className="border-b border-edge">
@@ -327,11 +354,9 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
                 Term {term}
               </th>
             ))}
-            {showFinal ? (
-              <th scope="col" className={`${TH} text-right`}>
-                Final grade
-              </th>
-            ) : null}
+            <th scope="col" className={`${TH} text-right`}>
+              {mode === 'descriptive' ? 'Final letter' : 'Final grade'}
+            </th>
           </tr>
         </thead>
 
@@ -355,14 +380,29 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
                   />
                 </td>
               ))}
-              {showFinal ? (
-                <td className="whitespace-nowrap px-4 py-2.5 text-right">
-                  {/* `whole`: a Final Grade is an integer on the printed card.
-                      The general-average row below deliberately does NOT pass
-                      it — 721/8 = 90.13 is the school's own figure. */}
+              <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                {/* Two renderers, because the two modes hold two kinds of
+                    value in `final_grade`: a NUMBER for Grades 2-6 and a
+                    LETTER for Grade 1. GradeValue would print a letter as
+                    "— N/A" — it has no branch for a string — so the letter
+                    goes through TermValue, the same renderer the term cells
+                    already use, which carries its descriptor with it.
+
+                    `whole`: a Final Grade is an integer on the printed card.
+                    The general-average row below deliberately does NOT pass
+                    it — 721/8 = 90.13 is the school's own figure. */}
+                {mode === 'descriptive' ? (
+                  <TermValue
+                    entry={{
+                      descriptive_grade: subject.final_grade,
+                      descriptor: subject.final_grade_descriptor,
+                    }}
+                    mode={mode}
+                  />
+                ) : (
                   <GradeValue value={subject.final_grade} mode={mode} whole />
-                </td>
-              ) : null}
+                )}
+              </td>
             </tr>
           ))}
 
@@ -370,8 +410,10 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
               whole reason this is not DataTable — see the header. It is
               rendered only in numerical mode: an average of letters is not a
               number, and the sentence in "Reading this report" says so
-              instead of printing a row of N/A. */}
-          {showFinal ? (
+              instead of printing a row of N/A. Key Stage 1 has no general
+              average AT ALL — not a pending one — which is why this is keyed
+              on the mode and never on whether the values happen to be null. */}
+          {showGeneralAverage ? (
             <tr className="bg-brand-soft font-semibold text-fg">
               <th scope="row" className="px-4 py-3 text-left">
                 General average
@@ -408,6 +450,11 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
 // "Final" is a fourth segment on purpose: the table above has a Final grade
 // column, and a phone that silently drops a column is a different report. When
 // term 3 is empty every row there reads Pending, which is the true state.
+//
+// SINCE 2026-09-22 IT IS SHOWN IN BOTH MODES, for exactly that reason: the
+// table gained a Final letter column for Grade 1, so dropping the segment
+// here would make the phone a different report again — the defect this
+// comment was written about in the first place.
 const SEGMENTS = [
   { key: '1', label: 'Term 1' },
   { key: '2', label: 'Term 2' },
@@ -432,9 +479,11 @@ function TermView({
   }, [statuses]);
   const [selected, setSelected] = useState(initial);
 
-  const showFinal = mode !== 'descriptive';
-  const segments = showFinal ? SEGMENTS : SEGMENTS.filter((segment) => segment.key !== 'final');
-  const isFinal = showFinal && selected === 'final';
+  // The same two-flags split as DesktopTable: every mode has a Final
+  // segment, and only numerical mode has a general average beneath it.
+  const showGeneralAverage = mode !== 'descriptive';
+  const segments = SEGMENTS;
+  const isFinal = selected === 'final';
   const term = isFinal ? null : Number(selected);
 
   return (
@@ -464,8 +513,21 @@ function TermView({
         {subjects.map((subject) => {
           const entry = isFinal ? null : subject.terms?.[term];
           const openable = Boolean(entry?.grade_id) && Boolean(onOpenTerm);
+          // Same two-renderer split as the table's Final column: a number for
+          // Grades 2-6, a letter through TermValue for Grade 1, so the letter
+          // carries its descriptor here too rather than rendering as "— N/A".
           const value = isFinal ? (
-            <GradeValue value={subject.final_grade} mode={mode} whole />
+            mode === 'descriptive' ? (
+              <TermValue
+                entry={{
+                  descriptive_grade: subject.final_grade,
+                  descriptor: subject.final_grade_descriptor,
+                }}
+                mode={mode}
+              />
+            ) : (
+              <GradeValue value={subject.final_grade} mode={mode} whole />
+            )
           ) : (
             <TermValue entry={entry} mode={mode} />
           );
@@ -496,7 +558,7 @@ function TermView({
         })}
       </ul>
 
-      {showFinal ? (
+      {showGeneralAverage ? (
         <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl bg-brand-soft px-4 py-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-fg-body">
             {isFinal ? 'General average' : `General average, term ${term}`}

@@ -135,7 +135,13 @@ function ComponentList({ title, rows, empty }) {
   );
 }
 
-function ExamList({ grade }) {
+// Grade 1 calls the same three columns Summative, not Examinations — the
+// school's word for Key Stage 1. Same ex_st1 / ex_st2 / ex_te values; only
+// the heading and the empty line differ, and they are derived from one flag
+// so they cannot disagree with each other.
+function ExamList({ grade, mode }) {
+  const summative = mode === 'descriptive';
+  const title = summative ? 'Summative' : 'Examinations';
   const lines = [
     { key: 'st1', label: 'ST1', score: grade?.ex_st1, max: grade?.ex_st1_max },
     { key: 'st2', label: 'ST2', score: grade?.ex_st2, max: grade?.ex_st2_max },
@@ -145,9 +151,11 @@ function ExamList({ grade }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-fg">Examinations</h3>
+      <h3 className="text-sm font-semibold text-fg">{title}</h3>
       {!anyRecorded ? (
-        <p className="mt-1 text-sm text-fg-muted">No examination scores recorded yet</p>
+        <p className="mt-1 text-sm text-fg-muted">
+          No {summative ? 'summative' : 'examination'} scores recorded yet
+        </p>
       ) : (
         <ul className="mt-2 divide-y divide-edge-soft">
           {lines.map((line) => (
@@ -189,17 +197,24 @@ function BreakdownBody({ mode, detail }) {
           />
         </div>
         {/*
-          UNCONFIRMED (OPEN QUESTIONS: manual A–E vs a computation;
-          DO 015 defines no IG-to-letter mapping). A sentence stating
-          that assumption as fact was removed 2026-09-12 and must not
-          be re-added in any form — including a hedged or tooltip
-          version — without a school answer.
+          NO NUMBER BESIDE THE LETTER. A Grade 1 row now carries a real
+          `initial_grade` — the letter is computed from it — and this payload
+          contains that number, because GET /:id returns the whole grade row.
+          Key Stage 1 reports letters to parents and not the score behind
+          them, so it is deliberately not rendered here, and nothing in this
+          branch may print it: not as a subtitle, not as a tooltip, not as
+          "out of 100". A teacher sees it on the encode screen; a parent does
+          not see it anywhere.
+
+          Nor does anything here explain HOW the letter is produced. The rule
+          exists now (GRADING_SPEC §6a) and naming a threshold would put the
+          number on screen through the copy. The sentence removed on
+          2026-09-12 stays removed, for a different reason than before.
         */}
-        {/* Hedge: GET /:id still ran. If informational WW/PT/EX ever land
-            on a descriptive row, show them. Do not render empty sections
-            — the write path 400s numerical encodes on descriptive mode,
-            so empty tables would say "scores missing" about something
-            that cannot have scores (§5f / §5i). */}
+        {/* The WW / PT / Summative scores are what this modal is FOR — the
+            same question a Grade 6 parent asks, "where did this come from".
+            Since 2026-09-22 a Grade 1 row really has them, so this is the
+            normal path rather than the hedge it used to be. */}
         {hasRecordedBreakdown ? (
           <div className="space-y-4 border-t border-edge-soft pt-3">
             {ww.length > 0 ? (
@@ -208,27 +223,29 @@ function BreakdownBody({ mode, detail }) {
             {pt.length > 0 ? (
               <ComponentList title="Performance Tasks" rows={pt} empty="" />
             ) : null}
-            {hasExam ? <ExamList grade={grade} /> : null}
+            {hasExam ? <ExamList grade={grade} mode={mode} /> : null}
           </div>
         ) : (
-          // Found in the browser check (2026-09-20): with no components the
-          // modal showed the letter and its descriptor — exactly what the cell
-          // the parent tapped already showed — and nothing else. It degraded
-          // without error, but a dialog that answers with what you already
-          // knew reads as a broken one.
+          // THIS BRANCH IS NOW THE LEGACY CASE ONLY, and the copy changed with
+          // it (2026-09-22). It used to describe every Grade 1 row: numerical
+          // encodes against a descriptive row were 400, so no Grade 1 grade
+          // could have component scores at all. That is no longer true, and
+          // "not recorded for this grade level" would now be a false claim
+          // about the write path (§5i) on any row encoded from today on.
           //
-          // This says why rather than suppressing the modal, because the
-          // FETCH IS THE HEDGE AND THE HEDGE STAYS: informational WW/PT/EX may
-          // exist on a descriptive row, and if they ever do the branch above
-          // renders them. Making the cell non-interactive would retire that,
-          // which is a decision, not a fix.
+          // What reaches it instead is a row carrying a letter that was typed
+          // before the rule changed — in the seed, Nino's five. Those keep
+          // their letters and have no scores behind them, ever. The sentence
+          // says that about the ROW, not about the grade level.
           //
-          // §5i — true of the write path: numerical encodes against a
-          // descriptive row are 400, so there is nothing for this grade level
-          // to have recorded. It says component scores, NOT "how the letter is
-          // produced", which is still an open school question.
+          // Found in the browser check (2026-09-20) and still the reason this
+          // says something rather than suppressing the modal: with no
+          // components the dialog showed the letter and its descriptor —
+          // exactly what the cell the parent tapped already showed — which
+          // degrades without error but reads as broken.
           <p className="border-t border-edge-soft pt-3 text-sm text-fg-muted">
-            Component scores are not recorded for this grade level.
+            This grade was recorded before scores were kept for this learning area, so there is nothing to show
+            behind it.
           </p>
         )}
       </div>
@@ -255,7 +272,7 @@ function BreakdownBody({ mode, detail }) {
         rows={pt}
         empty="No performance tasks recorded yet"
       />
-      <ExamList grade={grade} />
+      <ExamList grade={grade} mode={mode} />
     </div>
   );
 }

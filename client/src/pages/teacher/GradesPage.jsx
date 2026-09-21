@@ -95,7 +95,12 @@ const REPORT_UNWRAP = [
 
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
-const LETTERS = ['A', 'B', 'C', 'D', 'E'];
+// Grade 1 calls its third component Summative, not Examinations. Same three
+// stored columns (ex_st1 / ex_st2 / ex_te) and the same endpoint — only the
+// heading differs, because that is the word the school uses in Key Stage 1.
+function examSectionLabel(mode) {
+  return mode === 'descriptive' ? 'Summative' : 'Examinations';
+}
 
 function classKeyOf(student) {
   return `${student.grade_level}|${student.section}`;
@@ -220,7 +225,6 @@ export default function TeacherGradesPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [examDraft, setExamDraft] = useState(() => examDraftFromGrade(null));
-  const [letterDraft, setLetterDraft] = useState('');
   const [newComponent, setNewComponent] = useState(emptyComponentDraft);
   const [editId, setEditId] = useState(null);
   const [editDraft, setEditDraft] = useState({ label: '', score: '', max_score: '', date_recorded: '' });
@@ -477,7 +481,6 @@ export default function TeacherGradesPage() {
       const payload = await api.get(`/grades/${gradeId}`, { unwrap: DETAIL_UNWRAP });
       setDetail(payload);
       setExamDraft(examDraftFromGrade(payload.grade));
-      setLetterDraft(payload.grade.descriptive_grade || '');
       setNewComponent(emptyComponentDraft());
       setEditId(null);
       return payload;
@@ -540,25 +543,11 @@ export default function TeacherGradesPage() {
     if (gradeId) await loadDetail(gradeId);
   }
 
-  async function saveLetter() {
-    const gradeId = detail?.grade?.id;
-    if (!gradeId) return;
-    setSaving(true);
-    clearSaveFeedback();
-    try {
-      await api.patch(
-        `/grades/${gradeId}/descriptive`,
-        { descriptive_grade: letterDraft === '' ? null : letterDraft },
-        { unwrap: 'grade' }
-      );
-      showSaveSuccess('Letter saved.');
-      await afterWrite();
-    } catch (err) {
-      handleEncodeError(err);
-    } finally {
-      setSaving(false);
-    }
-  }
+  // saveLetter() is GONE (2026-09-22). A Grade 1 letter is computed from the
+  // same scores every other grade level uses, so there is nothing for a
+  // teacher to pick and PATCH /:id/descriptive no longer exists. The letter
+  // this screen shows comes back from the server after a score write, the
+  // same way an Initial Grade always has.
 
   async function saveExam() {
     const gradeId = detail?.grade?.id;
@@ -727,19 +716,25 @@ export default function TeacherGradesPage() {
           return <GradeValue value={stored?.term_grade ?? null} mode={mode} whole />;
         },
       },
-      ...(mode === 'numerical'
-        ? [
-            {
-              key: 'initial_grade',
-              header: 'Initial Grade',
-              align: 'right',
-              sortValue: (row) => recorded.get(row.id)?.initial_grade,
-              render: (row) => (
-                <GradeValue value={recorded.get(row.id)?.initial_grade ?? null} mode={mode} />
-              ),
-            },
-          ]
-        : []),
+      // THE INITIAL GRADE COLUMN NOW SHOWS IN BOTH MODES (2026-09-22). It was
+      // numerical-only because a Grade 1 row genuinely had no Initial Grade —
+      // the letter was typed, nothing computed it. Now the letter IS computed
+      // from one, and a teacher who encoded the scores may see the number
+      // behind the letter. A parent never does; that is Key Stage 1 policy
+      // and it is enforced on the parent screens, not here.
+      //
+      // `mode="numerical"` on the VALUE, in both modes, on purpose: an
+      // Initial Grade is a number whichever mode the row is in, and a null
+      // one is Pending — the score is not in yet — never "N/A".
+      {
+        key: 'initial_grade',
+        header: 'Initial Grade',
+        align: 'right',
+        sortValue: (row) => recorded.get(row.id)?.initial_grade,
+        render: (row) => (
+          <GradeValue value={recorded.get(row.id)?.initial_grade ?? null} mode="numerical" />
+        ),
+      },
       {
         key: 'lock',
         header: 'Status',
@@ -935,8 +930,6 @@ export default function TeacherGradesPage() {
               detail={detail}
               examDraft={examDraft}
               setExamDraft={setExamDraft}
-              letterDraft={letterDraft}
-              setLetterDraft={setLetterDraft}
               newComponent={newComponent}
               setNewComponent={setNewComponent}
               editId={editId}
@@ -944,7 +937,6 @@ export default function TeacherGradesPage() {
               editDraft={editDraft}
               setEditDraft={setEditDraft}
               saving={saving}
-              onSaveLetter={saveLetter}
               onSaveExam={saveExam}
               onAddComponent={addComponent}
               onSaveEdit={saveEdit}
@@ -1078,8 +1070,6 @@ function EncodePanel({
   detail,
   examDraft,
   setExamDraft,
-  letterDraft,
-  setLetterDraft,
   newComponent,
   setNewComponent,
   editId,
@@ -1087,7 +1077,6 @@ function EncodePanel({
   editDraft,
   setEditDraft,
   saving,
-  onSaveLetter,
   onSaveExam,
   onAddComponent,
   onSaveEdit,
@@ -1124,59 +1113,51 @@ function EncodePanel({
         <LoadingSpinner className="py-10" label="Opening grade record…" />
       ) : !grade ? (
         <p className="text-sm text-fg-muted">Could not open this grade record.</p>
-      ) : mode === 'descriptive' ? (
-        <div className="max-w-xs space-y-4">
-          <p className="text-sm text-fg-body">
-            Recorded letter:{' '}
-            <TermValue
-              entry={{
-                descriptive_grade: grade.descriptive_grade,
-                descriptor: detail.descriptor,
-              }}
-              mode={mode}
-            />
-          </p>
-          <FormField
-            label="Letter"
-            as="select"
-            value={letterDraft}
-            disabled={locked || saving}
-            onChange={(e) => setLetterDraft(e.target.value)}
-          >
-            <option value="">— Clear —</option>
-            {LETTERS.map((letter) => (
-              <option key={letter} value={letter}>
-                {letter}
-              </option>
-            ))}
-          </FormField>
-          {locked ? (
-            <p className="text-sm text-fg-muted">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
-          ) : (
-            <button type="button" className={btnPrimary} disabled={saving} onClick={onSaveLetter}>
-              Save letter
-            </button>
-          )}
-        </div>
       ) : (
+        // ONE ENCODE FORM FOR EVERY GRADE LEVEL (2026-09-22). This used to
+        // fork: Grades 2-6 got component entry, Grade 1 got a five-option
+        // letter picker. The school's answer made the letter a computed
+        // result, so the fork is gone and Grade 1 encodes Written Works,
+        // Performance Tasks and three Summative parts like everyone else.
+        // What still differs is what the SERVER sends back — a letter rather
+        // than a Term Grade — and that difference is read-only here.
         <div className="space-y-6">
           <div className="flex flex-wrap gap-6 text-sm">
             <p>
               <span className="text-fg-muted">Initial Grade </span>
-              <GradeValue value={grade.initial_grade} mode={mode} />
+              <GradeValue value={grade.initial_grade} mode="numerical" />
             </p>
-            <p>
-              <span className="text-fg-muted">Term Grade </span>
-              <GradeValue value={grade.term_grade} mode={mode} whole />
-            </p>
+            {mode === 'descriptive' ? (
+              // A TEACHER may see the raw Initial Grade beside the letter —
+              // they encoded the scores it comes from. A PARENT never does;
+              // Key Stage 1 reports letters only. That split is the whole
+              // reason this reads `mode="numerical"` above: the Initial Grade
+              // is a number in both modes, and rendering it through the
+              // descriptive branch would print "— N/A" over a real value.
+              <p>
+                <span className="text-fg-muted">Letter </span>
+                <TermValue
+                  entry={{
+                    descriptive_grade: grade.descriptive_grade,
+                    descriptor: detail.descriptor,
+                  }}
+                  mode={mode}
+                />
+              </p>
+            ) : (
+              <p>
+                <span className="text-fg-muted">Term Grade </span>
+                <GradeValue value={grade.term_grade} mode={mode} whole />
+              </p>
+            )}
             {detail.descriptor?.descriptor ? (
               <p className="text-fg-muted">{detail.descriptor.descriptor}</p>
             ) : null}
           </div>
           <p className="text-xs text-fg-muted">
-            Initial Grade appears after Written Works, Performance Tasks, and all
-            three exam parts are recorded. The number comes from the server after
-            you save — this screen does not preview it.
+            {mode === 'descriptive'
+              ? 'The letter appears after Written Works, Performance Tasks, and all three Summative parts are recorded. It is computed by the server after you save — this screen does not preview it, and the letter cannot be set by hand.'
+              : 'Initial Grade appears after Written Works, Performance Tasks, and all three exam parts are recorded. The number comes from the server after you save — this screen does not preview it.'}
           </p>
 
           <div className="grid gap-6 lg:grid-cols-2">
@@ -1261,7 +1242,7 @@ function EncodePanel({
           )}
 
           <div>
-            <h3 className="mb-3 text-sm font-semibold text-fg">Examinations</h3>
+            <h3 className="mb-3 text-sm font-semibold text-fg">{examSectionLabel(mode)}</h3>
             <div className="overflow-x-auto">
               <table className="w-full max-w-xl border-collapse text-sm">
                 <thead>
@@ -1316,7 +1297,7 @@ function EncodePanel({
               <p className="mt-3 text-sm text-fg-muted">This grade is locked. Only an admin can unlock it — ask the school admin if it needs a change.</p>
             ) : (
               <button type="button" className={`${btnPrimary} mt-3`} disabled={saving} onClick={onSaveExam}>
-                Save exam
+                Save {examSectionLabel(mode).toLowerCase()}
               </button>
             )}
           </div>

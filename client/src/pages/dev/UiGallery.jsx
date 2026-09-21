@@ -12,6 +12,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue, { GradeLegend } from '../../format/grade';
+import TermValue from '../../format/TermValue';
 import { VerifiedMark } from '../settings/AccountInfoSection';
 import Card, { CardEmpty, Stat } from '../dashboards/Card';
 import { PersonCell } from '../../components/Avatar';
@@ -489,6 +490,34 @@ export default function UiGallery() {
               <div>
                 <p className="mb-1 text-xs font-medium text-fg-muted">default — a general average</p>
                 <GradeValue value="87.50" mode="numerical" />
+              </div>
+            </div>
+
+            {/* TermValue, the OTHER grade renderer, added 2026-09-22 when the
+                report card's Final column started carrying letters. A letter
+                cannot go through GradeValue — it has no branch for a string
+                and would print "— N/A" over a real A — so the two live side
+                by side here, which is the only place a reviewer can compare
+                them without opening a report card. */}
+            <div className="mt-6 grid gap-4 border-t border-edge-soft pt-6 sm:grid-cols-4">
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">TermValue — a computed letter</p>
+                <TermValue
+                  entry={{ descriptive_grade: 'A', descriptor: { descriptor: 'Advancing' } }}
+                  mode="descriptive"
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">TermValue — letter, no descriptor</p>
+                <TermValue entry={{ descriptive_grade: 'C', descriptor: null }} mode="descriptive" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">TermValue — nothing recorded</p>
+                <TermValue entry={null} mode="descriptive" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-fg-muted">TermValue — numerical term</p>
+                <TermValue entry={{ term_grade: '90.00' }} mode="numerical" />
               </div>
             </div>
 
