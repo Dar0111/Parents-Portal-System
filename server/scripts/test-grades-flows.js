@@ -570,6 +570,76 @@ async function run() {
       `score > max_score (bonus points) is accepted, not clamped: ww_percentage 110.00 (got ${bonusPoints.data?.grade?.ww_percentage})`
     );
 
+    // --- WHOLE NUMBERS ONLY (2026-09-22) ---
+    // The school never awards half points, so 42.5/50 is not a value the
+    // system should be able to hold. The gate is on the SERVER, at every
+    // write path, not on a form — these endpoints are callable directly and
+    // Expo will call them.
+    console.log('\nWhole-number scores:');
+
+    const decimalScore = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 42.5, max_score: 50, label: 'Half point' },
+    });
+    assert(
+      decimalScore.status === 400 && /whole number/i.test(decimalScore.data?.message || ''),
+      `A decimal score is refused, and the message says why (${why(decimalScore)})`
+    );
+    // The REASON reaches the user, not just the rule (§2) — and the value
+    // actually sent is named back, so a teacher can see what was rejected.
+    assert(
+      /half points/i.test(decimalScore.data?.message || '') && /42\.5/.test(decimalScore.data?.message || ''),
+      `The refusal names the school's rule and the value sent (got "${decimalScore.data?.message}")`
+    );
+
+    const decimalMax = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 40, max_score: 50.5, label: 'Half point max' },
+    });
+    assert(
+      decimalMax.status === 400 && /max_score/.test(decimalMax.data?.message || ''),
+      `A decimal max_score is refused, naming max_score (${why(decimalMax)})`
+    );
+
+    // ORDER MATTERS, and this is the assertion that proves it. -1.5 breaks
+    // BOTH rules; the range check runs first because "0 or greater" is the
+    // more fundamental thing wrong with it. If the whole-number check were
+    // moved above it, this message would change and a negative decimal would
+    // be reported as a rounding problem.
+    const negativeDecimal = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: -1.5, max_score: 50, label: 'Both wrong' },
+    });
+    assert(
+      negativeDecimal.status === 400 && /0 or greater/.test(negativeDecimal.data?.message || ''),
+      `A negative decimal is refused by the RANGE check first, not the whole-number one (got "${negativeDecimal.data?.message}")`
+    );
+
+    const decimalOnEdit = await request('PUT', `/api/grades/${validationGradeId}/components/${bonusPoints.data.component.id}`, {
+      token: teacherToken,
+      body: { score: 99.25 },
+    });
+    assert(
+      decimalOnEdit.status === 400 && /whole number/i.test(decimalOnEdit.data?.message || ''),
+      `PUT /components/:id refuses a decimal too — a correction is a write (${why(decimalOnEdit)})`
+    );
+
+    // ZERO IS A WHOLE NUMBER and must still be accepted. A learner who
+    // scored nothing is a real record, and `Number.isInteger(0)` is true —
+    // but a truthiness check would have dropped it, which is exactly the
+    // kind of slip this asserts against.
+    const zeroScore = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'WW', score: 0, max_score: 20, label: 'Absent, scored zero' },
+    });
+    assert(zeroScore.status === 201, `A score of 0 is still accepted — 0 is a whole number (${why(zeroScore)})`);
+
+    const wholeStillWorks = await request('POST', `/api/grades/${validationGradeId}/components`, {
+      token: teacherToken,
+      body: { type: 'PT', score: 18, max_score: 20, label: 'Ordinary whole score' },
+    });
+    assert(wholeStillWorks.status === 201, `An ordinary whole score still saves (${why(wholeStillWorks)})`);
+
     // --- Exam edge cases (own grade row, kept separate from the worked example) ---
     console.log('\nExam edge cases:');
 
@@ -618,6 +688,43 @@ async function run() {
       body: { st1_score: null, st1_max: 20 },
     });
     assert(conflictingNulls.status === 400, 'One explicit null + one explicit number for the same sub-test is rejected');
+
+    // EVERY ONE OF THE SIX, not a sample. The check is a loop over six named
+    // fields, and the way a loop like that fails is by omitting one entry —
+    // which sampling two of them would never find.
+    for (const field of ['st1_score', 'st1_max', 'st2_score', 'st2_max', 'te_score', 'te_max']) {
+      const isMax = field.endsWith('_max');
+      // Both fields of the pair are sent so the request cannot be refused by
+      // the pair rules above before it reaches the whole-number check.
+      const pairField = isMax ? field.replace('_max', '_score') : field.replace('_score', '_max');
+      const decimalExam = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+        token: teacherToken,
+        body: { [field]: 15.5, [pairField]: 20 },
+      });
+      assert(
+        decimalExam.status === 400 &&
+          /whole number/i.test(decimalExam.data?.message || '') &&
+          decimalExam.data.message.startsWith(field),
+        `PATCH /:id/exam refuses a decimal ${field}, and names that field (got "${decimalExam.data?.message}")`
+      );
+    }
+
+    const wholeExamStillWorks = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: 18, st1_max: 20 },
+    });
+    assert(wholeExamStillWorks.status === 200, `Whole exam scores still save (${why(wholeExamStillWorks)})`);
+
+    // Clearing a sub-test sends an explicit null, which is not a score and
+    // must skip the whole-number check rather than be refused by it.
+    const clearStillWorks = await request('PATCH', `/api/grades/${examEdgeGradeId}/exam`, {
+      token: teacherToken,
+      body: { st1_score: null },
+    });
+    assert(
+      clearStillWorks.status === 200 && clearStillWorks.data?.grade?.ex_st1 === null,
+      `An explicit null still clears a sub-test — null is not a decimal (${why(clearStillWorks)})`
+    );
 
     // --- Descriptive mode + transaction atomicity ---
     console.log('\nDescriptive mode (Grade 1) + atomicity:');
@@ -824,12 +931,20 @@ async function run() {
     // percentage, so the Initial Grade IS that percentage whatever the
     // weights are, which makes the expected letter checkable by hand.
     //
-    // EVERY MAX IS 100 ON PURPOSE. Scores are DECIMAL(5,2), so a
-    // just-below-the-boundary case scored out of 50 stores 44.995 as 45.00
-    // and the row then computes 90.00, not 89.99 — the assertion would fail
-    // against entirely correct code. Out of 100 the score IS the percentage
-    // and nothing is rounded on the way in. Found by this test failing four
-    // times on its four sub-boundary cases, all four for this reason.
+    // EVERY MAX IS 100 AND EVERY SCORE IS A WHOLE NUMBER. Two separate
+    // reasons, both found by this test failing:
+    //
+    //   max 100 — scores are DECIMAL(5,2), so a sub-boundary case scored out
+    //   of 50 stored 44.995 as 45.00 and the row computed 90.00, not 89.99.
+    //   Out of 100 the score IS the percentage and nothing is rounded on the
+    //   way in.
+    //
+    //   whole numbers — since 2026-09-22 the server REFUSES a decimal score
+    //   (the school does not award half points), so the 89.9 / 79.9 / 74.9 /
+    //   64.9 this block used to send is now a 400. The sub-boundary cases are
+    //   89 / 79 / 74 / 64, which sit inside the same bands and still prove the
+    //   thresholds. The finest a score can probe is now one whole percent —
+    //   a consequence of the school's rule, not a weakening of the test.
     async function setGrade1Score(percent) {
       const ww = await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Ww.data.component.id}`, {
         token: teacherToken,
@@ -853,23 +968,19 @@ async function run() {
       return { ww, pt, exam };
     }
 
-    // The sub-boundary cases are x.9, not x.99, and that is a FINDING about
-    // the arithmetic rather than a convenience. Each weighted part is stored
-    // at two decimals, so an Initial Grade is the sum of three rounded
-    // numbers: 89.99 gives 26.997 + 44.995 + 17.998, which stores as
-    // 27.00 + 45.00 + 18.00 and sums to exactly 90.00 — an A. Nothing is
-    // wrong with that; it is the same arithmetic every numerical grade has
-    // always used. It does mean a test cannot probe closer than the second
-    // decimal of the WEIGHTED parts, and x.9 is inside that resolution.
+    // Each boundary is hit EXACTLY (90/80/75/65) and each band is also
+    // entered one whole percent below the next one up. Both halves matter: a
+    // threshold off by one would pass a test that only sampled the middle of
+    // each band.
     for (const [percent, letter] of [
       [90, 'A'], // exact boundary
-      [89.9, 'B'],
+      [89, 'B'],
       [80, 'B'], // exact boundary
-      [79.9, 'C'],
+      [79, 'C'],
       [75, 'C'], // exact boundary
-      [74.9, 'D'],
+      [74, 'D'],
       [65, 'D'], // exact boundary
-      [64.9, 'E'],
+      [64, 'E'],
     ]) {
       const { exam } = await setGrade1Score(percent);
       assert(
@@ -1152,20 +1263,22 @@ async function run() {
     assert(unlockDescriptive.status === 200, 'The Grade 1 row unlocks again');
 
     // Put the row back on a KNOWN letter for the report-card assertions
-    // below, which read it. 75% of every part is an Initial Grade of exactly
-    // 75, the bottom of band C — so the letter the card shows is computed
-    // from these three writes, not set by hand anywhere.
+    // below, which read it. 75 out of 100 on every part is an Initial Grade
+    // of exactly 75, the bottom of band C — so the letter the card shows is
+    // computed from these three writes, not set by hand anywhere. Out of 100
+    // rather than the 37.5/50 this used to send: half points are refused by
+    // the server now.
     await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Ww.data.component.id}`, {
       token: teacherToken,
-      body: { score: 37.5, max_score: 50 },
+      body: { score: 75, max_score: 100 },
     });
     await request('PUT', `/api/grades/${grade1DescriptiveId}/components/${g1Pt.data.component.id}`, {
       token: teacherToken,
-      body: { score: 37.5, max_score: 50 },
+      body: { score: 75, max_score: 100 },
     });
     const restoreGrade1C = await request('PATCH', `/api/grades/${grade1DescriptiveId}/exam`, {
       token: teacherToken,
-      body: { st1_score: 37.5, st1_max: 50, st2_score: 37.5, st2_max: 50, te_score: 37.5, te_max: 50 },
+      body: { st1_score: 75, st1_max: 100, st2_score: 75, st2_max: 100, te_score: 75, te_max: 100 },
     });
     assert(
       restoreGrade1C.status === 200 &&
@@ -1394,18 +1507,26 @@ async function run() {
       if (id) createdGradeIds.push(id);
       requireFixture(create.status === 201, `Fixture: Grade 1 Mathematics term ${term}`, why(create));
 
-      const half = (percent / 100) * 50;
+      // Out of 100 and whole, for the same two reasons as setGrade1Score
+      // above: the score IS the percentage, and a decimal is refused.
       await request('POST', `/api/grades/${id}/components`, {
         token: adminToken,
-        body: { type: 'WW', score: half, max_score: 50, label: `Quiz T${term}` },
+        body: { type: 'WW', score: percent, max_score: 100, label: `Quiz T${term}` },
       });
       await request('POST', `/api/grades/${id}/components`, {
         token: adminToken,
-        body: { type: 'PT', score: half, max_score: 50, label: `PT T${term}` },
+        body: { type: 'PT', score: percent, max_score: 100, label: `PT T${term}` },
       });
       const exam = await request('PATCH', `/api/grades/${id}/exam`, {
         token: adminToken,
-        body: { st1_score: half, st1_max: 50, st2_score: half, st2_max: 50, te_score: half, te_max: 50 },
+        body: {
+          st1_score: percent,
+          st1_max: 100,
+          st2_score: percent,
+          st2_max: 100,
+          te_score: percent,
+          te_max: 100,
+        },
       });
       assert(
         exam.status === 200 && num(exam.data?.grade?.initial_grade) === percent,

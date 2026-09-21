@@ -5,6 +5,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { parentOfStudent, insertNotifications, emitNotifications } = require('../utils/notify');
 const { isValidDateFormat } = require('../utils/dateFormat');
+const { isWholeNumber, wholeNumberMessage } = require('../utils/validateScore');
 const gc = require('../utils/gradeComputation');
 const { readListParams, pageMeta } = require('../utils/pagination');
 
@@ -1001,8 +1002,17 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
   if (!isValidScore(score)) {
     return res.status(400).json({ success: false, message: 'score must be 0 or greater.' });
   }
+  // AFTER the range check, deliberately: -1.5 fails both, and "0 or greater"
+  // is the more fundamental thing wrong with it. Only a value that is
+  // otherwise valid gets told it is not a whole number.
+  if (!isWholeNumber(score)) {
+    return res.status(400).json({ success: false, message: wholeNumberMessage('score', score) });
+  }
   if (!isValidMax(max_score)) {
     return res.status(400).json({ success: false, message: 'max_score must be greater than 0.' });
+  }
+  if (!isWholeNumber(max_score)) {
+    return res.status(400).json({ success: false, message: wholeNumberMessage('max_score', max_score) });
   }
   if (!label || !String(label).trim()) {
     return res.status(400).json({ success: false, message: 'label is required.' });
@@ -1102,8 +1112,14 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
   if (score !== undefined && !isValidScore(score)) {
     return res.status(400).json({ success: false, message: 'score must be 0 or greater.' });
   }
+  if (score !== undefined && !isWholeNumber(score)) {
+    return res.status(400).json({ success: false, message: wholeNumberMessage('score', score) });
+  }
   if (max_score !== undefined && !isValidMax(max_score)) {
     return res.status(400).json({ success: false, message: 'max_score must be greater than 0.' });
+  }
+  if (max_score !== undefined && !isWholeNumber(max_score)) {
+    return res.status(400).json({ success: false, message: wholeNumberMessage('max_score', max_score) });
   }
   if (label !== undefined && (!label || !String(label).trim())) {
     return res.status(400).json({ success: false, message: 'label must not be empty.' });
@@ -1310,6 +1326,26 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
   }
   if (te_max !== undefined && te_max !== null && !isValidMax(te_max)) {
     return res.status(400).json({ success: false, message: 'te_max must be greater than 0.' });
+  }
+
+  // WHOLE NUMBERS, all six fields (2026-09-22). A loop rather than six more
+  // `if` blocks beside the six above: the range checks differ per field
+  // (score >= 0 vs max > 0) and have to stay separate, but this rule is
+  // identical for all six, and six copies of one rule is how the seventh
+  // gets forgotten. Runs AFTER the range checks for the same reason as on
+  // the component endpoints. `null` is skipped — an explicit null clears a
+  // sub-test and is not a score.
+  for (const [field, value] of [
+    ['st1_score', st1_score],
+    ['st1_max', st1_max],
+    ['st2_score', st2_score],
+    ['st2_max', st2_max],
+    ['te_score', te_score],
+    ['te_max', te_max],
+  ]) {
+    if (value !== undefined && value !== null && !isWholeNumber(value)) {
+      return res.status(400).json({ success: false, message: wholeNumberMessage(field, value) });
+    }
   }
 
   // score and max are always a pair for a given sub-test. An explicit
