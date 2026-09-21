@@ -91,6 +91,13 @@ ON-DISK (CRLF) size** — that is what a session actually reads — and quote
 because git stores LF. **Trigger a trim at 138,000 on-disk; never start a
 dispatch above 142,000.**
 
+**AND THE REFILL RULE (2026-09-22, after the fourth trim in a fortnight).**
+**A completed BUILD ORDER stage and a closed BLOCKED / RESOLVED item leave
+this file permanently — to `docs/ARCHIVE.md`, in the dispatch that closes
+them.** They are never re-condensed in place, because condensing the same
+finished work every few days is what has made every trim so far. What stays
+behind is the rule and the pointer, nothing else.
+
 ---
 
 ## CURRENT STATE
@@ -126,54 +133,36 @@ return the database to this table, not to a remembered older snapshot.
 
 ### Working endpoints — this is the entire API
 
-**The full 81-row table moved to `docs/ARCHIVE.md` on 2026-09-19** ("Moved
-from CLAUDE.md … section trim") as a dated snapshot. **The live record is
-`docs/API_REFERENCE.md` §8** — every one of the 81 rows was verified present
-there before the move, with request/response detail this table never had.
+**`docs/API_REFERENCE.md` is the live record — read it for any endpoint
+question.** Body fields, wrapper keys, role-scope codes and the 404-vs-403
+convention are all there and were never in this file. A dated 81-row snapshot
+sits in `docs/ARCHIVE.md` (2026-09-19, before Notifications' 4 and account
+recovery's 5 landed); **it is not the live record.**
 
-**Read `docs/API_REFERENCE.md` for any endpoint question.** What still
-belongs here is only the arithmetic, because two numbers are both correct
-and mean different things: **86 handlers** are defined in `server/routes/`,
-and the API answers **87 endpoints** because `GET /api/health` is mounted
-directly in `server.js`. State which you mean. The archived table's **81
-rows** are neither — it is a snapshot dated 2026-09-19, taken before
-Notifications' 4 and account recovery's 5 landed, and it is not the live
-record.
+**The arithmetic stays here because two numbers are both correct and mean
+different things: 86 handlers** are defined in `server/routes/`, and the API
+answers **87 endpoints** because `GET /api/health` is mounted in `server.js`.
+**State which you mean.**
 
+**A scope change removes future authority, never past records.** Three places,
+one principle: deleting a `teacher_assignments` row does not touch `grades`
+(no FK, and mid-year reassignment **must not** wipe SF9 data); message history
+stays readable after `canMessage()` would refuse a new send; and the
+subjects-reseed CASCADE is the **opposite** case — destroying `subjects.id`
+wiped assignments *and* grades. **Do not add a grades-exist guard on
+`DELETE /api/assignments/:id`.**
 
-**A scope change removes future authority, never past records.** Three
-places, one principle: deleting a `teacher_assignments` row does not
-touch `grades` (no FK, and mid-year reassignment must not wipe SF9
-data); message history stays readable after `canMessage()` would refuse
-a new send; and the subjects-reseed CASCADE is the **opposite** case
-(destroying `subjects.id` wiped assignments *and* grades). Do not add a
-grades-exist guard on `DELETE /api/assignments/:id`.
-
-**Full request/response detail for all 87 endpoints — every body field,
-the exact response wrapper key, role-scope codes, and the 404-vs-403
-convention — lives in `docs/API_REFERENCE.md`, not here.** This table is
-the quick list; that document is what Stage 4 screen work should
-actually be read against.
-
-**Backup and Restore both built.** See "RESTORE" below for what shipped and
-what the automated suite deliberately does not cover.
-
-**Tests:** fifteen suites. The fourteen HTTP suites default `BASE` to
-`http://127.0.0.1:${PORT}` — Node `fetch` on Windows resolves `localhost`
-to IPv6 `::1` first and the server listens on IPv4; that mismatch was
-ECONNRESET mid-run. `process.env.API_BASE` still wins. They are idempotent — every row they
-create is tracked and deleted in a `finally` block (or, for Settings, restored to
-its original value; for Sections, the two NULL-adviser test sections are reset to
-NULL and the throwaway teacher fixture deleted, via a direct DB write, not a
-remembered API call), so no `db:setup` is needed between runs. Verified by running
-each twice in a row with no reset: same pass count both times, and the DB
-confirmed back to the Seeded baseline (above) after — including TCH-002's
-zero assignment rows, and the 5 descriptive grade rows on Nino left
-untouched by `test:grades` (that suite's throwaway Grade 1 student is a
-different row, deleted in `finally`). `test:sanitize` is a direct-call unit test — no server or DB
-involved. `test:restore` is the one exception to "runs a real flow end to end":
-it tests every pre-flight gate and the `token_valid_after` mechanism, but
-never triggers an actual restore — see the RESTORE section.
+**Tests:** fifteen suites. **The fourteen HTTP suites default `BASE` to
+`http://127.0.0.1:${PORT}`, not `localhost`** — Node `fetch` on Windows
+resolves `localhost` to IPv6 `::1` first while the server listens on IPv4, and
+that mismatch was ECONNRESET mid-run. `process.env.API_BASE` still wins.
+**They are idempotent: every row a suite creates is deleted in a `finally`
+block** (Settings restores its original value; Sections resets the two
+NULL-adviser rows by a direct DB write, not a remembered API call), **so no
+`db:setup` is needed between runs** — verified by running each twice with no
+reset and confirming the Seeded baseline after. `test:sanitize` is a
+direct-call unit test, no server or DB. **`test:restore` never triggers an
+actual restore** — see RESTORE.
 - `npm run test:students` — 65/65
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — 56/56 (2026-09-22; the Grade 1 rename moved two assertions)
@@ -444,74 +433,52 @@ concludes.** Adding one requires the school to have said otherwise first.
 
 - **Never fetches.** The page owns `rows`/`loading`/`error`; loading, error
   and empty render inside the frame.
-- **Two modes, decided by the `page` prop (2026-09-19).** Without it, the
-  whole list is on screen and the table sorts it locally (report cards, and
-  every set fetched whole through `fetchAll`). With it — the API's
-  `{ limit, offset, total, has_more }` — the rows are ONE page: sorting is
-  controlled (`onSortChange` re-requests with `sort`/`order` against the
-  endpoint's allow-list, nothing is sorted locally), a footer reads
-  "1–50 of 812" with Previous/Next, and an empty page of a non-empty set
-  steps back to the last real page on its own (C7). A filter or sort change
-  resets the page's offset to 0 (C6) — in the page, not here. Every list
-  endpoint pages (`docs/API_REFERENCE.md` §6b); a caller that needs a
-  complete set uses `fetchAll`, never the first 50 (C2/C5).
+- **Two modes, decided by the `page` prop.** Without it the whole list is on
+  screen and sorts locally. With it — the API's
+  `{ limit, offset, total, has_more }` — the rows are ONE page: **sorting is
+  controlled and nothing is sorted locally**, and an empty page of a non-empty
+  set steps back on its own (C7). A filter or sort change resets offset to 0
+  (C6) — **in the page, not here.** Every list endpoint pages; **a caller that
+  needs a complete set uses `fetchAll`, never the first 50** (C2/C5).
 - **Nulls sort last in BOTH directions, and the rule sits OUTSIDE the
   direction multiplier.** Two empties compare equal; `Array#sort` is stable.
-- mysql2 returns `DECIMAL` as strings, so the comparator coerces numerically
-  before `localeCompare`. The gallery fixture carries `87.50` **and**
-  `100.00` — only `100.00` catches a lexicographic regression. Do not tidy
-  either away.
-- **NO STICKY TABLE HEADER — a closed question, not a gap (dropped
-  2026-09-20, DV1).** Sticky resolves against the nearest scrollport and
-  containing a too-wide table REQUIRES one, so a sticky header and the
-  in-table horizontal scroller cannot coexist. Three attempts each broke
-  differently: offset 61px inside the `overflow-hidden` frame, covering row
-  1 on all 22 consumers; then the whole PAGE scrolling sideways at 200% zoom
-  once the scroller was released; then `wrap-anywhere` splitting words
-  mid-letter (`Mathemat/ics`) and an LRN across four lines. Lists page at 50
-  rows, so the cost of no sticky header is small. Full account:
-  `docs/FRONTEND_CONVENTIONS.md` §5a-i. **Kept from those attempts:** the
-  frame has no `overflow-hidden` (corners are clipped by rounding the pieces
-  that paint) and the scroller is back at every width.
+  mysql2 returns `DECIMAL` as strings, so the comparator coerces numerically
+  before `localeCompare`. **The gallery fixture carries `87.50` AND `100.00` —
+  only `100.00` catches a lexicographic regression. Do not tidy either away.**
+- **NO STICKY TABLE HEADER — a closed question, not a gap.** Sticky resolves
+  against the nearest scrollport and containing a too-wide table REQUIRES one,
+  so a sticky header and the in-table horizontal scroller **cannot coexist**.
+  Three attempts each broke differently; lists page at 50 rows, so the cost is
+  small. **Do not reopen it.** The full account, and the sticky-first-COLUMN
+  question it does NOT close, are §5a-i and OPEN QUESTIONS.
 - **`nowrap: true` on a column, and NEVER wrap an identifier.** Default
-  wrapping breaks at spaces only, so an LRN, a grade or a date cannot break
-  at all; `nowrap` is for values that contain spaces and still must not —
-  formatted dates, and the actions column, whose cluster must keep one row
-  or the neighbouring text appears to run into it. Header cells are always
-  `nowrap`.
-- **`format/date.js` is the ONLY home for date maths (DV2, 2026-09-20).** A
-  page formats a date; it never computes one. **Identity is a `YYYY-MM-DD`
-  STRING compared with `===`** — `dateStrings: ['DATE']` means nothing is
-  ever parsed, so nothing can shift. A `Date` is for PLACEMENT only
-  (weekday column, days in month) and always via the local constructor
-  `new Date(y, monthIndex, d)`. **Never `new Date(string)`** — it parses as
-  UTC midnight and is a day early west of Greenwich — **and never
-  `toISOString()`**. Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-iv.
-- **`renderCard` — the card layout below `sm`, opt-in per page.** It returns
-  **DATA, never JSX**, which is what makes a button-inside-a-link
-  unrepresentable: **exactly one interactive element per card**, a real
-  `<Link>` or `<button>`. A page with no single primary action passes
-  neither and gets a **static card, no chevron**, actions in a row beneath
-  (Users directory, Backups). A page without `renderCard` is unchanged.
-  Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-iii.
-- **ONE page leaves DataTable, and the exemption is narrow (DV3,
-  2026-09-21).** `pages/parent/ReportCard.jsx` is a **fixed-order printed
-  document**: sorting it produces a different document, not a filtered one,
-  and its emphasised general-average row must sit INSIDE a table that does
-  not sort. Anything that is a list of records still uses `DataTable`. It
-  still never fetches and still owns loading / error / empty in its own
-  frame. Its printed subject order is a client constant — `subjects` has
-  **no display-order column** — and **Grade 1's order is PROVISIONAL**.
-  Rules: `docs/FRONTEND_CONVENTIONS.md` §5a-v.
-- **That card's crossover is measured on the CONTAINER (`@min-[36rem]`),
-  every DataTable page on `sm:` viewport width — deliberately
-  inconsistent.** No viewport breakpoint can be right: `Shell` reveals its
-  240px sidebar at the same `sm`, so crossing 640px **cuts a page body from
-  607px to 351px** and the table switched on exactly where its container was
-  narrowest (a five-column table scrolling sideways at 200% zoom). **A
-  browser check must measure the CARD, not the window**, and a container
-  variant that generates no CSS fails silently — grep the built stylesheet
-  (the `h-9.5` lesson). Detail: `docs/FRONTEND_CONVENTIONS.md` §5a-vi.
+  wrapping breaks at spaces only, so an LRN, a grade or a date cannot break at
+  all; `nowrap` is for values that DO contain spaces and still must not.
+  Header cells are always `nowrap`. Detail: §5a-ii.
+- **`format/date.js` is the ONLY home for date maths.** A page formats a date;
+  **it never computes one. Identity is a `YYYY-MM-DD` STRING compared with
+  `===`** — nothing is parsed, so nothing can shift. A `Date` is for PLACEMENT
+  only, always via the local constructor. **Never `new Date(string)`** (it
+  parses as UTC midnight, a day early west of Greenwich) **and never
+  `toISOString()`.** Detail: §5a-iv.
+- **`renderCard` — the card layout below `sm`, opt-in per page. It returns
+  DATA, never JSX**, which makes a button-inside-a-link unrepresentable:
+  **exactly one interactive element per card**, a real `<Link>` or `<button>`.
+  A page with no single primary action passes neither and gets a static card.
+  Detail: §5a-iii.
+- **ONE page leaves DataTable and the exemption is narrow:**
+  `parent/ReportCard.jsx` is a **fixed-order printed document** — sorting it
+  produces a different document, not a filtered one — and its emphasised
+  general-average row must sit INSIDE a table that does not sort. **Anything
+  that is a list of records still uses `DataTable`.** Its printed order is a
+  client constant (`subjects` has **no display-order column**) and **Grade 1's
+  order is PROVISIONAL**. Detail: §5a-v.
+- **That card's crossover is measured on the CONTAINER (`@min-[36rem]`), every
+  DataTable page on `sm:` viewport width — deliberately inconsistent**, because
+  `Shell` reveals its 240px sidebar at that same `sm` and **crossing 640px cuts
+  a page body from 607px to 351px**. **A browser check must measure the CARD,
+  not the window**, and a container variant that generates no CSS fails
+  silently — **grep the built stylesheet** (the `h-9.5` lesson). Detail: §5a-vi.
 
 ### 5b. A column showing DATABASE state must never derive from form state
 
@@ -1027,61 +994,49 @@ design question, its answer, and the test that proved it — is verbatim in
 `docs/ARCHIVE.md` → BLOCKED / RESOLVED → Grades module. What a session must
 know:
 
-- **Nine stages, all done 2026-09-05/06** (G1a → G2a → G2b → G2c → G1b →
-  G2d → G2e → G3), plus `DELETE /:id` and `GET /api/grading-modes` on
-  2026-09-08. Schema shaped for DO 015 / DO 009 (G1a); the real 40-row
-  curriculum (G1b — Grade 4 recorded as INFERRED); pure arithmetic in
-  `utils/gradeComputation.js` (G2a); shell-row creation (G2b); WW/PT/exam
-  writes with full recompute (G2c); Grade 1's manual A–E letter (G2d);
-  component edit/delete and the admin lock (G2e); the three reads including
-  the report card (G3). **Grades has no remaining backend work.**
-- **Dual mode by design.** Exactly one of `term_grade` (numerical) or
-  `descriptive_grade` (Grade 1 letter) is populated on a row, decided by
-  `grading_mode_configs` at write time and self-describing at read time. Do
-  not drop or merge the two columns — the KS1 rollout keeps both live
-  indefinitely. Final Grade and General Average are not columns anywhere;
-  both are computed at read time.
-- **Grade 1's letter is a MANUAL teacher judgment — an ASSUMPTION, not a
-  school-confirmed answer.** DO 015 defines no Initial-Grade-to-letter
-  formula, and descriptive grading exists to avoid numerical labeling in KS1.
-  If the school says a computation feeds the letter, `PATCH /:id/descriptive`
-  changes, not the schema. Still an OPEN QUESTION. WW/PT/EX stay
-  informational for Grade 1 (numerical writes on a descriptive row are `400`).
-- **EX is three raw-score columns on `grades` (`ex_st1`/`ex_st2`/`ex_te`,
-  each with `*_max`), not `grade_components` rows.** `ex_percentage` is
-  derived at write time (30/30/40). Locked — a fixed positional triple, not an
-  open-ended list. WW/PT retain every raw score via `grade_components`.
-- **Every computed value is NULL until every required input exists** —
-  Initial Grade, Final Grade (three terms) and General Average (every
-  subject) alike, and a descriptive subject is `null` at both levels because
-  it is inapplicable, not incomplete (`grading_mode` tells the two apart).
-  Never a running average: a partial figure reads as settled. Rounding is
-  half-up to 2 decimals at every stored step (`roundTo2`, `Number.EPSILON`
-  nudge). Percentages over 100 are not clamped; a cap belongs in route
-  validation as an explicit policy, if ever.
-- **Scope.** Encode = the subject teacher via `teacher_assignments` on all
-  four of teacher/subject/grade/section (VARCHAR, never `section_id`) — a
-  second scoping authority alongside `sections.adviser_id`, deliberate,
-  because DepEd assigns encoding to the subject teacher. View = grade+section,
-  any subject (matching `students.js`). A teacher inside view-scope but not
-  encode-scope gets `403` naming the subject on the five `:id`-keyed writes;
-  outside both is `404`. **Do not widen grades to advisers** — that is school
-  policy, not a patch. A missing `subject_id` is `400` for both roles.
-- **`PATCH /:id/lock` is admin-only, unscoped, with no completeness gate**
-  (a gate would make every descriptive row permanently unlockable) and no
-  extra friction on unlock (reversible, unlike restore). Locking is a
-  school-wide finalization boundary, not teacher discretion; whether a teacher
-  may lock their own encoding is an OPEN QUESTION. **`DELETE /:id` is
-  admin-only, refuses a locked row, and is deliberately on no screen.**
+**Nine stages, all done 2026-09-05/06** (G1a → G2a → G2b → G2c → G1b → G2d →
+G2e → G3), plus `DELETE /:id` and `GET /api/grading-modes` (2026-09-08) and
+the rounding fix (2026-09-22). **Grades has no remaining backend work** except
+Grade 1's computed letters, which are decided and queued (BUILD ORDER).
+
+**The rules, each stated nowhere else in this file:**
+
+- **Dual mode: exactly one of `term_grade` or `descriptive_grade` is
+  populated. Do not drop or merge the two columns** — the KS1 rollout keeps
+  both live indefinitely. Final Grade and General Average are **not columns
+  anywhere**; both are computed at read time.
+- **EX is three raw-score columns on `grades` (`ex_st1`/`ex_st2`/`ex_te`, each
+  with `*_max`), NOT `grade_components` rows** — a fixed positional triple,
+  locked, not an open-ended list. `ex_percentage` is derived at write time
+  (30/30/40). WW/PT retain every raw score via `grade_components`.
+- **Every computed value is NULL until every required input exists** — and a
+  descriptive subject is `null` because it is *inapplicable*, not incomplete
+  (`grading_mode` tells the two apart). **Never a running average:** a partial
+  figure reads as settled. **Percentages over 100 are not clamped.**
+- **Encode scope = the SUBJECT teacher**, via `teacher_assignments` on all
+  four of teacher/subject/grade/section (**VARCHAR, never `section_id`**) — a
+  second scoping authority alongside `sections.adviser_id`, because DepEd
+  assigns encoding to the subject teacher. View = grade+section, any subject.
+  In view-scope but not encode-scope is `403` naming the subject; outside both
+  is `404`. **Do not widen grades to advisers** (also OPEN QUESTIONS).
+- **`PATCH /:id/lock` is admin-only and unscoped, with no completeness gate** —
+  a gate would make every descriptive row permanently unlockable — and no
+  extra friction on unlock, which is reversible unlike restore. **`DELETE /:id`
+  is admin-only, refuses a locked row, and is deliberately on no screen.**
 - **A missing `grading_mode_configs` or `grade_weight_configs` row is `409`
-  naming the gap — never a silent default, never `500`.** A transmutation
-  year with no rows means "use the Initial Grade directly" — the data's
-  absence drives it, never a hardcoded year comparison.
+  naming the gap — never a silent default, never `500`.** A transmutation year
+  with no rows means "use the Initial Grade directly": **the data's absence
+  drives it, never a hardcoded year comparison.**
 - `grade_weight_configs` is keyed `(subject_id, school_year)`, `CHECK` sums to
-  100.00, seeded via a JOIN on `grading_mode_configs WHERE mode = 'numerical'`.
-  `grade_components.type` is `ENUM('WW','PT')` with no `'formative'`.
-  `current_quarter` became `current_term` (`['1','2','3']`). Item-count caps
-  and `is_locked`'s trigger stay documentation-only. Awards are out of scope.
+  100.00. `grade_components.type` is `ENUM('WW','PT')`, no `'formative'`.
+  `current_quarter` became `current_term`. Item-count caps and `is_locked`'s
+  trigger stay documentation-only. Awards are out of scope.
+
+**Grade 1's letter: the school answered on 2026-09-22 — it is COMPUTED**, from
+WW 30 / PT 50 / Summative 20, banded on the raw weighted score. **The rule is
+`docs/GRADING_SPEC.md` §6a and NOTHING IMPLEMENTS IT YET** — today
+`PATCH /:id/descriptive` takes a hand-picked letter and every Grade 1 component
+write is a `400`. Do not read the built behaviour as the school's rule.
 
 ### Known schema issue — RESOLVED (Stage G1a, 2026-09-05)
 
@@ -1196,70 +1151,48 @@ proves only what it checks for — is verbatim in `docs/RESTORE.md`, the text
 `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's
 RESTORE section".
 
-- **Source validation is structural.** The only input is `backups.id` — no
-  upload path, no filename parameter. The row (`404`) and the file on disk
-  (its own `404`) are checked first, before step-up: any admin can already
-  see every filename via `GET /api/backups`, so nothing leaks.
-- **Step-up auth.** `password` re-verified against the caller's own hash —
-  `400` if missing, `403` "Incorrect password." if wrong; never `401`, the
-  token is valid. Each refusal is logged as `restore_refused` naming the
-  backup and the reason, never the typed value (best effort; a failed log
-  write cannot turn the refusal into a `500`).
-- **Type-the-name confirmation.** `confirm_filename` must match exactly —
-  `400` naming both the value sent and the real one.
-- **Automatic safety dump first**, `pre_restore_<timestamp>.sql`, via the
-  same `createBackupRecord()` as a manual backup. If it fails, the restore
-  aborts and nothing is changed — the single most important line.
-- **`auth_codes`' ROWS are never in a dump either** (R1, 2026-09-19) — a
-  second `--ignore-table` plus the table on the `--no-data` pass, and
-  **no** `stripBackupsTableDdl()` counterpart is needed, because a restore
-  recreating it empty is the correct state. A six-digit code is a
-  credential with a 10⁶ plaintext space, so bcrypt is not enough on a file
-  that is never deleted. Full reasoning: `docs/RESTORE.md`. Do not remove
-  either flag to "make the dump complete".
-- **`backups`' own data is never in a dump** (`--ignore-table` on the main
-  pass, a `--no-data` pass appended for its structure), and
-  `stripBackupsTableDdl()` removes its `DROP`/`CREATE TABLE` from the SQL the
-  restore executes — matched on mysqldump's own comment convention so old
-  files are protected too. Without both, every restore wiped the live table.
-  Both are regression-tested in `test:backups` from real dump content.
-  `GET /api/backups` reports `.sql` files with no row as `orphaned_files` —
-  never auto-adopted (a fabricated `created_by` is a guess); adoption is a
-  by-hand data fix recorded as `manual_backup_adoption`. Do not recreate lost
-  rows from memory.
-- **`activity_logs` is rewound on purpose** (a snapshot restore) — the
-  safety dump's own `create_backup` entry is provably wiped — but a
-  `restore_wiped_activity_logs` marker is written after the restore naming
-  the source backup, the boundary and the count lost, also returned as
-  `activity_logs_wiped` (the count is off by one — KNOWN ISSUES).
+- **Source validation is structural** — the only input is `backups.id`, no
+  upload path, no filename parameter. Row and file checked before step-up.
+- **Step-up auth:** `password` re-verified against the caller's own hash;
+  `400` missing, `403` wrong, **never `401`** (the token is valid). Each
+  refusal logs `restore_refused` naming the backup and reason, **never the
+  typed value**.
+- **Type-the-name confirmation:** `confirm_filename` **must** match exactly.
+- **Automatic safety dump FIRST.** If it fails the restore aborts and nothing
+  is changed — **the single most important line in the module.**
+- **`backups`' own rows and `auth_codes`' rows are NEVER in a dump**, via
+  `--ignore-table` plus a `--no-data` pass, and `stripBackupsTableDdl()`
+  strips `backups`' `DROP`/`CREATE TABLE` from the SQL a restore executes.
+  Without both, **every restore wiped the live `backups` table.** **Do not
+  remove either flag to "make the dump complete"** — a six-digit code has a
+  10⁶ plaintext space, so bcrypt is not enough on a file that is never
+  deleted. `auth_codes` needs no strip counterpart: recreating it empty is
+  correct.
+- **Orphaned `.sql` files are never auto-adopted** — a fabricated
+  `created_by` is a guess. Adoption is a by-hand fix logged as
+  `manual_backup_adoption`. **Do not recreate lost rows from memory.**
+- **`activity_logs` is rewound on purpose** (it is a snapshot restore), with a
+  `restore_wiped_activity_logs` marker written afterwards naming the source,
+  the boundary and the count lost — **the count is off by one, KNOWN ISSUES.**
 - **The restore runs on a dedicated one-off `mysql2` connection**
-  (`multipleStatements: true`), never the shared pool. Safe only because the
-  SQL is our own mysqldump output via a tracked row — if this ever takes an
-  uploaded file, that stops being safe. MySQL DDL cannot roll back; the
-  partial-failure message names the safety dump's filename and says manual
-  recovery may be needed.
-- **Pool reset** after success (`pool.resetPool()`, the proxy in
-  `config/db.js`).
-- **Every active JWT invalidated** via `auth_security_state.token_valid_after`
-  (one global row, no user or role — force-logout-everyone is the intended
-  design, because a restore can replace every `users` row; never a
-  `system_settings` key). `authenticate` rejects any JWT whose `iat` predates
-  it. Two log entries in sequence: `create_backup` then `restore_backup`.
-- **Synchronous, by decision.** Revisit as an async job with a status
-  endpoint only if a dump ever takes more than a few seconds.
+  (`multipleStatements: true`), **never the shared pool** — safe only because
+  the SQL is our own mysqldump output via a tracked row. **If this ever takes
+  an uploaded file, that stops being true.** MySQL DDL cannot roll back.
+- **Pool reset** after success (`pool.resetPool()`), and **every active JWT
+  invalidated** via `auth_security_state.token_valid_after` — one global row,
+  no user or role, because a restore can replace every `users` row; **never a
+  `system_settings` key.**
+- **Synchronous by decision.** Revisit only if a dump ever takes more than a
+  few seconds.
 
-**`npm run test:restore` never triggers a real restore** — that would
-`DROP DATABASE` under every other suite and the running server. It tests
-every pre-flight gate over HTTP (nothing created after each refusal, one
-`restore_refused` per refusal without the typed value) and `token_valid_after`
-with crafted JWTs (`noTimestamp`, chosen `iat`), and since 2026-09-15 it
-records the cutoff it finds and puts exactly that back, so it is safe after a
-real restore. No request in it ever combines the real password with the real
-`confirm_filename`. A real end-to-end restore is a deliberate manual step;
-**`db:setup` is not the recovery path** (it drops `activity_logs`). One ran
-through the UI on 2026-09-15 (CHANGELOG). Restoring any backup taken before
-2026-09-13 brings back the two Contributions tables — drop them by hand
-afterwards (KNOWN ISSUES).
+**`npm run test:restore` NEVER triggers a real restore** — that would
+`DROP DATABASE` under every other suite and the running server. It tests the
+pre-flight gates and `token_valid_after` with crafted JWTs, and **no request
+in it ever combines the real password with the real `confirm_filename`.** A
+real end-to-end restore is a deliberate manual step; **`db:setup` is NOT the
+recovery path** (it drops `activity_logs`). **Restoring any backup taken
+before 2026-09-13 brings back the two Contributions tables, and any taken
+before 2026-09-22 reverts the Grade 1 subject rename** — both KNOWN ISSUES.
 
 ---
 
@@ -1862,7 +1795,7 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (four)
+### School questions — still open (three)
 
 - **What order do the learning areas print in on a Grade 1 report card?**
   Asked 2026-09-21, because DV3 had to pick one. The SF9's eight
@@ -1873,15 +1806,6 @@ the same way.**
   `ReportCard.jsx`. Grades 2, 3 and 5 are in the same position and
   deliberately fall back to alphabetical rather than guess. A one-line answer
   from the school settles all four.
-
-- **Grade 1 descriptive grading — how is the A–E letter produced?**
-  Manual teacher judgment, or computed? Still unanswered. The write
-  path proceeds as a manual pick (`PATCH /api/grades/:id/descriptive`)
-  because DO 015 defines no Initial-Grade-to-letter formula — that is
-  an assumption, not a confirmation. The parent modal is silent on
-  why the letter is a letter (judgment copy removed 2026-09-12). If
-  the school later says a computation feeds the letter, that endpoint
-  changes, not the schema.
 
 - **Who owns old attendance after a mid-year section transfer?**
   Still unanswered. PUT `/api/students/:id` refuses a class change
@@ -1908,6 +1832,13 @@ None of these is a written policy. **Do not cite them in the manuscript as
 documented school policy, and do not re-ask them.** Full entries:
 `docs/ARCHIVE.md` → OPEN QUESTIONS.
 
+- **2026-09-22 — how the Grade 1 A–E letter is produced: it is COMPUTED**, not
+  a hand-picked judgment. WW 30 / PT 50 / Summative 20, Summative split
+  ST1 30 / ST2 30 / TE 40, banded on the **raw** weighted score with no
+  transmutation. The full rule is `docs/GRADING_SPEC.md` §6a. **It is the
+  school's practice, not DO 015** — that order defines no
+  Initial-Grade-to-letter formula — so do not cite it as DepEd policy.
+  **Nothing implements it yet**; the code still takes a hand-picked letter.
 - **2026-09-01 — Principal Bajar, consultation:** no contributions from
   parents → Feature 7 removed 2026-09-13.
 - **2026-09-13 — the principal, in conversation:** Late counts as present,
@@ -2135,6 +2066,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-22 | CLAUDE.md trim, fourth batch: **135,687 → 130,947 on disk**. Four blocks COMPRESSED, none moved — the detail already lived in ARCHIVE, API_REFERENCE, RESTORE and FRONTEND_CONVENTIONS, proved by 18 greps first. **The ~124,000 target was NOT reached, and the live-rule guard is why:** the blocks held 38 keyword hits and **37 were rules with no other home here**, so they stayed verbatim and only the prose went. **Two STALE CLAIMS corrected rather than trimmed around** — the Grade 1 letter was still called "a MANUAL teacher judgment — an ASSUMPTION" and still listed as an open school question, both superseded by GRADING_SPEC §6a; open school questions four → three. New **REFILL RULE**: a completed stage or closed BLOCKED item leaves this file permanently in the dispatch that closes it. |
 | 2026-09-22 | Grading docs: GRADING_SPEC gains **§4a (rounding)** and **§6a (the Grade 1 letter — DECIDED, NOT BUILT)**; its line-70 `G1–3: 30/50/20` is labelled **DISCARDED**, not the Grade 1 rule. API_REFERENCE gains the whole-vs-2-decimal contract; §3 gains `whole`. **Three KNOWN_ISSUES rows** — 14 backups carry the old `Reading` name; term grades go 2-decimal from SY 2027-2028; **the mid-year transfer attendance scope is INVERTED against the school's rule**, unreachable only because of a `400`. School facts in the front matter (**3506114 is the PHONE, not the School ID**). BUILD ORDER: grading fix ticked, Grade 1 letters and the class-record grid queued ahead of DV4, pre-Stage-5 gains four. Baselines 197 / 56 / 33. |
 | 2026-09-22 | Grading fixes (`fix/grading-rounding`): **a Final Grade is a WHOLE number** (`roundToWhole`) — the card printed 89.33 where the school prints 89 — while the **General Average keeps two decimals over the rounded finals** (721/8 = 90.13). Display split at the CALL SITE, since one `toFixed(2)` served four kinds of value: `GradeValue` gained `whole`, set once in `TermValue`. **`String(Number(x))`, never `toFixed(0)`** — a stored 89.5 must not show as 90. **"Reading" → "Reading and Literacy"** by a migration that UPDATEs, because a delete would cascade Nino's letters away. `test:grades` 189 → **197**; the negative control caught **two weak assertions of my own**. |
 | 2026-09-22 | CLAUDE.md trim, third batch: **141,099 → 128,050 bytes on disk.** Twelve CHANGELOG stubs, BUILD ORDER Stages 1–2, the AGENT SKILLS rationale and two Feature 7 narrative paragraphs moved verbatim to `docs/ARCHIVE.md`; Stage 4's 22 checkboxes, Stage 3 and the completed After-Stage-4 bullets compressed to ticked lists plus pointers. **Every moved block was grepped for a live rule first** — four Stage 4 page rules stated nowhere else were kept here, and §1 gained the DV3 lesson (**unwrap protects a RENAMED key, never a FORGOTTEN one**), which had lived only in a stub. **The Notifications N1 dispatch has no `docs/CHANGELOG.md` row of its own**, so its stub is its only record and was moved rather than dropped. New standing size rule at the top: report the delta every dispatch, justify over 2,000 bytes, trim at 138,000, never start above 142,000. |
