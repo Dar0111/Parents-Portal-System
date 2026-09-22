@@ -263,9 +263,15 @@ async function main() {
     assert(ww3.max_score === null && ww3.in_use === false, 'a slot with no highest possible score is flagged not in use');
     assert(ww1.in_use === true, 'a slot with a highest possible score is in use');
 
+    // NO max_score, deliberately. This exists to check that a
+    // whitespace-only name normalises to NULL, and giving it a maximum
+    // would make it a USED column nobody has a score in — which since
+    // 2026-09-22 makes every learner's PT Pending and quietly wrecks every
+    // arithmetic assertion below. The first version of this test did give
+    // it one, and that is exactly what happened.
     const blankName = await request('PUT', '/api/grades/class-record', {
       token: adminToken,
-      body: { ...classKey, slots: [{ type: 'PT', slot_no: 2, max_score: 10, name: '   ' }] },
+      body: { ...classKey, slots: [{ type: 'PT', slot_no: 2, name: '   ' }] },
     });
     const pt2 = blankName.data.slots.find((s) => s.type === 'PT' && s.slot_no === 2);
     assert(
@@ -342,21 +348,42 @@ async function main() {
 
     assert(ben.initial_grade === 100 && ben.descriptive_grade === 'A', `Ben scores 100 and an A (got ${ben.initial_grade})`);
 
-    // CORA IS THE UNUSED-SLOT ASSERTION, and the numbers are chosen so a
-    // zero would be unmistakable. She has WW1 18/20 = 90% and no WW2 at all,
-    // so her WW is 18/20 = 90 — identical to Ana's. If the missing WW2 were
-    // counted as 0/10 her WW would be 18/30 = 60.00 and her letter would be
-    // a D, not an A.
+    // CORA IS THE MISSING-SCORE ASSERTION, and it was WRONG until
+    // 2026-09-22 — it asserted 90.00, the behaviour the defect produced.
+    //
+    // She has WW1 18/20 and NO WW2, and WW2 is a USED column: the class sat
+    // that assessment. So her Written Works are not computable yet —
+    // Pending — and so is everything downstream of them.
+    //
+    // The old behaviour left the missing score out of both the numerator
+    // and the denominator and reported 90.00, which RAISES the grade of a
+    // learner who missed an assessment above one who sat it and did
+    // averagely. Counting it as zero would be the opposite error. Pending
+    // is the only honest answer: nobody has marked her yet.
     assert(
-      cora.ww_percentage === 90,
-      `Cora's WW ignores the slot she has no score in: 18/20 = 90.00, NOT 18/30 = 60.00 (got ${cora.ww_percentage})`
+      cora.ww_percentage === null,
+      `Cora is missing a score in the USED slot WW2, so her WW is Pending — not 90.00, not 60.00 (got ${cora.ww_percentage})`
     );
-    assert(cora.descriptive_grade === 'A', `Cora still earns an A (got ${cora.descriptive_grade})`);
+    assert(
+      cora.initial_grade === null && cora.descriptive_grade === null,
+      `and everything downstream is Pending too (got IG ${cora.initial_grade}, letter ${cora.descriptive_grade})`
+    );
+    // Her PT is unaffected — she HAS that score, and the two groups are
+    // computed independently.
+    assert(cora.pt_percentage === 90, `her PT still computes: 45/50 = 90.00 (got ${cora.pt_percentage})`);
 
-    // ...and WW3, in use by nobody, changes nothing for anyone.
+    // ...and WW3, in use by nobody, changes nothing for anyone. THE TWO
+    // CASES MUST NOT BE CONFUSED: an UNUSED slot means the assessment never
+    // happened, so nobody is missing anything; a USED slot with no score
+    // means this learner has not been marked. Ana and Ben both compute
+    // fine with WW3 sitting there unused.
     assert(
       afterSave.data.slots.find((s) => s.id === ww3.id).in_use === false,
       'the unused slot is still flagged not in use after a save'
+    );
+    assert(
+      ana.ww_percentage === 90 && ben.ww_percentage === 100,
+      'an UNUSED slot makes nobody Pending — only a used one does'
     );
 
     // THE AGREEMENT INVARIANT: every component row's materialised max_score
@@ -393,6 +420,12 @@ async function main() {
         const max = learner[`${group}_total_max`];
         const ps = learner[`${group}_percentage`];
         if (total === null || max === null) continue;
+        // A PENDING group still has a Total — the raw sum of what HAS been
+        // recorded — while its PS is null, because the group is not
+        // computable until every used column is marked. That is not a
+        // divergence between the two numbers; it is the whole point of the
+        // rule, so it is skipped here and asserted directly above.
+        if (ps === null) continue;
         const derived = Math.round((total / max) * 100 * 100) / 100;
         assert(
           derived === ps,
@@ -400,6 +433,12 @@ async function main() {
         );
       }
     }
+    // ...and Cora is the case that makes the skip above meaningful rather
+    // than a hole: she has a Total and no PS, on purpose.
+    assert(
+      cora.ww_total === 18 && cora.ww_percentage === null,
+      `a Pending group still shows what HAS been recorded: Cora's WW Total is 18 with no PS (got ${cora.ww_total}/${cora.ww_percentage})`
+    );
     assert(
       cora.ww_total === 18 && cora.ww_total_max === 20,
       `Cora's Total counts only the slot she HAS a score in: 18/20, not 18/30 (got ${cora.ww_total}/${cora.ww_total_max})`
@@ -600,19 +639,66 @@ async function main() {
       body: { ...classKey, slots: [{ type: 'WW', slot_no: 5, max_score: 15 }] },
     });
     assert(addSlot.status === 200, `a previously-unused slot can be given a maximum (${why(addSlot)})`);
+    const newSlotId = addSlot.data.slots.find((s) => s.type === 'WW' && s.slot_no === 5).id;
     const afterNewSlot = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
     assert(
       afterNewSlot.data.group_hps.ww === beforeNewSlot + 15,
       `and the class HPS moves by exactly that: ${beforeNewSlot} -> ${beforeNewSlot + 15} (got ${afterNewSlot.data.group_hps.ww})`
     );
-    // ...while no learner's own total changes, because none of them has a
-    // score in it yet. That is the pair of facts the grid must show.
+    // ...AND EVERY LEARNER BECOMES PENDING, which is the half this used to
+    // get wrong. Giving a column a highest possible score says the class
+    // sat that assessment; nobody has been marked in it yet, so nobody's
+    // Written Works are computable until they are.
+    //
+    // This is also why a slot change recomputes the WHOLE class rather than
+    // the learners with a score in that slot: the learners who need
+    // recomputing are exactly the ones with NO row there, who could never
+    // be found by looking for one.
     const anaAfterNewSlot = afterNewSlot.data.learners.find((l) => l.student_id === learners[0].id);
     const anaBeforeNewSlot = hpsRead.data.learners.find((l) => l.student_id === learners[0].id);
     assert(
-      anaAfterNewSlot.ww_total === anaBeforeNewSlot.ww_total &&
-        anaAfterNewSlot.ww_percentage === anaBeforeNewSlot.ww_percentage,
-      `no learner's own total moves for an empty new column (Ana stayed ${anaBeforeNewSlot.ww_total}/${anaBeforeNewSlot.ww_percentage})`
+      anaBeforeNewSlot.ww_percentage !== null,
+      `fixture check: Ana's WW was computable before the new column (was ${anaBeforeNewSlot.ww_percentage})`
+    );
+    assert(
+      afterNewSlot.data.learners.every((l) => l.ww_percentage === null),
+      `a new used column makes EVERY unscored learner Pending (got ${JSON.stringify(afterNewSlot.data.learners.map((l) => l.ww_percentage))})`
+    );
+    assert(
+      anaAfterNewSlot.ww_total === anaBeforeNewSlot.ww_total,
+      `their raw Total is unchanged — only the computability moved (${anaBeforeNewSlot.ww_total} -> ${anaAfterNewSlot.ww_total})`
+    );
+
+    // TYPING A SCORE RESOLVES IT, including a real zero. A learner who
+    // genuinely scored nothing is recorded as 0 and computes; that is a
+    // different statement from "not marked yet", and the grid has to be
+    // able to say both.
+    const scoreTheNewSlot = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        entries: [
+          { student_id: learners[0].id, scores: [{ slot_id: newSlotId, score: 15 }] },
+          { student_id: learners[1].id, scores: [{ slot_id: newSlotId, score: 0 }] },
+        ],
+      },
+    });
+    assert(scoreTheNewSlot.status === 200, `scores go into the new column (${why(scoreTheNewSlot)})`);
+    const resolved = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const anaResolved = resolved.data.learners.find((l) => l.student_id === learners[0].id);
+    const benResolved = resolved.data.learners.find((l) => l.student_id === learners[1].id);
+    assert(
+      anaResolved.ww_percentage !== null,
+      `Ana is computable again once marked (got ${anaResolved.ww_percentage})`
+    );
+    assert(
+      benResolved.ww_percentage !== null,
+      `and a score of ZERO resolves it too — 0 is a mark, not a blank (got ${benResolved.ww_percentage})`
+    );
+    const coraStill = resolved.data.learners.find((l) => l.student_id === learners[2].id);
+    assert(
+      coraStill.ww_percentage === null,
+      'while Cora, still unmarked in two columns, stays Pending'
     );
 
     // A DRY RUN returns the same totals a save would, so the grid can show
@@ -659,10 +745,15 @@ async function main() {
 
     const afterRaise = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
     const anaAfter = afterRaise.data.learners.find((l) => l.student_id === learners[0].id);
-    // Ana: WW is now (18+9)/(40+10) = 54.00, so her grade must have moved.
+    // Ana now holds THREE marks — WW1, WW2 and the WW5 column added and
+    // scored earlier in this suite — so raising WW1's maximum to 40 gives
+    // (18 + 9 + 15) / (40 + 10 + 15) = 42/65 = 64.62. The figure this line
+    // carried before was 27/50 = 54.00, from when WW5 did not exist; it is
+    // updated rather than loosened, because a by-hand number is the whole
+    // value of the assertion.
     assert(
-      anaAfter.ww_percentage === 54,
-      `every affected learner was recomputed: Ana's WW is now 27/50 = 54.00 (got ${anaAfter.ww_percentage})`
+      anaAfter.ww_percentage === 64.62,
+      `every affected learner was recomputed: Ana's WW is now 42/65 = 64.62 (got ${anaAfter.ww_percentage})`
     );
     assert(
       anaAfter.descriptive_grade !== 'A',
@@ -721,10 +812,11 @@ async function main() {
     assert(dry.status === 200 && dry.data.dry_run === true, `a dry run answers 200 and says so (${why(dry)})`);
 
     const dryAna = dry.data.results.find((r) => r.student_id === learners[0].id);
-    // A REAL computed value, not an echo: 40/40 + 9/10 = 49/50 = 98.00 WW.
+    // A REAL computed value, not an echo. Ana's WW1 becomes 40/40 and she
+    // keeps WW2 9/10 and WW5 15/15: 64/65 = 98.46.
     assert(
-      dryAna && dryAna.ww_percentage === 98,
-      `a dry run returns REAL computed values: WW would be 49/50 = 98.00 (got ${dryAna?.ww_percentage})`
+      dryAna && dryAna.ww_percentage === 98.46,
+      `a dry run returns REAL computed values: WW would be 64/65 = 98.46 (got ${dryAna?.ww_percentage})`
     );
 
     const afterDry = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
@@ -865,11 +957,21 @@ async function main() {
     // (20+10)/(40+10) = 30/50 = 60.00; if the cleared WW2 were counted as
     // 0/10 it would be 20/50 = 40.00. Three different numbers, and only one
     // of them is the rule this asserts.
+    // CLEARING A SCORE IN A USED COLUMN MAKES THAT LEARNER PENDING, and
+    // this assertion used to say 50.00 — the defect's answer. WW2 is still
+    // a column the class sat; deleting Ben's mark means he is unmarked in
+    // it, which is not the same as the assessment not existing. Un-typing a
+    // score and never typing it are the same state, and they must read the
+    // same way.
     const afterClear = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
     const benAfterClear = afterClear.data.learners.find((l) => l.student_id === learners[1].id);
     assert(
-      benAfterClear.ww_percentage === 50,
-      `the cleared slot leaves Ben's WW at 20/40 = 50.00 — not 60.00 (uncleared) and not 40.00 (counted as zero) (got ${benAfterClear.ww_percentage})`
+      benAfterClear.ww_percentage === null,
+      `clearing a score in a USED column makes Ben Pending again — not 50.00, not 40.00 (got ${benAfterClear.ww_percentage})`
+    );
+    assert(
+      benAfterClear.ww_total !== null,
+      `while his raw Total still shows what IS recorded (got ${benAfterClear.ww_total})`
     );
   } finally {
     await cleanup();

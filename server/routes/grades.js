@@ -337,15 +337,46 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
   // the transaction would just be trusting the same query twice.
   const weights = weightRows[0];
 
-  const [wwRows] = await conn.query("SELECT score, max_score FROM grade_components WHERE grade_id = ? AND type = 'WW'", [
-    gradeId,
-  ]);
-  const [ptRows] = await conn.query("SELECT score, max_score FROM grade_components WHERE grade_id = ? AND type = 'PT'", [
-    gradeId,
-  ]);
+  const [wwRows] = await conn.query(
+    "SELECT score, max_score, slot_id FROM grade_components WHERE grade_id = ? AND type = 'WW'",
+    [gradeId]
+  );
+  const [ptRows] = await conn.query(
+    "SELECT score, max_score, slot_id FROM grade_components WHERE grade_id = ? AND type = 'PT'",
+    [gradeId]
+  );
 
-  const wwPercentage = gc.componentPercentage(wwRows);
-  const ptPercentage = gc.componentPercentage(ptRows);
+  // THE CLASS'S USED COLUMNS. A slot with a highest possible score is an
+  // assessment the class sat, so a learner with no score in it is not yet
+  // computable — see componentPercentage's own note for why "left out" was
+  // wrong and what it silently did to a learner who missed a quiz.
+  //
+  // Read from the grade's own class (subject + grade level + section + term
+  // + year), which is why this lives here and not in the pure module: it is
+  // the one piece of the computation that needs a second table.
+  //
+  // A class with no slots at all — every legacy row, and every grade
+  // recorded before the class record existed — produces an empty list, and
+  // an empty list changes nothing. That is what keeps those rows computing
+  // exactly as they always did.
+  const [[classRow]] = await conn.query('SELECT grade_level, section FROM students WHERE id = ? LIMIT 1', [
+    grade.student_id,
+  ]);
+  let requiredWw = [];
+  let requiredPt = [];
+  if (classRow) {
+    const [usedSlots] = await conn.query(
+      `SELECT id, type FROM assessment_slots
+        WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ?
+          AND max_score IS NOT NULL`,
+      [grade.subject_id, classRow.grade_level, classRow.section, grade.term, grade.school_year]
+    );
+    requiredWw = usedSlots.filter((s) => s.type === 'WW').map((s) => s.id);
+    requiredPt = usedSlots.filter((s) => s.type === 'PT').map((s) => s.id);
+  }
+
+  const wwPercentage = gc.componentPercentage(wwRows, requiredWw);
+  const ptPercentage = gc.componentPercentage(ptRows, requiredPt);
   const st1Percentage = gc.subTestPercentage(grade.ex_st1, grade.ex_st1_max);
   const st2Percentage = gc.subTestPercentage(grade.ex_st2, grade.ex_st2_max);
   const tePercentage = gc.subTestPercentage(grade.ex_te, grade.ex_te_max);
@@ -1235,6 +1266,11 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     const existingSlots = await loadSlots(conn, key);
     const slotByKey = new Map(existingSlots.map((s) => [`${s.type}-${s.slot_no}`, s]));
     const touchedSlotIds = new Set();
+    // True when the set of USED columns changed in any way — a maximum set,
+    // changed or cleared. That is what decides whether the whole class is
+    // recomputed, because it is what can flip a learner into or out of
+    // Pending.
+    let slotSetChanged = false;
 
     for (const slot of slots) {
       const slotNo = Number(slot.slot_no);
@@ -1278,6 +1314,10 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
           await conn.query('UPDATE grade_components SET max_score = ? WHERE slot_id = ?', [nextMax, existing.id]);
           touchedSlotIds.add(existing.id);
         }
+        // Set, changed OR cleared — all three move a column in or out of the
+        // used set, and any of them can flip a learner into or out of
+        // Pending.
+        if (Number(existing.max_score ?? NaN) !== Number(nextMax ?? NaN)) slotSetChanged = true;
         slotByKey.set(`${slot.type}-${slotNo}`, { ...existing, name: named.value, max_score: nextMax });
       } else {
         const [result] = await conn.query(
@@ -1292,19 +1332,28 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
           name: named.value,
           max_score: nextMax,
         });
+        if (nextMax !== null) slotSetChanged = true;
       }
     }
 
     const slotById = new Map([...slotByKey.values()].map((s) => [s.id, s]));
 
     // ---- learners whose stored grade must be recomputed ----
+    //
+    // ANY CHANGE TO THE SLOT SET RECOMPUTES THE WHOLE CLASS, not only the
+    // learners who have a score in the slot that changed. Since 2026-09-22 a
+    // used slot with no score makes that learner's group Pending, so giving
+    // a column a highest possible score changes the grade of every learner
+    // who has NOT been marked in it — which is precisely the set that has no
+    // component row there and would never be found by looking for one.
+    // Clearing an unused slot's maximum is the same move in reverse.
     const affected = new Set();
-    if (touchedSlotIds.size) {
+    if (slotSetChanged) {
       const [rows] = await conn.query(
-        'SELECT DISTINCT grade_id FROM grade_components WHERE slot_id IN (?)',
-        [[...touchedSlotIds]]
+        'SELECT id FROM grades WHERE subject_id = ? AND term = ? AND school_year = ? AND student_id IN (?)',
+        [key.subjectId, key.term, key.schoolYear, students.length ? students.map((s) => s.id) : [0]]
       );
-      for (const row of rows) affected.add(row.grade_id);
+      for (const row of rows) affected.add(row.id);
     }
 
     // ---- the class-wide Summative maxima, fanned out ----

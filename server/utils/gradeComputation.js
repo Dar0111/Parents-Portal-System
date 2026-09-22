@@ -64,9 +64,40 @@ function roundToWhole(value) {
 // few as one row; returns null only when there are no rows at all, or
 // when every max_score sums to 0 (a percentage against zero possible
 // points is undefined, not zero).
-function componentPercentage(rows) {
+//
+// ---------------------------------------------------------------------------
+// `requiredSlotIds` — A MISSING SCORE IN A USED COLUMN IS INCOMPLETE, NOT
+// ABSENT (added 2026-09-22, and it corrects a real defect)
+// ---------------------------------------------------------------------------
+// An assessment slot whose highest possible score is set is one the class
+// SAT. A learner with no score in it has not been marked yet, so their group
+// is not computable — "— Pending" — exactly as it is when an exam part is
+// missing.
+//
+// Without this the missing score was simply left out of both the numerator
+// and the denominator, which quietly RAISES the grade of a learner who
+// skipped an assessment: 18 out of a used 20+10 showed as 90.00 rather than
+// waiting for the second mark. That is the opposite of what the rule says
+// and the opposite of what a teacher would expect from a class record.
+//
+// AN UNUSED SLOT IS STILL EXCLUDED, and the two cases must not be confused:
+// no highest possible score means the assessment never happened, so nobody
+// is missing anything. `requiredSlotIds` therefore carries only the USED
+// slots.
+//
+// Omitted entirely, behaviour is unchanged — which is what keeps legacy
+// rows, and every caller that does not know about slots, computing exactly
+// as before.
+function componentPercentage(rows, requiredSlotIds = null) {
   if (!Array.isArray(rows) || rows.length === 0) {
     return null;
+  }
+
+  if (Array.isArray(requiredSlotIds) && requiredSlotIds.length) {
+    const present = new Set(rows.map((row) => Number(row.slot_id)).filter((id) => Number.isFinite(id)));
+    for (const id of requiredSlotIds) {
+      if (!present.has(Number(id))) return null;
+    }
   }
 
   let totalScore = 0;

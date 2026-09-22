@@ -455,9 +455,19 @@ async function run() {
     // score/computed column NULL and never touched since — reused here as
     // the target for the full step-by-step worked example.
 
+    // One slot, created once and scored below. Every refusal test on this
+    // grade reuses it rather than making its own — see the note on the
+    // parent test.
+    const sharedWwSlot = await makeSlot(grade1Id, 'WW', 50);
+
     const parentComponent = await request('POST', `/api/grades/${grade1Id}/components`, {
       token: parentToken,
-      body: { type: 'WW', score: 1, max_score: 1, label: 'x', slot_id: await makeSlot(grade1Id, 'WW', 1) },
+      // REUSES the slot ww1 is about to score, rather than creating one of
+      // its own. Since 2026-09-22 a USED slot with no score makes the whole
+      // class Pending, so a refusal test that invents a column nobody ever
+      // marks would blank every arithmetic assertion below it — which is
+      // exactly what happened when this line made its own.
+      body: { type: 'WW', score: 1, max_score: 1, label: 'x', slot_id: sharedWwSlot },
     });
     assert(parentComponent.status === 403, 'Parent cannot add a grade component');
 
@@ -469,7 +479,7 @@ async function run() {
 
     const ww1 = await request('POST', `/api/grades/${grade1Id}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1', slot_id: await makeSlot(grade1Id, 'WW', 50) },
+      body: { type: 'WW', score: 45, max_score: 50, label: 'Quiz 1', slot_id: sharedWwSlot },
     });
     assert(
       ww1.status === 201 && num(ww1.data?.grade?.ww_percentage) === 90.0 && num(ww1.data?.grade?.initial_grade) === null,
@@ -1279,7 +1289,9 @@ async function run() {
         score: 10,
         max_score: 10,
         label: 'Parent should not',
-        slot_id: await makeSlot(grade1DescriptiveId, 'WW', 10),
+        // The slot g1Ww already scores — a refusal test must not invent a
+        // used column nobody marks (see the parent test on grade1Id).
+        slot_id: g1Ww.data.component.slot_id,
       },
     });
     assert(parentDescriptive.status === 403, 'Parent cannot encode a Grade 1 score');
@@ -1389,9 +1401,15 @@ async function run() {
     const deleteOneOfTwo = await request('DELETE', `/api/grades/${editDeleteGradeId}/components/${wwBId}`, {
       token: teacherToken,
     });
+    // DELETING A SCORE FROM A USED COLUMN MAKES THE GROUP PENDING, and this
+    // line used to expect 90.00 — "recomputes to the remaining one alone",
+    // which was the behaviour before 2026-09-22. The column is still one the
+    // class sat; removing this learner's mark means they are unmarked in it,
+    // which is not the same as the assessment not existing. Deleting a score
+    // and never typing it must read the same way.
     assert(
-      deleteOneOfTwo.status === 200 && num(deleteOneOfTwo.data?.grade?.ww_percentage) === 90.0,
-      `Deleting one of two WW components: ww_percentage recomputes to the remaining one alone, 90.00 = 45/50 (got ${deleteOneOfTwo.data?.grade?.ww_percentage})`
+      deleteOneOfTwo.status === 200 && deleteOneOfTwo.data?.grade?.ww_percentage === null,
+      `Deleting one of two WW components leaves that learner unmarked in a USED column, so ww_percentage is Pending (got ${deleteOneOfTwo.data?.grade?.ww_percentage})`
     );
 
     const deleteLastWw = await request('DELETE', `/api/grades/${editDeleteGradeId}/components/${wwAId}`, {
@@ -1458,7 +1476,7 @@ async function run() {
 
     const postOnLocked = await request('POST', `/api/grades/${editDeleteGradeId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 1, max_score: 1, label: 'Should be 403', slot_id: await makeSlot(editDeleteGradeId, 'WW', 1) },
+      body: { type: 'WW', score: 1, max_score: 1, label: 'Should be 403', slot_id: wwA.data.component.slot_id },
     });
     assert(postOnLocked.status === 403, 'POST /:id/components on a locked grade is 403');
 
@@ -1521,7 +1539,7 @@ async function run() {
 
     const componentOnLockedGrade1 = await request('POST', `/api/grades/${grade1DescriptiveId}/components`, {
       token: teacherToken,
-      body: { type: 'WW', score: 10, max_score: 10, label: 'Locked', slot_id: await makeSlot(grade1DescriptiveId, 'WW', 10) },
+      body: { type: 'WW', score: 10, max_score: 10, label: 'Locked', slot_id: g1Ww.data.component.slot_id },
     });
     assert(componentOnLockedGrade1.status === 403, 'A component write against a LOCKED Grade 1 row is 403');
 

@@ -720,15 +720,21 @@ async function main() {
       token: admin.token,
       body: {
         ...classKey,
+        // THE SLOTS LEARNER 1 ALREADY USES, not new ones. Since 2026-09-22
+        // a used column with no score makes that learner Pending, so
+        // inventing columns 9 here would leave learner 1 unmarked in them
+        // and learner 2 unmarked in learner 1's — and neither would ever
+        // become available, which is exactly what this block is testing.
+        // makeSlot numbered those 1; the upsert reuses them.
         slots: [
-          { type: 'WW', slot_no: 9, max_score: 100 },
-          { type: 'PT', slot_no: 9, max_score: 100 },
+          { type: 'WW', slot_no: 1, max_score: 100 },
+          { type: 'PT', slot_no: 1, max_score: 100 },
         ],
       },
     });
     requireFixture(slotRes.status === 200, 'two slots for the bulk save', why(slotRes));
-    const bulkWw = slotRes.data.slots.find((s) => s.type === 'WW' && s.slot_no === 9);
-    const bulkPt = slotRes.data.slots.find((s) => s.type === 'PT' && s.slot_no === 9);
+    const bulkWw = slotRes.data.slots.find((s) => s.type === 'WW' && s.slot_no === 1);
+    const bulkPt = slotRes.data.slots.find((s) => s.type === 'PT' && s.slot_no === 1);
     createdSlotIds.push(bulkWw.id, bulkPt.id);
 
     // ONE save touching BOTH learners. Learner 1 already has a letter, so

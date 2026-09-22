@@ -225,6 +225,54 @@ assert(descriptiveGradeMeaning('F') === null, "descriptiveGradeMeaning('F') is n
 assert(descriptiveGradeMeaning(null) === null, 'descriptiveGradeMeaning(null) is null');
 assert(descriptiveGradeMeaning('a') === null, "descriptiveGradeMeaning('a') is null — lowercase is not a valid key");
 
+// --- componentPercentage's required slots (2026-09-22) ---
+// A used assessment column with no score for this learner makes the group
+// not computable — Pending — rather than being left out of the average.
+// Leaving it out RAISES the grade of a learner who missed an assessment
+// above one who sat it and did averagely, which is what the class record
+// shipped with until a review caught it.
+console.log('\ncomponentPercentage with required slots:');
+
+const twoRows = [
+  { score: 18, max_score: 20, slot_id: 1 },
+  { score: 9, max_score: 10, slot_id: 2 },
+];
+const oneRow = [{ score: 18, max_score: 20, slot_id: 1 }];
+
+assert(componentPercentage(twoRows) === 90, 'no required list: 27/30 = 90.00, the old behaviour is untouched');
+assert(componentPercentage(twoRows, [1, 2]) === 90, 'every required slot present: still 90.00');
+assert(
+  componentPercentage(oneRow, [1, 2]) === null,
+  `a required slot with NO score makes the group null (got ${componentPercentage(oneRow, [1, 2])})`
+);
+// THE DEFECT, stated as an assertion: 18/20 = 90.00 is what the old code
+// returned for exactly this input, and it is higher than the learner who
+// sat both and scored the same on the first.
+assert(
+  componentPercentage(oneRow, [1, 2]) !== 90,
+  'and specifically NOT 90.00 — leaving the missing score out rewarded missing it'
+);
+assert(
+  componentPercentage(oneRow, [1]) === 90,
+  'a learner marked in every required slot computes normally, whatever else exists'
+);
+// An UNUSED slot never reaches this list, so it can never make anyone
+// pending — the two cases stay distinct.
+assert(componentPercentage(oneRow, []) === 90, 'an empty required list changes nothing');
+assert(componentPercentage(oneRow, null) === 90, 'and neither does omitting it');
+// A zero IS a mark. A learner recorded as scoring nothing is computable;
+// that is a different statement from not having been marked.
+assert(
+  componentPercentage([{ score: 0, max_score: 10, slot_id: 1 }], [1]) === 0,
+  'a score of 0 in a required slot computes to 0.00 — recorded, not missing'
+);
+// Legacy rows carry no slot_id. They still count toward the total and
+// create no requirement of their own.
+assert(
+  componentPercentage([{ score: 18, max_score: 20, slot_id: null }], []) === 90,
+  'a legacy row with no slot_id computes as it always did'
+);
+
 // --- bandForScore: the Grade 1 ladder (2026-09-22) ---
 // The school's rule (GRADING_SPEC §6a) bands a RAW weighted score straight
 // to a letter, with no transmutation on the way. This is the function the
