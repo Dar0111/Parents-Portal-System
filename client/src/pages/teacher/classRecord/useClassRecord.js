@@ -37,9 +37,56 @@ const RECORD_UNWRAP = [
   'grading_mode',
   'weights',
   'can_encode',
+  'exam_max',
+  'exam_max_mixed',
   'slots',
   'learners',
 ];
+
+// THE GRID IS A FIXED FRAME, not a list of whatever slots exist.
+// Written / Oral Works 1-5 and Performance Tasks 1-3 are always on screen,
+// which is what the school's E-Class Record looks like and what makes a
+// blank column an invitation to use it rather than a missing feature.
+//
+// A position the server has no row for is a PHANTOM: greyed, cells disabled,
+// "Set HPS" in place of the maximum — identical on screen to a slot that
+// exists with no maximum, because both mean the same thing. The row is
+// created only when its highest possible score is first set, so eight empty
+// rows per class per term are never written.
+export const WW_SLOTS = 5;
+export const PT_SLOTS = 3;
+
+// Slot drafts are keyed by TYPE AND NUMBER, never by id: a phantom has no id
+// yet, and keying on one would make the very first edit to an unused column
+// unrepresentable.
+export const slotKey = (type, slotNo) => `${type}-${slotNo}`;
+
+// The fixed frame, with the server's rows merged onto it.
+export function buildSlotFrame(serverSlots) {
+  const byKey = new Map((serverSlots || []).map((s) => [slotKey(s.type, s.slot_no), s]));
+  const frame = [];
+  for (const [type, count] of [
+    ['WW', WW_SLOTS],
+    ['PT', PT_SLOTS],
+  ]) {
+    for (let slotNo = 1; slotNo <= count; slotNo += 1) {
+      const existing = byKey.get(slotKey(type, slotNo));
+      frame.push(
+        existing || {
+          id: null,
+          type,
+          slot_no: slotNo,
+          name: null,
+          display_label: `${type === 'WW' ? 'Written Work' : 'Performance Task'} ${slotNo}`,
+          short_label: String(slotNo),
+          max_score: null,
+          in_use: false,
+        }
+      );
+    }
+  }
+  return frame;
+}
 
 const DEBOUNCE_MS = 400;
 
@@ -67,6 +114,7 @@ export default function useClassRecord(classKey) {
 
   const [draft, setDraft] = useState({});
   const [slotDraft, setSlotDraft] = useState({});
+  const [examMaxDraft, setExamMaxDraft] = useState({});
 
   const [preview, setPreview] = useState(null);
   const [previewing, setPreviewing] = useState(false);
@@ -106,6 +154,7 @@ export default function useClassRecord(classKey) {
       // A fresh read is a new truth: drafts and preview describe the old one.
       setDraft({});
       setSlotDraft({});
+      setExamMaxDraft({});
       setPreview(null);
       setPreviewError(null);
     } catch (err) {
@@ -129,17 +178,30 @@ export default function useClassRecord(classKey) {
   const buildPayload = useCallback(() => {
     if (!server) return null;
 
+    // Over the FIXED FRAME, not the server's rows, so an edit to a phantom
+    // column is representable — that edit is exactly what creates it.
     const slots = [];
-    for (const slot of server.slots) {
-      const d = slotDraft[slot.id];
+    for (const slot of buildSlotFrame(server.slots)) {
+      const d = slotDraft[slotKey(slot.type, slot.slot_no)];
       if (!d) continue;
-      const nextMax = d.max_score === '' ? null : Number(d.max_score);
+      const nextMax = d.max_score === undefined || d.max_score === '' ? null : Number(d.max_score);
       const nextName = d.name === undefined ? slot.name : d.name;
       const maxChanged = nextMax !== slot.max_score;
       const nameChanged = (nextName || null) !== (slot.name || null);
       if (maxChanged || nameChanged) {
         slots.push({ type: slot.type, slot_no: slot.slot_no, max_score: nextMax, name: nextName });
       }
+    }
+
+    // The class-wide Summative maxima. Only the parts that changed, so a
+    // save that touches one score does not rewrite every learner's maximum.
+    const examMax = {};
+    for (const part of ['st1', 'st2', 'te']) {
+      const raw = examMaxDraft[part];
+      if (raw === undefined) continue;
+      const next = raw === '' ? null : Number(raw);
+      if (next === null || !Number.isInteger(next) || next <= 0) continue;
+      if (next !== server.exam_max?.[part]) examMax[part] = next;
     }
 
     const byStudent = new Map();
@@ -174,9 +236,10 @@ export default function useClassRecord(classKey) {
       (e) => e.scores.length > 0 || Object.keys(e).some((k) => k !== 'student_id' && k !== 'scores')
     );
 
-    if (!slots.length && !entries.length) return null;
-    return { ...key, slots, entries };
-  }, [server, draft, slotDraft, key]);
+    const hasExamMax = Object.keys(examMax).length > 0;
+    if (!slots.length && !entries.length && !hasExamMax) return null;
+    return { ...key, slots, entries, ...(hasExamMax ? { exam_max: examMax } : {}) };
+  }, [server, draft, slotDraft, examMaxDraft, key]);
 
   // ---- the live preview ----
   const runPreview = useCallback(
@@ -242,6 +305,8 @@ export default function useClassRecord(classKey) {
     setDraft,
     slotDraft,
     setSlotDraft,
+    examMaxDraft,
+    setExamMaxDraft,
     preview,
     previewing,
     previewError,

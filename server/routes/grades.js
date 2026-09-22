@@ -781,7 +781,17 @@ async function loadSlots(conn, key) {
     type: slot.type,
     slot_no: slot.slot_no,
     name: slot.name,
+    // TWO LABELS, for two consumers with different surroundings.
+    //   display_label — the full text ("Written Work 3"). The parent
+    //     breakdown modal shows a single score with no column heading above
+    //     it, so it needs the whole name.
+    //   short_label — what the grid column shows. It sits under a group
+    //     header that already says "Written / Oral Works", so repeating the
+    //     category in every column heading wastes the width that made the
+    //     labels truncate in the first place. A NAMED slot keeps its name;
+    //     an unnamed one is just its number.
     display_label: slotDisplayLabel(slot.type, slot.slot_no, slot.name),
+    short_label: slot.name && slot.name.trim() ? slot.name.trim() : String(slot.slot_no),
     max_score: slot.max_score === null ? null : Number(slot.max_score),
     // An UNUSED slot is one with no highest possible score. Its cells are
     // disabled in the grid and it is left out of the computation entirely —
@@ -789,6 +799,50 @@ async function loadSlots(conn, key) {
     // for an assessment that never happened.
     in_use: slot.max_score !== null,
   }));
+}
+
+// TOTAL, PS and WS are the three columns the school's E-Class Record prints
+// per group, and ALL THREE COME FROM THE SERVER.
+//
+// PS (ww_percentage) and WS (ww_weighted) were already stored. TOTAL — the
+// raw sum of a learner's scores over the sum of the maxima they were marked
+// out of — was computed inside componentPercentage() and thrown away. It is
+// returned now rather than summed in the grid, and the reason is not
+// consistency for its own sake: a Total the client added up could disagree
+// with the PS beside it by a rounding step, and that is the single hardest
+// class of bug to explain to a teacher looking at two numbers that should
+// agree.
+//
+// An unused slot contributes nothing here either — a component row only
+// exists where a score does, so the sum is over what was actually recorded.
+function componentTotals(rows) {
+  let score = 0;
+  let max = 0;
+  for (const row of rows) {
+    score += Number(row.score);
+    max += Number(row.max_score);
+  }
+  return rows.length ? { total: gc.roundTo2(score), total_max: gc.roundTo2(max) } : { total: null, total_max: null };
+}
+
+// The Summative group's Total is the three sub-tests summed, not a
+// component query: ST1/ST2/TE live as columns on `grades` (a fixed
+// positional triple, see schema.sql), so this reads the row it already has.
+// All three must be present — a partial Summative has no meaningful total,
+// the same rule exPercentage() follows.
+function examTotals(grade) {
+  const parts = [
+    [grade.ex_st1, grade.ex_st1_max],
+    [grade.ex_st2, grade.ex_st2_max],
+    [grade.ex_te, grade.ex_te_max],
+  ];
+  if (parts.some(([s, m]) => s === null || s === undefined || m === null || m === undefined)) {
+    return { total: null, total_max: null };
+  }
+  return {
+    total: gc.roundTo2(parts.reduce((sum, [s]) => sum + Number(s), 0)),
+    total_max: gc.roundTo2(parts.reduce((sum, [, m]) => sum + Number(m), 0)),
+  };
 }
 
 // GET /api/grades/class-record — the whole grid in one request.
@@ -897,6 +951,10 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
         if (row.slot_id) scores[row.slot_id] = Number(row.score);
       }
 
+      const wwTotals = componentTotals(components.filter((c) => c.type === 'WW'));
+      const ptTotals = componentTotals(components.filter((c) => c.type === 'PT'));
+      const exTotals = grade ? examTotals(grade) : { total: null, total_max: null };
+
       return {
         student_id: student.id,
         name: `${student.last_name}, ${student.first_name}`,
@@ -919,10 +977,16 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
         // Every computed value comes from the SERVER, already worked out
         // and stored by recomputeGrade. The grid displays; it never
         // calculates a grade (CLAUDE.md: no client-side IG preview).
+        ww_total: wwTotals.total,
+        ww_total_max: wwTotals.total_max,
         ww_percentage: numOrNull(grade?.ww_percentage),
         ww_weighted: numOrNull(grade?.ww_weighted),
+        pt_total: ptTotals.total,
+        pt_total_max: ptTotals.total_max,
         pt_percentage: numOrNull(grade?.pt_percentage),
         pt_weighted: numOrNull(grade?.pt_weighted),
+        ex_total: exTotals.total,
+        ex_total_max: exTotals.total_max,
         ex_percentage: numOrNull(grade?.ex_percentage),
         ex_weighted: numOrNull(grade?.ex_weighted),
         initial_grade: numOrNull(grade?.initial_grade),
@@ -931,9 +995,39 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
       };
     });
 
+    // THE SUMMATIVE HIGHEST POSSIBLE SCORES, AS ONE CLASS-WIDE VALUE.
+    //
+    // They are stored per learner (ex_st1_max and friends are columns on
+    // `grades`, a fixed positional triple — see schema.sql), because that is
+    // what lets a raw score always be re-derived. But a Summative is one
+    // paper sat by the whole class, so the grid shows ONE maximum per part
+    // in its header and the save fans it out to every learner.
+    //
+    // Derived here rather than stored twice: the class value is whatever the
+    // learners agree on. `mixed` is true when they do not, which can only
+    // happen through rows written before the grid existed or a direct DB
+    // edit — the header then shows the most common value and the client says
+    // the class disagrees, rather than silently picking one and overwriting
+    // the rest on the next save.
+    const examMax = {};
+    const examMixed = {};
+    for (const part of ['st1', 'st2', 'te']) {
+      const seen = new Map();
+      for (const learner of learners) {
+        const value = learner[`ex_${part}_max`];
+        if (value === null) continue;
+        seen.set(value, (seen.get(value) || 0) + 1);
+      }
+      const ranked = [...seen.entries()].sort((a, b) => b[1] - a[1]);
+      examMax[part] = ranked.length ? ranked[0][0] : null;
+      examMixed[part] = ranked.length > 1;
+    }
+
     return res.json({
       success: true,
       subject: { id: subject.id, name: subject.name, grade_level: subject.grade_level },
+      exam_max: examMax,
+      exam_max_mixed: examMixed,
       grade_level: key.gradeLevel,
       section: key.section,
       term: key.term,
@@ -984,9 +1078,25 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
   const dryRun = req.body.dry_run === true;
   const slots = Array.isArray(req.body.slots) ? req.body.slots : [];
   const entries = Array.isArray(req.body.entries) ? req.body.entries : [];
+  // The Summative maxima, as ONE class-wide value applied to every active
+  // learner — see the GET's own note. Optional; omitted, nothing changes.
+  const examMaxIn = req.body.exam_max && typeof req.body.exam_max === 'object' ? req.body.exam_max : null;
 
-  if (!slots.length && !entries.length) {
+  if (!slots.length && !entries.length && !examMaxIn) {
     return res.status(400).json({ success: false, message: 'Nothing to save — send slots, entries, or both.' });
+  }
+
+  if (examMaxIn) {
+    for (const part of ['st1', 'st2', 'te']) {
+      const value = examMaxIn[part];
+      if (value === undefined || value === null) continue;
+      if (!isValidMax(value)) {
+        return res.status(400).json({ success: false, message: `${part}_max must be greater than 0.` });
+      }
+      if (!isWholeNumber(value)) {
+        return res.status(400).json({ success: false, message: wholeNumberMessage(`${part}_max`, value) });
+      }
+    }
   }
 
   // ---- shape and whole-number validation, before anything is loaded ----
@@ -1171,6 +1281,54 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       for (const row of rows) affected.add(row.grade_id);
     }
 
+    // ---- the class-wide Summative maxima, fanned out ----
+    //
+    // EVERY ACTIVE LEARNER, NOT JUST THE ONES IN `entries`, and that is the
+    // whole point of doing it here. A Summative is one paper sat by the
+    // class, so setting its maximum in the grid header has to reach the
+    // learner who has no score yet — otherwise the next teacher to type
+    // their mark hits "a score needs a max, and this learner has none
+    // stored yet", which is a confusing refusal for a value that was
+    // visibly set on screen. A shell row is created where there is none,
+    // the same way an entry does.
+    //
+    // A LOCKED learner is skipped rather than failing the save. Unlike a
+    // score, this is not a change to their grade: it is the class's paper
+    // being described, their own maximum is already whatever it was, and
+    // blocking a class-wide header edit on one finalised learner would make
+    // the header unusable at the end of a term. The locked-learner refusal
+    // below still applies to anything in `entries`.
+    if (examMaxIn) {
+      const columns = [];
+      const values = [];
+      for (const part of ['st1', 'st2', 'te']) {
+        if (examMaxIn[part] === undefined || examMaxIn[part] === null) continue;
+        columns.push(`ex_${part}_max = ?`);
+        values.push(examMaxIn[part]);
+      }
+
+      if (columns.length) {
+        for (const student of students) {
+          const [gradeRows] = await conn.query(
+            'SELECT id, is_locked FROM grades WHERE student_id = ? AND subject_id = ? AND term = ? AND school_year = ? LIMIT 1',
+            [student.id, key.subjectId, key.term, key.schoolYear]
+          );
+          let gradeId = gradeRows[0]?.id;
+          if (gradeRows[0]?.is_locked) continue;
+
+          if (!gradeId) {
+            const [created] = await conn.query(
+              'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?)',
+              [student.id, key.subjectId, key.term, key.schoolYear]
+            );
+            gradeId = created.insertId;
+          }
+          await conn.query(`UPDATE grades SET ${columns.join(', ')} WHERE id = ?`, [...values, gradeId]);
+          affected.add(gradeId);
+        }
+      }
+    }
+
     const lockedNames = [];
     for (const entry of entries) {
       const studentId = parseId(entry.student_id);
@@ -1324,13 +1482,33 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     const results = [];
     for (const gradeId of affected) {
       const updated = await recomputeGrade(conn, gradeId, preflight.mode, dryRun ? null : notified, req.user.id);
+
+      // The same three columns the GET returns, from the same two helpers.
+      // A dry run must produce values the grid can display exactly as it
+      // displays a saved one — a preview that omitted Total would leave a
+      // column blanking and refilling as the teacher types, which reads as
+      // a bug rather than as a preview.
+      const [rowComponents] = await conn.query(
+        'SELECT type, score, max_score FROM grade_components WHERE grade_id = ?',
+        [gradeId]
+      );
+      const wwTotals = componentTotals(rowComponents.filter((c) => c.type === 'WW'));
+      const ptTotals = componentTotals(rowComponents.filter((c) => c.type === 'PT'));
+      const exTotals = examTotals(updated);
+
       results.push({
         grade_id: updated.id,
         student_id: updated.student_id,
+        ww_total: wwTotals.total,
+        ww_total_max: wwTotals.total_max,
         ww_percentage: numOrNull(updated.ww_percentage),
         ww_weighted: numOrNull(updated.ww_weighted),
+        pt_total: ptTotals.total,
+        pt_total_max: ptTotals.total_max,
         pt_percentage: numOrNull(updated.pt_percentage),
         pt_weighted: numOrNull(updated.pt_weighted),
+        ex_total: exTotals.total,
+        ex_total_max: exTotals.total_max,
         ex_percentage: numOrNull(updated.ex_percentage),
         ex_weighted: numOrNull(updated.ex_weighted),
         initial_grade: numOrNull(updated.initial_grade),

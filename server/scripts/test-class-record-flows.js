@@ -372,6 +372,156 @@ async function main() {
     assert(drift.length === 0, `every component's max_score matches its slot's (found ${drift.length} that do not)`);
 
     // -----------------------------------------------------------------
+    console.log('\nTotal / PS / WS all come from the SERVER');
+    // -----------------------------------------------------------------
+    // The grid prints three columns per group, and none of them may be
+    // added up in the client: a Total the client summed could disagree with
+    // the PS beside it by a rounding step, which is the hardest kind of
+    // wrong number to explain to a teacher looking at two figures that
+    // should agree.
+    assert(
+      ana.ww_total === 27 && ana.ww_total_max === 30,
+      `Ana's WW Total is the raw sum: 18 + 9 = 27 out of 20 + 10 = 30 (got ${ana.ww_total}/${ana.ww_total_max})`
+    );
+    // THE RELATIONSHIP, not just the presence. Total / TotalMax x 100 must
+    // equal the PS the server already stored, to the same 2 decimals — if
+    // they ever diverge, one of the two is computed from something the
+    // other is not.
+    for (const learner of [ana, ben, cora]) {
+      for (const group of ['ww', 'pt', 'ex']) {
+        const total = learner[`${group}_total`];
+        const max = learner[`${group}_total_max`];
+        const ps = learner[`${group}_percentage`];
+        if (total === null || max === null) continue;
+        const derived = Math.round((total / max) * 100 * 100) / 100;
+        assert(
+          derived === ps,
+          `${learner.name} ${group.toUpperCase()}: Total/TotalMax x 100 equals the stored PS (${total}/${max} -> ${derived}, stored ${ps})`
+        );
+      }
+    }
+    assert(
+      cora.ww_total === 18 && cora.ww_total_max === 20,
+      `Cora's Total counts only the slot she HAS a score in: 18/20, not 18/30 (got ${cora.ww_total}/${cora.ww_total_max})`
+    );
+    assert(
+      ana.ex_total === 90 && ana.ex_total_max === 100,
+      `The Summative Total is the three parts summed: 27+27+36 = 90 out of 30+30+40 = 100 (got ${ana.ex_total}/${ana.ex_total_max})`
+    );
+    assert(
+      ana.ww_weighted !== null && ana.pt_weighted !== null,
+      'WS (the weighted score) is returned too — the third E-Class Record column'
+    );
+
+    // -----------------------------------------------------------------
+    console.log('\nslots carry BOTH labels');
+    // -----------------------------------------------------------------
+    const namedSlot = afterSave.data.slots.find((s) => s.id === ww1.id);
+    const plainSlot = afterSave.data.slots.find((s) => s.id === ww2.id);
+    assert(
+      namedSlot.display_label === 'Long quiz' && namedSlot.short_label === 'Long quiz',
+      `a NAMED slot is its name in both (got "${namedSlot.display_label}" / "${namedSlot.short_label}")`
+    );
+    // The grid column sits under a "Written / Oral Works" group header, so
+    // repeating the category in every column heading is what made the
+    // labels truncate. The parent modal has no such header and needs the
+    // full text.
+    assert(
+      plainSlot.display_label === 'Written Work 2' && plainSlot.short_label === '2',
+      `an UNNAMED slot is full text for the parent modal and just its number for the grid (got "${plainSlot.display_label}" / "${plainSlot.short_label}")`
+    );
+
+    // -----------------------------------------------------------------
+    console.log('\nexam_max — one class-wide value, reaching EVERY learner');
+    // -----------------------------------------------------------------
+    // A Summative is one paper sat by the whole class, so its maximum is set
+    // once in the grid header. The storage stays per learner (ex_st1_max is
+    // a column on `grades`), which means the save has to fan the value out —
+    // including to a learner who has no score yet and may not even have a
+    // grade row.
+    const freshStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `4${lrnSuffix}`,
+        first_name: 'Dex',
+        last_name: 'Gridfixture',
+        grade_level: 1,
+        section: 'Matipid',
+      },
+    });
+    requireFixture(freshStudent.status === 201, 'a fourth learner with NO grade row at all', why(freshStudent));
+    const freshId = freshStudent.data.student.id;
+    createdStudentIds.push(freshId);
+
+    const beforeFan = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const freshBefore = beforeFan.data.learners.find((l) => l.student_id === freshId);
+    assert(
+      freshBefore && freshBefore.grade_id === null && freshBefore.ex_st1_max === null,
+      'the new learner starts with no grade row and no Summative maximum'
+    );
+
+    const setExamMax = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, exam_max: { st1: 40, st2: 40, te: 60 } },
+    });
+    assert(setExamMax.status === 200, `exam_max alone is a valid save — no slots, no entries (${why(setExamMax)})`);
+
+    const afterFan = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    for (const row of afterFan.data.learners) {
+      if (row.grade_id) createdGradeIds.push(row.grade_id);
+    }
+    assert(
+      afterFan.data.learners.every((l) => l.ex_st1_max === 40 && l.ex_st2_max === 40 && l.ex_te_max === 60),
+      `EVERY learner now carries the class maximum (got ${JSON.stringify(afterFan.data.learners.map((l) => l.ex_st1_max))})`
+    );
+    const freshAfter = afterFan.data.learners.find((l) => l.student_id === freshId);
+    assert(
+      freshAfter.grade_id !== null,
+      'the learner who had NO grade row got one — otherwise their first score would be refused for having no maximum'
+    );
+    assert(
+      afterFan.data.exam_max.st1 === 40 && afterFan.data.exam_max.te === 60,
+      `the read returns it as ONE header value (got ${JSON.stringify(afterFan.data.exam_max)})`
+    );
+    assert(
+      afterFan.data.exam_max_mixed.st1 === false,
+      'and says the class agrees on it'
+    );
+
+    // A learner who disagrees can only come from a row written before the
+    // grid, or a direct edit. The header then shows the most common value
+    // and SAYS the class disagrees, rather than silently picking one and
+    // overwriting the rest on the next save.
+    await withDb((conn) =>
+      conn.query('UPDATE grades SET ex_st1_max = 99 WHERE student_id = ? AND subject_id = ?', [
+        learners[0].id,
+        classKey.subject_id,
+      ])
+    );
+    const mixedRead = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    assert(
+      mixedRead.data.exam_max_mixed.st1 === true,
+      'one learner out of step makes exam_max_mixed true for that part'
+    );
+    assert(
+      mixedRead.data.exam_max.st1 === 40,
+      `and the header still shows the value most of the class has (got ${mixedRead.data.exam_max.st1})`
+    );
+    await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, exam_max: { st1: 40 } },
+    });
+
+    const decimalExamMax = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, exam_max: { st1: 40.5 } },
+    });
+    assert(
+      decimalExamMax.status === 400 && /whole number/i.test(decimalExamMax.data?.message || ''),
+      `a decimal class maximum is refused like any other (${why(decimalExamMax)})`
+    );
+
+    // -----------------------------------------------------------------
     console.log('\nPUT /class-record — changing and clearing a highest possible score');
     // -----------------------------------------------------------------
     const raiseHps = await request('PUT', '/api/grades/class-record', {

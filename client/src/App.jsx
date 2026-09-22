@@ -26,7 +26,6 @@ import TeacherMemos from './pages/teacher/MemosPage';
 import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
-import TeacherGrades from './pages/teacher/GradesPage';
 import TeacherClassRecord from './pages/teacher/ClassRecordPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAttendance from './pages/parent/AttendancePage';
@@ -108,11 +107,17 @@ export default function App() {
             }
           >
             <Route index element={<TeacherDashboard />} />
-            <Route path="grades" element={<TeacherGrades />} />
-            {/* The encode screen. No nav item: it needs a subject, a section
-                and a term chosen first, so it is reached from Grades — the
-                same way a student detail is. */}
-            <Route path="class-record" element={<TeacherClassRecord />} />
+            {/* TEACHER → GRADES *IS* THE CLASS RECORD (2026-09-22). The
+                per-learner page it replaced is deleted, not hidden: two
+                grades screens for one role is the "second composer" problem,
+                and the grid shows the same term grades for the whole class
+                at once. The nav item is unchanged and still says Grades.
+                The per-learner cross-subject view returns as CR3's adviser
+                class summary. */}
+            <Route path="grades" element={<TeacherClassRecord />} />
+            {/* The path CR2 shipped for one dispatch. Kept as a redirect so
+                any link already written to it still lands somewhere. */}
+            <Route path="class-record" element={<Navigate to="/teacher/grades" replace />} />
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="attendance-records" element={<TeacherAttendanceRecords />} />
             <Route path="students" element={<TeacherStudents />} />

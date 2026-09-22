@@ -24,15 +24,22 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
 
   return (
     <>
-      <div className="flex w-[3.75rem] flex-col items-center gap-1">
+      <div className="flex w-[4.5rem] flex-col items-center gap-1">
+        {/* TWO LINES, NOT TRUNCATED. The first build cut "Written Work 3"
+            to "Written ..." because the column was 3.75rem and the label
+            carried the category. The group header above now says the
+            category, so this shows the NUMBER — or the slot's own name,
+            which is the reason to name one. `line-clamp-2` wraps a long
+            name over two lines instead of clipping it, and the full text
+            is in the title and the Modal. */}
         <button
           type="button"
           onClick={() => setOpen(true)}
           disabled={!canEncode}
-          className="w-full truncate rounded px-0.5 text-xs font-semibold text-fg-body underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent disabled:no-underline"
+          className="line-clamp-2 w-full rounded px-0.5 text-center text-xs font-semibold leading-tight text-fg-body underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent disabled:no-underline"
           title={`${slot.display_label} — rename or change its highest possible score`}
         >
-          {draft?.name !== undefined && draft.name ? draft.name : slot.display_label}
+          {draft?.name !== undefined && draft.name ? draft.name : slot.short_label}
         </button>
 
         {inUse ? (
@@ -41,7 +48,7 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
             inputMode="numeric"
             aria-label={`${slot.display_label} highest possible score`}
             title={`${slot.display_label} highest possible score`}
-            className="w-12 rounded-md border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted disabled:bg-surface-subtle"
+            className="w-14 rounded-md border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted disabled:bg-surface-subtle"
             value={maxValue}
             disabled={!canEncode}
             onChange={(e) => onDraft({ ...draft, max_score: e.target.value })}
