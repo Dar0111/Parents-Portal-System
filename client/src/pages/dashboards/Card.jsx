@@ -97,6 +97,20 @@ export default function Card({
 // The one number a card exists to show, plus its caption. Separate from Card
 // so a card can hold a list instead without inheriting type sizes meant for a
 // figure.
+//
+// IT DELIBERATELY DOES NOT FORMAT `value`, and that is the fix for the
+// precision defect rather than the cause of it (DV4, 2026-09-23).
+//
+// The bug: the parent dashboard passed `grades.general_average` straight in,
+// so a general average of 87.5 read "87.5" here against the report card's
+// "87.50" — the same number, two spellings, two screens. The tempting fix is
+// a formatter inside this component. It would be wrong: `Stat` also renders
+// "3 of 5", an unread COUNT, and "Pending", none of which may gain decimals.
+//
+// So the split is at the CALL SITE, exactly as the 2026-09-22 rounding fix
+// split GradeValue's `whole`: a caller with a grade-bearing value passes
+// <GradeValue …/> as the value and gets the one renderer the whole system
+// uses; a caller with a count passes the count. One component, one job.
 export function Stat({ value, caption, muted = false }) {
   return (
     <div>

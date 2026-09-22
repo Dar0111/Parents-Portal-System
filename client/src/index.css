@@ -300,13 +300,34 @@
   --success-solid: oklch(50.8% 0.118 165.612);    /* emerald-700 */
   --success-solid-hover: oklch(43.2% 0.095 166.913); /* emerald-800 */
 
-  --warning-soft: oklch(27.9% 0.077 45.635);      /* amber-950 */
-  --warning-soft-hover: oklch(41.4% 0.112 45.904); /* amber-900 */
-  --warning-edge: oklch(47.3% 0.137 46.201);      /* amber-800 */
-  --warning-edge-strong: oklch(55.5% 0.163 48.998); /* amber-700 */
-  --warning-fg: oklch(87.9% 0.169 91.605);        /* amber-300 */
-  --warning-strong: oklch(92.4% 0.12 95.746);     /* amber-200 */
-  --warning-icon: oklch(82.8% 0.189 84.429);      /* amber-400 */
+  /* DARK AMBER, RE-MIXED (DV4, 2026-09-23). The old values read RUST/BROWN,
+     not amber, and the cause was a HUE SHIFT rather than a lightness one:
+     light-mode warning-soft is hue ~95 (yellow-amber) while dark-mode
+     warning-soft was oklch(27.9% 0.077 45.635) = #461901 — hue 46, which is
+     orange-red. On the dashboard that undermined the one rule the colour
+     exists to carry (§12): amber means "there is something to do", and a
+     brown-red fill edges toward "something has failed".
+
+     Two of these are NOT palette colours and are recorded as hand-mixed, so
+     a later reader does not go looking for them in Tailwind: the surface and
+     its hover. The other three are. Light mode is UNTOUCHED — its pairs
+     cannot regress, and they were re-measured anyway.
+
+     Measured against the five pairs check-contrast.mjs asserts (dark
+     --surface is #0F172B): fg/soft 14.17:1, strong/soft 12.67:1,
+     strong/surface 14.32:1, strong/soft-hover 10.47:1, icon/surface
+     10.35:1. Text needs 4.5, UI 3.0.
+
+     warning-edge is NOT one of the asserted pairs — a card's edge is
+     decorative, not a control boundary — and at #854D0E on #2A2208 it is
+     2.30:1. Stated so nobody reads its absence as an oversight. */
+  --warning-soft: #2A2208;                        /* hand-mixed dark amber */
+  --warning-soft-hover: #3A3010;                  /* hand-mixed, one step up */
+  --warning-edge: #854D0E;                        /* yellow-800 */
+  --warning-edge-strong: #A16207;                 /* yellow-700 */
+  --warning-fg: #FEF3C7;                          /* amber-100 — body text */
+  --warning-strong: #FDE68A;                      /* amber-200 — title text */
+  --warning-icon: oklch(82.8% 0.189 84.429);      /* amber-400 — already true amber, unchanged */
 
   --danger-soft: oklch(27.1% 0.105 12.094);       /* rose-950 */
   --danger-edge: oklch(45.5% 0.188 13.697);       /* rose-800 */

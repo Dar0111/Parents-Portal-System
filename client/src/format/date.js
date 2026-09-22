@@ -159,3 +159,45 @@ export function weekdayName(dateStr) {
   if (!y || !m || !d) return '';
   return WEEKDAY_NAMES[new Date(y, m - 1, d).getDay()];
 }
+
+// Saturday or Sunday. Added for DV4's last-week attendance strip.
+//
+// THIS IS THE ONLY THING THE CLIENT CAN KNOW ABOUT A DAY WITH NO RECORD, and
+// the limit is worth stating where the helper lives: `attendance` holds only
+// days someone marked, and NOTHING in the schema holds a school calendar
+// (term dates and holidays are still the pre-Stage-5 CAL item). So a date with
+// no row is a weekend, a holiday, a suspension, or an adviser who has not
+// marked it yet — and only the first of those is derivable here.
+//
+// A weekend is therefore NOT "no school": POST /api/attendance/bulk has no
+// weekday validation, two fixtures have recorded a Saturday, and whether the
+// school holds weekend classes is an open question. A caller must render
+// "weekend" and "not recorded" as distinct states and must let a real weekend
+// record win over both.
+export function isWeekend(dateStr) {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if (!y || !m || !d) return false;
+  const day = new Date(y, m - 1, d).getDay();
+  return day === 0 || day === 6;
+}
+
+// The last `count` calendar days ending at `end` (inclusive), oldest first.
+//
+// Date ARITHMETIC, which is why it is here and not in a page: §5a-iv says a
+// page formats a date and never computes one. `new Date(y, m-1, d - i)` uses
+// the LOCAL constructor and lets the platform roll month and year boundaries,
+// so this is correct across 1 March and 1 January without a special case —
+// and it never parses a string, so nothing can shift a day.
+export function lastNDays(count, end = todayLocalDateString()) {
+  const [y, m, d] = String(end).split('-').map(Number);
+  if (!y || !m || !d) return [];
+  const out = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    const date = new Date(y, m - 1, d - i);
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    out.push(`${yy}-${mm}-${dd}`);
+  }
+  return out;
+}
