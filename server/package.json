@@ -32,6 +32,7 @@
     "test:notifications": "node scripts/test-notifications-flows.js",
     "test:dashboard": "node scripts/test-dashboard-flows.js",
     "test:class-record": "node scripts/test-class-record-flows.js",
+    "test:class-summary": "node scripts/test-class-summary-flows.js",
     "test:recovery": "node scripts/test-recovery-flows.js"
   },
   "dependencies": {

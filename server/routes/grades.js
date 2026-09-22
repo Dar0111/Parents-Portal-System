@@ -13,6 +13,7 @@ const {
 } = require('../utils/validateScore');
 const gc = require('../utils/gradeComputation');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { TEACHER_ADVISES_CLASS_SQL } = require('../utils/teacherScope');
 
 const router = express.Router();
 
@@ -134,23 +135,49 @@ async function teacherCanEncodeGrade(teacherId, subjectId, gradeLevel, section) 
   return rows.length > 0;
 }
 
-// Wide VIEW scope for grades — any teacher_assignments row matching
-// grade_level+section, regardless of subject. Matches the EXISTS pattern
-// students.js/content.js/excuse_letters.js already use for "is this
-// teacher associated with this student's class at all" — deliberately
-// broader than teacherCanEncodeGrade's subject-specific check above.
-// Grades' subject-specific WRITE scope was always the exception in this
+// Wide VIEW scope for grades — ASSIGNED to the class, OR its ADVISER.
+// Deliberately broader than teacherCanEncodeGrade's subject-specific check
+// above. Grades' subject-specific WRITE scope was always the exception in this
 // codebase, not the norm; this read-side check restores the norm. See
 // loadAuthorizedGrade's own comment below for the full G3 resolution.
+//
+// THE ADVISER LEG LANDED 2026-09-22 (CR3), AND ITS ABSENCE WAS A REAL HOLE.
+// Read scopes were widened to assigned-OR-adviser in students.js, excuses.js,
+// content.js and messages.js on 2026-09-06/07; grades was left out. CLAUDE.md
+// recorded "routes/grades.js is deliberately NOT widened", and that sentence
+// is about ENCODE authority — which has NOT changed and must not: encoding is
+// the subject teacher's, and widening it would invent school policy.
+//
+// What the omission actually did: TCH-002 advises Masigasig and holds zero
+// teacher_assignments rows, so the adviser of a section could not read a
+// single grade in it — not a report card, not the class record — while being
+// the one person the school expects to compile that section's Summary of
+// Grades. Every caller of this function answered 404 to them. Darryl's
+// decision, 2026-09-22.
+//
+// The adviser predicate is TEACHER_ADVISES_CLASS_SQL from utils/teacherScope.js
+// — the one place the adviser rule lives — NOT a copy written out here. Read
+// that file's note for why the class-keyed form exists alongside the
+// student-keyed one and why the two must move together.
 async function teacherCanViewGrade(teacherId, gradeLevel, section) {
   const [rows] = await pool.query(
-    `SELECT 1 FROM teacher_assignments
-     WHERE teacher_id = ? AND grade_level = ? AND section = ?
+    `SELECT 1 WHERE
+       EXISTS (
+         SELECT 1 FROM teacher_assignments ta
+         WHERE ta.teacher_id = ? AND ta.grade_level = ? AND ta.section = ?
+       )
+       OR ${TEACHER_ADVISES_CLASS_SQL}
      LIMIT 1`,
-    [teacherId, gradeLevel, section]
+    [teacherId, gradeLevel, section, gradeLevel, section, teacherId]
   );
   return rows.length > 0;
 }
+
+// NOTE for the class summary, which needs adviser-ONLY authority: it does not
+// call a helper here. It has already SELECTed the sections row to get the
+// adviser's name for the payload, so it compares that row's adviser_id
+// directly rather than asking the database the same question twice. The SQL
+// predicate above remains the one definition for set-based queries.
 
 // Loads an existing grade row by id and resolves BOTH scope tiers a
 // requester can have. THE G3 RESOLUTION of a provisional decision made in
@@ -1678,6 +1705,234 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     return res.status(500).json({ success: false, message: 'Failed to save the class record.' });
   } finally {
     if (conn) conn.release();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/grades/class-summary — the adviser's Summary of Grades (CR3)
+// ---------------------------------------------------------------------------
+// One learner per row, every subject across the row, the General Average at
+// the end. This is the sheet an adviser compiles from the subject teachers'
+// class records, and it is READ-ONLY on purpose: the adviser is not the
+// encoder. Encode authority is the subject teacher's (teacherCanEncodeGrade),
+// and nothing here writes.
+//
+// REGISTERED BEFORE `/:id`, like /class-record. Express matches in
+// registration order, so moving this below `GET /:id` would make
+// `class-summary` parse as an id, fail parseId() and answer 400. Do not
+// reorder the handlers in this file.
+//
+// SCOPE IS ADVISER-ONLY, and it answers in three ways rather than two:
+//   - the adviser of that section          -> 200
+//   - a teacher in VIEW scope but not the adviser -> 403 naming the reason
+//   - anyone else                          -> 404
+// The 403 is not a widening of §2's "reads out of scope return 404". It is
+// the same exception excuse-letter review and the five :id-keyed grades
+// writes already take: a broader GET (the class record, the report card)
+// ALREADY exposes this class to an assigned teacher, so a 404 here would be a
+// lie and the 403 leaks nothing they could not already read.
+//
+// NO PAGINATION, deliberately, and this is the one list endpoint in the API
+// without it. A Summary of Grades is a DOCUMENT — the adviser reads it against
+// a paper form, and page 2 of a class is not a thing that exists on that form.
+// A class is bounded by enrolment (~40), not by history, so the unbounded set
+// is small by construction. That is the difference from every other list here,
+// which grows without limit.
+router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async (req, res) => {
+  const gradeLevel = Number(req.query.grade_level);
+  const section = typeof req.query.section === 'string' ? req.query.section.trim() : '';
+  const termRaw = typeof req.query.term === 'string' ? req.query.term.trim().toLowerCase() : '';
+
+  if (!Number.isInteger(gradeLevel) || gradeLevel < 1 || gradeLevel > 6) {
+    return res.status(400).json({ success: false, message: 'grade_level must be a whole number from 1 to 6.' });
+  }
+  if (!section) {
+    return res.status(400).json({ success: false, message: 'section is required.' });
+  }
+  if (!['1', '2', '3', 'final'].includes(termRaw)) {
+    return res.status(400).json({ success: false, message: "term must be 1, 2, 3, or 'final'." });
+  }
+  const isFinal = termRaw === 'final';
+  const term = isFinal ? null : Number(termRaw);
+
+  let schoolYear = req.query.school_year;
+  if (schoolYear === undefined) {
+    const [settingRows] = await pool.query(
+      "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
+    );
+    schoolYear = settingRows[0]?.setting_value;
+    if (!schoolYear) {
+      return res.status(500).json({ success: false, message: 'academic_year is not configured in system settings.' });
+    }
+  } else if (!isValidSchoolYear(schoolYear)) {
+    return res.status(400).json({
+      success: false,
+      message: 'school_year must match YYYY-YYYY with consecutive years (e.g. 2026-2027).',
+    });
+  }
+
+  try {
+    const [sectionRows] = await pool.query(
+      'SELECT sec.id, sec.grade_level, sec.name, sec.adviser_id, u.name AS adviser_name FROM sections sec LEFT JOIN users u ON u.id = sec.adviser_id WHERE sec.grade_level = ? AND sec.name = ? LIMIT 1',
+      [gradeLevel, section]
+    );
+    const sectionRow = sectionRows[0];
+
+    if (req.user.role === 'teacher') {
+      const advises = sectionRow ? Number(sectionRow.adviser_id) === Number(req.user.id) : false;
+      if (!advises) {
+        // In view scope but not the adviser -> an informative 403. Outside it
+        // entirely -> 404, which is also what a nonexistent section gets, so
+        // probing cannot distinguish "no such class" from "not yours".
+        const canView = await teacherCanViewGrade(req.user.id, gradeLevel, section);
+        if (!canView || !sectionRow) {
+          return res.status(404).json({ success: false, message: 'Class summary not found.' });
+        }
+        return res.status(403).json({
+          success: false,
+          message: `Only the adviser of Grade ${gradeLevel} - ${section} can open the class summary.`,
+        });
+      }
+    } else if (!sectionRow) {
+      return res.status(404).json({ success: false, message: 'Class summary not found.' });
+    }
+
+    const [modeRows] = await pool.query(
+      'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
+      [gradeLevel, schoolYear]
+    );
+    if (!modeRows[0]) {
+      return res.status(409).json({
+        success: false,
+        message: `No grading_mode_configs row exists for Grade ${gradeLevel}, school year ${schoolYear}. An admin must configure the grading mode before a class summary can be generated.`,
+      });
+    }
+    const mode = modeRows[0].mode;
+
+    // The school's printed order (CR3a). These are the COLUMNS of the sheet,
+    // which is why alphabetical was not good enough here.
+    const [subjects] = await pool.query(
+      `SELECT id, name, display_order FROM subjects
+        WHERE grade_level = ?
+        ORDER BY display_order IS NULL, display_order, name`,
+      [gradeLevel]
+    );
+
+    const [learners] = await pool.query(
+      `SELECT id, first_name, last_name FROM students
+        WHERE grade_level = ? AND section = ? AND status = 'active'
+        ORDER BY last_name ASC, first_name ASC`,
+      [gradeLevel, section]
+    );
+
+    const learnerIds = learners.map((l) => l.id);
+    let gradeRows = [];
+    if (learnerIds.length) {
+      const [rows] = await pool.query(
+        'SELECT * FROM grades WHERE student_id IN (?) AND school_year = ?',
+        [learnerIds, schoolYear]
+      );
+      gradeRows = rows;
+    }
+
+    const byStudent = new Map();
+    for (const row of gradeRows) {
+      if (!byStudent.has(row.student_id)) byStudent.set(row.student_id, {});
+      const bySubject = byStudent.get(row.student_id);
+      if (!bySubject[row.subject_id]) bySubject[row.subject_id] = {};
+      bySubject[row.subject_id][row.term] = row;
+    }
+
+    // Per subject: how many of this class's learners have THIS term recorded.
+    // Counted, never concluded (§4) — the sheet says "N pending", never
+    // "behind". Kept as recorded/total so the client renders the fraction
+    // rather than a percentage nobody defined.
+    const completeness = subjects.map((s) => ({ subject_id: s.id, recorded: 0, total: learners.length }));
+    const completenessBySubject = new Map(completeness.map((c) => [c.subject_id, c]));
+
+    const learnerRows = learners.map((learner) => {
+      const bySubject = byStudent.get(learner.id) || {};
+
+      // Built exactly as the report card builds it, through the same helpers,
+      // so a learner's figure here and on their own card cannot disagree.
+      const subjectReport = subjects.map((subject) => {
+        const byTerm = bySubject[subject.id] || {};
+        const terms = {
+          1: buildTermEntry(byTerm[1], mode),
+          2: buildTermEntry(byTerm[2], mode),
+          3: buildTermEntry(byTerm[3], mode),
+        };
+        const { final_grade, final_grade_descriptor } =
+          mode === 'descriptive' ? computeFinalLetter(terms, mode) : computeFinalGrade(terms, mode);
+        return { subject_id: subject.id, subject_name: subject.name, terms, final_grade, final_grade_descriptor };
+      });
+
+      const cells = subjectReport.map((s) => {
+        const entry = isFinal ? null : s.terms[term];
+        const value = isFinal
+          ? s.final_grade
+          : mode === 'descriptive'
+            ? (entry?.descriptive_grade ?? null)
+            : (entry?.term_grade ?? null);
+        const gradeId = isFinal ? null : (entry?.grade_id ?? null);
+        const isLocked = isFinal ? null : (entry?.is_locked ?? null);
+        if (value !== null && value !== undefined) {
+          const c = completenessBySubject.get(s.subject_id);
+          if (c) c.recorded += 1;
+        }
+        return {
+          subject_id: s.subject_id,
+          grade_id: gradeId,
+          // A learner with no grade row is null — NEVER 0. Zero is a mark a
+          // teacher gave; blank is a mark a teacher has not given yet.
+          value: value ?? null,
+          is_locked: isLocked,
+        };
+      });
+
+      // Key Stage 1 has no General Average at all (GRADING_SPEC §6a) — the key
+      // is ABSENT, not null, so a client cannot render "— Pending" for a
+      // figure the school never computes.
+      let generalAverage;
+      if (mode !== 'descriptive') {
+        generalAverage = isFinal
+          ? computeGeneralAverage(subjectReport, mode).general_average
+          : computeTermAverages(subjectReport, mode)[term];
+      }
+
+      const row = {
+        student_id: learner.id,
+        first_name: learner.first_name,
+        last_name: learner.last_name,
+        cells,
+      };
+      if (mode !== 'descriptive') row.general_average = generalAverage ?? null;
+      return row;
+    });
+
+    return res.json({
+      success: true,
+      section: {
+        grade_level: gradeLevel,
+        name: section,
+        adviser_id: sectionRow?.adviser_id ?? null,
+        adviser_name: sectionRow?.adviser_name ?? null,
+      },
+      school_year: schoolYear,
+      term: isFinal ? 'final' : term,
+      grading_mode: mode,
+      // TWO FLAGS, not one (§5a-v). A descriptive card has a Final LETTER and
+      // no general average at all, so the single boolean they would otherwise
+      // share puts a GA column on a Key Stage 1 sheet.
+      show_final: isFinal,
+      show_general_average: mode !== 'descriptive',
+      subjects: subjects.map((s) => ({ id: s.id, name: s.name, display_order: s.display_order })),
+      learners: learnerRows,
+      completeness,
+    });
+  } catch (error) {
+    console.error('Get class summary error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load the class summary.' });
   }
 });
 

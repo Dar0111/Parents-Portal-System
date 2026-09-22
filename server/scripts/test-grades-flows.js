@@ -1714,6 +1714,54 @@ async function run() {
     const adminReportCardJea = await request('GET', `/api/grades/student/${jeaId}`, { token: adminToken });
     assert(adminReportCardJea.status === 200, "Admin sees any student's report card, unscoped");
 
+    // -----------------------------------------------------------------------
+    // THE ADVISER LEG OF THE READ SCOPE (CR3, 2026-09-22)
+    // -----------------------------------------------------------------------
+    // TCH-002 advises Grade 5 - Masigasig and holds ZERO teacher_assignments
+    // rows — Jea's section. Until CR3 `teacherCanViewGrade` was
+    // assignments-only, so this account got 404 on every grade in the section
+    // it advises. The pair below is the contract: READ widened, ENCODE did
+    // NOT. If a later dispatch widens encoding to advisers, the second
+    // assertion is what fails, and it should.
+    const adviserLogin = await request('POST', '/api/auth/login', {
+      body: { login_id: 'TCH-002', password: 'Teacher@2026' },
+    });
+    assert(adviserLogin.status === 200, 'TCH-002 (adviser, zero assignments) logs in');
+    const adviserToken = adviserLogin.data?.token;
+
+    const adviserReadsCard = await request('GET', `/api/grades/student/${jeaId}`, { token: adviserToken });
+    assert(
+      adviserReadsCard.status === 200,
+      "An ADVISER with no assignments now READS their section's report card (was 404 before CR3)",
+      why(adviserReadsCard)
+    );
+
+    const adviserReadsList = await request('GET', `/api/grades?student_id=${jeaId}`, { token: adviserToken });
+    assert(
+      adviserReadsList.status === 200,
+      'and the grades list for that learner, through the same widened predicate',
+      why(adviserReadsList)
+    );
+
+    const adviserTriesToEncode = await request('POST', '/api/grades', {
+      token: adviserToken,
+      body: {
+        student_id: jeaId,
+        subject_id: await resolveSubjectId('Mathematics', 5),
+        term: 1,
+        school_year: schoolYear,
+      },
+    });
+    assert(
+      adviserTriesToEncode.status === 403,
+      'but STILL CANNOT ENCODE — encode scope is the subject teacher, and advising is not teaching the subject',
+      why(adviserTriesToEncode)
+    );
+    assert(
+      adviserTriesToEncode.status !== 201 && adviserTriesToEncode.data?.success !== true,
+      'and no grade row was created by that attempt'
+    );
+
     const invalidStudentIdGet = await request('GET', '/api/grades/student/abc', { token: adminToken });
     assert(invalidStudentIdGet.status === 400, 'GET /student/:studentId with a non-numeric id returns 400');
 

@@ -63,4 +63,49 @@ function teacherViewScopeParams(teacherId) {
   return [teacherId, teacherId];
 }
 
-module.exports = { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams };
+// ---------------------------------------------------------------------------
+// THE SAME ADVISER RULE, FOR CALLERS THAT HOLD A CLASS KEY INSTEAD OF A
+// STUDENT ROW (CR3, 2026-09-22)
+// ---------------------------------------------------------------------------
+// This is the adviser leg above, keyed on (grade_level, section) rather than
+// on s.section_id. It exists because the fragment above CANNOT reach
+// routes/grades.js, and the reason is exactly the one the extraction history
+// records: shape decides reuse, not subject matter.
+//
+// Every grades caller passes a CLASS — teacherCanViewGrade(teacherId,
+// gradeLevel, section) — and two of them (the class record's GET and PUT) have
+// no student in hand at all. Rewriting them to go through `students` was tried
+// on paper and rejected: it would make "can this teacher see this class?"
+// return false for an EMPTY class, so a teacher with a real
+// teacher_assignments row could not open a section before its learners were
+// enrolled. That is a regression, and a silent one.
+//
+// THE TWO MUST BE CHANGED TOGETHER, and they are in one file so that is one
+// edit rather than a hunt. They agree by construction on real data:
+// POST /api/students resolves section_id from (grade_level, section) and never
+// inserts NULL, so a student's section_id row always carries the same
+// grade_level + name the VARCHARs hold. The divergence they are allowed is the
+// empty-class case above, where there is no student to key on at all.
+//
+// `sections.name` is the section VARCHAR — the same match routes/content.js
+// makes (grade_level + name), which is NOT a section_id read. This keeps the
+// count of `section_id` READERS at four, per CLAUDE.md's sections-table rule.
+//
+// Takes THREE bound params, in order: grade_level, section, teacher id. Unlike
+// teacherViewScopeParams() these are NOT interchangeable, so there is no
+// helper — a swap here is a type error at the database, not a silent no-op.
+//
+//   `... WHERE ${TEACHER_ADVISES_CLASS_SQL} LIMIT 1`, [gradeLevel, section, teacherId]
+//
+// DO NOT reuse this as a WRITE gate either. Grade ENCODE authority is the
+// subject teacher's (teacher_assignments on all four columns) and widening it
+// to advisers would invent school policy — see CLAUDE.md, BLOCKED / RESOLVED →
+// Grades module.
+const TEACHER_ADVISES_CLASS_SQL = `(
+      EXISTS (
+        SELECT 1 FROM sections sec
+        WHERE sec.grade_level = ? AND sec.name = ? AND sec.adviser_id = ?
+      )
+    )`;
+
+module.exports = { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams, TEACHER_ADVISES_CLASS_SQL };
