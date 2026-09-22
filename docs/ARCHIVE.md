@@ -3726,4 +3726,147 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 | 2026-09-19 | Notifications N1 (server) + N2 (client): the 21st table via the repo’s first migration script, 4 endpoints, 7 fan-out hooks, `notification_counts`; the header bell, sidebar badges, LiveStatus ungated again. oxlint 42 → 44. |
 | 2026-09-19 | Notifications N3 (docs only): the four endpoints, the two socket events and the text table in `docs/API_REFERENCE.md`; CLAUDE.md gains §10, the migration template pointer and the tree lines; tables 20 → 21, handlers 76 → 80, oxlint 42 → 44; six stale present-tense claims fixed, including §5g/§6, where `LiveStatus` is ungated for every role again; new §10 in `docs/FRONTEND_CONVENTIONS.md`, a restore-rewinds-read-state paragraph in `docs/RESTORE.md`, three dated KNOWN_ISSUES rows, and Notifications marked done in the progress mirror. |
 
+---
+
+## BLOCKED / RESOLVED → Attendance, the two subsections as they stood in CLAUDE.md until 2026-09-22
+
+> Moved out under the REFILL RULE — a closed BLOCKED / RESOLVED item leaves
+> CLAUDE.md permanently, in the dispatch that closes it. Both questions were
+> answered and built long before the move; CLAUDE.md keeps the rules and a
+> pointer here.
+>
+> **One sentence below is STALE and is preserved only because this is a
+> record of what the file said.** The second subsection describes Parent →
+> Attendance as showing "Present on recorded days" as a percentage, one
+> decimal, half-up. **DV2 deleted that percentage on 2026-09-20** — the page
+> shows the fraction, `presentOnRecordedDays` was deleted rather than
+> exported, and §12 says the dashboard card shows the fraction only. The
+> school's underlying rule (Late counts as present, Excused as absent) is
+> unchanged and is still live.
+
+### Attendance is per day, not per subject — RESOLVED and DONE (Stage B1)
+
+The school's SF9 performance report records attendance **monthly**, as
+Class Days / Days Present / Days Absent — one figure per learner per
+month, not per subject. The adviser records it once daily, during
+Homeroom Guidance; subject teachers do not record it at all. **The
+`attendance` table has been rebuilt to match** — `subject_id` (and its FK
+and index) is gone, `UNIQUE KEY uq_attendance` is now `(student_id, date)`,
+dropped outright rather than made nullable, since the table held 0 rows —
+a clean rebuild, not a data migration. Scoping in `routes/attendance.js`
+now runs through `sections.adviser_id`, not `teacher_assignments` — see
+CURRENT STATE's "sections table" note for the read-side detail, and the
+2026-09-04 CHANGELOG entry for the full endpoint-by-endpoint change.
+
+Separately, but from the same answer: **attendance does not feed grade
+computation.** It appears on the report card as its own section, entirely
+apart from the grades section. Any future grade-calculation logic must
+not read from `attendance` — the two are siblings on the report card, not
+inputs to each other. This part is documentation only — there's no grade
+computation built yet for it to wrongly feed into.
+
+This was always a different question from the one below (how a
+*percentage* is computed for the parent-facing attendance page) —
+converting the table to per-day did not answer that one, and still
+hasn't.
+
+### Attendance rate formula — RESOLVED 2026-09-13 (principal, in conversation) and BUILT
+
+Not a Stage 3 blocker — `routes/attendance.js` stays counts-only by design
+(see CHANGELOG, 2026-08-27); **the rate is a client computation over numbers
+the server already returns.** The principal answered on 2026-09-13: **Late
+counts as present; Excused counts as absent.** Parent → Attendance
+(`/parent/attendance`) now shows **"Present on recorded days"** =
+`(Present + Late) / total`, one decimal, half-up, beside the exact fraction.
+`summary.total` is every recorded status row, so an excused day lowers the
+percentage. **It is recorded days, not SF9 Class Days** — unmarked school
+days are not in the table — which is why the label is not "attendance rate"
+(§5i). Not rendered when `total` is 0. No verdict: no colour, badge,
+threshold, or comparison to DO 015 para 71's ~12-absence intervention point
+(§4). **DO 015 s. 2026 prescribes no attendance rate formula and no
+attendance grade component** (para 71 is its only attendance rule;
+Table 9's components are WW / PT / EX), so this is a school decision, not
+a compliance question — never attribute the rule to DepEd in parent-facing
+copy. Teacher attendance history is `/teacher/attendance-records`
+(2026-09-12), not this parent page.
+
+---
+
+## ADMIN SCOPE AUDIT → the 2026-09-18 SCOPE DECISION, as it stood in CLAUDE.md until 2026-09-22
+
+> The 2026-09-13 finding and its nav-item table are already above, under
+> "ADMIN SCOPE AUDIT → nav vs. DFD, and the SCOPE DECISION" (verbatim as of
+> 2026-09-18). **That copy still contains the line this decision supersedes**
+> — "they stay `built: false` in `nav.js` exactly as they are" — because an
+> archived record is not back-edited. The superseding text is below.
+> CLAUDE.md keeps the decision's rules and a pointer here.
+
+### SCOPE DECISION — admin nav trimmed to what exists (Darryl, 2026-09-18)
+
+**Supersedes one line of the 2026-09-13 decision above** — "they stay
+`built: false` in `nav.js` exactly as they are — do not remove them in a build
+dispatch." Which admin screens get built is unchanged; what the sidebar shows
+for the ones ruled out is what changes. The 2026-09-13 entry is not edited.
+
+- **The five admin nav entries with no page are removed, not dimmed:**
+  Sections, Excuse Letters, Memos, Events, Messages. A permanently dimmed row
+  is not "not yet" — it advertises a page that was decided against, and
+  `built: false` is defined as *unwritten*, not *refused* (§6). Memos is in
+  the list because Admin → Announcements is the only place a memo can ever be
+  written, and that page's own copy already says memos have no page of their
+  own.
+- **This reverses no build decision.** Nothing becomes buildable, no route
+  appears or disappears, and no handler moves — the API still authorizes admin
+  on excuse letters, messages and attendance writes.
+- **Grade lock AND unlock are admin only.** Recorded as a decision, and it was
+  **already true in code** before this dispatch: `PATCH /api/grades/:id/lock`
+  (`routes/grades.js:1286`) is `authorize('admin')` and is the only route
+  reaching the server's sole `UPDATE grades SET is_locked` (`:1334`). There is
+  no separate unlock path — direction is the request's `is_locked` boolean —
+  and Admin → Grades already renders both labels from one toggle. Nothing was
+  widened or narrowed to satisfy this; it is written down so a later dispatch
+  does not add a teacher-side lock as a convenience.
+- **Defence answer unchanged** for Sections, Excuse Letters, Events and
+  Messages: no Figure 5 process. Memos is covered by 1.18 on Admin →
+  Announcements.
+
+---
+
+## STAGE 4 FRONTEND CONVENTIONS §11 and §12 — the reasoning clauses, as they stood in CLAUDE.md until 2026-09-22
+
+> **The RULES did not move — they are still in CLAUDE.md, and they are still
+> live.** `docs/FRONTEND_CONVENTIONS.md` stops at §10 and has no §11 or §12,
+> so CLAUDE.md remains the only present-tense home for both sections. Only
+> the reasoning sentences already recorded in `docs/API_REFERENCE.md` →
+> Auth / Dashboard are below, kept verbatim so the argument is not lost.
+
+**§11, rule 1 — the two timing mitigations.** "Two timing mitigations hold
+the line the message draws: a miss burns a bcrypt, and the response goes out
+before the SMTP call." (`docs/API_REFERENCE.md` → Auth carries both.)
+
+**§11, rule 2 — why the timestamp failed.** "…because `iat` has one-second
+resolution and a scripted flow fits inside one second."
+
+**§11, rule 3 — why the order matters.** "…in that order, because the
+interceptor reads storage per request."
+
+**§11, rule 4 — the two exclusions spelled out.** "The server refuses every
+other route with `code: 'MUST_CHANGE_PASSWORD'`, and that is a backstop for
+direct API callers: §2 says a 403 never redirects, and the client already has
+`user.must_change_password` from `/auth/me`. `/change-password` sits outside
+`Shell` (a nav of pages the server will refuse is an interface that lies) and
+outside `ProtectedRoute` (which is what redirects there)."
+
+**§11, the office rule — where it was checked.** "All three email branches on
+Settings → Account information…" (§5i, browser check 2026-09-19).
+
+**§12, rule 4 — what A1 returns.** "…the latest term, 'N of M subjects
+recorded', and an average returned ONLY when the term is complete."
+(`docs/API_REFERENCE.md` → Dashboard, line 867.)
+
+**§12, rule 6 — the worked failure.** "`GET /api/events` defaults to DESC for
+the Events page, so a `limit=3` card without this returns the three
+FURTHEST-AWAY events, backwards." (`docs/API_REFERENCE.md` → Dashboard, line
+888.)
+
 

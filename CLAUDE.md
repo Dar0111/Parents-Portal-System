@@ -766,43 +766,38 @@ audiences and the accessibility contract are in
 
 ### 11. Account recovery — what may be said, and what revokes a session
 
-**Frozen 2026-09-19 (R1 server, R2 client).** Four rules; the endpoint
-detail is `docs/API_REFERENCE.md` → Auth, and the dump exclusion is in
-`docs/RESTORE.md`.
+**Frozen 2026-09-19 (R1 server, R2 client).** Four rules. **This file is the
+only present-tense home for §11 and §12 — `docs/FRONTEND_CONVENTIONS.md`
+stops at §10.** The reasoning and the endpoint detail are
+`docs/API_REFERENCE.md` → Auth (the trimmed clauses are verbatim in
+`docs/ARCHIVE.md`); the dump exclusion is in `docs/RESTORE.md`.
 
-- **`POST /api/auth/forgot-password` answers the same sentence, always.**
-  Verified account, unverified, inactive, unknown `login_id`, rate-limited,
-  internal failure — one `202` and one message. A parent's `login_id` IS
-  their child's LRN (§5c), so anything else is an LRN oracle. The client
-  advances its step on that reply and **must not branch on whether a code
-  was really sent**. Two timing mitigations hold the line the message draws:
-  a miss burns a bcrypt, and the response goes out before the SMTP call. The
+- **`POST /api/auth/forgot-password` answers the same sentence, always** —
+  verified, unverified, inactive, unknown `login_id`, rate-limited, internal
+  failure: one `202`, one message. A parent's `login_id` IS their child's LRN
+  (§5c), so anything else is an LRN oracle. **The client advances its step on
+  that reply and must not branch on whether a code was really sent.** The
   reset endpoint has **one** failure message for every cause and **no count
   of tries remaining** — that is the same oracle, slower.
 - **`users.token_version` is the revocation mechanism, not a timestamp.**
   Bumped by a password change, a reset and an admin temporary password; the
   token carries it as `v` and `middleware/auth.js` compares for equality.
   **`password_changed_at` is audit only** — two attempts to revoke on it
-  failed, because `iat` has one-second resolution and a scripted flow fits
-  inside one second. Do not reintroduce it as the check.
+  failed. Do not reintroduce it as the check.
 - **A write that revokes must hand back a replacement, and the client must
   store it.** `PUT /auth/change-password` returns `token`;
   `AuthContext.applyToken()` stores it and re-reads `/auth/me`, in that
-  order, because the interceptor reads storage per request. A caller that
-  drops it signs its own user out on the success path.
-- **The forced change is routed on the FIELD, never on the 403.** The server
-  refuses every other route with `code: 'MUST_CHANGE_PASSWORD'`, and that is
-  a backstop for direct API callers: §2 says a 403 never redirects, and the
-  client already has `user.must_change_password` from `/auth/me`.
-  `/change-password` sits outside `Shell` (a nav of pages the server will
-  refuse is an interface that lies) and outside `ProtectedRoute` (which is
-  what redirects there).
+  order. A caller that drops it signs its own user out on the success path.
+- **The forced change is routed on the FIELD, never on the 403.**
+  `code: 'MUST_CHANGE_PASSWORD'` is a backstop for direct API callers; §2
+  says a 403 never redirects, and the client already has
+  `user.must_change_password` from `/auth/me`. `/change-password` sits
+  outside `Shell` and outside `ProtectedRoute`.
 
-**A screen may not tell someone to ask an office they ARE.** All three email
-branches on Settings → Account information name Admin → Users for an admin
-and the school office for everyone else; an admin's own way back in is
-*another* admin, because the temporary-password endpoint is admin-only and
-refuses your own id (§5i, browser check 2026-09-19).
+**A screen may not tell someone to ask an office they ARE.** Settings →
+Account information names Admin → Users for an admin and the school office
+for everyone else; an admin's own way back in is *another* admin, because the
+temporary-password endpoint is admin-only and refuses your own id (§5i).
 
 ### 12. Dashboards — seven rules, and one of them is structural
 
@@ -826,19 +821,17 @@ refuses your own id (§5i, browser check 2026-09-19).
   belong to Parent → Attendance; a copy here would be a second
   implementation of a number the two screens must agree on.
 - **The parent grades summary is computed server-side** (amendment A1) with
-  the same `roundTo2` the report card imports — the latest term, "N of M
-  subjects recorded", and an average returned ONLY when the term is
-  complete. Do not recompute any of it in the client, and do not show a
-  partial average.
+  the same `roundTo2` the report card imports. Do not recompute any of it in
+  the client, and do not show a partial average.
 - **The teacher banner is one row per advisory section**, hidden on Saturday
   and Sunday, and not rendered at all for a teacher who advises nothing.
   Green requires FULL coverage; anything partial is amber "N of M recorded",
   because the encode screen omits unset rows rather than defaulting them.
   Dates come from `todayLocalDateString()`, never `toISOString()`.
 - **An "upcoming" list asks for `sort=event_date&order=asc` explicitly.**
-  `GET /api/events` defaults to DESC for the Events page, so a `limit=3`
-  card without this returns the three FURTHEST-AWAY events, backwards. The
-  endpoint default is not changing; the caller asks for what it needs.
+  `GET /api/events` defaults to DESC, so a `limit=3` card without this
+  returns the three FURTHEST-AWAY events, backwards. The endpoint default is
+  not changing; the caller asks for what it needs.
 - **A card never links to an action the app cannot perform** (§5i). The
   hazard card shipped with "Create a second admin →" pointing at Admin →
   Users, which cannot do it — `POST /api/users/teachers` hardcodes role
@@ -1127,51 +1120,27 @@ reasoning above for why a status-conditional required field was rejected
 at the API layer. Flagging here so it isn't lost before Stage 4 web pages
 are built.
 
-### Attendance is per day, not per subject — RESOLVED and DONE (Stage B1)
+### Attendance — both questions RESOLVED and BUILT; moved out 2026-09-22
 
-The school's SF9 performance report records attendance **monthly**, as
-Class Days / Days Present / Days Absent — one figure per learner per
-month, not per subject. The adviser records it once daily, during
-Homeroom Guidance; subject teachers do not record it at all. **The
-`attendance` table has been rebuilt to match** — `subject_id` (and its FK
-and index) is gone, `UNIQUE KEY uq_attendance` is now `(student_id, date)`,
-dropped outright rather than made nullable, since the table held 0 rows —
-a clean rebuild, not a data migration. Scoping in `routes/attendance.js`
-now runs through `sections.adviser_id`, not `teacher_assignments` — see
-CURRENT STATE's "sections table" note for the read-side detail, and the
-2026-09-04 CHANGELOG entry for the full endpoint-by-endpoint change.
+**Per day, not per subject** (Stage B1, 2026-09-04) and **the rate formula**
+(the principal, 2026-09-13) are closed, so under the REFILL RULE both
+narratives left this file permanently — verbatim in `docs/ARCHIVE.md` →
+BLOCKED / RESOLVED → Attendance. Every rule they carried is stated in its own
+one place and is deliberately not repeated here: attendance scoping runs
+through `sections.adviser_id` (CURRENT STATE → sections table); **attendance
+does not feed grade computation** (`docs/GRADING_SPEC.md` → Resolved by the
+school visit); and Late counts as present, Excused as absent is the answered
+OPEN QUESTION of 2026-09-13 — a school decision, **never attributed to
+DepEd**, which prescribes no attendance rate and no attendance grade
+component.
 
-Separately, but from the same answer: **attendance does not feed grade
-computation.** It appears on the report card as its own section, entirely
-apart from the grades section. Any future grade-calculation logic must
-not read from `attendance` — the two are siblings on the report card, not
-inputs to each other. This part is documentation only — there's no grade
-computation built yet for it to wrongly feed into.
-
-This was always a different question from the one below (how a
-*percentage* is computed for the parent-facing attendance page) —
-converting the table to per-day did not answer that one, and still
-hasn't.
-
-### Attendance rate formula — RESOLVED 2026-09-13 (principal, in conversation) and BUILT
-
-Not a Stage 3 blocker — `routes/attendance.js` stays counts-only by design
-(see CHANGELOG, 2026-08-27); **the rate is a client computation over numbers
-the server already returns.** The principal answered on 2026-09-13: **Late
-counts as present; Excused counts as absent.** Parent → Attendance
-(`/parent/attendance`) now shows **"Present on recorded days"** =
-`(Present + Late) / total`, one decimal, half-up, beside the exact fraction.
-`summary.total` is every recorded status row, so an excused day lowers the
-percentage. **It is recorded days, not SF9 Class Days** — unmarked school
-days are not in the table — which is why the label is not "attendance rate"
-(§5i). Not rendered when `total` is 0. No verdict: no colour, badge,
-threshold, or comparison to DO 015 para 71's ~12-absence intervention point
-(§4). **DO 015 s. 2026 prescribes no attendance rate formula and no
-attendance grade component** (para 71 is its only attendance rule;
-Table 9's components are WW / PT / EX), so this is a school decision, not
-a compliance question — never attribute the rule to DepEd in parent-facing
-copy. Teacher attendance history is `/teacher/attendance-records`
-(2026-09-12), not this parent page.
+**One claim went stale here and is corrected rather than carried out.** This
+section said Parent → Attendance shows "Present on recorded days" as a
+percentage, one decimal, half-up. **DV2 deleted that percentage on
+2026-09-20** — the page shows the fraction, `presentOnRecordedDays` was
+deleted rather than exported, and §12 has the dashboard card showing the
+fraction only. Teacher attendance history is `/teacher/attendance-records`,
+not the parent page.
 
 ---
 
@@ -1774,11 +1743,11 @@ always say **Figure 5** specifically.
 
 ## ADMIN SCOPE AUDIT — nav vs. DFD (2026-09-13). A finding, not a decision.
 
-**Finding, 2026-09-13.** Four sources gave four answers for which admin nav
-items have a basis in the approved design (`nav.js` 13, the p. 70 mockup 5,
-Figure 5 has 11 admin-facing processes, `docs/SYSTEM_ARCHITECTURE.md` §4
-lists 3 — do not trust that heading). Figure 5 governs by precedent; cite
-**Figure 5**, never Figure 4. With a Figure 5 process: Users (1.1, 1.3),
+**Finding, 2026-09-13. Cite Figure 5, never Figure 4.** Four sources gave
+four answers for which admin nav items have a basis in the approved design
+(`nav.js` 13, the p. 70 mockup 5, Figure 5's 11 admin-facing processes,
+`docs/SYSTEM_ARCHITECTURE.md` §4 lists 3 — **do not trust that heading**).
+Figure 5 governs by precedent. With a Figure 5 process: Users (1.1, 1.3),
 Students (1.23), Grades (1.9), Attendance (1.15, view), Announcements (1.18,
 memos partial), Settings (1.25), Backup & Restore (1.27, 1.28). Without one:
 Sections, Excuse Letters, Events, Messages. The API already authorizes admin
@@ -1791,42 +1760,24 @@ do not blur the two):** build the six with a Figure 5 process (all built
 2026-09-14; Stage 4 complete); do not build Sections, Excuse Letters, Events,
 Messages; memos live on Admin → Announcements (decided 2026-09-14), the only
 place a memo can be written; the defence answer for the four is "no Figure 5
-process"; no handler moves — the API still authorizes admin on excuse
-letters, messages and attendance writes.
+process"; **no handler moves.**
 
-The nav-item table, the finding paragraph and the decision bullets as they
-stood here until 2026-09-19 are verbatim in `docs/ARCHIVE.md` → "ADMIN SCOPE
-AUDIT — the condensed section as it stood in CLAUDE.md until 2026-09-19";
-the original full text is `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT.
+**SCOPE DECISION, Darryl, 2026-09-18 — the five page-less admin nav entries
+are REMOVED, not dimmed** (Sections, Excuse Letters, Memos, Events,
+Messages). Supersedes one line of 2026-09-13; that entry is not edited, so
+the archived copy still carries the line it replaced. A permanently dimmed
+row advertises a page that was decided against, and `built: false` is defined
+as *unwritten*, never *refused* (§6). Nothing became buildable and no handler
+moved. **Grade lock AND unlock are admin only** — `PATCH /api/grades/:id/lock`
+is `authorize('admin')` and is the only route reaching the server's sole
+`UPDATE grades SET is_locked`; direction is the request's `is_locked`
+boolean and there is no separate unlock path. Written down so a later
+dispatch does not add a teacher-side lock as a convenience.
 
-### SCOPE DECISION — admin nav trimmed to what exists (Darryl, 2026-09-18)
-
-**Supersedes one line of the 2026-09-13 decision above** — "they stay
-`built: false` in `nav.js` exactly as they are — do not remove them in a build
-dispatch." Which admin screens get built is unchanged; what the sidebar shows
-for the ones ruled out is what changes. The 2026-09-13 entry is not edited.
-
-- **The five admin nav entries with no page are removed, not dimmed:**
-  Sections, Excuse Letters, Memos, Events, Messages. A permanently dimmed row
-  is not "not yet" — it advertises a page that was decided against, and
-  `built: false` is defined as *unwritten*, not *refused* (§6). Memos is in
-  the list because Admin → Announcements is the only place a memo can ever be
-  written, and that page's own copy already says memos have no page of their
-  own.
-- **This reverses no build decision.** Nothing becomes buildable, no route
-  appears or disappears, and no handler moves — the API still authorizes admin
-  on excuse letters, messages and attendance writes.
-- **Grade lock AND unlock are admin only.** Recorded as a decision, and it was
-  **already true in code** before this dispatch: `PATCH /api/grades/:id/lock`
-  (`routes/grades.js:1286`) is `authorize('admin')` and is the only route
-  reaching the server's sole `UPDATE grades SET is_locked` (`:1334`). There is
-  no separate unlock path — direction is the request's `is_locked` boolean —
-  and Admin → Grades already renders both labels from one toggle. Nothing was
-  widened or narrowed to satisfy this; it is written down so a later dispatch
-  does not add a teacher-side lock as a convenience.
-- **Defence answer unchanged** for Sections, Excuse Letters, Events and
-  Messages: no Figure 5 process. Memos is covered by 1.18 on Admin →
-  Announcements.
+Both decisions' full text, the nav-item table and the 2026-09-13 finding
+paragraph are verbatim in `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT (three
+blocks: the original, the condensed 2026-09-19 section, and the 2026-09-18
+decision moved out 2026-09-22).
 
 ---
 
@@ -2124,6 +2075,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-22 | CLAUDE.md trim, fifth batch: **135,967 → 134,080 on disk (−1,887)** — the blocks gave up 3,112 and this row costs about 1,200 of it back. Candidates 5, 6 and 7 — ~11,708 bytes offered, **the live-rule guard released about a quarter**. **§11 and §12 barely moved, and the reason is new: `docs/FRONTEND_CONVENTIONS.md` STOPS AT §10**, so this file is their only present-tense home and all eleven rules stayed; §12's per-card isolation, no-red, fraction-only, check-the-handler and recent-activity rules returned **zero** hits anywhere. The two attendance BLOCKED / RESOLVED subsections **left permanently under the REFILL RULE** (fully covered — GRADING_SPEC, ARCHIVE 512/2142/2638, and "Late counts as present" was **already in this file at line 1902**). The 2026-09-18 admin SCOPE DECISION had **no archived home** and moved out verbatim; **`Grade lock AND unlock are admin only` had zero hits** and stays word for word. **One STALE CLAIM corrected:** Parent → Attendance was still described as showing a percentage — **DV2 deleted it on 2026-09-20**. Trim-6 candidate found and left alone: `### Corrections` is duplicated in this file and `docs/FRONTEND_CONVENTIONS.md`, with no pointer. |
 | 2026-09-22 | Grade 1 docs: GRADING_SPEC §6a **DECIDED → BUILT**, its five predictions replaced by what each resolved to, plus a rounding note that is **not Grade 1-specific** (weighted parts round to 2 decimals before summing, so 89.99 → **90.00 → A** at every grade level). API_REFERENCE: `/descriptive` struck through as RETIRED, Grade 1 score writes documented, `initial_grade` on every report-card term **with the rule a parent client must not render it**, `final_grade` is **two types by mode**; counts **recounted from the code — 85 handlers / 86 endpoints**, the first endpoint removal since Contributions'. FRONTEND_CONVENTIONS §5a-v gains the **two-flags rule** and the render-time guard; §5h gains a fifth defect and the finding that **SSR cannot catch an undefined identifier inside an effect or callback body** (measured, 32/32 with the bug in place). The closed Grade 1 BLOCKED item **left to ARCHIVE under the REFILL RULE**. Suite preamble corrected **"fifteen/fourteen" → nineteen scripts / seventeen HTTP**. Class-record grid promoted to NEXT with **WHOLE NUMBERS ONLY — the server must refuse decimals at all four score writes**. Two KNOWN_ISSUES rows. |
 | 2026-09-22 | Grade 1 computed letters, **client** (`05a9a68` → `39821dd`): the letter picker deleted, Grade 1 encodes like Grades 2-6 (Summative, not Examinations), a **Final letter** column and 390px segment, `showFinal`/`showGeneralAverage` split in two, the modal's legacy-row copy corrected. SSR 29/29 with a **renderer guard** proving no Initial Grade reaches a parent. **Browser check FAILED first pass — blank page for every teacher**, a call to a deleted setter that build, oxlint AND an SSR render all miss; **`no-undef` enabled** as the guard that works (needs `env.browser` + `scripts/**` `env.node`, then 0 findings and oxlint stays 44). Fixtures on Nino's EMPTY subjects only, whole-number scores; cleanup asserted every count and left the Seeded baseline exact. |
 | 2026-09-22 | Grade 1 computed letters, **server** (`4f362aa`): one shared `BANDS` table so the letter and descriptor ladders cannot drift (verified at every score 0-100); `preflightGradeWrite` returns the mode it read; `recomputeGrade` bands the RAW Initial Grade and **throws** if the dual-mode invariant breaks; **`PATCH /:id/descriptive` RETIRED**; a Final letter from the three terms' Initial Grades, null for legacy rows; weights seeded for **every** grade level + a migration that aborts rather than overwrite. `test:grades` 197 → **212**, grade-computation 51 → **68**, verify-seed 33 → **34**. Two weak assertions of my own caught by failures — `DECIMAL(5,2)` stored 44.995 as 45.00, and a numeric STRING must band, since mysql2 returns every DECIMAL as one. |
