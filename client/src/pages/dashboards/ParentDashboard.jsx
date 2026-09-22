@@ -105,16 +105,32 @@ function DayCell({ day }) {
         ? `${weekdayName(day.date)} ${day.date} — weekend, no class recorded`
         : `${weekdayName(day.date)} ${day.date} — not recorded`;
 
+  // THREE STATES THAT MUST BE TELLABLE APART AT A GLANCE (F3). The first
+  // build gave weekend and not-recorded the same muted fill and differed only
+  // by glyph — "·" against "–" at 12px, which in the browser were
+  // near-identical. They are different facts and one of them is the whole
+  // reason this strip is careful, so they now differ in BORDER STYLE as well
+  // as glyph:
+  //
+  //   weekend       plain muted tile, solid edge   — there was no class
+  //   not recorded  DASHED edge, empty centre      — nobody marked this day
+  //
+  // The dashed edge is doing the work colour cannot: it must also not be
+  // mistakable for Absent, which is a solid red-bordered tile carrying "A".
+  // Shape, glyph and the accessible name all separate them, so none of the
+  // three depends on colour alone.
   const tone =
-    day.kind !== 'recorded'
-      ? 'border-edge bg-surface-subtle text-fg-muted'
-      : day.status === 'Present'
-        ? 'border-success-edge bg-success-soft text-success-fg'
-        : day.status === 'Absent'
-          ? 'border-danger-edge bg-danger-soft text-danger-fg'
-          : day.status === 'Late'
-            ? 'border-warning-edge bg-warning-soft text-warning-fg'
-            : 'border-info-edge bg-info-soft text-info-fg';
+    day.kind === 'unrecorded'
+      ? 'border-dashed border-edge-strong bg-transparent text-fg-muted'
+      : day.kind === 'weekend'
+        ? 'border-edge bg-surface-subtle text-fg-muted'
+        : day.status === 'Present'
+          ? 'border-success-edge bg-success-soft text-success-fg'
+          : day.status === 'Absent'
+            ? 'border-danger-edge bg-danger-soft text-danger-fg'
+            : day.status === 'Late'
+              ? 'border-warning-edge bg-warning-soft text-warning-fg'
+              : 'border-info-edge bg-info-soft text-info-fg';
 
   return (
     <div className="flex min-w-0 flex-col items-center gap-1" title={label}>
@@ -123,10 +139,10 @@ function DayCell({ day }) {
         className={`flex h-7 w-7 items-center justify-center rounded-md border text-xs font-semibold ${tone}`}
         aria-label={label}
       >
-        {/* A LETTER, NEVER COLOUR ALONE. "·" is a weekend and "–" is a day
-            nobody marked — deliberately different glyphs, because they are
-            different facts, and neither is an absence. */}
-        {day.kind === 'recorded' ? STATUS_INITIAL[day.status] || '?' : day.kind === 'weekend' ? '·' : '–'}
+        {/* A GLYPH, NEVER COLOUR ALONE. "·" is a weekend; a not-recorded day
+            is deliberately EMPTY inside its dashed outline, because any mark
+            there reads as a record. Neither is an absence. */}
+        {day.kind === 'recorded' ? STATUS_INITIAL[day.status] || '?' : day.kind === 'weekend' ? '·' : ''}
       </span>
     </div>
   );
@@ -148,11 +164,16 @@ function WeekStrip({ week, today }) {
         ))}
       </div>
       {/* The legend is not optional. Three states that look like squares need
-          words, and "–" in particular must be readable as "nobody marked this
-          day" rather than as an absence. */}
+          words, and "not recorded" in particular must read as "nobody marked
+          this day" rather than as an absence.
+
+          SEPARATED BY "|", NOT "·" (F3). The middots were the separator AND
+          the weekend glyph, so the weekend entry rendered as "· · weekend" —
+          two identical marks where one is the symbol being explained and the
+          other is punctuation. A separator may not be one of the things it
+          separates. */}
       <p className="mt-2 text-[11px] leading-snug text-fg-muted">
-        P present &middot; L late &middot; A absent &middot; E excused &middot; &middot; weekend &middot; &ndash; not
-        recorded
+        P present | L late | A absent | E excused | &middot; weekend | dashed = not recorded
       </p>
     </div>
   );
@@ -176,15 +197,23 @@ function SubjectList({ card, mode, term }) {
   // the card's own link still offering the full document.
   if (card.error || !Array.isArray(card.data?.subjects)) return null;
 
-  const rows = card.data.subjects
-    .map((s) => ({
-      name: s.subject_name,
-      entry: mode === 'descriptive' ? latestLetterEntry(s) : s.terms?.[term] ?? null,
-    }))
-    .filter((r) => (mode === 'descriptive' ? r.entry : r.entry?.term_grade != null));
+  // ONE TERM, THE CURRENT ONE, IN BOTH MODES (F2) — `term` is the caller's
+  // `currentTerm`. Nothing here walks backwards looking for data.
+  const rows = card.data.subjects.map((s) => ({
+    name: s.subject_name,
+    entry: s.terms?.[term] ?? null,
+  }));
 
-  if (!rows.length) return null;
-  const shown = rows.slice(0, 4);
+  // KEY STAGE 1 SHOWS EVERY SUBJECT, INCLUDING THE UNLETTERED ONES, and that
+  // asymmetry with the numerical card is deliberate. The numerical card
+  // already carries "N of M subjects recorded" in its caption, so a filtered
+  // list is not hiding anything. Key Stage 1 has no such count — §12 refuses
+  // one — so the only way a parent can see that four of five subjects are
+  // still to come is for the list itself to say Pending.
+  const visible = mode === 'descriptive' ? rows : rows.filter((r) => r.entry?.term_grade != null);
+
+  if (!visible.length) return null;
+  const shown = visible.slice(0, 4);
 
   return (
     <ul className="mt-3 space-y-1 border-t border-edge pt-2">
@@ -196,22 +225,11 @@ function SubjectList({ card, mode, term }) {
           </span>
         </li>
       ))}
-      {rows.length > shown.length ? (
-        <li className="text-xs text-fg-muted">+{rows.length - shown.length} more</li>
+      {visible.length > shown.length ? (
+        <li className="text-xs text-fg-muted">+{visible.length - shown.length} more</li>
       ) : null}
     </ul>
   );
-}
-
-// The most recent term that carries a letter for one subject. Same rule as the
-// hero: the latest term that HAS letters, never a term the school has not
-// reached.
-function latestLetterEntry(subject) {
-  for (const term of [3, 2, 1]) {
-    const entry = subject.terms?.[term];
-    if (entry?.descriptive_grade) return entry;
-  }
-  return null;
 }
 
 // The next event's date, as a tile. `event_date` is a YYYY-MM-DD STRING and is
@@ -279,8 +297,27 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                 <p className="mt-1 text-2xl font-semibold">
                   {/* TWO DECIMALS, through the one renderer the whole system
                       uses — GRADING_SPEC §4a. This card printed "87.5"
-                      against the report card's "87.50" until DV4. */}
-                  <GradeValue value={grades.general_average} mode="numerical" />
+                      against the report card's "87.50" until DV4.
+
+                      `className` IS LOAD-BEARING HERE, not decoration (F1).
+                      GradeValue hardcodes `text-fg`, which is DARK in light
+                      mode — on this navy panel the average was invisible,
+                      while the plain-text figures beside it were fine because
+                      they inherit the hero's colour and this one did not.
+                      Passing the hero's foreground is what the prop exists
+                      for, and it keeps §3's one-renderer-for-every-grade rule
+                      rather than formatting a number by hand here.
+
+                      It works because `.text-primary-fg` is generated AFTER
+                      `.text-fg`, so it wins when both sit on the element. The
+                      render proof asserts that ordering against the BUILT
+                      stylesheet, so a future Tailwind reorder fails loudly
+                      instead of quietly hiding this number again. */}
+                  <GradeValue
+                    value={grades.general_average}
+                    mode="numerical"
+                    className="text-primary-fg"
+                  />
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-primary-fg">
@@ -293,14 +330,21 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
 
             <div>
               <p className="text-xs uppercase tracking-wide text-primary-fg">Present this month</p>
+              {/* "recorded days" BELONGS TO THE FRACTION and goes inside the
+                  branch with it (F4). It used to sit outside, so an account
+                  with nothing recorded printed "Nothing recorded this month."
+                  followed by an orphan "recorded days" — a caption with no
+                  figure above it, which reads as a truncated sentence. */}
               {monthDays ? (
-                <p className="mt-1 text-2xl font-semibold">
-                  {monthDays.present} <span className="text-base font-normal">of {monthDays.total}</span>
-                </p>
+                <>
+                  <p className="mt-1 text-2xl font-semibold">
+                    {monthDays.present} <span className="text-base font-normal">of {monthDays.total}</span>
+                  </p>
+                  <p className="text-xs text-primary-fg">recorded days</p>
+                </>
               ) : (
                 <p className="mt-1 text-sm text-primary-fg">Nothing recorded this month.</p>
               )}
-              <p className="text-xs text-primary-fg">recorded days</p>
             </div>
 
             <div>
@@ -332,6 +376,11 @@ export default function ParentDashboard() {
     () => api.get('/dashboard', { unwrap: 'dashboard' }),
     [studentId]
   );
+
+  // `current_term` is the ONE term this page shows (F2). Its own card so a
+  // failed read cannot take anything else down; the fallback is Term 1, which
+  // is what every other screen falls back to.
+  const settings = useCard(() => api.get('/settings', { unwrap: 'settings' }), []);
 
   // The adviser's name is not on /auth/me. GET /api/sections is unscoped
   // reference data for every role, so this is a read a parent is already
@@ -447,21 +496,31 @@ export default function ParentDashboard() {
 
   const grades = summary.data?.grades ?? null;
 
-  // The latest term that carries letters, for the Key Stage 1 hero. COUNTED
-  // FROM THE REPORT CARD, not computed: a letter IS the grade, so showing it
-  // is showing what the server sent. §12 refuses a COUNT or a progress bar
-  // for Key Stage 1 — "N of M" for something with no defined progress — and
-  // this is neither.
+  // THE CURRENT TERM, FROM SETTINGS — never "the latest term that has data"
+  // (Darryl, F2).
+  //
+  // The first build walked terms 3 → 1 and used the newest that carried a
+  // letter. On the seeded Grade 1 learner that surfaced "Term 3 · C" — a
+  // single stale letter from a term the school has not reached — while the
+  // Grades card beside it and Marwin's card both said Term 1. One screen
+  // showing two different terms is worse than showing nothing, and a parent
+  // has no way to tell which one is current.
+  //
+  // So ONE term drives the hero and the Grades card, and it is the school's
+  // own `current_term`. No cross-term mixing anywhere on this page.
+  const currentTerm = Number(settings.data?.current_term) || 1;
+
+  // That term's letters, for the Key Stage 1 hero. Read from the report card,
+  // never computed: a letter IS the grade, so showing it is showing what the
+  // server sent. §12 refuses a COUNT or a progress bar for Key Stage 1 —
+  // "N of M" for something with no defined progress — and this is neither.
   const letterTerm = (() => {
     const subjects = card.data?.subjects;
     if (!Array.isArray(subjects)) return null;
-    for (const term of [3, 2, 1]) {
-      const pills = subjects
-        .map((s) => ({ name: s.subject_name, letter: s.terms?.[term]?.descriptive_grade ?? null }))
-        .filter((p) => p.letter);
-      if (pills.length) return { term, pills };
-    }
-    return null;
+    const pills = subjects
+      .map((s) => ({ name: s.subject_name, letter: s.terms?.[currentTerm]?.descriptive_grade ?? null }))
+      .filter((p) => p.letter);
+    return pills.length ? { term: currentTerm, pills } : null;
   })();
 
   const monthDays = recordedDays(month.data);
@@ -522,7 +581,7 @@ export default function ParentDashboard() {
             <p className="text-sm text-fg-muted">
               Reported as a letter for each subject.
             </p>
-            <SubjectList card={card} mode="descriptive" />
+            <SubjectList card={card} mode="descriptive" term={currentTerm} />
           </div>
         ) : grades?.complete ? (
           <div>
@@ -535,7 +594,7 @@ export default function ParentDashboard() {
               value={<GradeValue value={grades.general_average} mode="numerical" />}
               caption={`General average, Term ${grades.term}`}
             />
-            <SubjectList card={card} mode="numerical" term={grades.term} />
+            <SubjectList card={card} mode="numerical" term={currentTerm} />
           </div>
         ) : grades?.term ? (
           <div>
@@ -544,7 +603,7 @@ export default function ParentDashboard() {
               muted
               caption={`Term ${grades.term} — ${grades.subjects_recorded} of ${grades.subjects_total} subjects recorded`}
             />
-            <SubjectList card={card} mode="numerical" term={grades.term} />
+            <SubjectList card={card} mode="numerical" term={currentTerm} />
           </div>
         ) : (
           <CardEmpty>No grades recorded yet.</CardEmpty>
