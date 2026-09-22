@@ -1224,3 +1224,130 @@ from memory.
   confirm does not. Without the rule the next session produces a third
   number. The old ~13-day web estimate derived from 36 is **void**.
 
+---
+
+## 13. The class record — Teacher → Grades IS the grid (CR2, frozen 2026-09-22)
+
+**§11 and §12 live in CLAUDE.md, not here** (this file stops at §10 for those
+two). §13 is here because it is a page convention with room for the reasoning.
+CLAUDE.md carries the rule statements and points at this section.
+
+### 13a. Teacher → Grades IS the class record — the per-learner page is gone
+
+`/teacher/grades` renders `ClassRecordPage`. `teacher/GradesPage.jsx` was
+**deleted**, not left behind a flag: a second screen writing the same rows
+through a different payload is two implementations of one contract, and the
+one nobody opens is the one that rots.
+
+**The picker is Subject → Class → Term, and every option comes from the
+caller's own `GET /assignments`.** This closes UI-polish item 1 at its root:
+Teacher → Grades used to default to whatever subject sorted first and load
+with a red *"Araling Panlipunan (not yours)"* error on a perfectly normal page
+visit. **A page must not open on an error.** An option the caller cannot
+encode is not disabled or annotated — **it is not in the list**, because a
+disabled option still asks the user to work out why. Subjects sort A–Z.
+
+Grades 4-6 are **departmentalized** (the school, 2026-09-22): a teacher owns
+one subject across several sections, so Class is the second axis, not the
+first.
+
+### 13b. The client never computes a grade — live values come from `dry_run`
+
+The oldest rule in the Grades module, now under the most pressure: a grid
+showing PS, WS, Initial Grade and Term Grade *as the teacher types* is exactly
+where a client-side formula feels unavoidable. It is not, and it stays
+forbidden.
+
+**`PUT /class-record` with `dry_run: true` runs the whole save in the
+transaction and rolls back**, returning what every row would hold. The grid
+renders that. A second implementation of the computation would drift the first
+time DepEd changed anything, and the two screens would disagree in the last
+digit with no way to tell which was right.
+
+**The header follows the same rule, and that took a second pass to get
+right.** The first build returned only learner rows from the dry run, so
+opening a column left the Highest-possible line reading 30 while the learners
+beneath were already computed against 40. `group_hps` and the slot list now
+come back from the dry run too, computed before the rollback, and the page
+prefers them over the stored values exactly as it already does for learner
+values. **The unwrap list names all three** (`['results', 'group_hps',
+'slots']`) — §1: a FORGOTTEN key is silently `undefined`, and this is the
+second time that has bitten (DV3 was the first).
+
+A monotonic `previewTicket` ref drops a stale dry-run response that arrives
+after a newer one. Without it, fast typing renders an older total last.
+
+### 13c. The sticky learner column — decided here, and DV1b may cite it
+
+**The learner name column is sticky; the table header is not.** These are not
+the same question, and §5a-i does not close this one. A sticky HEADER needs
+the page as its scrollport while containing a too-wide table needs the wrapper
+to be one — a genuine conflict. A sticky COLUMN wants its `left` resolved
+against that same horizontal scroller, which §5a-i deliberately kept, so no
+conflict arises.
+
+The cost §5 warned about is real and is paid here: **each sticky cell needs
+its own background repainted**, on hover and on the emphasised row, or
+scrolled content shows through it. That is why this is a decision per page and
+not a `DataTable` default. **DV1b may cite this page as the precedent** for
+the other consumers; it does not inherit it automatically.
+
+A class record without it is unusable in a way a 50-row list is not — at
+column 6 of 9 the teacher has lost track of whose row they are typing in, and
+a wrong learner's mark is a worse failure than a wrong column's.
+
+### 13d. The unsaved-changes guard is a capture-phase click interceptor
+
+**`useBlocker` is not available: the app uses `BrowserRouter`, not a data
+router**, and calling it throws *"useBlocker must be used within a data
+router"*. That was caught by the SSR proof before a browser ever saw it.
+
+The guard is a **capture-phase click listener** that intercepts in-app
+navigation while the grid holds unsaved edits. Two things it does NOT cover,
+stated rather than left to be discovered:
+
+- **The browser Back button is not covered.** A history pop is not a click.
+  Covering it needs a data router or a `pushState` sentinel. `docs/KNOWN_ISSUES.md`
+  has the row.
+- A full page close is covered by nothing here; no blanket `beforeunload` was
+  added (§5e).
+
+This is a real §5e exception and it is narrow: Teacher → Grades used to need
+no guard because **every score was its own request**. The grid changed that —
+one Save carries up to 40 learners × 9 columns, so one navigation can lose the
+lot.
+
+### 13e. The payload builder is a pure module, and why that is a test rule
+
+`client/src/pages/teacher/classRecord/buildPayload.js` has **no React import
+and no axios import**, so `test:class-record` — a server suite — can
+`require()` it and send its real output to the real API.
+
+**This closed a contract gap that every other suite still has.** Every other
+suite builds its request bodies by hand, so none of them can produce what a
+page actually produces. Defect 8 fell exactly through that gap: the grid sent
+`{ type, slot_no, score }` for a column being created in the same save, the
+server required `slot_id`, and the suites all passed because every one of them
+wrote `slot_id` by hand. The browser said *"Each score needs a valid
+`slot_id`"*; nothing in CI did.
+
+**The negative control is the proof:** reverting the builder's slot lookup to
+the defect-8 shape fails the new tests. Closed by construction, not by care.
+
+**When a page's request body has non-trivial rules, extract the builder.** The
+rule is not "extract everything" — it is that a payload shape the server
+validates and the client constructs is a contract, and a contract needs one
+test that exercises both ends.
+
+### 13f. A failed build can leave the PREVIOUS bundle in place
+
+Measured during CR2, and it cost real time: a JSX comment inside a ternary
+branch broke the SSR build, and **the runner executed the stale bundle from
+the previous run** — reporting failures that had already been fixed, and
+success for code that no longer compiled.
+
+**A build step's exit code is part of the test result.** If a proof harness
+builds and then runs, the run is meaningless when the build failed. Check the
+build exited 0 before believing anything the run printed. This generalises
+past SSR to any two-step verification.
+

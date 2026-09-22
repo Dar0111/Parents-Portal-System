@@ -2,13 +2,14 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**85 handlers** across 15 route files, documented as **18 endpoint tables
+**87 handlers** across 15 route files, documented as **18 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **86 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
-FILE — it is not a database-table count, and the database has 22. Recounted
-from the code on 2026-09-22, when `PATCH /grades/:id/descriptive` was
-retired and both figures dropped by one; see Verification at the bottom for the
+`server.js` = **88 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
+FILE — it is not a database-table count, and the database has **23**.
+Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
+retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
+figures went 86 → 85 → 87 in one day; see Verification at the bottom for the
 per-file arithmetic and for which number to quote. If this document and the
 code disagree, the code is correct and this file needs fixing — same
 rule as CLAUDE.md.
@@ -451,7 +452,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 85 handlers (86 with `GET /api/health`).
+the bottom must equal 87 handlers (88 with `GET /api/health`).
 
 ### Auth (8) — `/api/auth`
 
@@ -553,21 +554,123 @@ An admin changing a user's email through `PUT /users/:id` clears
 | POST | `/` | `admin` | `teacher_id`*, `subject_id`*, `section`* | `assignment` | `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for current `academic_year`; duplicate → `409`; inactive/non-teacher → `400` |
 | DELETE | `/:id` | `admin` | — | message only | does **not** refuse when grades exist; a scope change removes future authority, never past records |
 
-### Grades (10) — `/api/grades`
+### Grades (12) — `/api/grades`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | `teacher(wide)`, `admin`, `parent(own)` | query: `student_id`, `subject_id`, `term`, `school_year` (all optional, no defaults) | `grades` | parent naming a different `student_id` → `403` |
+| GET | `/class-record` | `teacher(wide)`, `admin` | query: `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year` | `subject`+`slots`+`learners`+`group_hps`+`exam_max`+`exam_max_mixed`+`weights`+`grading_mode`+`can_encode` (no `grade` key) | the whole grid in one request; **registered BEFORE `/:id`** or `class-record` parses as an id. `404` outside view scope |
+| PUT | `/class-record` | `teacher(subject)`, `admin` | `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year`, plus any of `slots[]`, `entries[]`, `exam_max`, `dry_run` | `results`+`group_hps`+`slots` | one save for the whole class; see below |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `grade` + `grade_components` + `descriptor` | `404` out-of-scope |
 | GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
 | POST | `/` | `teacher(subject)`, `admin` | `student_id`*, `subject_id`*, `term`*, `school_year`* | `grade` | teacher out-of-scope → `403`; nonexistent `student_id` → `404` admin / `403` teacher |
-| POST | `/:id/components` | `teacher(subject)`, `admin` | `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`*, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely |
-| PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
+| POST | `/:id/components` | `teacher(subject)`, `admin` | **`slot_id`***, `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely. **`slot_id` required since CR1**; a slot of another class or the wrong type → `404` (never leaks that it exists). **`label` is now OPTIONAL** — a slot-backed row leaves it `NULL`. Non-integer `score`/`max_score` → `400` |
+| PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded`, `slot_id` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404`; **moving a row into an UNUSED slot is refused**; non-integer score/max → `400` |
 | DELETE | `/:id/components/:componentId` | `teacher(subject)`, `admin` | — | `grade` | same `403`/`404` split; mismatched `componentId` → `404` |
 | PATCH | `/:id/exam` | `teacher(subject)`, `admin` | any subset of `st1_score`/`st1_max`/`st2_score`/`st2_max`/`te_score`/`te_max` (score+max always paired; explicit `null` clears both) | `grade` | same `403`/`404` split |
 | ~~PATCH~~ | ~~`/:id/descriptive`~~ | — | — | — | **RETIRED 2026-09-22 — the route is unmounted; every caller gets `404`.** See below |
 | PATCH | `/:id/lock` | `admin` only | `is_locked`* (boolean) | `grade` | unscoped, no `403`/`404` split; already that value → `200` "Grade is already locked/unlocked. Nothing was changed.", no log entry (2026-09-15) |
 | DELETE | `/:id` | `admin` only | — | message only | unscoped; `403` when locked (`This grade is locked and cannot be deleted.`); `404` when missing; `grade_components` cascade |
+
+### The class record: two endpoints, one grid (CR1/CR2, 2026-09-22)
+
+`GET` and `PUT /api/grades/class-record` are the DepEd E-Class Record shape —
+learners as rows, WW/PT/Summative as columns, one Save. They replace encoding
+one learner at a time through a modal, which cost up to 80 requests for one
+quiz across 40 learners.
+
+**Route order is load-bearing.** Both are registered **before `GET /:id`**.
+Express matches in registration order, so `/class-record` registered after
+`/:id` would be parsed as an id, fail `parseId()` and answer `400`. Do not
+reorder `routes/grades.js`.
+
+**The fixed frame: WW 1-5 and PT 1-3.** A class's columns are
+`assessment_slots` rows keyed
+`(subject_id, grade_level, section, term, school_year, type, slot_no)`. The
+API accepts `slot_no` 1-20; the grid only ever sends the fixed frame. A slot
+the class has not used yet is a **phantom** — it has no row, and `GET` returns
+it with `id: null` so the grid can render an empty column that is typed into
+and created in the same save.
+
+**USED is defined by the highest possible score, not by the row existing.**
+A slot with `max_score` set is one the class sat. A slot with `max_score`
+`null` is unused and is left out of the computation entirely — nobody is
+missing anything. Those two cases must never be conflated; see
+`docs/GRADING_SPEC.md` → Assessment slots for what each does to a grade.
+
+**A score names its column one of two ways**, and the second is not a
+convenience:
+
+```jsonc
+{ "slot_id": 41, "score": 18 }                    // the column already exists
+{ "type": "WW", "slot_no": 2, "score": 18 }       // created in this same save
+```
+
+The grid lets a teacher give a blank column an HPS **and** type scores into it
+before pressing Save once. At that moment the slot has no id, so a payload
+that could only address by `slot_id` would be unsendable. **`slot_id` is
+required on the per-row component endpoints** (`POST /:id/components`,
+`PUT /:id/components/:componentId`) — a component written through those paths
+must belong to a declared column. Only the class-record `PUT` may create the
+column and the score together.
+
+**`exam_max` is class-wide.** Grade 1's Summative and Grades 2-6's
+Examinations share the three fixed columns on `grades` (`ex_st1`, `ex_st2`,
+`ex_te`). `exam_max: { st1, st2, te }` fans the maxima out to every active
+learner in the class in the same transaction. `GET` returns `exam_max` as the
+**most common** stored value per part plus `exam_max_mixed`, a per-part
+boolean that is `true` when learners disagree — the grid shows the header
+value and flags the disagreement rather than silently picking one.
+
+**`group_hps`, and why the client never sums it.** `GET` and `PUT` both
+return `group_hps: { ww, pt, ex }` — each group's total highest possible
+score, `null` when the group has no used slot. The grid does no grade
+arithmetic at all (see `docs/FRONTEND_CONVENTIONS.md` §13), and a header total
+that disagreed with the column beneath it by a rounding step would be the
+worst possible thing to debug.
+
+**`short_label` vs `display_label`.** `short_label` is what the grid column
+header shows — the slot's `name` trimmed, or the bare `slot_no` when it has
+none, because a column two characters wide cannot hold "Written Work 2".
+`display_label` is the full resolved name used everywhere else (the parent
+breakdown modal, exports). **Neither is stored:** `grade_components.label` is
+`NULL` on a slot-backed row, so renaming a slot renames every reference at
+once. A legacy row with no `slot_id` keeps the label it was written with.
+
+**`can_encode` is in the payload so a read-only grid is possible.** Read scope
+is view scope (grade + section, any subject), matching `GET /` and `GET /:id`;
+encode scope is still the subject teacher. A teacher who may look but not
+encode gets `can_encode: false` and a read-only grid — **not** a `404`. That
+follows the existing two-tier split rather than inventing a third rule.
+
+**`dry_run: true` runs the whole save inside the transaction and rolls back**,
+returning what every affected row *would* hold. It is how the grid shows live
+totals, PS, WS and a term grade as the teacher types without computing
+anything. **A dry run writes nothing, notifies nobody and logs nothing** —
+asserted in `test:class-record` against both `notifications` and
+`activity_logs`, not just against the grade rows.
+
+**Refusals:**
+
+| Cause | Status | Message shape |
+|---|---|---|
+| A locked grade for any learner in the save | **`409`** | `Nothing was saved. <names> have locked grades for this subject and term — ask an admin to unlock before saving.` |
+| Clearing a slot's HPS while it still holds scores | **`409`** | `<slot> cannot be cleared — N learners have scores in it. Remove the scores first.` |
+| A non-integer score or max | **`400`** | `<field> must be a whole number — the school does not award half points (got 42.5).` |
+| Nothing sent | `400` | `Nothing to save — send slots, entries, or both.` |
+| A score whose slot is not in this class, or the wrong type | `400` | names the slot |
+
+**The locked refusal is all-or-nothing on purpose.** One locked learner
+rolls back the entire save rather than writing the other 39 — a partial save
+of a bulk grid is the state nobody can reason about afterwards. `GET` returns
+`is_locked` per learner so the grid disables those rows before the teacher
+types.
+
+**A score above its highest possible score is ALLOWED and flagged, never
+refused or clamped.** That matches `utils/gradeComputation.js`, which does not
+clamp percentages over 100. Whether the school permits bonus points is a
+question nobody has asked them — the API's silence is not permission, and no
+screen may claim it is (§5i).
 
 ### Grade 1 writes: the four score endpoints, and the one that is gone (2026-09-22)
 
@@ -918,7 +1021,7 @@ the same as `router`.
 | Sections | 3 | `sections.js` |
 | Subjects | 1 | `assignments.js` |
 | Assignments | 3 | `assignments.js` |
-| Grades | 10 | `grades.js` |
+| Grades | 12 | `grades.js` |
 | Grading modes | 1 | `gradingModes.js` |
 | Attendance | 6 | `attendance.js` |
 | Announcements | 4 | `content.js` |
@@ -930,16 +1033,17 @@ the same as `router`.
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
-| **Total** | **85** | |
+| **Total** | **87** | |
 
-8+10+5+3+1+3+10+1+6+4+4+4+6+4+5+6+4+1 = **85 handlers in `server/routes/`**.
-Plus `GET /api/health`, mounted directly in `server.js` = **86** endpoints in
+8+10+5+3+1+3+12+1+6+4+4+4+6+4+5+6+4+1 = **87 handlers in `server/routes/`**.
+Plus `GET /api/health`, mounted directly in `server.js` = **88** endpoints in
 total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
-**Grades went 11 → 10 on 2026-09-22** when `PATCH /:id/descriptive` was
-retired — the only endpoint this system has ever removed other than
-Contributions' eight.
+**Grades went 11 → 10 → 12 on 2026-09-22**: `PATCH /:id/descriptive` was
+retired — still the only endpoint this system has ever removed other than
+Contributions' eight — and the class record's `GET` and `PUT` landed the same
+day.
 
-**State which number you mean.** 85 is handlers in route files; 86 is every
+**State which number you mean.** 87 is handlers in route files; 88 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.

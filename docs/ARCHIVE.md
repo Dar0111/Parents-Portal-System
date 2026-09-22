@@ -3869,4 +3869,72 @@ the Events page, so a `limit=3` card without this returns the three
 FURTHEST-AWAY events, backwards." (`docs/API_REFERENCE.md` → Dashboard, line
 888.)
 
+---
+
+## BUILD ORDER → Grade 1 computed letters, the write-up as it stood in CLAUDE.md until 2026-09-22
+
+> Moved under the REFILL RULE in the class-record docs dispatch. The rules it
+> produced stayed in CLAUDE.md, under BLOCKED / RESOLVED → Grades and in
+> `docs/FRONTEND_CONVENTIONS.md` §5a-v and §5h.
+
+- [x] **Grade 1 computed letters — DONE 2026-09-22** (`feat/grade1-computed`,
+      server + client, both browser-checked). The rule is
+      `docs/GRADING_SPEC.md` **§6a**, now marked BUILT. **`PATCH
+      /:id/descriptive` is RETIRED** — one write path for every grade level,
+      and a letter cannot be set by hand; handlers 86 → 85. Grade 1 encodes
+      WW / PT / three Summative parts through the same endpoints Grades 2–6
+      use, and the server bands the raw Initial Grade with no transmutation.
+      A **Final letter** averages the three terms' Initial Grades; a **legacy
+      row keeps its letter and shows no Final**, which is correct. Teachers
+      see the Initial Grade, **parents never do** — enforced by a render-time
+      guard, not a review. Also: the seed now writes weights for every grade
+      level, `scripts/migrate-grade1-weights.js` does the same to a live DB,
+      and **`no-undef` was enabled** after the client half shipped a blank
+      page an SSR render provably could not catch (§5h).
+
+## BUILD ORDER → Grading fixes, the write-up as it stood in CLAUDE.md until 2026-09-22
+
+> Moved under the REFILL RULE in the same dispatch. The rules are in
+> `docs/GRADING_SPEC.md` §4a and CLAUDE.md §3.
+
+- [x] **Grading fixes — DONE 2026-09-22** (`fix/grading-rounding`). **(a) A
+      Final Grade is a WHOLE number** (`roundToWhole`, half-up); it was
+      `roundTo2`, so a correct 89 displayed as 89.33. The **General Average
+      keeps two decimals over the rounded finals** — 721/8 = 90.13 on the
+      school's sheet — and the two precisions are a real distinction, not a
+      bug (`docs/GRADING_SPEC.md` §4a). **(b) Display follows storage:**
+      `GradeValue` gained an opt-in `whole`, `String(Number(x))` and **never
+      `toFixed(0)`**, because from SY 2027-2028 a term grade inherits the
+      Initial Grade's decimals (§3, KNOWN ISSUES). **(c) Grade 1's "Reading"
+      → "Reading and Literacy"**, the only naming mismatch in 40 subjects,
+      **renamed by a migration that UPDATEs rather than replaces** —
+      `subject_id` cascades, so a delete would have taken Nino's two seeded
+      letters with it. `test:grades` 189 → **197**.
+
+  **CLOSED by DV2 (2026-09-20):** Parent → Attendance's intro used to say
+  "The percentage counts Late as present…" **even when no percentage was on
+  screen**, which was every account with zero recorded days. The percentage
+  itself is gone — the page shows the fraction — so the copy had nothing
+  left to overstate (§5i). Recorded here rather than deleted so the item is
+  visibly answered.
+
+## UI POLISH → item 1, the full entry as it stood in CLAUDE.md until 2026-09-22
+
+> Closed by CR2. CLAUDE.md keeps a one-line struck-through entry and the
+> pointer to `docs/FRONTEND_CONVENTIONS.md` §13a.
+
+  1. **Teacher → Grades opens on a subject the teacher is not assigned, so
+     the page loads with a red error** — "Araling Panlipunan (not yours)".
+     **This is a defect, not cosmetic**, and it is first here for that
+     reason: a normal page load showing an error trains people to ignore
+     errors. The default should be the teacher's FIRST ASSIGNED subject
+     from `GET /assignments`, which the page already fetches for its encode
+     scope. Also a `docs/KNOWN_ISSUES.md` row.
+
+**How it was actually closed, which is not what the entry proposed:** CR2 did
+not change a default. The picker is built from the caller's own
+`GET /assignments`, so a subject they cannot encode is **not in the list at
+all** — not defaulted past, not disabled, because a disabled option still asks
+the user to work out why.
+
 

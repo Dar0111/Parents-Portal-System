@@ -406,6 +406,82 @@ assignment row per subject, not one row total.
 
 ---
 
+## 6e. Assessment slots — the columns of a class record (CR1/CR2, 2026-09-22)
+
+DO 015 fixes the three components (WW / PT / EX) and their weights, but it
+says nothing about how many written works a class sits or what each is worth.
+That is the teacher's, and it is what an E-Class Record's **columns** are.
+`assessment_slots` is that declaration, one row per column per class per term.
+
+**A slot is class-level; a score is learner-level.** The slot says "Written
+Work 2 in Grade 1 - Mabait, Mathematics, Term 1 is out of 20". The
+`grade_components` row says "this learner got 18 of it". `max_score` is
+materialised onto both — the slot is the declaration, the component is the
+copy the computation actually reads, and the class-record endpoint is the only
+writer of either. When a slot's HPS changes it rewrites every row on that slot
+in the same transaction.
+
+### The fixed frame: WW 1-5, PT 1-3
+
+Eight columns, always in the same positions, whether or not the class has used
+them. This is a **display and data-entry** decision, not a DepEd rule: a grid
+whose column count changes per class is a grid a teacher cannot learn. The API
+accepts `slot_no` 1-20 so the frame can widen without a migration; nothing
+sends outside 1-5 / 1-3 today.
+
+A slot with no row yet is a **phantom** — rendered, typeable, created on save.
+
+### USED vs UNUSED, and the defect that made the distinction matter
+
+**A slot is USED once it has a highest possible score.** Not once it has a row,
+and not once someone has a score in it.
+
+| State | `max_score` | Effect on the computation |
+|---|---|---|
+| **Unused** | `NULL` | **Left out entirely.** The assessment never happened; nobody is missing anything |
+| **Used, learner scored** | set | Counts, score and max both |
+| **Used, learner has NO score** | set | **That learner's whole group is Pending** — never left out, never zero |
+
+**The third row is the one that was wrong, and it is worth stating why.**
+The first build simply left a missing score out of both the numerator and the
+denominator. That **silently raises the grade of a learner who missed an
+assessment**: 18 out of a used 20 + 10 showed as 90.00 instead of waiting for
+the second mark. A learner who skipped a quiz scored higher than one who sat
+it and did badly. `componentPercentage(rows, requiredSlotIds)` now returns
+`null` when any used slot has no component, which renders as "— Pending" — the
+same answer the report card already gives when an exam part is missing.
+
+**Never zero.** A missing mark is *not recorded*, not *nothing earned*. Zero is
+a grade a teacher gives; blank is a grade a teacher has not given yet. This is
+the same rule as §4's "every computed value is NULL until every required input
+exists", one level down.
+
+### Whole numbers
+
+**Every score and every highest possible score is an integer.** The school
+never awards half points, so `42.5/50` is not a value this system should be
+able to hold; the server refuses it at all four score write paths plus the
+class record (`utils/validateScore.js`). **This does not make computed values
+integers** — an Initial Grade of 83.60 and a General Average of 90.13 are
+still correct and still carry two decimals (§4a). The rule constrains what a
+teacher TYPES, never what the system works out from it.
+
+### A score above its HPS
+
+**Allowed, flagged on screen, never refused and never clamped.** That matches
+`utils/gradeComputation.js`, which does not clamp a percentage over 100.
+Whether the school permits bonus points **has not been asked**, so the grid
+says "these are saved as typed — check for typing mistakes" and claims
+nothing about policy. A cap, if the school ever wants one, belongs in route
+validation as explicit policy.
+
+> One consequence, stated because it is not obvious: a weighted score above
+> 100 yields no band, so a Grade 1 letter comes back `null` and renders as
+> Pending. That is the honest answer — the school's table does not define a
+> band up there.
+
+---
+
 ## 7. Awards and recognition
 
 - **Key Stage 1 (Grades 1–3):** no academic awards. Character Traits Awards

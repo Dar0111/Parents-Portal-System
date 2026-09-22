@@ -16,8 +16,37 @@ accepts it). 20 of 23 sections have no adviser and, with Admin → Sections not
 being built, no screen can assign one — so attendance cannot be recorded in
 them. Sections, Excuse Letters, Events and Messages will not be built. Memos
 live on Admin → Announcements (Darryl, 2026-09-14) — the only place a memo can
-be written. 22 tables, **85 handlers** in `server/routes/` + `GET /api/health`
-= 86 endpoints.)
+be written. **23 tables, 87 handlers** in `server/routes/` + `GET /api/health`
+= **88 endpoints** — recounted from the code 2026-09-22.)
+
+**The class record is BUILT — CR0–CR2, 2026-09-22.** `GET` and
+`PUT /api/grades/class-record`, the 23rd table `assessment_slots`, and
+**Teacher → Grades rebuilt as the DepEd E-Class Record grid**: learners as
+rows, WW 1-5 / PT 1-3 / Summative as columns, one highest-possible-score row,
+Initial and Term Grade live, one Save. The per-learner `GradesPage.jsx` was
+**deleted**, not left behind a flag. A teacher encoding one quiz for 40
+learners went from up to 80 requests to one.
+
+Three rules it settled, each stated nowhere else: **a slot is USED once it has
+a highest possible score** — an unused slot is left out entirely, but a used
+slot where a learner has no score makes that learner's whole group **Pending,
+never left out and never zero** (leaving it out silently raised the grade of a
+learner who missed an assessment); **every score and every maximum is a whole
+number**, refused on the server, though computed values keep two decimals; and
+**a score above its maximum is allowed and flagged, never clamped**, because
+nobody has asked the school about bonus points. **The client computes no
+grade** — live totals come from a `dry_run` that runs the save in the
+transaction and rolls back. Detail: `docs/API_REFERENCE.md` → The class
+record, `docs/GRADING_SPEC.md` §6e, `docs/FRONTEND_CONVENTIONS.md` §13.
+
+**Suite baselines were re-run on 2026-09-22 and eight were stale** — students
+94, grades 239, attendance 60, content 96, users 61, backups 47, messages 80,
+excuses 92, plus `test:class-record` 117 and grade-computation 77. oxlint is
+**41** (was 44 — CR2 deleted a page). Two suites need a caveat rather than a
+number: **`test:restore` is 28 passed / 1 failed**, a test-timing defect on a
+fast machine and not a code one, and **`test:recovery` reaches 62/62 only
+against a server started with `MAIL_TRANSPORT=file`**. Both are
+`docs/KNOWN_ISSUES.md` rows.
 
 **Grade 1's letter is COMPUTED and BUILT — 2026-09-22.** The school answered
 and it shipped the same day, server and client, both browser-checked. WW 30 /
