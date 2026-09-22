@@ -4064,3 +4064,128 @@ built — see OPEN QUESTIONS. Admin screens wait.
 | 2026-09-22 | Grading docs: GRADING_SPEC gains **§4a (rounding)** and **§6a (the Grade 1 letter — DECIDED, NOT BUILT)**; its line-70 `G1–3: 30/50/20` is labelled **DISCARDED**, not the Grade 1 rule. API_REFERENCE gains the whole-vs-2-decimal contract; §3 gains `whole`. **Three KNOWN_ISSUES rows** — 14 backups carry the old `Reading` name; term grades go 2-decimal from SY 2027-2028; **the mid-year transfer attendance scope is INVERTED against the school's rule**, unreachable only because of a `400`. School facts in the front matter (**3506114 is the PHONE, not the School ID**). BUILD ORDER: grading fix ticked, Grade 1 letters and the class-record grid queued ahead of DV4, pre-Stage-5 gains four. Baselines 197 / 56 / 33. |
 | 2026-09-22 | Grading fixes (`fix/grading-rounding`): **a Final Grade is a WHOLE number** (`roundToWhole`) — the card printed 89.33 where the school prints 89 — while the **General Average keeps two decimals over the rounded finals** (721/8 = 90.13). Display split at the CALL SITE, since one `toFixed(2)` served four kinds of value: `GradeValue` gained `whole`, set once in `TermValue`. **`String(Number(x))`, never `toFixed(0)`** — a stored 89.5 must not show as 90. **"Reading" → "Reading and Literacy"** by a migration that UPDATEs, because a delete would cascade Nino's letters away. `test:grades` 189 → **197**; the negative control caught **two weak assertions of my own**. |
 | 2026-09-22 | CLAUDE.md trim, third batch: **141,099 → 128,050 bytes on disk.** Twelve CHANGELOG stubs, BUILD ORDER Stages 1–2, the AGENT SKILLS rationale and two Feature 7 narrative paragraphs moved verbatim to `docs/ARCHIVE.md`; Stage 4's 22 checkboxes, Stage 3 and the completed After-Stage-4 bullets compressed to ticked lists plus pointers. **Every moved block was grepped for a live rule first** — four Stage 4 page rules stated nowhere else were kept here, and §1 gained the DV3 lesson (**unwrap protects a RENAMED key, never a FORGOTTEN one**), which had lived only in a stub. **The Notifications N1 dispatch has no `docs/CHANGELOG.md` row of its own**, so its stub is its only record and was moved rather than dropped. New standing size rule at the top: report the delta every dispatch, justify over 2,000 bytes, trim at 138,000, never start above 142,000. |
+
+---
+
+## BUILD ORDER → After Stage 4, the COMPLETED items as they stood in CLAUDE.md until 2026-09-23
+
+> Moved under the REFILL RULE in trim-7. Every item below is ticked and
+> finished; CLAUDE.md keeps a one-line ticked summary per item plus a pointer
+> here. **The QUEUED items were NOT moved** — DV1b, the UI-polish list, the
+> pre-Stage-5 server fixes, the docs pass and Stage 5 are live plan and stay
+> in CLAUDE.md in full. A live plan is never trimmed.
+
+> **One rule did NOT come here with its item.** The Dashboards entry carries
+> the only statement in the file that the three `activity_logs` rows dated
+> 2026-09-21 — from Darryl moving the machine clock to verify the
+> weekend-hidden teacher banner — are deliberate and **must not be
+> "fixed"**. It has no other home, so it stayed behind in CLAUDE.md.
+
+> **One claim here is STALE and is preserved only as the record.** The Data
+> views preamble says Grade 1's A–E "stays as it is until the school
+> answers" how the letter is produced. **The school answered on 2026-09-22
+> and it shipped the same day** (GRADING_SPEC §6a); the report card renders
+> a computed letter now. CLAUDE.md's copy was corrected rather than moved.
+
+**Done (all 2026-09-18 / 2026-09-19):**
+
+- [x] **Server hardening A, B, C** — validation · authorization · pagination.
+- [x] **D1 design tokens · D2 dark mode · D3 brand + sticky chrome** — §8, §9.
+- [x] **Empty-state duplicate fix** (§5f gained the rule).
+- [x] **Login redesign** — brand split panel, moved onto `FormField`.
+- [x] **Notifications, N1 server + N2 client + N3 docs** — the 21st table, four
+      endpoints, seven fan-out hooks, the bell and the badges. §10.
+- [x] **Account recovery, R1 server + R2 client + R3 docs** — the 22nd table
+      (`auth_codes`), five endpoints, the `token_version` counter, the
+      screens. §11. **The school question that used to block this was answered
+      by Darryl, not the school** — self-service by email code with an
+      admin-only temporary password as the fallback; answered, not dropped.
+
+
+**Queued before Stage 5, in this order:**
+
+- [x] **Dashboards, all three roles — DONE 2026-09-20** (DB1 server, DB2
+      client, DB3 docs). `GET /api/dashboard`, the deliberately thin one, plus
+      `pages/dashboards/Card.jsx` and `useCard.js`. The three pages no longer
+      derive their content from `navForRole`. See §12.
+      **The weekend-hidden teacher banner was verified by moving the machine's
+      clock to Monday 2026-09-21 09:00 — Darryl's deliberate override of his
+      own "do not fake the date" rule**, both states seen, clock restored.
+      The three `activity_logs` rows it produced are dated 2026-09-21 and
+      stay — **do not "fix" those timestamps.**
+- **Data views redesign — MOCKUP FIRST, no code until it is approved.**
+      Mockups exist and are approved (Darryl, 2026-09-20). Two rules every
+      piece inherits and cannot bend: **no verdict badges anywhere** (§4 —
+      the system counts and displays, it never concludes), and **Grade 1's
+      A–E stays as it is until the school answers** how the letter is
+      produced (OPEN QUESTIONS), so the report card must render both modes
+      without implying the letter is computed.
+
+  - [x] **DV1 — DataTable restyle + card layout below `sm`. DONE
+        2026-09-20.** `Avatar.jsx`, `renderCard`, the `nowrap` option, masked
+        parent login ids, six pages converted. **The sticky table header was
+        dropped — do not reopen it** (§5, `docs/FRONTEND_CONVENTIONS.md`
+        §5a-i). **Users filter tabs were NOT built:** the Role dropdown
+        already does that job, and tabs with counts need a server change.
+  - [x] **DV2 — monthly Attendance calendar. DONE 2026-09-20.** Parent →
+        Attendance is a month grid; `format/date.js` gained the month maths
+        (§5a-iv). **The percentage is gone — the fraction replaced it.**
+        **The 390px Status select on Teacher → Attendance did NOT come with
+        it** — a teacher ENCODE row is a form control, a different design
+        problem from a display card; it stays with DV1b.
+  - [x] **DV3 — SF9-style Grades report card. DONE 2026-09-21.** Parent →
+        Grades is the school's printed Learner's Performance Report, and
+        `GET /grades/student/:studentId` gained **`term_averages`** because
+        the client may not compute a grade. **The one page that leaves
+        DataTable** (§5a-v), and the one whose crossover is a container query
+        (§5a-vi).
+- [x] **Grade 1 computed letters — DONE 2026-09-22** (`feat/grade1-computed`).
+      The rule is `docs/GRADING_SPEC.md` **§6a**; every live rule it produced
+      is already under BLOCKED / RESOLVED → Grades above and in §5a-v / §5h.
+      Write-up: `docs/ARCHIVE.md` → BUILD ORDER → Grade 1 computed letters.
+- [x] **Class-record grid — DONE 2026-09-22** (`feat/class-record`, three
+      dispatches). **CR0** the whole-number gate (`utils/validateScore.js`).
+      **CR1** the 23rd table `assessment_slots`, `GET`/`PUT
+      /api/grades/class-record`, `slot_id` on `grade_components`, the
+      `dry_run` that rolls back. **CR2** the web grid — Teacher → Grades IS
+      the class record now, and the per-learner `GradesPage.jsx` was
+      **deleted**, not flagged. Four browser-check rounds, eight defects, the
+      last two found only in review. Rules and pointers under Grades above;
+      full record on the CHANGELOG rows.
+
+      **The two that cost the most, kept because they generalise:**
+      **defect 7** — a used slot with no score was being left out instead of
+      making the learner Pending, which silently raised the grade of a learner
+      who missed an assessment; I built it against the plan's explicit rule
+      and then wrote a test asserting my wrong behaviour. **Defect 8** — the
+      grid sent a payload no suite could produce, because every suite built
+      its bodies by hand; closed by extracting `buildPayload.js` as a pure
+      module the server suite imports (§13e).
+
+- [x] **CR3a — `subjects.display_order`. DONE 2026-09-22** (`feat/subject-order`).
+      The printed order left the client constant for the database; migration,
+      schema, seed, `ORDER BY` everywhere. Rules under Grades above;
+      `docs/GRADING_SPEC.md` §6d-i.
+- [x] **CR3 — the adviser's class summary. DONE 2026-09-22/23** (server
+      `feat/class-summary`, client `feat/class-summary-ui`). **The grades
+      track is complete.** Read-only, adviser-scoped, drill-through to
+      `ReportCard` reused unchanged. Rules under Grades above; the page is
+      `docs/FRONTEND_CONVENTIONS.md` §14. **It needed a server change first**
+      — the adviser could not read their own section's grades at all.
+
+- [x] **Grading fixes — DONE 2026-09-22** (`fix/grading-rounding`): the
+      whole-vs-two-decimal split (`docs/GRADING_SPEC.md` §4a, §3 here) and
+      Grade 1's "Reading" → "Reading and Literacy" by a migration that
+      UPDATEs. Write-up: `docs/ARCHIVE.md` → BUILD ORDER → Grading fixes.
+      **CLOSED by DV2 the same way:** Parent → Attendance's percentage copy —
+      the percentage itself is gone, so there was nothing left to overstate.
+
+  - [x] **DV4 — dashboards + the dark amber.** In Dark the amber card fill
+        reads as rust/brown and edges toward "danger", undoing §12's
+        amber-is-not-a-verdict rule exactly where it matters. Tune the dark
+        amber surface token toward a clearer amber — **mockup first**, and
+        re-run `lint:contrast`, since that token has passing pairs today.
+        **Also takes the `Stat` precision inconsistency (2026-09-22):**
+        `Card.jsx`'s `Stat` prints `{value}` with no formatter, so a general
+        average of 87.5 reads **`87.5`** on the dashboard against the report
+        card's **`87.50`** — same number, two spellings, two screens.
