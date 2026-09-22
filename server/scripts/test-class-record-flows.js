@@ -36,6 +36,22 @@ const mysql = require('mysql2/promise');
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const SCHOOL_YEAR = '2026-2027';
 
+// THE CLIENT'S OWN REQUEST BUILDER, imported and driven from here.
+//
+// This is the point of the file it lives in. Defect 8 was a request shape
+// the grid produced and no test ever did: every suite in this directory
+// builds its bodies by hand, so `Number("WW-2")` -> NaN -> null went
+// straight past all of them. Loading the real builder and sending ITS output
+// to the real API is the only thing that closes that.
+//
+// buildPayload.js imports neither React nor axios, which is what makes this
+// possible at all — Node can require an ESM module, but not one that pulls
+// the whole client with it. Keep it that way.
+const {
+  buildClassRecordPayload,
+  slotKey,
+} = require('../../client/src/pages/teacher/classRecord/buildPayload.js');
+
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT) || 3306,
@@ -1000,6 +1016,134 @@ async function main() {
       badShape.status === 400 && /slot_id, or a type and slot_no/.test(badShape.data?.message || ''),
       `a score naming no column at all is refused, saying what is missing (${why(badShape)})`
     );
+
+    // -----------------------------------------------------------------
+    console.log("\nTHE GRID'S OWN PAYLOAD BUILDER, driven from here");
+    // -----------------------------------------------------------------
+    // Everything above builds its request by hand. This block does not: it
+    // loads the function the browser runs, feeds it grid state, and sends
+    // the result to the real API. Defect 8 lived exactly in the space
+    // between those two things.
+    //
+    // A tiny helper so each case reads as "this is what the teacher typed".
+    const gridState = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const asGridState = (draft, slotDraft = {}, examMaxDraft = {}) =>
+      buildClassRecordPayload({
+        server: gridState.data,
+        draft,
+        slotDraft,
+        examMaxDraft,
+        key: classKey,
+      });
+
+    // A learner with NO grade row yet, so the save has to create one.
+    const noRowStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `6${lrnSuffix}`,
+        first_name: 'Fritz',
+        last_name: 'Gridfixture',
+        grade_level: 1,
+        section: 'Matipid',
+      },
+    });
+    requireFixture(noRowStudent.status === 201, 'a learner with no grade row', why(noRowStudent));
+    createdStudentIds.push(noRowStudent.data.student.id);
+    const fritzId = noRowStudent.data.student.id;
+    const freshState = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const stateWithFritz = (draft, slotDraft = {}, examMaxDraft = {}) =>
+      buildClassRecordPayload({
+        server: freshState.data,
+        draft,
+        slotDraft,
+        examMaxDraft,
+        key: classKey,
+      });
+
+    // CASE 1 — a new score in an existing used column, for a learner with no
+    // row. This is the exact keystroke that was refused.
+    const case1 = stateWithFritz({ [`${fritzId}:${slotKey('WW', ww2.slot_no)}`]: '7' });
+    assert(
+      case1 && case1.entries[0].scores[0].slot_id === ww2.id,
+      `the builder names an existing column by slot_id (got ${JSON.stringify(case1?.entries[0]?.scores[0])})`
+    );
+    const case1Res = await request('PUT', '/api/grades/class-record', { token: adminToken, body: case1 });
+    assert(case1Res.status === 200, `and the API accepts it (${why(case1Res)})`);
+
+    // CASE 2 — a column made used AND scored in the same save. There is no
+    // id to send; the builder must name it by type and number.
+    // PT 3, INSIDE the fixed frame. The first version of this used PT 5 and
+    // the builder correctly dropped it — the frame is Written Works 1-5 and
+    // Performance Tasks 1-3, so a column the grid cannot show is a column a
+    // teacher cannot have typed into. The test was wrong, not the builder.
+    const case2 = stateWithFritz(
+      { [`${fritzId}:${slotKey('PT', 3)}`]: '9' },
+      { [slotKey('PT', 3)]: { max_score: '10' } }
+    );
+    assert(
+      case2 && case2.entries[0].scores[0].type === 'PT' && case2.entries[0].scores[0].slot_no === 3,
+      `a column with no row yet is named by type and number (got ${JSON.stringify(case2?.entries[0]?.scores[0])})`
+    );
+    const case2Res = await request('PUT', '/api/grades/class-record', { token: adminToken, body: case2 });
+    assert(case2Res.status === 200, `and the API creates it and stores the score (${why(case2Res)})`);
+
+    // CASE 3 — exam scores for a learner with NO stored maxima. The builder
+    // must attach the header's maxima unasked, or the save is refused for a
+    // value that is on screen.
+    const case3 = stateWithFritz({
+      [`${fritzId}:st1_score`]: '30',
+      [`${fritzId}:st2_score`]: '30',
+      [`${fritzId}:te_score`]: '45',
+    });
+    assert(
+      case3 && case3.exam_max && case3.exam_max.st1 > 0,
+      `exam scores carry the header maxima without the header being touched (got ${JSON.stringify(case3?.exam_max)})`
+    );
+    const case3Res = await request('PUT', '/api/grades/class-record', { token: adminToken, body: case3 });
+    assert(case3Res.status === 200, `and the API accepts them together (${why(case3Res)})`);
+
+    // CASE 4 — the same payload as a DRY RUN writes nothing and still
+    // returns computed values, which is what the grid shows live.
+    const beforeDryBuilder = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const case4 = stateWithFritz({ [`${fritzId}:${slotKey('WW', ww2.slot_no)}`]: '3' });
+    const case4Res = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...case4, dry_run: true },
+    });
+    assert(case4Res.status === 200 && case4Res.data.dry_run === true, `a dry run of the same body (${why(case4Res)})`);
+    assert(
+      case4Res.data.group_hps !== undefined,
+      'and it carries group_hps, so the header can move with the learners'
+    );
+    const afterDryBuilder = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const fritzBefore = beforeDryBuilder.data.learners.find((l) => l.student_id === fritzId);
+    const fritzAfter = afterDryBuilder.data.learners.find((l) => l.student_id === fritzId);
+    assert(
+      fritzBefore.ww_total === fritzAfter.ww_total,
+      `and wrote nothing (${fritzBefore.ww_total} -> ${fritzAfter.ww_total})`
+    );
+
+    // CASE 5 — a dry run whose slot HPS changed reports the NEW class total,
+    // not the stored one. The grid's header read 30 while the learners below
+    // were already computed against 40.
+    const beforeHps = afterDryBuilder.data.group_hps.ww;
+    const case5 = stateWithFritz({}, { [slotKey('WW', 4)]: { max_score: '10' } });
+    const case5Res = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...case5, dry_run: true },
+    });
+    assert(
+      case5Res.data.group_hps.ww === beforeHps + 10,
+      `a dry run's group_hps includes an UNSAVED highest possible score: ${beforeHps} -> ${beforeHps + 10} (got ${case5Res.data.group_hps.ww})`
+    );
+    const stillStored = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    assert(
+      stillStored.data.group_hps.ww === beforeHps,
+      `while the stored total is untouched (got ${stillStored.data.group_hps.ww})`
+    );
+
+    // Nothing to save builds nothing — which is what keeps Save disabled.
+    assert(stateWithFritz({}) === null, 'an untouched grid builds no payload at all');
 
     const decimalScore = await request('PUT', '/api/grades/class-record', {
       token: adminToken,

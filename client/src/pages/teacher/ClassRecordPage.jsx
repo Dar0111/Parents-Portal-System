@@ -194,6 +194,8 @@ export default function ClassRecordPage() {
     examMaxDraft,
     setExamMaxDraft,
     preview,
+    previewGroupHps,
+    previewSlots,
     previewing,
     previewError,
   } = record;
@@ -268,7 +270,16 @@ export default function ClassRecordPage() {
   // THE FIXED FRAME: WW 1-5 and PT 1-3, always, with the server's rows
   // merged on. A position with no row is a phantom — greyed, disabled,
   // "Set HPS" — and its row is created only when a maximum is first set.
-  const frame = useMemo(() => buildSlotFrame(server?.slots || NO_SLOTS), [server]);
+  // THE PREVIEW'S SLOTS WIN WHILE THERE IS ONE, exactly as the preview's
+  // learner values do. The header's Highest-possible line reads from the
+  // same answer as the rows beneath it, so the two can never disagree —
+  // which they did: opening a column left the header at 30 while the
+  // learners were already computed against 40.
+  const frame = useMemo(
+    () => buildSlotFrame(previewSlots || server?.slots || NO_SLOTS),
+    [previewSlots, server]
+  );
+  const groupHps = previewGroupHps || server?.group_hps;
   const wwSlots = useMemo(() => frame.filter((s) => s.type === 'WW'), [frame]);
   const ptSlots = useMemo(() => frame.filter((s) => s.type === 'PT'), [frame]);
   const descriptive = server?.grading_mode === 'descriptive';
@@ -618,10 +629,10 @@ export default function ClassRecordPage() {
                         <td key={`hps-${group}-${i}`} className={i === 0 ? 'border-l border-edge' : ''} />
                       ))}
                       <td className="whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums">
-                        {server.group_hps?.[group] ?? '—'}
+                        {groupHps?.[group] ?? '—'}
                       </td>
                       <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                        {server.group_hps?.[group] === null || server.group_hps?.[group] === undefined ? '—' : '100.00'}
+                        {groupHps?.[group] === null || groupHps?.[group] === undefined ? '—' : '100.00'}
                       </td>
                       <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                         {weights?.[group] === undefined ? '—' : `${weights[group]}`}
@@ -853,8 +864,13 @@ export default function ClassRecordPage() {
                   </li>
                 ))}
               </ul>
+              {/* The school has confirmed no bonus-point policy, so the copy
+                  does not claim one. It says what the save does and asks the
+                  teacher to look — §5i: a sentence about behaviour must be
+                  true of the handler, and "bonus points are allowed" was a
+                  policy statement nobody has made. */}
               <p className="mt-1 text-xs text-fg-muted">
-                These are saved as typed. Bonus points are allowed and are not capped.
+                These are saved as typed — check for typing mistakes.
               </p>
             </div>
           ) : null}

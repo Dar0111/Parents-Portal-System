@@ -1617,11 +1617,36 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     }
 
     if (dryRun) {
+      // group_hps BEFORE the rollback, so the preview's header row matches
+      // the preview's learner values. Without it the grid showed the stored
+      // totals in the HPS row while the learners below were already computed
+      // against an unsaved maximum — 30 above, 45/40 = 112.50 beneath.
+      const previewSlots = await loadSlots(conn, key);
+      const previewUsedTotal = (type) =>
+        previewSlots.filter((s) => s.type === type && s.max_score !== null).reduce((sum, s) => sum + s.max_score, 0) ||
+        null;
+      const [previewExam] = await conn.query(
+        `SELECT ex_st1_max AS st1, ex_st2_max AS st2, ex_te_max AS te FROM grades
+          WHERE subject_id = ? AND term = ? AND school_year = ? AND student_id IN (?)`,
+        [key.subjectId, key.term, key.schoolYear, students.length ? students.map((s) => s.id) : [0]]
+      );
+      const previewExamTotal = previewExam.reduce((best, row) => {
+        if (best !== null) return best;
+        if (row.st1 === null || row.st2 === null || row.te === null) return null;
+        return gc.roundTo2(Number(row.st1) + Number(row.st2) + Number(row.te));
+      }, null);
+
       await conn.rollback();
       return res.json({
         success: true,
         dry_run: true,
         message: 'Nothing was saved. These are the values this save would produce.',
+        group_hps: {
+          ww: previewUsedTotal('WW'),
+          pt: previewUsedTotal('PT'),
+          ex: previewExamTotal,
+        },
+        slots: previewSlots,
         results,
       });
     }
