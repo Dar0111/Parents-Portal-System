@@ -512,6 +512,125 @@ async function main() {
       body: { ...classKey, exam_max: { st1: 40 } },
     });
 
+    // THE DEFECT THE BROWSER CHECK FOUND (2026-09-22). A learner with no
+    // stored Summative maximum was refused — "ST1: a score needs a max, and
+    // this learner has none stored yet" — while the grid header plainly
+    // showed 30/30/40, because that maximum came from ANOTHER learner's row
+    // and the client only sent exam_max when the header was edited.
+    //
+    // The server side of the fix is that a save carrying BOTH the maxima and
+    // the scores succeeds in one request, which is what the grid now always
+    // sends. Dex has a grade row (the fan-out above created one) but the
+    // point holds: the maxima and the scores arrive together.
+    const freshWithScores = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        exam_max: { st1: 40, st2: 40, te: 60 },
+        entries: [{ student_id: freshId, st1_score: 30, st2_score: 30, te_score: 45 }],
+      },
+    });
+    assert(
+      freshWithScores.status === 200,
+      `maxima and scores in ONE save succeed for a learner who had neither (${why(freshWithScores)})`
+    );
+    const freshScored = freshWithScores.data.results.find((r) => Number(r.student_id) === Number(freshId));
+    assert(
+      freshScored && freshScored.ex_total === 105 && freshScored.ex_total_max === 140,
+      `and the Summative computes: 30+30+45 = 105 out of 40+40+60 = 140 (got ${freshScored?.ex_total}/${freshScored?.ex_total_max})`
+    );
+
+    // The negative case, so the assertion above is not passing for free: the
+    // SAME scores without the maxima, on a learner who has none, is exactly
+    // the refusal the browser hit.
+    const bareStudent = await request('POST', '/api/students', {
+      token: adminToken,
+      body: {
+        lrn: `5${lrnSuffix}`,
+        first_name: 'Elle',
+        last_name: 'Gridfixture',
+        grade_level: 1,
+        section: 'Matipid',
+      },
+    });
+    requireFixture(bareStudent.status === 201, 'a learner with no grade row at all', why(bareStudent));
+    createdStudentIds.push(bareStudent.data.student.id);
+    const noMaxSave = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, entries: [{ student_id: bareStudent.data.student.id, st1_score: 30 }] },
+    });
+    assert(
+      noMaxSave.status === 400 && /needs a max/i.test(noMaxSave.data?.message || ''),
+      `a Summative score with NO maximum is still refused — which is why the grid must always send it (${why(noMaxSave)})`
+    );
+
+    // -----------------------------------------------------------------
+    console.log('\nThe HPS row — group_hps, and what an HPS change does to it');
+    // -----------------------------------------------------------------
+    // The school's E-Class Record prints the highest possible score once per
+    // group, above every learner, rather than as a denominator on every
+    // line. TOTAL is the sum of the USED slots' maxima; PS is 100.00 by
+    // definition; WS is the group's weight. All from the server.
+    const hpsRead = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const usedWw = hpsRead.data.slots
+      .filter((s) => s.type === 'WW' && s.max_score !== null)
+      .reduce((sum, s) => sum + s.max_score, 0);
+    assert(
+      hpsRead.data.group_hps.ww === usedWw,
+      `group_hps.ww is the sum of the USED WW slots (expected ${usedWw}, got ${hpsRead.data.group_hps.ww})`
+    );
+    // An UNUSED slot contributes nothing — the same rule that keeps it out
+    // of a learner's total keeps it out of the class's.
+    assert(
+      hpsRead.data.slots.some((s) => s.type === 'WW' && s.max_score === null),
+      'fixture check: at least one WW slot really is unused'
+    );
+    assert(
+      hpsRead.data.group_hps.ex === 140,
+      `the Summative HPS is the three class maxima summed: 40+40+60 = 140 (got ${hpsRead.data.group_hps.ex})`
+    );
+
+    // SETTING A PHANTOM SLOT'S HPS MOVES IT. The browser check saw nothing
+    // change when a previously-unused column was given a maximum, because
+    // the only number that should move is this one — no learner has a score
+    // in a brand-new column, so no learner's grade changes.
+    const beforeNewSlot = hpsRead.data.group_hps.ww;
+    const addSlot = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, slots: [{ type: 'WW', slot_no: 5, max_score: 15 }] },
+    });
+    assert(addSlot.status === 200, `a previously-unused slot can be given a maximum (${why(addSlot)})`);
+    const afterNewSlot = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    assert(
+      afterNewSlot.data.group_hps.ww === beforeNewSlot + 15,
+      `and the class HPS moves by exactly that: ${beforeNewSlot} -> ${beforeNewSlot + 15} (got ${afterNewSlot.data.group_hps.ww})`
+    );
+    // ...while no learner's own total changes, because none of them has a
+    // score in it yet. That is the pair of facts the grid must show.
+    const anaAfterNewSlot = afterNewSlot.data.learners.find((l) => l.student_id === learners[0].id);
+    const anaBeforeNewSlot = hpsRead.data.learners.find((l) => l.student_id === learners[0].id);
+    assert(
+      anaAfterNewSlot.ww_total === anaBeforeNewSlot.ww_total &&
+        anaAfterNewSlot.ww_percentage === anaBeforeNewSlot.ww_percentage,
+      `no learner's own total moves for an empty new column (Ana stayed ${anaBeforeNewSlot.ww_total}/${anaBeforeNewSlot.ww_percentage})`
+    );
+
+    // A DRY RUN returns the same totals a save would, so the grid can show
+    // them live — including after an HPS change.
+    const dryAfterHps = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        dry_run: true,
+        entries: [{ student_id: learners[0].id, scores: [{ slot_id: ww2.id, score: 3 }] }],
+      },
+    });
+    const dryRow = dryAfterHps.data.results.find((r) => Number(r.student_id) === Number(learners[0].id));
+    assert(
+      dryAfterHps.status === 200 && dryRow && dryRow.ww_total !== null && dryRow.ww_percentage !== null,
+      `a dry run returns Total and PS, not just the grade (${why(dryAfterHps)})`
+    );
+
     const decimalExamMax = await request('PUT', '/api/grades/class-record', {
       token: adminToken,
       body: { ...classKey, exam_max: { st1: 40.5 } },

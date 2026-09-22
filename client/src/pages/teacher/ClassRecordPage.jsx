@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -225,6 +225,44 @@ export default function ClassRecordPage() {
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [record.dirty]);
+
+  // IN-APP NAVIGATION NEEDS ITS OWN BLOCK — `beforeunload` covers a reload
+  // and a closed tab, and nothing else. Clicking Dashboard in the sidebar is
+  // a router transition the browser never sees, so with only the listener
+  // above a teacher lost a class's worth of typing with no warning at all
+  // (browser check, 2026-09-22).
+  //
+  // NOT `useBlocker`, and this is worth recording: react-router 7 has it,
+  // but it throws "useBlocker must be used within a data router" — this app
+  // mounts <BrowserRouter> with JSX routes, not createBrowserRouter. The
+  // first version of this fix used it and the SSR proof caught the throw;
+  // in a browser the whole page would have been blank on mount. Converting
+  // the app to a data router to gain a guard on one screen is a routing
+  // rewrite, not a fix.
+  //
+  // So: intercept the CLICK, in the capture phase, before the router sees
+  // it. Only a same-origin link to a different path, only while dirty, and
+  // only a plain left click — a modified click is the user deliberately
+  // opening a new tab, which loses nothing.
+  const navigate = useNavigate();
+  const [pendingHref, setPendingHref] = useState(null);
+
+  useEffect(() => {
+    if (!record.dirty) return undefined;
+    const onClick = (event) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target.closest?.('a[href]');
+      if (!anchor || anchor.target === '_blank') return;
+      const url = new URL(anchor.href, window.location.origin);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname) return;
+      event.preventDefault();
+      setPendingHref(url.pathname + url.search);
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
   }, [record.dirty]);
 
   // THE FIXED FRAME: WW 1-5 and PT 1-3, always, with the server's rows
@@ -536,6 +574,8 @@ export default function ClassRecordPage() {
                           inputMode="numeric"
                           aria-label={`${f.toUpperCase()} highest possible score for the class`}
                           title={`${f.toUpperCase()} highest possible score — applies to every learner`}
+                          autoComplete="off"
+                          name={`exam-hps-${f}`}
                           className="w-14 rounded-md border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted disabled:bg-surface-subtle"
                           value={examMaxValue(f)}
                           disabled={!canEncode}
@@ -559,6 +599,39 @@ export default function ClassRecordPage() {
               </thead>
 
               <tbody>
+                {/* THE HPS ROW, the line the school's E-Class Record prints
+                    before any learner. Every value comes from the payload:
+                    TOTAL is the sum of the USED slots' maxima, PS is 100.00
+                    by definition, WS is the group's weight. Nothing here is
+                    summed in this file. */}
+                <tr className="border-b border-edge bg-surface-subtle text-xs text-fg-muted">
+                  <th scope="row" className="sticky left-0 z-10 bg-surface-subtle px-3 py-1.5 text-left font-semibold uppercase tracking-wider">
+                    Highest possible
+                  </th>
+                  {[
+                    ['ww', wwSlots],
+                    ['pt', ptSlots],
+                    ['ex', EXAM_FIELDS],
+                  ].map(([group, cols]) => (
+                    <Fragment key={`hps-${group}`}>
+                      {cols.map((_, i) => (
+                        <td key={`hps-${group}-${i}`} className={i === 0 ? 'border-l border-edge' : ''} />
+                      ))}
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums">
+                        {server.group_hps?.[group] ?? '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
+                        {server.group_hps?.[group] === null || server.group_hps?.[group] === undefined ? '—' : '100.00'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
+                        {weights?.[group] === undefined ? '—' : `${weights[group]}`}
+                      </td>
+                    </Fragment>
+                  ))}
+                  <td className="border-l border-edge" />
+                  <td />
+                </tr>
+
                 {server.learners.map((learner) => {
                   const live = preview?.get(learner.student_id);
                   // The preview wins while fresh, the stored read is the
@@ -592,11 +665,16 @@ export default function ClassRecordPage() {
 
                   const totals = (group) => (
                     <Fragment key={`${group}-totals`}>
+                      {/* THE RAW SUM ALONE — "35", not "35/30". The
+                          denominator is the HPS row above, printed once for
+                          the class, exactly as the school's own record does
+                          it. Repeating it on every line is what made the
+                          group three columns wide for no information. */}
                       <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-fg-body">
                         {computed[`${group}_total`] === null || computed[`${group}_total`] === undefined ? (
                           <GradeValue value={null} mode="numerical" />
                         ) : (
-                          `${computed[`${group}_total`]}/${computed[`${group}_total_max`]}`
+                          computed[`${group}_total`]
                         )}
                       </td>
                       <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
@@ -708,6 +786,43 @@ export default function ClassRecordPage() {
           <FormStatus status={status.save} />
         </>
       )}
+
+      {/* The in-app half of the unsaved-changes guard. A real choice, held
+          open while the router transition waits — a notice after the fact
+          would arrive with the drafts already gone. */}
+      <Modal
+        open={pendingHref !== null}
+        onClose={() => setPendingHref(null)}
+        title="Leave without saving?"
+        size="sm"
+      >
+        <div className="space-y-4 text-sm text-fg-body">
+          <p>
+            You have unsaved scores in this class record. Leaving now discards them — nothing has been sent to the
+            server yet.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
+              onClick={() => setPendingHref(null)}
+            >
+              Stay on this page
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-danger-edge px-3 py-1.5 text-sm text-danger-fg hover:bg-danger-soft"
+              onClick={() => {
+                const href = pendingHref;
+                setPendingHref(null);
+                if (href) navigate(href);
+              }}
+            >
+              Leave and discard
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Save the class record?" size="md">
         <div className="space-y-4 text-sm text-fg-body">

@@ -56,6 +56,12 @@ function move(grid, studentId, field, dRow, dCol) {
   }
 }
 
+// AUTOCOMPLETE IS PRIVACY HERE, not tidiness (browser check, 2026-09-22).
+// Chrome offered saved logins on a score box — "ADMIN001" and a parent's
+// login id, which IS a learner's LRN (§5c: half a credential). A grid of
+// bare numeric inputs looks enough like a login form for the heuristic to
+// fire. `autoComplete="off"` plus a name that is plainly not a credential
+// field stops it; the id already addresses the cell.
 export default function Cell({ studentId, field, value, onChange, disabled, hint, grid, aboveMax, dirty }) {
   const parsed = parseCell(value);
   const invalid = Boolean(parsed.error);
@@ -110,6 +116,8 @@ export default function Cell({ studentId, field, value, onChange, disabled, hint
       id={cellId(studentId, field)}
       type="text"
       inputMode="numeric"
+      autoComplete="off"
+      name={`score-${studentId}-${field}`}
       className={`w-14 rounded-md border border-edge-strong bg-surface px-1.5 py-1 text-center text-sm tabular-nums text-fg disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted ${ring}`}
       value={value ?? ''}
       disabled={disabled}

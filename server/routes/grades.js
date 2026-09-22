@@ -1009,6 +1009,24 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
     // edit — the header then shows the most common value and the client says
     // the class disagrees, rather than silently picking one and overwriting
     // the rest on the next save.
+    // THE HPS ROW — the line the school's E-Class Record prints across the
+    // top of each group, before any learner.
+    //
+    //   TOTAL  the sum of the USED slots' highest possible scores (an unused
+    //          slot contributes nothing, exactly as it contributes nothing to
+    //          a learner's total)
+    //   PS     100.00 by definition — it is the percentage a learner who
+    //          scored every point would have
+    //   WS     the group's weight
+    //
+    // Sent from here rather than summed in the grid for the same reason
+    // every other number on that screen is: the client does no grade
+    // arithmetic, and a header total that disagreed with the column beneath
+    // it by a rounding step would be the worst possible thing to debug.
+    // The Summative row's total is the three class-wide maxima summed.
+    const usedTotal = (type) =>
+      slots.filter((s) => s.type === type && s.max_score !== null).reduce((sum, s) => sum + s.max_score, 0) || null;
+
     const examMax = {};
     const examMixed = {};
     for (const part of ['st1', 'st2', 'te']) {
@@ -1028,6 +1046,14 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
       subject: { id: subject.id, name: subject.name, grade_level: subject.grade_level },
       exam_max: examMax,
       exam_max_mixed: examMixed,
+      group_hps: {
+        ww: usedTotal('WW'),
+        pt: usedTotal('PT'),
+        ex:
+          examMax.st1 === null || examMax.st2 === null || examMax.te === null
+            ? null
+            : gc.roundTo2(examMax.st1 + examMax.st2 + examMax.te),
+      },
       grade_level: key.gradeLevel,
       section: key.section,
       term: key.term,

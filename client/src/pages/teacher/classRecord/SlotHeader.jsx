@@ -42,10 +42,15 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
           {draft?.name !== undefined && draft.name ? draft.name : slot.short_label}
         </button>
 
+        {/* autoComplete on every input below: see Cell.jsx. A browser
+            offered saved logins on these fields, including a parent's login
+            id, which is a learner's LRN. */}
         {inUse ? (
           <input
             type="text"
             inputMode="numeric"
+            autoComplete="off"
+            name={`hps-${slot.type}-${slot.slot_no}`}
             aria-label={`${slot.display_label} highest possible score`}
             title={`${slot.display_label} highest possible score`}
             className="w-14 rounded-md border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted disabled:bg-surface-subtle"
@@ -70,6 +75,8 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
           <FormField
             label="Name (optional)"
             value={nameValue}
+            autoComplete="off"
+            name={`slot-name-${slot.type}-${slot.slot_no}`}
             placeholder={`${slot.type === 'WW' ? 'Written Work' : 'Performance Task'} ${slot.slot_no}`}
             onChange={(e) => onDraft({ ...draft, name: e.target.value })}
           />
@@ -81,6 +88,8 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
           <FormField
             label="Highest possible score"
             inputMode="numeric"
+            autoComplete="off"
+            name={`slot-hps-${slot.type}-${slot.slot_no}`}
             value={maxValue}
             onChange={(e) => onDraft({ ...draft, max_score: e.target.value })}
           />

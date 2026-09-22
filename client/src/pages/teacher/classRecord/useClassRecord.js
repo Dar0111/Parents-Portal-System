@@ -39,6 +39,7 @@ const RECORD_UNWRAP = [
   'can_encode',
   'exam_max',
   'exam_max_mixed',
+  'group_hps',
   'slots',
   'learners',
 ];
@@ -193,15 +194,28 @@ export default function useClassRecord(classKey) {
       }
     }
 
-    // The class-wide Summative maxima. Only the parts that changed, so a
-    // save that touches one score does not rewrite every learner's maximum.
+    // The class-wide Summative maxima.
+    //
+    // SENT WITH EVERY SAVE THAT CARRIES AN EXAM SCORE, edited or not, and
+    // that is the fix for a real defect: the header showed 30/30/40 because
+    // ANOTHER learner's row had those maxima, but a learner who had none
+    // stored was refused with "ST1: a score needs a max, and this learner
+    // has none stored yet". The value was on screen and the client simply
+    // never sent it. A maximum the teacher can see is a maximum the save
+    // must apply.
+    //
+    // Resolved from the draft if edited, otherwise from what the class
+    // already agrees on — so it is the number in the header either way.
     const examMax = {};
-    for (const part of ['st1', 'st2', 'te']) {
+    const resolveExamMax = (part) => {
       const raw = examMaxDraft[part];
-      if (raw === undefined) continue;
-      const next = raw === '' ? null : Number(raw);
-      if (next === null || !Number.isInteger(next) || next <= 0) continue;
-      if (next !== server.exam_max?.[part]) examMax[part] = next;
+      const value = raw === undefined ? server.exam_max?.[part] : raw === '' ? null : Number(raw);
+      return value !== null && value !== undefined && Number.isInteger(value) && value > 0 ? value : null;
+    };
+    for (const part of ['st1', 'st2', 'te']) {
+      const next = resolveExamMax(part);
+      if (next === null) continue;
+      if (examMaxDraft[part] !== undefined && next !== server.exam_max?.[part]) examMax[part] = next;
     }
 
     const byStudent = new Map();
@@ -235,6 +249,21 @@ export default function useClassRecord(classKey) {
     const entries = [...byStudent.values()].filter(
       (e) => e.scores.length > 0 || Object.keys(e).some((k) => k !== 'student_id' && k !== 'scores')
     );
+
+    // ...AND unconditionally whenever any entry carries an exam score, even
+    // if the header was never touched. Without this the save reaches a
+    // learner with no stored maximum and is refused for a value that is
+    // visibly on screen.
+    const touchesExam = entries.some((e) =>
+      ['st1_score', 'st2_score', 'te_score'].some((f) => e[f] !== undefined && e[f] !== null)
+    );
+    if (touchesExam) {
+      for (const part of ['st1', 'st2', 'te']) {
+        if (examMax[part] !== undefined) continue;
+        const resolved = resolveExamMax(part);
+        if (resolved !== null) examMax[part] = resolved;
+      }
+    }
 
     const hasExamMax = Object.keys(examMax).length > 0;
     if (!slots.length && !entries.length && !hasExamMax) return null;
