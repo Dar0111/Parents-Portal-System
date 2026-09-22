@@ -46,8 +46,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 87** handlers defined in
-> `server/routes/`, and the API answers **88 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 88** handlers defined in
+> `server/routes/`, and the API answers **89 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 > Both recounted from the code on 2026-09-22, which moved them twice in one
 > day: `PATCH /grades/:id/descriptive` retired (−1) and the class record's
@@ -109,7 +109,7 @@ Restore was the last page: every Figure 5 admin process has a page. **Admin
 nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; teacher (11) and parent (9) are
-unchanged, and **no role now has a `built: false` item**. **23 tables, 87
+unchanged, and **no role now has a `built: false` item**. **23 tables, 88
 handlers + `/api/health`** (2026-09-22). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
@@ -142,8 +142,8 @@ sits in `docs/ARCHIVE.md` (2026-09-19, before Notifications' 4 and account
 recovery's 5 landed); **it is not the live record.**
 
 **The arithmetic stays here because two numbers are both correct and mean
-different things: 87 handlers** are defined in `server/routes/`, and the API
-answers **88 endpoints** because `GET /api/health` is mounted in `server.js`.
+different things: 88 handlers** are defined in `server/routes/`, and the API
+answers **89 endpoints** because `GET /api/health` is mounted in `server.js`.
 **State which you mean.** Both moved twice on 2026-09-22 —
 `PATCH /grades/:id/descriptive` retired (still the only endpoint ever removed
 besides Contributions' eight) and the class record's `GET` and `PUT` landed.
@@ -179,9 +179,9 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 
 - `npm run test:students` — **94/94** (was 65)
 - `npm run test:sections` — 30/30
-- `npm run test:assignments` — 56/56
+- `npm run test:assignments` — **62/62**
 - `npm run test:grading-modes` — 13/13
-- `npm run test:grades` — **239/239** (was 212. This line has been stale four times over: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239)
+- `npm run test:grades` — **247/247** (was 212. This line has been stale four times over: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239)
 - `npm run test:auth` — 56/56
 - `npm run test:attendance` — **60/60** (was 38)
 - `npm run test:content` — **96/96** (was 62)
@@ -195,13 +195,14 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 - `npm run test:notifications` — **136/136** (was 124)
 - `npm run test:dashboard` — 77/77
 - `npm run test:class-record` — **117/117** (CR1 105 → CR2 117). **It is the only suite that imports a CLIENT module** — `buildPayload.js` — so the grid's real payload is exercised against the real API; see §13e
+- `npm run test:class-summary` — **59/59** (CR3). Two assertions are the dispatch: **TCH-002, adviser with zero assignments, gets 200 on the summary AND on a learner's report card.** Its cleanup is a **WATERMARK, not an id list** — `PUT /class-record` creates a shell row for every learner in the class, so deleting only its own learners' grades left eight behind on a SEEDED one (KNOWN ISSUES)
 - `npm run test:recovery` — **62/62, but ONLY against a server started with `MAIL_TRANSPORT=file`.** Otherwise it stops at 11/1 with a fixture failure — the variable belongs to the process that sends the mail, so prefixing the test script does nothing. Run-book in KNOWN ISSUES
 
 `node scripts/verify-grading-seed.js` is not one of the suites above — it's a
 direct-DB verification script (no server, no HTTP, no `assert()` harness),
 checking the Grades seed (transmutation table, weights, modes, Grade 1
 descriptive fixture) is internally consistent. Run it after `db:setup`, before
-trusting the seed. **34/34 as of 2026-09-22** — the descriptive-exclusion
+trusting the seed. **44/44 as of 2026-09-23** — the descriptive-exclusion
 check **inverted** to "every grade level has weights" when Grade 1 gained its
 own, plus one asserting Grade 1 is exactly 30/50/20. **There is now a second
 reason to run it: after restoring any backup**, because every dump taken
@@ -610,7 +611,7 @@ resolves imports, not identifiers; the server suites never load the client.
 `correctness` set, which is how the same undefined-identifier defect shipped
 twice. It needed `env.browser` beside it plus an `overrides` giving
 `scripts/**` `env.node`, or it reports 52 globals and no real bugs; with those,
-it reports **0** and the oxlint total is unchanged by it (**41** since CR2
+it reports **0** and the oxlint total is unchanged by it (**43** since CR3; 41
 deleted `teacher/GradesPage.jsx`; it was 44). Where a
 browser is unavailable, an SSR render via `renderToStaticMarkup` **with a
 negative control** is the backstop, not the proof: it cannot catch effect bugs
@@ -711,7 +712,7 @@ sits on a `bg-seal-bg` disc (§9). `:root` holds the raw values, each
 line naming the palette color it equals; `@theme inline` maps them so a
 `[data-theme]` block can swap values at runtime. **`npm run lint:tokens`
 (`client/scripts/check-color-tokens.mjs`) must report 0 on every client
-dispatch**, next to oxlint's **41** (was 44 until CR2). `page`/`surface-subtle` and
+dispatch**, next to oxlint's **43**. `page`/`surface-subtle` and
 `primary`/`bubble-mine` share a light value on purpose — do not merge them.
 **Dark (2026-09-19):** the same variables under `[data-theme="dark"]` — the
 block is the theme, no page changed for it. Light / Dark / System live in
@@ -720,7 +721,7 @@ applied by `pages/settings/theme.js` and by an inline script in `index.html`
 before the bundle (keep the two in step by hand); `initTheme()` in `main.jsx`
 keeps System live. **`npm run lint:contrast` must report 0** on every client
 dispatch (**70 pairs × 2 themes, 9 waived** as of 2026-09-22), next to
-`lint:tokens` and oxlint's 41; a failing pair is waived
+`lint:tokens` and oxlint's 43; a failing pair is waived
 only by an allow-list entry whose marker sits on a KNOWN ISSUES row. Full
 text, the proof method, the six accepted light-mode changes (E1–E6) and the
 dark values: `docs/FRONTEND_CONVENTIONS.md` §8.
@@ -1063,6 +1064,32 @@ the rounding fix and Grade 1's computed letters (both 2026-09-22).
   100.00. `grade_components.type` is `ENUM('WW','PT')`, no `'formative'`.
   `current_quarter` became `current_term`. Item-count caps and `is_locked`'s
   trigger stay documentation-only. Awards are out of scope.
+
+**The class summary is BUILT (CR3a + CR3, 2026-09-22/23)** — the grades track
+is complete. `GET /api/grades/class-summary`, `subjects.display_order`, and
+Teacher → Class summary with a read-only drill-through to `ReportCard`.
+**Four rules stated nowhere else here:**
+
+- **Grades READ scope is assigned-OR-adviser; ENCODE is unchanged.** The
+  adviser of a section could not read one grade in it until CR3 — TCH-002 is
+  that account. **Widening encode to advisers would invent school policy.**
+- **`TEACHER_ADVISES_CLASS_SQL` sits beside `TEACHER_VIEW_SCOPE_SQL` in
+  `utils/teacherScope.js` and THE TWO MOVE TOGETHER.** Two forms of one rule:
+  the original needs a `students` row, the new one a class key. **Routing the
+  grades callers through `students` would make an EMPTY class invisible to an
+  assigned teacher** — that is why both exist.
+- **The printed order is `subjects.display_order`, not a client constant.**
+  Every reader sorts `display_order IS NULL, display_order, name` (null-last —
+  MySQL sorts NULL first). **Grades 2 and 3 are NULL on purpose**; Grade 1's
+  order is PROVISIONAL and Grades 4-6 share one KS2 SF9 transcription, both
+  pending confirmation.
+- **A descriptive letter is NOT a `GradeValue`.** Cells go through
+  `format/TermValue.jsx`, or `Number('A') → NaN → null` renders every Grade 1
+  letter as "— N/A". **An unrecorded letter is Pending, not N/A.**
+
+Full contract: `docs/API_REFERENCE.md` → The class summary. The page:
+`docs/FRONTEND_CONVENTIONS.md` **§14**. The order: `docs/GRADING_SPEC.md`
+**§6d-i**.
 
 **The class record is BUILT (CR0–CR2, 2026-09-22)** — `GET` and
 `PUT /api/grades/class-record`, the 23rd table `assessment_slots`, and
@@ -1533,16 +1560,16 @@ is the order, not the record.
       its bodies by hand; closed by extracting `buildPayload.js` as a pure
       module the server suite imports (§13e).
 
-- [ ] **CR3 — the adviser's class summary. NEXT.** Adviser-scoped, READ-ONLY:
-      one learner per row, every subject's Term Grade across the row, the
-      General Average at the end — the Summary of Grades an adviser compiles
-      from the subject teachers' records. **Read-only is the whole point:** an
-      adviser is not the encoder (encode scope is the subject teacher, and
-      widening it would invent school policy — BLOCKED / RESOLVED). **No
-      verdicts** (§4) and **no General Average row for Key Stage 1**
-      (GRADING_SPEC §6a). Open: whether it needs a new endpoint or composes
-      `GET /grades/student/:studentId` per learner — 40 requests says it
-      probably does.
+- [x] **CR3a — `subjects.display_order`. DONE 2026-09-22** (`feat/subject-order`).
+      The printed order left the client constant for the database; migration,
+      schema, seed, `ORDER BY` everywhere. Rules under Grades above;
+      `docs/GRADING_SPEC.md` §6d-i.
+- [x] **CR3 — the adviser's class summary. DONE 2026-09-22/23** (server
+      `feat/class-summary`, client `feat/class-summary-ui`). **The grades
+      track is complete.** Read-only, adviser-scoped, drill-through to
+      `ReportCard` reused unchanged. Rules under Grades above; the page is
+      `docs/FRONTEND_CONVENTIONS.md` §14. **It needed a server change first**
+      — the adviser could not read their own section's grades at all.
 
 - [x] **Grading fixes — DONE 2026-09-22** (`fix/grading-rounding`): the
       whole-vs-two-decimal split (`docs/GRADING_SPEC.md` §4a, §3 here) and
@@ -1594,6 +1621,13 @@ is the order, not the record.
       import a constant (migration + `schema.sql` + `seed.sql` + `ORDER BY`
       in `routes/grades.js` and `routes/subjects.js`). **Grade 1's order is
       PROVISIONAL** — ask the school before seeding it as fact.
+      **(i) `test:restore`'s "token issued after the cutoff" assertion needs a
+      SUB-SECOND boundary** — it fails on a fast machine because the scripted
+      flow fits inside one `iat` second. **Fix the TEST, never the
+      comparison**; the production behaviour is correct.
+      **(j) decide the Back-button guard BEFORE Expo** —
+      `createBrowserRouter` vs a `pushState` sentinel. Stage 5 brings its own
+      navigation model, so choosing the router late is expensive.
       **(b) `AuthContext` must tell a 401 from a network error or 5xx** —
       today any `/auth/me` failure clears the token, so a refresh during an
       outage discards a valid session; frequent on a school LAN.
@@ -2048,23 +2082,22 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-23 | CR3a + CR3 **docs pass** (`docs/class-summary`), covering three build dispatches. API_REFERENCE: `subjects.display_order` and the **null-last idiom** (MySQL sorts NULL first — without the leading term a MIXED grade level puts its unordered rows first); **`GET /assignments`' default follows the order, `sort=subject` stays A-Z**; the class summary's three-way scope (**a nonexistent section is the SAME 404 as "not yours"**), **two flags**, `general_average` **absent not null** in KS1, **no pagination — a document, not a list**; and **`TEACHER_ADVISES_CLASS_SQL` beside `TEACHER_VIEW_SCOPE_SQL`**, because routing grades through `students` would hide an EMPTY class from an assigned teacher. Counts **88 handlers / 89 endpoints**. GRADING_SPEC **§6d-i** — where each order came from, and a correction: **Grade 5 never fell back to alphabetical**. FRONTEND_CONVENTIONS **§14** — **a letter is not a number** (`TermValue`, never `GradeValue`, or every Grade 1 letter reads "— N/A"), **Pending ≠ N/A**, and **a self-fetching page cannot be SSR-proved**, so what must be proved is extracted and exported. KNOWN_ISSUES: the **shell-row trap**. Baselines 44 / 247 / 62 / 59, oxlint **43**. **CR3a and CR3 ticked — the grades track is complete**; pre-Stage-5 gains the `test:restore` sub-second fix and the Back-button decision. **The stub reserve was spent as designed** — four rows to ARCHIVE after this file hit 137,804. |
 | 2026-09-22 | CLAUDE.md trim, sixth batch: **136,830 → 135,119 on disk (−1,711)**. Six blocks measured and guard-grepped first; **the guard cleared more of this batch than any previous one, because these were duplicates rather than condensed rules.** `### Corrections` → rule-plus-pointer (both its live rules already live elsewhere in this file); **the "75 role-facing views" figure now appears ONCE**, in BUILD ORDER → Stage 4. `## SAFE TO BUILD NOW` (**zero guard hits**) emptied, heading kept with a **do-not-repopulate** note. `## GET /api/messages/contacts` keeps its two rules (**`?search=` is scoped, never an unscoped user search**; ACTIVE-only) and loses the archived detail. **Two closed BLOCKED items left permanently under the REFILL RULE** — the Stage G1a schema issue (zero hits; live text is GRADING_SPEC) and Excuse Letters (keeping **approval must not modify `attendance`**). **TWO STALE CLAIMS corrected:** the seeded weights were still called "provisional until G1b lands" (**G1b landed 2026-09-05**), and the parent modal's silence about the Grade 1 letter still rested on "until the school answers" (**answered and built 2026-09-22**) — recorded as a choice now needing a deliberate answer, not flipped. **Not taken:** the CHANGELOG stub table, the next trim's overflow valve. No `##` heading changed. |
 | 2026-09-22 | Class record CR0–CR2 **docs pass** (`docs/class-record`): API_REFERENCE gains the two endpoints — slot addressing by `slot_id` **or** `type` + `slot_no`, `dry_run`, `group_hps`, `can_encode`, **locked is `409` and all-or-nothing**; **route order is load-bearing** (both registered before `GET /:id`). GRADING_SPEC **§6e** — **USED is the HPS, not the row**, and a used slot with no score makes that learner's group **Pending, never left out and never zero** (leaving it out silently RAISED an absent learner's grade). FRONTEND_CONVENTIONS **§13** — Teacher → Grades IS the grid, the client never computes a grade, the **sticky learner COLUMN** as DV1b's precedent, the pure `buildPayload.js`, and **a failed build can run the PREVIOUS bundle**. Counts recounted: **23 tables, 87 handlers / 88 endpoints**, oxlint **41**. **Every suite re-run — EIGHT baselines were stale** (students 94, grades 239, attendance 60, content 96, users 61, backups 47, messages 80, excuses 92); `test:class-record` **117**. Three KNOWN_ISSUES rows (**Back button escapes the unsaved guard**; `test:restore`'s `iat` failure — **fix the test, not the comparison**; `test:recovery` needs `MAIL_TRANSPORT=file` **on the server**), decimal-scores row CLOSED. REFILL RULE applied to three closed items. **Item 6 corrected: the guess that the grid would take the `ScorePair` fix was wrong.** |
 | 2026-09-22 | CLAUDE.md trim, fifth batch: **135,967 → 134,080 on disk (−1,887)** — the blocks gave up 3,112 and this row costs about 1,200 of it back. Candidates 5, 6 and 7 — ~11,708 bytes offered, **the live-rule guard released about a quarter**. **§11 and §12 barely moved, and the reason is new: `docs/FRONTEND_CONVENTIONS.md` STOPS AT §10**, so this file is their only present-tense home and all eleven rules stayed; §12's per-card isolation, no-red, fraction-only, check-the-handler and recent-activity rules returned **zero** hits anywhere. The two attendance BLOCKED / RESOLVED subsections **left permanently under the REFILL RULE** (fully covered — GRADING_SPEC, ARCHIVE 512/2142/2638, and "Late counts as present" was **already in this file at line 1902**). The 2026-09-18 admin SCOPE DECISION had **no archived home** and moved out verbatim; **`Grade lock AND unlock are admin only` had zero hits** and stays word for word. **One STALE CLAIM corrected:** Parent → Attendance was still described as showing a percentage — **DV2 deleted it on 2026-09-20**. Trim-6 candidate found and left alone: `### Corrections` is duplicated in this file and `docs/FRONTEND_CONVENTIONS.md`, with no pointer. |
 | 2026-09-22 | Grade 1 docs: GRADING_SPEC §6a **DECIDED → BUILT**, its five predictions replaced by what each resolved to, plus a rounding note that is **not Grade 1-specific** (weighted parts round to 2 decimals before summing, so 89.99 → **90.00 → A** at every grade level). API_REFERENCE: `/descriptive` struck through as RETIRED, Grade 1 score writes documented, `initial_grade` on every report-card term **with the rule a parent client must not render it**, `final_grade` is **two types by mode**; counts **recounted from the code — 85 handlers / 86 endpoints**, the first endpoint removal since Contributions'. FRONTEND_CONVENTIONS §5a-v gains the **two-flags rule** and the render-time guard; §5h gains a fifth defect and the finding that **SSR cannot catch an undefined identifier inside an effect or callback body** (measured, 32/32 with the bug in place). The closed Grade 1 BLOCKED item **left to ARCHIVE under the REFILL RULE**. Suite preamble corrected **"fifteen/fourteen" → nineteen scripts / seventeen HTTP**. Class-record grid promoted to NEXT with **WHOLE NUMBERS ONLY — the server must refuse decimals at all four score writes**. Two KNOWN_ISSUES rows. |
 | 2026-09-22 | Grade 1 computed letters, **client** (`05a9a68` → `39821dd`): the letter picker deleted, Grade 1 encodes like Grades 2-6 (Summative, not Examinations), a **Final letter** column and 390px segment, `showFinal`/`showGeneralAverage` split in two, the modal's legacy-row copy corrected. SSR 29/29 with a **renderer guard** proving no Initial Grade reaches a parent. **Browser check FAILED first pass — blank page for every teacher**, a call to a deleted setter that build, oxlint AND an SSR render all miss; **`no-undef` enabled** as the guard that works (needs `env.browser` + `scripts/**` `env.node`, then 0 findings and oxlint stays 44). Fixtures on Nino's EMPTY subjects only, whole-number scores; cleanup asserted every count and left the Seeded baseline exact. |
 | 2026-09-22 | Grade 1 computed letters, **server** (`4f362aa`): one shared `BANDS` table so the letter and descriptor ladders cannot drift (verified at every score 0-100); `preflightGradeWrite` returns the mode it read; `recomputeGrade` bands the RAW Initial Grade and **throws** if the dual-mode invariant breaks; **`PATCH /:id/descriptive` RETIRED**; a Final letter from the three terms' Initial Grades, null for legacy rows; weights seeded for **every** grade level + a migration that aborts rather than overwrite. `test:grades` 197 → **212**, grade-computation 51 → **68**, verify-seed 33 → **34**. Two weak assertions of my own caught by failures — `DECIMAL(5,2)` stored 44.995 as 45.00, and a numeric STRING must band, since mysql2 returns every DECIMAL as one. |
-| 2026-09-22 | CLAUDE.md trim, fourth batch: **135,687 → 130,947 on disk**. Four blocks COMPRESSED, none moved — the detail already lived in ARCHIVE, API_REFERENCE, RESTORE and FRONTEND_CONVENTIONS, proved by 18 greps first. **The ~124,000 target was NOT reached, and the live-rule guard is why:** the blocks held 38 keyword hits and **37 were rules with no other home here**, so they stayed verbatim and only the prose went. **Two STALE CLAIMS corrected rather than trimmed around** — the Grade 1 letter was still called "a MANUAL teacher judgment — an ASSUMPTION" and still listed as an open school question, both superseded by GRADING_SPEC §6a; open school questions four → three. New **REFILL RULE**: a completed stage or closed BLOCKED item leaves this file permanently in the dispatch that closes it. |
-| 2026-09-22 | Grading docs: GRADING_SPEC gains **§4a (rounding)** and **§6a (the Grade 1 letter — DECIDED, NOT BUILT)**; its line-70 `G1–3: 30/50/20` is labelled **DISCARDED**, not the Grade 1 rule. API_REFERENCE gains the whole-vs-2-decimal contract; §3 gains `whole`. **Three KNOWN_ISSUES rows** — 14 backups carry the old `Reading` name; term grades go 2-decimal from SY 2027-2028; **the mid-year transfer attendance scope is INVERTED against the school's rule**, unreachable only because of a `400`. School facts in the front matter (**3506114 is the PHONE, not the School ID**). BUILD ORDER: grading fix ticked, Grade 1 letters and the class-record grid queued ahead of DV4, pre-Stage-5 gains four. Baselines 197 / 56 / 33. |
-| 2026-09-22 | Grading fixes (`fix/grading-rounding`): **a Final Grade is a WHOLE number** (`roundToWhole`) — the card printed 89.33 where the school prints 89 — while the **General Average keeps two decimals over the rounded finals** (721/8 = 90.13). Display split at the CALL SITE, since one `toFixed(2)` served four kinds of value: `GradeValue` gained `whole`, set once in `TermValue`. **`String(Number(x))`, never `toFixed(0)`** — a stored 89.5 must not show as 90. **"Reading" → "Reading and Literacy"** by a migration that UPDATEs, because a delete would cascade Nino's letters away. `test:grades` 189 → **197**; the negative control caught **two weak assertions of my own**. |
-| 2026-09-22 | CLAUDE.md trim, third batch: **141,099 → 128,050 bytes on disk.** Twelve CHANGELOG stubs, BUILD ORDER Stages 1–2, the AGENT SKILLS rationale and two Feature 7 narrative paragraphs moved verbatim to `docs/ARCHIVE.md`; Stage 4's 22 checkboxes, Stage 3 and the completed After-Stage-4 bullets compressed to ticked lists plus pointers. **Every moved block was grepped for a live rule first** — four Stage 4 page rules stated nowhere else were kept here, and §1 gained the DV3 lesson (**unwrap protects a RENAMED key, never a FORGOTTEN one**), which had lived only in a stub. **The Notifications N1 dispatch has no `docs/CHANGELOG.md` row of its own**, so its stub is its only record and was moved rather than dropped. New standing size rule at the top: report the delta every dispatch, justify over 2,000 bytes, trim at 138,000, never start above 142,000. |
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in four dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in five dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
-(2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, and **5
+(2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
 (2026-09-20 → 2026-09-21) under "fourth batch, the Grade 1 docs dispatch"**
-(both 2026-09-22). **Every full row is in `docs/CHANGELOG.md` with one
+(both 2026-09-22), and **4 under "fifth batch, the CR3 docs pass"**
+(2026-09-23 — spent as the reserve when this file reached 137,804 with a row
+still to add). **Every full row is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only
 the newest one-line summaries, and a stub is moved out when this file

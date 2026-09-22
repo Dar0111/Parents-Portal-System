@@ -406,6 +406,26 @@ assignment row per subject, not one row total.
 
 ---
 
+## 6d-i. The printed order of learning areas — seeded, not guessed (CR3a, 2026-09-22)
+
+Until CR3a the order subjects print in lived in a **client constant** on the
+parent report card. It is now `subjects.display_order`, seeded and migrated,
+so **changing an order is an `UPDATE` rather than a code change** — and Expo,
+which cannot import a client constant, gets it in the payload.
+
+| Grade | Order | Confidence |
+|---|---|---|
+| **4, 5, 6** | English · Mathematics · Filipino · Araling Panlipunan · GMRC · Science · MAPEH · EPP | The Key Stage 2 SF9's eight intermediate rows (§6c). **ONE transcription applied to all three grade levels** — not three independent observations. **Confirm at the next school visit.** |
+| **1** | Makabansa · Mathematics · GMRC · Reading and Literacy · Language | **PROVISIONAL.** This is the Grade 1 **class program** — a timetable, not a report card. It is used because an observed school artifact beats alphabetical-by-accident, and it was carried over exactly so the seeded card did not change. **The school has never given a printed order for Key Stage 1.** |
+| **2, 3** | `NULL` → `name ASC` | No printed order is known. **NULL is the honest value, not a gap to fill** — a guess here would be worse than the alphabetical fallback, and the seed asserts NULL so a future guess fails a test first. |
+
+**A correction worth recording:** an earlier note in this repo said Grades 2,
+3 **and 5** fell back to alphabetical. Grade 5 never did — it carries the Key
+Stage 2 order like 4 and 6, and always had it in the client constant. The
+error was in a comment beside the data, not the data.
+
+---
+
 ## 6e. Assessment slots — the columns of a class record (CR1/CR2, 2026-09-22)
 
 DO 015 fixes the three components (WW / PT / EX) and their weights, but it

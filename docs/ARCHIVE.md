@@ -4047,3 +4047,20 @@ QUESTIONS). Remaining Grades *policy* items that used to sit here
 built — see OPEN QUESTIONS. Admin screens wait.
 
 
+
+---
+
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-23 (fifth batch, the CR3 docs pass)
+
+> Four rows (2026-09-22), moved because CLAUDE.md reached its 138,000 trim
+> trigger while the CR3 docs pass still needed a row of its own. The stub
+> table is the designated reserve for exactly this; a stub is moved out when
+> the file approaches its limit, never deleted. **Every full row is in
+> `docs/CHANGELOG.md`.**
+
+| Date | Change |
+|------|--------|
+| 2026-09-22 | CLAUDE.md trim, fourth batch: **135,687 → 130,947 on disk**. Four blocks COMPRESSED, none moved — the detail already lived in ARCHIVE, API_REFERENCE, RESTORE and FRONTEND_CONVENTIONS, proved by 18 greps first. **The ~124,000 target was NOT reached, and the live-rule guard is why:** the blocks held 38 keyword hits and **37 were rules with no other home here**, so they stayed verbatim and only the prose went. **Two STALE CLAIMS corrected rather than trimmed around** — the Grade 1 letter was still called "a MANUAL teacher judgment — an ASSUMPTION" and still listed as an open school question, both superseded by GRADING_SPEC §6a; open school questions four → three. New **REFILL RULE**: a completed stage or closed BLOCKED item leaves this file permanently in the dispatch that closes it. |
+| 2026-09-22 | Grading docs: GRADING_SPEC gains **§4a (rounding)** and **§6a (the Grade 1 letter — DECIDED, NOT BUILT)**; its line-70 `G1–3: 30/50/20` is labelled **DISCARDED**, not the Grade 1 rule. API_REFERENCE gains the whole-vs-2-decimal contract; §3 gains `whole`. **Three KNOWN_ISSUES rows** — 14 backups carry the old `Reading` name; term grades go 2-decimal from SY 2027-2028; **the mid-year transfer attendance scope is INVERTED against the school's rule**, unreachable only because of a `400`. School facts in the front matter (**3506114 is the PHONE, not the School ID**). BUILD ORDER: grading fix ticked, Grade 1 letters and the class-record grid queued ahead of DV4, pre-Stage-5 gains four. Baselines 197 / 56 / 33. |
+| 2026-09-22 | Grading fixes (`fix/grading-rounding`): **a Final Grade is a WHOLE number** (`roundToWhole`) — the card printed 89.33 where the school prints 89 — while the **General Average keeps two decimals over the rounded finals** (721/8 = 90.13). Display split at the CALL SITE, since one `toFixed(2)` served four kinds of value: `GradeValue` gained `whole`, set once in `TermValue`. **`String(Number(x))`, never `toFixed(0)`** — a stored 89.5 must not show as 90. **"Reading" → "Reading and Literacy"** by a migration that UPDATEs, because a delete would cascade Nino's letters away. `test:grades` 189 → **197**; the negative control caught **two weak assertions of my own**. |
+| 2026-09-22 | CLAUDE.md trim, third batch: **141,099 → 128,050 bytes on disk.** Twelve CHANGELOG stubs, BUILD ORDER Stages 1–2, the AGENT SKILLS rationale and two Feature 7 narrative paragraphs moved verbatim to `docs/ARCHIVE.md`; Stage 4's 22 checkboxes, Stage 3 and the completed After-Stage-4 bullets compressed to ticked lists plus pointers. **Every moved block was grepped for a live rule first** — four Stage 4 page rules stated nowhere else were kept here, and §1 gained the DV3 lesson (**unwrap protects a RENAMED key, never a FORGOTTEN one**), which had lived only in a stub. **The Notifications N1 dispatch has no `docs/CHANGELOG.md` row of its own**, so its stub is its only record and was moved rather than dropped. New standing size rule at the top: report the delta every dispatch, justify over 2,000 bytes, trim at 138,000, never start above 142,000. |

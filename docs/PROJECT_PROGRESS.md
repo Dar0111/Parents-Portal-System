@@ -16,8 +16,35 @@ accepts it). 20 of 23 sections have no adviser and, with Admin → Sections not
 being built, no screen can assign one — so attendance cannot be recorded in
 them. Sections, Excuse Letters, Events and Messages will not be built. Memos
 live on Admin → Announcements (Darryl, 2026-09-14) — the only place a memo can
-be written. **23 tables, 87 handlers** in `server/routes/` + `GET /api/health`
-= **88 endpoints** — recounted from the code 2026-09-22.)
+be written. **23 tables, 88 handlers** in `server/routes/` + `GET /api/health`
+= **89 endpoints** — recounted from the code 2026-09-23.)
+
+**The grades track is COMPLETE — CR3a and CR3, 2026-09-22/23.**
+
+**CR3a moved the printed order of learning areas out of a client constant and
+into `subjects.display_order`.** Expo cannot import a constant, and the class
+record and the class summary needed the same order without the parent report
+card owning it. Grades 4-6 carry one Key Stage 2 SF9 transcription applied to
+all three levels (confirm at the next visit); Grade 1's is provisional — its
+class program, a timetable; Grades 2 and 3 are NULL, which is the honest value
+for an order nobody has recorded, not a gap.
+
+**CR3 is the adviser's Summary of Grades** — `GET /api/grades/class-summary`
+and Teacher → Class summary: one learner per row, every subject across the
+row, the General Average at the end, read-only, with a drill-through to the
+same `ReportCard` a parent sees, reused unchanged.
+
+**It needed a server change first, and that is the finding worth keeping:**
+grades' read scope was assignments-only, so **the adviser of a section could
+not read a single grade in it** — TCH-002 advises Masigasig and holds zero
+assignment rows, and got 404 on every report card in their own section while
+being the one person expected to compile that section's summary. Read scope is
+now assigned-OR-adviser. **Encode scope is unchanged and must stay that way:**
+encoding is the subject teacher's authority, and widening it would invent
+school policy.
+
+Suite baselines: `verify-grading-seed` **44**, `test:grades` **247**,
+`test:assignments` **62**, `test:class-summary` **59** (new), oxlint **43**.
 
 **The class record is BUILT — CR0–CR2, 2026-09-22.** `GET` and
 `PUT /api/grades/class-record`, the 23rd table `assessment_slots`, and

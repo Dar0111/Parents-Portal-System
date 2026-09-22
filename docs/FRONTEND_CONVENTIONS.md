@@ -1351,3 +1351,113 @@ builds and then runs, the run is meaningless when the build failed. Check the
 build exited 0 before believing anything the run printed. This generalises
 past SSR to any two-step verification.
 
+---
+
+## 14. The class summary — the adviser's sheet (CR3, frozen 2026-09-22)
+
+Teacher → Class summary: one learner per row, every subject across the row in
+the school's printed order, the General Average at the end. **Read-only** —
+the adviser is not the encoder.
+
+### 14a. A LETTER IS NOT A NUMBER — `TermValue`, never `GradeValue` directly
+
+**The rule:** any cell that may hold a Grade 1 descriptive letter goes through
+`format/TermValue.jsx`. `format/grade.jsx`'s `GradeValue` is for **numeric**
+grade-bearing values only.
+
+**The defect this is written from, because it shipped into a render and was
+caught by the SSR proof rather than a browser:** the summary's cells were
+passed straight to `GradeValue`. Its `formatGrade` does
+`Number('A') → NaN → null`, and a null in descriptive mode renders **"— N/A"**.
+So **every Grade 1 letter rendered as "not applicable"** — the one value that
+*does* apply, displayed as the statement that it does not.
+
+`TermValue` exists for exactly this and its own header says so. It also sets
+`whole` once for every term cell in the system, so they cannot drift.
+
+### 14b. Pending and N/A are different statements, and the difference is real
+
+| Cell | Renders | Means |
+|---|---|---|
+| A recorded value | the number, or the letter | — |
+| `null`, numerical class | **— Pending** | not yet computable |
+| `null`, **descriptive** class | **— Pending**, not N/A | **not yet recorded** |
+| a numerical value asked of a descriptive learner | — N/A | does not apply at this grade level |
+
+**An unrecorded Grade 1 letter is Pending.** "Not yet recorded" and "does not
+apply to this grade level" are different things to tell a teacher, and only
+the second is N/A. `TermValue` encodes this by passing `'numerical'` to
+`GradeValue` for an empty descriptive cell — the argument names **the reason a
+null renders**, not the grade level the learner is at. I asserted this wrong
+in the first SSR proof and corrected the assertion rather than weakening it.
+
+### 14c. The General Average column is absent, not empty, in Key Stage 1
+
+`show_final` and `show_general_average` are **two flags** (§5a-v). On a
+descriptive class the server omits `general_average` from each learner row
+entirely — **the key is absent, not `null`** — because the school computes no
+such figure (`docs/GRADING_SPEC.md` §6a). A client that rendered a column of
+"— Pending" would be claiming a number is coming that never will.
+
+The SSR negative control for this forces `show_general_average: true` on a
+Grade 1 payload and confirms the column **does** appear; without it, the
+"no column" assertion would pass on any markup, including an empty render.
+
+### 14d. The sticky learner column, and why this page is not a card list
+
+Cites §13c's precedent. Same cost, paid the same way: **every sticky cell
+carries its own opaque background and repaints it on hover**, or scrolled
+columns show through it.
+
+**No `renderCard` below `sm`.** Like the report card and the class record,
+this is a **matrix**, not a list of records — one card per learner destroys
+the cross-subject comparison that is the entire reason the sheet exists. It
+scrolls sideways with the learner column pinned.
+
+**Completeness under each column header** is `recorded / total` rendered as
+"Complete" or "N pending". **Counted, never concluded** (§4) — never "behind",
+never a colour.
+
+### 14e. A page that fetches its own data cannot be SSR-proved
+
+`renderToStaticMarkup` runs no effects, so a self-fetching page renders its
+spinner and nothing else. **Extract the part that must be proved into a
+presentational component and export it** — `ClassSummaryTable` and
+`NoAdvisoryState` in `ClassSummaryPage.jsx`, exactly as `ReportCard` is
+presentational for the same reason.
+
+This is not "extract everything". It is: **if a state has to be proved, it has
+to be reachable by passing props.**
+
+### 14f. Nav has three states, and none of them means "not for you"
+
+The Class summary item is `built` for **every** teacher, not only advisers.
+`layout/nav.js` has built / blocked / unbuilt (§6); inventing a fourth state
+for one page would be a real convention change. **A teacher who advises
+nothing gets a page that explains itself** — "Class summary is for class
+advisers. You are not assigned as an adviser of any section." — which is
+better than a dimmed row with a tooltip, and better than a 403 they must
+interpret.
+
+### 14g. `ReportCard` is reused unchanged; what differs is what is passed
+
+The adviser's drill-through renders the same component the parent sees. A
+second card for a second role would be a second implementation of one
+document, and if the two can disagree, the conversation those people have is
+about the software rather than the learner.
+
+**`onOpenTerm` is omitted**, so no term cell is a button and the parent's
+raw-score breakdown modal does not exist on this view. An adviser who wants
+the scores behind a mark opens the class record, which is the screen that owns
+them.
+
+**The Grade 1 breakdown stays silent about how the letter is produced.** That
+was once justified by "silence is honest until the school answers"; the school
+answered on 2026-09-22 and it is built, so that justification has expired.
+**The silence is now a deliberate choice** (Darryl, 2026-09-23), consistent
+with parents never seeing weights or Initial Grades. Do not re-add a sentence,
+a hedge or a tooltip.
+
+**The drill-through routes on `students.id`, never the LRN** (§5c), even
+though this is a teacher surface — the rule is about what goes in a URL.
+

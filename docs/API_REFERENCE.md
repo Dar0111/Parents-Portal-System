@@ -2,10 +2,10 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**87 handlers** across 15 route files, documented as **18 endpoint tables
+**88 handlers** across 15 route files, documented as **18 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **88 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
+`server.js` = **89 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
 FILE — it is not a database-table count, and the database has **23**.
 Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
 retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
@@ -452,7 +452,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 87 handlers (88 with `GET /api/health`).
+the bottom must equal 88 handlers (89 with `GET /api/health`).
 
 ### Auth (8) — `/api/auth`
 
@@ -544,7 +544,34 @@ An admin changing a user's email through `PUT /users/:id` clears
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `all` | query: `grade_level` (optional, 1–6) | `subjects` | unscoped reference data; no `GET /:id`; inventory is seeded, not managed through this API |
+| GET | `/` | `all` | query: `grade_level` (optional, 1–6) | `subjects` | unscoped reference data; no `GET /:id`; inventory is seeded, not managed through this API. Rows carry `display_order` and arrive in the school's printed order — see below |
+
+#### `subjects.display_order` — the printed order lives in the database (CR3a, 2026-09-22)
+
+The school's printed order for a grade level's learning areas, `1..N`,
+transcribed from the SF9. Before CR3a there was no ordering column: every
+subject list came back `name ASC` and the only real order lived in a **client
+constant** on the parent report card. That constant is deleted — Expo cannot
+import one, and the class record and the class summary need the same order
+without a parent document owning it. **Changing an order is now an `UPDATE`,
+not a code change.**
+
+**Every reader sorts `display_order IS NULL, display_order, name`** — the
+null-last idiom. MySQL sorts `NULL` **first** by default, so without the
+leading term a grade level with no recorded order would lead with its
+unordered rows, and on a grade level with a *mix* the unordered ones would
+jump to the front.
+
+| Grade | `display_order` | Status |
+|---|---|---|
+| 4, 5, 6 | English 1, Mathematics 2, Filipino 3, Araling Panlipunan 4, GMRC 5, Science 6, MAPEH 7, EPP 8 | **one Key Stage 2 SF9 order applied to all three** — one transcription, not three observations. Confirm at the next school visit |
+| 1 | Makabansa 1, Mathematics 2, GMRC 3, Reading and Literacy 4, Language 5 | **PROVISIONAL** — the class program, a timetable, not a report card |
+| 2, 3 | `NULL` | no printed order is known; the `name ASC` fallback is the honest answer, not a gap |
+
+`GET /api/assignments`' **default** order follows it too, because the class
+record's Subject dropdown reads that endpoint and must agree with the report
+card. **An explicit `sort=subject` still means A–Z** — changing what a
+documented sort value does would be a contract change; only the default moved.
 
 ### Assignments (3) — `/api/assignments`
 
@@ -554,12 +581,13 @@ An admin changing a user's email through `PUT /users/:id` clears
 | POST | `/` | `admin` | `teacher_id`*, `subject_id`*, `section`* | `assignment` | `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for current `academic_year`; duplicate → `409`; inactive/non-teacher → `400` |
 | DELETE | `/:id` | `admin` | — | message only | does **not** refuse when grades exist; a scope change removes future authority, never past records |
 
-### Grades (12) — `/api/grades`
+### Grades (13) — `/api/grades`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | `teacher(wide)`, `admin`, `parent(own)` | query: `student_id`, `subject_id`, `term`, `school_year` (all optional, no defaults) | `grades` | parent naming a different `student_id` → `403` |
 | GET | `/class-record` | `teacher(wide)`, `admin` | query: `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year` | `subject`+`slots`+`learners`+`group_hps`+`exam_max`+`exam_max_mixed`+`weights`+`grading_mode`+`can_encode` (no `grade` key) | the whole grid in one request; **registered BEFORE `/:id`** or `class-record` parses as an id. `404` outside view scope |
+| GET | `/class-summary` | `teacher(adviser)`, `admin` | query: `grade_level`*, `section`*, `term`* (`1｜2｜3｜final`), `school_year` | `section`+`school_year`+`term`+`grading_mode`+`show_final`+`show_general_average`+`subjects`+`learners`+`completeness` | the adviser's Summary of Grades, read-only. **Also registered BEFORE `/:id`.** `403` in view scope but not adviser; `404` otherwise. **No pagination** — see below |
 | PUT | `/class-record` | `teacher(subject)`, `admin` | `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year`, plus any of `slots[]`, `entries[]`, `exam_max`, `dry_run` | `results`+`group_hps`+`slots` | one save for the whole class; see below |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `grade` + `grade_components` + `descriptor` | `404` out-of-scope |
 | GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
@@ -671,6 +699,86 @@ refused or clamped.** That matches `utils/gradeComputation.js`, which does not
 clamp percentages over 100. Whether the school permits bonus points is a
 question nobody has asked them — the API's silence is not permission, and no
 screen may claim it is (§5i).
+
+### The class summary: the adviser's Summary of Grades (CR3, 2026-09-22)
+
+`GET /api/grades/class-summary` — one learner per row, every subject across
+the row, the General Average at the end. The sheet an adviser compiles from
+the subject teachers' class records. **Read-only: the adviser is not the
+encoder.**
+
+**Scope answers in three ways, not two:**
+
+| Caller | Status |
+|---|---|
+| The adviser of that section | `200` |
+| A teacher in **view** scope but not the adviser | **`403`** — *"Only the adviser of Grade 5 - Masigasig can open the class summary."* |
+| Any other teacher, **or a section that does not exist** | `404`, identically — probing cannot tell "no such class" from "not yours" |
+| `admin` | `200`, unscoped |
+| `parent` | `403` from `authorize()` |
+
+The `403` is **not** a widening of §5's "reads out of scope return `404`". It
+is the same exception excuse-letter review and the five `:id`-keyed grades
+writes already take: a broader `GET` (the class record, the report card)
+already exposes this class to an assigned teacher, so a `404` here would be a
+lie and the `403` leaks nothing they could not already read.
+
+**`term` takes `final`** alongside 1/2/3. A final cell carries the Final Grade
+(whole) or the Final **letter** for Key Stage 1, and `grade_id` / `is_locked`
+are `null` — a final is computed, not a row.
+
+**TWO FLAGS, never one.** `show_final` and `show_general_average` are
+independent, because a descriptive card has a Final **letter** and no general
+average at all — one shared boolean would put a GA column on a Key Stage 1
+sheet. On a descriptive class the `general_average` key is **absent from each
+learner row**, not `null`: the school computes no such figure, so there is
+nothing for a client to render as Pending.
+
+**`completeness`** is `[{ subject_id, recorded, total }]` — how many learners
+have that term recorded, out of the class. **Counted, never concluded** (§4):
+it is a fraction, never "behind". `total` is the class size, so a seeded
+learner with no grades raises every subject's pending count, which is correct.
+
+**A learner with no grade row is `null`, never `0`.** A shell row created as a
+side effect of encoding someone else is still `null` — a row is not a grade.
+
+**NO PAGINATION, and this is the one list endpoint in the API without it.** A
+Summary of Grades is a **document**: the adviser reads it against a paper
+form, and page 2 of a class is not a thing that exists on that form. A class
+is bounded by enrolment (~40), not by history, which is the difference from
+every other list here.
+
+### Grades read scope is assigned-OR-adviser (CR3, 2026-09-22)
+
+`teacherCanViewGrade` widened. **Encode scope did NOT** — encoding is the
+subject teacher's authority (`teacher_assignments` on all four of
+teacher/subject/grade/section), and widening it would invent school policy.
+
+The omission it fixed was real: **TCH-002 advises Masigasig and holds zero
+`teacher_assignments` rows**, so the adviser of a section could not read one
+grade in it — not a report card, not the class record — while being the one
+person expected to compile that section's summary. Read scopes were widened to
+assigned-OR-adviser in `students.js`, `excuses.js`, `content.js` and
+`messages.js` on 2026-09-06/07; grades was left out.
+
+**`TEACHER_ADVISES_CLASS_SQL` sits beside `TEACHER_VIEW_SCOPE_SQL` in
+`utils/teacherScope.js`, and the two must change together.** Two forms of one
+rule, because the callers differ:
+
+- `TEACHER_VIEW_SCOPE_SQL` matches `sec.id = s.section_id` and needs a
+  `students` row aliased `s`.
+- `TEACHER_ADVISES_CLASS_SQL` matches `sec.grade_level = ? AND sec.name = ?`
+  and needs only a **class key**.
+
+Every grades caller passes a class key, and two of them — the class record's
+`GET` and `PUT` — hold no student at all. **Routing them through `students`
+would make an EMPTY class invisible to a teacher holding a real assignment
+row**, which is a silent regression, so the class-keyed form exists. They
+agree by construction on real data (`POST /api/students` resolves `section_id`
+and never inserts `NULL`); the empty-class case is the divergence they are
+allowed. Matching `sections` by `grade_level + name` is the `content.js`
+shape, **not** a `section_id` read, so the count of `section_id` readers stays
+at four.
 
 ### Grade 1 writes: the four score endpoints, and the one that is gone (2026-09-22)
 
@@ -1021,7 +1129,7 @@ the same as `router`.
 | Sections | 3 | `sections.js` |
 | Subjects | 1 | `assignments.js` |
 | Assignments | 3 | `assignments.js` |
-| Grades | 12 | `grades.js` |
+| Grades | 13 | `grades.js` |
 | Grading modes | 1 | `gradingModes.js` |
 | Attendance | 6 | `attendance.js` |
 | Announcements | 4 | `content.js` |
@@ -1035,15 +1143,15 @@ the same as `router`.
 | Dashboard | 1 | `dashboard.js` |
 | **Total** | **87** | |
 
-8+10+5+3+1+3+12+1+6+4+4+4+6+4+5+6+4+1 = **87 handlers in `server/routes/`**.
-Plus `GET /api/health`, mounted directly in `server.js` = **88** endpoints in
+8+10+5+3+1+3+13+1+6+4+4+4+6+4+5+6+4+1 = **88 handlers in `server/routes/`**.
+Plus `GET /api/health`, mounted directly in `server.js` = **89** endpoints in
 total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
-**Grades went 11 → 10 → 12 on 2026-09-22**: `PATCH /:id/descriptive` was
-retired — still the only endpoint this system has ever removed other than
-Contributions' eight — and the class record's `GET` and `PUT` landed the same
-day.
+**Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
+was retired — still the only endpoint this system has ever removed other than
+Contributions' eight — then the class record's `GET` and `PUT` landed, then
+the class summary's `GET`.
 
-**State which number you mean.** 87 is handlers in route files; 88 is every
+**State which number you mean.** 88 is handlers in route files; 89 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
