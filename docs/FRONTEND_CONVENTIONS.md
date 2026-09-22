@@ -152,6 +152,35 @@ column width in a dense table; a bare dash plus one legend line was
 rejected because it breaks the moment one table holds both reasons, which a
 teacher's cross-grade-level list can.
 
+#### 3a. `GradeValue` hardcodes `text-fg` — on a coloured surface, pass `className`
+
+Added after DV4, where it cost a browser round trip. `GradeValue` sets its own
+`text-fg`, which is **dark in light mode**. On the parent dashboard's navy hero
+the General Average was therefore **invisible in light mode**, while the plain
+figures beside it were fine — they inherit the panel's colour and this one did
+not.
+
+**The fix is `className`, not a hand-formatted number.** The prop exists for
+exactly this, and using it keeps §3's rule that one renderer draws every
+grade-bearing value in the system:
+
+```jsx
+<GradeValue value={grades.general_average} mode="numerical" className="text-primary-fg" />
+```
+
+**It works only because of STYLESHEET ORDER, and that is worth knowing before
+you rely on it.** Both `text-fg` and `text-primary-fg` end up on the element;
+neither is more specific, so the winner is whichever Tailwind emits **later**.
+Today `.text-primary-fg` is later, so it wins. **That is a fact about the
+generated CSS, not a guarantee** — which is why DV4's render proof asserts the
+ordering against the BUILT stylesheet. If a future Tailwind version reorders
+them, the proof fails loudly instead of the number quietly disappearing again.
+
+**The better fix, when someone has the appetite:** let `GradeValue` inherit its
+colour rather than setting one, so a caller on any surface needs nothing. It is
+on the UI-polish list. Until then, `className` is the supported route and the
+ordering assertion is what keeps it honest.
+
 ### 4. StatusBadge — four vocabularies, one tone map, NO VERDICTS
 
 Four status vocabularies (`users` · `attendance` · `excuse_letters` ·
@@ -1460,4 +1489,98 @@ a hedge or a tooltip.
 
 **The drill-through routes on `students.id`, never the LRN** (§5c), even
 though this is a teacher surface — the rule is about what goes in a URL.
+
+---
+
+## 15. The parent dashboard — the hero, the term, and the strip (DV4, frozen 2026-09-23)
+
+§12 owns what a dashboard *card* may do. This section owns the parent page,
+which is the only dashboard with a hero panel and the only one that shows a
+learner's own grades.
+
+### 15a. ONE term, and it is `current_term` from settings
+
+**The hero and every subject list on the page use the school's
+`current_term`. Never "the latest term that has data."**
+
+The first build walked terms 3 → 2 → 1 and used the newest that carried a
+letter. On the seeded Grade 1 learner that surfaced **"Term 3 · C"** — one
+stale letter from a term the school has not reached — while the Grades card
+directly beside it, and the numerical learner's card, both said Term 1.
+
+**One screen showing two different terms is worse than showing nothing**,
+because a parent has no way to tell which is current and no reason to suspect
+the question. `current_term` is a single settings read, it is what every other
+screen already keys on, and it makes cross-term mixing structurally impossible
+rather than merely unlikely.
+
+The settings read is its own card with a **Term 1 fallback**, so a failed read
+degrades to the same default the rest of the client uses instead of blanking
+the page.
+
+### 15b. Key Stage 1 lists EVERY subject; the numerical card does not
+
+Deliberate asymmetry, and the reason is the caption above each list.
+
+| Card | List | Why |
+|---|---|---|
+| Numerical | only subjects with a term grade | the `Stat` caption already says **"N of M subjects recorded"**, so nothing is hidden |
+| **Key Stage 1** | **every subject, `Pending` where there is no letter** | there is **no such caption** — §12 refuses a count or a progress bar for KS1 — so the list is the only place a parent can see what is still to come |
+
+Both cap at four rows plus "+N more"; a card is a doorway, not the report card.
+Values render through `TermValue`, never `GradeValue` directly (§14a) — a
+letter is not a number.
+
+**If §12's no-count rule for Key Stage 1 is ever revisited, this asymmetry is
+what should be revisited with it.** It exists to compensate for that rule, not
+independently of it.
+
+### 15c. The weekly attendance strip — three states, told apart three ways
+
+`attendance` holds only days someone **marked**. A date with no row is a
+weekend, a holiday, a suspension, or an adviser who has not marked it yet, and
+nothing in the schema can separate those — there is no school calendar (the
+pre-Stage-5 CAL item). **Only "weekend" is derivable**, from the date itself.
+
+| State | Tile | Glyph |
+|---|---|---|
+| Recorded | toned fill, solid edge | `P` `L` `A` `E` |
+| Weekend | plain muted fill, **solid** edge | `·` |
+| **Not recorded** | **dashed edge, empty centre** | *(none)* |
+
+**"Not recorded" must never read as absent.** A parent seeing a gap where
+Friday should be must not read it as their child missing school. The first
+build gave weekend and not-recorded the same muted fill and differed only by
+glyph — `·` against `–` at 12px, which in the browser were near-identical.
+
+**The dash must also be unmistakable from Absent**, which stays a solid
+red-edged tile carrying `A`. So the three differ by **shape, glyph and
+accessible name**, and none of them depends on colour alone.
+
+**A real weekend RECORD wins over the derived weekend.** `POST
+/api/attendance/bulk` has no weekday validation, two fixtures have recorded a
+Saturday, and whether the school holds weekend classes is an open question.
+Deriving "weekend" from the date and then hiding a row the database holds would
+make the strip disagree with the totals beside it.
+
+**A legend separator is never one of the glyphs it separates.** The legend used
+middots as separators *and* `·` as the weekend symbol, so that entry rendered
+"· · weekend" — two identical marks where one is the thing being explained.
+Separators are `|`.
+
+### 15d. `Stat` takes a formatted value; it does not format
+
+`pages/dashboards/Card.jsx`'s `Stat` renders `{value}` verbatim, and that is
+the fix rather than the bug. It also renders `"3 of 5"`, an unread **count**
+and `"Pending"`, none of which may gain decimals.
+
+So a caller with a grade-bearing value passes the renderer in:
+
+```jsx
+<Stat value={<GradeValue value={average} mode="numerical" />} caption="General average" />
+```
+
+The dashboard printed `87.5` against the report card's `87.50` until DV4 — one
+number, two spellings, two screens. **Split at the call site**, exactly as the
+2026-09-22 rounding fix split `GradeValue`'s `whole`.
 
