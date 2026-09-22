@@ -855,15 +855,13 @@ Admin Activity Log page. Do not fake it from another source.
 
 ### Corrections — three claims retired here
 
-Circulated in planning, **wrong**, never in this file, recorded so they cannot
-be re-derived: "the first screen builds the shared components" and its ~5h
-estimate (the primitives came first; the estimate is void and not replaced
-with a guess); "backend is 100% complete" (say what the endpoints table says
-— endpoints, not percentages); "36 screens" (the real figure is **75
-role-facing views** — 33 nav items plus 42 detail/sub views — behind
-**~45–50 distinct implementations**; the counting rule: a substantive form
-counts whether route or modal, a bare confirm does not; the old ~13-day
-estimate is void).
+Circulated in planning, **wrong**, recorded so they cannot be re-derived:
+*"the first screen builds the shared components"* and its ~5h estimate; *"backend
+is 100% complete"*; *"36 screens"* and the ~13-day estimate derived from it.
+**All three estimates are void and are not replaced with a guess.** Say what
+the endpoints table says — **endpoints, not percentages** (UPDATING THIS FILE).
+The real screen figure is stated once, in BUILD ORDER → Stage 4. Full text and
+the counting rule: `docs/FRONTEND_CONVENTIONS.md` → Corrections.
 
 ### MEASURED BUILD TIME — data points, not a rate
 
@@ -1102,59 +1100,27 @@ legacy Grade 1 row — a letter typed before the rule, with no scores behind it
 Nino's seeded card; do not "fix" it. The closed BLOCKED item is in
 `docs/ARCHIVE.md` → BLOCKED / RESOLVED → Grade 1's computed letter.
 
-### Known schema issue — RESOLVED (Stage G1a, 2026-09-05)
+### Excuse Letters — both blockers RESOLVED and BUILT; moved out 2026-09-22
 
-`grade_weight_configs` was keyed by grade band (`grade_level_min`/
-`grade_level_max`, seeded G1–3: 30/50/20, G4–6: 40/40/20) — confirmed
-wrong, since weights actually vary by learning area, not grade level.
-Re-keyed to `(subject_id, school_year)` in Stage G1a above. **The values
-seeded are still provisional**, though — they're seeded against the old
-placeholder `subjects` rows, not the school's real per-grade subject
-list, so this isn't the final state until G1b lands.
+**Approval is record-only: the learner stays `Absent` and approval MUST NOT
+modify `attendance` rows** — enforced, not just documented (`PATCH /:id/review`
+writes `status`, `teacher_remarks`, `reviewed_by` and names no `attendance`
+query). **Review authority is the class adviser only**, via
+`sections.adviser_id`, and is narrower than the read scope (any assigned
+teacher) — which is why a non-adviser gets `403` naming the reason, not `404`.
+Both narratives are verbatim in `docs/ARCHIVE.md` → BLOCKED / RESOLVED →
+Excuse Letters.
 
-`grade_components.type` was `ENUM('quiz', 'activity')` with exams living
-separately as a single `grades.exam_score` scalar — DO 015's three
-components (Written Works, Performance Tasks, Examinations) mapped
-loosely but not exactly, and Examinations' real internal structure
-(ST1/ST2/TE) wasn't represented at all. Fixed in Stage G1a: `type` is now
-`ENUM('WW', 'PT')`, and EX's three sub-scores live as dedicated columns
-on `grades` (`ex_st1`/`ex_st2`/`ex_te`) — see above for why columns, not
-child rows.
+**Still open and NOT closed by that move:** the decline form has no "add a
+reason?" nudge. Optional remarks are deliberate at the API layer; the prompt
+belongs in the UI and was never built — a UI-polish candidate.
 
-### Excuse Letters module — RESOLVED and BUILT (both blockers)
-
-- **RESOLVED: excuse letter approval is record-only.** The learner stays
-  `Absent`; the letter documents the reason. Approval must not modify
-  `attendance` rows. This answers the original "does approving change the
-  attendance record" question — it does not, by design. Enforced in code,
-  not just documentation: `PATCH /:id/review` writes only `status`,
-  `teacher_remarks`, and `reviewed_by` — no query in that handler
-  references the `attendance` table at all.
-- **RESOLVED: who approves — the class adviser only.** Confirmed by the
-  school, not "any teacher assigned to the student's grade/section."
-  `sections.adviser_id` (via `students.section_id`) is the authority,
-  exactly as the previous entry here anticipated. The Sections API
-  (2026-09-05) is what made every section's `adviser_id` assignable
-  through the API rather than a direct DB write, which is what actually
-  unblocked building this.
-
-**Net effect:** `PATCH /:id/review` is built. See the endpoints table and
-the 2026-09-05 CHANGELOG entry for the read-scope-vs-review-scope
-distinction (existing `GET` scoping is broader — any assigned teacher,
-via `teacher_assignments` — than review authority, which is adviser-only
-via `sections.adviser_id`) and why an unauthorized non-adviser gets `403`
-naming the reason rather than `404`.
-
-**Stage 4 UI note, not API enforcement:** `teacher_remarks` is deliberately
-optional on both `Approved` and `Declined` (API-level — see above), but a
-`Declined` letter with no remarks gives the parent no reason and pushes
-them to message the teacher instead — the exact repeated-PM problem the
-Class Board exists to reduce. The fix belongs in the Stage 4 decline form
-as a UI prompt (e.g. a soft "add a reason?" nudge before submitting a
-decline), not as a backend-enforced required field — see the confirmed
-reasoning above for why a status-conditional required field was rejected
-at the API layer. Flagging here so it isn't lost before Stage 4 web pages
-are built.
+**The Stage G1a schema fix also left this file** (`grade_weight_configs`
+re-keyed off grade bands, `grade_components.type` → `ENUM('WW','PT')`). Live
+text: `docs/GRADING_SPEC.md` → "Known schema defect — FIXED in Stage G1a",
+which carries the warning this file's copy lacked — **the discarded
+`G1–3: 30/50/20` band scheme is NOT the Grade 1 rule**, despite the numbers
+coinciding with §6a.
 
 ### Attendance — both questions RESOLVED and BUILT; moved out 2026-09-22
 
@@ -1307,71 +1273,58 @@ contacts empty-cause — it stays in KNOWN ISSUES.
 Manuscript Figure 17 called this "Student Record." It is **Grades**, not
 Feature 3; there is no Parent → Students nav; one account = one child.
 **Answered 2026-09-11 by the team in conversation** — not a school visit, not
-a written reply; do not cite it in the manuscript as policy, do not re-ask:
-parents should see WW / PT / Exam raw scores under a term so they can tell
-*where* a mark came from. **The modal is approved — do not remove it as an
-unapproved feature.** Tap a term with `grade_id` → Modal → `GET /api/grades/:id`
-(`parent(own)`, `404` out of scope), unwrap `['grade', 'grade_components',
-'descriptor']`; `GET /` is still not called; no new endpoint, no new nav.
+a written reply; **do not cite it in the manuscript as policy, do not
+re-ask.** **The modal is approved — do not remove it as an unapproved
+feature.** No new endpoint, no new nav; `GET /` is still not called.
 
-| Label | Source |
-|---|---|
-| Written Works | `grade_components` `type === 'WW'` — `label`, `score`/`max_score`, `date_recorded` |
-| Performance Tasks | same, `type === 'PT'` |
-| Examinations | `grade.ex_st1`/`ex_st1_max`, `ex_st2`/`ex_st2_max`, `ex_te`/`ex_te_max` |
+- **Term grade stays. Initial Grade and weights are NOT shown** — a number the
+  parent has never seen, and the one that raises "why isn't this 90?"
+  (transmutation).
+- **Numerical empty is three per-section copies, never one "nothing
+  recorded"** (§5f). **A Pending / null cell is not a button.** §5b: clear
+  `detail` before every fetch.
+- **Grade 1: no empty WW/PT/Exam sections** — the write path `400`s a
+  numerical encode on a descriptive row.
+- **Do not show:** rank, class average, "Passing", "Need attention",
+  `descriptor.remarks`, IG, weights.
 
-**Term grade stays. Initial Grade and weights are not shown** — a number the
-parent has never seen, and the one that raises "why isn't this 90?"
-(transmutation). Numerical empty is three per-section copies, never one
-"nothing recorded" (§5f). **Grade 1:** the letter is the term grade, still
-fetched via `GET /:id` (hedge); **no empty WW/PT/Exam sections** (the write
-path `400`s numerical encodes on a descriptive row) **and no sentence about
-how the letter is produced** — removed 2026-09-12 because it stated an
-unconfirmed assumption as fact; silence is the honest state until the school
-answers; do not re-add it, a hedge, or a tooltip. §5b: clear `detail` before
-every fetch; the header comes from the card tap. A Pending / null cell is not
-a button. **Do not show:** rank, class average, "Passing", "Need attention",
-`descriptor.remarks`, IG, weights.
+**One rule here rested on a reason that has since expired, so it needs a
+deliberate answer rather than an assumption (2026-09-22).** The modal carries
+**no sentence about how the Grade 1 letter is produced** — removed 2026-09-12
+on the grounds that it stated an unconfirmed assumption as fact, with
+"silence is the honest state until the school answers". **The school answered
+on 2026-09-22 and it is built** (§6a), so that justification is gone. The copy
+is still absent, which is fine as a default — but it is now a choice, not the
+only honest option. Do not re-add a hedge or a tooltip; if anything goes back
+it is the confirmed rule, and that is Darryl's call.
 
-Full text: `docs/ARCHIVE.md` → NOW POSSIBLE.
+Row sources, the modal's wiring and the full text: `docs/ARCHIVE.md` → NOW
+POSSIBLE, and `docs/API_REFERENCE.md` → Grades.
 
 ---
 
 ## SAFE TO BUILD NOW — done
 
-Excuse Letters is fully built — `submit`, `mine`, `list`, `view`, `edit`,
-and `review` (`PATCH /:id/review`, approve/decline) — see the endpoints
-table and `routes/excuses.js` in Files that exist. Grades API is fully
-built — write path plus `GET /`, `GET /:id`, `GET /student/:studentId`
-(Stage G3, 2026-09-06). **Parent grade breakdown is built** (2026-09-11;
-parents-see-raw-scores answered 2026-09-11 in conversation — see OPEN
-QUESTIONS). Remaining Grades *policy* items that used to sit here
-(three terms, both modes, three components, weights keyed by
-`(subject_id, school_year)`, admin-only lock) are answered and already
-built — see OPEN QUESTIONS. Admin screens wait.
+Empty by design. Every item it held is built, and the section carried **no
+rule** — each sentence restated CURRENT STATE, BLOCKED / RESOLVED or
+`docs/API_REFERENCE.md`, which is the one-number-one-place liability rather
+than redundancy. The heading stays so the map keeps its shape; the text is in
+`docs/ARCHIVE.md` → SAFE TO BUILD NOW. **Do not repopulate it** — what is
+buildable next is BUILD ORDER's job.
 
 ---
 
 ## GET /api/messages/contacts — BUILT 2026-09-07
 
-Was the only designed-but-unbuilt endpoint in the system (the same-day
-endpoint audit confirmed nothing else was). Wrapper key `contacts`, the sixth
-endpoint in `routes/messages.js`, scoped by the **inverse of `canMessage()`**.
-Row: `{ id, name, role, subject | null, student_name | null,
-student_grade_level | null, student_section | null, last_message | null,
-last_message_at | null, unread_count }` — the `student_*` fields are the
-linked child's, null on teacher/admin rows; `subject` is a comma-joined
-string. Parent sees the teachers connected to their child (assigned OR
-adviser) with subjects, plus admin; teacher sees the parents of students in
-their own scope (student name on the row) plus other teachers and admin; admin
-sees everyone. `?search=` filters on contact name and student name **within
-scope only — never an unscoped user search**, which would expose the whole
-school. Existing conversations first (most recent), then everyone else
-alphabetically, so one call renders contacts and conversations. **ACTIVE
-accounts only** — a pending parent cannot log in; consequence: TCH-002 sees
-zero parent contacts (Jea's parent is seeded `pending`), and the test asserts
-that as correct, not as the adviser-scope bug returning.
+Scoped by the **inverse of `canMessage()`**. Two rules, stated nowhere else:
 
+- **`?search=` filters within scope only — NEVER an unscoped user search**,
+  which would expose the whole school.
+- **ACTIVE accounts only.** Consequence: TCH-002 sees zero parent contacts
+  (Jea's parent is seeded `pending`), and `test:messages` asserts that as
+  **correct** — not as the adviser-scope bug returning.
+
+Row shape, per-role contents and ordering: `docs/API_REFERENCE.md` → Messages.
 Full text: `docs/ARCHIVE.md` → GET /api/messages/contacts.
 
 ---
@@ -1436,8 +1389,9 @@ heading). Nothing here is outstanding.
 ### Stage 4 — Web pages
 
 **Real size: 75 role-facing views behind ~45–50 distinct implementations —
-not the 36 that was estimated** (counting rule under STAGE 4 FRONTEND
-CONVENTIONS → Corrections). Every checkbox's full write-up — what it built,
+not the 36 that was estimated. This is the ONE place that figure lives**;
+the counting rule behind it is `docs/FRONTEND_CONVENTIONS.md` →
+Corrections. Every checkbox's full write-up — what it built,
 what it deliberately did not, how it was verified — is verbatim in
 `docs/ARCHIVE.md` → BUILD ORDER, and on its CHANGELOG row.
 
@@ -2092,6 +2046,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-22 | CLAUDE.md trim, sixth batch: **136,830 → 135,119 on disk (−1,711)**. Six blocks measured and guard-grepped first; **the guard cleared more of this batch than any previous one, because these were duplicates rather than condensed rules.** `### Corrections` → rule-plus-pointer (both its live rules already live elsewhere in this file); **the "75 role-facing views" figure now appears ONCE**, in BUILD ORDER → Stage 4. `## SAFE TO BUILD NOW` (**zero guard hits**) emptied, heading kept with a **do-not-repopulate** note. `## GET /api/messages/contacts` keeps its two rules (**`?search=` is scoped, never an unscoped user search**; ACTIVE-only) and loses the archived detail. **Two closed BLOCKED items left permanently under the REFILL RULE** — the Stage G1a schema issue (zero hits; live text is GRADING_SPEC) and Excuse Letters (keeping **approval must not modify `attendance`**). **TWO STALE CLAIMS corrected:** the seeded weights were still called "provisional until G1b lands" (**G1b landed 2026-09-05**), and the parent modal's silence about the Grade 1 letter still rested on "until the school answers" (**answered and built 2026-09-22**) — recorded as a choice now needing a deliberate answer, not flipped. **Not taken:** the CHANGELOG stub table, the next trim's overflow valve. No `##` heading changed. |
 | 2026-09-22 | Class record CR0–CR2 **docs pass** (`docs/class-record`): API_REFERENCE gains the two endpoints — slot addressing by `slot_id` **or** `type` + `slot_no`, `dry_run`, `group_hps`, `can_encode`, **locked is `409` and all-or-nothing**; **route order is load-bearing** (both registered before `GET /:id`). GRADING_SPEC **§6e** — **USED is the HPS, not the row**, and a used slot with no score makes that learner's group **Pending, never left out and never zero** (leaving it out silently RAISED an absent learner's grade). FRONTEND_CONVENTIONS **§13** — Teacher → Grades IS the grid, the client never computes a grade, the **sticky learner COLUMN** as DV1b's precedent, the pure `buildPayload.js`, and **a failed build can run the PREVIOUS bundle**. Counts recounted: **23 tables, 87 handlers / 88 endpoints**, oxlint **41**. **Every suite re-run — EIGHT baselines were stale** (students 94, grades 239, attendance 60, content 96, users 61, backups 47, messages 80, excuses 92); `test:class-record` **117**. Three KNOWN_ISSUES rows (**Back button escapes the unsaved guard**; `test:restore`'s `iat` failure — **fix the test, not the comparison**; `test:recovery` needs `MAIL_TRANSPORT=file` **on the server**), decimal-scores row CLOSED. REFILL RULE applied to three closed items. **Item 6 corrected: the guess that the grid would take the `ScorePair` fix was wrong.** |
 | 2026-09-22 | CLAUDE.md trim, fifth batch: **135,967 → 134,080 on disk (−1,887)** — the blocks gave up 3,112 and this row costs about 1,200 of it back. Candidates 5, 6 and 7 — ~11,708 bytes offered, **the live-rule guard released about a quarter**. **§11 and §12 barely moved, and the reason is new: `docs/FRONTEND_CONVENTIONS.md` STOPS AT §10**, so this file is their only present-tense home and all eleven rules stayed; §12's per-card isolation, no-red, fraction-only, check-the-handler and recent-activity rules returned **zero** hits anywhere. The two attendance BLOCKED / RESOLVED subsections **left permanently under the REFILL RULE** (fully covered — GRADING_SPEC, ARCHIVE 512/2142/2638, and "Late counts as present" was **already in this file at line 1902**). The 2026-09-18 admin SCOPE DECISION had **no archived home** and moved out verbatim; **`Grade lock AND unlock are admin only` had zero hits** and stays word for word. **One STALE CLAIM corrected:** Parent → Attendance was still described as showing a percentage — **DV2 deleted it on 2026-09-20**. Trim-6 candidate found and left alone: `### Corrections` is duplicated in this file and `docs/FRONTEND_CONVENTIONS.md`, with no pointer. |
 | 2026-09-22 | Grade 1 docs: GRADING_SPEC §6a **DECIDED → BUILT**, its five predictions replaced by what each resolved to, plus a rounding note that is **not Grade 1-specific** (weighted parts round to 2 decimals before summing, so 89.99 → **90.00 → A** at every grade level). API_REFERENCE: `/descriptive` struck through as RETIRED, Grade 1 score writes documented, `initial_grade` on every report-card term **with the rule a parent client must not render it**, `final_grade` is **two types by mode**; counts **recounted from the code — 85 handlers / 86 endpoints**, the first endpoint removal since Contributions'. FRONTEND_CONVENTIONS §5a-v gains the **two-flags rule** and the render-time guard; §5h gains a fifth defect and the finding that **SSR cannot catch an undefined identifier inside an effect or callback body** (measured, 32/32 with the bug in place). The closed Grade 1 BLOCKED item **left to ARCHIVE under the REFILL RULE**. Suite preamble corrected **"fifteen/fourteen" → nineteen scripts / seventeen HTTP**. Class-record grid promoted to NEXT with **WHOLE NUMBERS ONLY — the server must refuse decimals at all four score writes**. Two KNOWN_ISSUES rows. |

@@ -3937,4 +3937,113 @@ not change a default. The picker is built from the caller's own
 all** — not defaulted past, not disabled, because a disabled option still asks
 the user to work out why.
 
+---
+
+## BLOCKED / RESOLVED → Known schema issue (Stage G1a), as it stood in CLAUDE.md until 2026-09-22
+
+> Moved under the REFILL RULE in trim-6. A closed RESOLVED item leaves
+> CLAUDE.md permanently. **The live text is `docs/GRADING_SPEC.md` → "Known
+> schema defect — FIXED in Stage G1a"**, which carries everything below plus
+> a warning this copy never had: the discarded `G1–3: 30/50/20` band scheme
+> is **NOT** the Grade 1 rule, even though the numbers coincide with the
+> weights confirmed on 2026-09-22 (§6a). That coincidence has already invited
+> one misreading.
+>
+> **One sentence below is STALE and is preserved only as the record.** It says
+> the seeded weight values are "still provisional … not the final state until
+> G1b lands". **G1b landed on 2026-09-05**, the 40-row real curriculum is
+> seeded, the 2026-09-22 Grade 1 work added weights for every grade level, and
+> `verify-grading-seed.js` asserts all of it (34/34). Nothing about those
+> values is provisional now.
+
+### Known schema issue — RESOLVED (Stage G1a, 2026-09-05)
+
+`grade_weight_configs` was keyed by grade band (`grade_level_min`/
+`grade_level_max`, seeded G1–3: 30/50/20, G4–6: 40/40/20) — confirmed
+wrong, since weights actually vary by learning area, not grade level.
+Re-keyed to `(subject_id, school_year)` in Stage G1a above. **The values
+seeded are still provisional**, though — they're seeded against the old
+placeholder `subjects` rows, not the school's real per-grade subject
+list, so this isn't the final state until G1b lands.
+
+`grade_components.type` was `ENUM('quiz', 'activity')` with exams living
+separately as a single `grades.exam_score` scalar — DO 015's three
+components (Written Works, Performance Tasks, Examinations) mapped
+loosely but not exactly, and Examinations' real internal structure
+(ST1/ST2/TE) wasn't represented at all. Fixed in Stage G1a: `type` is now
+`ENUM('WW', 'PT')`, and EX's three sub-scores live as dedicated columns
+on `grades` (`ex_st1`/`ex_st2`/`ex_te`) — see above for why columns, not
+child rows.
+
+---
+
+## BLOCKED / RESOLVED → Excuse Letters module, as it stood in CLAUDE.md until 2026-09-22
+
+> Moved under the REFILL RULE in trim-6 — both blockers were answered and
+> built on 2026-09-05. **One rule stayed behind in CLAUDE.md** because it is
+> stated nowhere else: approval is record-only and **must not modify
+> `attendance` rows**.
+
+### Excuse Letters module — RESOLVED and BUILT (both blockers)
+
+- **RESOLVED: excuse letter approval is record-only.** The learner stays
+  `Absent`; the letter documents the reason. Approval must not modify
+  `attendance` rows. This answers the original "does approving change the
+  attendance record" question — it does not, by design. Enforced in code,
+  not just documentation: `PATCH /:id/review` writes only `status`,
+  `teacher_remarks`, and `reviewed_by` — no query in that handler
+  references the `attendance` table at all.
+- **RESOLVED: who approves — the class adviser only.** Confirmed by the
+  school, not "any teacher assigned to the student's grade/section."
+  `sections.adviser_id` (via `students.section_id`) is the authority,
+  exactly as the previous entry here anticipated. The Sections API
+  (2026-09-05) is what made every section's `adviser_id` assignable
+  through the API rather than a direct DB write, which is what actually
+  unblocked building this.
+
+**Net effect:** `PATCH /:id/review` is built. See the endpoints table and
+the 2026-09-05 CHANGELOG entry for the read-scope-vs-review-scope
+distinction (existing `GET` scoping is broader — any assigned teacher,
+via `teacher_assignments` — than review authority, which is adviser-only
+via `sections.adviser_id`) and why an unauthorized non-adviser gets `403`
+naming the reason rather than `404`.
+
+**Stage 4 UI note, not API enforcement:** `teacher_remarks` is deliberately
+optional on both `Approved` and `Declined` (API-level — see above), but a
+`Declined` letter with no remarks gives the parent no reason and pushes
+them to message the teacher instead — the exact repeated-PM problem the
+Class Board exists to reduce. The fix belongs in the Stage 4 decline form
+as a UI prompt (e.g. a soft "add a reason?" nudge before submitting a
+decline), not as a backend-enforced required field — see the confirmed
+reasoning above for why a status-conditional required field was rejected
+at the API layer. Flagging here so it isn't lost before Stage 4 web pages
+are built.
+
+> **Still open, and it did NOT move with this block:** that Stage 4 UI note
+> was never built. Teacher → Excuse Letters has no "add a reason?" nudge on a
+> decline. It is a UI-polish candidate, not a closed item, and is recorded
+> here so the move does not read as completion.
+
+---
+
+## SAFE TO BUILD NOW — the section as it stood in CLAUDE.md until 2026-09-22
+
+> Moved in trim-6. **Zero live-rule hits**: every sentence was a present-tense
+> "X is built" restating CURRENT STATE, BLOCKED / RESOLVED or the endpoint
+> record, which is exactly the one-number-one-place liability. CLAUDE.md keeps
+> the heading and a pointer.
+
+## SAFE TO BUILD NOW — done
+
+Excuse Letters is fully built — `submit`, `mine`, `list`, `view`, `edit`,
+and `review` (`PATCH /:id/review`, approve/decline) — see the endpoints
+table and `routes/excuses.js` in Files that exist. Grades API is fully
+built — write path plus `GET /`, `GET /:id`, `GET /student/:studentId`
+(Stage G3, 2026-09-06). **Parent grade breakdown is built** (2026-09-11;
+parents-see-raw-scores answered 2026-09-11 in conversation — see OPEN
+QUESTIONS). Remaining Grades *policy* items that used to sit here
+(three terms, both modes, three components, weights keyed by
+`(subject_id, school_year)`, admin-only lock) are answered and already
+built — see OPEN QUESTIONS. Admin screens wait.
+
 
