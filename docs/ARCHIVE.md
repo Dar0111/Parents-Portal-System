@@ -4189,3 +4189,62 @@ built — see OPEN QUESTIONS. Admin screens wait.
         `Card.jsx`'s `Stat` prints `{value}` with no formatter, so a general
         average of 87.5 reads **`87.5`** on the dashboard against the report
         card's **`87.50`** — same number, two spellings, two screens.
+
+---
+
+## OPEN QUESTIONS → two school questions ANSWERED 2026-09-23, as they stood in CLAUDE.md
+
+> Moved under the REFILL RULE in the DV4 docs addendum. Both were answered by
+> the school on 2026-09-23 and each now holds one line in CLAUDE.md's answered
+> list. The text below is the question as it stood while open — it records
+> what was unknown and why, which is the part a later reader cannot
+> reconstruct from the answer.
+>
+> **Neither answer is a written policy.** Do not cite either in the manuscript
+> as documented school policy, and do not re-ask them.
+
+### What order do the learning areas print in on a Grade 1 report card?
+
+Asked 2026-09-21, because DV3 had to pick one. The SF9's eight
+intermediate rows are recorded for Grades 4–6 (`docs/GRADING_SPEC.md` §6c),
+but **no printed order exists anywhere for Key Stage 1**. Grade 1 uses
+Makabansa, Mathematics, GMRC, Reading and Literacy, Language — the **class
+program**, a timetable, not the report card. **Only Grades 2 and 3 fall
+back to alphabetical** (`display_order` NULL); an earlier version of this
+line also named Grade 5, which was wrong — 5 has the Key Stage 2 order like
+4 and 6, and always did. **Since CR3a the order lives in
+`subjects.display_order`, not in a client constant**, so the school's answer
+is an UPDATE, not a code change. A one-line answer settles Grades 1, 2 and 3.
+
+> **Answered 2026-09-23.** Grade 1's order and the Key Stage 2 order for
+> Grades 4-6 are **confirmed, no longer provisional** — the values already
+> seeded were right. Grades 2 and 3 were given for the first time: **G2**
+> Makabansa, Mathematics, GMRC, English, Filipino; **G3** English,
+> Mathematics, Science, Filipino, Makabansa, GMRC. Setting their
+> `display_order` is a SEED change and is queued with the pre-Stage-5 fixes,
+> not done here — until then those two grade levels keep the `name ASC`
+> fallback, which is correct rather than broken.
+
+### Who owns old attendance after a mid-year section transfer?
+
+Still unanswered. PUT `/api/students/:id` refuses a class change
+(`400`). That is a gate, not a transfer. Attendance *rows* key on
+`student_id` (history would follow the child); *who may record*
+keys on `students.section_id`. Rewriting the FK without an answer
+would move that authority — the exact write the gate exists to
+refuse. Do not add a transfer endpoint until this is answered.
+
+> **Answered 2026-09-23, and it confirms the code is INVERTED.** The **old**
+> adviser owns attendance recorded before the transfer; the **new** adviser
+> owns it from the transfer date; the **parent sees the whole school year**
+> either way. Today's scoping keys "who may record" on the learner's CURRENT
+> `section_id`, which hands the old adviser's records to the new one — the
+> defect `docs/KNOWN_ISSUES.md` already records, unreachable only because the
+> `400` gate refuses the transfer at all.
+>
+> **Handover is OUTSIDE the system.** The old adviser prints the learner's
+> pre-transfer attendance and hands it over; there is no in-app share, and
+> none should be built. **The requirement this places on the pre-Stage-5 fix:
+> the old adviser must still be able to VIEW and PRINT that learner's
+> pre-transfer records after the move** — so the fix cannot simply re-point
+> scope at the new section and drop the old adviser's access.

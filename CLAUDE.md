@@ -1123,8 +1123,9 @@ file:**
   on the server at all four per-row write paths and the class record. This
   does not make computed values integers (§4a).
 - **A score above its HPS is allowed and flagged, never refused or clamped** —
-  matching `gradeComputation.js`. **Nobody has asked the school about bonus
-  points, so no screen may claim they are permitted.**
+  matching `gradeComputation.js`, and **the school confirmed on 2026-09-23
+  that it DOES award bonus points** (event participation), added to PT. The
+  behaviour was already right; what changes is that copy may now say so.
 - **Both class-record routes are registered BEFORE `GET /:id`** or
   `class-record` parses as an id. Do not reorder `routes/grades.js`.
 - **`slot_id` is REQUIRED on `POST`/`PUT /:id/components`.** Only the
@@ -1592,6 +1593,13 @@ seen, clock restored. **Do not "fix" those timestamps.**
   9. **The admin System card wraps "(Term 1)" onto its own line**
      (2026-09-23), so "Grade records locked" and its term read as two
      statements. A `nowrap` on the term fragment, not a narrower label.
+  10. **The class-record Save confirmation may now name bonus points**
+     (2026-09-23): *"Scores above the highest possible score are saved as
+     typed. Check that each is a bonus, not a typing mistake."* The over-HPS
+     listing stays; behaviour does not change.
+  11. **Verify Teacher → Class summary PRINTS cleanly** (2026-09-23) — the
+     school accepts a printout, so **.xlsx is optional and cuttable**. Check
+     the sticky column and the scroller on paper. A browser check, not a build.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
       (2026-09-21); the first two are what Expo hits first.**
       **(a) `subjects.display_order`** — the printed order is a client
@@ -1623,7 +1631,15 @@ seen, clock restored. **Do not "fix" those timestamps.**
       Values the school adopts — a new route, a nav item and a page, none of
       which exist; **(h) the npm alias** `db:migrate:reading-and-literacy`,
       deferred twice now because `package.json` keeps falling outside a
-      whitelist. Then the originals: `GET /api/attendance` where
+      whitelist. **Two more from the 2026-09-23 school answers: (k) seed
+      `display_order` for Grades 2 and 3** (G2 Makabansa · Mathematics · GMRC ·
+      English · Filipino; G3 English · Mathematics · Science · Filipino ·
+      Makabansa · GMRC) — migration + `seed.sql`, the last grade levels on the
+      `name ASC` fallback; and **(l) the mid-year transfer scope fix must
+      leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
+      attendance** — handover is outside the system, so re-pointing scope at
+      the new section and dropping the old adviser's access would strand the
+      records. Then the originals: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
       `test:attendance`’s cleanup deleting every row on three dates rather than
@@ -1786,27 +1802,7 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (three)
-
-- **What order do the learning areas print in on a Grade 1 report card?**
-  Asked 2026-09-21, because DV3 had to pick one. The SF9's eight
-  intermediate rows are recorded for Grades 4–6 (`docs/GRADING_SPEC.md` §6c),
-  but **no printed order exists anywhere for Key Stage 1**. Grade 1 uses
-  Makabansa, Mathematics, GMRC, Reading and Literacy, Language — the **class
-  program**, a timetable, not the report card. **Only Grades 2 and 3 fall
-  back to alphabetical** (`display_order` NULL); an earlier version of this
-  line also named Grade 5, which was wrong — 5 has the Key Stage 2 order like
-  4 and 6, and always did. **Since CR3a the order lives in
-  `subjects.display_order`, not in a client constant**, so the school's answer
-  is an UPDATE, not a code change. A one-line answer settles Grades 1, 2 and 3.
-
-- **Who owns old attendance after a mid-year section transfer?**
-  Still unanswered. PUT `/api/students/:id` refuses a class change
-  (`400`). That is a gate, not a transfer. Attendance *rows* key on
-  `student_id` (history would follow the child); *who may record*
-  keys on `students.section_id`. Rewriting the FK without an answer
-  would move that authority — the exact write the gate exists to
-  refuse. Do not add a transfer endpoint until this is answered.
+### School questions — still open (ONE)
 
 - **Are there Saturday or make-up classes?** Asked because the code
   already permits them and nobody decided that it should:
@@ -1825,6 +1821,14 @@ None of these is a written policy. **Do not cite them in the manuscript as
 documented school policy, and do not re-ask them.** Full entries:
 `docs/ARCHIVE.md` → OPEN QUESTIONS.
 
+- **2026-09-23 — mid-year transfer: the OLD adviser owns pre-transfer
+  attendance, the NEW adviser from the transfer date, the parent sees the
+  whole year.** Code is INVERTED; handover is outside the system — see
+  pre-Stage-5 (l).
+- **2026-09-23 — the printed subject order is CONFIRMED for every grade**;
+  Grades 2 and 3 are a seed change, pre-Stage-5 (k).
+- **2026-09-23 — the school DOES award bonus points** (event participation,
+  added to PT). Over-HPS stays flagged, never blocked.
 - **2026-09-22 — how the Grade 1 A–E letter is produced: it is COMPUTED**, not
   a hand-picked judgment. WW 30 / PT 50 / Summative 20, Summative split
   ST1 30 / ST2 30 / TE 40, banded on the **raw** weighted score with no
