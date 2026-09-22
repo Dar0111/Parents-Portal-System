@@ -93,19 +93,21 @@ function useAssignments() {
     };
   }, []);
 
-  // SUBJECTS A-Z, and that is a stated limitation rather than a choice:
-  // `subjects` has no display_order column, so the school's printed order
-  // cannot be honoured here. The only printed order this repo holds is a
-  // client constant on the parent report card, covering Grades 1 and 4-6
-  // with Grade 1 marked provisional — importing it would give that document
-  // two masters. Revisit when subjects.display_order lands (pre-Stage-5).
+  // SUBJECTS IN THE SCHOOL'S PRINTED ORDER (CR3a, 2026-09-22) — the A-Z sort
+  // that used to be here is gone, and it was always a stated limitation
+  // rather than a choice. `GET /assignments` now defaults to
+  // `ta.grade_level, ta.section, s.display_order IS NULL, s.display_order,
+  // s.name`, so the rows arrive ordered and a Map preserves first-insertion
+  // order. Do not re-sort: that would put this dropdown back in disagreement
+  // with the report card and the adviser summary, which is exactly what
+  // moving the order into the database fixed.
   const subjects = useMemo(() => {
     if (!rows) return [];
     const byId = new Map();
     for (const row of rows) {
       if (!byId.has(row.subject_id)) byId.set(row.subject_id, { id: row.subject_id, name: row.subject_name });
     }
-    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...byId.values()];
   }, [rows]);
 
   // The sections where this teacher teaches THAT subject — grade ascending,

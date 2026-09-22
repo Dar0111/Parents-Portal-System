@@ -1779,12 +1779,14 @@ the same way.**
 - **What order do the learning areas print in on a Grade 1 report card?**
   Asked 2026-09-21, because DV3 had to pick one. The SF9's eight
   intermediate rows are recorded for Grades 4–6 (`docs/GRADING_SPEC.md` §6c),
-  but **no printed order exists anywhere for Key Stage 1**. The card uses
-  Makabansa, Mathematics, GMRC, Language, Reading — which is the **class
-  program**, a timetable, not the report card — marked provisional in
-  `ReportCard.jsx`. Grades 2, 3 and 5 are in the same position and
-  deliberately fall back to alphabetical rather than guess. A one-line answer
-  from the school settles all four.
+  but **no printed order exists anywhere for Key Stage 1**. Grade 1 uses
+  Makabansa, Mathematics, GMRC, Reading and Literacy, Language — the **class
+  program**, a timetable, not the report card. **Only Grades 2 and 3 fall
+  back to alphabetical** (`display_order` NULL); an earlier version of this
+  line also named Grade 5, which was wrong — 5 has the Key Stage 2 order like
+  4 and 6, and always did. **Since CR3a the order lives in
+  `subjects.display_order`, not in a client constant**, so the school's answer
+  is an UPDATE, not a code change. A one-line answer settles Grades 1, 2 and 3.
 
 - **Who owns old attendance after a mid-year section transfer?**
   Still unanswered. PUT `/api/students/:id` refuses a class change

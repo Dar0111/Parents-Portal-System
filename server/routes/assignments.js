@@ -55,7 +55,10 @@ subjectsRouter.get('/', authenticate, async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, name, grade_level FROM subjects ${where} ORDER BY grade_level, name`,
+      // The school's printed order within each grade level (CR3a), null-last
+      // so Grades 2 and 3 keep the alphabetical fallback rather than leading.
+      `SELECT id, name, grade_level, display_order FROM subjects ${where}
+        ORDER BY grade_level, display_order IS NULL, display_order, name`,
       params
     );
     return res.json({ success: true, subjects: rows });
@@ -93,8 +96,12 @@ assignmentsRouter.get('/', authenticate, authorize('teacher', 'admin'), async (r
   }
 
   const list = readListParams(req.query, {
+    // `sort=subject` stays s.name — an explicit sort is the caller asking for
+    // alphabetical, and changing what a documented sort value means would be a
+    // contract change. Only the DEFAULT follows the school's printed order,
+    // which is what the class-record Subject dropdown reads (CR3a).
     sortable: { class: 'ta.grade_level, ta.section', subject: 's.name', teacher: 'u.name' },
-    defaultOrderBy: 'ta.grade_level, ta.section, s.name',
+    defaultOrderBy: 'ta.grade_level, ta.section, s.display_order IS NULL, s.display_order, s.name',
     tiebreaker: 'ta.id ASC',
   });
   if (!list.ok) {

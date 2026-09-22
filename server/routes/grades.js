@@ -1836,9 +1836,18 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     }
     const mode = modeConfig.mode;
 
-    const [subjects] = await pool.query('SELECT id, name FROM subjects WHERE grade_level = ? ORDER BY name ASC', [
-      student.grade_level,
-    ]);
+    // THE PRINTED ORDER, and the client may not reorder this (CR3a).
+    // `display_order IS NULL` first is the null-last idiom — MySQL sorts NULL
+    // FIRST by default, so without it Grades 2 and 3, which have no recorded
+    // order, would come back with the unordered rows leading. A grade level
+    // with no order recorded falls back to name ASC, which is what the report
+    // card did for every grade level before this column existed.
+    const [subjects] = await pool.query(
+      `SELECT id, name, display_order FROM subjects
+        WHERE grade_level = ?
+        ORDER BY display_order IS NULL, display_order, name`,
+      [student.grade_level]
+    );
 
     const [gradeRows] = await pool.query('SELECT * FROM grades WHERE student_id = ? AND school_year = ?', [
       studentId,

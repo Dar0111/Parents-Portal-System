@@ -87,10 +87,32 @@ CREATE TABLE students (
   INDEX idx_students_grade_section (grade_level, section)
 ) ENGINE=InnoDB;
 
+-- display_order (CR3a, 2026-09-22) — the school's PRINTED order for a grade
+-- level's learning areas, 1..N. It is NOT a sort key the application invents:
+-- it is transcribed from the SF9, and changing an order is an UPDATE here
+-- rather than a code change.
+--
+-- NULLABLE, and NULL is an honest value, not "to do". Grades 2 and 3 carry
+-- NULL because no printed order has ever been recorded for them, and every
+-- reader sorts `display_order IS NULL, display_order, name` — the null-last
+-- idiom — so an unordered grade level keeps a stable alphabetical fallback.
+-- MySQL sorts NULL FIRST by default, which is why that leading term exists
+-- rather than a COALESCE to a sentinel.
+--
+-- Grade 1's values are PROVISIONAL: they are its class program, a timetable,
+-- not a report card. Grades 4-6 share one order, per the Key Stage 2 SF9
+-- (docs/GRADING_SPEC.md §6c) — one transcription applied to three grade
+-- levels, not three independent observations. Both are pending confirmation
+-- at the next school visit; see CLAUDE.md → OPEN QUESTIONS.
+--
+-- It replaced a CLIENT constant (ReportCard.jsx's PRINTED_ORDER), deleted in
+-- the same dispatch: Expo cannot import a constant, and the class record and
+-- the adviser summary need the same order without a parent document owning it.
 CREATE TABLE subjects (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
+  display_order TINYINT UNSIGNED DEFAULT NULL,
   UNIQUE KEY uq_subject_grade (name, grade_level),
   INDEX idx_subjects_grade (grade_level)
 ) ENGINE=InnoDB;

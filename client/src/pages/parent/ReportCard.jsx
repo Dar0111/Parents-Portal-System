@@ -47,46 +47,27 @@ import TermValue from '../../format/TermValue';
 // ---------------------------------------------------------------------------
 // THE PRINTED SUBJECT ORDER
 // ---------------------------------------------------------------------------
-// `subjects` has exactly three columns — id, name, grade_level — and NO
-// display-order column, so the API can only sort by name and the card was
-// alphabetical by accident of the query.
+// THE PRINTED ORDER IS THE SERVER'S, AND THIS CARD NO LONGER SORTS (CR3a,
+// 2026-09-22).
 //
-// Grades 4-6: the SF9's own eight printed rows, transcribed in
-// docs/GRADING_SPEC.md §6c and in seed.sql's Grade 4 block. That is the order
-// off the report card itself.
+// `subjects.display_order` now holds the school's printed order and
+// `GET /grades/student/:studentId` returns the subjects already in it
+// (`ORDER BY display_order IS NULL, display_order, name`, so a grade level
+// with no recorded order keeps the alphabetical fallback). The client constant
+// that used to live here — PRINTED_ORDER, plus an orderSubjects() that ranked
+// against it — is DELETED.
 //
-// GRADE 1 IS PROVISIONAL. The school's printed order for Key Stage 1 has
-// never been recorded; the only sequence this repo holds for Grade 1 is its
-// CLASS PROGRAM, which is a timetable. It is used here because an observed
-// school artifact beats alphabetical-by-accident, not because it is
-// confirmed — see OPEN QUESTIONS. Grades 2, 3 and 5 are deliberately absent:
-// no printed order is known for them, and inventing one would be worse than
-// the alphabetical fallback they get instead.
+// Why it had to leave rather than stay as a second opinion:
+//   - Expo cannot import it, so a mobile card would need a second copy of an
+//     order that must agree with this one.
+//   - The class record's Subject dropdown and the adviser summary's COLUMNS
+//     need the same order, and neither can take it from a parent document.
+//   - A subject the order does not name still sorts last and is never
+//     dropped — that behaviour moved into the SQL, it was not lost.
 //
-// REVISIT TRIGGER: Expo. A second report card cannot import this constant, so
-// the moment a mobile card exists the order belongs in `subjects.display_order`
-// and comes down with the payload. Queued with the pre-Stage-5 server fixes.
-const PRINTED_ORDER = {
-  1: ['Makabansa', 'Mathematics', 'GMRC', 'Reading and Literacy', 'Language'],
-  4: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
-  5: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
-  6: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
-};
-
-// A subject the printed order does not name keeps the server's own ordering
-// and is APPENDED, never dropped: a learning area added to the curriculum
-// must appear on the card the day it is added, even if this constant has not
-// been updated for it yet. Array#sort is stable, so the unlisted tail stays in
-// the alphabetical order the API sent.
-function orderSubjects(subjects, gradeLevel) {
-  const printed = PRINTED_ORDER[gradeLevel];
-  if (!printed) return subjects;
-  const rank = (name) => {
-    const index = printed.indexOf(name);
-    return index === -1 ? printed.length : index;
-  };
-  return [...subjects].sort((a, b) => rank(a.subject_name) - rank(b.subject_name));
-}
+// So: render `report.subjects` in the order it arrives. Do not re-sort here,
+// and do not reintroduce a constant. A wrong order is now fixed by an UPDATE
+// to `subjects.display_order`, not by editing this file.
 
 // ---------------------------------------------------------------------------
 // TERM STATUS — COUNTED, never computed
@@ -635,10 +616,14 @@ export default function ReportCard({
 
   const student = report?.student ?? null;
   const mode = report?.grading_mode ?? 'numerical';
-  const subjects = useMemo(
-    () => orderSubjects(report?.subjects ?? [], student?.grade_level),
-    [report?.subjects, student?.grade_level]
-  );
+  // Rendered in the order the API sent (CR3a) — see the note at the top of
+  // this file. No client-side sort.
+  //
+  // Still a useMemo, and not because anything expensive happens here: the
+  // `?? []` fallback allocates a NEW array on every render, and `statuses`
+  // below memoizes on this value. Without it that memo recomputes forever on
+  // an empty card. Dropping the sort is not a reason to drop the identity.
+  const subjects = useMemo(() => report?.subjects ?? [], [report?.subjects]);
   const statuses = useMemo(() => termStatuses(subjects, mode), [subjects, mode]);
   const canOpen = subjects.some((subject) => [1, 2, 3].some((term) => subject.terms?.[term]?.grade_id));
 

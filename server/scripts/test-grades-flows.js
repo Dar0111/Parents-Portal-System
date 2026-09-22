@@ -1670,6 +1670,22 @@ async function run() {
       Array.isArray(marwinReportCard.data?.subjects) && marwinReportCard.data.subjects.length === 8,
       `Report card lists all 8 Grade 6 subjects (got ${marwinReportCard.data?.subjects?.length})`
     );
+    // THE PRINTED ORDER COMES FROM THE SERVER (CR3a, 2026-09-22). Before this
+    // the API returned name ASC and a CLIENT constant reordered the card, so
+    // this assertion could not have existed — the order was not in the
+    // payload. Asserted as an exact sequence, not a set: the whole point is
+    // the sequence, and "contains all 8" would pass on alphabetical.
+    const g6Order = (marwinReportCard.data?.subjects ?? []).map((s) => s.subject_name);
+    assert(
+      g6Order.join(' > ') ===
+        'English > Mathematics > Filipino > Araling Panlipunan > GMRC > Science > MAPEH > EPP',
+      `Grade 6 report card prints in the SF9's order, not A-Z (got ${g6Order.join(' > ')})`
+    );
+    assert(
+      g6Order[0] === 'English' && g6Order[1] === 'Mathematics',
+      'The first two are English then Mathematics — alphabetical would start Araling Panlipunan, English'
+    );
+
     const gmrcEntry = marwinReportCard.data?.subjects?.find((s) => s.subject_name === 'GMRC');
     assert(
       gmrcEntry &&
@@ -1894,6 +1910,19 @@ async function run() {
     assert(
       Array.isArray(seededCard.data?.subjects) && seededCard.data.subjects.length === 5,
       `Seeded report card has 5 Grade 1 subjects (got ${seededCard.data?.subjects?.length})`
+    );
+
+    // Grade 1's order is PROVISIONAL — it is the class program, a timetable,
+    // not a report card (CLAUDE.md → OPEN QUESTIONS). It is asserted anyway,
+    // and deliberately: CR3a's promise was that moving the order out of the
+    // client constant does not change what Nino's card looks like, and this
+    // is what proves it. If the school gives a real Key Stage 1 order, this
+    // assertion is EXPECTED to fail and should be updated with the seed —
+    // it is not a regression guard against the school.
+    const g1Order = (seededCard.data?.subjects ?? []).map((s) => s.subject_name);
+    assert(
+      g1Order.join(' > ') === 'Makabansa > Mathematics > GMRC > Reading and Literacy > Language',
+      `Grade 1 card keeps its provisional class-program order (got ${g1Order.join(' > ')})`
     );
 
     const mathCard = seededCard.data?.subjects?.find((s) => s.subject_name === 'Mathematics');

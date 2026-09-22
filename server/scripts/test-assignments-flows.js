@@ -150,6 +150,61 @@ async function run() {
       `Grade 1 names match the seeded curriculum (got ${grade1Names.join(', ')})`
     );
 
+    // THE PRINTED ORDER (CR3a, 2026-09-22). The assertion above sorts the
+    // names before comparing, which is right for "is the curriculum correct"
+    // and blind to order — so the order needs its own, UNSORTED, assertion.
+    const grade1Order = (grade1.data?.subjects || []).map((s) => s.name);
+    assert(
+      grade1Order.join(' > ') === 'Makabansa > Mathematics > GMRC > Reading and Literacy > Language',
+      `GET /?grade_level=1 returns the school's order, not A-Z (got ${grade1Order.join(' > ')})`
+    );
+
+    const grade6 = await request('GET', '/api/subjects?grade_level=6', { token: adminToken });
+    const grade6Order = (grade6.data?.subjects || []).map((s) => s.name);
+    assert(
+      grade6Order.join(' > ') ===
+        'English > Mathematics > Filipino > Araling Panlipunan > GMRC > Science > MAPEH > EPP',
+      `GET /?grade_level=6 returns the SF9's order (got ${grade6Order.join(' > ')})`
+    );
+
+    // GRADE 2 HAS NO RECORDED ORDER, and the fallback is asserted rather than
+    // assumed. display_order is NULL for all five rows; MySQL sorts NULL
+    // FIRST by default, so without the `display_order IS NULL` leading term
+    // this would still be alphabetical by luck — but on a grade level with a
+    // MIX of ordered and unordered rows the unordered ones would jump to the
+    // front. Asserting the all-NULL case keeps the idiom honest at its edge.
+    const grade2 = await request('GET', '/api/subjects?grade_level=2', { token: adminToken });
+    const grade2Order = (grade2.data?.subjects || []).map((s) => s.name);
+    assert(
+      grade2Order.join(' > ') === 'English > Filipino > GMRC > Makabansa > Mathematics',
+      `Grade 2 has no printed order and falls back to name ASC (got ${grade2Order.join(' > ')})`
+    );
+    assert(
+      (grade2.data?.subjects || []).every((s) => s.display_order === null),
+      'Grade 2 display_order is NULL in the payload — no printed order is known, and guessing one is worse'
+    );
+
+    // The class-record Subject dropdown reads GET /assignments, so its DEFAULT
+    // order has to follow display_order too — otherwise one screen disagrees
+    // with the report card. TCH-003 teaches all five Grade 1 subjects in one
+    // section, which makes the default order visible with no other variable.
+    const tchAssignments = await request('GET', '/api/assignments', { token: tch003Token });
+    const tchSubjectOrder = (tchAssignments.data?.assignments || []).map((a) => a.subject_name);
+    assert(
+      tchSubjectOrder.join(' > ') === 'Makabansa > Mathematics > GMRC > Reading and Literacy > Language',
+      `GET /assignments defaults to the printed order (got ${tchSubjectOrder.join(' > ')})`
+    );
+
+    // ...but an EXPLICIT sort=subject still means alphabetical. Changing what
+    // a documented sort value does would be a contract change; only the
+    // default moved.
+    const sortedBySubject = await request('GET', '/api/assignments?sort=subject&order=asc', { token: tch003Token });
+    const sortedNames = (sortedBySubject.data?.assignments || []).map((a) => a.subject_name);
+    assert(
+      sortedNames.join(' > ') === 'GMRC > Language > Makabansa > Mathematics > Reading and Literacy',
+      `sort=subject is still A-Z — only the default changed (got ${sortedNames.join(' > ')})`
+    );
+
     const badGrade = await request('GET', '/api/subjects?grade_level=9', { token: adminToken });
     assert(badGrade.status === 400, 'GET /?grade_level=9 rejected');
 

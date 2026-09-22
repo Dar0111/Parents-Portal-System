@@ -46,18 +46,27 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
 -- ---------------------------------------------------------------------------
 
 -- Grade 1
-INSERT INTO subjects (name, grade_level) VALUES
-  ('Makabansa', 1),
-  ('Mathematics', 1),
-  ('GMRC', 1),
-  ('Language', 1),
+-- display_order is the school's PRINTED order, 1..N (CR3a, 2026-09-22).
+-- Grade 1's is PROVISIONAL — it is the class program, a timetable, not a
+-- report card, and is carried over exactly as the deleted client constant
+-- had it so Nino's card does not change. Grades 2 and 3 pass NULL on
+-- purpose: no printed order is known for them and every reader falls back to
+-- name ASC. Grades 4-6 share one order per the Key Stage 2 SF9. Changing an
+-- order is an UPDATE, not a code change; keep this in step with
+-- scripts/migrate-subject-display-order.js, which applies the same map to a
+-- live database.
+INSERT INTO subjects (name, grade_level, display_order) VALUES
+  ('Makabansa', 1, 1),
+  ('Mathematics', 1, 2),
+  ('GMRC', 1, 3),
+  ('Language', 1, 5),
   -- "Reading and Literacy", not "Reading" — the school's own name for the
   -- learning area. Corrected 2026-09-22; live databases were migrated by
   -- scripts/migrate-reading-and-literacy.js, which RENAMES the row rather
   -- than replacing it (a DELETE would cascade Nino's two seeded letters
   -- away). client/src/pages/parent/ReportCard.jsx's PRINTED_ORDER[1] matches
   -- on this string — change both together.
-  ('Reading and Literacy', 1);
+  ('Reading and Literacy', 1, 4);
 
 -- Grade 2
 INSERT INTO subjects (name, grade_level) VALUES
@@ -78,38 +87,40 @@ INSERT INTO subjects (name, grade_level) VALUES
 
 -- Grade 4 — INFERRED, see the note above. Matches the SF9's eight
 -- intermediate-level rows and Grade 5's photographed program exactly.
-INSERT INTO subjects (name, grade_level) VALUES
-  ('English', 4),
-  ('Mathematics', 4),
-  ('Filipino', 4),
-  ('Araling Panlipunan', 4),
-  ('GMRC', 4),
-  ('Science', 4),
-  ('MAPEH', 4),
-  ('EPP', 4);
+INSERT INTO subjects (name, grade_level, display_order) VALUES
+  ('English', 4, 1),
+  ('Mathematics', 4, 2),
+  ('Filipino', 4, 3),
+  ('Araling Panlipunan', 4, 4),
+  ('GMRC', 4, 5),
+  ('Science', 4, 6),
+  ('MAPEH', 4, 7),
+  ('EPP', 4, 8);
 
--- Grade 5
-INSERT INTO subjects (name, grade_level) VALUES
-  ('English', 5),
-  ('Filipino', 5),
-  ('Araling Panlipunan', 5),
-  ('Science', 5),
-  ('GMRC', 5),
-  ('EPP', 5),
-  ('Mathematics', 5),
-  ('MAPEH', 5);
+-- Grade 5 — the INSERT order below is historical and no longer decides
+-- anything; display_order does. Left as-is rather than resorted, so the diff
+-- of this dispatch shows only the added column.
+INSERT INTO subjects (name, grade_level, display_order) VALUES
+  ('English', 5, 1),
+  ('Filipino', 5, 3),
+  ('Araling Panlipunan', 5, 4),
+  ('Science', 5, 6),
+  ('GMRC', 5, 5),
+  ('EPP', 5, 8),
+  ('Mathematics', 5, 2),
+  ('MAPEH', 5, 7);
 
 -- Grade 6 — SF9 names (GMRC, EPP), not the class-program names (ESP, TLE)
 -- for the same two learning areas. See the naming note above.
-INSERT INTO subjects (name, grade_level) VALUES
-  ('English', 6),
-  ('Filipino', 6),
-  ('Araling Panlipunan', 6),
-  ('Science', 6),
-  ('GMRC', 6),
-  ('Mathematics', 6),
-  ('MAPEH', 6),
-  ('EPP', 6);
+INSERT INTO subjects (name, grade_level, display_order) VALUES
+  ('English', 6, 1),
+  ('Filipino', 6, 3),
+  ('Araling Panlipunan', 6, 4),
+  ('Science', 6, 6),
+  ('GMRC', 6, 5),
+  ('Mathematics', 6, 2),
+  ('MAPEH', 6, 7),
+  ('EPP', 6, 8);
 
 -- ---------------------------------------------------------------------------
 -- Grading mode per grade level, SY 2026-2027 (Table 12, DO 015 s.2026) —

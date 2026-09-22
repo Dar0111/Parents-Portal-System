@@ -69,6 +69,58 @@ async function run() {
       check(actual === expected, `Grade ${gradeLevel} has ${expected} subjects`, `found ${actual}`);
     }
 
+    // --- display_order: the school's printed order (CR3a, 2026-09-22) ---
+    //
+    // Asserted here rather than in an HTTP suite because it is a SEED fact:
+    // the order is transcribed from the school's SF9 and from the Grade 1
+    // class program, and a wrong value is a wrong document, not a wrong
+    // query. The HTTP suites assert that the API RETURNS this order; this
+    // asserts the order itself is what the school gave.
+    //
+    // Grades 2 and 3 are asserted NULL, not "not asserted". NULL is the
+    // honest value for a grade level whose printed order nobody has recorded,
+    // and a future dispatch that guesses one should fail here first.
+    console.log('\nSubject display_order:');
+
+    const EXPECTED_ORDER = {
+      1: ['Makabansa', 'Mathematics', 'GMRC', 'Reading and Literacy', 'Language'],
+      4: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
+      5: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
+      6: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
+    };
+
+    const [orderRows] = await conn.query(
+      `SELECT name, grade_level, display_order FROM subjects
+        ORDER BY grade_level, display_order IS NULL, display_order, name`
+    );
+
+    for (const gradeLevel of [1, 4, 5, 6]) {
+      const expectedNames = EXPECTED_ORDER[gradeLevel];
+      const actualNames = orderRows.filter((r) => r.grade_level === gradeLevel).map((r) => r.name);
+      check(
+        actualNames.length === expectedNames.length && actualNames.every((n, i) => n === expectedNames[i]),
+        `Grade ${gradeLevel} prints in the school's order`,
+        `got ${actualNames.join(' > ')}`
+      );
+      const values = orderRows
+        .filter((r) => r.grade_level === gradeLevel)
+        .map((r) => r.display_order);
+      check(
+        values.every((v, i) => v === i + 1),
+        `Grade ${gradeLevel} display_order is a contiguous 1..${expectedNames.length}`,
+        `got ${values.join(', ')}`
+      );
+    }
+
+    for (const gradeLevel of [2, 3]) {
+      const values = orderRows.filter((r) => r.grade_level === gradeLevel).map((r) => r.display_order);
+      check(
+        values.length > 0 && values.every((v) => v === null),
+        `Grade ${gradeLevel} display_order is NULL — no printed order is known, and guessing one is worse`,
+        `got ${values.join(', ')}`
+      );
+    }
+
     // --- Transmutation table ---
     console.log('\nTransmutation table:');
 
