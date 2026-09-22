@@ -27,6 +27,8 @@ import TeacherEvents from './pages/teacher/EventsPage';
 import TeacherMessages from './pages/teacher/MessagesPage';
 import TeacherMessageThread from './pages/teacher/MessageThreadPage';
 import TeacherClassRecord from './pages/teacher/ClassRecordPage';
+import TeacherClassSummary from './pages/teacher/ClassSummaryPage';
+import TeacherClassSummaryLearner from './pages/teacher/ClassSummaryLearnerPage';
 import ParentGrades from './pages/parent/GradesPage';
 import ParentAttendance from './pages/parent/AttendancePage';
 import ParentAnnouncements from './pages/parent/AnnouncementsPage';
@@ -118,6 +120,10 @@ export default function App() {
             {/* The path CR2 shipped for one dispatch. Kept as a redirect so
                 any link already written to it still lands somewhere. */}
             <Route path="class-record" element={<Navigate to="/teacher/grades" replace />} />
+            {/* CR3 — the adviser's Summary of Grades, read-only. The
+                drill-through routes on students.id, never the LRN (§5c). */}
+            <Route path="class-summary" element={<TeacherClassSummary />} />
+            <Route path="class-summary/:studentId" element={<TeacherClassSummaryLearner />} />
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="attendance-records" element={<TeacherAttendanceRecords />} />
             <Route path="students" element={<TeacherStudents />} />

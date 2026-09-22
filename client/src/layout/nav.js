@@ -43,6 +43,12 @@ export const NAV_BY_ROLE = {
     { to: '/teacher/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/teacher/attendance-records', label: 'Attendance records', icon: 'fa-clock-rotate-left', built: true },
     { to: '/teacher/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
+    // BUILT FOR EVERY TEACHER, not only advisers (CR3). This file has three
+    // states — built, blocked, unbuilt (§6) — and none of them means "exists
+    // but not for you"; inventing a fourth for one page would be a real
+    // convention change. A teacher who advises no section gets a page that
+    // explains itself, which is better than a dimmed row with a tooltip.
+    { to: '/teacher/class-summary', label: 'Class summary', icon: 'fa-table-list', built: true },
     { to: '/teacher/excuse-letters', label: 'Excuse Letters', icon: 'fa-envelope-open-text', built: true },
     { to: '/teacher/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
     { to: '/teacher/memos', label: 'Memos', icon: 'fa-file-lines', built: true },
