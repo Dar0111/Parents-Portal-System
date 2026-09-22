@@ -1193,9 +1193,20 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     seenStudents.add(studentId);
 
     for (const item of Array.isArray(entry.scores) ? entry.scores : []) {
+      // A SCORE NAMES ITS COLUMN ONE OF TWO WAYS: by `slot_id` when the
+      // column already exists, or by `type` + `slot_no` when it is being
+      // created in this same save. The second is not a convenience — the
+      // grid lets a teacher give a blank column a highest possible score
+      // AND type scores into it before pressing Save once, and at that
+      // moment the column has no id anywhere for the client to send. Slots
+      // are upserted before entries in this transaction, so by the time a
+      // score is processed the column exists and can be resolved.
       const slotId = parseId(item?.slot_id);
-      if (slotId === null) {
-        return res.status(400).json({ success: false, message: 'Each score needs a valid slot_id.' });
+      const named = item?.type === 'WW' || item?.type === 'PT';
+      if (slotId === null && !named) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'Each score needs a slot_id, or a type and slot_no.' });
       }
       if (item.score === null) continue; // an explicit null clears the score
       if (!isValidScore(item.score)) {
@@ -1438,13 +1449,23 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       let changed = false;
 
       for (const item of Array.isArray(entry.scores) ? entry.scores : []) {
+        // Resolved by id when there is one, otherwise by the column's type
+        // and number — which is how a score lands in a slot created earlier
+        // in this same transaction. `slotByKey` holds both the pre-existing
+        // slots and the ones just upserted.
         const slotId = parseId(item.slot_id);
-        const slot = slotById.get(slotId);
+        const slot =
+          slotId !== null
+            ? slotById.get(slotId)
+            : slotByKey.get(`${item.type}-${Number(item.slot_no)}`);
         if (!slot) {
           await conn.rollback();
           return res.status(400).json({
             success: false,
-            message: `Slot #${slotId} does not belong to this class record.`,
+            message:
+              slotId !== null
+                ? `Slot #${slotId} does not belong to this class record.`
+                : `There is no ${item.type} ${item.slot_no} column on this class record.`,
           });
         }
         if (slot.max_score === null) {
@@ -1455,9 +1476,12 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
           });
         }
 
+        // slot.id, NOT slotId — a score that named its column by type and
+        // number has no slotId, and the resolved slot is the only place the
+        // real id exists.
         const [existingRows] = await conn.query(
           'SELECT id FROM grade_components WHERE grade_id = ? AND slot_id = ? LIMIT 1',
-          [grade.id, slotId]
+          [grade.id, slot.id]
         );
         const existingComponent = existingRows[0];
 
@@ -1480,7 +1504,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
           // display_label, never a snapshot of it.
           await conn.query(
             'INSERT INTO grade_components (grade_id, slot_id, type, score, max_score, label) VALUES (?, ?, ?, ?, ?, NULL)',
-            [grade.id, slotId, slot.type, item.score, slot.max_score]
+            [grade.id, slot.id, slot.type, item.score, slot.max_score]
           );
         }
         changed = true;

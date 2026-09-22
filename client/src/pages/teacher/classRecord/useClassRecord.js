@@ -176,13 +176,20 @@ export default function useClassRecord(classKey) {
   // ---- what the teacher has changed, as the API's own request shape ----
   // Built from the drafts every time rather than accumulated, so undoing a
   // change back to its stored value genuinely un-dirties the cell.
+  // NOT YET EXTRACTED AS A PURE EXPORTED FUNCTION. That is the right shape
+  // and it is what would let a server-side suite drive this with plain data
+  // and assert the exact request body — the gap that let defect 8 through.
+  // It needs a file both sides can import, which is a declared SCOPE
+  // EXPANSION; see the dispatch report. Left inline deliberately rather
+  // than half-moved.
   const buildPayload = useCallback(() => {
     if (!server) return null;
 
     // Over the FIXED FRAME, not the server's rows, so an edit to a phantom
     // column is representable — that edit is exactly what creates it.
+    const frame = buildSlotFrame(server.slots);
     const slots = [];
-    for (const slot of buildSlotFrame(server.slots)) {
+    for (const slot of frame) {
       const d = slotDraft[slotKey(slot.type, slot.slot_no)];
       if (!d) continue;
       const nextMax = d.max_score === undefined || d.max_score === '' ? null : Number(d.max_score);
@@ -238,11 +245,31 @@ export default function useClassRecord(classKey) {
         continue;
       }
 
-      const slotId = Number(field);
-      const stored = learner.scores[slotId];
+      // THE FIELD IS A SLOT KEY ("WW-2"), NOT AN ID, and this line used to
+      // do Number(field) — from before phantom slots, when a cell was
+      // addressed by the slot's database id. Number("WW-2") is NaN,
+      // JSON.stringify turns NaN into null, and the server answered "Each
+      // score needs a valid slot_id" for every new score typed into an
+      // existing column. The cell addressing changed and the payload
+      // builder did not follow it.
+      const slot = frame.find((s) => slotKey(s.type, s.slot_no) === field);
+      if (!slot) continue;
+
+      const stored = slot.id ? learner.scores[slot.id] : undefined;
       const storedValue = stored === undefined ? null : stored;
       if (parsed.value === storedValue) continue; // typed back to stored
-      entryFor(studentId).scores.push({ slot_id: slotId, score: parsed.value });
+
+      // A slot created in THIS SAME SAVE has no id yet — the teacher set a
+      // phantom column's highest possible score and typed a score into it
+      // before pressing Save once. The server creates slots before entries
+      // in the same transaction, so it can resolve the column itself: the
+      // score names its type and number instead, and the id is used
+      // whenever there is one.
+      entryFor(studentId).scores.push(
+        slot.id
+          ? { slot_id: slot.id, score: parsed.value }
+          : { type: slot.type, slot_no: slot.slot_no, score: parsed.value }
+      );
     }
 
     // An entry with nothing in it is noise in the request and in the log.

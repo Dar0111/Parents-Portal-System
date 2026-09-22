@@ -921,6 +921,86 @@ async function main() {
     });
     assert(duplicate.status === 400 && /Duplicate/i.test(duplicate.data?.message || ''), 'a duplicate student_id is 400');
 
+    // -----------------------------------------------------------------
+    console.log('\nHow a score names its column — both shapes (defect 8)');
+    // -----------------------------------------------------------------
+    // THE GRID DOES NOT ADDRESS A CELL BY SLOT ID. Since phantom columns
+    // landed it addresses them by type and number, because a column that
+    // does not exist yet has no id. The payload builder was still doing
+    // Number(field) on "WW-2" — NaN, which JSON serialises as null — so
+    // every new score typed into an existing column was refused with "Each
+    // score needs a valid slot_id".
+    //
+    // THESE TESTS DO NOT CLOSE THAT GAP, and saying so is the point: they
+    // are hand-built request bodies, exactly like the ones that passed
+    // while the grid was broken. What they pin is the SERVER's half of the
+    // contract — that both shapes are accepted and mean the same thing.
+    // Driving the client's own builder is a separate, declared piece of
+    // work; see the dispatch report.
+    const shapeA = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        dry_run: true,
+        entries: [{ student_id: learners[2].id, scores: [{ slot_id: ww2.id, score: 7 }] }],
+      },
+    });
+    assert(shapeA.status === 200, `a score naming its column by slot_id is accepted (${why(shapeA)})`);
+
+    // THE SAME SCORE, naming the column by type and number instead. Slots
+    // are upserted before entries in the one transaction, so the server can
+    // resolve it — which is what makes a phantom typeable before its first
+    // save.
+    const shapeB = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        dry_run: true,
+        entries: [{ student_id: learners[2].id, scores: [{ type: 'WW', slot_no: ww2.slot_no, score: 7 }] }],
+      },
+    });
+    assert(shapeB.status === 200, `and by type + slot_no (${why(shapeB)})`);
+    const aRow = shapeA.data.results.find((r) => Number(r.student_id) === Number(learners[2].id));
+    const bRow = shapeB.data.results.find((r) => Number(r.student_id) === Number(learners[2].id));
+    assert(
+      aRow && bRow && aRow.ww_total === bRow.ww_total && aRow.ww_percentage === bRow.ww_percentage,
+      `the two shapes produce the same numbers (${aRow?.ww_total}/${aRow?.ww_percentage} vs ${bRow?.ww_total}/${bRow?.ww_percentage})`
+    );
+
+    // A COLUMN CREATED AND SCORED IN THE SAME SAVE — the case that has no
+    // id to send at all, and the reason the second shape exists.
+    const createAndScore = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        slots: [{ type: 'PT', slot_no: 4, max_score: 20 }],
+        entries: [{ student_id: learners[0].id, scores: [{ type: 'PT', slot_no: 4, score: 20 }] }],
+      },
+    });
+    assert(
+      createAndScore.status === 200,
+      `a column created AND scored in ONE save works — there is no id to send (${why(createAndScore)})`
+    );
+    const [[scored]] = await withDb((conn) =>
+      conn.query(
+        `SELECT c.score FROM grade_components c
+           JOIN assessment_slots s ON s.id = c.slot_id
+           JOIN grades g ON g.id = c.grade_id
+          WHERE s.type = 'PT' AND s.slot_no = 4 AND g.student_id = ?`,
+        [learners[0].id]
+      )
+    );
+    assert(Number(scored?.score) === 20, `and the score really landed in it (got ${scored?.score})`);
+
+    const badShape = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, entries: [{ student_id: learners[0].id, scores: [{ score: 5 }] }] },
+    });
+    assert(
+      badShape.status === 400 && /slot_id, or a type and slot_no/.test(badShape.data?.message || ''),
+      `a score naming no column at all is refused, saying what is missing (${why(badShape)})`
+    );
+
     const decimalScore = await request('PUT', '/api/grades/class-record', {
       token: adminToken,
       body: { ...classKey, entries: [{ student_id: learners[0].id, scores: [{ slot_id: ww2.id, score: 5.5 }] }] },
