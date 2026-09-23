@@ -397,6 +397,48 @@ export default function AnnouncementsPage() {
       </div>
 
       <DataTable
+        // CONTENT-LIST CARD (DV1b-a). Each fact appears ONCE: the headline as
+        // the title, the body preview as the subtitle, and audience + date
+        // together in meta. Every card slot truncates to a single line, so a
+        // line-clamped paragraph is not an option here and the preview is one
+        // line by construction.
+        //
+        // NO `to` AND NO `onSelect`: this page has no detail route, and Edit /
+        // Delete are two peers rather than one primary action — the Users
+        // directory's case (§5a-iii). The card renders static with its actions
+        // underneath, and no chevron, because a card that looks tappable and
+        // is not is worse than one that never claimed to be.
+        renderCard={(row) => ({
+          title: row.title,
+          subtitle: row.content,
+          meta: `${
+            row.target_grade === null
+              ? 'School-wide'
+              : `Grade ${row.target_grade}${row.target_section ? ` - ${row.target_section}` : ' (whole grade)'}`
+          } · ${String(row.created_at).slice(0, 10)}`,
+          actions:
+            row.posted_by === user?.id ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openEdit(row)}
+                  className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleting(row);
+                    setDeleteError(null);
+                  }}
+                  className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
+                >
+                  Delete
+                </button>
+              </>
+            ) : null,
+        })}
         columns={columns}
         rows={rows}
         loading={loading}

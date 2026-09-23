@@ -513,6 +513,33 @@ export default function AdminAnnouncementsPage() {
         <FormStatus status={status.announcements} />
 
         <DataTable
+          // CONTENT-LIST CARD (DV1b-a). TWO LABELLED GROUPS, NEVER
+          // INTERLEAVED (Darryl, 2026-09-23): this page renders two tables —
+          // announcements, then memos — and each keeps its own heading and
+          // its own card list below `sm`. Merging them into one stream would
+          // lose the distinction the page exists to make, since a memo has no
+          // audience and an announcement always does.
+          //
+          // Static card with actions underneath: Edit (author only, matching
+          // the API's 403) and Delete (any admin) are two peers, not one
+          // primary action.
+          renderCard={(row) => ({
+            title: row.title,
+            subtitle: row.content,
+            meta: `${audienceLabel(row)} · ${row.posted_by_name} · ${String(row.created_at).slice(0, 10)}`,
+            actions: (
+              <>
+                {row.posted_by === me?.id ? (
+                  <button type="button" onClick={() => openEditAnnouncement(row)} className={buttonNeutral}>
+                    Edit
+                  </button>
+                ) : null}
+                <button type="button" onClick={() => openDelete('announcement', row)} className={buttonDanger}>
+                  Delete
+                </button>
+              </>
+            ),
+          })}
           columns={announcementColumns}
           rows={announcements}
           loading={annLoading}
@@ -554,6 +581,29 @@ export default function AdminAnnouncementsPage() {
         <FormStatus status={status.memos} />
 
         <DataTable
+          // The second of the two labelled groups. A memo is school-wide by
+          // definition, so meta carries who posted it and when and there is
+          // no audience — which is exactly the distinction that keeps these
+          // two lists apart rather than interleaved.
+          //
+          // Edit is unconditional here, unlike the announcement card: Admin →
+          // Announcements is the only place a memo can be written, so every
+          // memo is editable from it.
+          renderCard={(row) => ({
+            title: row.title,
+            subtitle: row.content,
+            meta: `${row.posted_by_name} · ${String(row.created_at).slice(0, 10)}`,
+            actions: (
+              <>
+                <button type="button" onClick={() => openEditMemo(row)} className={buttonNeutral}>
+                  Edit
+                </button>
+                <button type="button" onClick={() => openDelete('memo', row)} className={buttonDanger}>
+                  Delete
+                </button>
+              </>
+            ),
+          })}
           columns={memoColumns}
           rows={memos}
           loading={memoLoading}

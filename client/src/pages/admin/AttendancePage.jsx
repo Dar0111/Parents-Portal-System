@@ -325,6 +325,16 @@ export default function AdminAttendancePage() {
       ) : (
         <>
           <DataTable
+            // RECORD CARD (DV1b-a). Admin's attendance view is read-only —
+            // recording is the adviser's — so no `to`, no `onSelect`, no
+            // chevron. The learner leads, the date and class share meta, and
+            // the status is the badge: each fact once.
+            renderCard={(row) => ({
+              avatar: `${row.first_name} ${row.last_name}`,
+              title: `${row.last_name}, ${row.first_name}`,
+              meta: `${row.date} · Grade ${row.grade_level} - ${row.section}`,
+              status: row.status,
+            })}
             columns={columns}
             rows={rows}
             loading={loading}

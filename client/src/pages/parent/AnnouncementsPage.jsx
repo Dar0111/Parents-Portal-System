@@ -173,6 +173,20 @@ export default function ParentAnnouncementsPage() {
   return (
     <div className="space-y-4">
       <DataTable
+        // CONTENT-LIST CARD (DV1b-a). Reading the announcement is the one
+        // action this page has, so the whole card is that button — `onSelect`
+        // rather than `to`, because the detail is a modal and not a route.
+        //
+        // `audienceLabel` is the page's own helper, reused rather than
+        // re-derived: the audience label comes from the target columns'
+        // nullness, never from `user.grade_level`, and a second derivation
+        // here would be a second place for that rule to drift.
+        renderCard={(row) => ({
+          onSelect: () => setReading(row),
+          title: row.title,
+          subtitle: row.content,
+          meta: `${audienceLabel(row)} · ${String(row.created_at).slice(0, 10)}`,
+        })}
         columns={columns}
         rows={rows}
         loading={loading}

@@ -173,6 +173,28 @@ export default function MessagesPage() {
       <div className="flex justify-end">{newMessageButton}</div>
 
       <DataTable
+        // CONVERSATION CARD (DV1b-a). Opening the thread IS the one action
+        // this page exists for, so the whole card is the link — the table's
+        // separate "Open" button has no place on a card, where the card
+        // itself is the affordance (§5a-iii).
+        //
+        // `to`, not `onSelect`: the thread is a real route, so this must be a
+        // <Link> a parent can open in a new tab, not a button that navigates.
+        // The route keys on `users.id`, never a login id (§5c).
+        //
+        // The unread COUNT is deliberately left in meta rather than passed as
+        // `status`: StatusBadge maps a vocabulary to a tone, and a number is
+        // not one of the four vocabularies (§4). It stays the server's own
+        // count either way — nothing here increments (§10).
+        renderCard={(row) => ({
+          to: `/teacher/messages/${row.other_user_id}`,
+          avatar: row.other_user_name,
+          title: row.other_user_name,
+          subtitle: row.last_message_body,
+          meta: `${String(row.last_message_at).slice(0, 10)}${
+            Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''
+          }`,
+        })}
         columns={columns}
         rows={conversations}
         keyField="other_user_id"

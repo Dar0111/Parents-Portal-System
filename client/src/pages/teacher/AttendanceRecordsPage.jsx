@@ -262,6 +262,20 @@ export default function AttendanceRecordsPage() {
       </form>
 
       <DataTable
+        // RECORD CARD (DV1b-a). Read-only by design: this is the sibling
+        // route to the encode screen, and the correction path is that screen,
+        // not this one — so no `to`, no `onSelect`, no chevron.
+        //
+        // The learner leads and the date is meta, not the other way round: a
+        // teacher scanning this list is looking for a person. There is no
+        // subtitle, because the only other fact is the status and that is the
+        // badge.
+        renderCard={(row) => ({
+          avatar: `${row.first_name} ${row.last_name}`,
+          title: `${row.last_name}, ${row.first_name}`,
+          meta: row.date,
+          status: row.status,
+        })}
         columns={columns}
         rows={rows}
         loading={loading}

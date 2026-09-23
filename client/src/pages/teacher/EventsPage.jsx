@@ -277,6 +277,42 @@ export default function EventsPage() {
       </div>
 
       <DataTable
+        // CONTENT-LIST CARD (DV1b-a). The DATE LEADS the meta line here, not
+        // the posting date: an event is defined by when it happens, and that
+        // is the one fact a parent or teacher scans for. Audience follows it.
+        //
+        // Static card with its actions underneath — Edit and Delete are two
+        // peers, not one primary action (§5a-iii), and only the author gets
+        // them, matching the table and the API's own 403.
+        renderCard={(row) => ({
+          title: row.title,
+          subtitle: row.description || undefined,
+          meta: `${row.event_date} · ${
+            row.target_grade === null ? 'School-wide' : `Grade ${row.target_grade}`
+          }`,
+          actions:
+            row.posted_by === user?.id ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => openEdit(row)}
+                  className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleting(row);
+                    setDeleteError(null);
+                  }}
+                  className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
+                >
+                  Delete
+                </button>
+              </>
+            ) : null,
+        })}
         columns={columns}
         rows={rows}
         loading={loading}

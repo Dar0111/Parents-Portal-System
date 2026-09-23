@@ -175,6 +175,23 @@ export default function ParentMessagesPage() {
       <div className="flex justify-end">{newMessageButton}</div>
 
       <DataTable
+        // CONVERSATION CARD (DV1b-a). The same shape as the teacher page:
+        // opening the thread is the one action, so the card IS the link, and
+        // the table's separate "Open" button has no place here.
+        //
+        // `to` keys on `users.id` (`other_user_id`), never a login id — a
+        // parent's login id IS their child's LRN and never enters a URL
+        // (§5c). The unread count stays in meta rather than `status`, because
+        // StatusBadge maps a vocabulary to a tone and a number is not one.
+        renderCard={(row) => ({
+          to: `/parent/messages/${row.other_user_id}`,
+          avatar: row.other_user_name,
+          title: row.other_user_name,
+          subtitle: row.last_message_body,
+          meta: `${String(row.last_message_at).slice(0, 10)}${
+            Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''
+          }`,
+        })}
         columns={columns}
         rows={conversations}
         keyField="other_user_id"

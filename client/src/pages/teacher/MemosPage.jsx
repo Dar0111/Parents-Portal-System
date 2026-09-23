@@ -99,6 +99,18 @@ export default function MemosPage() {
       </p>
 
       <DataTable
+        // CONTENT-LIST CARD (DV1b-a). Memos are school-wide by definition —
+        // the table has no audience column because there is nothing to vary —
+        // so meta carries who posted it and when, and nothing repeats.
+        //
+        // Static card: a teacher does not own a memo and this page offers no
+        // per-row action, so neither `to` nor `onSelect` is passed and no
+        // chevron is drawn.
+        renderCard={(row) => ({
+          title: row.title,
+          subtitle: row.content,
+          meta: `${row.posted_by_name} · ${String(row.created_at).slice(0, 10)}`,
+        })}
         columns={columns}
         rows={rows}
         loading={loading}

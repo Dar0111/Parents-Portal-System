@@ -260,6 +260,20 @@ export default function ParentExcuseLettersPage() {
       ) : null}
 
       <DataTable
+        // RECORD CARD (DV1b-a). The absence DATE is the title here, not a
+        // learner name: a parent has exactly one child, so the name would be
+        // the same on every card and carry no information. **No LRN and no
+        // login_id** (§5c) — there is none in the payload to leak.
+        //
+        // `onSelect` ONLY while Pending, which is when Edit is the single
+        // primary action. Once reviewed the API refuses a second edit, so a
+        // reviewed letter is a STATIC card rather than a tap that 403s.
+        renderCard={(row) => ({
+          onSelect: row.status === 'Pending' ? () => openEdit(row) : undefined,
+          title: `Absence on ${row.absence_date}`,
+          subtitle: row.reason,
+          status: row.status,
+        })}
         columns={columns}
         rows={visible}
         keyField="id"

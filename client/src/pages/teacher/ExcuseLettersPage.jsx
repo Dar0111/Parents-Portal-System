@@ -333,6 +333,24 @@ export default function ExcuseLettersPage() {
       </form>
 
       <DataTable
+        // RECORD CARD (DV1b-a). The learner leads, the absence date and class
+        // sit in meta, the reason is the subtitle, and the status is the
+        // badge — each fact once.
+        //
+        // `onSelect` ONLY when this teacher may actually review: Review is the
+        // one primary action here, so a reviewable letter is a tappable card
+        // with a chevron. A letter belonging to another adviser's section, or
+        // one already reviewed, is a STATIC card — the API answers 403 to a
+        // non-adviser, so offering the tap would be a dead end (the same
+        // anti-dead-end rule the Actions column already follows).
+        renderCard={(row) => ({
+          onSelect: canReview(row) ? () => openReview(row) : undefined,
+          avatar: `${row.first_name} ${row.last_name}`,
+          title: `${row.last_name}, ${row.first_name}`,
+          subtitle: row.reason,
+          meta: `${row.absence_date} · Grade ${row.grade_level} - ${row.section}`,
+          status: row.status,
+        })}
         columns={columns}
         rows={letters}
         loading={loading}

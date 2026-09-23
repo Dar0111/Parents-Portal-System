@@ -380,6 +380,40 @@ export default function AdminGradesPage() {
 
           <div>
             <DataTable
+              // GRADE-ROW CARD (DV1b-a), and THE ONE CARD IN THE SYSTEM THAT
+              // CARRIES JSX — stated here because the contract says a card
+              // returns DATA, never JSX, and this is a deliberate exception
+              // rather than an oversight.
+              //
+              // The reason that rule exists is to make a button-inside-a-link
+              // unrepresentable (§5a-iii). `GradeValue` and `TermValue` are
+              // read-only renderers with no interactive element, so they
+              // cannot create that hazard. The alternative would be to format
+              // a grade by hand here, which breaks the STRONGER rule that one
+              // renderer draws every grade-bearing value in the system (§3) —
+              // and would quietly reintroduce the "87.5 vs 87.50" defect DV4
+              // just fixed one component away.
+              //
+              // Static card: locking is an admin action but it lives in the
+              // row's own control on the table, and this page has no detail
+              // route, so neither `to` nor `onSelect` is passed.
+              renderCard={(row) => ({
+                title: row.subject_name,
+                subtitle: (
+                  <span className="inline-flex flex-wrap items-center gap-x-3">
+                    {[1, 2, 3].map((t) => (
+                      <span key={t}>
+                        T{t} <TermValue entry={row.terms[t]} mode={mode} />
+                      </span>
+                    ))}
+                  </span>
+                ),
+                meta: (
+                  <span>
+                    Final <GradeValue value={row.final_grade} mode={mode} whole />
+                  </span>
+                ),
+              })}
               columns={columns}
               rows={subjects}
               keyField="subject_id"

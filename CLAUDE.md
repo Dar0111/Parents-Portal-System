@@ -1533,13 +1533,20 @@ seen, clock restored. **Do not "fix" those timestamps.**
       and it shipped the same day (`docs/GRADING_SPEC.md` §6a), so the card
       renders a computed letter now.* **DV1 through DV4 are done** and listed
       above; DV1b is the last of them and is below.
-  - [ ] **DV1b — the remaining 16 DataTable consumers → `renderCard`**, plus
-        explicit `nowrap` on the LRN columns of Teacher → Attendance and
-        Teacher → Grades (both are safe today, because default wrapping
-        cannot break a space-free value; the annotation is belt-and-braces).
-        **LAST, deliberately:** DV2 and DV3 replace Parent → Attendance and
-        Parent → Grades outright, so converting them to cards first would be
-        work thrown away.
+  - [x] **DV1b-a — 14 DataTable consumers → `renderCard`. DONE 2026-09-23.**
+        **The queue said 16; it is 15**, and CR2's deletion of
+        `teacher/GradesPage.jsx` is why the figure went stale. The
+        fifteenth is Teacher → Attendance, which is DV1b-b. Four card
+        families, and **`admin/GradesPage` is the one card that carries JSX** —
+        a deliberate exception, because formatting a grade by hand would break
+        the stronger §3 rule. Closes UI-polish 2 for these pages.
+  - [ ] **DV1b-b — Teacher → Attendance at 390px**, plus **`nowrap` on its LRN
+        column** (the only one left; Teacher → Grades no longer exists).
+        **`renderCard` CANNOT express this page** — its row's interactive
+        element is a `<select>`, and the contract allows exactly one `<Link>`
+        or `<button>`. **DECIDED (Darryl, 2026-09-23): a bespoke card list
+        outside `DataTable`**, the §5a-v exemption, not a `control` slot on a
+        frozen primitive. **Waits on Darryl's mockup.**
 
 
 - [ ] **UI polish — small client items, opened 2026-09-20.** A list, not a

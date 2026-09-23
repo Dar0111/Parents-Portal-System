@@ -114,6 +114,17 @@ export default function ParentMemosPage() {
       </p>
 
       <DataTable
+        // CONTENT-LIST CARD (DV1b-a). Memos are school-wide, so there is no
+        // audience to show and meta carries only the date. `posted_by_name`
+        // is deliberately NOT on the card: the table does not show it either
+        // on this page, and it belongs to the detail modal — adding it here
+        // would put a fact on the card that the list never carried.
+        renderCard={(row) => ({
+          onSelect: () => setReading(row),
+          title: row.title,
+          subtitle: row.content,
+          meta: String(row.created_at).slice(0, 10),
+        })}
         columns={columns}
         rows={rows}
         loading={loading}

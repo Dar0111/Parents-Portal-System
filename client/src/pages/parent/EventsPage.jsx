@@ -204,6 +204,14 @@ export default function ParentEventsPage() {
       </div>
 
       <DataTable
+        // CONTENT-LIST CARD (DV1b-a). The event DATE leads meta — an event is
+        // defined by when it happens, which is what a parent scans for.
+        renderCard={(row) => ({
+          onSelect: () => setReading(row),
+          title: row.title,
+          subtitle: row.description || undefined,
+          meta: row.event_date,
+        })}
         columns={columns}
         rows={rows}
         loading={loading}
