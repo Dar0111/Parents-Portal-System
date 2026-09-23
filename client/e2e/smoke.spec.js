@@ -33,7 +33,12 @@ const ALLOWED_CONSOLE = ['WebSocket is closed before the connection is establish
 
 const OUT = 'e2e-out';
 
-test.describe.configure({ mode: 'serial' });
+// NOT `mode: 'serial'`. It was, and the first run proved why that is wrong
+// for a sweep: one failure in the first test SKIPPED THE OTHER ELEVEN, so a
+// single bad selector cost the whole report. `workers: 1` in the config
+// already runs these one at a time, which is all the ordering this needs.
+// A sweep must survive its own failures — finding one problem is not a
+// reason to stop looking for the others.
 
 for (const role of Object.keys(PAGES)) {
   for (const theme of THEMES) {
@@ -89,6 +94,16 @@ for (const role of Object.keys(PAGES)) {
 
           mkdirSync(`${OUT}/${role}/${theme}`, { recursive: true });
 
+          // A SWEEP MUST SURVIVE ITS OWN FAILURES AT THE PAGE LEVEL TOO.
+          // The first real run proved it twice: `mode: 'serial'` let one bad
+          // selector skip eleven tests, and then a genuine finding on
+          // /teacher/grades threw out of this loop and hid every teacher page
+          // after it. Problems are collected per page and asserted once at
+          // the end, so one defect costs one line of the report instead of
+          // the rest of the sweep.
+          const problems = [];
+          const note = (path, message) => problems.push(`${path}: ${message}`);
+
           for (const path of PAGES[role]) {
             consoleErrors = [];
             badResponses = [];
@@ -101,18 +116,30 @@ for (const role of Object.keys(PAGES)) {
             // identity, which is what a blank-page defect looks like from
             // outside (the 2026-09-22 one shipped past build, oxlint AND an
             // SSR render).
-            const heading = page.locator('h1');
-            await expect(heading, `${path}: no <h1>`).toHaveCount(1);
-            const headingText = (await heading.innerText()).trim();
-            expect(headingText, `${path}: the page heading is empty`).not.toBe('');
+            const headings = page.locator('h1');
+            const headingCount = await headings.count();
+            if (headingCount === 0) {
+              note(path, 'no <h1> at all');
+            } else {
+              // MORE THAN ONE is a finding, not a tolerance: Shell renders
+              // the page's <h1> from nav.js, so a second one is two
+              // top-level headings in one document and a screen reader
+              // announces two page titles.
+              if (headingCount > 1) {
+                const texts = await headings.allInnerTexts();
+                note(path, `${headingCount} <h1> elements — ${texts.map((t) => JSON.stringify(t.trim())).join(', ')}`);
+              }
+              if ((await headings.first().innerText()).trim() === '') {
+                note(path, 'the page heading is empty');
+              }
+            }
 
             // Vite's error overlay is a custom element; its presence means
             // the dev server failed to compile something and the page the
             // screenshot shows is not the page.
-            await expect(
-              page.locator('vite-error-overlay'),
-              `${path}: Vite error overlay is on screen`
-            ).toHaveCount(0);
+            if ((await page.locator('vite-error-overlay').count()) > 0) {
+              note(path, 'Vite error overlay is on screen');
+            }
 
             // HORIZONTAL SCROLL AT 390px. The document is the only scroller
             // (§9), so scrollWidth > clientWidth on <html> means something
@@ -123,10 +150,9 @@ for (const role of Object.keys(PAGES)) {
                 const el = document.documentElement;
                 return { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth };
               });
-              expect(
-                overflow.scrollWidth,
-                `${path}: horizontal scroll at 390px (${overflow.scrollWidth} > ${overflow.clientWidth})`
-              ).toBeLessThanOrEqual(overflow.clientWidth);
+              if (overflow.scrollWidth > overflow.clientWidth) {
+                note(path, `horizontal scroll at 390px (${overflow.scrollWidth} > ${overflow.clientWidth})`);
+              }
             }
 
             const file = path.replace(/^\//, '').replace(/\//g, '_') || 'root';
@@ -135,11 +161,16 @@ for (const role of Object.keys(PAGES)) {
               fullPage: true,
             });
 
-            expect(consoleErrors, `${path}: console errors`).toEqual([]);
-            expect(badResponses, `${path}: 4xx/5xx responses`).toEqual([]);
+            for (const e of consoleErrors) note(path, `console error — ${e}`);
+            for (const r of badResponses) note(path, `bad response — ${r}`);
           }
 
           await context.close();
+
+          // One assertion, every finding in it. The screenshots are already
+          // written by now, which is the point: a failing sweep still leaves
+          // the evidence a person has to look at.
+          expect(problems, `${WHO[role]} · ${theme} · ${width.name} — ${problems.length} finding(s)`).toEqual([]);
         });
       }
     });

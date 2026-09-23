@@ -53,7 +53,13 @@ export async function login(page, role) {
 
   await page.goto(`${APP_ORIGIN}/login`);
   await page.getByLabel(/login id/i).fill(login_id);
-  await page.getByLabel(/password/i).fill(password);
+  // `input[type="password"]`, NOT getByLabel(/password/i): the field has a
+  // reveal toggle whose accessible name is "Show password", so the label
+  // regex matched TWO elements and Playwright's strict mode refused. The
+  // attribute selector is unambiguous and is what the field actually is —
+  // and the toggle is exactly the affordance the login page is documented as
+  // being the only form to have.
+  await page.locator('input[type="password"]').fill(password);
   await page.getByRole('button', { name: /sign in|log in/i }).click();
 
   // Landing anywhere inside a role shell is the success condition; which
