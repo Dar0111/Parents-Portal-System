@@ -3686,6 +3686,18 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-24 (sixth batch, the SMOKE-1 docs pass)
+
+> Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
+> table. Dated rows are never edited; every full row is in
+> `docs/CHANGELOG.md`. Moved as the documented overflow valve — the
+> SMOKE-1 docs pass had a net ≤ 0 budget and the queue entries it adds are
+> live plan, which is never trimmed. Three rows, 2,752 bytes.
+
+| 2026-09-22 | Grade 1 docs: GRADING_SPEC §6a **DECIDED → BUILT**, its five predictions replaced by what each resolved to, plus a rounding note that is **not Grade 1-specific** (weighted parts round to 2 decimals before summing, so 89.99 → **90.00 → A** at every grade level). API_REFERENCE: `/descriptive` struck through as RETIRED, Grade 1 score writes documented, `initial_grade` on every report-card term **with the rule a parent client must not render it**, `final_grade` is **two types by mode**; counts **recounted from the code — 85 handlers / 86 endpoints**, the first endpoint removal since Contributions'. FRONTEND_CONVENTIONS §5a-v gains the **two-flags rule** and the render-time guard; §5h gains a fifth defect and the finding that **SSR cannot catch an undefined identifier inside an effect or callback body** (measured, 32/32 with the bug in place). The closed Grade 1 BLOCKED item **left to ARCHIVE under the REFILL RULE**. Suite preamble corrected **"fifteen/fourteen" → nineteen scripts / seventeen HTTP**. Class-record grid promoted to NEXT with **WHOLE NUMBERS ONLY — the server must refuse decimals at all four score writes**. Two KNOWN_ISSUES rows. |
+| 2026-09-22 | Grade 1 computed letters, **client** (`05a9a68` → `39821dd`): the letter picker deleted, Grade 1 encodes like Grades 2-6 (Summative, not Examinations), a **Final letter** column and 390px segment, `showFinal`/`showGeneralAverage` split in two, the modal's legacy-row copy corrected. SSR 29/29 with a **renderer guard** proving no Initial Grade reaches a parent. **Browser check FAILED first pass — blank page for every teacher**, a call to a deleted setter that build, oxlint AND an SSR render all miss; **`no-undef` enabled** as the guard that works (needs `env.browser` + `scripts/**` `env.node`, then 0 findings and oxlint stays 44). Fixtures on Nino's EMPTY subjects only, whole-number scores; cleanup asserted every count and left the Seeded baseline exact. |
+| 2026-09-22 | Grade 1 computed letters, **server** (`4f362aa`): one shared `BANDS` table so the letter and descriptor ladders cannot drift (verified at every score 0-100); `preflightGradeWrite` returns the mode it read; `recomputeGrade` bands the RAW Initial Grade and **throws** if the dual-mode invariant breaks; **`PATCH /:id/descriptive` RETIRED**; a Final letter from the three terms' Initial Grades, null for legacy rows; weights seeded for **every** grade level + a migration that aborts rather than overwrite. `test:grades` 197 → **212**, grade-computation 51 → **68**, verify-seed 33 → **34**. Two weak assertions of my own caught by failures — `DECIMAL(5,2)` stored 44.995 as 45.00, and a numeric STRING must band, since mysql2 returns every DECIMAL as one. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-22 (fourth batch, the Grade 1 docs dispatch)
 
 > Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
@@ -4368,6 +4380,33 @@ passes `actions` together with `to` or `onSelect`. Six cards carry `actions`
 — `admin/AnnouncementsPage` (×2), `admin/BackupsPage`, `admin/UsersPage`,
 `teacher/AnnouncementsPage`, `teacher/EventsPage` — and every one of them is
 a static card with peer actions, which is the sanctioned shape.
+
+### The Data views redesign preamble — moved from CLAUDE.md on 2026-09-24
+
+The block that introduced DV1–DV4 and DV1b. **Every piece it queued is
+done**, so it left under the REFILL RULE; the one rule it carried —
+*no verdict badges anywhere* — is §4's and is stated there. The note about
+Grade 1's letter had already expired in place.
+
+```
+- **Data views redesign — MOCKUP FIRST, no code until it is approved.**
+      Mockups exist and are approved (Darryl, 2026-09-20). **The rule every
+      piece inherits and cannot bend: no verdict badges anywhere** (§4 — the
+      system counts and displays, it never concludes). *A second rule stood
+      here — that Grade 1's A–E "stays as it is until the school answers" how
+      the letter is produced. It is spent: the school answered on 2026-09-22
+      and it shipped the same day (`docs/GRADING_SPEC.md` §6a), so the card
+      renders a computed letter now.* **DV1 through DV4 and DV1b are all DONE**
+      (2026-09-20 → 2026-09-23); the ticked write-ups left under the REFILL
+      RULE and are verbatim in `docs/ARCHIVE.md`. The rules they carried are
+      §16 (card families), §5a-v (the bespoke exemption), §17c (the roster)
+      and §17e (the letter card).
+```
+
+**MOCKUP FIRST was the rule of that whole track and it is not retired with
+it** — it still governs the two queued pieces that redesign anything: item 5
+(the unapplied-filter affordance, nine pages) and UI-D (d) (the parent hero
+in dark). Both say so where they stand.
 
 ### DV1b-a and DV1b-b — the ticked entries, moved from CLAUDE.md on 2026-09-23
 

@@ -141,6 +141,104 @@ invisible to a production-mode proof.** Anything wrapped in
 reports a clean pass on code that is not in the bundle —
 `docs/FRONTEND_CONVENTIONS.md` §17f.
 
+## The smoke run — a read-only browser sweep
+
+`client/e2e/smoke.spec.js`, Playwright, headless Chromium. **Twenty tests:
+five roles × two themes × two widths, 61 URLs, 244 screenshots.** It is not
+a suite and not a proof; it is the part of §5h a person should not have to
+do by hand — opening every sidebar page four times to find out whether any
+of them logs an error, requests something that 4xx's, renders no heading, or
+scrolls sideways on a phone.
+
+```bash
+cd client && npm run smoke              # headless, the default
+cd client && npm run smoke -- --headed  # to watch it; COMMAND LINE ONLY
+```
+
+**`--headed` never goes in the config.** Headless is the default because
+that is how it will normally run; watching it is a thing you ask for on the
+day.
+
+### Before you run it
+
+- **Start the API and `npm run dev` yourself.** The suite does NOT start
+  them — it polls and fails naming the one that is down. A harness that
+  starts the API would eventually kill one you were using, since that
+  process owns the dev database, a socket server and whatever
+  `MAIL_TRANSPORT` it was launched with.
+- **NEVER run it while a server suite is running.** Same rule as fixtures:
+  suites before, or after, never during.
+- It runs against the **dev server**, not a production build, so `/dev/ui`
+  and the DEV guards exist — a sweep that cannot see a `console.error` guard
+  is half a sweep (§17f).
+
+### Credentials
+
+Values live in **`client/e2e/.env.e2e`**, which is gitignored — the rule was
+added and proved with `git check-ignore` **before the file existed**, with a
+control confirming the template is *not* ignored.
+`client/e2e/.env.e2e.example` is committed and **holds variable names only**;
+`playwright.config.js` **refuses to run** if it ever holds a value, naming
+the variable and never printing it. A missing variable fails the same way.
+
+**That guard exists because the near-miss happened**: on the first use the
+credentials went into the committed template, on a branch already pushed
+public. Nothing leaked — it was caught before `git add` — but the margin was
+one command, and two filenames differing by `.example` are not a control.
+
+**People are named by their child or role, never by login id** — a parent's
+`login_id` IS their child's LRN (§5c), and a test title reaches terminals,
+logs and screenshots. It is also the only *unambiguous* label: both seeded
+parent accounts carry the same person's name.
+
+### Two hosts, two rules — do not generalise either
+
+```
+port 5000   0.0.0.0:5000   LISTENING   the API, IPv4 and [::]
+port 3000   [::1]:3000     LISTENING   Vite, IPv6 loopback ONLY
+```
+
+**There is no IPv4 listener on 3000.** So `127.0.0.1` — the fix the server
+suites document, because Node on Windows prefers `::1` while the API listens
+on IPv4 — is for the **API poll only**. Applying it to Vite points at an
+address nothing is listening on, and the first run failed exactly that way.
+
+**The browser origin stays `http://localhost:3000`**, because `server.js`
+allows exactly one CORS origin. `E2E_APP_ORIGIN=http://[::1]:3000` is *not*
+a workaround: the poll would pass and every API call would be refused.
+
+### What it writes, and what it must never touch
+
+**One `activity_logs` login row per TEST — 20 per full run**, not one per
+role: each test needs its own browser context for viewport and theme, so
+each logs in. Nothing else is written; the Seeded baseline is unchanged
+after a run, and login rows are audit history kept by rule.
+
+**It never clicks anything that writes.** The only click is the login
+button. Visiting Admin → Backup & Restore is a read; touching it is not.
+**Both message thread routes (`messages/:userId`) are excluded because they
+WRITE ON LOAD** — `PATCH /messages/read-all/:otherId` when anything is
+unread. If detail routes are ever added, those stay out or are declared.
+
+### Expected state
+
+**12 pass / 8 fail**, and the eight are the same two findings on both
+adviser accounts:
+
+```
+/teacher/grades: 2 <h1> elements — "Grades", "Grades"
+/teacher/class-summary: 2 <h1> elements — "Class summary", "Class summary"
+```
+
+Shell renders the page's `<h1>` from `nav.js`, and those two pages render
+their own as well. **Expected until UI-C lands** — report it as the known
+figure, and if the count moves, something else did.
+
+**A negative control never touches a tracked template.** Use a temp copy or
+Write with full contents — this file's own guard was proved by appending a
+placeholder to the committed example, which broke the Write/Edit-only rule
+for one line.
+
 ## Lint baselines
 
 Every client dispatch reports all four. **They are one set: three of them

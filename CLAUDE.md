@@ -71,7 +71,7 @@ split — if a fact seems missing here, it is in one of these.
 |---|---|---|
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
-| `docs/TESTING.md` | every suite and lint baseline, and the two suites whose clean run is not a clean number — **a re-measured figure is updated there, in the same commit** | yes |
+| `docs/TESTING.md` | every suite, proof and lint baseline; the two suites whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
 | `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§7b, with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
@@ -109,7 +109,7 @@ behind is the rule and the pointer, nothing else.
 Restore was the last page: every Figure 5 admin process has a page. **Admin
 nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
-the scope decision under ADMIN SCOPE AUDIT; teacher (11) and parent (9) are
+the scope decision under ADMIN SCOPE AUDIT; teacher (12) and parent (9) are
 unchanged, and **no role now has a `built: false` item**. **23 tables, 88
 handlers + `/api/health`** (2026-09-22). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
@@ -164,6 +164,9 @@ on the SERVER). **A dispatch that re-measures a baseline updates it THERE, in
 the same commit** — a figure corrected in a report and nowhere else is how
 eight counts went stale at once. **The Seeded baseline above is DATA and
 stays here**; it is what the suites assert against, not a count of them.
+**The read-only browser smoke run is there too** (`npm run smoke`, five
+roles × two themes × two widths) — including why it writes one login row
+per TEST and why it must never run during a server suite.
 
 ### Files that exist
 
@@ -1475,29 +1478,27 @@ seen, clock restored. **Do not "fix" those timestamps.**
 
 **Queued before Stage 5, in this order:**
 
-- **Data views redesign — MOCKUP FIRST, no code until it is approved.**
-      Mockups exist and are approved (Darryl, 2026-09-20). **The rule every
-      piece inherits and cannot bend: no verdict badges anywhere** (§4 — the
-      system counts and displays, it never concludes). *A second rule stood
-      here — that Grade 1's A–E "stays as it is until the school answers" how
-      the letter is produced. It is spent: the school answered on 2026-09-22
-      and it shipped the same day (`docs/GRADING_SPEC.md` §6a), so the card
-      renders a computed letter now.* **DV1 through DV4 and DV1b are all DONE**
-      (2026-09-20 → 2026-09-23); the ticked write-ups left under the REFILL
-      RULE and are verbatim in `docs/ARCHIVE.md`. The rules they carried are
-      §16 (card families), §5a-v (the bespoke exemption), §17c (the roster)
-      and §17e (the letter card).
+**The Data views redesign is DONE** — DV1–DV4 and DV1b, 2026-09-20 →
+2026-09-23. The block and its ticked write-ups left under the REFILL RULE
+(`docs/ARCHIVE.md`); its rules are §4, §16, §5a-v, §17c and §17e. **MOCKUP
+FIRST outlived it** and still governs item 5 and UI-D (d).
 
 - [ ] **UI polish — opened 2026-09-20 as a list, now a QUEUE.** **NINE of the
-      fourteen items are closed and left permanently for `docs/ARCHIVE.md`** —
-      1 and 3 earlier, **6, 7, 8, 9, 10, 13 by UI-A** and **2 by UI-B**, both
-      2026-09-23, the second block also holding UI-B's planner items P1 and
-      P2. Three did not close as written and the archive keeps why; the one
-      that matters here is that **item 7 shipped as `className || 'text-fg'`,
-      NOT pure inheritance** — nothing sets a base text colour, so *inherit*
-      means black, and **UI-D** takes it.
+      fourteen items are closed and left permanently for `docs/ARCHIVE.md`**
+      (1, 3, then 6, 7, 8, 9, 10, 13 by UI-A and 2 by UI-B, with UI-B's
+      planner items P1 and P2). Three did not close as written and the
+      archive keeps why; the one that matters here: **item 7 shipped as
+      `className || 'text-fg'`, NOT pure inheritance** — nothing sets a base
+      text colour, so *inherit* means black, and **UI-D** takes it.
 
-  - [ ] **UI-C — items 4, 12 and 14, plus a date audit.**
+  - [ ] **UI-C — items 4, 12 and 14, plus a date audit, plus SMOKE-1's.**
+    **From the smoke sweep (2026-09-24):** `/teacher/grades` and
+    `/teacher/class-summary` each render **TWO `<h1>`** — Shell's and their
+    own — **which is the whole of the eight smoke failures**; the Students
+    section placeholder names a Grade 6 section to the Grade 1 adviser; the
+    grade filter reads "All I can read"; Parent → Settings uses an em dash
+    for the class where everywhere else uses a hyphen; and the report card's
+    **transmutation sentence should show only when a term grade exists**.
     **(4) Settings → Personalization at 200% zoom** squeezes its panel into a
     narrow column: the nav is `sm:w-[14.5rem] sm:shrink-0` and cannot give
     width back, and 200% halves the CSS viewport so a 1280px window lands at
@@ -1538,6 +1539,17 @@ seen, clock restored. **Do not "fix" those timestamps.**
   dark. `DataTable`'s `<td>` hides this; the three screens with their own
   tables do not. **With a base colour, `GradeValue` returns to pure
   inheritance** and UI-A's `className || 'text-fg'` comes back out (§3a).
+
+  **(c) The SAME `overflow-x-auto` as (a) also clips ON SCREEN with no cue**
+  — SMOKE-1 finding 11: at 390px Class summary cuts inside a word and
+  nothing says six subjects and the Average lie to the right. **Only visible
+  with nine learning areas**; Grade 1's five fit. **Do not remove the
+  scroller** (§5a-i): the fix is a cue, plus a reflow for print.
+
+  **(d) MOCKUP FIRST — the parent hero.** In dark it inverts to a **bright
+  lavender panel**, the lightest thing on screen, against the Dark option's
+  own "easier on the eyes at night"; and a KS1 hero shows **"A D" with no
+  subject beside either letter**. Design decisions, not token tweaks.
 
 - [ ] **UI-E — a teacher's read-only letter view, after UI-D, BEFORE Stage 5.**
       `details` and `teacher_remarks` render only inside the review modal,
@@ -2041,9 +2053,6 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 | 2026-09-22 | CLAUDE.md trim, sixth batch: **136,830 → 135,119 on disk (−1,711)**. Six blocks measured and guard-grepped first; **the guard cleared more of this batch than any previous one, because these were duplicates rather than condensed rules.** `### Corrections` → rule-plus-pointer (both its live rules already live elsewhere in this file); **the "75 role-facing views" figure now appears ONCE**, in BUILD ORDER → Stage 4. `## SAFE TO BUILD NOW` (**zero guard hits**) emptied, heading kept with a **do-not-repopulate** note. `## GET /api/messages/contacts` keeps its two rules (**`?search=` is scoped, never an unscoped user search**; ACTIVE-only) and loses the archived detail. **Two closed BLOCKED items left permanently under the REFILL RULE** — the Stage G1a schema issue (zero hits; live text is GRADING_SPEC) and Excuse Letters (keeping **approval must not modify `attendance`**). **TWO STALE CLAIMS corrected:** the seeded weights were still called "provisional until G1b lands" (**G1b landed 2026-09-05**), and the parent modal's silence about the Grade 1 letter still rested on "until the school answers" (**answered and built 2026-09-22**) — recorded as a choice now needing a deliberate answer, not flipped. **Not taken:** the CHANGELOG stub table, the next trim's overflow valve. No `##` heading changed. |
 | 2026-09-22 | Class record CR0–CR2 **docs pass** (`docs/class-record`): API_REFERENCE gains the two endpoints — slot addressing by `slot_id` **or** `type` + `slot_no`, `dry_run`, `group_hps`, `can_encode`, **locked is `409` and all-or-nothing**; **route order is load-bearing** (both registered before `GET /:id`). GRADING_SPEC **§6e** — **USED is the HPS, not the row**, and a used slot with no score makes that learner's group **Pending, never left out and never zero** (leaving it out silently RAISED an absent learner's grade). FRONTEND_CONVENTIONS **§13** — Teacher → Grades IS the grid, the client never computes a grade, the **sticky learner COLUMN** as DV1b's precedent, the pure `buildPayload.js`, and **a failed build can run the PREVIOUS bundle**. Counts recounted: **23 tables, 87 handlers / 88 endpoints**, oxlint **41**. **Every suite re-run — EIGHT baselines were stale** (students 94, grades 239, attendance 60, content 96, users 61, backups 47, messages 80, excuses 92); `test:class-record` **117**. Three KNOWN_ISSUES rows (**Back button escapes the unsaved guard**; `test:restore`'s `iat` failure — **fix the test, not the comparison**; `test:recovery` needs `MAIL_TRANSPORT=file` **on the server**), decimal-scores row CLOSED. REFILL RULE applied to three closed items. **Item 6 corrected: the guess that the grid would take the `ScorePair` fix was wrong.** |
 | 2026-09-22 | CLAUDE.md trim, fifth batch: **135,967 → 134,080 on disk (−1,887)** — the blocks gave up 3,112 and this row costs about 1,200 of it back. Candidates 5, 6 and 7 — ~11,708 bytes offered, **the live-rule guard released about a quarter**. **§11 and §12 barely moved, and the reason is new: `docs/FRONTEND_CONVENTIONS.md` STOPS AT §10**, so this file is their only present-tense home and all eleven rules stayed; §12's per-card isolation, no-red, fraction-only, check-the-handler and recent-activity rules returned **zero** hits anywhere. The two attendance BLOCKED / RESOLVED subsections **left permanently under the REFILL RULE** (fully covered — GRADING_SPEC, ARCHIVE 512/2142/2638, and "Late counts as present" was **already in this file at line 1902**). The 2026-09-18 admin SCOPE DECISION had **no archived home** and moved out verbatim; **`Grade lock AND unlock are admin only` had zero hits** and stays word for word. **One STALE CLAIM corrected:** Parent → Attendance was still described as showing a percentage — **DV2 deleted it on 2026-09-20**. Trim-6 candidate found and left alone: `### Corrections` is duplicated in this file and `docs/FRONTEND_CONVENTIONS.md`, with no pointer. |
-| 2026-09-22 | Grade 1 docs: GRADING_SPEC §6a **DECIDED → BUILT**, its five predictions replaced by what each resolved to, plus a rounding note that is **not Grade 1-specific** (weighted parts round to 2 decimals before summing, so 89.99 → **90.00 → A** at every grade level). API_REFERENCE: `/descriptive` struck through as RETIRED, Grade 1 score writes documented, `initial_grade` on every report-card term **with the rule a parent client must not render it**, `final_grade` is **two types by mode**; counts **recounted from the code — 85 handlers / 86 endpoints**, the first endpoint removal since Contributions'. FRONTEND_CONVENTIONS §5a-v gains the **two-flags rule** and the render-time guard; §5h gains a fifth defect and the finding that **SSR cannot catch an undefined identifier inside an effect or callback body** (measured, 32/32 with the bug in place). The closed Grade 1 BLOCKED item **left to ARCHIVE under the REFILL RULE**. Suite preamble corrected **"fifteen/fourteen" → nineteen scripts / seventeen HTTP**. Class-record grid promoted to NEXT with **WHOLE NUMBERS ONLY — the server must refuse decimals at all four score writes**. Two KNOWN_ISSUES rows. |
-| 2026-09-22 | Grade 1 computed letters, **client** (`05a9a68` → `39821dd`): the letter picker deleted, Grade 1 encodes like Grades 2-6 (Summative, not Examinations), a **Final letter** column and 390px segment, `showFinal`/`showGeneralAverage` split in two, the modal's legacy-row copy corrected. SSR 29/29 with a **renderer guard** proving no Initial Grade reaches a parent. **Browser check FAILED first pass — blank page for every teacher**, a call to a deleted setter that build, oxlint AND an SSR render all miss; **`no-undef` enabled** as the guard that works (needs `env.browser` + `scripts/**` `env.node`, then 0 findings and oxlint stays 44). Fixtures on Nino's EMPTY subjects only, whole-number scores; cleanup asserted every count and left the Seeded baseline exact. |
-| 2026-09-22 | Grade 1 computed letters, **server** (`4f362aa`): one shared `BANDS` table so the letter and descriptor ladders cannot drift (verified at every score 0-100); `preflightGradeWrite` returns the mode it read; `recomputeGrade` bands the RAW Initial Grade and **throws** if the dual-mode invariant breaks; **`PATCH /:id/descriptive` RETIRED**; a Final letter from the three terms' Initial Grades, null for legacy rows; weights seeded for **every** grade level + a migration that aborts rather than overwrite. `test:grades` 197 → **212**, grade-computation 51 → **68**, verify-seed 33 → **34**. Two weak assertions of my own caught by failures — `DECIMAL(5,2)` stored 44.995 as 45.00, and a numeric STRING must band, since mysql2 returns every DECIMAL as one. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2052,14 +2061,15 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in five dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in six dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
 (2026-09-20 → 2026-09-21) under "fourth batch, the Grade 1 docs dispatch"**
-(both 2026-09-22), and **4 under "fifth batch, the CR3 docs pass"**
+(both 2026-09-22), **4 under "fifth batch, the CR3 docs pass"**
 (2026-09-23 — spent as the reserve when this file reached 137,804 with a row
-still to add). **Every full row is in `docs/CHANGELOG.md` with one
+still to add), and **3 under "sixth batch, the SMOKE-1 docs pass"**
+(2026-09-24, spent the same way). **Every full row is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only
 the newest one-line summaries, and a stub is moved out when this file
