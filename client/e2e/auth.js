@@ -1,0 +1,104 @@
+// Logging in for the smoke run, and the rules about credentials.
+//
+// THE VALUES LIVE IN `client/e2e/.env.e2e`, WHICH IS GITIGNORED and which
+// this repo's tooling never reads, prints or commits. `.env.e2e.example`
+// carries the NAMES only. A missing variable fails naming the VARIABLE —
+// never the value, never a hint about it — because a failure message ends up
+// in a terminal, a log and quite possibly a screenshot.
+//
+// WHAT A LOGIN WRITES, checked rather than assumed: exactly ONE row in
+// `activity_logs` (`routes/auth.js` → `logActivity(user.id, 'login', ...)`).
+// There is no `last_login` column anywhere in the schema, no session row,
+// and `token_version` is untouched — it moves only on a password change, a
+// reset or an admin temporary password. So three logins leave three
+// `activity_logs` rows, which is audit history and is never cleaned up
+// (CLAUDE.md's cleanup protocol keeps `activity_logs` by rule).
+//
+// THE BROWSER USES `localhost`, NOT `127.0.0.1`, AND THAT IS LOAD-BEARING.
+// `server.js:28` allows exactly one CORS origin — `http://localhost:3000`
+// (`CORS_ORIGIN` default, matching `server/.env.example:13`). A browser
+// opened at `http://127.0.0.1:3000` sends that as its `Origin`, CORS refuses
+// it, and every API call fails — so the suite would report a broken app.
+// The readiness polls in `globalSetup` are Node `fetch`, no Origin header
+// and no CORS, so those use `127.0.0.1` deliberately (the same reason the
+// server suites do: Node on Windows resolves `localhost` to `::1` first
+// while the server listens on IPv4).
+import { expect } from '@playwright/test';
+
+export const APP_ORIGIN = process.env.E2E_APP_ORIGIN || 'http://localhost:3000';
+export const API_ORIGIN = process.env.E2E_API_ORIGIN || 'http://127.0.0.1:5000';
+
+const VARS = {
+  admin: ['E2E_ADMIN_ID', 'E2E_ADMIN_PW'],
+  teacher: ['E2E_TEACHER_ID', 'E2E_TEACHER_PW'],
+  parent: ['E2E_PARENT_ID', 'E2E_PARENT_PW'],
+};
+
+export function credentialsFor(role) {
+  const [idVar, pwVar] = VARS[role];
+  const login_id = process.env[idVar];
+  const password = process.env[pwVar];
+  // Name the variable, never the value, and never say which of the two is
+  // missing in a way that confirms the other exists.
+  if (!login_id) throw new Error(`${idVar} is not set. Fill client/e2e/.env.e2e — see .env.e2e.example.`);
+  if (!password) throw new Error(`${pwVar} is not set. Fill client/e2e/.env.e2e — see .env.e2e.example.`);
+  return { login_id, password };
+}
+
+// Logs in through the REAL form, not by injecting a token. A minted token
+// would skip the one flow every role depends on and would violate the
+// standing rule against minting them at all.
+export async function login(page, role) {
+  const { login_id, password } = credentialsFor(role);
+
+  await page.goto(`${APP_ORIGIN}/login`);
+  await page.getByLabel(/login id/i).fill(login_id);
+  await page.getByLabel(/password/i).fill(password);
+  await page.getByRole('button', { name: /sign in|log in/i }).click();
+
+  // Landing anywhere inside a role shell is the success condition; which
+  // dashboard is the router's business, not this helper's.
+  await expect(page).toHaveURL(/\/(admin|teacher|parent)(\/|$)/, { timeout: 15000 });
+}
+
+// ---------------------------------------------------------------------------
+// globalSetup: WAIT FOR BOTH SERVERS, and fail naming the one that is down.
+//
+// This suite does NOT start them. Playwright's `webServer` could, and that is
+// the wrong trade here: the API owns the real dev database, a socket server
+// and whatever MAIL_TRANSPORT it was started with, so a harness that starts
+// and kills it will eventually kill one somebody was using. One clear failure
+// beats forty confusing ones.
+//
+// THE RETRY LOOP IS NOT DEFENSIVE PADDING. The cleanup scripts in UI-A and
+// UI-B both failed their FIRST invocation with a bare `fetch failed`, against
+// a server that was up and answered instantly on the second try — twice,
+// hours apart, after a long idle gap. The cause is not diagnosed (it is not
+// IPv6: those scripts already used 127.0.0.1). Whatever it is, one cold
+// connection must cost a retry here, not a failed run of 144 screenshots.
+async function waitFor(name, url, attempts = 20, gapMs = 500) {
+  let lastError = 'no attempt made';
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return;
+      lastError = `HTTP ${res.status}`;
+    } catch (err) {
+      lastError = err.message;
+    }
+    await new Promise((resolve) => setTimeout(resolve, gapMs));
+  }
+  throw new Error(
+    `${name} is not responding at ${url} after ${attempts} tries (last: ${lastError}).\n` +
+    `Start it first — the smoke run does not start servers.`
+  );
+}
+
+export default async function globalSetup() {
+  // 127.0.0.1 for both polls: this is Node `fetch`, so there is no Origin
+  // header and no CORS involved, and Node on Windows resolves `localhost` to
+  // ::1 first while the server listens on IPv4 — the same mismatch that was
+  // ECONNRESET mid-run in the server suites.
+  await waitFor('The API', `${API_ORIGIN}/api/health`);
+  await waitFor('The Vite dev server', APP_ORIGIN.replace('localhost', '127.0.0.1'));
+}

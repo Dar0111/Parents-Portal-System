@@ -9,7 +9,7 @@
   },
   "overrides": [
     {
-      "files": ["scripts/**"],
+      "files": ["scripts/**", "e2e/**", "playwright.config.js"],
       "env": { "node": true }
     }
   ]

@@ -49,3 +49,14 @@ coverage/
 .nyc_output/
 tmp/
 temp/
+
+# --- Smoke test (Playwright) ---
+# Real login credentials for the read-only smoke run. The bare `.env` rule at
+# the top of this file matches `client/.env` but NOT `.env.e2e`, so this line
+# is load-bearing rather than belt-and-braces — verified with
+# `git check-ignore` before the file was created.
+client/e2e/.env.e2e
+
+# 144 screenshots per run (36 URLs x 2 widths x 2 themes). Some show real
+# seeded names and the backup filenames on Admin -> Backup & Restore.
+client/e2e-out/
