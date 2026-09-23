@@ -4248,3 +4248,77 @@ refuse. Do not add a transfer endpoint until this is answered.
 > the old adviser must still be able to VIEW and PRINT that learner's
 > pre-transfer records after the move** — so the fix cannot simply re-point
 > scope at the new section and drop the old adviser's access.
+
+---
+
+## UI polish — the eight CLOSED items, moved from CLAUDE.md on 2026-09-23
+
+Under the REFILL RULE. These are items 1, 3, 6, 7, 8, 9, 10 and 13 of the
+UI-polish list opened 2026-09-20, verbatim as they stood in `CLAUDE.md` when
+each was closed, with the closing dispatch named. The list that remains in
+`CLAUDE.md` holds only what is still open.
+
+**1 and 3 were already struck through in place** before this move; 6, 7, 8,
+9, 10 and 13 were closed by **UI-A** (`7beef97` + `13eebea`, 2026-09-23,
+browser check passed).
+
+```
+  1. ~~Teacher → Grades opens on an unassigned subject and loads with a red
+     error~~ — **CLOSED by CR2 (2026-09-22)**, at the root: the picker is
+     built from the caller's own `GET /assignments` (§13a).
+  3. ~~Teacher → Attendance's Status select is narrow and off-screen at
+     390px~~ — **CLOSED by DV1b-b**: the select is gone at both breakpoints.
+  6. **The parent breakdown modal still prints raw scores as "46.00/50.00"**
+     (2026-09-22, re-confirmed after CR2). **The grid did NOT take this** —
+     the guess that it would was wrong: the grid has its own cell renderer and
+     never imports `ScorePair`. Every stored score is a whole number now
+     (CR0), so every one of them prints with two dead decimals on the one
+     screen parents read. `ScorePair` in `parent/GradesPage.jsx` needs the
+     same `String(Number(x))` treatment as `GradeValue`'s `whole` — **never a
+     rounding one**, because a legacy row may still hold `42.5`.
+  7. **`GradeValue` should INHERIT its colour, not hardcode `text-fg`**
+     (2026-09-23). On the navy parent hero the average was invisible in light
+     mode until DV4 passed `className="text-primary-fg"`, and **that works
+     only because of stylesheet order** — the proof asserts it, but a
+     component that sets no colour would need no assertion at all. The fix is
+     in `format/grade.jsx` and touches every caller, so it is its own small
+     dispatch. §3a.
+  8. **Raw ISO dates on the dashboards** (2026-09-23). The parent hero prints
+     "Absence on 2026-09-21" and the teacher events card shows the bare
+     `event_date`. `format/date.js`'s `longDate()` exists for this and the
+     parent events card already uses a tile. **Format only — never compute**
+     (§5a-iv).
+  9. **The admin System card wraps "(Term 1)" onto its own line**
+     (2026-09-23), so "Grade records locked" and its term read as two
+     statements. A `nowrap` on the term fragment, not a narrower label.
+  10. **The class-record Save confirmation may now name bonus points**
+     (2026-09-23): *"Scores above the highest possible score are saved as
+     typed. Check that each is a bonus, not a typing mistake."* The over-HPS
+     listing stays; behaviour does not change.
+  13. **"Recorded" is a COLUMN header AND another column's VALUE on
+     Teacher → Attendance** (2026-09-23). Rename the column ("Saved as");
+     keep both — §5b is why.
+```
+
+**Three of them did not close the way they were written, and the difference
+is the part worth keeping:**
+
+- **Item 7 was not implemented as stated.** "Drop `text-fg` and inherit"
+  regresses dark mode: nothing in the app sets a base text colour — no rule
+  on `body`, `#root` or in `@layer base` — so *inherit* resolves to the
+  browser default, black. `DataTable` survives it because its `<td>` sets
+  `text-fg-secondary`, but the three grade-heavy screens build their own
+  tables and set none at all. What shipped is `className || 'text-fg'`: the
+  default is unchanged everywhere, and when a caller names a colour the
+  default is **not emitted at all**, so the stylesheet-order race the item was
+  actually about is gone. **Pure inheritance is queued behind a base colour,
+  in UI-D.**
+- **Item 8 named two spots; there were three**, plus the week strip's
+  `aria-label`s, which a screen reader otherwise reads as a run of digits and
+  dashes. The parent dashboard stated the same absence fact **twice**, which
+  is why the fix became one `AbsenceLine` component rather than two edits.
+- **Item 6 cannot be seen on the seeded data.** All five of Nino's grade rows
+  are legacy — a letter with no scores behind it — so the breakdown modal has
+  nothing to print and there is no `46.00/50.00` on screen to watch change.
+  It is covered by the proof's thirteen assertions instead. Creating a real
+  breakdown needs `PUT /class-record`, which is the shell-row trap.

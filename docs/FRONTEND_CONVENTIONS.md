@@ -152,13 +152,16 @@ column width in a dense table; a bare dash plus one legend line was
 rejected because it breaks the moment one table holds both reasons, which a
 teacher's cross-grade-level list can.
 
-#### 3a. `GradeValue` hardcodes `text-fg` — on a coloured surface, pass `className`
+#### 3a. `GradeValue`'s colour is a DEFAULT — on a coloured surface, pass `className`
 
-Added after DV4, where it cost a browser round trip. `GradeValue` sets its own
-`text-fg`, which is **dark in light mode**. On the parent dashboard's navy hero
-the General Average was therefore **invisible in light mode**, while the plain
-figures beside it were fine — they inherit the panel's colour and this one did
-not.
+**Rewritten 2026-09-23 (UI-A). The rule is unchanged — pass `className` — but
+the reason it works is no longer a coincidence.**
+
+Added after DV4, where it cost a browser round trip. `GradeValue` used to set
+`text-fg` unconditionally, which is **dark in light mode**. On the parent
+dashboard's navy hero the General Average was therefore **invisible in light
+mode**, while the plain figures beside it were fine — they inherit the panel's
+colour and this one did not.
 
 **The fix is `className`, not a hand-formatted number.** The prop exists for
 exactly this, and using it keeps §3's rule that one renderer draws every
@@ -168,18 +171,34 @@ grade-bearing value in the system:
 <GradeValue value={grades.general_average} mode="numerical" className="text-primary-fg" />
 ```
 
-**It works only because of STYLESHEET ORDER, and that is worth knowing before
-you rely on it.** Both `text-fg` and `text-primary-fg` end up on the element;
-neither is more specific, so the winner is whichever Tailwind emits **later**.
-Today `.text-primary-fg` is later, so it wins. **That is a fact about the
-generated CSS, not a guarantee** — which is why DV4's render proof asserts the
-ordering against the BUILT stylesheet. If a future Tailwind version reorders
-them, the proof fails loudly instead of the number quietly disappearing again.
+**Until UI-A that worked only because of STYLESHEET ORDER.** Both `text-fg`
+and `text-primary-fg` landed on the element; neither is more specific, so the
+winner was whichever Tailwind emitted **later**. That is a fact about
+generated CSS, not a guarantee, and DV4 had to assert the ordering against the
+BUILT stylesheet to keep it from silently reversing.
 
-**The better fix, when someone has the appetite:** let `GradeValue` inherit its
-colour rather than setting one, so a caller on any surface needs nothing. It is
-on the UI-polish list. Until then, `className` is the supported route and the
-ordering assertion is what keeps it honest.
+**Now the value branch is `className || 'text-fg'`.** A caller that names a
+colour gets **only** that colour — the default is never emitted, so there is
+no pair to order and nothing to assert. A caller that names none is
+byte-identical to before. The negative control is the proof: restore the old
+line and the render produces `class="tabular-nums text-fg text-primary-fg"`,
+which is the race itself.
+
+**WHY NOT SIMPLY INHERIT, which is the obvious reading and was the item as
+written:** nothing in this app sets a base text colour — no rule on `body`,
+`#root` or in `@layer base` — so *inherit* resolves to the browser default,
+black. `DataTable` hides that (its `<td>` sets `text-fg-secondary`), but the
+three grade-heavy screens build their own tables and set none:
+`parent/ReportCard.jsx`, `teacher/ClassSummaryPage.jsx` and
+`teacher/ClassRecordPage.jsx`. Black on a dark surface is DV4's F1 pointed the
+other way. **A base colour comes first, in UI-D; `GradeValue` returns to pure
+inheritance in that same dispatch**, and this section shrinks to one line.
+
+**The NULL branch still sets `text-fg-muted` unconditionally**, and that is
+deliberate rather than half a job: "— Pending" is muted because it is a
+statement about absence, not because of the surface it sits on. It keeps the
+order dependence the value branch just lost — recorded here rather than
+hidden, since no caller needs otherwise today.
 
 ### 4. StatusBadge — four vocabularies, one tone map, NO VERDICTS
 

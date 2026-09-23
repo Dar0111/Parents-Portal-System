@@ -1498,68 +1498,61 @@ seen, clock restored. **Do not "fix" those timestamps.**
         the READING view**, so a declined letter's adviser remarks are
         reachable on a phone; Edit is an `actions` button, Pending only.
 
-
 - [ ] **UI polish — small client items, opened 2026-09-20.** A list, not a
       dispatch: fold each into whichever branch is already touching that
-      page. Ordered by cost to the user, not by effort.
+      page. Ordered by cost to the user, not by effort. **UI-A closed six of
+      them on 2026-09-23** (`13eebea`); what remains is split into **UI-B**
+      (the card contract — the dead `actions` prop, a render-based card
+      proof, item 2), **UI-C** (items 12 and 4), then **UI-D** below.
 
-  1. ~~Teacher → Grades opens on an unassigned subject and loads with a red
-     error~~ — **CLOSED by CR2 (2026-09-22)**, at the root: the picker is
-     built from the caller's own `GET /assignments` (§13a).
-  2. **The person cell's secondary line repeats a column that is already on
-     screen** — Admin → Users shows the email under the name AND in the
-     Email column; both Students pages show the class under the name AND in
-     Grade & section. Harmless but redundant at desktop width, where the
-     column is right there. It earns its place on a CARD, where there are no
-     columns, so the fix is per-surface rather than deleting it.
-     **DV1b-a closed it for its 14 pages; `admin/StudentsPage` is the last.**
-  3. ~~Teacher → Attendance's Status select is narrow and off-screen at
-     390px~~ — **CLOSED by DV1b-b**: the select is gone at both breakpoints.
+  **Eight are CLOSED and left permanently for `docs/ARCHIVE.md` → "UI polish
+  — the eight CLOSED items"** (1 and 3 earlier; **6, 7, 8, 9, 10, 13 by UI-A,
+  2026-09-23**). Three did not close as written and the archive keeps why.
+  **Item 7 shipped as `className || 'text-fg'`, NOT pure inheritance** —
+  nothing sets a base text colour, so *inherit* means black. UI-D takes it.
+
+  2. **A person cell's secondary line repeating a column already on screen.**
+     **CORRECTED 2026-09-23: the old note said DV1b-a closed this and
+     `admin/StudentsPage` was the last. DV1b-a added CARDS and never touched a
+     table cell.** Three table spots remain — `admin/StudentsPage` and
+     `teacher/StudentsPage` (class, beside Grade & section) and
+     `admin/UsersPage`'s all-users table (email, beside Email — **keep the
+     `'You'` case, drop only the email**). Its parents table is NOT one: no
+     Email column there. **Cards keep their subtitle** (§16). UI-C.
   4. **Settings → Personalization at 200% zoom squeezes its content into a
-     narrow column** beside the side tabs — one or two words a line. Found
-     during the DV2 check (2026-09-20). The tabs keep their full width while
-     the panel takes what is left, so the fix is in that layout's
-     breakpoints, not in the panel's content.
-  5. **Teacher → Excuse Letters says "Nothing waiting for review" when the
-     Status filter is Approved** (2026-09-22). **A §5f violation, not a
-     wording nit:** an empty state must be derived from the filter that
-     produced it, and "nothing is waiting" must be structurally impossible
-     outside the Pending filter. One branch per applied value.
-  6. **The parent breakdown modal still prints raw scores as "46.00/50.00"**
-     (2026-09-22, re-confirmed after CR2). **The grid did NOT take this** —
-     the guess that it would was wrong: the grid has its own cell renderer and
-     never imports `ScorePair`. Every stored score is a whole number now
-     (CR0), so every one of them prints with two dead decimals on the one
-     screen parents read. `ScorePair` in `parent/GradesPage.jsx` needs the
-     same `String(Number(x))` treatment as `GradeValue`'s `whole` — **never a
-     rounding one**, because a legacy row may still hold `42.5`.
-  7. **`GradeValue` should INHERIT its colour, not hardcode `text-fg`**
-     (2026-09-23). On the navy parent hero the average was invisible in light
-     mode until DV4 passed `className="text-primary-fg"`, and **that works
-     only because of stylesheet order** — the proof asserts it, but a
-     component that sets no colour would need no assertion at all. The fix is
-     in `format/grade.jsx` and touches every caller, so it is its own small
-     dispatch. §3a.
-  8. **Raw ISO dates on the dashboards** (2026-09-23). The parent hero prints
-     "Absence on 2026-09-21" and the teacher events card shows the bare
-     `event_date`. `format/date.js`'s `longDate()` exists for this and the
-     parent events card already uses a tile. **Format only — never compute**
-     (§5a-iv).
-  9. **The admin System card wraps "(Term 1)" onto its own line**
-     (2026-09-23), so "Grade records locked" and its term read as two
-     statements. A `nowrap` on the term fragment, not a narrower label.
-  10. **The class-record Save confirmation may now name bonus points**
-     (2026-09-23): *"Scores above the highest possible score are saved as
-     typed. Check that each is a bonus, not a typing mistake."* The over-HPS
-     listing stays; behaviour does not change.
+     narrow column** beside the side tabs. The nav is `sm:w-[14.5rem]
+     sm:shrink-0` and cannot give width back, and 200% zoom halves the CSS
+     viewport, so a 1280px window lands at `sm` exactly. **A real 640–767px
+     tablet has the same squeeze**, so it is not only a zoom bug. The fix is
+     the breakpoint. UI-C.
+  5. **A Pending result set while the Status select reads Approved.**
+     **DIAGNOSIS CORRECTED 2026-09-23: NOT the §5f violation it was filed
+     as** — that page's empty copy already has one branch per applied value.
+     The filter is **submit-gated**: the select writes form state, the list
+     and the copy read `applied`, and nothing says they differ until Apply.
+     **§5b one level out, and NINE pages do it** (teacher Announcements /
+     Attendance records / Events / Excuse Letters / Students, admin
+     Announcements / Attendance / Students / Users). No precedent for the
+     affordance, so **MOCKUP FIRST.**
   12. **One audience, three labels** (2026-09-23). **One label per audience
      for STAFF; the parent wording stays**, being written to its reader.
-  11. **Verify Teacher → Class summary PRINTS cleanly** (2026-09-23) — the
-     school accepts a printout, so **.xlsx is optional and cuttable**. Check
-     the sticky column and the scroller on paper. A browser check, not a build.
-  13. **"Recorded" is a COLUMN header AND another column's VALUE on
-     Teacher → Attendance** (2026-09-23). Rename the column ("Saved as");
-     keep both — §5b is why.
+     **Seven render sites, four files** — and `teacher/EventsPage`'s card is a
+     fourth variant that **drops the section entirely**. UI-C.
+
+- [ ] **UI-D — global CSS, after UI-C. Two things that live above every page.**
+
+  **(a) There is NO print CSS in the client** — not one `print:` variant, not
+  one `@media print`. On paper, 2026-09-23: Teacher → Class summary printed
+  the **sidebar, top bar and Term select**, and **`overflow-x-auto` CLIPPED —
+  5 of 8 subjects and the Average column missing, scrollbar printed.** The
+  school accepts a printout as the Summary of Grades. **The clipped scroller
+  first:** chrome on the page is ugly, a missing column is wrong.
+
+  **(b) Nothing sets a base text colour** (no `body`, `#root` or `@layer
+  base` rule), so an element that sets none inherits black — invisible in
+  dark. `DataTable`'s `<td>` hides this; the three screens with their own
+  tables do not. **With a base colour, `GradeValue` returns to pure
+  inheritance** and UI-A's `className || 'text-fg'` comes back out (§3a).
 - [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
       (2026-09-21); the first two are what Expo hits first.**
       **(a) `subjects.display_order`** — the printed order is a client
@@ -1606,6 +1599,12 @@ seen, clock restored. **Do not "fix" those timestamps.**
       only its own; `GET /api/health` returning a static 200 with no DB check;
       and the shared helper that clears the orphan `notifications` rows the six
       older suites leave behind. Every one is a `docs/KNOWN_ISSUES.md` row.
+      **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
+      NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
+      (`schema.sql:212-216`), so the shape is representable; `grade_components`
+      is not (`max_score NOT NULL`). If a write path allows a score with no
+      denominator it is a server validation gap, and the parent breakdown now
+      renders that line as nothing at all — correct, and a fact nobody decided.
       **Plus one INVESTIGATE item, new 2026-09-20 and not yet a known-issue
       row because the cause is unknown:** Teacher → Attendance logged
       `bulk_record_attendance` **twice, one second apart, for a single Save
