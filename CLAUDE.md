@@ -1903,6 +1903,9 @@ questions.
 - Write or edit file content only with the Write/Edit tools — never through
   `python -c`, `echo`, heredocs or any shell quoting (CLAUDE.md was once
   truncated to 0 bytes this way).
+- **Never pipe a heredoc to an interpreter (`python -`, `node -`): it HANGS
+  on stdin instead of failing. A kill is confirmed by LISTING processes, not
+  by the kill's own output.**
 - **Never `git checkout --` (or any restore from HEAD) on uncommitted work.**
   It restores from the last COMMIT, not from where you were, so every
   uncommitted change in that file is gone with no warning. **Before a
@@ -1994,6 +1997,14 @@ copies this repo owns, so that edit sticks.
 `improve-codebase-architecture` and the remaining ~26 — **do not install more
 of them without a specific reason.** A future session finding only three
 skills present is looking at a decision, not an oversight.
+
+### Sub-agents — read-only exploration only (2026-09-23; no protocol file)
+
+- **Read-only exploration, inside a PLAN ONLY or an audit. Never for writes,
+  git, the database, fixtures, backups or suites.**
+- **Restate the dispatch's rules in the prompt — a sub-agent does NOT read
+  this file**, so a rule not in the prompt does not exist for it.
+- **Verify what one returns; the report names which answers came from one.**
 
 ### No CONTEXT.md — deliberate
 

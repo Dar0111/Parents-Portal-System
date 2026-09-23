@@ -36,7 +36,7 @@ buong detalye ay nasa ibang files:
 
 | Bahagi | Status |
 |--------|--------|
-| Database schema (22 tables) | ✅ Done |
+| Database schema (23 tables) | ✅ Done |
 | Seed data | ✅ Done |
 | **Backend API** | ✅ **Sampung modules complete — lahat ng suite pumapasa.** Bilang ng endpoints: `CLAUDE.md`. Bilang ng tests: `docs/TESTING.md` |
 | Socket.io (real-time messaging) | ✅ Done |

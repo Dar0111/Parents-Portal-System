@@ -1487,9 +1487,10 @@ and contact. `AuthContext.refresh()` after contact save. Password UX
 matched Teacher Settings 2026-09-10 (confirm Modal, per-field show/hide,
 grey until Confirm). Contact stays no-confirm. ParentDashboard
 needed no edit. **Parent web role is complete.** Open `/parent/settings`
-as `13567454` and `1090001`. Password: type full words → Change password
-→ modal → **Go back** (no PUT). Do not confirm a real change
-(`Parent@2026`). Hard reload if HMR looks wrong.
+as Marwin's parent, then as Nino's (Rosa) — accounts by name, never by
+login id or password (§5c; both are in `seed.sql`). Password: type full
+words → Change password → modal → **Go back** (no PUT). **Do not confirm a
+real change.** Hard reload if HMR looks wrong.
 
 **Teacher → Settings is DONE (2026-09-10).** Copy of Parent Settings, not
 a new page. Route `/teacher/settings`. Nav is add, not flip — teacher nav
@@ -1501,7 +1502,8 @@ browser review (contact stays no-confirm). Per-field show/hide on
 the three password inputs; Change password stays grey until Confirm
 has a value. Parent Settings password UX matched the same day
 (confirm Modal, per-field show/hide, grey until Confirm). Live HTTP 29/29; TCH-001 contact restored to `09170000002`;
-password restored to `Teacher@2026` after a review change; Jea still
+TCH-001's password restored to its seeded default after a review
+change; Jea still
 pending; Nino's five grades untouched. SSR + negative control. `npm run
 build` clean; oxlint 28 unchanged. **Teacher web role is complete.** Open
 `/teacher/settings` as TCH-001 / TCH-002 / TCH-003. Type a full word in
@@ -1689,10 +1691,12 @@ unread badge.
 - [ ] Replace seed data — `seed.sql` uses the team's own names (Marwin
       Conde, Jea Mae Bargaso, Ashley Geguiera). Fictional demo data, or
       clear the seed if real records get loaded instead.
-- [ ] Change every default password (`Admin@2026`, `Teacher@2026`,
-      `Parent@2026`) — they're in `seed.sql`, in the public repo, and a
-      parent's login id is their child's LRN, so anyone who knows the LRN
-      knows the password too.
+- [ ] Change every default password — **one per role: admin, teacher,
+      parent.** The values are in `seed.sql` and are deliberately not
+      repeated here; naming them in a doc is the same publication the
+      to-do exists to end. They are in the public repo, and a parent's
+      login id is their child's LRN, so anyone who knows the LRN knows
+      that account's password too.
 - [ ] RA 10173 (Data Privacy Act, cited in the manuscript) — confirm with
       the school whether loading real names/LRNs needs a consent process
       and whether they already have a form. Two questions added for the
