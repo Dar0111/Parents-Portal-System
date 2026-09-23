@@ -1,5 +1,15 @@
-// THROWAWAY — DV1b-a render proof. Deleted before commit.
-// Path named in the dispatch report: client/ssr-dv1b-a.jsx
+// DV1b-a render proof. KEPT, not a throwaway.
+//
+// Lives in `client/scripts/` and not at `client/` root, and that is a lint
+// boundary rather than tidiness: `.oxlintrc.json` gives `env.node` to
+// `scripts/**` only, so at the root this file's `process` was TWO `no-undef`
+// ERRORS — which sat on `main` for a dispatch because DV1b-a ran oxlint
+// BEFORE writing the proof and never again after. Run lint AFTER the last
+// file is written, not before.
+//
+// RUN FROM `client/`: `npx vite build --ssr scripts/ssr-dv1b-a.jsx --outDir
+// .ssr-tmp && node .ssr-tmp/ssr-dv1b-a.js`. It reads page source through
+// `process.cwd()`, so the working directory is part of its contract.
 //
 // §14e says what must be proved has to be reachable by passing props. Here it
 // already is, and that is the point of this dispatch being cheap to verify:

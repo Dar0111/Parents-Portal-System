@@ -1537,13 +1537,18 @@ seen, clock restored. **Do not "fix" those timestamps.**
         **The queue said 16; it is 15** (CR2 deleted `teacher/GradesPage.jsx`);
         the fifteenth is DV1b-b. Four families; `admin/GradesPage` carries
         JSX. §16.
-  - [ ] **DV1b-b — Teacher → Attendance at 390px**, plus **`nowrap` on its LRN
-        column** (the only one left; Teacher → Grades no longer exists).
-        **`renderCard` CANNOT express this page** — its row's interactive
-        element is a `<select>`, and the contract allows exactly one `<Link>`
-        or `<button>`. **DECIDED (Darryl, 2026-09-23): a bespoke card list
-        outside `DataTable`**, the §5a-v exemption, not a `control` slot on a
-        frozen primitive. **Waits on Darryl's mockup.**
+  - [x] **DV1b-b — Teacher → Attendance + the parent letter card. DONE
+        2026-09-23.** A **bespoke card list below `sm`** (the §5a-v exemption —
+        `renderCard` allows one `<Link>` or `<button>`, and this row is four
+        buttons), four full-word 44px `aria-pressed` buttons **replacing the
+        `<select>` on BOTH breakpoints**, and the LRN `nowrap` — **the last
+        queued nowrap item.** **A recorded mark can be changed but NOT
+        cleared**, because `/attendance/bulk` omits unmarked rows so a clear
+        would leave the screen claiming a state the database lacks. Logic in
+        `pages/teacher/attendance/roster.js` so the proof can drive it.
+        **Also fixes DV1b-a's regression: every parent letter card now opens
+        the READING view**, so a declined letter's adviser remarks are
+        reachable on a phone; Edit is an `actions` button, Pending only.
 
 
 - [ ] **UI polish — small client items, opened 2026-09-20.** A list, not a
@@ -1560,11 +1565,8 @@ seen, clock restored. **Do not "fix" those timestamps.**
      column is right there. It earns its place on a CARD, where there are no
      columns, so the fix is per-surface rather than deleting it.
      **DV1b-a closed it for its 14 pages; `admin/StudentsPage` is the last.**
-  3. **Teacher → Attendance at 390px: the Status select is narrow and partly
-     off-screen** inside the horizontal scroller. **Moved to DV1b** — DV2
-     turned out to own only the PARENT page, and this is a teacher encode
-     screen whose row is a form control, which is a card of a different kind.
-     Do not patch the select in isolation first.
+  3. ~~Teacher → Attendance's Status select is narrow and off-screen at
+     390px~~ — **CLOSED by DV1b-b**: the select is gone at both breakpoints.
   4. **Settings → Personalization at 200% zoom squeezes its content into a
      narrow column** beside the side tabs — one or two words a line. Found
      during the DV2 check (2026-09-20). The tabs keep their full width while

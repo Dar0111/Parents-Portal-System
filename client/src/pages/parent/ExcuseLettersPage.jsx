@@ -265,14 +265,38 @@ export default function ParentExcuseLettersPage() {
         // the same on every card and carry no information. **No LRN and no
         // login_id** (§5c) — there is none in the payload to leak.
         //
-        // `onSelect` ONLY while Pending, which is when Edit is the single
-        // primary action. Once reviewed the API refuses a second edit, so a
-        // reviewed letter is a STATIC card rather than a tap that 403s.
+        // EVERY CARD OPENS THE READING VIEW (DV1b-b), and the first version of
+        // this card did not — which is the defect it fixes.
+        //
+        // DV1b-a set `onSelect` to `openEdit` and only while Pending. So a
+        // DECLINED letter became a static card with no route into the reading
+        // modal, and that modal is the ONLY place the adviser's remarks are
+        // rendered. The one thing a parent most needs after a decline — the
+        // reason for it — was reachable on desktop, where the Reason cell is
+        // a button, and nowhere at all on a phone.
+        //
+        // So the card's single primary action is READ, on every letter and
+        // every status, matching what tapping the Reason cell does on the
+        // table. **Edit is an `actions` button**, not the card itself, and
+        // still only while Pending, because the API refuses a second edit once
+        // reviewed. That keeps §5a-iii's one-interactive-element rule intact:
+        // the card is the reading affordance, and `actions` is the sanctioned
+        // slot for a peer.
         renderCard={(row) => ({
-          onSelect: row.status === 'Pending' ? () => openEdit(row) : undefined,
+          onSelect: () => setReading(row),
           title: `Absence on ${row.absence_date}`,
           subtitle: row.reason,
           status: row.status,
+          actions:
+            row.status === 'Pending' ? (
+              <button
+                type="button"
+                onClick={() => openEdit(row)}
+                className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
+              >
+                Edit
+              </button>
+            ) : null,
         })}
         columns={columns}
         rows={visible}
