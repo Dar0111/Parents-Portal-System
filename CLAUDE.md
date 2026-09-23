@@ -1534,12 +1534,9 @@ seen, clock restored. **Do not "fix" those timestamps.**
       renders a computed letter now.* **DV1 through DV4 are done** and listed
       above; DV1b is the last of them and is below.
   - [x] **DV1b-a — 14 DataTable consumers → `renderCard`. DONE 2026-09-23.**
-        **The queue said 16; it is 15**, and CR2's deletion of
-        `teacher/GradesPage.jsx` is why the figure went stale. The
-        fifteenth is Teacher → Attendance, which is DV1b-b. Four card
-        families, and **`admin/GradesPage` is the one card that carries JSX** —
-        a deliberate exception, because formatting a grade by hand would break
-        the stronger §3 rule. Closes UI-polish 2 for these pages.
+        **The queue said 16; it is 15** (CR2 deleted `teacher/GradesPage.jsx`);
+        the fifteenth is DV1b-b. Four families; `admin/GradesPage` carries
+        JSX. §16.
   - [ ] **DV1b-b — Teacher → Attendance at 390px**, plus **`nowrap` on its LRN
         column** (the only one left; Teacher → Grades no longer exists).
         **`renderCard` CANNOT express this page** — its row's interactive
@@ -1562,6 +1559,7 @@ seen, clock restored. **Do not "fix" those timestamps.**
      Grade & section. Harmless but redundant at desktop width, where the
      column is right there. It earns its place on a CARD, where there are no
      columns, so the fix is per-surface rather than deleting it.
+     **DV1b-a closed it for its 14 pages; `admin/StudentsPage` is the last.**
   3. **Teacher → Attendance at 390px: the Status select is narrow and partly
      off-screen** inside the horizontal scroller. **Moved to DV1b** — DV2
      turned out to own only the PARENT page, and this is a teacher encode
@@ -1604,6 +1602,8 @@ seen, clock restored. **Do not "fix" those timestamps.**
      (2026-09-23): *"Scores above the highest possible score are saved as
      typed. Check that each is a bonus, not a typing mistake."* The over-HPS
      listing stays; behaviour does not change.
+  12. **One audience, three labels** (2026-09-23). **One label per audience
+     for STAFF; the parent wording stays**, being written to its reader.
   11. **Verify Teacher → Class summary PRINTS cleanly** (2026-09-23) — the
      school accepts a printout, so **.xlsx is optional and cuttable**. Check
      the sticky column and the scroller on paper. A browser check, not a build.
@@ -2077,6 +2077,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-23 | **DV1b-a** (`4b7508e`): 14 consumers → `renderCard`, four families (§16); `admin/GradesPage` carries JSX as a **declared exception — §3 outranks data-only**. Proof 87/87. **Three findings, none fixed**, incl. a regression I introduced: **at 390px a parent cannot reach the decline reason**. |
 | 2026-09-23 | **DV4** (`feat/dv4-dashboards`, `6d5034e` + `8adebc3`): parent dashboard elevation and the dark amber. **The rust cast was a HUE shift, not a lightness one** (`#461901`, hue 46, against light amber at ~95); five asserted pairs re-measured, light mode untouched, and the other two dashboards follow **through the token alone**. **Browser check FAILED first pass, four findings** — the hero average **invisible in light mode**; the KS1 hero showing **"Term 3 · C"** from a latest-term-with-data walk; weekend and not-recorded near-identical; an orphan caption. Rules in §12 and `docs/FRONTEND_CONVENTIONS.md` §15/§3a. Proofs 23/23 then 26/26, oxlint 43, `test:dashboard` 77/77. |
 | 2026-09-23 | CR3a + CR3 **docs pass** (`docs/class-summary`), covering three build dispatches. API_REFERENCE: `subjects.display_order` and the **null-last idiom** (MySQL sorts NULL first — without the leading term a MIXED grade level puts its unordered rows first); **`GET /assignments`' default follows the order, `sort=subject` stays A-Z**; the class summary's three-way scope (**a nonexistent section is the SAME 404 as "not yours"**), **two flags**, `general_average` **absent not null** in KS1, **no pagination — a document, not a list**; and **`TEACHER_ADVISES_CLASS_SQL` beside `TEACHER_VIEW_SCOPE_SQL`**, because routing grades through `students` would hide an EMPTY class from an assigned teacher. Counts **88 handlers / 89 endpoints**. GRADING_SPEC **§6d-i** — where each order came from, and a correction: **Grade 5 never fell back to alphabetical**. FRONTEND_CONVENTIONS **§14** — **a letter is not a number** (`TermValue`, never `GradeValue`, or every Grade 1 letter reads "— N/A"), **Pending ≠ N/A**, and **a self-fetching page cannot be SSR-proved**, so what must be proved is extracted and exported. KNOWN_ISSUES: the **shell-row trap**. Baselines 44 / 247 / 62 / 59, oxlint **43**. **CR3a and CR3 ticked — the grades track is complete**; pre-Stage-5 gains the `test:restore` sub-second fix and the Back-button decision. **The stub reserve was spent as designed** — four rows to ARCHIVE after this file hit 137,804. |
 | 2026-09-22 | CLAUDE.md trim, sixth batch: **136,830 → 135,119 on disk (−1,711)**. Six blocks measured and guard-grepped first; **the guard cleared more of this batch than any previous one, because these were duplicates rather than condensed rules.** `### Corrections` → rule-plus-pointer (both its live rules already live elsewhere in this file); **the "75 role-facing views" figure now appears ONCE**, in BUILD ORDER → Stage 4. `## SAFE TO BUILD NOW` (**zero guard hits**) emptied, heading kept with a **do-not-repopulate** note. `## GET /api/messages/contacts` keeps its two rules (**`?search=` is scoped, never an unscoped user search**; ACTIVE-only) and loses the archived detail. **Two closed BLOCKED items left permanently under the REFILL RULE** — the Stage G1a schema issue (zero hits; live text is GRADING_SPEC) and Excuse Letters (keeping **approval must not modify `attendance`**). **TWO STALE CLAIMS corrected:** the seeded weights were still called "provisional until G1b lands" (**G1b landed 2026-09-05**), and the parent modal's silence about the Grade 1 letter still rested on "until the school answers" (**answered and built 2026-09-22**) — recorded as a choice now needing a deliberate answer, not flipped. **Not taken:** the CHANGELOG stub table, the next trim's overflow valve. No `##` heading changed. |

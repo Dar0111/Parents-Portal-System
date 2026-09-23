@@ -1584,3 +1584,74 @@ The dashboard printed `87.5` against the report card's `87.50` until DV4 — one
 number, two spellings, two screens. **Split at the call site**, exactly as the
 2026-09-22 rounding fix split `GradeValue`'s `whole`.
 
+---
+
+## 16. `renderCard` at scale — four families, and two declared exceptions (DV1b-a, frozen 2026-09-23)
+
+§5a-iii froze the contract. This section is what it looked like applied to
+every remaining consumer at once, which is where the shapes became visible.
+
+### 16a. FOUR FAMILIES, not one card per page
+
+Fourteen pages, four shapes. **Copy the family, not the neighbour** — a card
+invented per page is how fourteen slightly different lists happen.
+
+| Family | Pages | Shape | Precedent |
+|---|---|---|---|
+| **Content list** | teacher / parent / admin Announcements, Memos, Events (7 tables) | title = headline · subtitle = body preview · meta = audience + date | `admin/StudentsPage` |
+| **Conversation** | teacher + parent Messages | `to` the thread · avatar + title = the other person · subtitle = last message · meta = date + unread | `admin/UsersPage` |
+| **Record** | teacher + parent Excuse Letters, teacher Attendance records, admin Attendance | the person or the date leads · the rest in meta · `status` = the badge | `admin/StudentsPage` |
+| **Grade row** | `admin/GradesPage` | subject = title · terms = subtitle · Final = meta | none — see §16c |
+
+**Every fact appears once.** A field in `title` may not reappear in `subtitle`
+or `meta`. That is the card-side form of UI-polish 2, and it is checkable
+mechanically: no `row.x` in two slots. `client/ssr-dv1b-a.jsx` asserts it for
+all 15 card definitions, with a control that feeds a duplicate and confirms
+the rule fires.
+
+**Several cards deliberately carry NO interactive element**, and that is the
+contract working rather than a gap. An excuse letter is tappable only while
+the viewer may actually act on it — Pending, and for a teacher only in a
+section they advise — because the API answers `403` otherwise and a tap that
+403s is a dead end. Announcements and events carry Edit and Delete as two
+peers underneath, no chevron.
+
+### 16b. A page with TWO lists keeps TWO labelled groups
+
+`admin/AnnouncementsPage` renders announcements and memos as separate tables,
+and below `sm` they stay **two labelled card groups, never interleaved**
+(Darryl, 2026-09-23). A memo has no audience and an announcement always does —
+that distinction is the reason the page has two lists at all, and a merged
+stream destroys it.
+
+### 16c. DECLARED EXCEPTION — `admin/GradesPage`'s card carries JSX
+
+The contract says a card returns **data, never JSX**. This one does not, and
+the reason is a rule collision rather than convenience.
+
+**Why the data-only rule exists:** to make a button-inside-a-link
+unrepresentable. `GradeValue` and `TermValue` are read-only renderers with no
+interactive element, so they cannot create that hazard.
+
+**Why the alternative is worse:** formatting a grade as a string here would be
+a second implementation of §3's rule that **one renderer draws every
+grade-bearing value**, and it would quietly reintroduce the "87.5 against
+87.50" defect DV4 had just fixed one component away (§15d).
+
+**§3 outranks data-only when they collide.** A card may carry a read-only
+renderer; it may still never carry an interactive element. If a second page
+ever needs this, it is the same exception, not a new one.
+
+### 16d. Copy that differs by role for the same fact is a defect, not a nuance
+
+Found while converting, recorded rather than fixed. The same audience renders
+three ways: teacher **"School-wide"** / **"Grade 6 (whole grade)"**, admin
+**"Everyone at the school"** / **"All of Grade 6"**, parent **"For everyone at
+the school"** / **"For your child's year level"**.
+
+**The parent wording is right and stays** — it is deliberately written to the
+reader, and §5c-style audience labels come from the target columns' nullness,
+never from `user.grade_level`. **The staff wording should be ONE label per
+audience**, because a teacher and an admin discussing the same post should not
+be reading different words for it. `docs/KNOWN_ISSUES.md` has the row.
+
