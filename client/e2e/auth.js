@@ -95,10 +95,24 @@ async function waitFor(name, url, attempts = 20, gapMs = 500) {
 }
 
 export default async function globalSetup() {
-  // 127.0.0.1 for both polls: this is Node `fetch`, so there is no Origin
-  // header and no CORS involved, and Node on Windows resolves `localhost` to
-  // ::1 first while the server listens on IPv4 — the same mismatch that was
-  // ECONNRESET mid-run in the server suites.
+  // TWO SERVERS, TWO HOSTS, AND THE RULE IS NOT THE SAME FOR BOTH. Measured
+  // 2026-09-24 with netstat, after the first run failed against a Vite that
+  // was demonstrably up:
+  //
+  //   port 5000   0.0.0.0:5000   LISTENING   ← the API, IPv4 and [::]
+  //   port 3000   [::1]:3000     LISTENING   ← Vite, IPv6 loopback ONLY
+  //
+  // The API poll uses 127.0.0.1 for the reason the server suites document:
+  // Node on Windows resolves `localhost` to ::1 first, and that mismatch was
+  // ECONNRESET mid-run. **That rule is about the API and must not be
+  // generalised** — this file did generalise it, and against Vite the same
+  // substitution points at an address nothing is listening on (ECONNREFUSED,
+  // while `http://localhost:3000` answers 200).
+  //
+  // `vite.config.js` sets only `port`, so Vite binds `localhost` = ::1. It is
+  // NOT changed to suit a test: `APP_ORIGIN` is polled as it stands, which is
+  // also the origin the browser must use, because `server.js` allows exactly
+  // one CORS origin and `http://[::1]:3000` is not it.
   await waitFor('The API', `${API_ORIGIN}/api/health`);
-  await waitFor('The Vite dev server', APP_ORIGIN.replace('localhost', '127.0.0.1'));
+  await waitFor('The Vite dev server', APP_ORIGIN);
 }
