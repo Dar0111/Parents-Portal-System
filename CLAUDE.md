@@ -490,13 +490,14 @@ concludes.** Adding one requires the school to have said otherwise first.
   **exactly one interactive element per card**, a real `<Link>` or `<button>`.
   A page with no single primary action passes neither and gets a static card.
   Detail: §5a-iii.
-- **ONE page leaves DataTable and the exemption is narrow:**
+- **TWO pages leave DataTable and both exemptions are narrow.**
   `parent/ReportCard.jsx` is a **fixed-order printed document** — sorting it
   produces a different document, not a filtered one — and its emphasised
-  general-average row must sit INSIDE a table that does not sort. **Anything
-  that is a list of records still uses `DataTable`.** Its printed order is a
-  client constant (`subjects` has **no display-order column**) and **Grade 1's
-  order is PROVISIONAL**. **"Has a Final" and "has a General Average" are TWO
+  general-average row must sit INSIDE a table that does not sort.
+  `teacher/AttendancePage.jsx` is a **bespoke card list below `sm`** whose row
+  is four buttons where a card allows one (DV1b-b, §17c).
+  **Anything that is a list of records still uses `DataTable`.**
+  **"Has a Final" and "has a General Average" are TWO
   flags (2026-09-22)** — a descriptive card has a Final LETTER and no general
   average at all, so the one boolean they used to share would put a GA row on
   a Key Stage 1 card. `final_grade` holds a **number or a letter** by mode, so
@@ -1609,6 +1610,9 @@ seen, clock restored. **Do not "fix" those timestamps.**
   11. **Verify Teacher → Class summary PRINTS cleanly** (2026-09-23) — the
      school accepts a printout, so **.xlsx is optional and cuttable**. Check
      the sticky column and the scroller on paper. A browser check, not a build.
+  13. **"Recorded" is a COLUMN header AND another column's VALUE on
+     Teacher → Attendance** (2026-09-23). Rename the column ("Saved as");
+     keep both — §5b is why.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
       (2026-09-21); the first two are what Expo hits first.**
       **(a) `subjects.display_order`** — the printed order is a client

@@ -1605,9 +1605,10 @@ invented per page is how fourteen slightly different lists happen.
 
 **Every fact appears once.** A field in `title` may not reappear in `subtitle`
 or `meta`. That is the card-side form of UI-polish 2, and it is checkable
-mechanically: no `row.x` in two slots. `client/ssr-dv1b-a.jsx` asserts it for
-all 15 card definitions, with a control that feeds a duplicate and confirms
-the rule fires.
+mechanically: no `row.x` in two slots. `client/scripts/ssr-dv1b-a.jsx` asserts
+it for all 15 card definitions, with a control that feeds a duplicate and
+confirms the rule fires. (It was written at `client/` root and **moved in
+DV1b-b** — §17a.)
 
 **Several cards deliberately carry NO interactive element**, and that is the
 contract working rather than a gap. An excuse letter is tappable only while
@@ -1654,4 +1655,124 @@ reader, and §5c-style audience labels come from the target columns' nullness,
 never from `user.grade_level`. **The staff wording should be ONE label per
 audience**, because a teacher and an admin discussing the same post should not
 be reading different words for it. `docs/KNOWN_ISSUES.md` has the row.
+
+---
+
+## 17. The encode roster, and where a proof lives (DV1b-b, frozen 2026-09-23)
+
+The fifteenth and last DataTable consumer, and the one `renderCard` could not
+express. Five rules; the first two are about the proof rather than the page,
+and they are here because both were learned by shipping the defect.
+
+### 17a. A proof script lives in `client/scripts/`, and it is a LINT boundary
+
+`.oxlintrc.json` gives `env.node` to `scripts/**` **only**. A proof at
+`client/` root therefore has no `process` global, and `no-undef` — enabled
+2026-09-22 for exactly this class of defect — reports it as **two errors**.
+
+DV1b-a shipped that way and **reported "oxlint 43, unchanged"**, because it
+ran lint BEFORE writing the proof and never again after. The errors sat on
+`main` for a dispatch. Nothing else caught them: the proof itself ran fine
+(node has `process`), the build never touches `scripts/`, and the suites
+never load the client.
+
+**So: run lint AFTER the last file of the dispatch is written, and say so in
+the report.** Not "lint passes" — *when* it ran. A check that ran before the
+file it was meant to check is not a check, and "43 unchanged" reads
+identically whether or not it was.
+
+### 17b. Pure logic a proof must DRIVE lives in a helpers module
+
+`renderToStaticMarkup` cannot click a button. Every rule in 17c below is a
+state transition, so none of it is reachable through a render — which is
+§14e's finding ("a self-fetching page cannot be SSR-proved") arriving from
+the other direction: there the data could not get *in*, here the behaviour
+cannot be triggered at all.
+
+`client/src/pages/teacher/attendance/roster.js` holds it — `rowState`,
+`pickStatus`, `markRestPresent`, `rosterCounts`, `unsavedCount` — with **no
+React import**, so the proof calls the functions directly. Same reason as
+`buildPayload.js` (§13e), different consumer: that one is imported by a
+server suite, this one by an SSR proof.
+
+It also keeps lint quiet. Exporting non-components beside components trips
+`react(only-export-components)` — five times over here, which would have
+moved the oxlint baseline for a reason nobody would remember in six weeks.
+**The page still exports its two components** (`StatusButtons`,
+`RosterCards`) so the proof can render them; markup stays on the page,
+behaviour moves out.
+
+### 17c. The encode roster — bespoke exemption #2
+
+`parent/ReportCard.jsx` was the first (§5a-v). This is the second and they
+are unrelated: that one is a fixed-order printed document, this one is a row
+whose interactive element is **four choices**, where `renderCard` allows
+exactly one `<Link>` or `<button>` (§5a-iii). **Below `sm` the roster is its
+own card list; the table is unchanged above it.**
+
+- **Four buttons, and the `<select>` is gone at BOTH breakpoints** — not
+  widened, not restyled. A select on a touch device costs two interactions
+  and a system sheet per learner; a forty-learner roster is eighty.
+- **Full words — `Present`, not `P`.** An initial is unreadable to anyone who
+  has not been told the legend, and there is no legend.
+- **`h-11` (44px) minimum, and `aria-pressed`**, so the state is announced
+  rather than only drawn.
+- **Selected is NEVER colour alone** — a tone fill **plus** a 2px border
+  **plus** bold. The four tones are Present/Late/Absent/Excused, and the two
+  a colour-blind reader is likeliest to confuse are the two that matter most.
+- **A SAVED mark can be CHANGED but never CLEARED.** Tapping the selected
+  button clears an unsaved mark and is a **no-op** on a recorded one. This is
+  the API's shape, not a preference: `POST /api/attendance/bulk` takes only
+  the rows in `entries`, and the page omits unmarked rows entirely — so a
+  "clear" would send nothing for that learner, leave the stored row exactly as
+  it was, and leave the screen claiming a state the database does not hold.
+  **Deleting a recorded mark needs a server change. Until there is one, this
+  refuses rather than lies.**
+- **Mark all / rest Present fills only UNMARKED rows.** It never overwrites,
+  so a teacher who has already marked the three absences can fill the rest in
+  one tap without undoing that work. Nothing is saved until Save.
+- **Three row states, and §5b is the whole reason they exist.** `recorded` is
+  the last successful read; `marks` is what the teacher typed; `Recorded` /
+  `Changed · not saved` / `Not marked yet` is the comparison. The two must be
+  able to disagree, or the stored-state column is decoration.
+- **Counts only, never a rate.** Parent → Attendance owns the percentage and
+  its rounding (§12); a second implementation on an encode screen is a number
+  the two could disagree on.
+
+### 17d. `actions` beside `onSelect` is SILENTLY DROPPED
+
+**Found by the browser check, contradicting my own report — record the
+behaviour, not the intent.** DV1b-b's report said a parent's Edit button
+"moves to `actions`, Pending only". It does not render there at all.
+
+`DataTable`'s `Card` has three branches: `to` renders a `<Link>`, `onSelect`
+renders a `<button>`, and **only the third — neither — renders `actions`.**
+That is §5a-iii enforced by construction: a card with a primary action is one
+interactive element, so a button beside it would be a button inside a button.
+Passing both is not an error, it is a no-op.
+
+**What is actually true on a phone:** every letter card opens the reading
+view, and **Edit is the button inside that modal** — which was already there
+before DV1b-a and is unchanged. The card's `actions` block is dead code, and
+`parent/ExcuseLettersPage.jsx` is the only card in the system that passes
+both (`docs/KNOWN_ISSUES.md` has the row).
+
+**The proof missed it because it asserted the SOURCE TEXT**, not the render:
+`/actions:[\s\S]*status === 'Pending'/` proves the prop was written, never
+that anything draws it. **A source-text assertion proves authorship, not
+behaviour** — worth knowing, since the whole DV1b-a proof is built that way
+and its other 87 assertions are about data that has no render branch to fall
+through.
+
+### 17e. Every parent letter card opens the READING view, whatever its status
+
+DV1b-a gated `onSelect` on `Pending`, which made a **Declined** letter a
+static card — and the decline reason lives in the reading view. At 390px the
+adviser's remarks became unreachable on the one screen a parent actually
+uses, for the one status where they matter.
+
+**A card is tappable when there is something to READ, not when there is
+something to DO.** The teacher page's gate is different and stays: a teacher
+outside the section gets `403`, so a tap really is a dead end (§16a). A
+parent is never out of scope on their own child's letter.
 
