@@ -32,6 +32,11 @@ const VARS = {
   admin: ['E2E_ADMIN_ID', 'E2E_ADMIN_PW'],
   teacher: ['E2E_TEACHER_ID', 'E2E_TEACHER_PW'],
   parent: ['E2E_PARENT_ID', 'E2E_PARENT_PW'],
+  // The Grade 6 pair — Marwin's adviser and Marwin's parent. Numbered rather
+  // than named, because the names are what must never be in a variable a
+  // terminal echoes, and because one of them is shared by two seeded accounts.
+  teacher2: ['E2E_TEACHER2_ID', 'E2E_TEACHER2_PW'],
+  parent2: ['E2E_PARENT2_ID', 'E2E_PARENT2_PW'],
 };
 
 export function credentialsFor(role) {
