@@ -1105,9 +1105,12 @@ teacher) — which is why a non-adviser gets `403` naming the reason, not `404`.
 Both narratives are verbatim in `docs/ARCHIVE.md` → BLOCKED / RESOLVED →
 Excuse Letters.
 
-**Still open and NOT closed by that move:** the decline form has no "add a
-reason?" nudge. Optional remarks are deliberate at the API layer; the prompt
-belongs in the UI and was never built — a UI-polish candidate.
+**The decline-reason nudge is BUILT; "never built" was stale and was removed
+2026-09-23 after checking the code.** The review form's Remarks `hint` says
+*"Optional — but a declined letter with no reason sends the parent to Messages
+to ask why."* — the prompt and the exact reasoning the item asked for.
+Optional remarks stay deliberate at the API layer. **Do not add a
+confirmation step**: §5e reserves those for writes that cannot be undone.
 
 **The Stage G1a schema fix also left this file** (`grade_weight_configs`
 re-keyed off grade bands, `grade_components.type` → `ENUM('WW','PT')`). Live
@@ -1479,65 +1482,47 @@ seen, clock restored. **Do not "fix" those timestamps.**
       here — that Grade 1's A–E "stays as it is until the school answers" how
       the letter is produced. It is spent: the school answered on 2026-09-22
       and it shipped the same day (`docs/GRADING_SPEC.md` §6a), so the card
-      renders a computed letter now.* **DV1 through DV4 are done** and listed
-      above; DV1b is the last of them and is below.
-  - [x] **DV1b-a — 14 DataTable consumers → `renderCard`. DONE 2026-09-23.**
-        **The queue said 16; it is 15** (CR2 deleted `teacher/GradesPage.jsx`);
-        the fifteenth is DV1b-b. Four families; `admin/GradesPage` carries
-        JSX. §16.
-  - [x] **DV1b-b — Teacher → Attendance + the parent letter card. DONE
-        2026-09-23.** A **bespoke card list below `sm`** (the §5a-v exemption —
-        `renderCard` allows one `<Link>` or `<button>`, and this row is four
-        buttons), four full-word 44px `aria-pressed` buttons **replacing the
-        `<select>` on BOTH breakpoints**, and the LRN `nowrap` — **the last
-        queued nowrap item.** **A recorded mark can be changed but NOT
-        cleared**, because `/attendance/bulk` omits unmarked rows so a clear
-        would leave the screen claiming a state the database lacks. Logic in
-        `pages/teacher/attendance/roster.js` so the proof can drive it.
-        **Also fixes DV1b-a's regression: every parent letter card now opens
-        the READING view**, so a declined letter's adviser remarks are
-        reachable on a phone; Edit is an `actions` button, Pending only.
+      renders a computed letter now.* **DV1 through DV4 and DV1b are all DONE**
+      (2026-09-20 → 2026-09-23); the ticked write-ups left under the REFILL
+      RULE and are verbatim in `docs/ARCHIVE.md`. The rules they carried are
+      §16 (card families), §5a-v (the bespoke exemption), §17c (the roster)
+      and §17e (the letter card).
 
-- [ ] **UI polish — small client items, opened 2026-09-20.** A list, not a
-      dispatch: fold each into whichever branch is already touching that
-      page. Ordered by cost to the user, not by effort. **UI-A closed six of
-      them on 2026-09-23** (`13eebea`); what remains is split into **UI-B**
-      (the card contract — the dead `actions` prop, a render-based card
-      proof, item 2), **UI-C** (items 12 and 4), then **UI-D** below.
+- [ ] **UI polish — opened 2026-09-20 as a list, now a QUEUE.** **NINE of the
+      fourteen items are closed and left permanently for `docs/ARCHIVE.md`** —
+      1 and 3 earlier, **6, 7, 8, 9, 10, 13 by UI-A** and **2 by UI-B**, both
+      2026-09-23, the second block also holding UI-B's planner items P1 and
+      P2. Three did not close as written and the archive keeps why; the one
+      that matters here is that **item 7 shipped as `className || 'text-fg'`,
+      NOT pure inheritance** — nothing sets a base text colour, so *inherit*
+      means black, and **UI-D** takes it.
 
-  **Eight are CLOSED and left permanently for `docs/ARCHIVE.md` → "UI polish
-  — the eight CLOSED items"** (1 and 3 earlier; **6, 7, 8, 9, 10, 13 by UI-A,
-  2026-09-23**). Three did not close as written and the archive keeps why.
-  **Item 7 shipped as `className || 'text-fg'`, NOT pure inheritance** —
-  nothing sets a base text colour, so *inherit* means black. UI-D takes it.
+  - [ ] **UI-C — items 4, 12 and 14, plus a date audit.**
+    **(4) Settings → Personalization at 200% zoom** squeezes its panel into a
+    narrow column: the nav is `sm:w-[14.5rem] sm:shrink-0` and cannot give
+    width back, and 200% halves the CSS viewport so a 1280px window lands at
+    `sm` exactly. **A real 640–767px tablet has the same squeeze**, so it is
+    not only a zoom bug; the fix is the breakpoint.
+    **(12) One audience, three labels.** One label per audience for STAFF,
+    **the parent wording stays**, being written to its reader. Seven render
+    sites in four files, and `teacher/EventsPage`'s card is a fourth variant
+    that **drops the section entirely**.
+    **(14) Raw ISO dates on the excuse-letter surfaces**, parent and teacher —
+    cards, reading view, review modal. **UI-A converted the dashboards to
+    `longDate()`, so ONE letter now shows two formats** depending which screen
+    names it. Format only, never compute (§5a-iv). **The plan audits every
+    list, card and modal that renders a date**; the dashboards were not the
+    whole set, and item 14 exists because nobody checked.
 
-  2. **A person cell's secondary line repeating a column already on screen.**
-     **CORRECTED 2026-09-23: the old note said DV1b-a closed this and
-     `admin/StudentsPage` was the last. DV1b-a added CARDS and never touched a
-     table cell.** Three table spots remain — `admin/StudentsPage` and
-     `teacher/StudentsPage` (class, beside Grade & section) and
-     `admin/UsersPage`'s all-users table (email, beside Email — **keep the
-     `'You'` case, drop only the email**). Its parents table is NOT one: no
-     Email column there. **Cards keep their subtitle** (§16). UI-C.
-  4. **Settings → Personalization at 200% zoom squeezes its content into a
-     narrow column** beside the side tabs. The nav is `sm:w-[14.5rem]
-     sm:shrink-0` and cannot give width back, and 200% zoom halves the CSS
-     viewport, so a 1280px window lands at `sm` exactly. **A real 640–767px
-     tablet has the same squeeze**, so it is not only a zoom bug. The fix is
-     the breakpoint. UI-C.
-  5. **A Pending result set while the Status select reads Approved.**
-     **DIAGNOSIS CORRECTED 2026-09-23: NOT the §5f violation it was filed
-     as** — that page's empty copy already has one branch per applied value.
-     The filter is **submit-gated**: the select writes form state, the list
-     and the copy read `applied`, and nothing says they differ until Apply.
-     **§5b one level out, and NINE pages do it** (teacher Announcements /
-     Attendance records / Events / Excuse Letters / Students, admin
-     Announcements / Attendance / Students / Users). No precedent for the
-     affordance, so **MOCKUP FIRST.**
-  12. **One audience, three labels** (2026-09-23). **One label per audience
-     for STAFF; the parent wording stays**, being written to its reader.
-     **Seven render sites, four files** — and `teacher/EventsPage`'s card is a
-     fourth variant that **drops the section entirely**. UI-C.
+  - [ ] **Item 5 — a Pending result set while the Status select reads
+    Approved. MOCKUP FIRST, and it is not in UI-C for that reason.**
+    **DIAGNOSIS CORRECTED 2026-09-23: not the §5f violation it was filed as** —
+    that page's empty copy already has one branch per applied value. The
+    filter is **submit-gated**: the select writes form state, the list and the
+    copy read `applied`, and nothing says they differ until Apply. **§5b one
+    level out, and NINE pages do it** (teacher Announcements / Attendance
+    records / Events / Excuse Letters / Students, admin Announcements /
+    Attendance / Students / Users). No precedent for the affordance.
 
 - [ ] **UI-D — global CSS, after UI-C. Two things that live above every page.**
 
@@ -1553,6 +1538,16 @@ seen, clock restored. **Do not "fix" those timestamps.**
   dark. `DataTable`'s `<td>` hides this; the three screens with their own
   tables do not. **With a base colour, `GradeValue` returns to pure
   inheritance** and UI-A's `className || 'text-fg'` comes back out (§3a).
+
+- [ ] **UI-E — a teacher's read-only letter view, after UI-D, BEFORE Stage 5.**
+      `details` and `teacher_remarks` render only inside the review modal,
+      which opens only for a Pending letter in a section the teacher advises,
+      so **once a letter is reviewed the teacher who wrote the remarks cannot
+      read them back at ANY width.** Not the DV1b-a card bug: symmetrical and
+      pre-existing. **The card's `canReview` gate is correct** — the fix is
+      the missing view. Reuse the parent's reading-view pattern (**no mockup:
+      pattern reuse, not a redesign**); `GET /:id` returns strictly less than
+      a list row and is not needed. `docs/KNOWN_ISSUES.md`.
 - [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
       (2026-09-21); the first two are what Expo hits first.**
       **(a) `subjects.display_order`** — the printed order is a client

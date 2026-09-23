@@ -100,6 +100,47 @@ number changes, something really did move.
 
 ---
 
+## Render proofs — the client's four, and their baselines
+
+They are not suites: no server, no database, no `test:*` script. Each is an
+SSR build plus a node run, and each is **kept** rather than thrown away
+after its dispatch. All four live in `client/scripts/` because
+`.oxlintrc.json` gives `env.node` only there (§17a).
+
+Run from `client/`:
+
+```bash
+npx vite build --ssr scripts/<name>.jsx --outDir .ssr-tmp && node .ssr-tmp/<name>.js
+```
+
+| Proof | Baseline | What it covers |
+|---|---|---|
+| `ssr-cards.jsx` | **31/31** | the card contract, by RENDERING — `actions` beside a primary action, the DEV guard, both excuse-letter cards. **Needs `NODE_ENV=development`, see below** |
+| `ssr-ui-a.jsx` | **38/38** | `GradeValue`'s colour default, score pairs, `longDate` at the dashboard spots, the Attendance header |
+| `ssr-dv1b-a.jsx` | **83/83** | the fourteen `renderCard` consumers. **Source-text assertions** — it reads files and regexes them; that is what it is, and §17d is why nothing new should be written this way. Was 87; UI-B dropped the two excuse-letter pages, whose cards are modules now and are covered by `ssr-cards.jsx` |
+| `ssr-dv1b-b.jsx` | **30/30** | the attendance roster's behaviour, driven directly through `attendance/roster.js`. Was 35; UI-B deleted its five source-text letter assertions for the same reason |
+
+### `ssr-cards.jsx` needs `NODE_ENV=development`, and the reason is a trap
+
+```bash
+NODE_ENV=development npx vite build --ssr scripts/ssr-cards.jsx --outDir .ssr-tmp \
+  && node .ssr-tmp/ssr-cards.js
+```
+
+**Without it the proof does not fail loudly — it fails as four assertions
+that log nothing**, which reads like a broken guard rather than a broken
+harness. `vite build` is a PRODUCTION build, so `import.meta.env.DEV` is
+replaced by `false` and the DEV-only block inside `DataTable`'s `Card` is
+**tree-shaken out of the bundle entirely**: `grep "DataTable card"` in the
+built file finds nothing. **`--mode development` does NOT help**; only
+`NODE_ENV` does. Measured 2026-09-23.
+
+**The general form, which is the part worth carrying: a DEV-only guard is
+invisible to a production-mode proof.** Anything wrapped in
+`import.meta.env.DEV` has to be kept alive deliberately, or the harness
+reports a clean pass on code that is not in the bundle —
+`docs/FRONTEND_CONVENTIONS.md` §17f.
+
 ## Lint baselines
 
 Every client dispatch reports all four. **They are one set: three of them

@@ -1795,3 +1795,43 @@ something to DO.** The teacher page's gate is different and stays: a teacher
 outside the section gets `403`, so a tap really is a dead end (§16a). A
 parent is never out of scope on their own child's letter.
 
+**The two gates look identical and are not (UI-B, 2026-09-23).** The parent
+card opens a **reading** view, which exists for every letter, so gating it hid
+the decline reason. The teacher card opens the **review** modal, which is that
+page's only modal, so a letter they may not review has nothing to open. Both
+cards are modules now — `parent/excuseLetters/card.jsx` and
+`teacher/excuseLetters/card.jsx` — precisely because a CONDITIONAL card is
+what a source-text assertion cannot check.
+
+**A gap this made visible, and it is not the card's:** the teacher page has
+no read-only view of a letter at **any** width. `details` and
+`teacher_remarks` render only inside the review modal, so an Approved or
+Declined letter cannot be re-read, on a phone or on a desktop.
+`docs/KNOWN_ISSUES.md` has the row; UI-E builds the view.
+
+### 17f. A DEV-only guard is INVISIBLE to a production-mode proof
+
+**Measured 2026-09-23, and it cost a false failure before it was understood.**
+
+`DataTable`'s `Card` gained a guard for §17d's defect — `console.error` in DEV
+when a card passes `actions` together with `to` or `onSelect`, because the
+prop is silently dropped and the dispatch that did it reported the opposite in
+good faith. The guard works. The proof asserting it failed all four of its
+assertions with **zero errors logged**, which looks exactly like a broken
+guard.
+
+**`vite build` is a PRODUCTION build.** `import.meta.env.DEV` is replaced by
+`false`, so the whole block is **tree-shaken out of the bundle** — `grep
+"DataTable card"` in the built file finds nothing at all. **`--mode
+development` does not change it; `NODE_ENV=development` does.**
+
+**The rule: anything behind `import.meta.env.DEV` has to be kept alive
+deliberately before a proof can see it, and the run command is part of that
+file's contract** — written in the proof's own header, not remembered. This
+is the same family as §5h's other blind spots: the harness does not fail, it
+reports a clean pass on code that is not there.
+
+**And the inverse is worth stating once:** a guard that a proof cannot reach
+is still worth having. This one fires in the browser, which is where the
+defect was actually found both times.
+

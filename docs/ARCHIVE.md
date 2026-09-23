@@ -4322,3 +4322,78 @@ is the part worth keeping:**
   nothing to print and there is no `46.00/50.00` on screen to watch change.
   It is covered by the proof's thirteen assertions instead. Creating a real
   breakdown needs `PUT /class-record`, which is the shell-row trap.
+
+---
+
+## UI polish — item 2, and UI-B's two planner items, moved from CLAUDE.md on 2026-09-23
+
+Under the REFILL RULE, closed by **UI-B** (`8bb2632` + `2ef4da8`, browser
+check passed). Item 2 is verbatim as it stood after UI-A's docs pass
+corrected it; **P1 and P2 never had CLAUDE.md text** — they were planner
+additions to the UI-B dispatch and are recorded here so the pair is not
+re-derived from the code later.
+
+```
+  2. **A person cell's secondary line repeating a column already on screen.**
+     **CORRECTED 2026-09-23: the old note said DV1b-a closed this and
+     `admin/StudentsPage` was the last. DV1b-a added CARDS and never touched a
+     table cell.** Three table spots remain — `admin/StudentsPage` and
+     `teacher/StudentsPage` (class, beside Grade & section) and
+     `admin/UsersPage`'s all-users table (email, beside Email — **keep the
+     `'You'` case, drop only the email**). Its parents table is NOT one: no
+     Email column there. **Cards keep their subtitle** (§16). UI-C.
+```
+
+**P1 — delete the dead `actions` block on the parent excuse-letter card.**
+DV1b-b moved Edit to `actions`, reported it as done, and it never rendered:
+`DataTable`'s `Card` renders `actions` only on its static branch — no `to`,
+no `onSelect` — because a button beside a primary action would be a button
+inside one (§5a-iii). The prop was inert for a whole dispatch. Edit lives
+inside the reading view, Pending only, which is where it already was.
+
+**P2 — harden card proofs so they render through the real `Card` rather than
+asserting source text or a returned object.** `scripts/ssr-cards.jsx`, 31/31.
+The scope was argued down deliberately and the reasoning is the part to keep:
+**thirteen of the fifteen card definitions are inline props on self-fetching
+pages**, so extracting all of them would have been a dispatch of its own for
+little gain — the defect class is a property of `Card`, provable once. What
+shipped instead is that single proof plus a **DEV guard in `Card`** that
+fires at runtime on the same mistake, covering the thirteen the proof cannot
+reach. `ssr-dv1b-b`'s five source-text letter assertions were deleted rather
+than relabelled (35 → 30), and `ssr-dv1b-a` dropped the two letter pages from
+its status loop (87 → 83, four assertions, two per page).
+
+**The audit P2 was given returned zero**, as expected: after P1, no card
+passes `actions` together with `to` or `onSelect`. Six cards carry `actions`
+— `admin/AnnouncementsPage` (×2), `admin/BackupsPage`, `admin/UsersPage`,
+`teacher/AnnouncementsPage`, `teacher/EventsPage` — and every one of them is
+a static card with peer actions, which is the sanctioned shape.
+
+### DV1b-a and DV1b-b — the ticked entries, moved from CLAUDE.md on 2026-09-23
+
+Under the REFILL RULE, which they should have obeyed on the day each closed.
+Verbatim; **the data-views block in `CLAUDE.md` now says only that DV1b is
+done and points here.** Every rule they carried is stated in its own one
+place — §16 for the card families, §5a-v for the bespoke exemption, §17c for
+the roster, §17e for the letter card — and one of them, DV1b-b's last
+sentence, was **already wrong when it was written**: Edit as an `actions`
+button never rendered, and UI-B removed the prop (§17d).
+
+```
+  - [x] **DV1b-a — 14 DataTable consumers → `renderCard`. DONE 2026-09-23.**
+        **The queue said 16; it is 15** (CR2 deleted `teacher/GradesPage.jsx`);
+        the fifteenth is DV1b-b. Four families; `admin/GradesPage` carries
+        JSX. §16.
+  - [x] **DV1b-b — Teacher → Attendance + the parent letter card. DONE
+        2026-09-23.** A **bespoke card list below `sm`** (the §5a-v exemption —
+        `renderCard` allows one `<Link>` or `<button>`, and this row is four
+        buttons), four full-word 44px `aria-pressed` buttons **replacing the
+        `<select>` on BOTH breakpoints**, and the LRN `nowrap` — **the last
+        queued nowrap item.** **A recorded mark can be changed but NOT
+        cleared**, because `/attendance/bulk` omits unmarked rows so a clear
+        would leave the screen claiming a state the database lacks. Logic in
+        `pages/teacher/attendance/roster.js` so the proof can drive it.
+        **Also fixes DV1b-a's regression: every parent letter card now opens
+        the READING view**, so a declined letter's adviser remarks are
+        reachable on a phone; Edit is an `actions` button, Pending only.
+```
