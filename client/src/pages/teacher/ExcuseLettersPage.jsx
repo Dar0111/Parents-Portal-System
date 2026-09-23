@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
+import teacherLetterCard from './excuseLetters/card';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -333,24 +334,11 @@ export default function ExcuseLettersPage() {
       </form>
 
       <DataTable
-        // RECORD CARD (DV1b-a). The learner leads, the absence date and class
-        // sit in meta, the reason is the subtitle, and the status is the
-        // badge — each fact once.
-        //
-        // `onSelect` ONLY when this teacher may actually review: Review is the
-        // one primary action here, so a reviewable letter is a tappable card
-        // with a chevron. A letter belonging to another adviser's section, or
-        // one already reviewed, is a STATIC card — the API answers 403 to a
-        // non-adviser, so offering the tap would be a dead end (the same
-        // anti-dead-end rule the Actions column already follows).
-        renderCard={(row) => ({
-          onSelect: canReview(row) ? () => openReview(row) : undefined,
-          avatar: `${row.first_name} ${row.last_name}`,
-          title: `${row.last_name}, ${row.first_name}`,
-          subtitle: row.reason,
-          meta: `${row.absence_date} · Grade ${row.grade_level} - ${row.section}`,
-          status: row.status,
-        })}
+        // The card is `excuseLetters/card.jsx` — a module, so the proof can
+        // render it both ways instead of regexing this file (§17b, §17d).
+        // Moved in UI-B with no behaviour change; its header carries why the
+        // `canReview` gate is correct here and was not on the parent's card.
+        renderCard={(row) => teacherLetterCard(row, { canReview, onReview: openReview })}
         columns={columns}
         rows={letters}
         loading={loading}

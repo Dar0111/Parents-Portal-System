@@ -180,11 +180,12 @@ export default function StudentsPage() {
       sortValue: (row) => `${row.last_name}, ${row.first_name}`,
       render: (row) => (
         <Link to={`/admin/students/${row.id}`} className="inline-flex min-w-0 underline-offset-2 hover:underline">
-          <PersonCell
-            name={`${row.last_name}, ${row.first_name}`}
-            secondary={`Grade ${row.grade_level} - ${row.section}`}
-            nameClass="text-brand"
-          />
+          {/* NO `secondary` (UI-B item 2). The class is already its own
+              column two cells to the right, so a line under the name repeats
+              it at exactly the width where the column is visible. It earns
+              its place on the CARD, where there are no columns — which is
+              why the card below keeps its subtitle and this does not. */}
+          <PersonCell name={`${row.last_name}, ${row.first_name}`} nameClass="text-brand" />
         </Link>
       ),
     },

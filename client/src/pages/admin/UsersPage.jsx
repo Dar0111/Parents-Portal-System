@@ -577,9 +577,17 @@ export default function UsersPage() {
         key: 'name',
         header: 'Name',
         sortable: true,
-        render: (row) => (
-          <PersonCell name={row.name} secondary={row.id === me?.id ? 'You' : row.email || null} />
-        ),
+        // `'You'` STAYS; the email fallback goes (UI-B item 2). This table
+        // has its own Email column, so the address was on screen twice — but
+        // "You" is not a duplicate of anything, it is the one fact no column
+        // carries, and it is what stops an admin deactivating themselves by
+        // misreading a row. A blanket delete would have taken it with the
+        // email, which is why this is a conditional and not a removal.
+        //
+        // The PARENTS table above is deliberately untouched: its columns are
+        // Guardian / Student / Class / Login ID / Created by, with no Email,
+        // so the address there earns its line.
+        render: (row) => <PersonCell name={row.name} secondary={row.id === me?.id ? 'You' : null} />,
       },
       {
         key: 'login_id',

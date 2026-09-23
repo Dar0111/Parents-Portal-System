@@ -131,6 +131,28 @@ const CARD_SHELL =
   'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3 text-left first:rounded-t-xl last:border-0';
 
 function Card({ card }) {
+  // `actions` BESIDE a primary action is a silent no-op, and it shipped once
+  // (UI-B, 2026-09-23). Only the static branch below renders `actions` — that
+  // is §5a-iii enforced by construction, since a button beside a `<Link>` or
+  // a `<button>` would be a button inside one. Passing both is therefore not
+  // an error and not a warning; the buttons simply never appear, and the
+  // dispatch that did it reported the opposite in good faith because nothing
+  // contradicted it. A source-text proof cannot catch this (§17d): the prop
+  // IS written, it just never renders.
+  //
+  // console.error, not a throw: the prop is inert, not dangerous, and
+  // blanking a page over it would be worse than the bug. DEV only, matching
+  // the one existing idiom (App.jsx's /dev/ui route).
+  if (import.meta.env.DEV && card.actions && (card.to || card.onSelect)) {
+    console.error(
+      'DataTable card: `actions` is ignored when the card has `to` or `onSelect`. ' +
+      'A card with a primary action is ONE interactive element (§5a-iii), so `actions` ' +
+      'is never rendered beside it — the buttons will be silently missing. ' +
+      'Move the action into the view the card opens, or drop `to`/`onSelect` and let ' +
+      'the card be static with its actions underneath.'
+    );
+  }
+
   // A link wins over a handler when a page supplies both: a real href is
   // openable in a new tab and survives a middle click, which an onClick is
   // not and does not.

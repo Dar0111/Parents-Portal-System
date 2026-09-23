@@ -10,7 +10,15 @@
 // `attendance/roster.js` precisely so this file can drive it directly;
 // renderToStaticMarkup cannot click a button, so none of it could be asserted
 // through a render.
-import { readFileSync } from 'node:fs';
+//
+// THE FIVE LETTER-CARD ASSERTIONS THAT USED TO SIT AT THE END ARE GONE
+// (UI-B, 2026-09-23). They read this repo's SOURCE with a regex and passed
+// while the defect they were written to catch was live: they proved that an
+// `actions` prop had been WRITTEN, and `DataTable` never rendered it (§17d).
+// `scripts/ssr-cards.jsx` now asserts all five by RENDERING the real card
+// through the real `Card`. Keeping both would have left a weaker check beside
+// a stronger one on the same claim, and relabelling would have kept a check
+// that proves authorship. 35 → 30, and this file has no `readFileSync` left.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import {
@@ -122,22 +130,6 @@ const one = render(<StatusButtons student={roster[0]} marks={marks} onPick={() =
 assert(/border-2/.test(one) && /font-bold/.test(one),
   'the selected button carries a 2px border AND bold — never colour alone');
 assert(/h-11/.test(one), 'buttons are h-11 (44px), the touch-target floor');
-
-// ---------------- the letter card ----------------
-const src = readFileSync(`${process.cwd()}/src/pages/parent/ExcuseLettersPage.jsx`, 'utf8');
-const code = src.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
-const card = code.split('renderCard={')[1].slice(0, 900);
-
-assert(/onSelect:\s*\(\)\s*=>\s*setReading\(row\)/.test(card),
-  'EVERY letter card opens the READING view, whatever its status');
-assert(!/onSelect:[^\n]*status[^\n]*Pending/.test(card),
-  'NEGATIVE CONTROL: onSelect is not gated on Pending any more',
-  'a Declined card would again have no reading route');
-assert(/actions:[\s\S]*status === 'Pending'/.test(card), 'Edit is an ACTION, and only while Pending');
-assert(!/onSelect:[^\n]*openEdit/.test(card), 'the card itself never opens Edit');
-
-// The reading modal is where the remarks live — assert it still renders them.
-assert(/reading\.teacher_remarks/.test(code), 'the reading modal renders the adviser remarks');
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);

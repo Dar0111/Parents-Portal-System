@@ -356,11 +356,10 @@ export default function StudentsPage() {
       // needs whole-row clicking, that is the trigger to add it.
       render: (row) => (
         <Link to={`/teacher/students/${row.id}`} className="inline-flex min-w-0 underline-offset-2 hover:underline">
-          <PersonCell
-            name={`${row.last_name}, ${row.first_name}`}
-            secondary={`Grade ${row.grade_level} - ${row.section}`}
-            nameClass="text-brand"
-          />
+          {/* NO `secondary` (UI-B item 2) — the Grade & section column below
+              already says this, and on a card, where there are no columns,
+              the subtitle carries it instead. */}
+          <PersonCell name={`${row.last_name}, ${row.first_name}`} nameClass="text-brand" />
         </Link>
       ),
     },
