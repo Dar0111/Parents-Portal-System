@@ -97,15 +97,78 @@ function formatWholeGrade(value) {
   return String(asNumber);
 }
 
+// A RAW SCORE PAIR — "46/50" — is neither of the two above, and it lives here
+// because it is the same rule one level down (UI-A item 6, 2026-09-23).
+//
+// Every score a teacher types is a WHOLE number since CR0, and the columns are
+// still DECIMAL(5,2), so mysql2 hands back "46.00" and the parent breakdown
+// printed "46.00/50.00" — two dead decimals on the one screen parents read.
+// It reuses formatWholeGrade per side rather than reimplementing it: the rule
+// that 42.5 must stay 42.5 is the same rule, and a legacy row can still hold
+// one. Rounding here would be the same defect toFixed(0) would have been.
+//
+// FOUR CASES, and the two null ones are different statements:
+//
+//   46 / 50     -> "46/50"
+//   null / 50   -> "Pending"  — the slot is USED and this learner has no score
+//   46 / null   -> null       — an unused slot; the caller renders NOTHING
+//   null / null -> null       — nothing recorded; the caller says so
+//
+// `max === null` returning null rather than "46/?" is deliberate: an unused
+// slot has no denominator to print, and a score without one is not a fact a
+// parent can read. GRADING_SPEC §6e is the same distinction on the server —
+// USED is the highest possible score, not the row.
+//
+// The pending case is a SENTINEL rather than a bare string so the call site
+// cannot drift from it by retyping the word.
+export const SCORE_PENDING = 'pending';
+
+export function formatScorePair(score, max) {
+  const maxText = formatWholeGrade(max);
+  if (maxText === null) return null;
+  const scoreText = formatWholeGrade(score);
+  if (scoreText === null) return SCORE_PENDING;
+  return `${scoreText}/${maxText}`;
+}
+
 // `whole` is opt-in, so every call site that does not pass it keeps two
 // decimals. That is deliberate: the sites that must change are the six term
 // and final grades, and leaving the general averages and Initial Grades
 // untouched is what proves they were not caught by accident.
+//
+// THE VALUE BRANCH'S COLOUR IS A DEFAULT, NOT A HARDCODE (UI-A item 7,
+// 2026-09-23). `className || 'text-fg'` — a caller that names a colour gets
+// ONLY that colour; a caller that names none gets `text-fg` exactly as before.
+//
+// WHAT THE DEFECT ACTUALLY WAS: the class was unconditional, so DV4's navy
+// parent hero had to pass `className="text-primary-fg"` and ended up with TWO
+// colour utilities on one element, neither more specific. It rendered
+// correctly only because Tailwind happened to emit `.text-primary-fg` LATER
+// in the stylesheet, and DV4 had to add an assertion against the BUILT css to
+// stop a reorder hiding the number again. With the default conditional, the
+// losing class is never emitted at all, so there is no race left to guard.
+//
+// AND WHY NOT SIMPLY DROP IT AND INHERIT, which is the obvious reading:
+// nothing in this app sets a base text colour — no rule on `body`, `#root` or
+// in `@layer base` — so "inherit" resolves to the browser default, black.
+// Inside `DataTable` that is survivable (its `<td>` sets `text-fg-secondary`),
+// but the three grade-heavy screens build their own tables and set no colour
+// at all: `parent/ReportCard.jsx`'s `<table className="w-full
+// border-collapse text-sm">`, `teacher/ClassSummaryPage.jsx`'s, and
+// `teacher/ClassRecordPage.jsx`'s score cells. Black on a dark surface is
+// DV4's F1 again, pointed the other way. Pure inheritance becomes correct the
+// day a base colour exists; until then the default is what makes it safe.
+//
+// The NULL branch keeps `text-fg-muted` unconditionally, and that is not an
+// oversight: "— Pending" is muted because it is a statement about absence,
+// not because of where it sits. A caller still overrides it via `className`,
+// and that branch keeps the order dependence the value branch just lost —
+// stated rather than hidden, since no caller needs it today.
 export default function GradeValue({ value, mode, whole = false, className = '' }) {
   const formatted = whole ? formatWholeGrade(value) : formatGrade(value);
 
   if (formatted !== null) {
-    return <span className={`tabular-nums text-fg ${className}`}>{formatted}</span>;
+    return <span className={`tabular-nums ${className || 'text-fg'}`}>{formatted}</span>;
   }
 
   const reason = reasonFor(mode);

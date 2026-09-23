@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { useAuth } from '../../auth/AuthContext';
 import { useUnread } from '../../realtime/UnreadProvider';
-import { todayLocalDateString } from '../../format/date';
+import { longDate, todayLocalDateString } from '../../format/date';
 import Card, { CardEmpty, Stat } from './Card';
 import { useCard } from './useCard';
 
@@ -107,6 +107,21 @@ function AttendanceBanner({ section, today }) {
         {state.tone === 'success' ? 'Open attendance' : 'Record attendance'}
       </Link>
     </div>
+  );
+}
+
+// One upcoming event. `longDate`, never a computed date (§5a-iv) — this
+// printed the raw `2026-09-25` until UI-A (2026-09-23). The parent dashboard
+// renders the same field as a month/day tile; this card is one line per
+// event, so it reads as words instead. `nowrap` because a date is a single
+// fact and must not break across lines. Exported so the proof can render it
+// rather than assert the file's text (§17b, §17d).
+export function EventLine({ title, date }) {
+  return (
+    <li className="text-sm text-fg">
+      {title}
+      <span className="ml-2 whitespace-nowrap text-xs text-fg-muted">{longDate(date)}</span>
+    </li>
   );
 }
 
@@ -247,10 +262,7 @@ export default function TeacherDashboard() {
           {events.data?.length ? (
             <ul className="space-y-2">
               {events.data.map((row) => (
-                <li key={row.id} className="text-sm text-fg">
-                  {row.title}
-                  <span className="ml-2 text-xs text-fg-muted">{row.event_date}</span>
-                </li>
+                <EventLine key={row.id} title={row.title} date={row.event_date} />
               ))}
             </ul>
           ) : (

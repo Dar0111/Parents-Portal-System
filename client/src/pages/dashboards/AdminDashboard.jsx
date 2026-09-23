@@ -177,7 +177,14 @@ export default function AdminDashboard() {
                     `d.term`, the same value the Current term row above uses
                     and the same one the server filtered on, so the label
                     cannot drift from the number beside it. */}
-                <dt className="text-sm text-fg-muted">Grade records locked (Term {d.term})</dt>
+                {/* `nowrap` on the PARENTHETICAL only, not on the whole
+                    label: the term is the scope of the number beside it, and
+                    broken onto its own line "Grade records locked" and
+                    "(Term 1)" read as two statements (browser check,
+                    2026-09-23). The label itself may still wrap. */}
+                <dt className="text-sm text-fg-muted">
+                  Grade records locked <span className="whitespace-nowrap">(Term {d.term})</span>
+                </dt>
                 {/* A COUNT, not a state (Q3, option b). There is no global
                     lock: is_locked is per grade row, so this is how many of
                     this term's rows are finalized. */}

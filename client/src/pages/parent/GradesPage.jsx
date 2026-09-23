@@ -4,7 +4,7 @@ import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
-import GradeValue from '../../format/grade';
+import GradeValue, { SCORE_PENDING, formatScorePair } from '../../format/grade';
 import TermValue from '../../format/TermValue';
 import ReportCard from './ReportCard';
 import { useAuth } from '../../auth/AuthContext';
@@ -99,15 +99,34 @@ import { usePageTitle } from '../../layout/usePageTitle';
 
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
-function ScorePair({ score, max }) {
+// The raw scores behind a term grade. THE FORMATTING IS NOT HERE — it is
+// `formatScorePair` in `format/grade.jsx`, beside `formatWholeGrade`, because
+// "46.00" and "46" is the same rule as a Term Grade's and belongs in the same
+// file rather than being reimplemented next to the markup that shows it.
+//
+// This printed "46.00/50.00" until UI-A (2026-09-23): every stored score has
+// been a whole number since CR0 while the columns stayed DECIMAL(5,2), so
+// mysql2's strings reached the screen verbatim — on the one grades screen
+// parents read.
+export function ScorePair({ score, max }) {
   if (score == null && max == null) {
     return <span className="text-sm text-fg-muted">Not yet recorded</span>;
   }
-  return (
-    <span className="tabular-nums text-sm text-fg">
-      {score}/{max}
-    </span>
-  );
+
+  const pair = formatScorePair(score, max);
+
+  // No highest possible score means the slot is UNUSED, and an unused slot
+  // has no denominator to print. Rendering nothing is the honest answer;
+  // "46/?" would invent one.
+  if (pair === null) return null;
+
+  // Used, but this learner has no score for it — which is exactly the case
+  // that must not read as a zero.
+  if (pair === SCORE_PENDING) {
+    return <span className="text-sm text-fg-muted">Pending</span>;
+  }
+
+  return <span className="tabular-nums text-sm text-fg">{pair}</span>;
 }
 
 function ComponentList({ title, rows, empty }) {

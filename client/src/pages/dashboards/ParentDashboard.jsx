@@ -1,7 +1,14 @@
 import api from '../../api/axios';
 import { useAuth } from '../../auth/AuthContext';
 import { useUnread } from '../../realtime/UnreadProvider';
-import { todayLocalDateString, isWeekend, lastNDays, monthName, weekdayName } from '../../format/date';
+import {
+  todayLocalDateString,
+  isWeekend,
+  lastNDays,
+  longDate,
+  monthName,
+  weekdayName,
+} from '../../format/date';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
@@ -97,13 +104,28 @@ function weekStrip(rows, end) {
   });
 }
 
+// ONE renderer for a fact this page states TWICE — in the hero and in the
+// Excuse letters card below it. It printed the raw `2026-09-21` in both until
+// UI-A (2026-09-23), and two spots carrying the same defect is the argument
+// for a component rather than a repeated line: the fix applies once and can
+// be proved once. Exported so the proof can render it (§17b); only the
+// surrounding type scale and colour differ, which is what `className` is for.
+export function AbsenceLine({ date, className = '' }) {
+  return <p className={className}>Absence on {longDate(date)}</p>;
+}
+
 function DayCell({ day }) {
+  // `longDate`, not the raw string: an accessible name is READ ALOUD, and a
+  // screen reader says a YYYY-MM-DD as a run of digits and dashes. The
+  // visible tile shows only the weekday initial, so this label is the only
+  // place the date is stated at all.
+  const spoken = `${weekdayName(day.date)} ${longDate(day.date)}`;
   const label =
     day.kind === 'recorded'
-      ? `${weekdayName(day.date)} ${day.date} — ${day.status}`
+      ? `${spoken} — ${day.status}`
       : day.kind === 'weekend'
-        ? `${weekdayName(day.date)} ${day.date} — weekend, no class recorded`
-        : `${weekdayName(day.date)} ${day.date} — not recorded`;
+        ? `${spoken} — weekend, no class recorded`
+        : `${spoken} — not recorded`;
 
   // THREE STATES THAT MUST BE TELLABLE APART AT A GLANCE (F3). The first
   // build gave weekend and not-recorded the same muted fill and differed only
@@ -352,7 +374,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
               {letter.data ? (
                 <div className="mt-1 space-y-1">
                   <StatusBadge status={letter.data.status} />
-                  <p className="text-xs text-primary-fg">Absence on {letter.data.absence_date}</p>
+                  <AbsenceLine date={letter.data.absence_date} className="text-xs text-primary-fg" />
                 </div>
               ) : (
                 <p className="mt-1 text-sm text-primary-fg">None sent.</p>
@@ -696,7 +718,7 @@ export default function ParentDashboard() {
           // still needs to know where they live.
           <div className="space-y-2">
             <StatusBadge status={letter.data.status} />
-            <p className="text-sm text-fg-muted">Absence on {letter.data.absence_date}</p>
+            <AbsenceLine date={letter.data.absence_date} className="text-sm text-fg-muted" />
           </div>
         ) : (
           <CardEmpty>No excuse letters.</CardEmpty>

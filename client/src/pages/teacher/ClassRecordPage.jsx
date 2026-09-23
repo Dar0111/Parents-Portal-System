@@ -866,13 +866,22 @@ export default function ClassRecordPage() {
                   </li>
                 ))}
               </ul>
-              {/* The school has confirmed no bonus-point policy, so the copy
-                  does not claim one. It says what the save does and asks the
-                  teacher to look — §5i: a sentence about behaviour must be
-                  true of the handler, and "bonus points are allowed" was a
-                  policy statement nobody has made. */}
+              {/* The school answered on 2026-09-23: it DOES award bonus
+                  points, for event participation, added to Performance
+                  Tasks. So the copy may now name a bonus, which it could not
+                  while the question was open — the earlier wording avoided
+                  it deliberately, because "bonus points are allowed" was a
+                  policy statement nobody had made (§5i).
+
+                  THE BEHAVIOUR DID NOT CHANGE and the copy still describes
+                  it exactly: a score above the highest possible score is
+                  saved as typed, flagged here and never blocked or clamped,
+                  matching gradeComputation.js. What changed is that the
+                  teacher is now told which of the two readings — a bonus or
+                  a typing mistake — the school actually recognises. */}
               <p className="mt-1 text-xs text-fg-muted">
-                These are saved as typed — check for typing mistakes.
+                Scores above the highest possible score are saved as typed. Check that each is a
+                bonus, not a typing mistake.
               </p>
             </div>
           ) : null}
