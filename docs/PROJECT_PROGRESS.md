@@ -66,14 +66,11 @@ grade** — live totals come from a `dry_run` that runs the save in the
 transaction and rolls back. Detail: `docs/API_REFERENCE.md` → The class
 record, `docs/GRADING_SPEC.md` §6e, `docs/FRONTEND_CONVENTIONS.md` §13.
 
-**Suite baselines were re-run on 2026-09-22 and eight were stale** — students
-94, grades 239, attendance 60, content 96, users 61, backups 47, messages 80,
-excuses 92, plus `test:class-record` 117 and grade-computation 77. oxlint is
-**41** (was 44 — CR2 deleted a page). Two suites need a caveat rather than a
-number: **`test:restore` is 28 passed / 1 failed**, a test-timing defect on a
-fast machine and not a code one, and **`test:recovery` reaches 62/62 only
-against a server started with `MAIL_TRANSPORT=file`**. Both are
-`docs/KNOWN_ISSUES.md` rows.
+**Suite and lint baselines live in `docs/TESTING.md` — that is the one home,
+and this file no longer carries a copy** (trim-8, 2026-09-23). It held two
+separate baseline blocks that disagreed with each other and with CLAUDE.md,
+which is exactly the drift a mirror file is most prone to. A dispatch that
+re-measures updates `docs/TESTING.md`, in the same commit.
 
 **Grade 1's letter is COMPUTED and BUILT — 2026-09-22.** The school answered
 and it shipped the same day, server and client, both browser-checked. WW 30 /
@@ -94,15 +91,8 @@ for every teacher — a call to a deleted setter that `npm run build`, oxlint
 and an SSR render all missed, because the call sat inside a `useCallback`
 invoked from a `useEffect` and neither body runs under
 `renderToStaticMarkup`. The rule needed `env.browser` plus an `overrides`
-giving `scripts/**` `env.node`; with those it reports 0 and the oxlint total
-stays at the 44 baseline.
-
-**Suite baselines, 2026-09-22:** grades **212** · grade-computation **68** ·
-notifications **124** · dashboard **77** · verify-grading-seed **34** ·
-assignments **56** · grading-modes **13**. There are **nineteen `test:*`
-scripts — seventeen HTTP suites** plus two direct-call unit tests; the
-"fifteen suites" figure that stood here and in CLAUDE.md was stale from the
-day Notifications, Dashboard and Recovery landed.
+giving `scripts/**` `env.node`; with those it reports 0 and leaves the oxlint
+total alone. **Baselines: `docs/TESTING.md`.**
 
 **Decided and applied 2026-09-18 (Darryl):** the five admin nav entries with
 no page — Sections, Excuse Letters, Memos, Events, Messages — are **removed**
@@ -744,7 +734,8 @@ Darryl confirms, then unlocked and deleted through the API. Full row:
 **Seeded baseline lives in one place:** CLAUDE.md → CURRENT STATE → Seeded
 baseline. Do not repeat the live counts here. After a clean `db:setup` the
 demo Grade 1 path exists: Nino Alcantara (LRN `1090001`, Grade 1 - Mabait),
-parent Rosa (`1090001` / `Parent@2026`, active), teacher TCH-003 (Lito
+parent Rosa (active — the account is named, never its login id or password;
+both are in `seed.sql` and CLAUDE.md's Seeded baseline), teacher TCH-003 (Lito
 Bautista — adviser of Mabait AND assigned all five Grade 1 subjects).
 TCH-002 stays assignment-less. Letters on the card are illustrative fixture
 data, not a computed result.
@@ -1340,7 +1331,7 @@ locally and `format/grade.jsx` was not touched — the same rule that kept
 LRN `1090001`, parent active — CLAUDE.md Seeded baseline), so the fixture that
 blocked verification is gone. **The local UI branch is still unverified in a
 browser** — the fixture dispatch is seed + tests, no client file. Open
-`/parent/grades` as `1090001` / `Parent@2026` to retire it. Do not add a fifth
+`/parent/grades` as Nino's parent (Rosa) to retire it. Do not add a fifth
 state to `GradeValue` until that pass has been seen on screen.
 
 **5f's obvious empty state is structurally unreachable, and that is the

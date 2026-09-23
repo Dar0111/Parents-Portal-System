@@ -38,7 +38,7 @@ buong detalye ay nasa ibang files:
 |--------|--------|
 | Database schema (22 tables) | ✅ Done |
 | Seed data | ✅ Done |
-| **Backend API** | ✅ **Sampung modules complete, 78 endpoints, 673 tests sa 15 suites — lahat pumapasa. May isang gap na na-identify at na-audit** (tingnan sa baba) |
+| **Backend API** | ✅ **Sampung modules complete — lahat ng suite pumapasa.** Bilang ng endpoints: `CLAUDE.md`. Bilang ng tests: `docs/TESTING.md` |
 | Socket.io (real-time messaging) | ✅ Done |
 | Web — foundation (shell, routing, shared UI) | ✅ Done |
 | Web — **Teacher pages (7)** | ✅ Attendance, Students (list + detail), Excuse Letters, Announcements, Memos, Events, Messages (list + thread) |
@@ -238,32 +238,28 @@ Base URL: `http://localhost:5000`
 
 ## Tests
 
-**15 suites, 673 assertions, lahat pumapasa.** Idempotent lahat — hindi
-kailangan ng `npm run db:setup` sa pagitan ng runs.
+**Ang mga baseline ay nasa `docs/TESTING.md` — doon lang, hindi dito.** Bawat
+suite at ang bilang nito, ang apat na lint baselines, at ang **dalawang suite
+na may kilalang caveat** (`test:restore`, `test:recovery`) ay nandoon. Ang
+kopya na dating nakalista rito ay **naging mali nang tahimik** — `15 suites,
+673 assertions`, kasama pa ang `test:contributions` na tinanggal noong
+2026-09-13. Isang lugar lang ang bilang; kung mag-re-measure ka, doon mo
+i-update, sa parehong commit.
+
+Idempotent lahat — hindi kailangan ng `npm run db:setup` sa pagitan ng runs.
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
 npm run test:auth
 ```
 
-| Suite | Assertions | | Suite | Assertions |
-|-------|-----------|---|-------|-----------|
-| `test:auth` | 25 | | `test:backups` | 39 |
-| `test:students` | 39 | | `test:sanitize` | 9 |
-| `test:sections` | 30 | | `test:messages` | 56 |
-| `test:attendance` | 38 | | `test:restore` | 22 |
-| `test:content` | 53 | | `test:excuses` | 67 |
-| `test:contributions` | 38 | | `test:grades` | 141 |
-| `test:settings` | 26 | | `test:grade-computation` | 51 |
-| `test:users` | 39 | | **Total** | **673** |
-
 **Dalawa sa mga ito ay hindi HTTP suites** — `test:sanitize` at
 `test:grade-computation` ay direct-call unit tests: **walang server, walang
 database**. Pumapasa sila kahit patay ang backend, kaya huwag magtaka.
 
-May isa pang script na hindi kabilang sa 15: `node scripts/verify-grading-seed.js`
-(20 checks) — verification ng grading seed data, patakbuhin **after** ng
-`npm run db:setup`.
+May isa pang script na hindi kabilang sa mga suite:
+`node scripts/verify-grading-seed.js` — verification ng grading seed data,
+patakbuhin **after** ng `npm run db:setup`.
 
 `test:restore` ay sinasadyang **hindi** nag-t-trigger ng totoong restore —
 `DROP DATABASE` iyon sa shared dev DB. Basahin ang RESTORE section ng CLAUDE.md
@@ -338,7 +334,7 @@ Parents_Portal/
 | `npm run db:setup` | Gumawa ng database, tables, at seed data |
 | `npm run dev` | Backend na may auto-restart (`node --watch`) |
 | `npm start` | Backend na walang watch |
-| `npm run test:<suite>` | Isa sa 15 test suites (tingnan sa taas) |
+| `npm run test:<suite>` | Isa sa mga test suites (`docs/TESTING.md`) |
 
 ### `client/`
 

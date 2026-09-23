@@ -71,6 +71,7 @@ split — if a fact seems missing here, it is in one of these.
 |---|---|---|
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
+| `docs/TESTING.md` | every suite and lint baseline, and the two suites whose clean run is not a clean number — **a re-measured figure is updated there, in the same commit** | yes |
 | `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§7b, with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
@@ -156,67 +157,13 @@ subjects-reseed CASCADE is the **opposite** case — destroying `subjects.id`
 wiped assignments *and* grades. **Do not add a grades-exist guard on
 `DELETE /api/assignments/:id`.**
 
-**Tests:** twenty `test:*` scripts — **eighteen HTTP suites** plus two
-direct-call unit tests (`sanitize`, `grade-computation`). **Every count below
-was re-run on 2026-09-22 and EIGHT were stale** — students, grades,
-attendance, content, users, backups, messages and excuses had all drifted
-upward, most since pagination (2026-09-19) touched every list endpoint and no
-dispatch re-ran the ones it did not edit. **The lesson is already in the
-working agreement** ("a dispatch that changes a WRITE path runs every suite
-that WRITES through it"); this is the same failure on the READ side. Do not
-trust a baseline here that has no dated dispatch behind it. **The HTTP suites default `BASE` to
-`http://127.0.0.1:${PORT}`, not `localhost`** — Node `fetch` on Windows
-resolves `localhost` to IPv6 `::1` first while the server listens on IPv4, and
-that mismatch was ECONNRESET mid-run. `process.env.API_BASE` still wins.
-**They are idempotent: every row a suite creates is deleted in a `finally`
-block** (Settings restores its original value; Sections resets the two
-NULL-adviser rows by a direct DB write, not a remembered API call), **so no
-`db:setup` is needed between runs** — verified by running each twice with no
-reset and confirming the Seeded baseline after. `test:sanitize` is a
-direct-call unit test, no server or DB. **`test:restore` never triggers an
-actual restore** — see RESTORE.
-All re-run 2026-09-22; **stale ones marked with their old figure.**
-
-- `npm run test:students` — **94/94** (was 65)
-- `npm run test:sections` — 30/30
-- `npm run test:assignments` — **62/62**
-- `npm run test:grading-modes` — 13/13
-- `npm run test:grades` — **247/247** (was 212. This line has been stale four times over: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239)
-- `npm run test:auth` — 56/56
-- `npm run test:attendance` — **60/60** (was 38)
-- `npm run test:content` — **96/96** (was 62)
-- `npm run test:settings` — 29/29
-- `npm run test:users` — **61/61** (was 47)
-- `npm run test:backups` — **47/47** (was 39)
-- `npm run test:sanitize` — 9/9
-- `npm run test:messages` — **80/80** (was 59)
-- `npm run test:restore` — **28 passed, 1 FAILED** — "A token issued after the cutoff still works". **A test-timing defect, not a code one**, and the same `iat` one-second resolution §11 already records; the production behaviour is correct. **Fix the test, never the comparison.** KNOWN ISSUES
-- `npm run test:excuses` — **92/92** (was 70)
-- `npm run test:notifications` — **136/136** (was 124)
-- `npm run test:dashboard` — 77/77
-- `npm run test:class-record` — **117/117** (CR1 105 → CR2 117). **It is the only suite that imports a CLIENT module** — `buildPayload.js` — so the grid's real payload is exercised against the real API; see §13e
-- `npm run test:class-summary` — **59/59** (CR3). Two assertions are the dispatch: **TCH-002, adviser with zero assignments, gets 200 on the summary AND on a learner's report card.** Its cleanup is a **WATERMARK, not an id list** — `PUT /class-record` creates a shell row for every learner in the class, so deleting only its own learners' grades left eight behind on a SEEDED one (KNOWN ISSUES)
-- `npm run test:recovery` — **62/62, but ONLY against a server started with `MAIL_TRANSPORT=file`.** Otherwise it stops at 11/1 with a fixture failure — the variable belongs to the process that sends the mail, so prefixing the test script does nothing. Run-book in KNOWN ISSUES
-
-`node scripts/verify-grading-seed.js` is not one of the suites above — it's a
-direct-DB verification script (no server, no HTTP, no `assert()` harness),
-checking the Grades seed (transmutation table, weights, modes, Grade 1
-descriptive fixture) is internally consistent. Run it after `db:setup`, before
-trusting the seed. **44/44 as of 2026-09-23** — the descriptive-exclusion
-check **inverted** to "every grade level has weights" when Grade 1 gained its
-own, plus one asserting Grade 1 is exactly 30/50/20. **There is now a second
-reason to run it: after restoring any backup**, because every dump taken
-before 2026-09-22 carries the old subject name (KNOWN ISSUES).
-
-`npm run test:grade-computation` (Stage G2a, extended in G3 with the
-qualitative/letter descriptor lookups and in 2026-09-22's Grade 1 work with
-`bandForScore`) is a direct-call unit test of `utils/gradeComputation.js`, no
-server, no DB, matching `test:sanitize`'s shape. **77/77** (2026-09-22; CR1
-added `componentPercentage`'s `requiredSlotIds` cases), deterministic
-(pure functions). **One of those assertions is the anti-drift check:** the
-letter ladder and the descriptor ladder are one `BANDS` table, and it is
-verified to hold at every whole score 0–100, so a one-sided edit cannot land
-silently.
+**Tests — every baseline lives in `docs/TESTING.md`**: each suite's figure,
+the four lint baselines, and **the two suites whose clean run is not a clean
+number** (`test:restore` 28/1; `test:recovery` without `MAIL_TRANSPORT=file`
+on the SERVER). **A dispatch that re-measures a baseline updates it THERE, in
+the same commit** — a figure corrected in a report and nowhere else is how
+eight counts went stale at once. **The Seeded baseline above is DATA and
+stays here**; it is what the suites assert against, not a count of them.
 
 ### Files that exist
 
@@ -611,10 +558,10 @@ resolves imports, not identifiers; the server suites never load the client.
 **`no-undef` is ENABLED since 2026-09-22** — it was off by default in oxlint's
 `correctness` set, which is how the same undefined-identifier defect shipped
 twice. It needed `env.browser` beside it plus an `overrides` giving
-`scripts/**` `env.node`, or it reports 52 globals and no real bugs; with those,
-it reports **0** and the oxlint total is unchanged by it (**43** since CR3; 41
-deleted `teacher/GradesPage.jsx`; it was 44). Where a
-browser is unavailable, an SSR render via `renderToStaticMarkup` **with a
+`scripts/**` `env.node`, or it reports 52 globals and no real bugs; with those
+it reports 0 and leaves the oxlint total alone (`docs/TESTING.md`).
+**Run lint AFTER the last file of the dispatch is written and say WHEN it
+ran** — §17a. Where a browser is unavailable, an SSR render via `renderToStaticMarkup` **with a
 negative control** is the backstop, not the proof: it cannot catch effect bugs
 (the Modal focus-steal), **and it cannot catch an undefined identifier inside
 a `useEffect` or `useCallback` body either** — measured on 2026-09-22, when an
@@ -713,16 +660,16 @@ sits on a `bg-seal-bg` disc (§9). `:root` holds the raw values, each
 line naming the palette color it equals; `@theme inline` maps them so a
 `[data-theme]` block can swap values at runtime. **`npm run lint:tokens`
 (`client/scripts/check-color-tokens.mjs`) must report 0 on every client
-dispatch**, next to oxlint's **43**. `page`/`surface-subtle` and
+dispatch**, next to oxlint's. `page`/`surface-subtle` and
 `primary`/`bubble-mine` share a light value on purpose — do not merge them.
 **Dark (2026-09-19):** the same variables under `[data-theme="dark"]` — the
 block is the theme, no page changed for it. Light / Dark / System live in
 Settings → Personalization, stored on the device (`pp.theme`, default Light),
 applied by `pages/settings/theme.js` and by an inline script in `index.html`
 before the bundle (keep the two in step by hand); `initTheme()` in `main.jsx`
-keeps System live. **`npm run lint:contrast` must report 0** on every client
-dispatch (**70 pairs × 2 themes, 9 waived** as of 2026-09-22), next to
-`lint:tokens` and oxlint's 43; a failing pair is waived
+keeps System live. **`npm run lint:contrast` must report 0 unwaived** on every
+client dispatch, next to `lint:tokens` and oxlint (all four baselines:
+`docs/TESTING.md`); a failing pair is waived
 only by an allow-list entry whose marker sits on a KNOWN ISSUES row. Full
 text, the proof method, the six accepted light-mode changes (E1–E6) and the
 dark values: `docs/FRONTEND_CONVENTIONS.md` §8.
