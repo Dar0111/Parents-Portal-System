@@ -110,7 +110,13 @@ for (const [page] of PAGES) {
 // ---- 5. status/statusTone mapping ----
 // Every card that shows a status passes the RAW stored value, never a
 // re-cased or re-worded one (§5d: casing is applied by StatusBadge).
-for (const page of ['teacher/ExcuseLettersPage', 'parent/ExcuseLettersPage', 'teacher/AttendanceRecordsPage', 'admin/AttendancePage']) {
+//
+// The two EXCUSE-LETTER pages left this list in UI-B: their cards are modules
+// now, so this regex finds nothing where it used to find the literal, and
+// `scripts/ssr-cards.jsx` asserts the same thing by RENDERING them. The
+// assertion broke because code moved, not because behaviour did — which is
+// the §17d lesson landing on §17d's own evidence.
+for (const page of ['teacher/AttendanceRecordsPage', 'admin/AttendancePage']) {
   const b = stripComments(src(page)).split('renderCard={')[1].slice(0, 900);
   assert(/status:\s*row\.status/.test(b), `${page}: status is the raw row.status`);
   assert(!/statusTone:/.test(b), `${page}: no statusTone override — the central tone map decides`);
