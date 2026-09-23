@@ -4,7 +4,8 @@ import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
-import GradeValue, { SCORE_PENDING, formatScorePair } from '../../format/grade';
+import GradeValue from '../../format/grade';
+import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
 import TermValue from '../../format/TermValue';
 import ReportCard from './ReportCard';
 import { useAuth } from '../../auth/AuthContext';
@@ -100,7 +101,7 @@ import { usePageTitle } from '../../layout/usePageTitle';
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
 // The raw scores behind a term grade. THE FORMATTING IS NOT HERE — it is
-// `formatScorePair` in `format/grade.jsx`, beside `formatWholeGrade`, because
+// `formatScorePair` in `format/scorePair.js`, beside `formatWholeGrade`, since
 // "46.00" and "46" is the same rule as a Term Grade's and belongs in the same
 // file rather than being reimplemented next to the markup that shows it.
 //

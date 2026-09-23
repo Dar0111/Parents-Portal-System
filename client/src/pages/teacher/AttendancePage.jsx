@@ -7,8 +7,8 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import StatusBadge from '../../components/StatusBadge';
 import { todayLocalDateString } from '../../format/date';
+import { rosterColumns } from './attendance/columns';
 import {
   STATUS_ORDER,
   ROW_STATE_LABEL,
@@ -122,82 +122,6 @@ export function RosterCards({ roster, marks, recorded, onPick }) {
       })}
     </ul>
   );
-}
-
-// The desktop table's columns, EXPORTED so a proof can render them (§17b).
-// They were an inline array inside the component, which made every claim
-// about them — headers, which state each cell reads — reachable only by
-// regexing the file, and §17d is the record of what a source-text assertion
-// is worth. Everything they need is a parameter; nothing is closed over.
-//
-// FIVE COLUMNS, and the middle three are one §5b argument:
-//   Saved as  — the DATABASE (`recorded`), written only by loadRoster()
-//   Status    — the DRAFT (`marks`), what the teacher is typing now
-//   Row       — the two COMPARED, which is why they may not share state
-export function rosterColumns({ recorded, marks, onPick }) {
-  return [
-    {
-      key: 'name',
-      header: 'Student',
-      sortable: true,
-      sortValue: (row) => `${row.last_name}, ${row.first_name}`,
-      render: (row) => (
-        <span className="font-medium text-fg">
-          {row.last_name}, {row.first_name}
-        </span>
-      ),
-    },
-    // nowrap: an LRN is an identifier and must never break across lines
-    // (§5a-ii). Safe today because it contains no spaces, so default wrapping
-    // cannot break it — the annotation is belt-and-braces, and it closes the
-    // last of the queued nowrap items. Teacher → Grades, which the queue also
-    // named, no longer exists.
-    { key: 'lrn', header: 'LRN', nowrap: true },
-    {
-      key: 'recorded',
-      // "Saved as", not "Recorded" (UI-A, 2026-09-23). The Row column's first
-      // state IS the word "Recorded", so this header was one column's title
-      // and another column's value — two columns apart, saying different
-      // things with the same word (Darryl, browser check). Neither column
-      // goes: §5b is the reason both exist. Only the header changed, and
-      // "Saved as / Present" reads as the sentence it is.
-      header: 'Saved as',
-      // THE DATABASE, never the dropdown. Reads `recorded`, which only
-      // loadRoster() writes. If you find yourself reaching for `marks` here,
-      // that is the bug this comment exists to prevent — the two columns have
-      // to be able to disagree, otherwise this one is decoration.
-      render: (row) =>
-        recorded.has(row.id) ? (
-          <StatusBadge status={recorded.get(row.id)} />
-        ) : (
-          <span className="text-sm text-fg-muted">Not recorded</span>
-        ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      // The same four buttons as the phone card — one tap, not two, on every
-      // row of a forty-learner roster.
-      render: (row) => <StatusButtons student={row} marks={marks} onPick={onPick} size="web" />,
-    },
-    {
-      key: 'row',
-      header: 'Row',
-      nowrap: true,
-      // THE DATABASE AND THE DRAFT, told apart (§5b). "Recorded" reads
-      // `recorded`; "Changed · not saved" is the two disagreeing. This is the
-      // same distinction the old stored-status column made on its own, now
-      // saying which of the two the teacher is looking at.
-      render: (row) => {
-        const state = rowState(row.id, marks, recorded);
-        return (
-          <span className={`text-sm ${state === 'changed' ? 'text-warning-fg' : 'text-fg-muted'}`}>
-            {ROW_STATE_LABEL[state]}
-          </span>
-        );
-      },
-    },
-  ];
 }
 
 export default function AttendancePage() {

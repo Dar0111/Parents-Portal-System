@@ -11,16 +11,20 @@
 // rendered — walked straight past it (§17d). A source-text assertion proves
 // authorship. This file proves output.
 //
-// What that cost is stated honestly: three things had to be EXTRACTED and
-// exported to be renderable at all — `rosterColumns`, `AbsenceLine`,
-// `EventLine`. That is §17b's rule applied rather than quoted, and the
-// extraction is the improvement, not a workaround for the test.
+// What that cost is stated honestly: three things had to be EXTRACTED to be
+// renderable at all — `rosterColumns`, `AbsenceLine`, `EventLine` — and two
+// of them then had to move into modules of their own, because a function
+// exported beside components trips `react(only-export-components)` and moved
+// the oxlint baseline 43 → 45 in this dispatch's first commit. That is §17b's
+// rule learned twice in one branch, and the extraction is the improvement,
+// not a workaround for the test.
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import DataTable from '../src/components/DataTable.jsx';
-import GradeValue, { SCORE_PENDING, formatScorePair } from '../src/format/grade.jsx';
+import GradeValue from '../src/format/grade.jsx';
+import { SCORE_PENDING, formatScorePair } from '../src/format/scorePair.js';
 import { ScorePair } from '../src/pages/parent/GradesPage.jsx';
-import { rosterColumns } from '../src/pages/teacher/AttendancePage.jsx';
+import { rosterColumns } from '../src/pages/teacher/attendance/columns.jsx';
 import { AbsenceLine } from '../src/pages/dashboards/ParentDashboard.jsx';
 import { EventLine } from '../src/pages/dashboards/TeacherDashboard.jsx';
 
