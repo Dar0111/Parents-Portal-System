@@ -1498,21 +1498,21 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
   `target_section` column**. `format/audience.js` now takes `{ hasSections }`
   so announcements and events differ out loud. **Smoke is 20/20.**
 
-  - [ ] **UI-C1 — every date the app renders.** Item 14 is one symptom:
-    UI-A converted the dashboards to `longDate()`, so **one letter now shows
-    two formats** depending which screen names it. **Audit every list, card,
-    table cell and modal**, all roles — the dashboards were not the whole
-    set, and item 14 exists because nobody checked. Format only, never
-    compute (§5a-iv). Table cells get a new `shortDate()` — **"22 Sep 2026",
-    approved** — and **sorting cannot be affected**: `DataTable` sorts on the
-    row value (`:219`), never the rendered output.
-    **INVESTIGATE FIRST:** the exact wire format of `created_at` and of DATE
-    columns. `shortDate`/`longDate` must render the **Philippine calendar
-    date** — prove a 07:00 PH post shows that day, not the day before.
-    **Then** the two message threads join, with a `dateTime()` helper.
-    **Also carries:** the smoke warm-up (`client/e2e/auth.js`) for the
-    first-call failure, and `.ssr-tmp` in oxlint's ignore list so a lint run
-    never depends on someone remembering to delete build output.
+  **UI-C1a is DONE (2026-09-25) — a live BUG, not polish.** Slicing a
+  `created_at` showed the **previous day before 08:00 PH**, where school
+  mornings are. Rule: **§5a-iv** — two kinds of value, two kinds of helper,
+  and an **aliased timestamp is still a timestamp**.
+
+  - [ ] **UI-C1b — DATE-column formatting, plus two leftovers.** No bug:
+    `dateStrings: ['DATE']` protects these, so it is consistency only.
+    **Item 14** — `shortDate()` on every column still printing raw
+    `YYYY-MM-DD`, `longDate()` in cards and modals. **Sorting is safe**:
+    `DataTable` sorts the row value (`:219`), not the render. **Plus** the
+    Section options reading `Grade 6 - Malikhain` (value stays the bare
+    name — the server scopes on that VARCHAR), and **`backupAge()`**
+    (`AdminDashboard.jsx:34-39`), which counts elapsed 24h blocks and calls
+    it "today": a 23:00 backup seen at 01:00 is 2 hours old and reads
+    "today" when it was yesterday. **Manila calendar days, not subtraction.**
 
   - [ ] **Item 5 — a Pending result set while the Status select reads
     Approved. MOCKUP FIRST, and it is in neither UI-C1 nor C2 for that
@@ -1525,7 +1525,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
     records / Events / Excuse Letters / Students, admin Announcements /
     Attendance / Students / Users). No precedent for the affordance.
 
-- [ ] **UI-D — global CSS, after UI-C1. Two things that live above every page.**
+- [ ] **UI-D — global CSS, after UI-C1b. Two things that live above every page.**
 
   **(a) There is NO print CSS in the client** — not one `print:` variant, not
   one `@media print`. On paper, 2026-09-23: Teacher → Class summary printed

@@ -417,6 +417,50 @@ The SSR proof for any date-bearing screen should include a **leap February**,
 a **month starting on a weekend**, and a **December → January wrap** — three
 cases that arithmetic gets wrong in three different ways.
 
+##### TWO KINDS OF VALUE, TWO KINDS OF HELPER (UI-C1a, 2026-09-25)
+
+The three rules above are about DATE columns. **They do not cover a
+TIMESTAMP, and treating one as the other shipped a live bug for weeks.**
+
+| The value | What it is | Helper |
+|---|---|---|
+| `absence_date`, `event_date`, `attendance.date`, `date_recorded` | `DATE` — a calendar day, no time, no zone. `dateStrings: ['DATE']` delivers it as the literal text `"2026-09-25"` | **`shortDate` / `longDate`** — string surgery, no `Date` ever constructed |
+| every `created_at`, and **anything aliased from one** | `TIMESTAMP` — an instant, serialised by `res.json()` as UTC | **`timestampDay`** (day) or **`dateTime`** (day + clock), both via `Asia/Manila` |
+
+**NEVER slice or split an ISO instant.** `String(created_at).slice(0, 10)`
+was the idiom at seventeen call sites, and it is wrong by a whole day for a
+third of every day:
+
+```
+stored             2026-09-25 07:00:00   (MySQL, time_zone = SYSTEM = PH)
+on the wire        "2026-09-24T23:00:00.000Z"
+.slice(0, 10)      "2026-09-24"          <- the PREVIOUS day
+```
+
+PH is UTC+8, so the UTC date rolls over at **08:00 local**: everything posted
+between midnight and 07:59 displayed as yesterday. School mornings sit inside
+that window. The DATE columns were never affected — `dateStrings` already
+protected them, which is exactly what that config exists for.
+
+**AN ALIASED TIMESTAMP IS STILL A TIMESTAMP, and this is the part that hides.**
+`last_message_at` on `GET /messages/conversations` is `messages.created_at`
+under another name. A grep for `created_at` does not find it, and both
+Messages lists were still sliced after the first sweep declared the job done.
+**Ask what the COLUMN is, not what the field is called.**
+
+**The timezone is hardcoded to the school's**, not taken from the viewer. A
+parent abroad and the teacher who posted must see the same day; the date a
+school record belongs to is a fact about the school.
+
+**The guard is in the helpers, not in review.** `shortDate`/`longDate` detect
+a timestamp, `console.error` in DEV naming the helper, and in production fall
+back to the Manila day rather than the raw string — safe first, loud second.
+
+**Prove it under two timezones.** `TZ=UTC` and `TZ=America/New_York` must give
+identical output, because a helper that reads the host zone passes on a
+Manila laptop and fails everywhere else. `scripts/ssr-dates.jsx` does exactly
+that, plus both 08:00 boundaries and a New Year.
+
 #### 5a-v. The report card is a DOCUMENT, not a list — the one page that leaves DataTable
 
 **Frozen 2026-09-21 (DV3).** `pages/parent/ReportCard.jsx` is the only

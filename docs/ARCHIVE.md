@@ -4381,6 +4381,41 @@ passes `actions` together with `to` or `onSelect`. Six cards carry `actions`
 `teacher/AnnouncementsPage`, `teacher/EventsPage` — and every one of them is
 a static card with peer actions, which is the sanctioned shape.
 
+### UI-C1's entry — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **UI-C1a** (`5125b07`, browser check
+passed). What remains of it is **UI-C1b**, which is consistency only; the
+part that was a live bug is done.
+
+```
+  - [ ] **UI-C1 — every date the app renders.** Item 14 is one symptom:
+    UI-A converted the dashboards to `longDate()`, so **one letter now shows
+    two formats** depending which screen names it. **Audit every list, card,
+    table cell and modal**, all roles — the dashboards were not the whole
+    set, and item 14 exists because nobody checked. Format only, never
+    compute (§5a-iv). Table cells get a new `shortDate()` — **"22 Sep 2026",
+    approved** — and **sorting cannot be affected**: `DataTable` sorts on the
+    row value (`:219`), never the rendered output.
+    **INVESTIGATE FIRST:** the exact wire format of `created_at` and of DATE
+    columns. `shortDate`/`longDate` must render the **Philippine calendar
+    date** — prove a 07:00 PH post shows that day, not the day before.
+    **Then** the two message threads join, with a `dateTime()` helper.
+    **Also carries:** the smoke warm-up (`client/e2e/auth.js`) for the
+    first-call failure, and `.ssr-tmp` in oxlint's ignore list so a lint run
+    never depends on someone remembering to delete build output.
+```
+
+**The INVESTIGATE-FIRST line earned its place and is the reason this landed
+correctly.** The investigation measured the wire format instead of assuming
+it — writing a known 07:00 PH timestamp, reading it back, and watching
+`.slice(0, 10)` return the previous day — which is how a "formatting
+inconsistency" turned out to be a live defect affecting a third of every day.
+
+**The warm-up it also carried was a dead end, and that is recorded rather
+than quietly dropped:** `globalSetup` runs in Node and the failure is in
+Chromium, so Node cannot warm a browser that has not started. Reverted; a
+`requestfailed` diagnostic replaces it. `docs/KNOWN_ISSUES.md` has the row.
+
 ### UI-C2's closed items — moved from CLAUDE.md on 2026-09-24
 
 Under the REFILL RULE, closed by **UI-C2** (`d1e7850` + `cc1ecbc`, browser
