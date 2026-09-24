@@ -4,6 +4,7 @@ import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import { shortDate } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
 import TermValue from '../../format/TermValue';
@@ -142,8 +143,15 @@ function ComponentList({ title, rows, empty }) {
             <li key={row.id} className="flex items-baseline justify-between gap-3 py-1.5">
               <div className="min-w-0">
                 <p className="text-sm text-fg-secondary">{row.label}</p>
+                {/* SHORT, not long, and the brief did not name this site:
+                    it is a per-row secondary line in a dense list of
+                    assessments, which is a table row's shape rather than a
+                    reading view's. `date_recorded` is a DATE column
+                    (schema.sql:319), so this is string surgery on the
+                    literal "2026-09-25" — nothing parsed, nothing shifted
+                    (§5a-iv). */}
                 {row.date_recorded ? (
-                  <p className="text-xs text-fg-muted">{row.date_recorded}</p>
+                  <p className="text-xs text-fg-muted">{shortDate(row.date_recorded)}</p>
                 ) : null}
               </div>
               <ScorePair score={row.score} max={row.max_score} />

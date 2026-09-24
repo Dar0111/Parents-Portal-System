@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import { longDate } from '../../format/date';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -243,7 +244,10 @@ export default function StudentDetailPage() {
             created_by (a raw user id), timestamps (bookkeeping). */}
         <dl className="mt-5 grid gap-5 sm:grid-cols-2">
           <Field label="LRN" value={student.lrn} />
-          <Field label="Birthday" value={student.birthday} />
+          {/* Read-only field only (UI-C1b) — the sibling of the same line on
+              teacher/StudentDetailPage.jsx. The <input type="date"> in the
+              edit modal keeps the raw YYYY-MM-DD. */}
+          <Field label="Birthday" value={longDate(student.birthday)} />
           <Field label="Gender" value={titleCase(student.gender)} />
           <Field label="Contact number" value={student.contact_number} />
           {/* Which it is, not a button: POST /users/parents is teacher-only.

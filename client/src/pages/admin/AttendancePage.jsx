@@ -6,6 +6,7 @@ import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
+import { longDate, shortDate } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Admin attendance records — Figure 5 process 1.15 ("view all attendance
@@ -199,7 +200,10 @@ export default function AdminAttendancePage() {
   })();
 
   const columns = [
-    { key: 'date', header: 'Date', sortable: true },
+    // A DATE column: `dateStrings: ['DATE']` delivers it as the literal
+    // "2026-09-25", so `shortDate` is string surgery and cannot shift a day
+    // (§5a-iv). Sorting is untouched — DataTable sorts the row value.
+    { key: 'date', header: 'Date', sortable: true, render: (row) => shortDate(row.date) },
     {
       key: 'student',
       header: 'Student',
@@ -332,7 +336,7 @@ export default function AdminAttendancePage() {
             renderCard={(row) => ({
               avatar: `${row.first_name} ${row.last_name}`,
               title: `${row.last_name}, ${row.first_name}`,
-              meta: `${row.date} · Grade ${row.grade_level} - ${row.section}`,
+              meta: `${longDate(row.date)} · Grade ${row.grade_level} - ${row.section}`,
               status: row.status,
             })}
             columns={columns}

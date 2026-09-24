@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
+import { longDate, shortDate } from '../../format/date';
 import teacherLetterCard from './excuseLetters/card';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -252,7 +253,15 @@ export default function ExcuseLettersPage() {
           </div>
         ),
       },
-      { key: 'absence_date', header: 'Absence date', sortable: true },
+      // A DATE column: the literal "2026-09-25" arrives as a string and
+      // `shortDate` rewrites it as one (§5a-iv). DataTable sorts the raw row
+      // value, so the column still sorts chronologically.
+      {
+        key: 'absence_date',
+        header: 'Absence date',
+        sortable: true,
+        render: (row) => shortDate(row.absence_date),
+      },
       {
         key: 'reason',
         header: 'Reason',
@@ -422,7 +431,7 @@ export default function ExcuseLettersPage() {
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Absence date</dt>
-                <dd className="mt-0.5 text-sm text-fg">{reviewing.absence_date}</dd>
+                <dd className="mt-0.5 text-sm text-fg">{longDate(reviewing.absence_date)}</dd>
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Class</dt>

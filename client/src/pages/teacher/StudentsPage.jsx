@@ -416,8 +416,14 @@ export default function StudentsPage() {
               Safe as a select because section NAMES are unique across the
               school: all 23 are distinct, checked against the database
               before building this rather than assumed. If that ever stops
-              being true this must carry the grade too, or two classes
+              being true this must KEY on the grade too, or two classes
               collapse into one option.
+
+              THE LABEL CARRIES THE GRADE, THE VALUE DOES NOT (UI-C1b).
+              Uniqueness makes the bare name a correct key; it never made it
+              a readable label, and a teacher across two grades read
+              "Malikhain" and "Masigasig" beside a Grade & section column
+              that named both in full.
 
               HIDDEN AT ONE OPTION: a teacher with a single section has
               nothing to filter, and on the seeded data that is every
@@ -432,9 +438,12 @@ export default function StudentsPage() {
               onChange={(e) => setSection(e.target.value)}
             >
               <option value="">All my sections</option>
+              {/* value = the bare section name, which is what the filter
+                  compares and what ?section= takes; label = the full
+                  "Grade 6 - Malikhain" (UI-C1b). */}
               {filterSections.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </FormField>

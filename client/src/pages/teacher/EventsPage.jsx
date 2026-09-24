@@ -5,7 +5,7 @@ import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
-import { todayLocalDateString } from '../../format/date';
+import { shortDate, todayLocalDateString } from '../../format/date';
 import { staffAudienceLabel } from '../../format/audience';
 import teacherEventCard from './events/card';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
@@ -186,7 +186,10 @@ export default function EventsPage() {
           </div>
         ),
       },
-      { key: 'event_date', header: 'Date', sortable: true },
+      // A DATE column: the literal "2026-09-25" arrives as a string and
+      // `shortDate` rewrites it as one (§5a-iv). DataTable sorts the raw row
+      // value, so the column still sorts chronologically.
+      { key: 'event_date', header: 'Date', sortable: true, render: (row) => shortDate(row.event_date) },
       {
         key: 'audience',
         header: 'Audience',

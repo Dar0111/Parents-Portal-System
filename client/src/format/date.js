@@ -247,6 +247,66 @@ export function timestampDay(value, { style = 'short' } = {}) {
   return style === 'long' ? `${d} ${monthName(m)} ${y}` : `${d} ${monthName(m).slice(0, 3)} ${y}`;
 }
 
+// The Manila calendar day of an instant, as "YYYY-MM-DD" — the comparable
+// form. `timestampDay` above is for READING; this is for ARITHMETIC, and
+// keeping them apart stops anyone parsing a display string back into a date.
+function manilaDayKey(value) {
+  // `new Date(null)` is the EPOCH, not an invalid date — so a missing
+  // timestamp would silently become 1 January 1970 and report itself as
+  // twenty thousand days old. The nullish check has to come first; the
+  // NaN check below cannot catch it.
+  if (value === null || value === undefined || value === '') return null;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SCHOOL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(at);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  const y = get('year');
+  const m = get('month');
+  const d = get('day');
+  return y && m && d ? `${y}-${m}-${d}` : null;
+}
+
+// HOW MANY CALENDAR DAYS AGO, in Manila — not how many 24-hour blocks.
+//
+// The distinction is the bug this replaces. `AdminDashboard` computed
+// `Math.floor((Date.now() - then) / 86400000)` and called 0 "today", so a
+// backup taken at 23:00 and looked at from 01:00 the next morning was two
+// hours old, scored 0, and reported **"Last backup today"** when it was
+// yesterday. Elapsed duration and calendar distance are different questions
+// and only one of them is what "today" means.
+//
+// Both days are reduced to their Manila date first and compared as days, so
+// the answer does not depend on the hour, on the viewer's zone, or on
+// whether a month or year boundary sits between them.
+//
+// `now` is a parameter so a proof can fix it. A helper that reads the clock
+// internally can only be tested at whatever time the test happens to run.
+export function calendarDaysAgo(value, now = Date.now()) {
+  const then = manilaDayKey(value);
+  const today = manilaDayKey(now);
+  if (!then || !today) return null;
+  // UTC constructors on a date-only key: both sides are built the same way,
+  // so the difference is exact whole days with no zone in it at all.
+  const [ty, tm, td] = then.split('-').map(Number);
+  const [ny, nm, nd] = today.split('-').map(Number);
+  const msPerDay = 86400000;
+  return Math.round((Date.UTC(ny, nm - 1, nd) - Date.UTC(ty, tm - 1, td)) / msPerDay);
+}
+
+// "today" / "yesterday" / "3 days ago" — the words for the number above.
+export function calendarDaysAgoLabel(value, now = Date.now()) {
+  const days = calendarDaysAgo(value, now);
+  if (days === null) return null;
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
+}
+
 // "25 Sep 2026, 7:00 AM" — an instant WITH its time, for the one place the
 // time of day is the point: a message in a thread.
 export function dateTime(value) {

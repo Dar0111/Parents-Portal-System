@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { useSocket } from '../../realtime/SocketProvider';
+import { calendarDaysAgo, calendarDaysAgoLabel } from '../../format/date';
 import Card, { CardEmpty, Stat } from './Card';
 import { useCard } from './useCard';
 
@@ -31,11 +32,22 @@ import { useCard } from './useCard';
 // (spec). A stale backup is a prompt, not a failure: the data is still
 // there, and colouring it red would put a permanent alarm on a dashboard
 // somebody has to look at every day.
+// CALENDAR DAYS, NOT ELAPSED HOURS (UI-C1b).
+//
+// This divided the millisecond difference by 86400000 and called 0 "today",
+// which is a duration, not a date: a backup taken at 23:00 and read at 01:00
+// the next morning is two hours old, scored 0, and reported **"Last backup
+// today"** when it had been yesterday. `calendarDaysAgo` reduces both
+// instants to their Manila calendar day first, so the answer depends on the
+// date and not the hour.
+//
+// The 7-day tone boundary keeps the same meaning and now uses the same
+// counting as the words beside it.
 function backupAge(createdAt) {
   if (!createdAt) return { tone: 'warning', label: 'No backup yet' };
-  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
-  const when = days === 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
-  return { tone: days <= 7 ? 'success' : 'warning', label: `Last backup ${when}` };
+  const days = calendarDaysAgo(createdAt);
+  if (days === null) return { tone: 'warning', label: 'No backup yet' };
+  return { tone: days <= 7 ? 'success' : 'warning', label: `Last backup ${calendarDaysAgoLabel(createdAt)}` };
 }
 
 export default function AdminDashboard() {

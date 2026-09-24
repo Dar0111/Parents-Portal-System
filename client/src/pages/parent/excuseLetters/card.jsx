@@ -1,3 +1,5 @@
+import { longDate } from '../../../format/date';
+
 // The parent's excuse-letter card, below `sm`.
 //
 // WHY ITS OWN MODULE: it is a conditional card, and a conditional card is
@@ -29,10 +31,16 @@
 // which is where it already was and where one tap now reaches it.
 //
 // No LRN and no `login_id` (§5c) — there is none in the payload to leak.
+//
+// THE DATE IS THE TITLE, so it gets the long form (UI-C1b): a card has no
+// Date column beside it to borrow context from, and this is the one line a
+// parent scans. `absence_date` is a DATE column, delivered as the literal
+// "2026-09-25" by `dateStrings: ['DATE']`, so `longDate` is string surgery
+// and cannot shift a day (§5a-iv).
 export default function parentLetterCard(row, { onRead }) {
   return {
     onSelect: () => onRead(row),
-    title: `Absence on ${row.absence_date}`,
+    title: `Absence on ${longDate(row.absence_date)}`,
     subtitle: row.reason,
     status: row.status,
   };

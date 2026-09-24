@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import { longDate } from '../../format/date';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -424,7 +425,13 @@ export default function StudentDetailPage() {
             created_at/updated_at (record bookkeeping, not the student). */}
         <dl className="mt-5 grid gap-5 sm:grid-cols-2">
           <Field label="LRN" value={student.lrn} />
-          <Field label="Birthday" value={student.birthday} />
+          {/* THE READ-ONLY FIELD ONLY (UI-C1b). `birthday` is a DATE column,
+              so it arrives as the literal "2013-04-07" and `longDate` is
+              string surgery on it (§5a-iv); a null falls through unchanged
+              and `Field` still renders "Not recorded". The EDIT control below
+              is an <input type="date"> and keeps the raw YYYY-MM-DD, which is
+              the only value that element accepts. */}
+          <Field label="Birthday" value={longDate(student.birthday)} />
           {/* Status is NOT repeated here — the badge in the header above
               already carries it, is scannable, and matches how status reads on
               the list. Repeating it in the definition list read as duplication

@@ -5,6 +5,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
+import { longDate, shortDate } from '../../format/date';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
@@ -141,7 +142,10 @@ export default function AttendanceRecordsPage() {
 
   const columns = useMemo(
     () => [
-      { key: 'date', header: 'Date', sortable: true },
+      // A DATE column: the literal "2026-09-25" arrives as a string and
+      // `shortDate` rewrites it as one (§5a-iv). DataTable sorts the raw row
+      // value, so the column still sorts chronologically.
+      { key: 'date', header: 'Date', sortable: true, render: (row) => shortDate(row.date) },
       {
         key: 'student',
         header: 'Student',
@@ -273,7 +277,7 @@ export default function AttendanceRecordsPage() {
         renderCard={(row) => ({
           avatar: `${row.first_name} ${row.last_name}`,
           title: `${row.last_name}, ${row.first_name}`,
-          meta: row.date,
+          meta: longDate(row.date),
           status: row.status,
         })}
         columns={columns}

@@ -1,3 +1,5 @@
+import { longDate } from '../../../format/date';
+
 // The teacher's excuse-letter card, below `sm`.
 //
 // EXTRACTED IN UI-B WITH NO BEHAVIOUR CHANGE. It is here for the same reason
@@ -27,6 +29,11 @@
 // re-read even on desktop. That is a real gap, it is NOT this card's to fix,
 // and it is a `docs/KNOWN_ISSUES.md` row rather than a silent one.
 //
+// THE LONG DATE FORM, like every other card (UI-C1b): there is no Date
+// column beside a card to borrow context from. `absence_date` is a DATE
+// column, delivered as the literal "2026-09-25", so this is string surgery
+// (§5a-iv).
+//
 // `canReview` stays on the page: it closes over `advisorySections`, and its
 // caveat — the client matches grade_level + section NAME while the server
 // decides on students.section_id — belongs beside the state it reads.
@@ -36,7 +43,7 @@ export default function teacherLetterCard(row, { canReview, onReview }) {
     avatar: `${row.first_name} ${row.last_name}`,
     title: `${row.last_name}, ${row.first_name}`,
     subtitle: row.reason,
-    meta: `${row.absence_date} · Grade ${row.grade_level} - ${row.section}`,
+    meta: `${longDate(row.absence_date)} · Grade ${row.grade_level} - ${row.section}`,
     status: row.status,
   };
 }

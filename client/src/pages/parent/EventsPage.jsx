@@ -4,7 +4,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
-import { todayLocalDateString } from '../../format/date';
+import { longDate, shortDate, todayLocalDateString } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -182,7 +182,11 @@ export default function ParentEventsPage() {
           </div>
         ),
       },
-      { key: 'event_date', header: 'Date', sortable: true },
+      // `event_date` is a DATE column, so `dateStrings: ['DATE']` hands it
+      // over as the literal "2026-09-25" and shortDate is string surgery on
+      // it — nothing is parsed, so nothing can shift a day (§5a-iv). The
+      // sort is unaffected: DataTable sorts the raw row value, not this.
+      { key: 'event_date', header: 'Date', sortable: true, render: (row) => shortDate(row.event_date) },
     ],
     []
   );
@@ -210,7 +214,7 @@ export default function ParentEventsPage() {
           onSelect: () => setReading(row),
           title: row.title,
           subtitle: row.description || undefined,
-          meta: row.event_date,
+          meta: longDate(row.event_date),
         })}
         columns={columns}
         rows={rows}
@@ -245,7 +249,7 @@ export default function ParentEventsPage() {
       >
         <div className="max-h-[70vh] overflow-y-auto">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-            <span>{reading?.event_date}</span>
+            <span>{reading ? longDate(reading.event_date) : null}</span>
             <span aria-hidden="true">·</span>
             <span>{reading ? audienceLabel(reading) : null}</span>
             <span aria-hidden="true">·</span>

@@ -26,12 +26,53 @@
 // KEYED ON THE SECTION NAME ALONE, which is safe only because section names
 // are unique across the school — all 23 distinct, checked against the
 // database before this was built. If that ever stops being true this must
-// carry the grade level too, or two classes collapse into one option.
+// key on the grade level too, or two classes collapse into one option.
+//
+// THE VALUE AND THE LABEL ARE TWO DIFFERENT THINGS (UI-C1b).
+//
+//   value — the bare section name, because that is what the filter compares
+//           against `row.section` and what `GET /students` takes as
+//           `?section=`. It must NOT gain the grade prefix.
+//   label — "Grade 6 - Malikhain", the same wording every other surface in
+//           the app uses for a class.
+//
+// The bare name alone was not wrong, it was incomplete: a teacher across two
+// grades saw "Malikhain" and "Masigasig" with nothing to say which grade
+// either belonged to, while the Grade & section column beside it named both
+// in full (browser check, 2026-09-24). Uniqueness makes the bare name a
+// correct KEY; it does not make it a readable LABEL.
+//
+// ORDERED BY GRADE, THEN BY NAME — which is what the labels read as, so the
+// list cannot be sorted one way and read another. A section whose grade is
+// missing from both sources keeps the bare name as its label and sorts last.
 export function sectionOptions(classOptions, students) {
-  const names = new Set();
-  for (const c of classOptions || []) if (c.section) names.add(c.section);
-  for (const s of students || []) if (s.section) names.add(s.section);
-  return [...names].sort((a, b) => a.localeCompare(b));
+  const byName = new Map();
+  const add = (row) => {
+    if (!row || !row.section) return;
+    if (!byName.has(row.section)) {
+      byName.set(row.section, { value: row.section, grade_level: row.grade_level ?? null });
+      return;
+    }
+    // First non-null grade wins: the two sources are the same classes seen
+    // from different angles, so a row that carries the grade fills in for
+    // one that does not.
+    const seen = byName.get(row.section);
+    if (seen.grade_level == null && row.grade_level != null) seen.grade_level = row.grade_level;
+  };
+  for (const c of classOptions || []) add(c);
+  for (const s of students || []) add(s);
+
+  return [...byName.values()]
+    .sort((a, b) => {
+      const ga = a.grade_level == null ? Infinity : Number(a.grade_level);
+      const gb = b.grade_level == null ? Infinity : Number(b.grade_level);
+      if (ga !== gb) return ga - gb;
+      return a.value.localeCompare(b.value);
+    })
+    .map((s) => ({
+      value: s.value,
+      label: s.grade_level == null ? s.value : `Grade ${s.grade_level} - ${s.value}`,
+    }));
 }
 
 // ONE SECTION MEANS NO FILTER. A teacher with a single section has nothing

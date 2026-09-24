@@ -126,28 +126,78 @@ for (const [name, html] of [['announcement', annHtml], ['event', evtHtml]]) {
 // ------------------------------------------------- E. the Section filter
 console.log('\nE. the Section filter options:');
 
-const asg = (section) => ({ grade_level: 6, section });
-const stu = (section) => ({ id: 1, section });
+const asg = (section, grade_level = 6) => ({ grade_level, section });
+const stu = (section, grade_level = 6) => ({ id: 1, section, grade_level });
 
 // A teacher with ONE section: nothing to choose between, so no control.
 const one = sectionOptions([asg('Malikhain')], [stu('Malikhain')]);
-assert(one.length === 1 && one[0] === 'Malikhain', 'one section is found once, not twice');
+assert(one.length === 1 && one[0].value === 'Malikhain', 'one section is found once, not twice');
 assert(!showSectionFilter(one), 'and the filter is HIDDEN — a one-option select cannot change anything');
 
 // TWO sections: the control appears.
 const two = sectionOptions([asg('Malikhain'), asg('Masigasig')], [stu('Malikhain')]);
 assert(two.length === 2, 'two sections');
 assert(showSectionFilter(two), 'and the filter is shown');
-assert(two[0] === 'Malikhain' && two[1] === 'Masigasig', 'sorted, so the order does not depend on fetch order');
+assert(
+  two[0].value === 'Malikhain' && two[1].value === 'Masigasig',
+  'sorted, so the order does not depend on fetch order'
+);
 
 // THE ADVISER WITH NO ASSIGNMENTS — the case assignments alone would miss.
 // That account is in the seed: the teacher who advises Grade 5 - Masigasig
 // teaches no subject. Their students are on screen; their assignments are [].
-const adviser = sectionOptions([], [stu('Masigasig'), stu('Masigasig')]);
-assert(adviser.length === 1 && adviser[0] === 'Masigasig', 'an adviser with NO assignments still gets their section');
+const adviser = sectionOptions([], [stu('Masigasig', 5), stu('Masigasig', 5)]);
+assert(
+  adviser.length === 1 && adviser[0].value === 'Masigasig',
+  'an adviser with NO assignments still gets their section'
+);
 assert(
   sectionOptions([], []).length === 0,
   'and no data at all yields nothing rather than throwing'
+);
+
+// ---- UI-C1b: the LABEL carries the grade, the VALUE never does.
+//
+// The bug this fixes is a teacher across two GRADES: "Malikhain" and
+// "Masigasig" side by side said nothing about which class either was, while
+// the Grade & section column beside them named both in full.
+const twoGrades = sectionOptions([asg('Malikhain', 6), asg('Masigasig', 5)], []);
+assert(
+  twoGrades[0].label === 'Grade 5 - Masigasig' && twoGrades[1].label === 'Grade 6 - Malikhain',
+  'each option is labelled "Grade N - Name", and they order BY GRADE — not alphabetically by name'
+);
+assert(
+  twoGrades[0].value === 'Masigasig' && twoGrades[1].value === 'Malikhain',
+  'THE VALUES STAY BARE: the filter compares row.section and ?section= takes the name alone'
+);
+assert(
+  twoGrades.every((o) => o.label !== o.value),
+  'label and value are genuinely different strings, so a value could not be rendered by accident'
+);
+// NEGATIVE CONTROL for the ordering claim: alphabetical by NAME would put
+// Malikhain first. It does not, so the sort really is by grade.
+assert(
+  ['Malikhain', 'Masigasig'].sort((a, b) => a.localeCompare(b))[0] === 'Malikhain' &&
+    twoGrades[0].value === 'Masigasig',
+  'NEGATIVE CONTROL: name-alphabetical would have put Malikhain first'
+);
+// The grade can arrive from EITHER source. An adviser's section reaches the
+// list through the loaded students, not through assignments.
+assert(
+  sectionOptions([], [stu('Masigasig', 5)])[0].label === 'Grade 5 - Masigasig',
+  'the grade is read off the student rows too, not only off assignments'
+);
+// One source knows the grade and the other does not — the same class seen
+// twice must still come out labelled.
+assert(
+  sectionOptions([{ section: 'Masigasig' }], [stu('Masigasig', 5)])[0].label === 'Grade 5 - Masigasig',
+  'a row missing the grade does not erase a grade another row supplied'
+);
+// And a section nobody supplies a grade for degrades to the bare name
+// rather than rendering "Grade null - Masigasig".
+assert(
+  sectionOptions([{ section: 'Masigasig' }], [])[0].label === 'Masigasig',
+  'no grade anywhere falls back to the bare name, never to "Grade null - …"'
 );
 
 // NEGATIVE CONTROL: drop the students leg and the adviser's section vanishes

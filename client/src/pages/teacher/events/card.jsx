@@ -1,4 +1,5 @@
 import { staffAudienceLabel } from '../../../format/audience';
+import { longDate } from '../../../format/date';
 
 // The teacher's event card, below `sm`.
 //
@@ -21,8 +22,10 @@ import { staffAudienceLabel } from '../../../format/audience';
 // a wording that fits neither.
 //
 // The date leads and the audience follows: for an event, WHEN is the fact
-// being scanned for. Date formatting is UI-C1's dispatch, so `event_date`
-// passes through exactly as before (§5a-iv).
+// being scanned for — so UI-C1b gives it the LONG form. A card has no Date
+// column beside it to borrow context from. `event_date` is a DATE column, so
+// `dateStrings: ['DATE']` delivers the literal "2026-09-25" and `longDate`
+// rewrites that string; nothing is parsed and nothing can shift (§5a-iv).
 //
 // Static card, actions underneath, no chevron — Edit and Delete are two
 // peers (§5a-iii), and `actions` only renders because there is no `to` or
@@ -31,7 +34,7 @@ export default function teacherEventCard(row, { actions }) {
   return {
     title: row.title,
     subtitle: row.description || undefined,
-    meta: `${row.event_date} · ${staffAudienceLabel(row, { hasSections: false })}`,
+    meta: `${longDate(row.event_date)} · ${staffAudienceLabel(row, { hasSections: false })}`,
     actions,
   };
 }

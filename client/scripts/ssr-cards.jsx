@@ -156,7 +156,7 @@ assert(
   (parentHtml.match(/fa-chevron-right/g) || []).length === 3,
   'and every one shows a chevron — Declined and Approved included'
 );
-assert(parentHtml.includes('Absence on 2026-09-21'), 'the card titles the absence date');
+assert(parentHtml.includes('Absence on 21 September 2026'), 'the card titles the absence date');
 assert(parentHtml.includes('Fever') && parentHtml.includes('Clinic'), 'the reason is the subtitle');
 
 // The defect DV1b-a shipped: a Declined letter with no route into the
