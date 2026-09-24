@@ -4381,6 +4381,47 @@ passes `actions` together with `to` or `onSelect`. Six cards carry `actions`
 `teacher/AnnouncementsPage`, `teacher/EventsPage` — and every one of them is
 a static card with peer actions, which is the sanctioned shape.
 
+### UI-C2's closed items — moved from CLAUDE.md on 2026-09-24
+
+Under the REFILL RULE, closed by **UI-C2** (`d1e7850` + `cc1ecbc`, browser
+check passed 1-10). Items 4 and 12, SMOKE-1's findings 1, 2, 5, 6, 7 and 12,
+and the Remarks hint. **Item 14 (dates) did NOT close and stays as UI-C1.**
+
+```
+  - [ ] **UI-C — items 4, 12 and 14, plus a date audit, plus SMOKE-1's.**
+    **From the smoke sweep (2026-09-24):** `/teacher/grades` and
+    `/teacher/class-summary` each render **TWO `<h1>`** — Shell's and their
+    own — **which is the whole of the eight smoke failures**; the Students
+    section placeholder names a Grade 6 section to the Grade 1 adviser; the
+    grade filter reads "All I can read"; Parent → Settings uses an em dash
+    for the class where everywhere else uses a hyphen; and the report card's
+    **transmutation sentence should show only when a term grade exists**.
+    **(4) Settings → Personalization at 200% zoom** squeezes its panel into a
+    narrow column: the nav is `sm:w-[14.5rem] sm:shrink-0` and cannot give
+    width back, and 200% halves the CSS viewport so a 1280px window lands at
+    `sm` exactly. **A real 640–767px tablet has the same squeeze**, so it is
+    not only a zoom bug; the fix is the breakpoint.
+    **(12) One audience, three labels.** One label per audience for STAFF,
+    **the parent wording stays**, being written to its reader. Seven render
+    sites in four files, and `teacher/EventsPage`'s card is a fourth variant
+    that **drops the section entirely**.
+```
+
+**THE LAST SENTENCE OF (12) IS FALSE AND IS KEPT AS WRITTEN**, because that
+is the point of an archive. `teacher/EventsPage`'s card did not drop a
+section: **the `events` table has no `target_section` column at all**
+(`schema.sql`; `routes/content.js` :147, :562, :591). An event is
+school-wide or a whole grade and nothing else. The claim went from my plan
+into a commit message and a code comment before the API refused a posted
+`target_section` and returned it null. `staffAudienceLabel` now takes
+`{ hasSections }` so the two content types differ out loud.
+
+**Item 4 closed differently from how it reads, too.** The 200% squeeze is
+real but the fix is `md:`, and Darryl's check added the fact that made it
+worth knowing: **on a 1920px screen, 200% zoom leaves ~960px**, which is
+above `md`, so side-by-side is correct there and nothing is squeezed. The
+bug bites at 1280px and on a genuine small tablet, not at every zoom level.
+
 ### The Data views redesign preamble — moved from CLAUDE.md on 2026-09-24
 
 The block that introduced DV1–DV4 and DV1b. **Every piece it queued is

@@ -1491,32 +1491,32 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       `className || 'text-fg'`, NOT pure inheritance** — nothing sets a base
       text colour, so *inherit* means black, and **UI-D** takes it.
 
-  - [ ] **UI-C — items 4, 12 and 14, plus a date audit, plus SMOKE-1's.**
-    **From the smoke sweep (2026-09-24):** `/teacher/grades` and
-    `/teacher/class-summary` each render **TWO `<h1>`** — Shell's and their
-    own — **which is the whole of the eight smoke failures**; the Students
-    section placeholder names a Grade 6 section to the Grade 1 adviser; the
-    grade filter reads "All I can read"; Parent → Settings uses an em dash
-    for the class where everywhere else uses a hyphen; and the report card's
-    **transmutation sentence should show only when a term grade exists**.
-    **(4) Settings → Personalization at 200% zoom** squeezes its panel into a
-    narrow column: the nav is `sm:w-[14.5rem] sm:shrink-0` and cannot give
-    width back, and 200% halves the CSS viewport so a 1280px window lands at
-    `sm` exactly. **A real 640–767px tablet has the same squeeze**, so it is
-    not only a zoom bug; the fix is the breakpoint.
-    **(12) One audience, three labels.** One label per audience for STAFF,
-    **the parent wording stays**, being written to its reader. Seven render
-    sites in four files, and `teacher/EventsPage`'s card is a fourth variant
-    that **drops the section entirely**.
-    **(14) Raw ISO dates on the excuse-letter surfaces**, parent and teacher —
-    cards, reading view, review modal. **UI-A converted the dashboards to
-    `longDate()`, so ONE letter now shows two formats** depending which screen
-    names it. Format only, never compute (§5a-iv). **The plan audits every
-    list, card and modal that renders a date**; the dashboards were not the
-    whole set, and item 14 exists because nobody checked.
+  **UI-C2 is DONE (2026-09-24)** — items 4 and 12, SMOKE-1's findings 1, 2,
+  5, 6, 7 and 12, and the Remarks hint. Its entry left under the REFILL RULE
+  (`docs/ARCHIVE.md`), which keeps the one sentence in it that was **false**:
+  events were said to drop a section, and **the `events` table has no
+  `target_section` column**. `format/audience.js` now takes `{ hasSections }`
+  so announcements and events differ out loud. **Smoke is 20/20.**
+
+  - [ ] **UI-C1 — every date the app renders.** Item 14 is one symptom:
+    UI-A converted the dashboards to `longDate()`, so **one letter now shows
+    two formats** depending which screen names it. **Audit every list, card,
+    table cell and modal**, all roles — the dashboards were not the whole
+    set, and item 14 exists because nobody checked. Format only, never
+    compute (§5a-iv). Table cells get a new `shortDate()` — **"22 Sep 2026",
+    approved** — and **sorting cannot be affected**: `DataTable` sorts on the
+    row value (`:219`), never the rendered output.
+    **INVESTIGATE FIRST:** the exact wire format of `created_at` and of DATE
+    columns. `shortDate`/`longDate` must render the **Philippine calendar
+    date** — prove a 07:00 PH post shows that day, not the day before.
+    **Then** the two message threads join, with a `dateTime()` helper.
+    **Also carries:** the smoke warm-up (`client/e2e/auth.js`) for the
+    first-call failure, and `.ssr-tmp` in oxlint's ignore list so a lint run
+    never depends on someone remembering to delete build output.
 
   - [ ] **Item 5 — a Pending result set while the Status select reads
-    Approved. MOCKUP FIRST, and it is not in UI-C for that reason.**
+    Approved. MOCKUP FIRST, and it is in neither UI-C1 nor C2 for that
+    reason.**
     **DIAGNOSIS CORRECTED 2026-09-23: not the §5f violation it was filed as** —
     that page's empty copy already has one branch per applied value. The
     filter is **submit-gated**: the select writes form state, the list and the
@@ -1525,7 +1525,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
     records / Events / Excuse Letters / Students, admin Announcements /
     Attendance / Students / Users). No precedent for the affordance.
 
-- [ ] **UI-D — global CSS, after UI-C. Two things that live above every page.**
+- [ ] **UI-D — global CSS, after UI-C1. Two things that live above every page.**
 
   **(a) There is NO print CSS in the client** — not one `print:` variant, not
   one `@media print`. On paper, 2026-09-23: Teacher → Class summary printed

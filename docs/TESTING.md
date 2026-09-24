@@ -116,6 +116,7 @@ npx vite build --ssr scripts/<name>.jsx --outDir .ssr-tmp && node .ssr-tmp/<name
 | Proof | Baseline | What it covers |
 |---|---|---|
 | `ssr-cards.jsx` | **31/31** | the card contract, by RENDERING — `actions` beside a primary action, the DEV guard, both excuse-letter cards. **Needs `NODE_ENV=development`, see below** |
+| `ssr-ui-c2.jsx` | **33/33** | the one staff audience wording and its `hasSections` split, the Section filter's option logic, and the report card's conditional copy. **It does NOT cover the Remarks hint** — that is behind a click inside a Modal, said in its own header so a green run is not over-read |
 | `ssr-ui-a.jsx` | **38/38** | `GradeValue`'s colour default, score pairs, `longDate` at the dashboard spots, the Attendance header |
 | `ssr-dv1b-a.jsx` | **83/83** | the fourteen `renderCard` consumers. **Source-text assertions** — it reads files and regexes them; that is what it is, and §17d is why nothing new should be written this way. Was 87; UI-B dropped the two excuse-letter pages, whose cards are modules now and are covered by `ssr-cards.jsx` |
 | `ssr-dv1b-b.jsx` | **30/30** | the attendance roster's behaviour, driven directly through `attendance/roster.js`. Was 35; UI-B deleted its five source-text letter assertions for the same reason |
@@ -222,17 +223,35 @@ unread. If detail routes are ever added, those stay out or are declared.
 
 ### Expected state
 
-**12 pass / 8 fail**, and the eight are the same two findings on both
-adviser accounts:
+**20/20 since UI-C2 (2026-09-24).** It was 12 pass / 8 fail: both adviser
+accounts failed on `/teacher/grades` and `/teacher/class-summary`, each of
+which rendered a second `<h1>` beside the one Shell renders from `nav.js`.
+UI-C2 deleted both — **and a third the sweep could not see**, on the
+`:studentId` learner route it excludes.
+
+**A green run is the expectation now, so any failure is news.**
+
+### The one flake, and what it looks like
+
+**Twice in five full runs**, always the FIRST test, always the admin
+dashboard:
 
 ```
-/teacher/grades: 2 <h1> elements — "Grades", "Grades"
-/teacher/class-summary: 2 <h1> elements — "Class summary", "Class summary"
+/admin: console error — Failed to load resource: net::ERR_CONNECTION_REFUSED   (×2)
 ```
 
-Shell renders the page's `<h1>` from `nav.js`, and those two pages render
-their own as well. **Expected until UI-C lands** — report it as the known
-figure, and if the count moves, something else did.
+It **passes in isolation** (`npx playwright test -g "admin — light"`) and
+both servers answer immediately afterwards. The same signature appears
+outside the sweep entirely — cleanup scripts and fixture scripts have failed
+their first Node `fetch` with a bare `fetch failed` and worked on the retry,
+four or five times now. The admin dashboard is the worst case because each
+card fetches independently (§12), so a cold connection hits several requests
+at once.
+
+**Not diagnosed, and a re-run is not a fix.** If it fires, re-run that one
+test alone and report both results. A warm-up request in the smoke setup is
+queued in UI-C1; `docs/KNOWN_ISSUES.md` has the row. **Playwright retries
+are deliberately off** — a retry would hide it.
 
 **A negative control never touches a tracked template.** Use a temp copy or
 Write with full contents — this file's own guard was proved by appending a
