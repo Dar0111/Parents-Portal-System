@@ -70,6 +70,7 @@ for (const role of Object.keys(PAGES)) {
           // Collected per PAGE, not per run, so a failure names the URL.
           let consoleErrors = [];
           let badResponses = [];
+          let failedRequests = [];
           let loggedIn = false;
 
           page.on('console', (msg) => {
@@ -87,6 +88,24 @@ for (const role of Object.keys(PAGES)) {
             if (!loggedIn) return;
             const status = res.status();
             if (status >= 400) badResponses.push(`${status} ${res.request().method()} ${res.url()}`);
+          });
+
+          // DIAGNOSTIC ONLY — no retry, no wait, no behaviour change.
+          //
+          // A request that never gets a response never reaches the handler
+          // above, so `net::ERR_CONNECTION_REFUSED` only ever showed up as
+          // an anonymous console error: "Failed to load resource", with no
+          // URL. Three runs in seven have failed that way, always the first
+          // test, always the admin dashboard — and every report so far could
+          // say WHAT happened but not to WHICH request.
+          //
+          // `requestfailed` fires for exactly those, carrying the URL and
+          // the transport-level reason. The next occurrence names the
+          // endpoint, which is what an INVESTIGATE needs and what a warm-up
+          // guessed at and got wrong.
+          page.on('requestfailed', (req) => {
+            if (!loggedIn) return;
+            failedRequests.push(`${req.method()} ${req.url()} — ${req.failure()?.errorText || 'no reason given'}`);
           });
 
           await login(page, role);
@@ -107,6 +126,7 @@ for (const role of Object.keys(PAGES)) {
           for (const path of PAGES[role]) {
             consoleErrors = [];
             badResponses = [];
+            failedRequests = [];
 
             await page.goto(`${APP_ORIGIN}${path}`, { waitUntil: 'networkidle' });
 
@@ -163,6 +183,7 @@ for (const role of Object.keys(PAGES)) {
 
             for (const e of consoleErrors) note(path, `console error — ${e}`);
             for (const r of badResponses) note(path, `bad response — ${r}`);
+            for (const r of failedRequests) note(path, `request FAILED (no response) — ${r}`);
           }
 
           await context.close();

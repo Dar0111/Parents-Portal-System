@@ -145,11 +145,120 @@ export function monthGrid(year, month) {
   return weeks;
 }
 
+// ---------------------------------------------------------------------------
+// TWO KINDS OF DATE, AND THE DIFFERENCE IS NOT COSMETIC (UI-C1a, 2026-09-25).
+//
+// A DATE COLUMN is a calendar day with no time and no zone. `config/db.js`
+// sets `dateStrings: ['DATE']`, so `absence_date`, `event_date`,
+// `attendance.date` and `date_recorded` arrive as the literal string
+// "2026-09-25" and round-trip unchanged. The helpers for these do STRING
+// SURGERY and never build a `Date` — that is what makes them incapable of
+// shifting a day (§5a-iv).
+//
+// A TIMESTAMP is an instant. Every `created_at` in the schema is
+// `TIMESTAMP`, MySQL stores PH wall-clock (`time_zone = SYSTEM`), mysql2
+// parses it as local, and then `res.json()` calls `toISOString()`. So a post
+// made at 07:00 on 25 September leaves the API as:
+//
+//     "2026-09-24T23:00:00.000Z"      <- measured, not reasoned
+//
+// and `String(created_at).slice(0, 10)` — which is what seventeen call sites
+// did — yields "2026-09-24", THE DAY BEFORE. PH is UTC+8, so the UTC date
+// rolls over at 08:00 local: every post made between midnight and 07:59 PH
+// displayed as the previous day. School mornings sit inside that window.
+//
+// So an instant must be converted back to the school's calendar day before
+// anything is read off it, and that is what `dateTime` and `timestampDay` do.
+// ---------------------------------------------------------------------------
+
+// The school's timezone, hardcoded on purpose. This is ONE school in ONE
+// place, and the alternative — the viewer's zone — would let a parent abroad
+// see a different day than the teacher who posted it. The date a school
+// record belongs to is a fact about the school, not about who is looking.
+export const SCHOOL_TIME_ZONE = 'Asia/Manila';
+
+// A date-only string is "YYYY-MM-DD" and nothing else. A timestamp carries a
+// "T", and passing one to a date-only helper is the bug this whole section
+// exists to stop happening again.
+function isDateOnly(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value));
+}
+
+// DEV-only, because a wrong date is not worth blanking a page over — and
+// because production still renders the RIGHT day via the fallback below. It
+// names the helper so the fix is obvious from the console line alone.
+function warnTimestamp(helper, value) {
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `format/date.js: ${helper}() was given a TIMESTAMP ("${value}"), not a date-only string. ` +
+      `Timestamps must go through dateTime() or timestampDay(), which convert to ${SCHOOL_TIME_ZONE} first — ` +
+      `slicing or splitting an ISO instant shows the PREVIOUS day for anything posted before 08:00 PH.`
+    );
+  }
+}
+
+// "25 Sep 2026" — the table-cell form. Short because a date column sits
+// beside several others; unambiguous because "22 Sep" cannot be read as
+// either day-first or month-first, which "22/09" and "09/22" can.
+export function shortDate(dateStr) {
+  if (!isDateOnly(dateStr) && /T/.test(String(dateStr))) {
+    warnTimestamp('shortDate', dateStr);
+    return timestampDay(dateStr, { style: 'short' });
+  }
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  return `${d} ${monthName(m).slice(0, 3)} ${y}`;
+}
+
 // "14 September 2026" — for an accessible name, never for a request.
 export function longDate(dateStr) {
+  if (!isDateOnly(dateStr) && /T/.test(String(dateStr))) {
+    warnTimestamp('longDate', dateStr);
+    return timestampDay(dateStr, { style: 'long' });
+  }
   const [y, m, d] = String(dateStr).split('-').map(Number);
   if (!y || !m || !d) return dateStr;
   return `${d} ${monthName(m)} ${y}`;
+}
+
+// THE CALENDAR DAY AN INSTANT FELL ON, in the school's timezone.
+//
+// `Intl` is the whole implementation: it is the only thing that converts an
+// instant to a named zone correctly, including any future rule change, and
+// it does not depend on where the machine running the browser happens to be.
+// `en-GB` gives day-month-year parts; the parts are reassembled by hand so
+// the output matches `shortDate`/`longDate` exactly rather than whatever the
+// locale would punctuate.
+export function timestampDay(value, { style = 'short' } = {}) {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return String(value ?? '');
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: SCHOOL_TIME_ZONE,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(at);
+  const get = (type) => Number(parts.find((p) => p.type === type)?.value);
+  const y = get('year');
+  const m = get('month');
+  const d = get('day');
+  if (!y || !m || !d) return String(value ?? '');
+  return style === 'long' ? `${d} ${monthName(m)} ${y}` : `${d} ${monthName(m).slice(0, 3)} ${y}`;
+}
+
+// "25 Sep 2026, 7:00 AM" — an instant WITH its time, for the one place the
+// time of day is the point: a message in a thread.
+export function dateTime(value) {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return String(value ?? '');
+  const time = new Intl.DateTimeFormat('en-US', {
+    timeZone: SCHOOL_TIME_ZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(at);
+  return `${timestampDay(at, { style: 'short' })}, ${time}`;
 }
 
 // "Monday" for a day string, from the local constructor.

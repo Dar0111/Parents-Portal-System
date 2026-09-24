@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import { timestampDay } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher memos — READ ONLY, and that is the whole design.
@@ -86,7 +87,9 @@ export default function MemosPage() {
       key: 'created_at',
       header: 'Posted',
       sortable: true,
-      render: (row) => String(row.created_at).slice(0, 10),
+      // A TIMESTAMP, converted to the school's day. Slicing the ISO string
+      // showed the previous day before 08:00 PH (format/date.js).
+      render: (row) => timestampDay(row.created_at),
     },
   ];
 
@@ -109,7 +112,7 @@ export default function MemosPage() {
         renderCard={(row) => ({
           title: row.title,
           subtitle: row.content,
-          meta: `${row.posted_by_name} · ${String(row.created_at).slice(0, 10)}`,
+          meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}`,
         })}
         columns={columns}
         rows={rows}

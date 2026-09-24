@@ -126,4 +126,22 @@ export default async function globalSetup() {
   // one CORS origin and `http://[::1]:3000` is not it.
   await waitFor('The API', `${API_ORIGIN}/api/health`);
   await waitFor('The Vite dev server', APP_ORIGIN);
+
+  // NO WARM-UP HERE, AND THE ATTEMPT IS WORTH RECORDING (UI-C1a).
+  //
+  // A third request was added here to "warm" the API through the host the
+  // browser uses, on the theory that the polls above only warm `127.0.0.1`
+  // while Chromium talks to `localhost`. It changed nothing: the run still
+  // failed with `net::ERR_CONNECTION_REFUSED` on the admin dashboard's first
+  // two card requests.
+  //
+  // THE PREMISE WAS WRONG. `globalSetup` runs in NODE. The failure is in
+  // CHROMIUM, in a process that has not started yet, with its own connection
+  // pool and its own DNS. Node cannot warm a browser that does not exist.
+  //
+  // Removed rather than left looking like a fix that did not work. The
+  // diagnostic in `smoke.spec.js` — which now records WHICH request was
+  // refused — is what the next occurrence needs; root cause is its own
+  // INVESTIGATE before the final smoke gate. `docs/KNOWN_ISSUES.md` has the
+  // row. Playwright `retries` stay off: a retry would hide it.
 }

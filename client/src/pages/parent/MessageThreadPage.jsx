@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import { dateTime } from '../../format/date';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useAuth } from '../../auth/AuthContext';
@@ -208,7 +209,11 @@ export default function ParentMessageThreadPage() {
                   >
                     <p className="whitespace-pre-wrap">{m.body}</p>
                     <p className={`mt-1 text-[0.6875rem] ${mine ? 'text-bubble-mine-meta' : 'text-bubble-theirs-meta'}`}>
-                      {String(m.created_at).slice(0, 16).replace('T', ' ')}
+                      {/* `dateTime`, the ONE place the time of day is the
+                          point. The old slice printed the UTC instant as if
+                          it were local: a message sent at 07:00 PH read
+                          "2026-09-24 23:00" — wrong day AND wrong hour. */}
+                      {dateTime(m.created_at)}
                     </p>
                   </div>
                 </div>

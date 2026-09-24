@@ -116,12 +116,12 @@ for (const [name, html] of [['announcement', annHtml], ['event', evtHtml]]) {
   assert(!html.includes('All of Grade 6'), `${name} card: nor the other admin wording`);
 }
 
-// The announcement card keeps its date UNCHANGED — UI-C1 owns formatting,
-// and half a conversion is worse than none.
-assert(
-  annHtml.includes('2026-09-24') && !annHtml.includes('T01:00:00'),
-  'the announcement card still slices the date, exactly as before'
-);
+// The card's DATE is no longer asserted here. UI-C2 deliberately left it
+// slicing so it would not disagree with the table beside it, and asserted
+// that; UI-C1a converted both, so the assertion had become a claim that the
+// bug was still present. `scripts/ssr-dates.jsx` owns it now, and makes the
+// stronger claim — that the card shows the school day the post was made and
+// never the UTC day before.
 
 // ------------------------------------------------- E. the Section filter
 console.log('\nE. the Section filter options:');

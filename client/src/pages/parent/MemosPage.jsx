@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import { timestampDay } from '../../format/date';
 import Modal from '../../components/Modal';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -100,7 +101,9 @@ export default function ParentMemosPage() {
       key: 'created_at',
       header: 'Posted',
       sortable: true,
-      render: (row) => String(row.created_at).slice(0, 10),
+      // A TIMESTAMP → the school's calendar day. Slicing the ISO string
+      // showed the previous day before 08:00 PH (format/date.js).
+      render: (row) => timestampDay(row.created_at),
     },
   ];
 
@@ -123,7 +126,7 @@ export default function ParentMemosPage() {
           onSelect: () => setReading(row),
           title: row.title,
           subtitle: row.content,
-          meta: String(row.created_at).slice(0, 10),
+          meta: timestampDay(row.created_at),
         })}
         columns={columns}
         rows={rows}
@@ -151,7 +154,7 @@ export default function ParentMemosPage() {
       >
         <div className="max-h-[70vh] overflow-y-auto">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-            <span>Posted {String(reading?.created_at).slice(0, 10)}</span>
+            <span>Posted {timestampDay(reading?.created_at)}</span>
             <span aria-hidden="true">·</span>
             <span>Posted by {reading?.posted_by_name}</span>
           </div>

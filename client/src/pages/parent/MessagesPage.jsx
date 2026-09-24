@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api, { fetchAll, listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import { timestampDay } from '../../format/date';
 import EmptyState from '../../components/EmptyState';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
@@ -130,7 +131,11 @@ export default function ParentMessagesPage() {
       key: 'last_message_at',
       header: 'Last message',
       sortable: true,
-      render: (row) => String(row.last_message_at).slice(0, 10),
+      // `last_message_at` is `messages.created_at` under an alias — a
+      // TIMESTAMP, not a date — so slicing it showed the previous day for
+      // any conversation last touched before 08:00 PH. The alias is exactly
+      // why this site was missed when the bug was first swept for.
+      render: (row) => timestampDay(row.last_message_at),
     },
     {
       key: 'unread_count',
@@ -188,7 +193,7 @@ export default function ParentMessagesPage() {
           avatar: row.other_user_name,
           title: row.other_user_name,
           subtitle: row.last_message_body,
-          meta: `${String(row.last_message_at).slice(0, 10)}${
+          meta: `${timestampDay(row.last_message_at)}${
             Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''
           }`,
         })}

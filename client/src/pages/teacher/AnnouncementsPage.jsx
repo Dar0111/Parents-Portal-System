@@ -8,6 +8,7 @@ import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { staffAudienceLabel } from '../../format/audience';
+import { timestampDay } from '../../format/date';
 import teacherAnnouncementCard from './announcements/card';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -282,7 +283,10 @@ export default function AnnouncementsPage() {
           </span>
         ),
       },
-      { key: 'created_at', header: 'Posted', sortable: true, render: (row) => String(row.created_at).slice(0, 10) },
+      // `timestampDay`, NOT slice(0, 10) — `created_at` is a TIMESTAMP on
+      // the wire as a UTC instant, and slicing it showed the PREVIOUS day
+      // for anything posted before 08:00 PH (format/date.js).
+      { key: 'created_at', header: 'Posted', sortable: true, render: (row) => timestampDay(row.created_at) },
       {
         key: 'actions',
         header: '',

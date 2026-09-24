@@ -1,4 +1,5 @@
 import { staffAudienceLabel } from '../../../format/audience';
+import { timestampDay } from '../../../format/date';
 
 // The teacher's announcement card, below `sm`.
 //
@@ -15,15 +16,17 @@ import { staffAudienceLabel } from '../../../format/audience';
 // `actions` stays on the page: it closes over `user`, `openEdit` and
 // `openDelete`, and JSX in a card is the one thing the contract does allow
 // in that slot.
-// The date is UNCHANGED here on purpose — `.slice(0, 10)` off the raw
-// `created_at`, exactly as the page did it. Formatting every date in the app
-// is UI-C1's whole dispatch, and doing one of them early would leave this
-// card reading "24 Sep 2026" beside a table still reading "2026-09-24".
+// The date goes through `timestampDay` (UI-C1a). UI-C2 deliberately left the
+// old `.slice(0, 10)` here so the card would not read differently from the
+// table beside it; this is the dispatch that changes both at once — and the
+// slice was not merely inconsistent, it showed the PREVIOUS day for anything
+// posted before 08:00 PH, because `created_at` is a TIMESTAMP serialised as
+// a UTC instant (`format/date.js`).
 export default function teacherAnnouncementCard(row, { actions }) {
   return {
     title: row.title,
     subtitle: row.content,
-    meta: `${staffAudienceLabel(row)} · ${String(row.created_at).slice(0, 10)}`,
+    meta: `${staffAudienceLabel(row)} · ${timestampDay(row.created_at)}`,
     actions,
   };
 }

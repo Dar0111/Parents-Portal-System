@@ -7,6 +7,7 @@ import FormStatus, { ok } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { staffAudienceLabel } from '../../format/audience';
+import { timestampDay } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -403,7 +404,11 @@ export default function AdminAnnouncementsPage() {
     // Authors are mixed on the admin list, and Edit depends on it — so the
     // name is shown here even though Teacher → Announcements omits it.
     { key: 'posted_by_name', header: 'Posted by', sortable: true, render: (row) => row.posted_by_name },
-    { key: 'created_at', header: 'Posted', sortable: true, render: (row) => String(row.created_at).slice(0, 10) },
+    // `timestampDay`, NOT slice(0, 10). `created_at` is a TIMESTAMP and
+    // reaches the client as a UTC instant, so slicing it showed the PREVIOUS
+    // day for anything posted before 08:00 PH (format/date.js). Sorting is
+    // unaffected: DataTable sorts on the row value, never the render.
+    { key: 'created_at', header: 'Posted', sortable: true, render: (row) => timestampDay(row.created_at) },
     {
       key: 'actions',
       header: '',
@@ -436,7 +441,11 @@ export default function AdminAnnouncementsPage() {
       ),
     },
     { key: 'posted_by_name', header: 'Posted by', sortable: true, render: (row) => row.posted_by_name },
-    { key: 'created_at', header: 'Posted', sortable: true, render: (row) => String(row.created_at).slice(0, 10) },
+    // `timestampDay`, NOT slice(0, 10). `created_at` is a TIMESTAMP and
+    // reaches the client as a UTC instant, so slicing it showed the PREVIOUS
+    // day for anything posted before 08:00 PH (format/date.js). Sorting is
+    // unaffected: DataTable sorts on the row value, never the render.
+    { key: 'created_at', header: 'Posted', sortable: true, render: (row) => timestampDay(row.created_at) },
     {
       key: 'actions',
       header: '',
@@ -531,7 +540,7 @@ export default function AdminAnnouncementsPage() {
           renderCard={(row) => ({
             title: row.title,
             subtitle: row.content,
-            meta: `${audienceLabel(row)} · ${row.posted_by_name} · ${String(row.created_at).slice(0, 10)}`,
+            meta: `${audienceLabel(row)} · ${row.posted_by_name} · ${timestampDay(row.created_at)}`,
             actions: (
               <>
                 {row.posted_by === me?.id ? (
@@ -597,7 +606,7 @@ export default function AdminAnnouncementsPage() {
           renderCard={(row) => ({
             title: row.title,
             subtitle: row.content,
-            meta: `${row.posted_by_name} · ${String(row.created_at).slice(0, 10)}`,
+            meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}`,
             actions: (
               <>
                 <button type="button" onClick={() => openEditMemo(row)} className={buttonNeutral}>

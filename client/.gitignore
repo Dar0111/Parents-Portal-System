@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Every SSR proof builds here before running. It was never committed only
+# because each dispatch happened to `rm -rf` it first — and the one time that
+# was forgotten, oxlint linted the BUILD OUTPUT and reported a phantom
+# `no-undef` on `process` in a bundle. Ignored here and in `.oxlintrc.json`,
+# so neither git nor lint depends on anyone remembering.
+.ssr-tmp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
