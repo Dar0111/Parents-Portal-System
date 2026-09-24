@@ -31,11 +31,19 @@ export default function SettingsLayout() {
   const { user } = useAuth();
   const tabs = settingsTabsForRole(user?.role);
 
+  // `md:`, NOT `sm:` (UI-C2). The nav is a fixed 14.5rem and cannot give
+  // width back, so at `sm` — 640px — the panel beside it gets about 350px
+  // and Personalization's content squeezed to one or two words a line. That
+  // is reachable two ways: 200% browser zoom HALVES the CSS viewport, so a
+  // 1280px window lands at exactly `sm`; and a real 640-767px tablet has the
+  // same squeeze with no zoom at all. Moving the row to `md:` (768px) makes
+  // both stack instead, which is the readable layout.
+  // §5a-vi: measure the PANEL, not the window.
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+    <div className="flex flex-col gap-4 md:flex-row md:items-start">
       <nav
         aria-label="Settings sections"
-        className="rounded-lg border border-edge bg-surface p-2 sm:w-[14.5rem] sm:shrink-0"
+        className="rounded-lg border border-edge bg-surface p-2 md:w-[14.5rem] md:shrink-0"
       >
         <ul className="flex flex-col gap-1">
           {tabs.map((tab) => (
@@ -59,7 +67,7 @@ export default function SettingsLayout() {
         </ul>
       </nav>
 
-      <section className="min-w-0 flex-1 rounded-lg border border-edge bg-surface p-4 sm:max-w-[42.5rem] sm:p-6">
+      <section className="min-w-0 flex-1 rounded-lg border border-edge bg-surface p-4 md:max-w-[42.5rem] md:p-6">
         <Outlet />
       </section>
     </div>

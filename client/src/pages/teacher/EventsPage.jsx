@@ -6,6 +6,8 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { todayLocalDateString } from '../../format/date';
+import { staffAudienceLabel } from '../../format/audience';
+import teacherEventCard from './events/card';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -188,12 +190,15 @@ export default function EventsPage() {
       {
         key: 'audience',
         header: 'Audience',
-        render: (row) =>
-          row.target_grade === null ? (
-            <span className="text-fg-muted">School-wide</span>
-          ) : (
-            <span className="text-fg-secondary">Grade {row.target_grade}</span>
-          ),
+        // THE SECTION WAS MISSING HERE TOO — this column printed only
+        // `Grade {n}`, so a whole-grade event and a single-class event read
+        // the same. `staffAudienceLabel` is the one wording, shared with
+        // Announcements and with admin.
+        render: (row) => (
+          <span className={row.target_grade === null ? 'text-fg-muted' : 'text-fg-secondary'}>
+            {staffAudienceLabel(row)}
+          </span>
+        ),
       },
       {
         key: 'actions',
@@ -244,7 +249,11 @@ export default function EventsPage() {
             value={gradeFilter}
             onChange={(e) => setGradeFilter(e.target.value)}
           >
-            <option value="">All I can read</option>
+            {/* "All my grade levels", not "All I can read" — the filter is a
+                GRADE filter, and the page's own empty state already says
+                "events for your grades". A label should use the words the
+                rest of the page uses. */}
+            <option value="">All my grade levels</option>
             {grades.map((g) => (
               <option key={g} value={g}>
                 Grade {g}
@@ -284,14 +293,10 @@ export default function EventsPage() {
         // Static card with its actions underneath — Edit and Delete are two
         // peers, not one primary action (§5a-iii), and only the author gets
         // them, matching the table and the API's own 403.
-        renderCard={(row) => ({
-          title: row.title,
-          subtitle: row.description || undefined,
-          meta: `${row.event_date} · ${
-            row.target_grade === null ? 'School-wide' : `Grade ${row.target_grade}`
-          }`,
-          actions:
-            row.posted_by === user?.id ? (
+        renderCard={(row) =>
+          teacherEventCard(row, {
+            actions:
+              row.posted_by === user?.id ? (
               <>
                 <button
                   type="button"
@@ -311,8 +316,9 @@ export default function EventsPage() {
                   Delete
                 </button>
               </>
-            ) : null,
-        })}
+              ) : null,
+          })
+        }
         columns={columns}
         rows={rows}
         loading={loading}

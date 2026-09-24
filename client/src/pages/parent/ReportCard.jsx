@@ -232,7 +232,18 @@ function Legend({ mode }) {
 // rule exists now, but Key Stage 1 reports letters to parents and not the
 // score behind them, so naming a threshold would put a number on the card
 // through the copy. The breakdown modal is silent for the same reason.
-function ReadingNote({ mode, canOpen }) {
+// `hasTermGrade` gates ONE line — the transmutation sentence (UI-C2).
+//
+// It says a term grade "is not the same as the percentage of the scores
+// below", which is true and useful the moment a grade exists and is noise
+// before: on a card with nothing recorded there is no term grade to be
+// unlike and no percentage to compare it with. The other four lines all
+// describe what WILL happen and stay, because that is exactly what an empty
+// card needs explained.
+//
+// The DESCRIPTIVE list has no equivalent sentence — Key Stage 1 does not
+// transmute — so this is a numerical-branch gate only.
+function ReadingNote({ mode, canOpen, hasTermGrade }) {
   const lines =
     mode === 'descriptive'
       ? [
@@ -243,7 +254,11 @@ function ReadingNote({ mode, canOpen }) {
         ]
       : [
           'A term shows "Pending" until its grade can be computed — Written Works, Performance Tasks and all three examination scores must be recorded first.',
-          'Term grades follow the DepEd transmutation table, so a term grade is not the same as the percentage of the scores below.',
+          ...(hasTermGrade
+            ? [
+                'Term grades follow the DepEd transmutation table, so a term grade is not the same as the percentage of the scores below.',
+              ]
+            : []),
           'The final grade for a learning area appears once all three terms are recorded.',
           "A term's general average appears once every learning area has that term recorded.",
           'The final general average appears once every learning area has a final grade.',
@@ -627,6 +642,15 @@ export default function ReportCard({
   const statuses = useMemo(() => termStatuses(subjects, mode), [subjects, mode]);
   const canOpen = subjects.some((subject) => [1, 2, 3].some((term) => subject.terms?.[term]?.grade_id));
 
+  // A GRADE, not a grade ROW. `canOpen` above is true as soon as a row
+  // exists — including the shell rows `PUT /class-record` creates and the
+  // legacy letters in the seed — and all of those render "Pending". The
+  // transmutation sentence is about a computed number, so it asks for
+  // `term_grade` itself.
+  const hasTermGrade = subjects.some((subject) =>
+    [1, 2, 3].some((term) => subject.terms?.[term]?.term_grade != null)
+  );
+
   const header = (
     <div className="border-b border-edge px-4 py-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0">
@@ -728,7 +752,7 @@ export default function ReportCard({
 
       <div className="space-y-4 border-t border-edge px-4 py-4">
         <Legend mode={mode} />
-        <ReadingNote mode={mode} canOpen={canOpen} />
+        <ReadingNote mode={mode} canOpen={canOpen} hasTermGrade={hasTermGrade} />
       </div>
     </div>
   );

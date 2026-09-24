@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
+import { staffAudienceLabel } from '../../format/audience';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -51,11 +52,15 @@ const EMPTY_ANN = { audience: 'school', grade: '', section: '', title: '', conte
 const EMPTY_MEMO = { title: '', content: '' };
 const EMPTY_FILTER = { grade: '', section: '' };
 
-function audienceLabel(row) {
-  if (row.target_grade === null) return 'Everyone at the school';
-  if (!row.target_section) return `All of Grade ${row.target_grade}`;
-  return `Grade ${row.target_grade} - ${row.target_section}`;
-}
+// ONE staff label, shared with both teacher pages (`format/audience.js`).
+// This page's own wording — "Everyone at the school" / "All of Grade 6" —
+// was the outlier, and it was the outlier against THIS PAGE's own prose:
+// the filter copy below already says "School-wide posts are not included in
+// this filter."
+//
+// The COMPOSE form's options are deliberately not this: they describe an
+// action you are about to take, not a post that exists.
+const audienceLabel = staffAudienceLabel;
 
 function formFromRow(row) {
   return {

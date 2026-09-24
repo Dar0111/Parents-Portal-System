@@ -43,7 +43,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 
 export default function ClassSummaryLearnerPage() {
   const { studentId } = useParams();
-  usePageTitle('Class summary');
 
   const [report, setReport] = useState(null);
   const [schoolName, setSchoolName] = useState(null);
@@ -120,6 +119,21 @@ export default function ClassSummaryLearnerPage() {
 
   const name = report?.student ? `${report.student.first_name} ${report.student.last_name}` : null;
 
+  // THE LEARNER'S NAME IS THE PAGE TITLE, which is what every other detail
+  // page already does — `teacher/StudentDetailPage` and both message threads
+  // set the record's name and use <h2> inside the page. This one set
+  // 'Class summary' in the header and rendered the name as a SECOND <h1>:
+  // two top-level headings saying different things, which is worse than the
+  // duplicate pair on the two list pages, not better.
+  //
+  // The fallback matters because the name arrives with the fetch — without
+  // it the header would be empty on first paint, and the smoke sweep fails
+  // an empty heading as hard as a missing one.
+  //
+  // Declared AFTER `name` rather than at the top: the hook runs in the same
+  // position on every render, which is all the rules require.
+  usePageTitle(name || 'Class summary');
+
   return (
     <div className="space-y-4">
       <div>
@@ -130,8 +144,7 @@ export default function ClassSummaryLearnerPage() {
           <i className="fa-solid fa-arrow-left mr-1.5" aria-hidden="true" />
           Back to class summary
         </Link>
-        <h1 className="mt-2 text-xl font-semibold text-fg">{name || 'Learner'}</h1>
-        <p className="mt-1 text-sm text-fg-muted">Report card, read-only.</p>
+        <p className="mt-2 text-sm text-fg-muted">Report card, read-only.</p>
       </div>
 
       <ReportCard

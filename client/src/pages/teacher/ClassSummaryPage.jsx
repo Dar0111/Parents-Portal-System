@@ -401,11 +401,11 @@ export default function ClassSummaryPage() {
 
 function Header() {
   return (
-    <div>
-      <h1 className="text-xl font-semibold text-fg">Class summary</h1>
-      <p className="mt-1 text-sm text-fg-muted">
-        Every learner in your advisory section, across every learning area.
-      </p>
-    </div>
+    // NO <h1>: Shell renders this page's from `nav.js`, and a second one
+    // made "Class summary" appear twice and gave the document two top-level
+    // headings. The subtitle stays — it is not in the nav label.
+    <p className="text-sm text-fg-muted">
+      Every learner in your advisory section, across every learning area.
+    </p>
   );
 }

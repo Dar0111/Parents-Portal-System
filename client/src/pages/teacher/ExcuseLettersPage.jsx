@@ -487,13 +487,25 @@ export default function ExcuseLettersPage() {
                   </div>
                 </div>
 
+                {/* The nudge is for DECLINING, and it now only shows then.
+                    It read "a declined letter with no reason sends the
+                    parent to Messages to ask why" on the Approve path too,
+                    where it describes something the teacher is not doing.
+                    Remarks stay optional on BOTH decisions — that is an API
+                    decision (BLOCKED / RESOLVED), and §5e keeps a
+                    confirmation step for writes that cannot be undone, not
+                    for an optional field. */}
                 <FormField
                   label="Remarks"
                   as="textarea"
                   rows={3}
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  hint="Optional — but a declined letter with no reason sends the parent to Messages to ask why."
+                  hint={
+                    decision === 'Declined'
+                      ? 'Optional — but a declined letter with no reason sends the parent to Messages to ask why.'
+                      : 'Optional.'
+                  }
                 />
               </>
             )}

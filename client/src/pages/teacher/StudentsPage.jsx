@@ -6,7 +6,7 @@ import DataTable from '../../components/DataTable';
 import { PersonCell } from '../../components/Avatar';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
-import FormField from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
@@ -187,6 +187,27 @@ export default function StudentsPage() {
   }, [assignments]);
 
   const canEnroll = classOptions.length > 0;
+
+  // THE SECTION FILTER'S OPTIONS, and the union is the point (UI-C2).
+  //
+  // `classOptions` is ASSIGNMENTS only, which is right for Enroll — writes
+  // are assignments-only — but wrong here: a teacher SEES students in the
+  // sections they teach OR advise, and an adviser holding no subject
+  // assignments (TCH-002 is that account) would get an empty list from
+  // assignments alone.
+  //
+  // So the loaded rows are unioned in. CAVEAT, stated rather than hidden:
+  // the list is paginated at 50, so a section whose learners all sit on a
+  // later page contributes no option until that page is loaded. That is
+  // acceptable for a filter on a school this size and is NOT acceptable for
+  // a write — which is exactly why Enroll still reads `classOptions` and
+  // the file header still says not to reconstruct from GET /students.
+  const sectionOptions = useMemo(() => {
+    const names = new Set();
+    for (const c of classOptions) if (c.section) names.add(c.section);
+    for (const s of students) if (s.section) names.add(s.section);
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [classOptions, students]);
 
   function applyFilters(event) {
     event.preventDefault();
@@ -399,13 +420,38 @@ export default function StudentsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="min-w-56 flex-1"
           />
-          <FormField
-            label="Section"
-            placeholder="e.g. Malikhain"
-            value={section}
-            onChange={(e) => setSection(e.target.value)}
-            className="min-w-44"
-          />
+          {/* A SELECT, and only when there is something to choose between.
+              It was a free-text box placeholdered "e.g. Malikhain" — a
+              Grade 6 section, shown to whoever was looking, including the
+              Grade 1 adviser. A typo also returned an empty list with no
+              "no such section" to explain it.
+
+              Safe as a select because section NAMES are unique across the
+              school: all 23 are distinct, checked against the database
+              before building this rather than assumed. If that ever stops
+              being true this must carry the grade too, or two classes
+              collapse into one option.
+
+              HIDDEN AT ONE OPTION: a teacher with a single section has
+              nothing to filter, and on the seeded data that is every
+              teacher — so this control is invisible until someone teaches
+              across two sections, which is the only time it means anything. */}
+          {sectionOptions.length > 1 ? (
+            <FormField
+              label="Section"
+              as="select"
+              className={`min-w-44 ${filterSelectClass}`}
+              value={section}
+              onChange={(e) => setSection(e.target.value)}
+            >
+              <option value="">All my sections</option>
+              {sectionOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </FormField>
+          ) : null}
           <button
             type="submit"
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"

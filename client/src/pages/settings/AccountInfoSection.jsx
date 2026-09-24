@@ -77,7 +77,11 @@ function childName(user) {
 function childClass(user) {
   if (!user?.student_id) return null;
   if (user.grade_level == null && !user.section) return null;
-  return `Grade ${user.grade_level} — ${user.section || ''}`.replace(/ — $/, '');
+  // HYPHEN, not an em dash. This was the ONLY place in the app rendering a
+  // class with an em dash — every other surface, staff and parent, writes
+  // "Grade 6 - Malikhain" — so a parent saw one separator here and another
+  // everywhere else for the same fact. Grepped, not assumed.
+  return `Grade ${user.grade_level} - ${user.section || ''}`.replace(/ - $/, '');
 }
 
 function MaskedLoginId({ value }) {

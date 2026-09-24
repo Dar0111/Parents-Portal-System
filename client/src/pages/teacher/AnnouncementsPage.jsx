@@ -7,6 +7,8 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
+import { staffAudienceLabel } from '../../format/audience';
+import teacherAnnouncementCard from './announcements/card';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -270,15 +272,15 @@ export default function AnnouncementsPage() {
       {
         key: 'audience',
         header: 'Audience',
-        render: (row) =>
-          row.target_grade === null ? (
-            <span className="text-fg-muted">School-wide</span>
-          ) : (
-            <span className="text-fg-secondary">
-              Grade {row.target_grade}
-              {row.target_section ? ` - ${row.target_section}` : ' (whole grade)'}
-            </span>
-          ),
+        // ONE label per audience, shared with this page's card and with
+        // Admin → Announcements (`format/audience.js`). The tone still
+        // differs — school-wide is muted, a targeted post is not — because
+        // that is emphasis, not wording.
+        render: (row) => (
+          <span className={row.target_grade === null ? 'text-fg-muted' : 'text-fg-secondary'}>
+            {staffAudienceLabel(row)}
+          </span>
+        ),
       },
       { key: 'created_at', header: 'Posted', sortable: true, render: (row) => String(row.created_at).slice(0, 10) },
       {
@@ -364,7 +366,10 @@ export default function AnnouncementsPage() {
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value)}
           >
-            <option value="">All I can read</option>
+            {/* "All my classes", not "All I can read" — this is a SECTION
+                filter, and the page's own empty state says "posts for your
+                classes". Same fact, same words. */}
+            <option value="">All my classes</option>
             {sections.map((s) => (
               <option key={keyOf(s)} value={keyOf(s)}>
                 Grade {s.grade_level} - {s.name}
@@ -408,16 +413,10 @@ export default function AnnouncementsPage() {
         // directory's case (§5a-iii). The card renders static with its actions
         // underneath, and no chevron, because a card that looks tappable and
         // is not is worse than one that never claimed to be.
-        renderCard={(row) => ({
-          title: row.title,
-          subtitle: row.content,
-          meta: `${
-            row.target_grade === null
-              ? 'School-wide'
-              : `Grade ${row.target_grade}${row.target_section ? ` - ${row.target_section}` : ' (whole grade)'}`
-          } · ${String(row.created_at).slice(0, 10)}`,
-          actions:
-            row.posted_by === user?.id ? (
+        renderCard={(row) =>
+          teacherAnnouncementCard(row, {
+            actions:
+              row.posted_by === user?.id ? (
               <>
                 <button
                   type="button"
@@ -437,8 +436,9 @@ export default function AnnouncementsPage() {
                   Delete
                 </button>
               </>
-            ) : null,
-        })}
+              ) : null,
+          })
+        }
         columns={columns}
         rows={rows}
         loading={loading}

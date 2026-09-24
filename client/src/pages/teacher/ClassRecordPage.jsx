@@ -412,12 +412,15 @@ export default function ClassRecordPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-fg">Grades</h1>
-        <p className="text-sm text-fg-muted">
-          Record every learner&rsquo;s scores for one subject and term, then save the whole class at once.
-        </p>
-      </div>
+      {/* NO <h1> HERE. `Shell`'s header already renders this page's <h1>
+          from `nav.js`, so this one made "Grades" the word twice, stacked,
+          and gave the document TWO top-level headings — a screen reader
+          announces two page titles. Found by the smoke sweep, which fails
+          on an <h1> count other than one. The subtitle stays: it says
+          something the nav label cannot. */}
+      <p className="text-sm text-fg-muted">
+        Record every learner&rsquo;s scores for one subject and term, then save the whole class at once.
+      </p>
 
       {assignmentsError ? <ErrorAlert message={assignmentsError} /> : null}
       {settingsError ? <ErrorAlert message={settingsError} /> : null}
