@@ -19,6 +19,7 @@ import DataTable from '../src/components/DataTable.jsx';
 import { staffAudienceLabel } from '../src/format/audience.js';
 import teacherAnnouncementCard from '../src/pages/teacher/announcements/card.jsx';
 import teacherEventCard from '../src/pages/teacher/events/card.jsx';
+import { sectionOptions, showSectionFilter } from '../src/pages/teacher/students/sectionOptions.js';
 import ReportCard from '../src/pages/parent/ReportCard.jsx';
 
 let passed = 0;
@@ -69,34 +70,91 @@ const annHtml = cards(
     { ...CLASS, title: 'C', content: 'x', created_at: '2026-09-24T01:00:00Z' },
   ]
 );
+// REAL SHAPES ONLY. An event row has `target_grade` and nothing else —
+// posting one with `target_section` returns it null, which is how the false
+// claim in this dispatch's first commit was caught.
 const evtHtml = cards(
   (row) => teacherEventCard(row, { actions: null }),
   [
-    { ...SCHOOL, title: 'A', event_date: '2026-09-28' },
-    { ...WHOLE, title: 'B', event_date: '2026-09-28' },
-    { ...CLASS, title: 'C', event_date: '2026-09-28' },
+    { id: 1, target_grade: null, title: 'A', event_date: '2026-09-28' },
+    { id: 2, target_grade: 6, title: 'B', event_date: '2026-09-28' },
   ]
 );
 
+// ANNOUNCEMENTS HAVE THREE AUDIENCES. The section is real here, and a
+// whole-grade post and a one-class post must read differently.
+assert(annHtml.includes('School-wide'), 'announcement card: school-wide');
+assert(annHtml.includes('Grade 6 (whole grade)'), 'announcement card: whole grade');
+assert(annHtml.includes('Grade 6 - Malikhain'), 'announcement card: one class, section shown');
+assert(
+  staffAudienceLabel(WHOLE) !== staffAudienceLabel(CLASS),
+  'announcement: whole-grade and one-class are DISTINGUISHABLE'
+);
+
+// EVENTS HAVE TWO. The `events` table has no `target_section` column, so a
+// one-class event cannot exist and "(whole grade)" would contrast with
+// nothing. A row carrying a section is not a case to assert — the API can
+// never produce one — so the only shapes tested are the ones it can.
+assert(evtHtml.includes('School-wide'), 'event card: school-wide');
+assert(evtHtml.includes('Grade 6'), 'event card: a targeted event names its grade');
+assert(
+  !evtHtml.includes('(whole grade)'),
+  'event card: NO "(whole grade)" — there is no section for it to contrast with',
+  evtHtml
+);
+assert(
+  staffAudienceLabel({ target_grade: 6 }, { hasSections: false }) === 'Grade 6',
+  'hasSections: false gives two cases, not three'
+);
+assert(
+  staffAudienceLabel({ target_grade: null }, { hasSections: false }) === 'School-wide',
+  'and school-wide is unchanged by the flag'
+);
+
 for (const [name, html] of [['announcement', annHtml], ['event', evtHtml]]) {
-  assert(html.includes('School-wide'), `${name} card: school-wide`);
-  assert(html.includes('Grade 6 (whole grade)'), `${name} card: whole grade`);
-  assert(html.includes('Grade 6 - Malikhain'), `${name} card: THE SECTION IS THERE`);
   assert(!html.includes('Everyone at the school'), `${name} card: no admin-only wording`);
   assert(!html.includes('All of Grade 6'), `${name} card: nor the other admin wording`);
 }
-
-// NEGATIVE CONTROL: the old events card printed `Grade 6` for BOTH the whole
-// grade and the one class. Prove the two are now distinguishable.
-const whole = teacherEventCard(WHOLE, { actions: null }).meta;
-const oneClass = teacherEventCard(CLASS, { actions: null }).meta;
-assert(whole !== oneClass, 'NEGATIVE CONTROL: whole-grade and one-class events no longer read alike', whole);
 
 // The announcement card keeps its date UNCHANGED — UI-C1 owns formatting,
 // and half a conversion is worse than none.
 assert(
   annHtml.includes('2026-09-24') && !annHtml.includes('T01:00:00'),
   'the announcement card still slices the date, exactly as before'
+);
+
+// ------------------------------------------------- E. the Section filter
+console.log('\nE. the Section filter options:');
+
+const asg = (section) => ({ grade_level: 6, section });
+const stu = (section) => ({ id: 1, section });
+
+// A teacher with ONE section: nothing to choose between, so no control.
+const one = sectionOptions([asg('Malikhain')], [stu('Malikhain')]);
+assert(one.length === 1 && one[0] === 'Malikhain', 'one section is found once, not twice');
+assert(!showSectionFilter(one), 'and the filter is HIDDEN — a one-option select cannot change anything');
+
+// TWO sections: the control appears.
+const two = sectionOptions([asg('Malikhain'), asg('Masigasig')], [stu('Malikhain')]);
+assert(two.length === 2, 'two sections');
+assert(showSectionFilter(two), 'and the filter is shown');
+assert(two[0] === 'Malikhain' && two[1] === 'Masigasig', 'sorted, so the order does not depend on fetch order');
+
+// THE ADVISER WITH NO ASSIGNMENTS — the case assignments alone would miss.
+// That account is in the seed: the teacher who advises Grade 5 - Masigasig
+// teaches no subject. Their students are on screen; their assignments are [].
+const adviser = sectionOptions([], [stu('Masigasig'), stu('Masigasig')]);
+assert(adviser.length === 1 && adviser[0] === 'Masigasig', 'an adviser with NO assignments still gets their section');
+assert(
+  sectionOptions([], []).length === 0,
+  'and no data at all yields nothing rather than throwing'
+);
+
+// NEGATIVE CONTROL: drop the students leg and the adviser's section vanishes
+// — which is exactly what `classOptions` alone would have done.
+assert(
+  sectionOptions([], []).length === 0 && adviser.length === 1,
+  'NEGATIVE CONTROL: assignments alone would leave that adviser with no options'
 );
 
 // ------------------------------------------------- G. the report card copy

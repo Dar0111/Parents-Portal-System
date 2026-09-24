@@ -8,6 +8,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
+import { sectionOptions, showSectionFilter } from './students/sectionOptions';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
@@ -188,26 +189,12 @@ export default function StudentsPage() {
 
   const canEnroll = classOptions.length > 0;
 
-  // THE SECTION FILTER'S OPTIONS, and the union is the point (UI-C2).
-  //
-  // `classOptions` is ASSIGNMENTS only, which is right for Enroll — writes
-  // are assignments-only — but wrong here: a teacher SEES students in the
-  // sections they teach OR advise, and an adviser holding no subject
-  // assignments (TCH-002 is that account) would get an empty list from
-  // assignments alone.
-  //
-  // So the loaded rows are unioned in. CAVEAT, stated rather than hidden:
-  // the list is paginated at 50, so a section whose learners all sit on a
-  // later page contributes no option until that page is loaded. That is
-  // acceptable for a filter on a school this size and is NOT acceptable for
-  // a write — which is exactly why Enroll still reads `classOptions` and
-  // the file header still says not to reconstruct from GET /students.
-  const sectionOptions = useMemo(() => {
-    const names = new Set();
-    for (const c of classOptions) if (c.section) names.add(c.section);
-    for (const s of students) if (s.section) names.add(s.section);
-    return [...names].sort((a, b) => a.localeCompare(b));
-  }, [classOptions, students]);
+  // The Section filter's options live in `students/sectionOptions.js` — a
+  // pure module, so the three cases that matter (one section, two sections,
+  // an adviser with no assignments) can be driven by a proof instead of
+  // reasoned about. Its header carries why the union exists and why Enroll
+  // must NOT use it.
+  const filterSections = useMemo(() => sectionOptions(classOptions, students), [classOptions, students]);
 
   function applyFilters(event) {
     event.preventDefault();
@@ -436,7 +423,7 @@ export default function StudentsPage() {
               nothing to filter, and on the seeded data that is every
               teacher — so this control is invisible until someone teaches
               across two sections, which is the only time it means anything. */}
-          {sectionOptions.length > 1 ? (
+          {showSectionFilter(filterSections) ? (
             <FormField
               label="Section"
               as="select"
@@ -445,7 +432,7 @@ export default function StudentsPage() {
               onChange={(e) => setSection(e.target.value)}
             >
               <option value="">All my sections</option>
-              {sectionOptions.map((s) => (
+              {filterSections.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>

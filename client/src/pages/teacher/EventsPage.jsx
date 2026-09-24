@@ -190,13 +190,13 @@ export default function EventsPage() {
       {
         key: 'audience',
         header: 'Audience',
-        // THE SECTION WAS MISSING HERE TOO — this column printed only
-        // `Grade {n}`, so a whole-grade event and a single-class event read
-        // the same. `staffAudienceLabel` is the one wording, shared with
-        // Announcements and with admin.
+        // `hasSections: false` — the events table has no `target_section`
+        // column, so an event is school-wide or a whole grade and nothing
+        // else. Same wording source as Announcements and admin; the shape
+        // difference is declared rather than papered over (`format/audience.js`).
         render: (row) => (
           <span className={row.target_grade === null ? 'text-fg-muted' : 'text-fg-secondary'}>
-            {staffAudienceLabel(row)}
+            {staffAudienceLabel(row, { hasSections: false })}
           </span>
         ),
       },
