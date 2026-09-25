@@ -2342,3 +2342,100 @@ substring**, so it also matches **"Review"**. Use `exact: true`. The same probe
 also passed `?status=Approved` in the URL, which does nothing — that page's
 filter is local `useState`, driven through the form and Apply.
 
+## 21. Filters — when to stage, and how to say so
+
+**Frozen 2026-09-25 (item 5).**
+
+### 21a. The rule: one bounded control auto-applies, several stage
+
+**One control that refetches on change has no state worth staging.**
+`parent/EventsPage`, `parent/ExcuseLettersPage` and `admin/GradesPage` had
+already settled this; item 5 made `teacher/AnnouncementsPage` the fourth and
+left the other eight staged.
+
+**Staging is kept where it is earned, and the reason is not caution.** Three
+pages filter on **free text with no debounce anywhere in the client**, so
+applying on change is one request per keystroke. Two more commit a **date
+range**, where "From" without "To" is an unbounded query. One
+(`admin/UsersPage`) fires **two** requests per apply, refetching the pending
+queue alongside the directory. Those are the pages where several controls
+"only make sense committed together" — `parent/EventsPage`'s own words.
+
+### 21b. A staged filter must SAY it is staged
+
+The defect: a Status select reading "Approved" above a list still showing
+Pending, **with nothing on screen admitting the gap**. Filed as a §5f
+violation and **corrected on 2026-09-23** — the empty-state copy was always
+fine, one branch per applied value. **It is §5b one level out:** a control
+showing form state beside a list showing database state.
+
+`components/FilterActions.jsx` renders all three parts:
+
+- **Apply is QUIET when clean and FILLED when dirty**, and **never disabled**.
+  Disabling gives no reason, and re-applying an unchanged filter is a
+  legitimate refetch — quiet says *"nothing is waiting"*, disabled would say
+  *"you may not"*, which is false. Clean reuses the **Reset class exactly**,
+  so the two are a matched pair by construction rather than by two strings
+  kept in step.
+- **The note is `text-brand`, `role="status"`, rendered only while dirty.**
+  Not `alert` — nothing has failed. Not left in the markup when clean — an
+  empty live region claims a state that is not true. **The `●` is
+  `aria-hidden`:** the sentence carries the meaning, and a glyph that is the
+  only carrier fails the way a colour-only one does.
+- **`resetLabel` exists for one caller.** `teacher/StudentsPage` says
+  "Clear". **The component owns the behaviour; the page owns the words** —
+  renaming a page's button to match a shared component is backwards.
+
+**One component, not nine copies**, and not only for deduplication: the
+quiet↔filled swap is one conditional in one file, `role="status"` is written
+once, and **it renders**, so a proof can drive both states instead of
+regexing nine page bodies (§17d).
+
+It also settled an inconsistency: `admin/AnnouncementsPage` styled Apply
+**identically to its Reset**. Under this component neutral *means* "nothing
+staged", so that page was already saying the wrong thing — it had no
+vocabulary to be wrong in.
+
+### 21c. `isDirty` — key by key, never `JSON.stringify`
+
+`components/filterState.js`. Four rules, each with a page behind it:
+
+- **Key by key over the UNION of keys.** Stringify compares key *order*, and
+  the nine pages assemble drafts in whatever order each was written in;
+  `{status, from, to}` must equal `{from, to, status}`. The union also means
+  a **missing** key compares against the other side's value rather than being
+  skipped.
+- **`search` is trimmed on BOTH sides**, because commit trims
+  (`applyFilters` on both Students pages). Otherwise one trailing space
+  claims there are changes and then applies nothing. **Only `search`** — a
+  section name with a space is a different filter.
+- **Values compare as strings.** A grade level is `6` from one source and
+  `'6'` from a `<select>`; `null`, `undefined` and `''` are one filter.
+- **Compare against the page's DEFAULTS, never falsiness.**
+  `admin/StudentsPage` defaults `status` to the string **`'all'`** and sends
+  it on every request, so a truthiness test offers Reset on an unfiltered
+  page.
+
+**Dependent Grade→Section pairs need no special handling**, and the case to
+keep is this one: with a section applied, going Grade 6 → 5 → **6** stays
+**dirty**, because the section really was cleared and the list would differ.
+
+**Each page assembles its draft ONCE** into a `const` that both `isDirty` and
+the submit handler read. Two derivations of one truth is how a cue and a
+commit drift apart — §5b in miniature.
+
+### 21d. `filterFieldClass`, and two searches that keep their own width
+
+`filterSelectClass` fixed this for selects and `FormField.jsx` documents why.
+**Nine controls were never fixed** — eight date inputs and
+`admin/UsersPage`'s search carried **no width class at all**, so each was a
+content-sized flex item rendering at the browser's ~180px default beside the
+buttons instead of stacking. `filterFieldClass = 'w-full sm:w-44'`, narrower
+than a select because a date's content is fixed and two at `w-72` push Apply
+off a 640px row.
+
+**Both Students pages keep `min-w-56 flex-1` on their search**, deliberately:
+it is each page's primary control and was sized that way on purpose.
+**Flattening a considered choice into a shared constant is the wrong kind of
+consistency** — stated here so the exception is not later "tidied".
+

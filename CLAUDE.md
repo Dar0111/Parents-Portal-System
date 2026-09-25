@@ -1483,37 +1483,19 @@ seen, clock restored. **Do not "fix" those timestamps.**
 (`docs/ARCHIVE.md`); its rules are §4, §16, §5a-v, §17c and §17e. **MOCKUP
 FIRST outlived it** and still governs item 5 and UI-D (d).
 
-- [ ] **UI polish — opened 2026-09-20 as a list, now a QUEUE.** **TWELVE of
-      the fourteen items are closed and left permanently for
-      `docs/ARCHIVE.md`** (1, 3, then 6, 7, 8, 9, 10, 13 by UI-A, 2 by UI-B
-      with its planner items P1 and P2, and 4, 12, 14 by UI-C). **Item 11 was
-      the print check, run on paper 2026-09-23; its finding IS UI-D (a).**
-      **Item 5 is all that is left here.** Three did not
-      close as written and the archive keeps why; the one that matters here:
-      **item 7 shipped as `className || 'text-fg'`, NOT pure inheritance** —
-      nothing sets a base text colour, so *inherit* means black, and **UI-D**
-      takes it.
+- [x] **UI polish — opened 2026-09-20 as a list, then a QUEUE. COMPLETE
+      2026-09-25.** All fourteen items are closed and left permanently for
+      `docs/ARCHIVE.md`, with UI-A through UI-E and item 5. **Item 11 was the
+      print check, run on paper 2026-09-23; its finding IS UI-D (a).** Three
+      did not close as written and the archive keeps why; the one that
+      matters here: **item 7 shipped as `className || 'text-fg'`, NOT pure
+      inheritance** — and UI-D-1's base text colour later spent that reason,
+      so it IS pure inheritance now (§18g).
 
-  **UI-C is DONE — C2 (2026-09-24), C1a and C1b (2026-09-25).** Items 4, 12
-  and 14, SMOKE-1's findings 1, 2, 5, 6, 7 and 12, the Remarks hint, the
-  Section labels and `backupAge`. All three entries left under the REFILL
-  RULE (`docs/ARCHIVE.md`), which keeps the one sentence in C2's that was
-  **false** — events were said to drop a section, and **the `events` table
-  has no `target_section` column**. **C1a was a live BUG**: slicing a
-  `created_at` showed the **previous day before 08:00 PH**, where school
-  mornings are. Everything they carry is **§5a-iv**. **Smoke is 20/20.**
-
-  - [ ] **Item 5 — a Pending result set while the Status select reads
-    Approved. MOCKUP FIRST, which is why UI-E now goes BEFORE it** (Darryl,
-    2026-09-25): UI-E needs no mockup, so it proceeds while item 5's is
-    designed in parallel.
-    **DIAGNOSIS CORRECTED 2026-09-23: not the §5f violation it was filed as** —
-    that page's empty copy already has one branch per applied value. The
-    filter is **submit-gated**: the select writes form state, the list and the
-    copy read `applied`, and nothing says they differ until Apply. **§5b one
-    level out, and NINE pages do it** (teacher Announcements / Attendance
-    records / Events / Excuse Letters / Students, admin Announcements /
-    Attendance / Students / Users). No precedent for the affordance.
+      **The rules the five dispatches left behind are §18-§21**, and the two
+      that generalise beyond their own screens are **print layout is proved
+      ON PAPER** (§18h) and **a proof fixture must mirror the server's
+      shape** (§19f).
 
 - [x] **UI-D — global CSS. DONE 2026-09-25** (D-1 print + the base text
       colour; D-2 the scroll cue; D-3 the parent hero). All three entries
@@ -1528,9 +1510,15 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
 - [x] **UI-E — a teacher's read-only letter view. DONE 2026-09-25**
       (`3086086`). Its entry left under the REFILL RULE
       (`docs/ARCHIVE.md`); the rules are **`docs/FRONTEND_CONVENTIONS.md`
-      §20**. **Order from here: item 5 (MOCKUP FIRST) → pre-Stage-5 → docs
-      pass → Stage 5.**
-- [ ] **Pre-Stage-5 server fixes**, one dispatch. **Four added by DV3
+      §20**.
+- [x] **Item 5 — the staged-filter cue. DONE 2026-09-25** (`2000499`), and
+      with it the UI-polish queue. **Nine pages staged their filter values
+      and none admitted it**; one bounded control now auto-applies and eight
+      keep Apply beside a "Changes not applied" cue. Entry archived under the
+      REFILL RULE; rules are **`docs/FRONTEND_CONVENTIONS.md` §21**.
+      **Order from here: pre-Stage-5 → docs pass → Stage 5.**
+- [ ] **Pre-Stage-5 server fixes**, one dispatch. **NEXT — start with
+      PLAN ONLY.** **Four added by DV3
       (2026-09-21); the first two are what Expo hits first.**
       **(a) `subjects.display_order`** — the printed order is a client
       constant because the table has no ordering column, and Expo cannot
@@ -2027,6 +2015,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **Item 5** (`2000499`): nine pages staged their filter values and **none admitted it** — a select could read "Approved" over a Pending list. **Filed as §5f, corrected to §5b one level out.** Staging KEPT (three pages filter free text with no debounce); one bounded control auto-applies, eight gain a quiet↔filled Apply and a `role="status"` note. **`parent/EventsPage` already carried the auto-apply rule in its own words** — "no precedent for the affordance" was true of the cue only. **`isDirty` is key-by-key over the UNION, never `JSON.stringify`** (key order), search trimmed both sides, compared against DEFAULTS not falsiness. **A live defect fixed on the way:** T·Attendance records' Section bypassed `applied` and never reset the offset. §21. **The UI-polish queue is COMPLETE.** |
 | 2026-09-25 | **UI-E** (`3086086`): a teacher can read back a reviewed letter. **The remarks rendered only inside the review modal, which opens only for a PENDING letter** — so the teacher who wrote them lost them on save, at every width, and **nothing was broken enough for a check to see it.** Renders the list row, never `GET /:id` (which returns strictly LESS). **Two of the four omitted fields do not exist:** no `reviewed_at` column, and `reviewed_by` is an unresolved user id. **The card's own comment argued against moving its gate** — on a fact, not a principle, and the fact is what changed (§20b). `ssr-ui-e` 23, `ssr-cards` 31 → **32**. **Both my mistakes were in test code:** a regex that matched its own fixture's prose, and a probe that reported clean twice while `name: 'View'` was matching **"Review"**. |
 | 2026-09-25 | **UI-D-2+3** (`9d0c1cb`→`a6be0d2`, five commits): `ScrollCue` on both grids, the parent hero on `--brand-panel`. **UI-D is complete.** **The thresholds were the whole story and I got them wrong twice** — 1px fired on a **2px** overflow and flapped between 1279 and 1281px; 24px on BOTH tests then dropped "Performance Tasks" from the hint while its column was visibly cut. **Two constants: gate 24px, per-cell strict — legibility decides WHETHER to speak, not WHAT to say** (§19b). KS1's "A  D" was a hover-only `title`, which **does not exist on touch**; the average follows `current_term` now. **Two defects of mine, neither found by reasoning:** `ScrollCue.jsx` beside `scrollCue.js` (**Windows is case-insensitive**), and a fixture that invented a string where the API sends an object — **`/parent` rendered blank while build, oxlint and 71/71 were green** (§19f). `ssr-ui-d` **82**, contrast **74 pairs**, smoke 20/20. |
 | 2026-09-25 | **UI-D-1** (`7513457`): the app could not print and could not be read in the dark. **Zero print CSS existed** — the Summary of Grades printed the sidebar, the top bar and the Term select, and `overflow-x-auto` **clipped five of eight subjects and the Average column**. A scroller is a guillotine on paper, and **`min-w-max` is the other half**, so landscape alone would not have fixed it. **Landscape is scoped per page** by a `<style>` mounted with the route (`@page` cannot be nested; named pages fail in Firefox; **Safari ignores `size`** and is survivable only because `min-w-max` is released). The report card is **forced** to its table branch — a container query at print width is unprovable, and the narrow branch is **a different document**, not a broken layout. **Dark print is fixed in `theme.js`, not `@media print`** — the latter means a verbatim second copy of ~71 tokens; restoring **re-reads storage**, so System stays System. **`body { color: var(--color-fg) }`** — until it existed, uncoloured text inherited BLACK, ~1.06:1 on the dark page; `GradeValue` returns to pure inheritance and one DataTable call site moves to `fg-secondary`, accepted. `ssr-ui-d` **32/32**, and it states that **print layout is proved on paper, never by SSR** (§18). oxlint caught `Date.now()` in a render body — **impure, so the same props could produce two documents**. Smoke 20/20. |

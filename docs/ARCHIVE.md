@@ -4552,6 +4552,59 @@ whose line-51 assertion was the exact inverse of what UI-D shipped. That is
 now a working-agreement rule in CLAUDE.md: a whitelist includes every proof
 that renders a touched module, and a PLAN ONLY greps for them.
 
+### Item 5's entry, and the UI-polish queue's header — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **item 5** (`2000499`, browser check
+passed). **The queue is complete with it**, fourteen items across UI-A, UI-B,
+UI-C, UI-D, UI-E and this. Rules: `docs/FRONTEND_CONVENTIONS.md` §21.
+
+```
+  - [ ] **Item 5 — a Pending result set while the Status select reads
+    Approved. MOCKUP FIRST, which is why UI-E now goes BEFORE it** (Darryl,
+    2026-09-25): UI-E needs no mockup, so it proceeds while item 5's is
+    designed in parallel.
+    **DIAGNOSIS CORRECTED 2026-09-23: not the §5f violation it was filed as** —
+    that page's empty copy already has one branch per applied value. The
+    filter is **submit-gated**: the select writes form state, the list and the
+    copy read `applied`, and nothing says they differ until Apply. **§5b one
+    level out, and NINE pages do it** (teacher Announcements / Attendance
+    records / Events / Excuse Letters / Students, admin Announcements /
+    Attendance / Students / Users). No precedent for the affordance.
+```
+
+**This entry was re-diagnosed once and re-scoped once, and both corrections
+are the reason it landed cleanly.** Filed as a §5f empty-state violation;
+that was wrong, and the 2026-09-23 correction is preserved above. Then
+scheduled ahead of UI-E and moved behind it, because UI-E needed no mockup
+and this did.
+
+**"No precedent for the affordance" was accurate and incomplete.** There was
+no precedent for the CUE — and there was a strong one for the other half of
+the answer: `parent/EventsPage` already carried the rule in its own words,
+*"one control that refetches on change has no state worth staging"*, with
+`parent/ExcuseLettersPage` and `admin/GradesPage` following it. The
+inventory found that before any code was written, which is what let
+`teacher/AnnouncementsPage` lose its Apply rather than gain a cue it did not
+need.
+
+**Three things the entry did not foresee, all found by the inventory:**
+
+- **The nine were not alike.** One bounded select, five with a date range,
+  three with free text — so a single rule ("auto-apply selects") would have
+  been wrong on at least three pages. The mockup covered three shapes.
+- **`teacher/AttendanceRecordsPage` had a live defect underneath.** Its
+  Section select bypassed `applied` while being a `load` dependency and never
+  reset the offset, so switching section on page 3 refetched the new section
+  at offset 100 — against that page's own C6 note.
+- **No page could tell whether its draft was dirty.** All nine `canReset`
+  flags read `applied`, never `draft !== applied`, so the value the cue needs
+  did not exist anywhere and had to be built.
+
+**And one thing that could not be checked on screen:** the Seeded baseline
+has zero announcements and zero attendance rows, so the `setOffset(0)` paths
+this dispatch added have no second page to be on. Recorded in
+`docs/KNOWN_ISSUES.md` rather than claimed.
+
 ### UI-E's entry — moved from CLAUDE.md on 2026-09-25
 
 Under the REFILL RULE, closed by **UI-E** (`3086086`, browser check passed).
