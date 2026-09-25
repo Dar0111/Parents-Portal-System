@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
@@ -15,6 +15,7 @@ import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import useClassRecord, { buildSlotFrame, slotKey, parseCell } from './classRecord/useClassRecord';
+import { INITIAL_GUARD, transition as guardTransition } from './classRecord/backGuard';
 import Cell from './classRecord/Cell';
 import SlotHeader from './classRecord/SlotHeader';
 
@@ -270,6 +271,61 @@ export default function ClassRecordPage() {
     document.addEventListener('click', onClick, true);
     return () => document.removeEventListener('click', onClick, true);
   }, [record.dirty]);
+
+  // THE BACK BUTTON IS A THIRD PATH (pre-Stage-5 #5b, 2026-09-26): a history
+  // pop is not a click and not an unload, so the two guards above never saw
+  // it. classRecord/backGuard.js is the decision — a pure machine a proof
+  // drives — and this is the only place its actions touch the browser:
+  // 'push' arms a sentinel entry on the page's own URL, 'back' consumes one,
+  // 'ask' opens the same leave modal with pendingHref = 'BACK'. The ref holds
+  // the machine's state because popstate handlers must see the latest value
+  // without re-subscribing. Two effects: one keyed on `dirty` (which can only
+  // yield push / back / none — no state is set here, so it is not a setState-
+  // in-effect), one popstate listener for the lifetime of the page.
+  const guardRef = useRef(INITIAL_GUARD);
+  const applyGuardHistory = (action) => {
+    if (action === 'push') window.history.pushState({ ppSentinel: true }, '', window.location.href);
+    else if (action === 'back') window.history.back();
+  };
+
+  useEffect(() => {
+    const next = guardTransition(guardRef.current, record.dirty ? 'dirty' : 'clean');
+    guardRef.current = next.state;
+    applyGuardHistory(next.action);
+  }, [record.dirty]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const next = guardTransition(guardRef.current, 'pop');
+      guardRef.current = next.state;
+      if (next.action === 'ask') setPendingHref('BACK');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // The leave modal's two answers, for both paths (a link or the Back
+  // button). Stay after a Back re-arms the sentinel; Leave after a Back goes
+  // back once more, to the real previous entry. A link leaves as before.
+  function dismissLeave() {
+    if (pendingHref === 'BACK') {
+      const next = guardTransition(guardRef.current, 'stay');
+      guardRef.current = next.state;
+      applyGuardHistory(next.action);
+    }
+    setPendingHref(null);
+  }
+  function confirmLeave() {
+    const href = pendingHref;
+    setPendingHref(null);
+    if (href === 'BACK') {
+      const next = guardTransition(guardRef.current, 'leave');
+      guardRef.current = next.state;
+      applyGuardHistory(next.action);
+    } else if (href) {
+      navigate(href);
+    }
+  }
 
   // THE FIXED FRAME: WW 1-5 and PT 1-3, always, with the server's rows
   // merged on. A position with no row is a phantom — greyed, disabled,
@@ -856,12 +912,14 @@ export default function ClassRecordPage() {
         </>
       )}
 
-      {/* The in-app half of the unsaved-changes guard. A real choice, held
+      {/* The in-app half of the unsaved-changes guard — and, since #5b, the
+          Back button's too (pendingHref === 'BACK'). A real choice, held
           open while the router transition waits — a notice after the fact
-          would arrive with the drafts already gone. */}
+          would arrive with the drafts already gone. Closing the modal any
+          other way (Escape, the backdrop) counts as Stay. */}
       <Modal
         open={pendingHref !== null}
-        onClose={() => setPendingHref(null)}
+        onClose={dismissLeave}
         title="Leave without saving?"
         size="sm"
       >
@@ -874,18 +932,14 @@ export default function ClassRecordPage() {
             <button
               type="button"
               className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
-              onClick={() => setPendingHref(null)}
+              onClick={dismissLeave}
             >
               Stay on this page
             </button>
             <button
               type="button"
               className="rounded-lg border border-danger-edge px-3 py-1.5 text-sm text-danger-fg hover:bg-danger-soft"
-              onClick={() => {
-                const href = pendingHref;
-                setPendingHref(null);
-                if (href) navigate(href);
-              }}
+              onClick={confirmLeave}
             >
               Leave and discard
             </button>
