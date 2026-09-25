@@ -7,7 +7,7 @@
 // component trips `react(only-export-components)`, which has moved the oxlint
 // baseline before.
 //
-// WHAT IT IS FOR. Nine pages stage their filter values: the controls write a
+// WHAT IT IS FOR. Eight pages stage their filter values: the controls write a
 // DRAFT, and only Apply copies that draft into the APPLIED state the fetch
 // reads. That is deliberate — it stops a request per keystroke on the three
 // free-text searches — but it means a select can read "Approved" while the
@@ -18,7 +18,7 @@
 //
 // Stringify compares key ORDER as well as content, so `{ status, from, to }`
 // and `{ from, to, status }` are "different" while meaning the same thing —
-// and the nine pages assemble their drafts in whatever order each was written
+// and the eight pages assemble their drafts in whatever order each was written
 // in. It would also silently pass a draft that is MISSING a key, because a
 // shorter string is simply a different string; the union below makes an
 // absent key compare against its applied value instead.
@@ -32,8 +32,14 @@
 // arrives as `6` from one source and `'6'` from a `<select>`, and a filter
 // that reported itself dirty because of a number's type would be lying in the
 // most confusing way available.
+// EVERY VALUE IS TRIMMED, not only one named `search` (item 5b). Item 5
+// special-cased the literal key `search`, which duplicated a trim the three
+// text-search pages already performed on their drafts and silently skipped
+// any future page that names its text field `query` or `q`. A select never
+// carries whitespace, so trimming everything costs nothing and cannot be
+// keyed on a name somebody has to remember.
 function normalise(value) {
-  return value === null || value === undefined ? '' : String(value);
+  return value === null || value === undefined ? '' : String(value).trim();
 }
 
 export function isDirty(draft, applied) {
@@ -41,24 +47,12 @@ export function isDirty(draft, applied) {
   const b = applied || {};
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
   for (const key of keys) {
-    const left = key === 'search' ? normalise(a[key]).trim() : normalise(a[key]);
-    const right = key === 'search' ? normalise(b[key]).trim() : normalise(b[key]);
-    if (left !== right) return true;
+    if (normalise(a[key]) !== normalise(b[key])) return true;
   }
   return false;
 }
 
-// COMPARE AGAINST THE PAGE'S DEFAULTS, NEVER AGAINST FALSINESS.
-//
-// `admin/StudentsPage` defaults `status` to the string `'all'`, not `''`, and
-// sends it on every request — so `Boolean(applied.status)` is true at rest and
-// a truthiness test would offer Reset on a page nobody has filtered. That page
-// already works around it by hand; this is the same check in one place.
-//
-// It reads APPLIED, not the draft, and that is the existing behaviour on all
-// nine: Reset undoes what the list is showing, not what is typed. A draft
-// that differs is what `isDirty` is for, and the two answer different
-// questions.
-export function canResetFilters(applied, defaults) {
-  return isDirty(applied, defaults);
-}
+// `canResetFilters` used to live here and was REMOVED in item 5b: no page
+// ever called it, and an export whose comment describes a unification that
+// did not happen is worse than none. The seven-expression `canReset` question
+// stays a `docs/KNOWN_ISSUES.md` row until a page actually needs the helper.

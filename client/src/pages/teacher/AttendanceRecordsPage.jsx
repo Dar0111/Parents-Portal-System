@@ -144,9 +144,15 @@ export default function AttendanceRecordsPage() {
     setTo('');
     setOffset(0);
     setApplied({ from: '', to: '' });
-    // Reset clears the DATES, not the section: there is no "no section" state
-    // — the page always shows one advisory class — so resetting to nothing
-    // would have nothing to show. Unchanged from before item 5.
+    // Reset clears the DATES and puts the Section DRAFT back to what is
+    // applied — it does not change the applied section, because there is no
+    // "no section" state (the page always shows one advisory class).
+    //
+    // The second half is item 5b, after the code review: item 5 reset the
+    // dates only, so a staged section change survived Reset — the cue and the
+    // filled Apply persisted right after the user asked to reset. Every other
+    // page's reset leaves draft === applied; this one now does too.
+    setSectionId(appliedSectionId);
   }
 
   // ASSEMBLED ONCE, read by BOTH `isDirty` and the submit handler. Building

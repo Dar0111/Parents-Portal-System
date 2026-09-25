@@ -163,6 +163,21 @@ export default function EventsPage() {
   const canPost = grades.length > 0;
   const hasFilter = Boolean(applied.grade || applied.from || applied.to);
 
+  // ONE reset, used by the filter bar AND the empty state (item 5b). Item 5
+  // handed `FilterActions` a `canReset={false}` and a no-op `onReset` while an
+  // inline clear handler with exactly this body sat in the empty state below
+  // — so a filtered list that HAD results offered no way to clear except
+  // retyping each control, and the empty state's "Clear filters" appeared only
+  // once the list was empty. `hasFilter` already answers "is anything
+  // applied", which is precisely what `canReset` means.
+  function resetFilters() {
+    setGradeFilter('');
+    setFrom('');
+    setTo('');
+    setOffset(0);
+    setApplied({ grade: '', from: '', to: '' });
+  }
+
   const emptyState = hasFilter
     ? {
         icon: 'fa-filter',
@@ -285,9 +300,7 @@ export default function EventsPage() {
             value={to}
             onChange={(e) => setTo(e.target.value)}
           />
-          {/* No Reset in this bar — it never had one; the empty state's
-              "Clear filters" is this page's reset and stays where it is. */}
-          <FilterActions dirty={dirty} canReset={false} onReset={() => {}} />
+          <FilterActions dirty={dirty} canReset={hasFilter} onReset={resetFilters} />
         </form>
 
         {targetsLoading ? null : canPost ? (
@@ -355,13 +368,7 @@ export default function EventsPage() {
           emptyState.reset ? (
             <button
               type="button"
-              onClick={() => {
-                setGradeFilter('');
-                setFrom('');
-                setTo('');
-                setOffset(0);
-                setApplied({ grade: '', from: '', to: '' });
-              }}
+              onClick={resetFilters}
               className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
             >
               Clear filters

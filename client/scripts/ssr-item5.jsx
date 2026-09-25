@@ -21,7 +21,7 @@
 // refactor. `filterState.js` carries the same note.
 import { renderToStaticMarkup } from 'react-dom/server';
 import FilterActions from '../src/components/FilterActions.jsx';
-import { canResetFilters, isDirty } from '../src/components/filterState.js';
+import { isDirty } from '../src/components/filterState.js';
 
 let passed = 0;
 let failed = 0;
@@ -60,15 +60,26 @@ assert(
 assert(isDirty({}, { status: 'Pending' }), 'a key missing from the draft is still compared');
 assert(!isDirty({}, { status: '' }), 'and an absent key equals an empty one');
 
-// SEARCH IS TRIMMED ON BOTH SIDES, because commit trims. Without this a
-// trailing space claims there are changes to apply and then applies nothing.
+// EVERY STRING IS TRIMMED ON BOTH SIDES (item 5b). Item 5 trimmed only a key
+// literally named `search`, which the code review called out: the three text
+// pages already pre-trimmed, and a future page naming its box `query` would
+// have got a dirty cue from one trailing space and an Apply that changed
+// nothing. A select never carries whitespace, so trimming everything is free.
 assert(!isDirty({ search: 'nino ' }, { search: 'nino' }), 'a trailing space in search is NOT a change');
 assert(!isDirty({ search: '  ' }, { search: '' }), 'nor is whitespace-only against empty');
 assert(isDirty({ search: 'nino' }, { search: 'jea' }), 'but a real search change is');
-// Only `search` is trimmed — a value that legitimately has spaces is not.
 assert(
-  isDirty({ section: 'Mabait ' }, { section: 'Mabait' }),
-  'NEGATIVE CONTROL: the trim is search-only, not a blanket trim'
+  !isDirty({ query: 'nino ' }, { query: 'nino' }),
+  'A KEY NAMED query IS TRIMMED TOO — the rule is no longer keyed on a field name'
+);
+assert(
+  !isDirty({ section: 'Mabait ' }, { section: 'Mabait' }),
+  'and so is a select value (a select never carries whitespace, so this costs nothing)'
+);
+// NEGATIVE CONTROL: trimming is at the ENDS only — an inner space is real.
+assert(
+  isDirty({ search: 'Nino A' }, { search: 'NinoA' }),
+  'NEGATIVE CONTROL: an inner space is a genuine difference, not collapsed'
 );
 
 // TYPE COERCION: a grade level is 6 from one source and '6' from a <select>.
@@ -97,11 +108,11 @@ assert(!isDirty(gs('6', ''), gs('6', '')), 'but returning to the applied state i
 // `admin/StudentsPage` defaults status to the STRING 'all', not ''.
 const DEFAULTS = { status: 'all', grade_level: '', section: '', search: '' };
 assert(!isDirty(DEFAULTS, DEFAULTS), "a non-empty default ('all') is clean at rest");
-assert(!canResetFilters(DEFAULTS, DEFAULTS), 'and Reset is not offered at rest');
 assert(
-  canResetFilters({ ...DEFAULTS, status: 'active' }, DEFAULTS),
-  'changing away from that default DOES offer Reset'
+  isDirty({ ...DEFAULTS, status: 'active' }, DEFAULTS),
+  'changing away from that default IS dirty — compared by value, not by truthiness'
 );
+// (`canResetFilters` was removed in item 5b: no page called it.)
 assert(
   Boolean(DEFAULTS.status) === true,
   'NEGATIVE CONTROL: a truthiness test would have called that default filtered'
@@ -113,10 +124,21 @@ console.log('\n2. FilterActions, rendered:');
 const clean = renderToStaticMarkup(<FilterActions dirty={false} canReset={false} onReset={() => {}} />);
 const dirtyHtml = renderToStaticMarkup(<FilterActions dirty canReset={false} onReset={() => {}} />);
 
-assert(!clean.includes('Changes not applied'), 'CLEAN: no note in the markup at all');
+assert(!clean.includes('Changes not applied'), 'CLEAN: no note text in the markup');
+// THE LIVE REGION IS PRESENT AND EMPTY WHEN CLEAN (item 5b). Item 5 asserted
+// the exact opposite here — "no empty live region left behind" — and that
+// cemented an accessibility defect: screen readers announce changes INSIDE an
+// existing live region, so a <p role="status"> that first appears with its
+// text already in it is never announced. The sighted cue worked; the
+// assistive one never spoke. ScrollCue already stated the right rule (§19d).
 assert(
-  !clean.includes('role="status"'),
-  'and no empty live region left behind claiming a state that is not true'
+  clean.includes('role="status"'),
+  'and the live region IS mounted while clean, so its later text change is announced'
+);
+assert(
+  /<p role="status" class="sr-only"><\/p>/.test(clean),
+  'mounted EMPTY and sr-only — zero layout cost, nothing claimed',
+  clean
 );
 assert(dirtyHtml.includes('Changes not applied'), 'DIRTY: the note is present');
 assert(dirtyHtml.includes('role="status"'), 'with role="status" — not alert; nothing has failed');

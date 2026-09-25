@@ -77,6 +77,17 @@ export const filterSelectClass = 'w-full sm:w-72';
 // would be the wrong kind of consistency.
 export const filterFieldClass = 'w-full sm:w-44';
 
+// THE NEUTRAL BORDERED BUTTON, single-sourced (item 5b, 2026-09-25). Item 5
+// wrote this string into `FilterActions` as a fresh literal, and the code
+// review found the same string already living in `admin/AnnouncementsPage`
+// and, in a smaller `px-3 py-1.5` form, in every empty-state Reset button on
+// the nine filter pages. `FilterActions`' quiet Apply and its Reset are meant
+// to be a matched pair BY CONSTRUCTION — which is only true if both read one
+// constant. The empty-state buttons on the pages are deliberately NOT
+// re-styled here (flagged, out of 5b's scope).
+export const buttonNeutralClass =
+  'rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted';
+
 // Four supported call shapes, and only four:
 //
 //   1. <FormField label="Name" placeholder="…" />                  -> <input>
