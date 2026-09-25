@@ -273,7 +273,16 @@ INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday
   -- not a real learner. Section is Mabait, NOT Matipid: test-grades-flows.js
   -- creates a throwaway Grade 1 student in Matipid every run and deletes it,
   -- so the demo student must not share that section.
-  ('1090001', 'Nino', 'Alcantara', 1, 'Mabait', '2019-08-12', 'male', 'Pateros, Metro Manila', 'active');
+  ('1090001', 'Nino', 'Alcantara', 1, 'Mabait', '2019-08-12', 'male', 'Pateros, Metro Manila', 'active'),
+  -- THE BROWSER-FIXTURE LEARNER (pre-Stage-5 #3b, 2026-09-25). Nobody's
+  -- test target: every suite that needs a Grade 6 - Malikhain learner uses
+  -- Marwin, so browser-check fixtures (grades, attendance, letters) go on
+  -- this learner and the two protocols stop excluding each other
+  -- (docs/KNOWN_ISSUES.md, "mutually exclusive on student 1"). Same section
+  -- as Marwin on purpose — TCH-001 must be able to encode and review.
+  -- "Halimbawa" is Filipino for "example": plainly fictional. 12-digit LRN.
+  -- Mirrored by scripts/migrate-fixture-learner.js for a live database.
+  ('136893260001', 'Tala', 'Halimbawa', 6, 'Malikhain', '2014-05-05', 'female', 'Pateros, Metro Manila', 'active');
 
 -- Password hashes for users are inserted by scripts/setup-db.js after bcrypt hashing.
 -- Placeholder markers below are replaced programmatically:

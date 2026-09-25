@@ -197,6 +197,15 @@ async function main() {
   // (item_type, item_id) pairs whose notification rows this run must remove.
   const notificationItems = [];
 
+  // WATERMARK, captured at the start, not a constant (pre-Stage-5 #3b). This
+  // used to assert `users === 7` and `students === 3` — the Seeded baseline
+  // as a literal — so any seed change (the browser-fixture learner, 2026-09-25)
+  // broke the suite without the suite having a defect. Printed, so a dirty
+  // start is visible rather than silently accepted as the baseline.
+  const startUsers = await dbCount('users');
+  const startStudents = await dbCount('students');
+  console.log(`  i watermark at start: users ${startUsers}, students ${startStudents}`);
+
   let admin;
   let tch1;
   let tch3;
@@ -996,9 +1005,9 @@ async function main() {
       const notifTotal = await dbCount('notifications');
       console.log(`  i notifications table holds ${notifTotal} row(s) not created by this run`);
       const users = await dbCount('users');
-      assert(users === 7, 'users is back to 7', `got ${users}`);
+      assert(users === startUsers, `users is back to its start count (${startUsers})`, `got ${users}`);
       const students = await dbCount('students');
-      assert(students === 3, 'students is back to 3', `got ${students}`);
+      assert(students === startStudents, `students is back to its start count (${startStudents})`, `got ${students}`);
       const grades = await dbCount('grades');
       assert(grades === 5, "grades is back to 5 — Nino's five rows untouched", `got ${grades}`);
       const jea = await dbCount('users', "WHERE login_id = '1234567' AND status = 'pending'");

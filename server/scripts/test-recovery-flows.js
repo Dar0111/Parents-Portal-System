@@ -80,6 +80,14 @@ async function main() {
   console.log(`\nAccount recovery tests against ${BASE}\n`);
 
   const created = { users: [], loginIds: [] };
+  // WATERMARK, captured at the start, not a constant (pre-Stage-5 #3b): the
+  // cleanup used to assert users === 7 and students === 3 as literals, so a
+  // seed change broke the suite without a defect. Printed, so a dirty start
+  // is visible rather than silently accepted.
+  const [[startCounts]] = await withDb((c) =>
+    c.query('SELECT (SELECT COUNT(*) FROM users) u, (SELECT COUNT(*) FROM students) s')
+  );
+  console.log(`  i watermark at start: users ${startCounts.u}, students ${startCounts.s}`);
   let admin;
   let teacher;
   const TEACHER_ID = 'TCH-REC1';
@@ -350,8 +358,8 @@ async function main() {
         )
       );
       const c0 = counts[0][0];
-      assert(c0.u === 7, `users back to 7 — got ${c0.u}`);
-      assert(c0.s === 3, `students back to 3 — got ${c0.s}`);
+      assert(c0.u === startCounts.u, `users back to its start count (${startCounts.u}) — got ${c0.u}`);
+      assert(c0.s === startCounts.s, `students back to its start count (${startCounts.s}) — got ${c0.s}`);
       assert(c0.g === 5, `grades back to 5 — Nino's rows untouched — got ${c0.g}`);
       assert(c0.ac === 0, `auth_codes back to 0 — got ${c0.ac}`);
       const jea = await withDb((c) => c.query("SELECT status FROM users WHERE login_id = '1234567'"));

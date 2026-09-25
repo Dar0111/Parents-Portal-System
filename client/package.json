@@ -10,7 +10,8 @@
     "lint:tokens": "node scripts/check-color-tokens.mjs",
     "lint:contrast": "node scripts/check-contrast.mjs",
     "preview": "vite preview",
-    "smoke": "playwright test"
+    "smoke": "playwright test",
+    "smoke:isolated": "node scripts/smoke-isolated.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

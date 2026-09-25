@@ -36,7 +36,7 @@ INSERT INTO users (login_id, password, role, status, name, email, contact_number
   ('ADMIN001', '${adminHash}', 'admin', 'active', 'Principal Admin', 'admin@chfes.edu.ph', '09170000001', NULL, NULL, NULL),
   ('TCH-001', '${teacherHash}', 'teacher', 'active', 'Maria Santos', 'msantos@chfes.edu.ph', '09170000002', NULL, 1, NULL);
 
-UPDATE students SET created_by = 2 WHERE lrn IN ('13567454', '1234567');
+UPDATE students SET created_by = 2 WHERE lrn IN ('13567454', '1234567', '136893260001');
 
 INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by, approved_by) VALUES
   ('13567454', '${parentHash}', 'parent', 'active', 'Ashley Geguiera', 'ashley.g@email.com', '09170000003', 1, 2, 1),
@@ -72,6 +72,15 @@ INSERT INTO users (login_id, password, role, status, name, email, contact_number
    (SELECT id FROM (SELECT id FROM users WHERE login_id = 'TCH-003') AS tch003),
    1);
 
+-- The browser-fixture learner's parent (pre-Stage-5 #3b, 2026-09-25): ACTIVE,
+-- so the parent-side screens can be checked on this learner while the suites
+-- keep Marwin. Plainly fictional ("Halimbawa" = example). Created by TCH-001,
+-- the adviser — the enrolment rule — and approved by the admin. Mirrored by
+-- scripts/migrate-fixture-learner.js for a live database.
+INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by, approved_by) VALUES
+  ('136893260001', '${parentHash}', 'parent', 'active', 'Ligaya Halimbawa', 'ligaya.h@email.com', '09170000007',
+   (SELECT id FROM students WHERE lrn = '136893260001'), 2, 1);
+
 INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section)
 SELECT 2, s.id, s.grade_level, 'Malikhain'
 FROM subjects s
@@ -87,7 +96,8 @@ INSERT INTO activity_logs (user_id, action, description) VALUES
   (1, 'seed', 'Initial admin account seeded'),
   (2, 'seed', 'Sample teacher account seeded'),
   (1, 'seed', 'Second sample teacher account seeded (adviser, Grade 5 - Masigasig)'),
-  (1, 'seed', 'Third sample teacher account seeded (adviser + subject teacher, Grade 1 - Mabait)');
+  (1, 'seed', 'Third sample teacher account seeded (adviser + subject teacher, Grade 1 - Mabait)'),
+  (1, 'seed', 'Browser-fixture learner and parent seeded (Grade 6 - Malikhain; nobody''s test target)');
 `;
 }
 

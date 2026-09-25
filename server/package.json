@@ -13,6 +13,7 @@
     "db:migrate:grade1-weights": "node scripts/migrate-grade1-weights.js",
     "db:migrate:assessment-slots": "node scripts/migrate-assessment-slots.js",
     "db:migrate:subject-display-order": "node scripts/migrate-subject-display-order.js",
+    "db:migrate:fixture-learner": "node scripts/migrate-fixture-learner.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
