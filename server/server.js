@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const http = require('http');
+const pool = require('./config/db');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -30,8 +31,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.get('/api/health', (_req, res) => {
-  res.json({ success: true, message: 'Parents Portal API is running.' });
+// A HEALTH CHECK THAT CHECKS SOMETHING (pre-Stage-5 #2, o5). This returned a
+// static 200 with MySQL down, which is the one condition a health probe
+// exists to report. `SELECT 1` through the pool — and the pool is the PROXY
+// from config/db.js, so this follows `resetPool()` after a restore rather
+// than a connection captured at boot.
+//
+// The 200 body KEEPS `success: true` and the same message: sixteen HTTP
+// suites preflight on `data.success`, and the smoke's `waitFor` polls this
+// URL for `res.ok`. The 503 path cannot be exercised by a suite without
+// stopping MySQL, and is stated as untested rather than faked.
+app.get('/api/health', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    return res.json({ success: true, message: 'Parents Portal API is running.', db: 'ok' });
+  } catch (error) {
+    console.error('Health check: database unreachable:', error.message);
+    return res.status(503).json({ success: false, message: 'Database unreachable.' });
+  }
 });
 
 app.use('/api/auth', authRoutes);

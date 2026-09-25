@@ -528,6 +528,56 @@ assert(
   'and GradeValue emits no colour — it inherits the panel foreground rather than winning by stylesheet order',
   g6.slice(0, 120)
 );
+// THE CAPTION'S WORD (pre-Stage-5 #2, item m). `descriptor` is what the page
+// flattens from the server's `term_average_descriptors[term].descriptor`;
+// the server's entry is the OBJECT `{ descriptor: 'Benchmarking', remarks:
+// 'Passed' }` — captured from test:grades' complete-term response (§19f),
+// and the two shapes below are that object and the string the page derives.
+// The caption ELEMENT is asserted, not the whole markup — the section line
+// already reads "… · Adviser: …", so a bare ' · ' search matches the hero
+// with no descriptor at all (found on the first run of this control).
+assert(g6.includes('>Term 1</p>'), 'NEGATIVE CONTROL: with no descriptor the caption is "Term 1" and nothing after it');
+const g6Word = renderToStaticMarkup(
+  <ChildHero
+    linked
+    user={{ ...heroUser, student_first_name: 'Marwin', student_last_name: 'Conde', grade_level: 6, section: 'Malikhain' }}
+    section={heroSection}
+    grades={{ descriptive: false, average: 88.05, descriptor: 'Benchmarking', subjects_recorded: 8, subjects_total: 8 }}
+    term={1}
+    letterTerm={null}
+    monthDays={{ present: 9, total: 10 }}
+    letter={noLetter}
+  />
+);
+assert(g6Word.includes('Term 1 · Benchmarking'), 'a descriptor captions the average as "Term N · <word>"');
+assert(!g6Word.includes('Passed'), 'NEGATIVE CONTROL: the remarks verdict never reaches the hero (§4)');
+let g6ObjectRefused = false;
+try {
+  renderToStaticMarkup(
+    <ChildHero
+      linked
+      user={{ ...heroUser, student_first_name: 'Marwin', student_last_name: 'Conde', grade_level: 6, section: 'Malikhain' }}
+      section={heroSection}
+      grades={{
+        descriptive: false,
+        average: 88.05,
+        descriptor: { descriptor: 'Benchmarking', remarks: 'Passed' },
+        subjects_recorded: 8,
+        subjects_total: 8,
+      }}
+      term={1}
+      letterTerm={null}
+      monthDays={{ present: 9, total: 10 }}
+      letter={noLetter}
+    />
+  );
+} catch {
+  g6ObjectRefused = true;
+}
+assert(
+  g6ObjectRefused,
+  'NEGATIVE CONTROL: the server object handed through whole is REFUSED by the render, not printed as [object Object] — the page must flatten .descriptor'
+);
 
 // A PARTIAL TERM SHOWS NO NUMBER (§12) — never a running average.
 const partial = renderToStaticMarkup(

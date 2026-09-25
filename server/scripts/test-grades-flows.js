@@ -1596,6 +1596,22 @@ async function run() {
       `All four filters together return exactly the one matching row, keyed on the same fields as uq_grade_record (got ${fourFilters.data?.grades?.length} rows)`
     );
 
+    // o2 (pre-Stage-5 #2): a class filter, validated like attendance's.
+    const badGradeLevelFilter = await request('GET', '/api/grades?grade_level=9', { token: adminToken });
+    assert(badGradeLevelFilter.status === 400, 'GET / with grade_level=9 returns 400');
+    const emptySectionFilter = await request('GET', '/api/grades?section=%20', { token: adminToken });
+    assert(emptySectionFilter.status === 400, 'GET / with a blank section returns 400');
+    const classFilter = await request('GET', '/api/grades?grade_level=6&section=Malikhain', { token: adminToken });
+    assert(
+      classFilter.status === 200 &&
+        (classFilter.data?.grades || []).every(
+          (row) => row.student_grade_level === 6 && row.student_section === 'Malikhain'
+        ),
+      'GET /?grade_level=6&section=Malikhain returns only that class (an invariant over the page, not an exact list)'
+    );
+    const classSort = await request('GET', '/api/grades?sort=class&order=asc', { token: adminToken });
+    assert(classSort.status === 200, 'sort=class is an allowed sort key, as on attendance');
+
     const listNoComponents = await request('GET', '/api/grades', { token: adminToken });
     assert(
       listNoComponents.status === 200 &&
@@ -1817,11 +1833,19 @@ async function run() {
       'student',
       'subjects',
       'success',
+      'term_average_descriptors',
       'term_averages',
     ];
     assert(
       JSON.stringify(cardKeys) === JSON.stringify(expectedCardKeys),
-      `Report card returns exactly the documented keys — the seven payload keys plus the success envelope (got ${JSON.stringify(cardKeys)})`
+      `Report card returns exactly the documented keys — the eight payload keys plus the success envelope (got ${JSON.stringify(cardKeys)})`
+    );
+    // term_average_descriptors (pre-Stage-5 #2, item m): a Key Stage 1 card
+    // is descriptive, so every term average is null and so is every word.
+    const g1Descriptors = grade1ReportCard.data?.term_average_descriptors;
+    assert(
+      g1Descriptors && g1Descriptors[1] === null && g1Descriptors[2] === null && g1Descriptors[3] === null,
+      `Grade 1 term_average_descriptors is present with all three terms null (got ${JSON.stringify(g1Descriptors)})`
     );
 
     // term_averages (DV3): three keys ALWAYS present so a caller can render
@@ -2108,6 +2132,20 @@ async function run() {
       oneTermReport.data?.term_averages?.[2] === null && oneTermReport.data?.term_averages?.[3] === null,
       'Terms 2 and 3 averages are null while the fifth subject has neither — null-until-complete, never a running average'
     );
+    // term_average_descriptors (pre-Stage-5 #2, item m): the band word for
+    // each term average, through the same qualitativeDescriptor as the GA's,
+    // in the same { descriptor, remarks } shape, null wherever the average
+    // is. 83.20 sits in the 80-89 band. This response is the fixture shape
+    // the SSR proof mirrors (§19f) — an OBJECT per term, not a string.
+    const oneTermDescriptors = oneTermReport.data?.term_average_descriptors;
+    assert(
+      JSON.stringify(oneTermDescriptors?.[1]) === JSON.stringify({ descriptor: 'Benchmarking', remarks: 'Passed' }),
+      `term_average_descriptors[1] is the 80-89 band object for 83.20 — same shape as general_average_descriptor (got ${JSON.stringify(oneTermDescriptors?.[1])})`
+    );
+    assert(
+      oneTermDescriptors?.[2] === null && oneTermDescriptors?.[3] === null,
+      'term_average_descriptors[2] and [3] are null while their averages are — a word is never invented for a null'
+    );
 
     const [term2Insert] = await withDb((conn) =>
       conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, 85)', [
@@ -2152,6 +2190,13 @@ async function run() {
     assert(
       num(completeReport.data?.term_averages?.[3]) === 87.6,
       `Term 3 average populates last: 87.60 = (87.00x4 + 90.00)/5 by hand (got ${completeReport.data?.term_averages?.[3]})`
+    );
+    // All three averages (83.20, 89.00, 87.60) sit in the 80-89 band, so the
+    // complete card carries three populated descriptor objects.
+    const completeDescriptors = completeReport.data?.term_average_descriptors;
+    assert(
+      [1, 2, 3].every((t) => completeDescriptors?.[t]?.descriptor === 'Benchmarking'),
+      `term_average_descriptors populates for every term on a complete card (got ${JSON.stringify(completeDescriptors)})`
     );
     // Cross-check, not a restatement: the three term averages and the
     // General Average are computed down two DIFFERENT paths — GA averages

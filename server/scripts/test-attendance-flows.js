@@ -340,6 +340,16 @@ async function run() {
     assert(teacherListStudentIds.includes(marwinId), "Adviser list includes in-scope student (own section)");
     assert(!teacherListStudentIds.includes(jeaId), 'Adviser list excludes out-of-scope student (other section)');
 
+    // o1 (pre-Stage-5 #2): `date` plus a range is refused, not resolved. It
+    // used to drop from/to silently and answer for the one day.
+    const dateAndRange = await request('GET', `/api/attendance?date=${dateA}&from=${dateB}`, { token: adviserToken });
+    assert(
+      dateAndRange.status === 400 && /date cannot be combined/.test(dateAndRange.data?.message || ''),
+      'GET /?date=&from= is 400 naming the conflict — never a silent one-day answer'
+    );
+    const dateAndTo = await request('GET', `/api/attendance?date=${dateA}&to=${dateA}`, { token: adviserToken });
+    assert(dateAndTo.status === 400, 'and ?date=&to= is refused the same way');
+
     const marwinRowInList = (teacherList.data?.attendance || []).find((a) => a.student_id === marwinId);
     assert(
       marwinRowInList?.date === dateB || marwinRowInList?.date === dateA,

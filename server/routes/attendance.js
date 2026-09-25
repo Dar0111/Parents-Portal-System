@@ -101,6 +101,19 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     params.push(String(section).trim());
   }
 
+  // `date` AND a range is a contradiction, refused rather than resolved
+  // (pre-Stage-5 #2, o1). The `else` below used to make `from`/`to` silently
+  // vanish whenever `date` was present — a filter that quietly ignores half
+  // of what it was asked is the worst kind of wrong, because the response
+  // looks complete. Neither client caller sends `date`; this is for anyone
+  // who does.
+  if (date && (from || to)) {
+    return res.status(400).json({
+      success: false,
+      message: 'date cannot be combined with from or to — send one day or a range, not both.',
+    });
+  }
+
   if (date) {
     if (!isValidDateFormat(date)) {
       return res.status(400).json({ success: false, message: 'date must be in YYYY-MM-DD format.' });

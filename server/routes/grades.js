@@ -675,6 +675,27 @@ function computeTermAverages(subjectReport, mode) {
   return averages;
 }
 
+// The band word for each term average (pre-Stage-5 #2, item m). Added
+// because the parent hero shows `term_averages[current_term]` and had no word
+// to put beside it: `general_average_descriptor` describes the YEAR's
+// average, not a term's, and banding the number in the client would be a
+// second implementation of the BANDS ladder — §12 forbids exactly that.
+//
+// Same shape as its sibling, `{ descriptor, remarks }` or null, through the
+// same `qualitativeDescriptor`, so a client that renders one renders the
+// other. Null wherever the average is null — descriptive mode, or a term any
+// subject has not recorded — which is the null-until-complete rule for the
+// fourth time. NOTE for every reader: `remarks` is Passed/Failed, a VERDICT
+// the client must never render (§4); only `.descriptor` reaches a screen.
+function computeTermAverageDescriptors(termAverages) {
+  const out = {};
+  for (const term of [1, 2, 3]) {
+    const value = termAverages?.[term];
+    out[term] = value === null || value === undefined ? null : gc.qualitativeDescriptor(value);
+  }
+  return out;
+}
+
 // GET /api/grades — list, scoped by role, never includes grade_components
 // (see GET /:id for that — a list response returning full raw-score
 // history on every row would bloat a payload whose purpose is FINDING a
@@ -693,7 +714,7 @@ function computeTermAverages(subjectReport, mode) {
 // subject — the G3 resolution, see loadAuthorizedGrade's comment above);
 // admin is unscoped.
 router.get('/', authenticate, authorize('teacher', 'admin', 'parent'), async (req, res) => {
-  const { student_id, subject_id, term, school_year } = req.query;
+  const { student_id, subject_id, term, school_year, grade_level, section } = req.query;
 
   const conditions = [];
   const params = [];
@@ -749,10 +770,34 @@ router.get('/', authenticate, authorize('teacher', 'admin', 'parent'), async (re
     params.push(school_year);
   }
 
+  // A CLASS FILTER (pre-Stage-5 #2, o2). `s.grade_level` and `s.section` were
+  // already JOINed and SELECTed by this query and simply never filterable —
+  // every other list endpoint that JOINs students takes them. Mirrors
+  // routes/attendance.js exactly, `class` sort key included. The check is the
+  // same two lines students.js keeps as a local helper; not imported across
+  // route files. For a parent it ANDs against their own child — harmless.
+  if (grade_level !== undefined) {
+    const gradeLevelNum = Number(grade_level);
+    if (!Number.isInteger(gradeLevelNum) || gradeLevelNum < 1 || gradeLevelNum > 6) {
+      return res.status(400).json({ success: false, message: 'grade_level must be between 1 and 6.' });
+    }
+    conditions.push('s.grade_level = ?');
+    params.push(gradeLevelNum);
+  }
+  if (section !== undefined) {
+    const trimmedSection = String(section).trim();
+    if (!trimmedSection) {
+      return res.status(400).json({ success: false, message: 'section must not be empty.' });
+    }
+    conditions.push('s.section = ?');
+    params.push(trimmedSection);
+  }
+
   const list = readListParams(req.query, {
     sortable: {
       student: 's.last_name, s.first_name',
       subject: 'sub.name',
+      class: 's.grade_level, s.section',
       term: 'g.term',
       school_year: 'g.school_year',
       updated_at: 'g.updated_at',
@@ -2139,6 +2184,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
 
     const { general_average, general_average_descriptor } = computeGeneralAverage(subjectReport, mode);
     const term_averages = computeTermAverages(subjectReport, mode);
+    const term_average_descriptors = computeTermAverageDescriptors(term_averages);
 
     return res.json({
       success: true,
@@ -2153,6 +2199,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
       grading_mode: mode,
       subjects: subjectReport,
       term_averages,
+      term_average_descriptors,
       general_average,
       general_average_descriptor,
     });

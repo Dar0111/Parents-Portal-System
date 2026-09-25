@@ -485,6 +485,25 @@ async function run() {
     }
 
     await checkPage('/api/users', adminToken, 'users', { sort: 'name', field: 'name' });
+
+    // o3 (pre-Stage-5 #2): `role` and `status` are ENUMs and sorted by their
+    // ORDINAL until now — parent, teacher, admin — while the column header
+    // said A–Z. No case here sorted on either key, so the wrong order passed
+    // for a week. Asserted as an invariant over the page, string-compared.
+    for (const key of ['role', 'status']) {
+      const asc = await request('GET', `/api/users?sort=${key}&order=asc&limit=200`, { token: adminToken });
+      const values = (asc.data?.users || []).map((u) => String(u[key]));
+      assert(
+        asc.status === 200 && values.every((v, i) => i === 0 || values[i - 1].localeCompare(v) <= 0),
+        `sort=${key}&order=asc is alphabetical, not ENUM order (got ${JSON.stringify([...new Set(values)])})`
+      );
+    }
+    const roleAsc = await request('GET', '/api/users?sort=role&order=asc&limit=200', { token: adminToken });
+    const roles = [...new Set((roleAsc.data?.users || []).map((u) => u.role))];
+    assert(
+      roles.length >= 2 && roles.indexOf('admin') < roles.indexOf('parent'),
+      `admin sorts before parent — which ENUM order (parent, teacher, admin) never did (got ${JSON.stringify(roles)})`
+    );
     await checkPage('/api/users/parents/pending', adminToken, 'parents', { sort: 'created_at', field: 'created_at' });
 
     // C4: a filter narrows total to the filtered set.

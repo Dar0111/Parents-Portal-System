@@ -416,15 +416,21 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                       terms. The caption names the term so the figure cannot
                       be read as a year-to-date number.
 
-                      NO DESCRIPTOR, and its absence is a decision (Darryl,
-                      2026-09-25): `general_average_descriptor` describes the
-                      YEAR's general average, not a term's, and there is no
-                      per-term-average descriptor in the payload. Deriving one
-                      here would be a second implementation of the BANDS
-                      ladder in the client, which §12 forbids. Queued as a
-                      server field; the caption becomes "Term N · <word>" the
-                      day it exists. */}
-                  <p className="text-xs text-brand-panel-muted">Term {term}</p>
+                      THE WORD COMES FROM THE SERVER (pre-Stage-5 #2, item m).
+                      UI-D-3 shipped this caption as "Term N" alone, because
+                      `general_average_descriptor` describes the YEAR's
+                      average and banding the term figure here would be a
+                      second BANDS ladder in the client (§12). The server now
+                      sends `term_average_descriptors`, one per term, through
+                      the same ladder; the page flattens it to a string and
+                      this renders it as a JSX child — so if the object ever
+                      arrives whole, React refuses it loudly rather than
+                      printing "[object Object]". Absent (a partial term, or
+                      Key Stage 1), the caption is "Term N" as before. */}
+                  <p className="text-xs text-brand-panel-muted">
+                    Term {term}
+                    {grades.descriptor ? <> · {grades.descriptor}</> : null}
+                  </p>
                 </>
               ) : (
                 <p className="mt-1 text-sm text-brand-panel-fg">
@@ -577,6 +583,10 @@ export default function ParentDashboard() {
           'grading_mode',
           'subjects',
           'term_averages',
+          // §1: the unwrap list is the line to change when an endpoint gains a
+          // field — left off, the field is silently absent and renders as a
+          // plausible empty value (pre-Stage-5 #2, item m).
+          'term_average_descriptors',
           'general_average',
           'general_average_descriptor',
         ],
@@ -671,6 +681,12 @@ export default function ParentDashboard() {
     : {
         ...grades,
         average: card.data?.term_averages?.[currentTerm] ?? null,
+        // `.descriptor` — THE ENGLISH WORD, NEVER THE OBJECT, AND NEVER
+        // `remarks` (pre-Stage-5 #2, item m). The entry is `{ descriptor,
+        // remarks }`: the object as a React child blanked this page once
+        // already (§19f), and `remarks` is Passed/Failed — a verdict, which
+        // §4 forbids on any screen.
+        descriptor: card.data?.term_average_descriptors?.[currentTerm]?.descriptor ?? null,
       };
 
   const monthDays = recordedDays(month.data);

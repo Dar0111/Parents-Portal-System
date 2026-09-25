@@ -375,7 +375,19 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const list = readListParams(req.query, {
-    sortable: { name: 'name', login_id: 'login_id', role: 'role', status: 'status', created_at: 'created_at' },
+    // `role` and `status` are ENUMs, and MySQL sorts an ENUM by its ORDINAL —
+    // parent, teacher, admin — not by its letters. Admin → Users' column
+    // header promised A–Z and delivered declaration order for a week, and no
+    // suite sorted on either key so nothing said so (pre-Stage-5 #2, o3).
+    // `CAST(... AS CHAR)` sorts the words; `parseSort` splits its expressions
+    // on commas only, so the call passes through intact.
+    sortable: {
+      name: 'name',
+      login_id: 'login_id',
+      role: 'CAST(role AS CHAR)',
+      status: 'CAST(status AS CHAR)',
+      created_at: 'created_at',
+    },
     defaultOrderBy: 'created_at DESC',
     tiebreaker: 'id DESC',
   });
