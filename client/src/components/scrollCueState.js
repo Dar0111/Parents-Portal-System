@@ -16,13 +16,19 @@
 // `cueState` takes the cells either way; whether a caller passes labels is
 // what decides which answer it gets back.
 
+// A column cut by less than this still shows its content, so a cue about it
+// costs more than it gives (measured: the desktop class summary overflowed by
+// 2px and nagged "Swipe for the Average →").
+const SLACK = 24;
+
 // A cell is "not fully visible" when its right edge is past the viewport's
-// right edge. NOT when it merely starts past it: a column half on screen is a
-// column the reader has not read, and at 390px the layout deliberately leaves
-// the next one visibly cut off rather than fitting it exactly, so the
-// half-visible case is the COMMON one here and not an edge case.
+// right edge by more than SLACK. NOT when it merely starts past it: a column
+// half on screen is a column the reader has not read, and at 390px the layout
+// deliberately leaves the next one visibly cut off rather than fitting it
+// exactly, so the half-visible case is the COMMON one here and not an edge
+// case.
 function hiddenCells(cells, viewportRight) {
-  return cells.filter((cell) => cell.right > viewportRight + 1);
+  return cells.filter((cell) => cell.right > viewportRight + SLACK);
 }
 
 // `cells` is `[{ right, label? }]` in document order — the caller measures
@@ -42,12 +48,17 @@ function hiddenCells(cells, viewportRight) {
 //   hiddenCount — for the counting caller
 //   hiddenLabels— for the naming caller
 export function cueState({ scrollLeft = 0, clientWidth = 0, scrollWidth = 0, cells = [] } = {}) {
-  // A 1px tolerance on both comparisons: sub-pixel layout means a table that
-  // exactly fits can report a scrollWidth a fraction larger, and a cue that
-  // appears on a table with nothing to scroll is worse than no cue — it tells
-  // the reader something is there when nothing is.
-  const overflowing = scrollWidth > clientWidth + 1;
-  const atEnd = !overflowing || scrollLeft + clientWidth >= scrollWidth - 1;
+  // SLACK on both comparisons. It began at 1px, to absorb sub-pixel layout,
+  // and 1px was too literal a reading of the rule it exists for: the desktop
+  // class summary overflowed by exactly 2px — scrollWidth 992 against
+  // clientWidth 990 — and told the teacher to swipe for an Average column
+  // that was two pixels short of fully visible. It also FLAPPED, appearing at
+  // 1279px and vanishing at 1281px. A cue that appears on a table with
+  // nothing worth scrolling to is worse than no cue, and "nothing worth
+  // scrolling to" is a question about legibility, not about pixels being
+  // non-zero.
+  const overflowing = scrollWidth > clientWidth + SLACK;
+  const atEnd = !overflowing || scrollLeft + clientWidth >= scrollWidth - SLACK;
   const viewportRight = scrollLeft + clientWidth;
   const hidden = overflowing && !atEnd ? hiddenCells(cells, viewportRight) : [];
 

@@ -246,15 +246,55 @@ assert(!fits.overflowing, 'a table that fits does not overflow');
 assert(fits.atEnd, 'and counts as at-end, so the fade and button never render');
 assert(!fits.scrolled, 'and nothing is scrolled, so the pinned column casts no shadow');
 
-// The 1px tolerance: sub-pixel layout can report a scrollWidth a fraction
-// over on a table that exactly fits.
+// THE 24px SLACK, and every case around it. This began at 1px and the
+// desktop class summary overflowed by exactly 2 — scrollWidth 992 against
+// clientWidth 990 — so it nagged "Swipe for the Average →" for a column two
+// pixels short of fully visible, appearing at 1279px and vanishing at 1281px.
+// A column cut by less than about a character still shows its content.
 assert(
   !cueState({ scrollLeft: 0, clientWidth: 900, scrollWidth: 900.6, cells: [] }).overflowing,
-  'a sub-pixel overhang is NOT an overflow — the tolerance is deliberate'
+  'a sub-pixel overhang is NOT an overflow'
+);
+// The measured case, exactly as it came off the page.
+const hairline = cueState({
+  scrollLeft: 0,
+  clientWidth: 990,
+  scrollWidth: 992,
+  cells: [{ right: 992 }],
+});
+assert(!hairline.overflowing, 'THE MEASURED CASE: a 2px overflow is not an overflow');
+assert(hairline.atEnd && hairline.hiddenCount === 0, 'so no cue, and nothing reported hidden');
+assert(
+  !cueState({ scrollLeft: 0, clientWidth: 900, scrollWidth: 923, cells: [] }).overflowing,
+  '23px is still within the slack'
+);
+assert(
+  cueState({ scrollLeft: 0, clientWidth: 900, scrollWidth: 925, cells: [] }).overflowing,
+  'and 25px is a real overflow — the boundary is where it says it is'
 );
 assert(
   cueState({ scrollLeft: 0, clientWidth: 900, scrollWidth: 950, cells: [] }).overflowing,
-  'a real overhang is'
+  'a plainly real overhang is too'
+);
+// The class record's real geometry — 849px over — must be untouched by the
+// slack, or widening the tolerance would have bought the desktop fix at the
+// cost of the case the cue exists for.
+const record849 = cueState({
+  scrollLeft: 0,
+  clientWidth: 990,
+  scrollWidth: 1839,
+  cells: [
+    { right: 240, label: 'Written / Oral Works' },
+    { right: 1100, label: 'Performance Tasks' },
+    { right: 1600, label: 'Summative' },
+    { right: 1839, label: 'Grade' },
+  ],
+});
+assert(record849.overflowing, 'the class record at 849px over still overflows');
+assert(
+  listLabels(record849.hiddenLabels) === 'Performance Tasks, Summative and Grade',
+  'and names exactly the same groups as before the slack changed',
+  listLabels(record849.hiddenLabels)
 );
 
 // THE CLASS SUMMARY SHAPE — leaf cells, counted. 390px viewport, ten columns.
@@ -276,9 +316,16 @@ assert(
   'a column whose right edge is past the viewport is hidden even if it STARTS on screen'
 );
 
+// Scrolled 300 of 550: the viewport's right edge is 690, and with the 24px
+// slack a column counts as hidden past 714 — so 780, 860 and 940 remain.
+// (It read 4 while the slack was 1px, because 700 was then 9px over.)
 const midway = cueState({ scrollLeft: 300, clientWidth: 390, scrollWidth: 940, cells: summaryCells });
 assert(midway.scrolled, 'once scrolled, the pinned column gets its shadow');
-assert(midway.hiddenCount === 4, 'and fewer columns remain hidden', String(midway.hiddenCount));
+assert(midway.hiddenCount === 3, 'and fewer columns remain hidden', String(midway.hiddenCount));
+assert(
+  midway.hiddenCount < atStart.hiddenCount && midway.hiddenCount > 0,
+  'which is the invariant the number above is one instance of'
+);
 
 const ended = cueState({ scrollLeft: 550, clientWidth: 390, scrollWidth: 940, cells: summaryCells });
 assert(ended.atEnd, 'at the end, atEnd is true');
@@ -313,8 +360,11 @@ assert(
   recCut.hiddenLabels.join('|')
 );
 
-// ONE hidden group reads without a comma.
-const recOne = cueState({ scrollLeft: 600, clientWidth: 290, scrollWidth: 900, cells: groupCells });
+// ONE hidden group reads without a comma. Scrolled 560 of 610, so the
+// viewport ends at 850 and only Grade (900) clears the 24px slack — and 850
+// is short of 876, so this is not yet the end. (It used 600 while the slack
+// was 1px; at 24px that position is atEnd and reports nothing hidden.)
+const recOne = cueState({ scrollLeft: 560, clientWidth: 290, scrollWidth: 900, cells: groupCells });
 assert(recOne.hiddenLabels.length === 1 && listLabels(recOne.hiddenLabels) === 'Grade', 'one group: "Grade"');
 assert(listLabels([]) === '', 'no groups is an empty string, never "and"');
 assert(listLabels(['A', 'B']) === 'A and B', 'two groups take the conjunction alone');
