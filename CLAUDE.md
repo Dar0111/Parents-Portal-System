@@ -814,6 +814,10 @@ worked failures: `docs/FRONTEND_CONVENTIONS.md` §15.**
   is never one of the glyphs it separates.**
 - **`Stat` must not format** — it also renders counts. A grade-bearing value
   passes `GradeValue` in, at the call site.
+- **The word beside the term average is the server's** (2026-09-25):
+  `term_average_descriptors[current_term].descriptor`, flattened in
+  `heroGrades` — **`.descriptor` only, never the object, never `remarks`**.
+  The caption is `Term N` alone when it is null.
 
 **`GradeValue` hardcodes `text-fg`; on a coloured surface pass `className`,
 and it wins only by stylesheet ORDER** — §3a.
@@ -1557,19 +1561,17 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
       attendance** — handover is outside the system, so re-pointing scope at
       the new section and dropping the old adviser's access would strand the
-      records. **(m) `term_average_descriptors` on
-      `GET /grades/student/:id`** (UI-D-3, 2026-09-25) — computed server-side
-      from the same `BANDS` ladder. `general_average_descriptor` describes the
-      YEAR's average, so the parent hero's term figure has no word to go with
-      it and deriving one in the client is what §12 forbids; the caption
-      becomes `"Term N · <descriptor>"` in a one-line client follow-up. Then
-      the originals: `GET /api/attendance` where
-      `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
-      Admin → Users role sort in A–Z rather than ENUM order; email validation;
-      `test:attendance`’s cleanup deleting every row on three dates rather than
-      only its own; `GET /api/health` returning a static 200 with no DB check;
-      and the shared helper that clears the orphan `notifications` rows the six
-      older suites leave behind. Every one is a `docs/KNOWN_ISSUES.md` row.
+      records. **#2 is DONE 2026-09-25 (`819e892`)** — the attendance `400`,
+      the grades class filter, the users sort (role AND status), the health
+      ping, and (m) `term_average_descriptors`; its text left under the REFILL
+      RULE (`docs/ARCHIVE.md`). **Still queued from the originals:** email
+      validation; `test:attendance`'s cleanup deleting every row on three
+      dates rather than only its own; and the shared helper that clears the
+      orphan `notifications` rows the older suites leave behind — **seen again
+      after #2's `test:grades` run, 3 rows, the 2026-09-19 figure exactly.**
+      Every one is a `docs/KNOWN_ISSUES.md` row. **NEXT is #3, test hygiene:**
+      that cleanup and that helper, (i), (d), the `verify-grading-seed` alias,
+      and the no-watch smoke rule.
       **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
       NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
       (`schema.sql:212-216`), so the shape is representable; `grade_components`
@@ -1724,8 +1726,13 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (ONE)
+### School questions — still open (TWO)
 
+- **"Quiz up to 10" — ten quizzes, or ten points each?** Said at the
+  2026-09-23 visit and recorded nowhere in the repo until 2026-09-25. Not
+  Stage-5-blocking: `WW_SLOTS = 5` is a client constant and the schema has
+  no CHECK on a slot count or a highest possible score, so either reading is
+  a one-line change once known. Do not seed a cap on a guess.
 - **Are there Saturday or make-up classes?** Asked because the code
   already permits them and nobody decided that it should:
   `POST /api/attendance/bulk` has **no weekday validation**, so a
@@ -2007,14 +2014,12 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **Pre-Stage-5 #2** (`819e892`): five server fixes — attendance `date`+range → `400`; a class filter and `sort=class` on `GET /grades`; users sort by letters for **role AND status** (both ENUMs — the second had no header to show it); `/api/health` pings the pool, **503 path stated untested**; `term_average_descriptors` and the hero's `Term N · <word>`. **Fixture captured from the suite** (§19f), and the first negative control matched `· Adviser:` instead of the caption. Suites 62 / 255 / 64, `ssr-ui-d` **86**. Three orphan notifications after `test:grades` — the 2026-09-19 figure, again. |
 | 2026-09-25 | **Item 5b** (`84739bc`): the code review's seven findings on item 5. **The live region was mounted only while dirty — an accessibility defect, and the proof had CEMENTED it** by asserting the region absent when clean; a screen reader announces changes *inside* an existing region. `ScrollCue` already had the rule (§19d); `FilterActions` contradicted it. Also: Reset restores the staged Section; `isDirty` trims every string; `canResetFilters` removed; `buttonNeutralClass`; Events gets a real Reset. `ssr-item5` **39**. |
 | 2026-09-25 | **Item 5** (`2000499`): nine pages staged their filter values and **none admitted it** — a select could read "Approved" over a Pending list. **Filed as §5f, corrected to §5b one level out.** Staging KEPT (three pages filter free text with no debounce); one bounded control auto-applies, eight gain a quiet↔filled Apply and a `role="status"` note. **`parent/EventsPage` already carried the auto-apply rule in its own words** — "no precedent for the affordance" was true of the cue only. **`isDirty` is key-by-key over the UNION, never `JSON.stringify`** (key order), search trimmed both sides, compared against DEFAULTS not falsiness. **A live defect fixed on the way:** T·Attendance records' Section bypassed `applied` and never reset the offset. §21. **The UI-polish queue is COMPLETE.** |
 | 2026-09-25 | **UI-E** (`3086086`): a teacher can read back a reviewed letter. **The remarks rendered only inside the review modal, which opens only for a PENDING letter** — so the teacher who wrote them lost them on save, at every width, and **nothing was broken enough for a check to see it.** Renders the list row, never `GET /:id` (which returns strictly LESS). **Two of the four omitted fields do not exist:** no `reviewed_at` column, and `reviewed_by` is an unresolved user id. **The card's own comment argued against moving its gate** — on a fact, not a principle, and the fact is what changed (§20b). `ssr-ui-e` 23, `ssr-cards` 31 → **32**. **Both my mistakes were in test code:** a regex that matched its own fixture's prose, and a probe that reported clean twice while `name: 'View'` was matching **"Review"**. |
 | 2026-09-25 | **UI-D-2+3** (`9d0c1cb`→`a6be0d2`, five commits): `ScrollCue` on both grids, the parent hero on `--brand-panel`. **UI-D is complete.** **The thresholds were the whole story and I got them wrong twice** — 1px fired on a **2px** overflow and flapped between 1279 and 1281px; 24px on BOTH tests then dropped "Performance Tasks" from the hint while its column was visibly cut. **Two constants: gate 24px, per-cell strict — legibility decides WHETHER to speak, not WHAT to say** (§19b). KS1's "A  D" was a hover-only `title`, which **does not exist on touch**; the average follows `current_term` now. **Two defects of mine, neither found by reasoning:** `ScrollCue.jsx` beside `scrollCue.js` (**Windows is case-insensitive**), and a fixture that invented a string where the API sends an object — **`/parent` rendered blank while build, oxlint and 71/71 were green** (§19f). `ssr-ui-d` **82**, contrast **74 pairs**, smoke 20/20. |
 | 2026-09-25 | **UI-D-1** (`7513457`): the app could not print and could not be read in the dark. **Zero print CSS existed** — the Summary of Grades printed the sidebar, the top bar and the Term select, and `overflow-x-auto` **clipped five of eight subjects and the Average column**. A scroller is a guillotine on paper, and **`min-w-max` is the other half**, so landscape alone would not have fixed it. **Landscape is scoped per page** by a `<style>` mounted with the route (`@page` cannot be nested; named pages fail in Firefox; **Safari ignores `size`** and is survivable only because `min-w-max` is released). The report card is **forced** to its table branch — a container query at print width is unprovable, and the narrow branch is **a different document**, not a broken layout. **Dark print is fixed in `theme.js`, not `@media print`** — the latter means a verbatim second copy of ~71 tokens; restoring **re-reads storage**, so System stays System. **`body { color: var(--color-fg) }`** — until it existed, uncoloured text inherited BLACK, ~1.06:1 on the dark page; `GradeValue` returns to pure inheritance and one DataTable call site moves to `fg-secondary`, accepted. `ssr-ui-d` **32/32**, and it states that **print layout is proved on paper, never by SSR** (§18). oxlint caught `Date.now()` in a render body — **impure, so the same props could produce two documents**. Smoke 20/20. |
-| 2026-09-25 | **UI-C1b** (`388bf9d`): 14 DATE sites, two Birthday fields, `sectionOptions` → `{ value, label }`, `backupAge`. **The DATE work was consistency only as filed; `backupAge` was a live defect** — elapsed 24h blocks called a 23:00 backup read at 01:00 "today". **`new Date(null)` is the EPOCH**, caught by a proof assertion no render could have made. **A date sweep starts from the SCHEMA** — a client grep missed `birthday`. `ssr-dates` 25 → **46** (both zones, 48 DEV), `ssr-ui-c2` **39**. Smoke 19/20; **the flake's diagnostic fired at last** — `/auth/me` on `localhost`, and `netstat` says both stacks are bound, so the lead is `node --watch` restarts. |
-| 2026-09-23 | **DV1b-a** (`4b7508e`): 14 consumers → `renderCard`, four families (§16); `admin/GradesPage` carries JSX as a **declared exception — §3 outranks data-only**. Proof 87/87. **Three findings, none fixed**, incl. a regression I introduced: **at 390px a parent cannot reach the decline reason**. |
-| 2026-09-23 | **DV4** (`feat/dv4-dashboards`, `6d5034e` + `8adebc3`): parent dashboard elevation and the dark amber. **The rust cast was a HUE shift, not a lightness one** (`#461901`, hue 46, against light amber at ~95); five asserted pairs re-measured, light mode untouched, and the other two dashboards follow **through the token alone**. **Browser check FAILED first pass, four findings** — the hero average **invisible in light mode**; the KS1 hero showing **"Term 3 · C"** from a latest-term-with-data walk; weekend and not-recorded near-identical; an orphan caption. Rules in §12 and `docs/FRONTEND_CONVENTIONS.md` §15/§3a. Proofs 23/23 then 26/26, oxlint 43, `test:dashboard` 77/77. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2023,7 +2028,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in nine dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in ten dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
@@ -2033,7 +2038,8 @@ Older stub lines are verbatim in `docs/ARCHIVE.md`, in nine dated batches —
 still to add), **3 under "sixth batch, the SMOKE-1 docs pass"**
 (2026-09-24, spent the same way), **2 under "seventh batch, the UI-D-1
 docs pass"**, **1 under "eighth batch, the UI-D-2+3 docs pass"** and **1
-under "ninth batch, the UI-E docs pass"** (all 2026-09-25). **Every full row
+under "ninth batch, the UI-E docs pass"** and **3 under "tenth batch, the
+pre-Stage-5 #2 docs pass"** (all 2026-09-25). **Every full row
 is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only

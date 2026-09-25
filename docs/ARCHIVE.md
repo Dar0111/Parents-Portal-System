@@ -3686,6 +3686,18 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (tenth batch, the pre-Stage-5 #2 docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds the #2 stub, a §12 rule and an
+> open school question, none of which may be trimmed. Three rows, the
+> oldest — the third moved after the first measure came in at +141 bytes.
+
+| 2026-09-25 | **UI-C1b** (`388bf9d`): 14 DATE sites, two Birthday fields, `sectionOptions` → `{ value, label }`, `backupAge`. **The DATE work was consistency only as filed; `backupAge` was a live defect** — elapsed 24h blocks called a 23:00 backup read at 01:00 "today". **`new Date(null)` is the EPOCH**, caught by a proof assertion no render could have made. **A date sweep starts from the SCHEMA** — a client grep missed `birthday`. `ssr-dates` 25 → **46** (both zones, 48 DEV), `ssr-ui-c2` **39**. Smoke 19/20; **the flake's diagnostic fired at last** — `/auth/me` on `localhost`, and `netstat` says both stacks are bound, so the lead is `node --watch` restarts. |
+| 2026-09-23 | **DV1b-a** (`4b7508e`): 14 consumers → `renderCard`, four families (§16); `admin/GradesPage` carries JSX as a **declared exception — §3 outranks data-only**. Proof 87/87. **Three findings, none fixed**, incl. a regression I introduced: **at 390px a parent cannot reach the decline reason**. |
+| 2026-09-23 | **DV4** (`feat/dv4-dashboards`, `6d5034e` + `8adebc3`): parent dashboard elevation and the dark amber. **The rust cast was a HUE shift, not a lightness one** (`#461901`, hue 46, against light amber at ~95); five asserted pairs re-measured, light mode untouched, and the other two dashboards follow **through the token alone**. **Browser check FAILED first pass, four findings** — the hero average **invisible in light mode**; the KS1 hero showing **"Term 3 · C"** from a latest-term-with-data walk; weekend and not-recorded near-identical; an orphan caption. Rules in §12 and `docs/FRONTEND_CONVENTIONS.md` §15/§3a. Proofs 23/23 then 26/26, oxlint 43, `test:dashboard` 77/77. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (ninth batch, the UI-E docs pass)
 
 > Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4642,6 +4654,38 @@ still left four content decisions, each of which had to be made rather than
 copied — no reviewer name, no reviewed date, no "Submitted", no attachment —
 because **two of those fields do not exist in the database at all**
 (`reviewed_at` is not a column; `reviewed_by` is an unresolved user id).
+
+### Pre-Stage-5 #2's five items — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **pre-Stage-5 #2** (`819e892`, browser check
+passed). The pre-Stage-5 block in CLAUDE.md carried them as one queued item
+(m) and four clauses of "the originals"; this is how they stood.
+
+```
+      **(m) `term_average_descriptors` on
+      `GET /grades/student/:id`** (UI-D-3, 2026-09-25) — computed server-side
+      from the same `BANDS` ladder. `general_average_descriptor` describes the
+      YEAR's average, so the parent hero's term figure has no word to go with
+      it and deriving one in the client is what §12 forbids; the caption
+      becomes `"Term N · <descriptor>"` in a one-line client follow-up. Then
+      the originals: `GET /api/attendance` where
+      `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
+      Admin → Users role sort in A–Z rather than ENUM order; email validation;
+      `test:attendance`’s cleanup deleting every row on three dates rather than
+      only its own; `GET /api/health` returning a static 200 with no DB check;
+      and the shared helper that clears the orphan `notifications` rows the six
+      older suites leave behind. Every one is a `docs/KNOWN_ISSUES.md` row.
+```
+
+Of the seven "originals", #2 took four — the attendance `400`, the grades
+class filter, the users sort, the health check — and (m). **Email validation,
+`test:attendance`'s cleanup and the orphan-notifications helper stay queued**
+(#4, #3 and #3). Two things the entry could not have known: **the users sort
+defect was two defects** (`status` is an ENUM as well, with no header to show
+it), and **(m)'s "one-line client follow-up" was one line of data and three of
+proof** — the fixture had to be the server's `{ descriptor, remarks }` object,
+captured from the suite, with the object-as-child refusal asserted (§19f),
+because the previous hero fixture had invented a string and blanked `/parent`.
 
 ### UI-D (c) and (d) — moved from CLAUDE.md on 2026-09-25
 

@@ -29,7 +29,7 @@ it.
   except `POST /api/auth/login` and `GET /api/health`. `<token>` is the
   bare `token` field `POST /api/auth/login` returns at the top level of
   its response — not nested under `user`.
-- **`GET /api/health`** — public, no auth. `{ success: true, message: "Parents Portal API is running." }`. Not in any table below; it isn't a feature, it's a liveness check. Defined directly in `server.js`, not in `server/routes/`.
+- **`GET /api/health`** — public, no auth. **Since 2026-09-25 it pings the database** (`SELECT 1` through the Proxy pool, so it follows `resetPool()` after a restore): `200 { success: true, message: "Parents Portal API is running.", db: "ok" }`, or **`503 { success: false, message: "Database unreachable." }`** when the query throws. `success: true` and the message are unchanged on the 200 because sixteen suites preflight on `data.success` and the smoke's `waitFor` polls `res.ok`. **The 503 path has never been exercised** — it would take MySQL stopped under the running API (`docs/KNOWN_ISSUES.md`). Not in any table below; it isn't a feature, it's a health check. Defined directly in `server.js`, not in `server/routes/`.
 - **Unmatched route** — any path under `/api` that hits nothing above
   returns `404` with `{ success: false, message: "Route not found." }`.
 - **Uncaught error** — any unhandled exception anywhere returns `500`
@@ -516,7 +516,7 @@ An admin changing a user's email through `PUT /users/:id` clears
 | GET | `/parents/pending` | `admin` | — | `parents` |
 | PUT | `/parents/:id/approve` | `admin` | — | `user` |
 | PUT | `/parents/:id/reject` | `admin` | `reason`* | message only |
-| GET | `/` | `admin` | query: `role`, `status`, `search` | `users` |
+| GET | `/` | `admin` | query: `role`, `status`, `search` | `users` | `sort` keys `name`, `login_id`, `role`, `status`, `created_at`. **`role` and `status` sort by their LETTERS** (`CAST(... AS CHAR)`, 2026-09-25) — both are ENUMs and MySQL sorts an ENUM by ordinal, so `sort=role&order=asc` used to yield parent, teacher, admin under an A–Z header |
 | GET | `/:id` | `admin` | — | `user` |
 | PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset; `contact_number` follows the contact rule since 2026-09-18 — `400` with `field: "contact_number"`, an empty string clears it) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `user` |
@@ -585,12 +585,12 @@ documented sort value does would be a contract change; only the default moved.
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `teacher(wide)`, `admin`, `parent(own)` | query: `student_id`, `subject_id`, `term`, `school_year` (all optional, no defaults) | `grades` | parent naming a different `student_id` → `403` |
+| GET | `/` | `teacher(wide)`, `admin`, `parent(own)` | query: `student_id`, `subject_id`, `term`, `school_year`, **`grade_level`** (integer 1–6, else `400`), **`section`** (trimmed, non-empty, else `400`) — all optional, no defaults | `grades` | parent naming a different `student_id` → `403`. The class pair filters on the JOINed `students` columns (2026-09-25); `sort` keys are `student`, `subject`, **`class`** (`s.grade_level, s.section`), `term`, `school_year`, `updated_at` |
 | GET | `/class-record` | `teacher(wide)`, `admin` | query: `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year` | `subject`+`slots`+`learners`+`group_hps`+`exam_max`+`exam_max_mixed`+`weights`+`grading_mode`+`can_encode` (no `grade` key) | the whole grid in one request; **registered BEFORE `/:id`** or `class-record` parses as an id. `404` outside view scope |
 | GET | `/class-summary` | `teacher(adviser)`, `admin` | query: `grade_level`*, `section`*, `term`* (`1｜2｜3｜final`), `school_year` | `section`+`school_year`+`term`+`grading_mode`+`show_final`+`show_general_average`+`subjects`+`learners`+`completeness` | the adviser's Summary of Grades, read-only. **Also registered BEFORE `/:id`.** `403` in view scope but not adviser; `404` otherwise. **No pagination** — see below |
 | PUT | `/class-record` | `teacher(subject)`, `admin` | `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year`, plus any of `slots[]`, `entries[]`, `exam_max`, `dry_run` | `results`+`group_hps`+`slots` | one save for the whole class; see below |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `grade` + `grade_components` + `descriptor` | `404` out-of-scope |
-| GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
+| GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+**`term_average_descriptors`**+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
 | POST | `/` | `teacher(subject)`, `admin` | `student_id`*, `subject_id`*, `term`*, `school_year`* | `grade` | teacher out-of-scope → `403`; nonexistent `student_id` → `404` admin / `403` teacher |
 | POST | `/:id/components` | `teacher(subject)`, `admin` | **`slot_id`***, `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely. **`slot_id` required since CR1**; a slot of another class or the wrong type → `404` (never leaks that it exists). **`label` is now OPTIONAL** — a slot-backed row leaves it `NULL`. Non-integer `score`/`max_score` → `400` |
 | PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded`, `slot_id` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404`; **moving a row into an UNUSED slot is refused**; non-integer score/max → `400` |
@@ -847,6 +847,21 @@ Final Grade.
 - **All three keys are always present, and they are STRINGS** — see the
   gotcha above. Distinct from a subject's `terms`, where a missing entry is
   `null` because the grade row does not exist.
+- **`term_average_descriptors` rides beside it (pre-Stage-5 #2, 2026-09-25)**
+  — the band word for each term average, keyed the same way:
+
+  ```json
+  "term_average_descriptors": { "1": { "descriptor": "Benchmarking", "remarks": "Passed" }, "2": null, "3": null }
+  ```
+
+  Each entry is `qualitativeDescriptor(term_averages[t])` — the **same
+  `{ descriptor, remarks }` object** `general_average_descriptor` is, through
+  the same `BANDS` ladder — or `null` wherever the average is `null`. Exists
+  because the parent hero shows `term_averages[current_term]` and had no word
+  to put beside it: `general_average_descriptor` describes the YEAR, and
+  banding the number in the client would be a second ladder (§12). **A client
+  renders `.descriptor` and never `remarks`** — that is Passed/Failed, a
+  verdict (§4) — and never the object itself as a child.
 - **Descriptive mode returns three nulls**, for the same reason
   `general_average` is null there: an average of letters is not a number.
 - **No descriptor.** The band words (Advancing, Benchmarking…) belong to
@@ -868,7 +883,7 @@ Final Grade.
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `teacher(adviser)`, `admin` | query: `student_id`, `grade_level`, `section`, `date`, `from`, `to`, `status` | `attendance` (array) | |
+| GET | `/` | `teacher(adviser)`, `admin` | query: `student_id`, `grade_level`, `section`, `date`, `from`, `to`, `status` | `attendance` (array) | **`date` with `from` or `to` → `400`** *"date cannot be combined with from or to — send one day or a range, not both."* (2026-09-25; before that the range was silently dropped and the one day answered) |
 | GET | `/student/:studentId` | `teacher(adviser)`, `admin`, `parent(own)` | query: `from`, `to`, `status` | `attendance` (array) | `404` out-of-scope |
 | GET | `/summary/:studentId` | `teacher(adviser)`, `admin`, `parent(own)` | query: `from`, `to` | `summary` | `404` out-of-scope; raw counts only, no rate |
 | POST | `/` | `teacher(adviser)`, `admin` | `student_id`*, `date`*, `status`* (`Present`\|`Absent`\|`Late`\|`Excused`) | `attendance` (single) | teacher out-of-scope → `403` |
