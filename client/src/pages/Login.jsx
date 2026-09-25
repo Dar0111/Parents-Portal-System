@@ -125,7 +125,12 @@ export default function Login() {
           the band at 440px. Found in browser review 2026-09-19. At lg the two
           are grid columns side by side and this does nothing. */}
       <main className="page-dots relative z-10 flex items-center justify-center px-4 pb-10 lg:min-h-screen lg:px-8 lg:py-16">
-        <div className="-mt-12 w-full max-w-sm rounded-2xl border border-edge bg-surface p-8 shadow-xl lg:mt-0">
+        {/* The card and the About link below it share one column so the link
+            centres under the card at every width (canvas board "Login · A —
+            below the card", 2026-09-26). The -mt-12 that pulled the card up
+            over the band moved from the card to this column. */}
+        <div className="-mt-12 flex w-full max-w-sm flex-col lg:mt-0">
+        <div className="w-full rounded-2xl border border-edge bg-surface p-8 shadow-xl">
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-fg">Welcome back</h2>
             <p className="mt-1 text-sm text-fg-muted">Sign in to continue.</p>
@@ -217,14 +222,22 @@ export default function Login() {
             </Link>{' '}
             No email on your account? Ask the school office.
           </p>
-          {/* The school's details and the DepEd VMV, signed out (pre-Stage-5
-              #5a). A parent looking for the office phone should not need an
-              account to find it. */}
-          <p className="mt-2 text-sm text-fg-muted">
-            <Link to="/about" className="font-medium text-brand underline-offset-2 hover:underline">
-              About the school
-            </Link>
-          </p>
+        </div>
+        {/* The school's details and the DepEd VMV, signed out (pre-Stage-5
+            #5a). A parent looking for the office phone should not need an
+            account to find it. BELOW the card, not in it — the card is the
+            sign-in and this is not part of signing in. Muted on the page
+            background (a checked pair), the info glyph before the text,
+            centred at every width. */}
+        <p className="mt-4 text-center text-sm">
+          <Link
+            to="/about"
+            className="inline-flex items-center gap-2 font-medium text-fg-muted transition hover:text-fg"
+          >
+            <i aria-hidden="true" className="fa-solid fa-circle-info" />
+            About the school
+          </Link>
+        </p>
         </div>
       </main>
     </div>
