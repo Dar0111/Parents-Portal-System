@@ -178,39 +178,59 @@ assert(
 );
 
 // ------------------------------------------------------ 4. the teacher card
-console.log('\n4. the teacher letter card — the gate that STAYS:');
+// THE GATE MOVED IN UI-E, AND THE OLD ASSERTIONS WERE RIGHT WHEN WRITTEN.
+// This block asserted that exactly one of two letters was tappable, because
+// the only thing a teacher's card could open was the REVIEW modal and a
+// reviewed letter had nowhere to go. UI-E built the somewhere:
+// `excuseLetters/readingView.jsx`. The rule the old block enforced — a card
+// is tappable when there is something to READ, not something to do — is
+// unchanged; the fact underneath it is not.
+console.log('\n4. the teacher letter card — the gate, as UI-E redrew it:');
 
 const tLetters = [
   { id: 21, first_name: 'Nino', last_name: 'Alcantara', reason: 'Fever', absence_date: '2026-09-21', grade_level: 1, section: 'Mabait', status: 'Pending' },
   { id: 22, first_name: 'Jea', last_name: 'Bargaso', reason: 'Clinic', absence_date: '2026-09-18', grade_level: 5, section: 'Masigasig', status: 'Approved' },
 ];
 const reviewable = (r) => r.status === 'Pending';
-const reviewed = [];
+const opened = [];
 const teacherHtml = renderCards(
-  table((r) => teacherLetterCard(r, { canReview: reviewable, onReview: (x) => reviewed.push(x.id) }), tLetters)
+  table((r) => teacherLetterCard(r, { canReview: reviewable, onOpen: (x) => opened.push(x.id) }), tLetters)
 );
 
-assert((teacherHtml.match(/<button/g) || []).length === 1, 'exactly ONE of the two is tappable');
+// BOTH are tappable now: the Pending one opens the review form, the Approved
+// one opens the reading view.
+assert((teacherHtml.match(/<button/g) || []).length === 2, 'both letters are tappable');
 assert(
-  (teacherHtml.match(/fa-chevron-right/g) || []).length === 1,
-  'and only the reviewable one shows a chevron'
+  (teacherHtml.match(/fa-chevron-right/g) || []).length === 2,
+  'and both show a chevron'
 );
 assert(teacherHtml.includes('Alcantara, Nino'), 'the learner leads the card');
 assert(teacherHtml.includes('Grade 1 - Mabait'), 'the class is in meta');
 
-teacherLetterCard(tLetters[0], { canReview: reviewable, onReview: (x) => reviewed.push(x.id) }).onSelect();
-assert(reviewed.includes(21), 'the reviewable letter opens the review modal');
+teacherLetterCard(tLetters[0], { canReview: reviewable, onOpen: (x) => opened.push(x.id) }).onSelect();
+teacherLetterCard(tLetters[1], { canReview: reviewable, onOpen: (x) => opened.push(x.id) }).onSelect();
+assert(opened.includes(21) && opened.includes(22), 'both hand their row to the page, which picks the view');
+
+// THE ONE CASE THAT IS STILL A DEAD END, and it is the whole remaining gate:
+// a PENDING letter in a section this teacher does not advise. There is no
+// reading view for a Pending letter — the review modal already shows every
+// field one would — and `PATCH /:id/review` answers 403 to a non-adviser.
+const notAdviser = (r) => r.status === 'Pending' && false;
 assert(
-  teacherLetterCard(tLetters[1], { canReview: reviewable, onReview: () => {} }).onSelect === undefined,
-  'and a letter this teacher may NOT review has no handler — never a 403 dead end'
+  teacherLetterCard(tLetters[0], { canReview: notAdviser, onOpen: () => {} }).onSelect === undefined,
+  'a PENDING letter this teacher may not review has NO handler — never a 403 dead end'
+);
+assert(
+  teacherLetterCard(tLetters[1], { canReview: notAdviser, onOpen: () => {} }).onSelect !== undefined,
+  'but the REVIEWED one is readable by any teacher in scope — read scope is wider than review scope'
 );
 
-// NEGATIVE CONTROL: with an always-true gate both become tappable, so the
-// single chevron above is the gate working and not an empty fixture.
+// NEGATIVE CONTROL: the gate can still refuse, so "both tappable" above is
+// the rule working rather than an unconditional handler.
 assert(
-  (renderCards(table((r) => teacherLetterCard(r, { canReview: () => true, onReview: () => {} }), tLetters))
-    .match(/fa-chevron-right/g) || []).length === 2,
-  'NEGATIVE CONTROL: an always-true gate makes BOTH tappable'
+  (renderCards(table((r) => teacherLetterCard(r, { canReview: notAdviser, onOpen: () => {} }), tLetters))
+    .match(/fa-chevron-right/g) || []).length === 1,
+  'NEGATIVE CONTROL: a non-adviser gets exactly ONE chevron, on the reviewed letter'
 );
 
 // §5c — nothing identifying beyond the name on either page's card.

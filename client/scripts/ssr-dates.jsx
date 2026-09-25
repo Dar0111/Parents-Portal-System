@@ -176,7 +176,7 @@ const teacherLetterHtml = render(
         section: 'Mabait',
       },
     ]}
-    renderCard={(row) => teacherLetterCard(row, { canReview: () => true, onReview: () => {} })}
+    renderCard={(row) => teacherLetterCard(row, { canReview: () => true, onOpen: () => {} })}
   />
 );
 assert(

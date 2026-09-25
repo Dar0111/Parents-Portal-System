@@ -8,6 +8,7 @@ import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate } from '../../format/date';
 import teacherLetterCard from './excuseLetters/card';
+import LetterReadingView from './excuseLetters/readingView';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -69,6 +70,14 @@ export default function ExcuseLettersPage() {
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+
+  // --- reading view state (UI-E) ------------------------------------------
+  // SEPARATE FROM `reviewing`, deliberately. They are two different documents
+  // — one is a form with a decision and a confirmation step, the other is a
+  // read-only record — and a single piece of state would mean every render
+  // asking which mode it was in. Two states make "both open" unrepresentable
+  // instead of merely unlikely.
+  const [readingLetter, setReadingLetter] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +172,18 @@ export default function ExcuseLettersPage() {
   function closeReview() {
     if (saving) return; // never dismiss mid-flight — see the Modal props below
     setReviewing(null);
+  }
+
+  // THE ONE ENTRY POINT FOR A TAP OR A CLICK (UI-E), so the card and the
+  // Actions cell cannot disagree about what a row opens. The status decides:
+  // a Pending letter this teacher advises opens the review FORM, anything
+  // already reviewed opens the read-only view, and a Pending letter belonging
+  // to someone else's section opens nothing — `canReview` gates the first and
+  // the card gates the third, so this function is only ever reached for a row
+  // that has somewhere to go.
+  function openLetter(letter) {
+    if (letter.status === 'Pending') openReview(letter);
+    else setReadingLetter(letter);
   }
 
   async function submitReview() {
@@ -294,7 +315,21 @@ export default function ExcuseLettersPage() {
             // rendered as a button that would only produce a 403 — the same
             // precedent the Students page set by omitting Edit.
             <span className="text-xs text-fg-muted">Adviser only</span>
-          ) : null,
+          ) : (
+            // UI-E: a reviewed letter is READABLE, and until now this cell
+            // rendered null — so the remarks a teacher had written themselves
+            // were unreachable the moment they were saved. A secondary button,
+            // not the primary fill: reviewing is an action, reading is not,
+            // and two identical-looking buttons in one column would make the
+            // difference invisible at a glance.
+            <button
+              type="button"
+              onClick={() => setReadingLetter(row)}
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-fg-body transition hover:bg-surface-muted"
+            >
+              View
+            </button>
+          ),
       },
     ],
     [canReview]
@@ -347,7 +382,7 @@ export default function ExcuseLettersPage() {
         // render it both ways instead of regexing this file (§17b, §17d).
         // Moved in UI-B with no behaviour change; its header carries why the
         // `canReview` gate is correct here and was not on the parent's card.
-        renderCard={(row) => teacherLetterCard(row, { canReview, onReview: openReview })}
+        renderCard={(row) => teacherLetterCard(row, { canReview, onOpen: openLetter })}
         columns={columns}
         rows={letters}
         loading={loading}
@@ -520,6 +555,24 @@ export default function ExcuseLettersPage() {
             )}
           </div>
         ) : null}
+      </Modal>
+
+      {/* THE READING VIEW (UI-E). Its own Modal beside the review one rather
+          than a mode inside it: the review Modal locks itself while saving and
+          carries a decision, a remarks field and a confirmation step, none of
+          which a reviewed letter can use. `size="lg"` matches the parent's
+          reading modal so one letter is the same shape to both sides. */}
+      <Modal
+        open={Boolean(readingLetter)}
+        onClose={() => setReadingLetter(null)}
+        title={
+          readingLetter
+            ? `Excuse letter — ${readingLetter.first_name} ${readingLetter.last_name}`
+            : ''
+        }
+        size="lg"
+      >
+        <LetterReadingView letter={readingLetter} />
       </Modal>
     </div>
   );
