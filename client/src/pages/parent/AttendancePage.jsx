@@ -13,6 +13,7 @@ import {
   todayLocalDateString,
   weekdayName,
 } from '../../format/date';
+import { clampMonthToSchoolYear } from '../../format/schoolCalendar';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -81,12 +82,12 @@ function recordedDays(summary) {
 
 // The months that actually hold records, earliest to latest.
 //
-// DERIVED FROM DATA, NOT FROM A CALENDAR CONVENTION (Darryl, DV2 Q6). There
-// is no term-start or year-start date anywhere in the schema —
-// `system_settings.academic_year` is the string "2026-2027" and nothing more
-// — so a hardcoded June–April range would be an invented fact on a
-// parent-facing page (§5i). The earliest and latest recorded month is honest
-// by construction, and is exactly what "recorded days" means.
+// DERIVED FROM DATA, NOT FROM A CALENDAR CONVENTION (Darryl, DV2 Q6). The
+// months a parent can page through are the ones that hold records — the
+// earliest and latest recorded month is honest by construction, and is
+// exactly what "recorded days" means. The school calendar
+// (format/schoolCalendar.js, since pre-Stage-5 #7) decides only which month
+// the page OPENS on; it never adds an empty month to this list.
 function monthsCovered(allRows) {
   const keys = new Set();
   for (const row of allRows) keys.add(String(row.date).slice(0, 7));
@@ -112,9 +113,13 @@ export default function ParentAttendancePage() {
   const studentId = user?.student_id ?? null;
   const today = todayLocalDateString();
 
+  // Opens on today's month, kept inside the school year (pre-Stage-5 #7): a
+  // parent opening this in May sees June, the first month of classes, and in
+  // the summer after sees April, the last — not an empty month with nothing
+  // to page to. Within the year, today's month as before.
   const [view, setView] = useState(() => {
     const { year, month } = monthBounds(today);
-    return { year, month };
+    return clampMonthToSchoolYear({ year, month });
   });
 
   const [summary, setSummary] = useState(EMPTY_SUMMARY);

@@ -13,11 +13,16 @@ const router = express.Router();
 // The four school_* keys after logo_url arrived with pre-Stage-5 #5a
 // (2026-09-26): the DepEd School ID, the school's DepEd email, its phone and
 // its Facebook page had nowhere to live, and the About page reads them.
+//
+// `current_term` LEFT THIS LIST with pre-Stage-5 #7 (2026-09-26). The term
+// is derived from today's date by utils/schoolCalendar.js, not typed by an
+// admin, so the key is retired: a PUT or PATCH naming it is the ordinary
+// unknown-key 400, the seed no longer writes it, and a row left on a live
+// database is invisible — readAllowedSettings filters on this list.
 const ALLOWED_KEYS = [
   'school_name',
   'school_address',
   'academic_year',
-  'current_term',
   'logo_url',
   'school_id',
   'school_email',
@@ -26,8 +31,8 @@ const ALLOWED_KEYS = [
 ];
 
 // The subset an UNAUTHENTICATED caller may read (GET /public): what the
-// school prints on its own gate. Never academic_year, current_term or
-// logo_url — not secrets, but not the public face either, and a public
+// school prints on its own gate. Never academic_year or logo_url — not
+// secrets, but not the public face either, and a public
 // endpoint should carry exactly what it exists for.
 const PUBLIC_KEYS = ['school_name', 'school_address', 'school_id', 'school_email', 'school_phone', 'facebook_page'];
 
@@ -52,24 +57,6 @@ function validateAcademicYear(value) {
   const second = Number(match[2]);
   if (second !== first + 1) {
     return 'academic_year must span two consecutive years (e.g. 2026-2027).';
-  }
-  return null;
-}
-
-// current_term's accepted values used to be read live from grades.quarter's
-// ENUM via INFORMATION_SCHEMA, specifically because the quarter-vs-term
-// question was provisional (CLAUDE.md's old Blocked section). DO 009 s.2026
-// has since confirmed three terms, not four quarters — that's a settled
-// DepEd fact now, not a placeholder — so the live-introspection indirection
-// no longer earns its complexity. grades.term is also a TINYINT + CHECK now,
-// not an ENUM, so there is nothing left to introspect anyway.
-function validateCurrentTerm(value) {
-  const allowed = ['1', '2', '3'];
-  if (typeof value !== 'string' || !value) {
-    return 'current_term must not be empty.';
-  }
-  if (!allowed.includes(value)) {
-    return `current_term must be one of: ${allowed.join(', ')}.`;
   }
   return null;
 }
@@ -120,7 +107,6 @@ const VALIDATORS = {
   school_name: validateNonEmpty('school_name'),
   school_address: validateNonEmpty('school_address'),
   academic_year: validateAcademicYear,
-  current_term: validateCurrentTerm,
   logo_url: validateLogoUrl,
   school_id: validateSchoolId,
   school_email: validateSchoolEmail,

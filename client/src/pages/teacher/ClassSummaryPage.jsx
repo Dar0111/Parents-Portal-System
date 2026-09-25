@@ -7,8 +7,9 @@ import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ScrollCue from '../../components/ScrollCue';
-import { timestampDay } from '../../format/date';
+import { timestampDay, todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/grade';
+import { currentTerm } from '../../format/schoolCalendar';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import { useAuth } from '../../auth/AuthContext';
@@ -264,7 +265,8 @@ export default function ClassSummaryPage() {
       })
       .catch(() => {
         // A missing settings read must not take the page down: it only
-        // supplies the DEFAULT term, and TERMS[0] is a safe fallback. The
+        // supplies the school's name for the print masthead (the term comes
+        // from the school calendar since pre-Stage-5 #7, not from here). The
         // summary request carries no school_year, so the server uses its own
         // academic_year — one source, not this one.
         if (!cancelled) setSettings({});
@@ -305,13 +307,27 @@ export default function ClassSummaryPage() {
     return asked || advised[0];
   }, [advised, sectionParam]);
 
+  // THE TERM IS PINNED FOR THE LIFE OF THE PAGE (pre-Stage-5 #7): the default
+  // comes from the school calendar, derived ONCE in a lazy initialiser and
+  // written into the URL with `replace` — the same discipline as the class
+  // record, so a sheet open across a term boundary does not change under the
+  // teacher. 'final' is a URL-only value; nothing defaults to it.
+  const [pinnedTerm] = useState(() => currentTerm(todayLocalDateString()));
   const termParam = params.get('term');
   const term = useMemo(() => {
     if (termParam === 'final') return 'final';
     const n = Number(termParam);
     if (TERMS.includes(n)) return n;
-    return Number(settings?.current_term) || 1;
-  }, [termParam, settings]);
+    return pinnedTerm;
+  }, [termParam, pinnedTerm]);
+
+  useEffect(() => {
+    const asked = params.get('term');
+    if (asked === 'final' || TERMS.includes(Number(asked))) return;
+    const next = new URLSearchParams(params);
+    next.set('term', String(pinnedTerm));
+    setParams(next, { replace: true });
+  }, [params, setParams, pinnedTerm]);
 
   const load = useCallback(() => {
     if (!selected) return undefined;

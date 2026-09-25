@@ -9,6 +9,7 @@ import {
   monthName,
   weekdayName,
 } from '../../format/date';
+import { currentTerm as calendarTerm } from '../../format/schoolCalendar';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
@@ -494,11 +495,6 @@ export default function ParentDashboard() {
     [studentId]
   );
 
-  // `current_term` is the ONE term this page shows (F2). Its own card so a
-  // failed read cannot take anything else down; the fallback is Term 1, which
-  // is what every other screen falls back to.
-  const settings = useCard(() => api.get('/settings', { unwrap: 'settings' }), []);
-
   // The adviser's name is not on /auth/me. GET /api/sections is unscoped
   // reference data for every role, so this is a read a parent is already
   // allowed to make — it is not a roster and exposes no other family.
@@ -617,8 +613,8 @@ export default function ParentDashboard() {
 
   const grades = summary.data?.grades ?? null;
 
-  // THE CURRENT TERM, FROM SETTINGS — never "the latest term that has data"
-  // (Darryl, F2).
+  // THE CURRENT TERM, FROM THE SCHOOL CALENDAR — never "the latest term that
+  // has data" (Darryl, F2).
   //
   // The first build walked terms 3 → 1 and used the newest that carried a
   // letter. On the seeded Grade 1 learner that surfaced "Term 3 · C" — a
@@ -627,9 +623,13 @@ export default function ParentDashboard() {
   // showing two different terms is worse than showing nothing, and a parent
   // has no way to tell which one is current.
   //
-  // So ONE term drives the hero and the Grades card, and it is the school's
-  // own `current_term`. No cross-term mixing anywhere on this page.
-  const currentTerm = Number(settings.data?.current_term) || 1;
+  // So ONE term drives the hero and the Grades card. It was the
+  // `current_term` setting until pre-Stage-5 #7 (2026-09-26); now it is
+  // derived from today's date by format/schoolCalendar.js — the same rule
+  // the server's dashboard, the class record and the class summary use — so
+  // there is no settings read here any more and nothing to fall back from.
+  // No cross-term mixing anywhere on this page.
+  const currentTerm = calendarTerm(today);
 
   // That term's letters, for the Key Stage 1 hero. Read from the report card,
   // never computed: a letter IS the grade, so showing it is showing what the

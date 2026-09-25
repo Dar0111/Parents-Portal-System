@@ -18,11 +18,14 @@ USE parents_portal;
 -- page are as the school's own Facebook page shows them (2026-09-26). A live
 -- database gets these through Admin → Settings or a PATCH through the API,
 -- not by re-seeding.
+--
+-- NO current_term ROW (pre-Stage-5 #7, 2026-09-26): the term is derived from
+-- today's date by server/utils/schoolCalendar.js, whose SCHOOL_YEAR must
+-- equal academic_year here — test:school-calendar checks both facts.
 INSERT INTO system_settings (setting_key, setting_value) VALUES
   ('school_name', 'Captain H. Francisco Elementary School – Main'),
   ('school_address', 'P. Rosales St., Sta. Ana, Pateros, Metro Manila'),
   ('academic_year', '2026-2027'),
-  ('current_term', '1'),
   ('logo_url', ''),
   ('school_id', '136893'),
   ('school_email', '136893@deped.gov.ph'),

@@ -1,15 +1,14 @@
 /**
  * System Settings API tests — allow-list enforcement, per-key validation,
- * PATCH all-or-nothing. current_term (was current_quarter) is now validated
- * against a hardcoded ['1','2','3'] — the old live INFORMATION_SCHEMA ENUM
- * introspection was removed once DO 009 s.2026 confirmed three terms as a
- * settled DepEd fact, not a provisional placeholder (see routes/settings.js
- * and the Grades module CHANGELOG entry).
+ * PATCH all-or-nothing. current_term is NOT a setting since pre-Stage-5 #7
+ * (2026-09-26): the term is derived from the date by utils/schoolCalendar.js,
+ * so this suite asserts the key is refused as unknown and that a row left on
+ * a live database never surfaces through the API.
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
  * Idempotent: these are fixed seeded rows, not created ones. Original values
- * for academic_year, current_term, and logo_url are captured up front and
- * restored in a finally block, so it passes on repeat runs with no db:setup.
+ * for academic_year and logo_url are captured up front and restored in a
+ * finally block, so it passes on repeat runs with no db:setup.
  *
  * Usage: npm run test:settings
  */
@@ -98,7 +97,7 @@ async function run() {
   const originalSettings = await request('GET', '/api/settings', { token: adminToken });
   const original = originalSettings.data?.settings || {};
   assert(
-    typeof original.academic_year === 'string' && typeof original.current_term === 'string',
+    typeof original.academic_year === 'string' && typeof original.logo_url === 'string',
     'Captured original settings for restore'
   );
 
@@ -142,7 +141,7 @@ async function run() {
       // The PATCH response used to re-read the whole table with no filter.
       const patchWhileUnlistedExists = await request('PATCH', '/api/settings', {
         token: adminToken,
-        body: { settings: { current_term: original.current_term } },
+        body: { settings: { academic_year: original.academic_year } },
       });
       assert(
         patchWhileUnlistedExists.status === 200 &&
@@ -201,20 +200,26 @@ async function run() {
     });
     assert(validYear.status === 200 && validYear.data?.value === '2027-2028', 'Valid academic_year accepted');
 
-    const badTerm = await request('PUT', '/api/settings/current_term', {
-      token: adminToken,
-      body: { value: '5' },
-    });
-    assert(
-      badTerm.status === 400 && /current_term must be one of/.test(badTerm.data?.message || ''),
-      'current_term outside 1-3 rejected, naming the allowed values'
-    );
-
-    const validTerm = await request('PUT', '/api/settings/current_term', {
+    // current_term is RETIRED (pre-Stage-5 #7): the term comes from the school
+    // calendar, never from a typed value, so the key is unknown to the API.
+    const retiredTerm = await request('PUT', '/api/settings/current_term', {
       token: adminToken,
       body: { value: '3' },
     });
-    assert(validTerm.status === 200 && validTerm.data?.value === '3', 'Valid current_term accepted');
+    assert(
+      retiredTerm.status === 400 && !/current_term/.test(retiredTerm.data?.message || ''),
+      'PUT current_term is the unknown-key 400, and the allowed list no longer names it'
+    );
+    // A live database upgraded from before #7 still holds the old row. It
+    // must never reach a reader: GET / filters on the allow-list.
+    const [[deadRow]] = await withDb((conn) =>
+      conn.query("SELECT COUNT(*) AS n FROM system_settings WHERE setting_key = 'current_term'")
+    );
+    const listAfterRetire = await request('GET', '/api/settings', { token: adminToken });
+    assert(
+      listAfterRetire.status === 200 && !('current_term' in (listAfterRetire.data?.settings || {})),
+      `GET /api/settings carries no current_term (a dead row ${deadRow.n ? 'EXISTS' : 'does not exist'} on this database)`
+    );
 
     const emptyLogo = await request('PUT', '/api/settings/logo_url', {
       token: adminToken,
@@ -275,7 +280,7 @@ async function run() {
 
     const patchBadValue = await request('PATCH', '/api/settings', {
       token: adminToken,
-      body: { settings: { academic_year: '2028-2029', current_term: '9' } },
+      body: { settings: { academic_year: '2028-2029', school_id: '12' } },
     });
     assert(patchBadValue.status === 400, 'PATCH with one invalid value rejects the whole request');
 
@@ -287,12 +292,12 @@ async function run() {
 
     const patchOk = await request('PATCH', '/api/settings', {
       token: adminToken,
-      body: { settings: { academic_year: '2029-2030', current_term: '2' } },
+      body: { settings: { academic_year: '2029-2030', logo_url: 'https://example.com/seal.png' } },
     });
     assert(
       patchOk.status === 200 &&
         patchOk.data?.settings?.academic_year === '2029-2030' &&
-        patchOk.data?.settings?.current_term === '2',
+        patchOk.data?.settings?.logo_url === 'https://example.com/seal.png',
       'PATCH with all valid keys updates every key'
     );
 
@@ -347,7 +352,6 @@ async function run() {
         settings: {
           school_name: original.school_name,
           academic_year: original.academic_year,
-          current_term: original.current_term,
           logo_url: original.logo_url,
           // The four school keys, restored to what this run found — a live
           // database that had none gets them back as '' (a valid state).

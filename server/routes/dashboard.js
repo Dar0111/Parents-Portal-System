@@ -2,6 +2,8 @@ const express = require('express');
 const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 const { roundTo2 } = require('../utils/gradeComputation');
+const { SCHOOL_YEAR, currentTerm } = require('../utils/schoolCalendar');
+const { todayLocalDateString } = require('../utils/dateFormat');
 
 const router = express.Router();
 
@@ -55,16 +57,21 @@ const router = express.Router();
 // which is also why there is no pagination — every result is a fixed-size
 // summary, not a list.
 
-// Both are seeded and validated by routes/settings.js, so a missing one is a
-// real misconfiguration rather than an empty state. Same treatment the report
-// card gives `academic_year`: fail loudly and name the key.
+// academic_year is seeded and validated by routes/settings.js, so a missing one
+// is a real misconfiguration rather than an empty state. Same treatment the
+// report card gives it: fail loudly and name the key.
+//
+// THE TERM IS NOT A SETTING (pre-Stage-5 #7, 2026-09-26). It is derived from
+// today's date by utils/schoolCalendar.js, the one table of term dates, so
+// the setting an admin could type is gone and this endpoint, the parent hero,
+// the class record and the class summary all answer from the same rule. The
+// handler below refuses when the setting's school year and the calendar's
+// disagree — starting a new school year is a new table AND a new setting.
 async function readSchoolContext() {
   const [rows] = await pool.query(
-    "SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('academic_year', 'current_term')"
+    "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
   );
-  const map = {};
-  for (const row of rows) map[row.setting_key] = row.setting_value;
-  return { schoolYear: map.academic_year, term: map.current_term };
+  return { schoolYear: rows[0]?.setting_value, term: currentTerm(todayLocalDateString()) };
 }
 
 // ---------------------------------------------------------------------------
@@ -345,12 +352,13 @@ router.get('/', authenticate, async (req, res) => {
         .status(500)
         .json({ success: false, message: 'academic_year is not configured in system settings.' });
     }
-    if (!term) {
-      return res
-        .status(500)
-        .json({ success: false, message: 'current_term is not configured in system settings.' });
+    if (schoolYear !== SCHOOL_YEAR) {
+      return res.status(500).json({
+        success: false,
+        message: `academic_year is ${schoolYear} in system settings but the school calendar is for ${SCHOOL_YEAR}.`,
+      });
     }
-    const termNumber = Number(term);
+    const termNumber = term;
 
     let dashboard;
     if (req.user.role === 'teacher') {

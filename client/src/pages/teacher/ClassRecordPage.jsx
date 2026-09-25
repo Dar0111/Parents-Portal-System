@@ -11,7 +11,9 @@ import Modal from '../../components/Modal';
 import ScrollCue from '../../components/ScrollCue';
 import { listLabels } from '../../components/scrollCueState';
 import StatusBadge from '../../components/StatusBadge';
+import { todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/grade';
+import { currentTerm } from '../../format/schoolCalendar';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import useClassRecord, { buildSlotFrame, slotKey, parseCell } from './classRecord/useClassRecord';
@@ -175,8 +177,25 @@ export default function ClassRecordPage() {
     return asked || classes[0];
   }, [classes, assignmentParam]);
 
+  // THE TERM IS PINNED FOR THE LIFE OF THE PAGE (pre-Stage-5 #7, 2026-09-26).
+  // The default comes from the school calendar, not a setting — and it is
+  // derived ONCE, in a lazy initialiser, then written into the URL with
+  // `replace` (no history entry) before the Back sentinel could arm. Derived
+  // on every render, a grid open across midnight on 15 September would re-key
+  // itself to Term 2 and reload with the drafts orphaned; pinned in the URL,
+  // a save at 00:01 still writes Term 1 rows because the term is in the
+  // payload, not re-read. The sentinel pushes `location.href`, which by then
+  // carries `?term=`, so a Stay after a Back lands on the same term.
+  const [pinnedTerm] = useState(() => currentTerm(todayLocalDateString()));
   const termParam = Number(params.get('term'));
-  const term = TERMS.includes(termParam) ? termParam : Number(settings?.current_term) || 1;
+  const term = TERMS.includes(termParam) ? termParam : pinnedTerm;
+
+  useEffect(() => {
+    if (TERMS.includes(Number(params.get('term')))) return;
+    const next = new URLSearchParams(params);
+    next.set('term', String(pinnedTerm));
+    setParams(next, { replace: true });
+  }, [params, setParams, pinnedTerm]);
 
   const classKey = useMemo(() => {
     if (!selectedClass || !settings?.academic_year || subjectId == null) return null;

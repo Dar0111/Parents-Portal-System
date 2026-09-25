@@ -5,6 +5,8 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { longDate, todayLocalDateString } from '../../format/date';
+import { currentTerm, termDates } from '../../format/schoolCalendar';
 
 // Admin → Settings → School settings — Figure 5 process 1.25 (School
 // Information Management). The body of the former admin/SettingsPage.jsx,
@@ -12,9 +14,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // behaviour unchanged. SCHOOL settings, not account settings: the admin's own
 // account lives on the Account information tab beside this one.
 //
-// TWO SECTIONS, TWO SAVES. The term is the one value that changes what
-// someone else sees; separate saves mean fixing an address typo can never
-// also change the term.
+// TWO SECTIONS, ONE SAVE. The school year and the term are read-only here;
+// the school details are the only form.
 //
 // academic_year is LOCKED ON THIS PAGE ONLY. It is still in the server's
 // ALLOWED_KEYS and PUT/PATCH still accept it. Sections, grading_mode_configs,
@@ -24,10 +25,12 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // cards). Starting a new school year is a process, not a field. Do not
 // "fix" this into an editable input.
 //
-// current_term does ONE thing: Teacher → Grades pre-selects it on load
-// (teacher/GradesPage.jsx loadStudents). The teacher can pick another term
-// there, and grade writes take the term from the request. No server route
-// reads current_term. Copy says exactly that and no more (§5i).
+// THE TERM IS NOT A SETTING (pre-Stage-5 #7, 2026-09-26). It used to be a
+// picker here writing `current_term`; now every screen derives it from
+// today's date through format/schoolCalendar.js (the server's own copy
+// decides), so the picker, its save and the key are gone. This page shows
+// the derived term and its dates so an admin can see what the app will say,
+// and says where it comes from (§5i).
 //
 // WHO READS WHAT (pre-Stage-5 #5a, 2026-09-26). school_name prints on the
 // Class summary masthead, the learner summary and the parent report card,
@@ -37,15 +40,13 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // GET /settings, signed out through GET /settings/public). logo_url is read
 // by nothing; the seal the app shows is the bundled image.
 //
-// Both sections write through PATCH /settings, sending only changed keys:
-// validated before any write, one transaction, and the activity log names
-// the keys. §5b: `stored` comes from load() only; drafts are separate and
-// null until the admin types. After a successful save, load() re-reads.
+// The details form writes through PATCH /settings, sending only changed
+// keys: validated before any write, one transaction, and the activity log
+// names the keys. §5b: `stored` comes from load() only; the draft is separate
+// and null until the admin types. After a successful save, load() re-reads.
 //
 // §5e: no confirmation. Every value is reversible by saving again and is on
-// screen; the term only sets a starting selection teachers can override.
-
-const TERMS = ['1', '2', '3'];
+// screen.
 
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
@@ -76,13 +77,18 @@ export default function SchoolSettingsSection() {
   const [error, setError] = useState(null);
 
   // null = follow the stored value. A value means the admin is editing.
-  const [termDraft, setTermDraft] = useState(null);
   const [detailsDraft, setDetailsDraft] = useState(null);
-  const [saving, setSaving] = useState(null); // 'term' | 'details' | null
+  const [saving, setSaving] = useState(false);
 
-  // One status object keyed by form. Two sections, two saves: each reports
-  // under its own button. See FormStatus.
+  // One status object keyed by form (FormStatus). One form is left, but the
+  // shape stays so a second form can never share its slot.
   const [status, setStatus] = useState({});
+
+  // The term the app is showing everyone today, and its dates. Derived once
+  // per mount — a settings page open across midnight on a boundary shows the
+  // day it was opened, and a reload shows the new term; nothing here writes.
+  const [term] = useState(() => currentTerm(todayLocalDateString()));
+  const { start: termStart, end: termEnd } = termDates(term);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,10 +107,6 @@ export default function SchoolSettingsSection() {
     load();
   }, [load]);
 
-  const storedTerm = stored?.current_term ?? '';
-  const termValue = termDraft === null ? storedTerm : termDraft;
-  const termDirty = termValue !== storedTerm;
-
   const storedDetails = detailsFrom(stored);
   const details = detailsDraft === null ? storedDetails : detailsDraft;
   const changedDetails = {};
@@ -118,26 +120,6 @@ export default function SchoolSettingsSection() {
     setDetailsDraft((prev) => ({ ...(prev ?? storedDetails), [key]: value }));
   }
 
-  async function saveTerm(event) {
-    event.preventDefault();
-    setStatus({});
-    if (!TERMS.includes(termValue)) {
-      setStatus({ term: fail('Pick Term 1, 2, or 3.') });
-      return;
-    }
-    setSaving('term');
-    try {
-      await api.patch('/settings', { settings: { current_term: termValue } }, { unwrap: 'message' });
-      setTermDraft(null);
-      setStatus({ term: ok(`Current term set to Term ${termValue}.`) });
-      await load();
-    } catch (err) {
-      setStatus({ term: fail(extractError(err)) });
-    } finally {
-      setSaving(null);
-    }
-  }
-
   async function saveDetails(event) {
     event.preventDefault();
     setStatus({});
@@ -145,7 +127,7 @@ export default function SchoolSettingsSection() {
       setStatus({ details: fail('School name and school address must not be empty.') });
       return;
     }
-    setSaving('details');
+    setSaving(true);
     try {
       await api.patch('/settings', { settings: changedDetails }, { unwrap: 'message' });
       setDetailsDraft(null);
@@ -154,7 +136,7 @@ export default function SchoolSettingsSection() {
     } catch (err) {
       setStatus({ details: fail(extractError(err)) });
     } finally {
-      setSaving(null);
+      setSaving(false);
     }
   }
 
@@ -180,37 +162,19 @@ export default function SchoolSettingsSection() {
         <h3 className="text-sm font-semibold text-fg">School year and term</h3>
         <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4">
           <Field label="School year" value={stored.academic_year} />
+          <Field
+            label="Current term"
+            value={`Term ${term} — from the school calendar, ${longDate(termStart)} – ${longDate(termEnd)}`}
+          />
         </dl>
         {/* §5i: says it cannot be changed here and why; does not promise
             where it can be — no such screen or process exists. */}
         <p className="text-sm text-fg-muted">
           The school year cannot be changed here. Sections, grading setup and existing grades are
-          all tied to the school year, and changing this value would not move any of them.
+          all tied to the school year, and changing this value would not move any of them. The
+          current term is not a setting either: it follows today&rsquo;s date on the school
+          calendar, and every screen that opens on a term uses the same rule.
         </p>
-        <form onSubmit={saveTerm} className="space-y-3">
-          <FormField
-            label="Current term"
-            as="select"
-            value={termValue}
-            onChange={(e) => setTermDraft(e.target.value)}
-            hint="Teacher → Grades opens on this term. Teachers can still pick another term there; nothing is locked to it."
-          >
-            {TERMS.includes(storedTerm) ? null : <option value="">Not set</option>}
-            {TERMS.map((t) => (
-              <option key={t} value={t}>
-                Term {t}
-              </option>
-            ))}
-          </FormField>
-          <button
-            type="submit"
-            disabled={saving !== null || !termDirty}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving === 'term' ? 'Saving…' : 'Save term'}
-          </button>
-          <FormStatus status={status.term} />
-        </form>
       </section>
 
       <section className="max-w-md space-y-3">
@@ -267,10 +231,10 @@ export default function SchoolSettingsSection() {
           />
           <button
             type="submit"
-            disabled={saving !== null || !detailsDirty}
+            disabled={saving || !detailsDirty}
             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving === 'details' ? 'Saving…' : 'Save school details'}
+            {saving ? 'Saving…' : 'Save school details'}
           </button>
           <FormStatus status={status.details} />
         </form>
