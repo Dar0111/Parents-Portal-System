@@ -3686,6 +3686,16 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (eighth batch, the UI-D-2+3 docs pass)
+
+> Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full row is in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds a §19 pointer, a queue
+> re-ordering and a pre-Stage-5 item, none of which may be trimmed. One row,
+> 1,326 bytes.
+
+| 2026-09-22 | CLAUDE.md trim, sixth batch: **136,830 → 135,119 on disk (−1,711)**. Six blocks measured and guard-grepped first; **the guard cleared more of this batch than any previous one, because these were duplicates rather than condensed rules.** `### Corrections` → rule-plus-pointer (both its live rules already live elsewhere in this file); **the "75 role-facing views" figure now appears ONCE**, in BUILD ORDER → Stage 4. `## SAFE TO BUILD NOW` (**zero guard hits**) emptied, heading kept with a **do-not-repopulate** note. `## GET /api/messages/contacts` keeps its two rules (**`?search=` is scoped, never an unscoped user search**; ACTIVE-only) and loses the archived detail. **Two closed BLOCKED items left permanently under the REFILL RULE** — the Stage G1a schema issue (zero hits; live text is GRADING_SPEC) and Excuse Letters (keeping **approval must not modify `attendance`**). **TWO STALE CLAIMS corrected:** the seeded weights were still called "provisional until G1b lands" (**G1b landed 2026-09-05**), and the parent modal's silence about the Grade 1 letter still rested on "until the school answers" (**answered and built 2026-09-22**) — recorded as a choice now needing a deliberate answer, not flipped. **Not taken:** the CHANGELOG stub table, the next trim's overflow valve. No `##` heading changed. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (seventh batch, the UI-D-1 docs pass)
 
 > Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
@@ -4532,6 +4542,70 @@ render body is impure, so the same props could produce two documents. §18i.
 whose line-51 assertion was the exact inverse of what UI-D shipped. That is
 now a working-agreement rule in CLAUDE.md: a whitelist includes every proof
 that renders a touched module, and a PLAN ONLY greps for them.
+
+### UI-D (c) and (d) — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **UI-D-2+3** (`9d0c1cb` → `183d516` →
+`00f16f8` → `123cf60` → `a6be0d2`, browser check passed). UI-D is complete
+with them, and the rules are `docs/FRONTEND_CONVENTIONS.md` §19.
+
+```
+  - [ ] **(c) The class-summary scroller clips ON SCREEN with no cue** —
+    SMOKE-1 finding 11. **Do not remove the scroller** (§5a-i): the fix is a
+    cue, and **it goes on the CLASS RECORD too** — more columns, same
+    silence, nothing like it anywhere to reuse. Carries three smaller items:
+    `LiveStatus` gains `data-print="hide"` (it still prints when the socket
+    is down), `ReportCard`'s "Select any grade…" line gets `print:hidden`,
+    and **INVESTIGATE** removing the browser's own print header and footer
+    via `@page` margins — **only if it survives a paper check**, otherwise a
+    print tip rather than code.
+
+  - [ ] **(d) MOCKUP FIRST — the parent hero.** In dark it inverts to a
+    **bright lavender panel** against the Dark option's own "easier on the
+    eyes at night": **`--primary` is the token**, and **`--brand-panel`
+    already exists for exactly this** — a solid brand field in both themes,
+    used by Login and not by the hero. A KS1 hero shows **"A D" with no
+    subject** — the name is **present and unrendered**, bound as a hover-only
+    `title`. **Two more ship with it:** the average column follows *"the
+    greatest term with any grade"* while the letters follow `current_term`,
+    so **one panel keys off two notions of term** (§12 says `current_term`);
+    and **badge-on-primary has no `check-contrast` pair**.
+```
+
+**Every prediction in (d) held**, which is unusual enough to record: the
+token, the already-existing `brand-panel` pair, the hover-only `title`, the
+two notions of term, and the missing contrast pair were all exactly as
+written. (d)'s mockup requirement was met and the entry needed no correction.
+
+**(c) was right about the diagnosis and silent about the hard part.** It said
+what to build and where, and both were correct — including that the cue
+belonged on the class record too. What it could not have known is that **a
+cue is entirely a question of thresholds**, and that the obvious single
+threshold is wrong:
+
+- With a 1px slack the desktop class summary fired on a **2px** overflow —
+  "Swipe for the Average →" for a column two pixels short of visible — and
+  **flapped**, present at 1279px and gone at 1281px.
+- Widening that slack to 24px and applying it to BOTH tests was the
+  overcorrection, and it cost the hint its accuracy: at 390px on the class
+  record, **"Performance Tasks" dropped out of the sentence while its last
+  column was visibly cut and its highest-possible-score sat behind the
+  button** — the group the teacher most needed pointed at.
+
+The answer is two constants, `GATE_SLACK` 24px and `CELL_SLACK` 1px, because
+**legibility decides whether to speak and not what to say** (§19b). Both
+errors were found in the browser, neither by a proof.
+
+**The print header/footer INVESTIGATE was NOT attempted**, and that was the
+brief: it required being able to state the per-browser behaviour, which could
+not be done from here. It is a print tip in `docs/KNOWN_ISSUES.md` — Chrome →
+More settings → uncheck "Headers and footers" — rather than code.
+
+**Two defects of my own, both caught by something other than reasoning:**
+a filename collision (`ScrollCue.jsx` beside `scrollCue.js` — Windows is
+case-insensitive, §19g) that failed the build with "Missing export"; and a
+proof fixture that invented a string where the API sends an object, which
+**blanked `/parent` while build, oxlint and 71/71 were all green** (§19f).
 
 ### UI-C2's closed items — moved from CLAUDE.md on 2026-09-24
 

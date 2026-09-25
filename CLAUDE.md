@@ -1504,8 +1504,9 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
   mornings are. Everything they carry is **§5a-iv**. **Smoke is 20/20.**
 
   - [ ] **Item 5 — a Pending result set while the Status select reads
-    Approved. MOCKUP FIRST, and it is in neither UI-C1 nor C2 for that
-    reason.**
+    Approved. MOCKUP FIRST, which is why UI-E now goes BEFORE it** (Darryl,
+    2026-09-25): UI-E needs no mockup, so it proceeds while item 5's is
+    designed in parallel.
     **DIAGNOSIS CORRECTED 2026-09-23: not the §5f violation it was filed as** —
     that page's empty copy already has one branch per applied value. The
     filter is **submit-gated**: the select writes form state, the list and the
@@ -1514,37 +1515,20 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
     records / Events / Excuse Letters / Students, admin Announcements /
     Attendance / Students / Users). No precedent for the affordance.
 
-- [ ] **UI-D — global CSS. (a) print and (b) the base colour are DONE
-      (UI-D-1, 2026-09-25); (c) and (d) need a mockup first.**
+- [x] **UI-D — global CSS. DONE 2026-09-25** (D-1 print + the base text
+      colour; D-2 the scroll cue; D-3 the parent hero). All three entries
+      left under the REFILL RULE (`docs/ARCHIVE.md`). Their rules are
+      **`docs/FRONTEND_CONVENTIONS.md` §18 and §19**; two outlive the work
+      and are stated nowhere else: **print layout is proved ON PAPER** —
+      `@media print` does not apply to an SSR render, so §5h's backstop does
+      not reach it — and **a proof fixture must mirror the server's shape**,
+      after one that invented a string where the API sends an object blanked
+      `/parent` while build, oxlint and 71/71 were green.
 
-  **UI-D-1 shipped print and the base text colour**, and its entry left under
-  the REFILL RULE (`docs/ARCHIVE.md`). Every rule it carries is
-  **`docs/FRONTEND_CONVENTIONS.md` §18**, including the one that outlives it:
-  **print layout is proved ON PAPER — `@media print` does not apply to an SSR
-  render, so §5h's backstop does not reach it.**
-
-  - [ ] **(c) The class-summary scroller clips ON SCREEN with no cue** —
-    SMOKE-1 finding 11. **Do not remove the scroller** (§5a-i): the fix is a
-    cue, and **it goes on the CLASS RECORD too** — more columns, same
-    silence, nothing like it anywhere to reuse. Carries three smaller items:
-    `LiveStatus` gains `data-print="hide"` (it still prints when the socket
-    is down), `ReportCard`'s "Select any grade…" line gets `print:hidden`,
-    and **INVESTIGATE** removing the browser's own print header and footer
-    via `@page` margins — **only if it survives a paper check**, otherwise a
-    print tip rather than code.
-
-  - [ ] **(d) MOCKUP FIRST — the parent hero.** In dark it inverts to a
-    **bright lavender panel** against the Dark option's own "easier on the
-    eyes at night": **`--primary` is the token**, and **`--brand-panel`
-    already exists for exactly this** — a solid brand field in both themes,
-    used by Login and not by the hero. A KS1 hero shows **"A D" with no
-    subject** — the name is **present and unrendered**, bound as a hover-only
-    `title`. **Two more ship with it:** the average column follows *"the
-    greatest term with any grade"* while the letters follow `current_term`,
-    so **one panel keys off two notions of term** (§12 says `current_term`);
-    and **badge-on-primary has no `check-contrast` pair**.
-
-- [ ] **UI-E — a teacher's read-only letter view, after UI-D, BEFORE Stage 5.**
+- [ ] **UI-E — a teacher's read-only letter view. NEXT (Darryl, 2026-09-25:
+      it moved AHEAD of item 5, which waits on a mockup being drawn in
+      parallel). Order from here: UI-E → item 5 → pre-Stage-5 → docs pass →
+      Stage 5.**
       `details` and `teacher_remarks` render only inside the review modal,
       which opens only for a Pending letter in a section the teacher advises,
       so **once a letter is reviewed the teacher who wrote the remarks cannot
@@ -1592,7 +1576,13 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
       attendance** — handover is outside the system, so re-pointing scope at
       the new section and dropping the old adviser's access would strand the
-      records. Then the originals: `GET /api/attendance` where
+      records. **(m) `term_average_descriptors` on
+      `GET /grades/student/:id`** (UI-D-3, 2026-09-25) — computed server-side
+      from the same `BANDS` ladder. `general_average_descriptor` describes the
+      YEAR's average, so the parent hero's term figure has no word to go with
+      it and deriving one in the client is what §12 forbids; the caption
+      becomes `"Term N · <descriptor>"` in a one-line client follow-up. Then
+      the originals: `GET /api/attendance` where
       `date` silently drops `from`/`to`; a class filter on `GET /api/grades`;
       Admin → Users role sort in A–Z rather than ENUM order; email validation;
       `test:attendance`’s cleanup deleting every row on three dates rather than
@@ -2044,12 +2034,12 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **UI-D-2+3** (`9d0c1cb`→`a6be0d2`, five commits): `ScrollCue` on both grids, the parent hero on `--brand-panel`. **UI-D is complete.** **The thresholds were the whole story and I got them wrong twice** — 1px fired on a **2px** overflow and flapped between 1279 and 1281px; 24px on BOTH tests then dropped "Performance Tasks" from the hint while its column was visibly cut. **Two constants: gate 24px, per-cell strict — legibility decides WHETHER to speak, not WHAT to say** (§19b). KS1's "A  D" was a hover-only `title`, which **does not exist on touch**; the average follows `current_term` now. **Two defects of mine, neither found by reasoning:** `ScrollCue.jsx` beside `scrollCue.js` (**Windows is case-insensitive**), and a fixture that invented a string where the API sends an object — **`/parent` rendered blank while build, oxlint and 71/71 were green** (§19f). `ssr-ui-d` **82**, contrast **74 pairs**, smoke 20/20. |
 | 2026-09-25 | **UI-D-1** (`7513457`): the app could not print and could not be read in the dark. **Zero print CSS existed** — the Summary of Grades printed the sidebar, the top bar and the Term select, and `overflow-x-auto` **clipped five of eight subjects and the Average column**. A scroller is a guillotine on paper, and **`min-w-max` is the other half**, so landscape alone would not have fixed it. **Landscape is scoped per page** by a `<style>` mounted with the route (`@page` cannot be nested; named pages fail in Firefox; **Safari ignores `size`** and is survivable only because `min-w-max` is released). The report card is **forced** to its table branch — a container query at print width is unprovable, and the narrow branch is **a different document**, not a broken layout. **Dark print is fixed in `theme.js`, not `@media print`** — the latter means a verbatim second copy of ~71 tokens; restoring **re-reads storage**, so System stays System. **`body { color: var(--color-fg) }`** — until it existed, uncoloured text inherited BLACK, ~1.06:1 on the dark page; `GradeValue` returns to pure inheritance and one DataTable call site moves to `fg-secondary`, accepted. `ssr-ui-d` **32/32**, and it states that **print layout is proved on paper, never by SSR** (§18). oxlint caught `Date.now()` in a render body — **impure, so the same props could produce two documents**. Smoke 20/20. |
 | 2026-09-25 | **UI-C1b** (`388bf9d`): 14 DATE sites, two Birthday fields, `sectionOptions` → `{ value, label }`, `backupAge`. **The DATE work was consistency only as filed; `backupAge` was a live defect** — elapsed 24h blocks called a 23:00 backup read at 01:00 "today". **`new Date(null)` is the EPOCH**, caught by a proof assertion no render could have made. **A date sweep starts from the SCHEMA** — a client grep missed `birthday`. `ssr-dates` 25 → **46** (both zones, 48 DEV), `ssr-ui-c2` **39**. Smoke 19/20; **the flake's diagnostic fired at last** — `/auth/me` on `localhost`, and `netstat` says both stacks are bound, so the lead is `node --watch` restarts. |
 | 2026-09-23 | **DV1b-a** (`4b7508e`): 14 consumers → `renderCard`, four families (§16); `admin/GradesPage` carries JSX as a **declared exception — §3 outranks data-only**. Proof 87/87. **Three findings, none fixed**, incl. a regression I introduced: **at 390px a parent cannot reach the decline reason**. |
 | 2026-09-23 | **DV4** (`feat/dv4-dashboards`, `6d5034e` + `8adebc3`): parent dashboard elevation and the dark amber. **The rust cast was a HUE shift, not a lightness one** (`#461901`, hue 46, against light amber at ~95); five asserted pairs re-measured, light mode untouched, and the other two dashboards follow **through the token alone**. **Browser check FAILED first pass, four findings** — the hero average **invisible in light mode**; the KS1 hero showing **"Term 3 · C"** from a latest-term-with-data walk; weekend and not-recorded near-identical; an orphan caption. Rules in §12 and `docs/FRONTEND_CONVENTIONS.md` §15/§3a. Proofs 23/23 then 26/26, oxlint 43, `test:dashboard` 77/77. |
 | 2026-09-23 | CR3a + CR3 **docs pass** (`docs/class-summary`), covering three build dispatches. API_REFERENCE: `subjects.display_order` and the **null-last idiom** (MySQL sorts NULL first — without the leading term a MIXED grade level puts its unordered rows first); **`GET /assignments`' default follows the order, `sort=subject` stays A-Z**; the class summary's three-way scope (**a nonexistent section is the SAME 404 as "not yours"**), **two flags**, `general_average` **absent not null** in KS1, **no pagination — a document, not a list**; and **`TEACHER_ADVISES_CLASS_SQL` beside `TEACHER_VIEW_SCOPE_SQL`**, because routing grades through `students` would hide an EMPTY class from an assigned teacher. Counts **88 handlers / 89 endpoints**. GRADING_SPEC **§6d-i** — where each order came from, and a correction: **Grade 5 never fell back to alphabetical**. FRONTEND_CONVENTIONS **§14** — **a letter is not a number** (`TermValue`, never `GradeValue`, or every Grade 1 letter reads "— N/A"), **Pending ≠ N/A**, and **a self-fetching page cannot be SSR-proved**, so what must be proved is extracted and exported. KNOWN_ISSUES: the **shell-row trap**. Baselines 44 / 247 / 62 / 59, oxlint **43**. **CR3a and CR3 ticked — the grades track is complete**; pre-Stage-5 gains the `test:restore` sub-second fix and the Back-button decision. **The stub reserve was spent as designed** — four rows to ARCHIVE after this file hit 137,804. |
-| 2026-09-22 | CLAUDE.md trim, sixth batch: **136,830 → 135,119 on disk (−1,711)**. Six blocks measured and guard-grepped first; **the guard cleared more of this batch than any previous one, because these were duplicates rather than condensed rules.** `### Corrections` → rule-plus-pointer (both its live rules already live elsewhere in this file); **the "75 role-facing views" figure now appears ONCE**, in BUILD ORDER → Stage 4. `## SAFE TO BUILD NOW` (**zero guard hits**) emptied, heading kept with a **do-not-repopulate** note. `## GET /api/messages/contacts` keeps its two rules (**`?search=` is scoped, never an unscoped user search**; ACTIVE-only) and loses the archived detail. **Two closed BLOCKED items left permanently under the REFILL RULE** — the Stage G1a schema issue (zero hits; live text is GRADING_SPEC) and Excuse Letters (keeping **approval must not modify `attendance`**). **TWO STALE CLAIMS corrected:** the seeded weights were still called "provisional until G1b lands" (**G1b landed 2026-09-05**), and the parent modal's silence about the Grade 1 letter still rested on "until the school answers" (**answered and built 2026-09-22**) — recorded as a choice now needing a deliberate answer, not flipped. **Not taken:** the CHANGELOG stub table, the next trim's overflow valve. No `##` heading changed. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2058,7 +2048,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in seven dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in eight dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
@@ -2066,8 +2056,9 @@ Older stub lines are verbatim in `docs/ARCHIVE.md`, in seven dated batches —
 (both 2026-09-22), **4 under "fifth batch, the CR3 docs pass"**
 (2026-09-23 — spent as the reserve when this file reached 137,804 with a row
 still to add), **3 under "sixth batch, the SMOKE-1 docs pass"**
-(2026-09-24, spent the same way), and **2 under "seventh batch, the UI-D-1
-docs pass"** (2026-09-25). **Every full row is in `docs/CHANGELOG.md` with one
+(2026-09-24, spent the same way), **2 under "seventh batch, the UI-D-1
+docs pass"** and **1 under "eighth batch, the UI-D-2+3 docs pass"** (both
+2026-09-25). **Every full row is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only
 the newest one-line summaries, and a stub is moved out when this file

@@ -2095,3 +2095,148 @@ tab left open overnight would otherwise print yesterday's date on a record the
 school keeps. Safari fires no `beforeprint`, which is exactly why the lazy
 initialiser supplies a real value rather than an empty string.
 
+## 19. ScrollCue, the parent hero, and two rules that are not about either
+
+**Frozen 2026-09-25 (UI-D-2, UI-D-3).**
+
+### 19a. A scroller must say that it scrolls
+
+`components/ScrollCue.jsx` wraps the class summary's and the class record's
+horizontal scrollers. **The defect it fixes is an affordance one, not a layout
+one** (SMOKE-1 finding 11): at 390px the summary cuts inside a word and
+nothing says six more subjects and the Average exist to the right — no visible
+scrollbar on a touch device, no fade, no control. A teacher would reasonably
+read the class as having three subjects. The table was always scrollable;
+nobody was told.
+
+**Do not remove the scroller to fix it.** §5a-i kept it deliberately and that
+question is closed.
+
+**Four signals, because one is not enough for every reader:** a sentence above
+the table, a right-edge fade, a 44px button, and a shadow on the pinned column
+once something is underneath it. **Every one is conditional on the table
+actually overflowing, and all stand down at the end.** The native scrollbar
+stays — it is the one real affordance here that is not a reimplementation.
+
+**The hint is the only signal that says WHAT is off-screen**, and the only one
+that survives a screen reader. The other three say merely that something is.
+
+### 19b. Two slacks, because they answer two different questions
+
+This is the rule the section exists for, and it was learned by getting it
+wrong twice in a row.
+
+| Constant | Value | Question |
+|---|---|---|
+| `GATE_SLACK` | **24px** | is there anything worth scrolling to *at all* |
+| `CELL_SLACK` | **1px** | which columns has the reader *not seen* |
+
+**Why the gate is not 1px.** It was, and the desktop class summary overflowed
+by exactly **2px** — `scrollWidth` 992 against `clientWidth` 990 — so it told
+the teacher to "Swipe for the Average →" about a column two pixels short of
+fully visible. It also **flapped**: present at 1279px, gone at 1281px. A cue on
+a table with nothing worth scrolling to is worse than no cue.
+
+**Why the cells are not 24px.** Widening both was the overcorrection. At 390px
+on the class record, with Performance Tasks clipped — its last column cut, its
+highest-possible-score hidden behind the button — the hint read *"Swipe for
+Summative and Grade"*. **The group the teacher most needed pointed at was the
+one silently dropped**, because its last column was a few pixels short.
+
+**Once a cue is shown at all, a column cut AT ALL is a column the reader has
+not read.** Legibility decides whether to speak; it does not decide what to
+say. Measured after the split: Performance Tasks is named while cut by 40, 20,
+10 and 5px, and drops out only at 0.
+
+### 19c. The hint's wording belongs to the page, not the component
+
+The summary **counts** ("Swipe for 6 more subjects and the Average →"); the
+class record **names its groups** ("Swipe for Performance Tasks, Summative and
+Grade →"). Same module, because `cueState` takes the cells either way and
+whether the caller passes labels is what decides the answer.
+
+**Why they differ:** the summary's columns are learning areas, so a number is
+the useful answer. The record's are assessment slots inside ONE subject, where
+"7 more assessments" says nothing — the group names are what tell a teacher
+what they have not seen. The record's labels come from a `data-group`
+attribute, because the visible header carries a weight ("Performance Tasks ·
+50%") and a sentence built from that is not a sentence.
+
+**Which cells to measure is also the page's** (`measureCells`): the summary has
+one header row, the record has two and the leaf row is not the one worth
+naming.
+
+### 19d. A live region stays mounted; the space it takes does not
+
+The hint is `aria-live="polite"`, so it must exist in the DOM **before** its
+content changes or the first announcement is missed — it cannot be
+`{hint ? <p/> : null}`. But it must not reserve a line on a desktop table that
+does not overflow: it shipped with `min-h-5` and put a **blank strip** above
+every wide class summary. **`sr-only` while empty** keeps the region alive at
+zero layout cost, and the visible classes come back with the text.
+
+**And the frame goes on the whole cue, not the scroller.** It started on the
+scroller, which put the class record's card border *between* the hint and the
+table while the summary's border — coming from a wrapper in the page —
+contained both. The hint describes the table, so it belongs in the same box.
+
+### 19e. The parent hero uses `brand-panel`, not `primary`
+
+`--primary` is a **button** fill. Its dark value is `#ABA8F7`, a light indigo,
+which made a full-width panel the brightest thing on a dark screen — against
+the Dark option's own *"easier on the eyes at night"*. **`--brand-panel`
+already existed for exactly this** and the Login split panel already used it:
+a solid brand field in BOTH themes (`#08027C` light, `#23204F` dark) with
+`--brand-panel-fg` white on each, and `--brand-panel-muted` for lower emphasis.
+
+Reusing it meant **no new token and no new foreground pair** — both were
+already asserted. Only the badge-on-panel boundaries are new, because the
+hero is the first place a `StatusBadge` sits anywhere but `surface`. **Those
+measure ~1.0 in dark and were ACCEPTED by eye** (Darryl, 2026-09-25): the pill
+keeps its inset ring and reads clearly. `docs/KNOWN_ISSUES.md` carries it as a
+decision, not a defect.
+
+**Key Stage 1 names each letter's subject.** It rendered "A  D" — two letters
+with nothing to say what either was about — because the subject was bound as a
+hover-only `title`, **which does not exist on touch**, the device a parent
+reads this on. The name was in scope on the element printing the letter the
+whole time. The descriptor comes with it, from the same payload and equally
+unused before. **What is NOT recorded is stated too**, so two letters of five
+cannot look complete — that is not the "N of M" progress figure §12 refuses
+for KS1, because it names subjects rather than implying a denominator.
+
+**The numerical average follows `current_term`** (§12), not the dashboard's
+"greatest term with any grade" — one panel was keying off two notions of term.
+`term_averages` is the same computation, checked rather than assumed.
+**No descriptor on that caption:** `general_average_descriptor` describes the
+YEAR's average, and deriving a band client-side is what §12 forbids. It is
+queued as a server field.
+
+### 19f. A proof fixture must mirror the server's shape
+
+**`descriptor` is an OBJECT** — `{ descriptor, filipino }`, from
+`gradeComputation.js`'s Table 8 — and a proof fixture that invented a **string**
+let a **blank page** ship: React refuses an object as a child, there is no
+error boundary above the dashboard, and `/parent` rendered nothing at all.
+
+**It passed `npm run build`, oxlint, and 71/71 of its own assertions.** Only
+the browser sweep caught it. §5h already says a build and a lint prove the code
+compiles rather than that the page renders; this is the same lesson one level
+in — **a proof proves the code against the fixture, so a fixture that is wrong
+about the API proves nothing about the app.** Every other screen already did
+`descriptor.descriptor` (`TermValue.jsx:31`, `parent/GradesPage.jsx:290`).
+
+Read the server's response shape before writing a fixture for it.
+
+### 19g. Never two module names differing only by case
+
+`ScrollCue.jsx` and `scrollCue.js` coexisted for one commit. **Windows
+filesystems are case-insensitive**, so an extensionless
+`'../../components/ScrollCue'` resolved `.js` first, found the helper module,
+and failed with **"Missing export"** — a message that names an export and says
+nothing about the filename, so it does not read as a naming problem.
+
+Spelling the extension at each call site fixed the build and left the trap.
+The helper is `scrollCueState.js` now. **A pure-logic sibling of a component
+gets a name that is a different WORD, not a different case.**
+
