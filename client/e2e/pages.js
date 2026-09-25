@@ -52,6 +52,7 @@ export const PAGES = {
     // here is ever clicked — Create, Download, Delete and Restore are all
     // writes, and Restore drops the database.
     '/admin/backups',
+    '/admin/about',
   ],
 
   teacher: [
@@ -69,6 +70,7 @@ export const PAGES = {
     '/teacher/settings',
     '/teacher/settings/password',
     '/teacher/settings/personalization',
+    '/teacher/about',
   ],
 
   parent: [
@@ -83,6 +85,7 @@ export const PAGES = {
     '/parent/settings',
     '/parent/settings/password',
     '/parent/settings/personalization',
+    '/parent/about',
   ],
 };
 

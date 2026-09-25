@@ -2,13 +2,34 @@ const express = require('express');
 const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
+const { validateEmail } = require('../utils/emailRule');
 
 const router = express.Router();
 
 // The only keys this API will ever read or write. An open key-value write
 // endpoint is a way to smuggle junk into the database — every write is
 // checked against this list before anything touches a query.
-const ALLOWED_KEYS = ['school_name', 'school_address', 'academic_year', 'current_term', 'logo_url'];
+//
+// The four school_* keys after logo_url arrived with pre-Stage-5 #5a
+// (2026-09-26): the DepEd School ID, the school's DepEd email, its phone and
+// its Facebook page had nowhere to live, and the About page reads them.
+const ALLOWED_KEYS = [
+  'school_name',
+  'school_address',
+  'academic_year',
+  'current_term',
+  'logo_url',
+  'school_id',
+  'school_email',
+  'school_phone',
+  'facebook_page',
+];
+
+// The subset an UNAUTHENTICATED caller may read (GET /public): what the
+// school prints on its own gate. Never academic_year, current_term or
+// logo_url — not secrets, but not the public face either, and a public
+// endpoint should carry exactly what it exists for.
+const PUBLIC_KEYS = ['school_name', 'school_address', 'school_id', 'school_email', 'school_phone', 'facebook_page'];
 
 function validateNonEmpty(fieldName) {
   return (value) => {
@@ -60,16 +81,60 @@ function validateLogoUrl(value) {
   return null; // may be empty — no logo uploaded yet is a valid state
 }
 
+// The DepEd School ID is a six-digit number (136893 here). Optional so an
+// install without one is a valid state; if given, exactly six digits.
+function validateSchoolId(value) {
+  if (typeof value !== 'string') return 'school_id must be a string.';
+  if (value === '') return null;
+  return /^\d{6}$/.test(value) ? null : 'school_id must be exactly 6 digits.';
+}
+
+// The one email rule (utils/emailRule.js), adapted to this file's
+// string-or-null convention. Optional.
+function validateSchoolEmail(value) {
+  if (typeof value !== 'string') return 'school_email must be a string.';
+  return validateEmail(value).error;
+}
+
+// A LANDLINE OR A MOBILE — not the contact rule. The school's number is
+// 3506114, seven digits, so the 09-prefixed eleven-digit mobile shape that
+// utils/contactRule.js enforces for people would refuse the school's own
+// phone. Spaces, dashes, parentheses and a leading + are stripped; what is
+// left must be 7 to 15 digits. Stored as typed (trimmed) — the display is a
+// tel: link, and a formatted number reads better than a digit run.
+function validateSchoolPhone(value) {
+  if (typeof value !== 'string') return 'school_phone must be a string.';
+  if (value === '') return null;
+  const digits = value.replace(/^\+/, '').replace(/[\s\-().]/g, '');
+  return /^\d{7,15}$/.test(digits) ? null : 'school_phone must be 7 to 15 digits (spaces and dashes allowed).';
+}
+
+// A page name or a URL; the school has not given one yet, so the seed is
+// blank and no format is invented. Length is the column's practical limit.
+function validateFacebookPage(value) {
+  if (typeof value !== 'string') return 'facebook_page must be a string.';
+  return value.length <= 255 ? null : 'facebook_page must be 255 characters or fewer.';
+}
+
 const VALIDATORS = {
   school_name: validateNonEmpty('school_name'),
   school_address: validateNonEmpty('school_address'),
   academic_year: validateAcademicYear,
   current_term: validateCurrentTerm,
   logo_url: validateLogoUrl,
+  school_id: validateSchoolId,
+  school_email: validateSchoolEmail,
+  school_phone: validateSchoolPhone,
+  facebook_page: validateFacebookPage,
 };
 
+// A key in ALLOWED_KEYS with no validator used to be a TypeError — a 500 —
+// the day someone added the key and forgot the function. Both callers
+// allow-list first, so this is a backstop that answers 400 instead.
 async function validateSetting(key, value) {
-  return VALIDATORS[key](value);
+  const validator = VALIDATORS[key];
+  if (!validator) return 'Unknown setting key.';
+  return validator(value);
 }
 
 // Trimmed once, where a value enters, and that trimmed value is the one
@@ -105,6 +170,30 @@ router.get('/', authenticate, async (_req, res) => {
     return res.json({ success: true, settings });
   } catch (error) {
     console.error('List settings error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch settings.' });
+  }
+});
+
+// GET /api/settings/public — NO AUTH (pre-Stage-5 #5a). The public About
+// page (/about, reachable from the login screen) shows the school's name,
+// address, DepEd School ID, email, phone and Facebook page — the details on
+// the school's own gate — and a signed-out visitor cannot call GET /. This
+// returns PUBLIC_KEYS and nothing else.
+//
+// REGISTERED BEFORE `/:key`, or Express parses "public" as a setting key and
+// answers 404 "Setting not found." — the same route-order trap
+// routes/grades.js documents for `class-record`.
+router.get('/public', async (_req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)', [
+      PUBLIC_KEYS,
+    ]);
+    const settings = {};
+    for (const key of PUBLIC_KEYS) settings[key] = '';
+    for (const row of rows) settings[row.setting_key] = row.setting_value;
+    return res.json({ success: true, settings });
+  } catch (error) {
+    console.error('Public settings error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch settings.' });
   }
 });

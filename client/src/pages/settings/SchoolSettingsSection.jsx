@@ -29,8 +29,13 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // there, and grade writes take the term from the request. No server route
 // reads current_term. Copy says exactly that and no more (§5i).
 //
-// Nothing in the client displays school_name, school_address or logo_url.
-// Saving them changes no other screen. Copy does not claim otherwise.
+// WHO READS WHAT (pre-Stage-5 #5a, 2026-09-26). school_name prints on the
+// Class summary masthead, the learner summary and the parent report card,
+// and heads the About page — "– Main" is part of the official name, so it
+// prints there too. school_address, school_id, school_email, school_phone
+// and facebook_page are read by the About page only (signed in through
+// GET /settings, signed out through GET /settings/public). logo_url is read
+// by nothing; the seal the app shows is the bundled image.
 //
 // Both sections write through PATCH /settings, sending only changed keys:
 // validated before any write, one transaction, and the activity log names
@@ -58,6 +63,10 @@ function detailsFrom(stored) {
     school_name: stored?.school_name ?? '',
     school_address: stored?.school_address ?? '',
     logo_url: stored?.logo_url ?? '',
+    school_id: stored?.school_id ?? '',
+    school_email: stored?.school_email ?? '',
+    school_phone: stored?.school_phone ?? '',
+    facebook_page: stored?.facebook_page ?? '',
   };
 }
 
@@ -220,6 +229,34 @@ export default function SchoolSettingsSection() {
             value={details.school_address}
             onChange={(e) => editDetail('school_address', e.target.value)}
             required
+          />
+          <FormField
+            label="DepEd School ID"
+            inputMode="numeric"
+            maxLength={6}
+            value={details.school_id}
+            onChange={(e) => editDetail('school_id', e.target.value)}
+            hint="Six digits. Shown on the About page."
+          />
+          <FormField
+            label="School email"
+            type="email"
+            value={details.school_email}
+            onChange={(e) => editDetail('school_email', e.target.value)}
+            hint="Shown on the About page. This is the school's address, not yours."
+          />
+          <FormField
+            label="School phone"
+            inputMode="tel"
+            value={details.school_phone}
+            onChange={(e) => editDetail('school_phone', e.target.value)}
+            hint="A landline or a mobile number, 7 to 15 digits. Shown on the About page."
+          />
+          <FormField
+            label="Facebook page"
+            value={details.facebook_page}
+            onChange={(e) => editDetail('facebook_page', e.target.value)}
+            hint="The page's name or address. Leave blank until the school gives one — the About page then says so."
           />
           <FormField
             label="Logo URL"

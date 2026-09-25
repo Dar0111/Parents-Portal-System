@@ -53,13 +53,13 @@
 // accident. The school has never given a printed order for Key Stage 1.
 // See CLAUDE.md → OPEN QUESTIONS.
 //
-// GRADES 2 AND 3 STAY NULL. No printed order is known for them and inventing
-// one would be worse than the alphabetical fallback. NULL is not "to do" here;
-// it is the honest value.
-//
-// A note for whoever gets the school's answer: changing an order is an UPDATE
-// to this table, not a code change. That is the whole point of moving it out
-// of a constant.
+// GRADES 2 AND 3 — CONFIRMED by the school on 2026-09-23 and added to this map
+// on 2026-09-26 (pre-Stage-5 #5a). They stayed NULL from CR3a until then
+// because no printed order was known and inventing one would have been worse
+// than the alphabetical fallback; the same run of this script that set the
+// others sets these on a live database ("set" once, "already correct"
+// after), which is exactly what "changing an order is an UPDATE to this
+// table, not a code change" was for.
 //
 // Run:  node scripts/migrate-subject-display-order.js
 //       node scripts/migrate-subject-display-order.js --print-state
@@ -74,6 +74,8 @@ const DB_NAME = process.env.DB_NAME || 'parents_portal';
 // is left NULL on purpose; see the header.
 const PRINTED_ORDER = {
   1: ['Makabansa', 'Mathematics', 'GMRC', 'Reading and Literacy', 'Language'],
+  2: ['Makabansa', 'Mathematics', 'GMRC', 'English', 'Filipino'],
+  3: ['English', 'Mathematics', 'Science', 'Filipino', 'Makabansa', 'GMRC'],
   4: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
   5: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
   6: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
@@ -197,7 +199,7 @@ async function main() {
       console.log('  not named by any recorded order (kept NULL, sorts last alphabetically):');
       for (const line of unlisted) console.log(`    ${line}`);
     }
-    console.log('  Grades 2 and 3 are NULL on purpose — no printed order is known for them.');
+    console.log('  Every grade level has a recorded order since 2026-09-26 (Grades 2 and 3 confirmed by the school 2026-09-23).');
 
     // ---- the proof: every recorded grade level is a complete 1..N run ----
     const after = await readSubjects(conn);

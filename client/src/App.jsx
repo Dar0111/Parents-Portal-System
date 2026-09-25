@@ -7,6 +7,7 @@ import Shell from './layout/Shell';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ForcedPasswordChange from './pages/ForcedPasswordChange';
+import AboutPage from './pages/AboutPage';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import AdminUsers from './pages/admin/UsersPage';
 import AdminStudents from './pages/admin/StudentsPage';
@@ -75,6 +76,11 @@ export default function App() {
               own signed-in / flag-still-set checks. Outside every role
               prefix because all three roles land on the same screen. */}
           <Route path="/change-password" element={<ForcedPasswordChange />} />
+          {/* Public: the school's own details and the DepEd VMV, reachable
+              from the login screen. No Shell, no ProtectedRoute; it reads
+              GET /settings/public, the one unauthenticated settings read.
+              The same component sits under each role prefix below. */}
+          <Route path="/about" element={<AboutPage publicView />} />
 
           <Route
             path="/admin"
@@ -102,6 +108,7 @@ export default function App() {
             <Route path="announcements" element={<AdminAnnouncements />} />
             <Route path="grades" element={<AdminGrades />} />
             <Route path="backups" element={<AdminBackups />} />
+            <Route path="about" element={<AboutPage />} />
           </Route>
 
           <Route
@@ -143,6 +150,7 @@ export default function App() {
               <Route path="password" element={<ChangePasswordSection />} />
               <Route path="personalization" element={<PersonalizationSection />} />
             </Route>
+            <Route path="about" element={<AboutPage />} />
           </Route>
 
           <Route
@@ -167,6 +175,7 @@ export default function App() {
               <Route path="password" element={<ChangePasswordSection />} />
               <Route path="personalization" element={<PersonalizationSection />} />
             </Route>
+            <Route path="about" element={<AboutPage />} />
           </Route>
 
           {/* Component gallery — dev builds only. import.meta.env.DEV is

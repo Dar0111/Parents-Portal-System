@@ -77,13 +77,17 @@ async function run() {
     // query. The HTTP suites assert that the API RETURNS this order; this
     // asserts the order itself is what the school gave.
     //
-    // Grades 2 and 3 are asserted NULL, not "not asserted". NULL is the
-    // honest value for a grade level whose printed order nobody has recorded,
-    // and a future dispatch that guesses one should fail here first.
+    // Grades 2 and 3 were asserted NULL until 2026-09-26 — the honest value
+    // while nobody had recorded their printed order, and a guard so a guess
+    // would fail here first. The school confirmed both on 2026-09-23 and
+    // pre-Stage-5 #5a seeded them; every grade level is asserted the same
+    // way now.
     console.log('\nSubject display_order:');
 
     const EXPECTED_ORDER = {
       1: ['Makabansa', 'Mathematics', 'GMRC', 'Reading and Literacy', 'Language'],
+      2: ['Makabansa', 'Mathematics', 'GMRC', 'English', 'Filipino'],
+      3: ['English', 'Mathematics', 'Science', 'Filipino', 'Makabansa', 'GMRC'],
       4: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
       5: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
       6: ['English', 'Mathematics', 'Filipino', 'Araling Panlipunan', 'GMRC', 'Science', 'MAPEH', 'EPP'],
@@ -94,7 +98,7 @@ async function run() {
         ORDER BY grade_level, display_order IS NULL, display_order, name`
     );
 
-    for (const gradeLevel of [1, 4, 5, 6]) {
+    for (const gradeLevel of [1, 2, 3, 4, 5, 6]) {
       const expectedNames = EXPECTED_ORDER[gradeLevel];
       const actualNames = orderRows.filter((r) => r.grade_level === gradeLevel).map((r) => r.name);
       check(
@@ -108,15 +112,6 @@ async function run() {
       check(
         values.every((v, i) => v === i + 1),
         `Grade ${gradeLevel} display_order is a contiguous 1..${expectedNames.length}`,
-        `got ${values.join(', ')}`
-      );
-    }
-
-    for (const gradeLevel of [2, 3]) {
-      const values = orderRows.filter((r) => r.grade_level === gradeLevel).map((r) => r.display_order);
-      check(
-        values.length > 0 && values.every((v) => v === null),
-        `Grade ${gradeLevel} display_order is NULL — no printed order is known, and guessing one is worse`,
         `got ${values.join(', ')}`
       );
     }

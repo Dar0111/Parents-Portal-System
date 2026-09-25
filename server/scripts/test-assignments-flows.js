@@ -167,21 +167,22 @@ async function run() {
       `GET /?grade_level=6 returns the SF9's order (got ${grade6Order.join(' > ')})`
     );
 
-    // GRADE 2 HAS NO RECORDED ORDER, and the fallback is asserted rather than
-    // assumed. display_order is NULL for all five rows; MySQL sorts NULL
-    // FIRST by default, so without the `display_order IS NULL` leading term
-    // this would still be alphabetical by luck — but on a grade level with a
-    // MIX of ordered and unordered rows the unordered ones would jump to the
-    // front. Asserting the all-NULL case keeps the idiom honest at its edge.
+    // GRADE 2 — the school's printed order, CONFIRMED 2026-09-23 and seeded
+    // by pre-Stage-5 #5a (2026-09-26). Until then these two assertions pinned
+    // the all-NULL fallback (name ASC) so a GUESSED order would fail here
+    // first; the school's answer is not a guess, and the positive form is
+    // asserted the same way Grade 6's is above. The null-last idiom's edge
+    // case (a MIX of ordered and unordered rows) no longer has a seeded
+    // grade level to stand on — every grade carries an order now.
     const grade2 = await request('GET', '/api/subjects?grade_level=2', { token: adminToken });
     const grade2Order = (grade2.data?.subjects || []).map((s) => s.name);
     assert(
-      grade2Order.join(' > ') === 'English > Filipino > GMRC > Makabansa > Mathematics',
-      `Grade 2 has no printed order and falls back to name ASC (got ${grade2Order.join(' > ')})`
+      grade2Order.join(' > ') === 'Makabansa > Mathematics > GMRC > English > Filipino',
+      `GET /?grade_level=2 returns the school's confirmed order (got ${grade2Order.join(' > ')})`
     );
     assert(
-      (grade2.data?.subjects || []).every((s) => s.display_order === null),
-      'Grade 2 display_order is NULL in the payload — no printed order is known, and guessing one is worse'
+      (grade2.data?.subjects || []).every((s, i) => Number(s.display_order) === i + 1),
+      'Grade 2 display_order is a contiguous 1..5 in the payload — the recorded order, not the name fallback'
     );
 
     // The class-record Subject dropdown reads GET /assignments, so its DEFAULT

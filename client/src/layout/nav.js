@@ -55,6 +55,9 @@ export const NAV_BY_ROLE = {
     { to: '/teacher/events', label: 'Events', icon: 'fa-calendar-days', built: true },
     { to: '/teacher/messages', label: 'Messages', icon: 'fa-comments', built: true },
     { to: '/teacher/settings', label: 'Settings', icon: 'fa-gear', built: true },
+    // LAST for every role (pre-Stage-5 #5a): the school's own details and the
+    // DepEd VMV it adopts. One page, three prefixes, like Settings.
+    { to: '/teacher/about', label: 'About', icon: 'fa-circle-info', built: true },
   ],
   parent: [
     { to: '/parent', label: 'Dashboard', icon: 'fa-gauge', built: true },
@@ -66,6 +69,7 @@ export const NAV_BY_ROLE = {
     { to: '/parent/events', label: 'Events', icon: 'fa-calendar-days', built: true },
     { to: '/parent/messages', label: 'Messages', icon: 'fa-comments', built: true },
     { to: '/parent/settings', label: 'Settings', icon: 'fa-gear', built: true },
+    { to: '/parent/about', label: 'About', icon: 'fa-circle-info', built: true },
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', icon: 'fa-gauge', built: true },
@@ -76,6 +80,9 @@ export const NAV_BY_ROLE = {
     { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
     { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: true },
     { to: '/admin/backups', label: 'Backup & Restore', icon: 'fa-database', built: true },
+    // Last, after Backup & Restore — "after Settings" for the other roles
+    // means the bottom of the list, and the bottom is where an About lives.
+    { to: '/admin/about', label: 'About', icon: 'fa-circle-info', built: true },
   ],
 };
 

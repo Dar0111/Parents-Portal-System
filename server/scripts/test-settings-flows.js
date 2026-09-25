@@ -295,6 +295,50 @@ async function run() {
         patchOk.data?.settings?.current_term === '2',
       'PATCH with all valid keys updates every key'
     );
+
+    // --- The four school_* keys (pre-Stage-5 #5a): each has its own rule,
+    // and the public read carries exactly these plus name and address.
+    console.log('\nSchool details keys:');
+
+    const badSchoolId = await request('PUT', '/api/settings/school_id', { token: adminToken, body: { value: '12345' } });
+    assert(badSchoolId.status === 400 && /6 digits/.test(badSchoolId.data?.message || ''), 'school_id of 5 digits is 400 naming the rule');
+    const badSchoolEmail = await request('PUT', '/api/settings/school_email', {
+      token: adminToken,
+      body: { value: 'office@localhost' },
+    });
+    assert(badSchoolEmail.status === 400 && /name@example\.com/.test(badSchoolEmail.data?.message || ''), 'school_email without a dotted domain is 400, the email rule');
+    const badSchoolPhone = await request('PUT', '/api/settings/school_phone', { token: adminToken, body: { value: 'call us' } });
+    assert(badSchoolPhone.status === 400 && /7 to 15 digits/.test(badSchoolPhone.data?.message || ''), 'school_phone with letters is 400 naming the rule');
+    const patchSchoolKeys = await request('PATCH', '/api/settings', {
+      token: adminToken,
+      body: {
+        settings: {
+          school_id: '136893',
+          school_email: '136893@deped.gov.ph',
+          school_phone: '(02) 8350-6114',
+          facebook_page: 'Captain H. Francisco Elementary School – Main',
+        },
+      },
+    });
+    assert(
+      patchSchoolKeys.status === 200 &&
+        patchSchoolKeys.data?.settings?.school_id === '136893' &&
+        patchSchoolKeys.data?.settings?.school_phone === '(02) 8350-6114' &&
+        patchSchoolKeys.data?.settings?.facebook_page === 'Captain H. Francisco Elementary School – Main',
+      'PATCH of the four school keys stores each as typed (a landline with spaces and dashes accepted)'
+    );
+
+    // GET /settings/public — no token, six keys, nothing else.
+    const publicRead = await request('GET', '/api/settings/public');
+    const publicKeys = Object.keys(publicRead.data?.settings || {}).sort();
+    assert(
+      publicRead.status === 200 &&
+        JSON.stringify(publicKeys) ===
+          JSON.stringify(['facebook_page', 'school_address', 'school_email', 'school_id', 'school_name', 'school_phone']),
+      `GET /settings/public needs no token and carries exactly the six school keys (got ${JSON.stringify(publicKeys)})`
+    );
+    const privateStillPrivate = await request('GET', '/api/settings');
+    assert(privateStillPrivate.status === 401, 'GET /settings without a token is still 401 — only /public opened');
   } finally {
     // Restore every key this run may have touched, regardless of pass/fail.
     await request('PATCH', '/api/settings', {
@@ -305,6 +349,12 @@ async function run() {
           academic_year: original.academic_year,
           current_term: original.current_term,
           logo_url: original.logo_url,
+          // The four school keys, restored to what this run found — a live
+          // database that had none gets them back as '' (a valid state).
+          school_id: original.school_id ?? '',
+          school_email: original.school_email ?? '',
+          school_phone: original.school_phone ?? '',
+          facebook_page: original.facebook_page ?? '',
         },
       },
     });

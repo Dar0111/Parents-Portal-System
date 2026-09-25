@@ -11,12 +11,22 @@ USE parents_portal;
 -- System settings
 -- ---------------------------------------------------------------------------
 
+-- The school's own details, confirmed 2026-09-22 (CLAUDE.md's front matter is
+-- the one place they are recorded; this seeds them). "– Main" is part of the
+-- official name and prints on every masthead that reads school_name. The
+-- phone is a PHONE number, not the School ID. facebook_page is blank until
+-- the school gives the page's name — nothing is guessed. A live database
+-- gets these through Admin → Settings, not by re-seeding.
 INSERT INTO system_settings (setting_key, setting_value) VALUES
-  ('school_name', 'Captain H. Francisco Elementary School'),
-  ('school_address', 'Captain H. Francisco Elementary School, Philippines'),
+  ('school_name', 'Captain H. Francisco Elementary School – Main'),
+  ('school_address', 'P. Rosales St., Sta. Ana, Pateros, Metro Manila'),
   ('academic_year', '2026-2027'),
   ('current_term', '1'),
-  ('logo_url', '');
+  ('logo_url', ''),
+  ('school_id', '136893'),
+  ('school_email', '136893@deped.gov.ph'),
+  ('school_phone', '3506114'),
+  ('facebook_page', '');
 
 -- ---------------------------------------------------------------------------
 -- DepEd subjects per grade level (G1-G6) — Stage G1b (2026-09-06). Real
@@ -68,22 +78,23 @@ INSERT INTO subjects (name, grade_level, display_order) VALUES
   -- on this string — change both together.
   ('Reading and Literacy', 1, 4);
 
--- Grade 2
-INSERT INTO subjects (name, grade_level) VALUES
-  ('English', 2),
-  ('GMRC', 2),
-  ('Makabansa', 2),
-  ('Mathematics', 2),
-  ('Filipino', 2);
+-- Grade 2 — printed order CONFIRMED by the school on 2026-09-23 (seeded
+-- pre-Stage-5 #5a). The INSERT order is historical; display_order decides.
+INSERT INTO subjects (name, grade_level, display_order) VALUES
+  ('English', 2, 4),
+  ('GMRC', 2, 3),
+  ('Makabansa', 2, 1),
+  ('Mathematics', 2, 2),
+  ('Filipino', 2, 5);
 
--- Grade 3
-INSERT INTO subjects (name, grade_level) VALUES
-  ('GMRC', 3),
-  ('English', 3),
-  ('Science', 3),
-  ('Mathematics', 3),
-  ('Filipino', 3),
-  ('Makabansa', 3);
+-- Grade 3 — printed order CONFIRMED by the school on 2026-09-23.
+INSERT INTO subjects (name, grade_level, display_order) VALUES
+  ('GMRC', 3, 6),
+  ('English', 3, 1),
+  ('Science', 3, 3),
+  ('Mathematics', 3, 2),
+  ('Filipino', 3, 4),
+  ('Makabansa', 3, 5);
 
 -- Grade 4 — INFERRED, see the note above. Matches the SF9's eight
 -- intermediate-level rows and Grade 5's photographed program exactly.

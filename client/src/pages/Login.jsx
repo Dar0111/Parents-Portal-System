@@ -217,6 +217,14 @@ export default function Login() {
             </Link>{' '}
             No email on your account? Ask the school office.
           </p>
+          {/* The school's details and the DepEd VMV, signed out (pre-Stage-5
+              #5a). A parent looking for the office phone should not need an
+              account to find it. */}
+          <p className="mt-2 text-sm text-fg-muted">
+            <Link to="/about" className="font-medium text-brand underline-offset-2 hover:underline">
+              About the school
+            </Link>
+          </p>
         </div>
       </main>
     </div>
