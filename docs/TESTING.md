@@ -44,24 +44,24 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — **62/62**
 - `npm run test:grading-modes` — 13/13
-- `npm run test:grades` — **255/255** (was 247; pre-Stage-5 #2 added the class filter's two `400`s and invariant, `sort=class`, the nine-key report card and `term_average_descriptors` on a KS1, a one-term and a complete card. Before that: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239 → 247)
-- `npm run test:auth` — 56/56
-- `npm run test:attendance` — **62/62** (was 60; pre-Stage-5 #2 added `?date=&from=` and `?date=&to=` → `400`)
-- `npm run test:content` — **96/96** (was 62)
+- `npm run test:grades` — **256/256** (was 255; #3a added the notifications rows-for-this-run = 0 assertion. #2 added the class filter's two `400`s and invariant, `sort=class`, the nine-key report card and `term_average_descriptors` on a KS1, a one-term and a complete card. Before that: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239 → 247)
+- `npm run test:auth` — **57/57** (was 56; #3a — the two parent accounts it creates fan out `parent_pending`, cleaned by the shared helper and asserted gone)
+- `npm run test:attendance` — **64/64** (was 62; #3a — cleanup by its own ids, proved by an untracked sentinel row on a shared date that must survive. #2 added `?date=&from=` and `?date=&to=` → `400`)
+- `npm run test:content` — **97/97** (was 96; #3a — its posts' notifications cleaned by pairs and asserted gone: "25 deleted over 10 items" on a clean run. **The count of items is 10, not 9**: the API-deleted event is spliced out of the post cleanup list but stays in `notifiedEventIds`)
 - `npm run test:settings` — 29/29
 - `npm run test:users` — **64/64** (was 61; pre-Stage-5 #2 added `sort=role` and `sort=status` alphabetical invariants plus admin-before-parent). **The script is `test:users`** — the file is `test-user-management-flows.js`, and a dispatch that types `test:user-management` gets a silent no-op from npm, not a failure
 - `npm run test:backups` — **47/47** (was 39)
 - `npm run test:sanitize` — 9/9
 - `npm run test:messages` — **80/80** (was 59)
-- `npm run test:restore` — **28 passed, 1 FAILED** — "A token issued after the cutoff still works". **A test-timing defect, not a code one**, and the same `iat` one-second resolution §11 already records; the production behaviour is correct. **Fix the test, never the comparison.** KNOWN ISSUES
-- `npm run test:excuses` — **92/92** (was 70)
-- `npm run test:notifications` — **136/136** (was 124)
+- `npm run test:restore` — **29/29** (was 28 passed / 1 FAILED for three days). **The failure was never `iat` resolution** — the crafted "after the cutoff" token carried no `v` claim and ADMIN001's `token_version` had been bumped to 2 by other suites, so the middleware's version check refused it with a 401 the assertion could not tell from the restore one. The token carries the live `v` now (#3a); `middleware/auth.js` is untouched. KNOWN ISSUES has the corrected row
+- `npm run test:excuses` — **93/93** (was 92; #3a — letter notifications cleaned by pairs, resolved BEFORE the user/student cascades, and asserted gone)
+- `npm run test:notifications` — **136/136** (was 124). Since #3b its users/students watermark is **captured at start and printed** (`i watermark at start: users 8, students 4`), not the literal 7/3 — a seed change must not fail a suite that has no defect. `test:recovery` does the same
 - `npm run test:dashboard` — 77/77
-- `npm run test:class-record` — **117/117** (CR1 105 → CR2 117). **It is the only suite that imports a CLIENT module** — `buildPayload.js` — so the grid's real payload is exercised against the real API; see §13e
+- `npm run test:class-record` — **118/118** (CR1 105 → CR2 117 → #3a 118: it asserts NO notification row for its grades — measured zero before the helper existed, because its fixture learners have no parent; asserted rather than deleted). **It is the only suite that imports a CLIENT module** — `buildPayload.js` — so the grid's real payload is exercised against the real API; see §13e
 - `npm run test:class-summary` — **59/59** (CR3). Two assertions are the dispatch: **TCH-002, adviser with zero assignments, gets 200 on the summary AND on a learner's report card.** Its cleanup is a **WATERMARK, not an id list** — `PUT /class-record` creates a shell row for every learner in the class, so deleting only its own learners' grades left eight behind on a SEEDED one (KNOWN ISSUES)
 - `npm run test:recovery` — **62/62, but ONLY against a server started with `MAIL_TRANSPORT=file`.** Otherwise it stops at 11/1 with a fixture failure — the variable belongs to the process that sends the mail, so prefixing the test script does nothing. Run-book in KNOWN ISSUES
 
-`node scripts/verify-grading-seed.js` is not one of the suites above — it's a
+`npm run verify:grading-seed` (alias since #3a; `node scripts/verify-grading-seed.js`) is not one of the suites above — it's a
 direct-DB verification script (no server, no HTTP, no `assert()` harness),
 checking the Grades seed (transmutation table, weights, modes, Grade 1
 descriptive fixture) is internally consistent. Run it after `db:setup`, before
@@ -83,16 +83,15 @@ silently.
 
 ---
 
-## The two known-count exceptions
+## The one known-count exception (two until #3a corrected `test:restore`)
 
-Both are **run-book problems, not failing code**, and both have their full
+Both were **run-book problems, not failing code**, and both have their full
 row in `docs/KNOWN_ISSUES.md`. They are listed here because a clean run does
 **not** print a clean number, and a session that does not know that will
 report a regression that is not one.
 
 | Suite | What you will actually see | Where the run-book is |
 |---|---|---|
-| `test:restore` | **28 passed, 1 FAILED** — *"A token issued after the cutoff still works"*. A JWT `iat` has one-second resolution and the scripted flow fits inside one second on a fast machine. The production behaviour is correct. **Fix the TEST, never the comparison.** | `docs/KNOWN_ISSUES.md` → *`test:restore` fails one assertion on a fast machine* |
 | `test:recovery` | **11 passed, 1 FAILED** against a normally-started server, and the fixture stop is correct behaviour rather than a flake — the suite reads the emailed code off disk. **`MAIL_TRANSPORT=file` belongs to the process that SENDS the mail, so it goes on the SERVER**; prefixing the npm script does nothing. With it: **62/62**. | `docs/KNOWN_ISSUES.md` → *`test:recovery` needs `MAIL_TRANSPORT=file` on the SERVER* |
 
 **Report these as their known figures, not as failures** — and if either
@@ -194,6 +193,19 @@ day.
   `MAIL_TRANSPORT` it was launched with.
 - **NEVER run it while a server suite is running.** Same rule as fixtures:
   suites before, or after, never during.
+- **Prefer `npm run smoke:isolated` for a verification run (pre-Stage-5 #3b).**
+  `client/scripts/smoke-isolated.mjs` starts its OWN API (`node server.js`,
+  **no `--watch`**, port 5001, `CORS_ORIGIN=http://localhost:3001`) and its
+  own Vite (3001, `--strictPort`, `VITE_API_BASE_URL` pointed at 5001),
+  polls both, runs the sweep with `E2E_APP_ORIGIN`/`E2E_API_ORIGIN`, kills
+  both process trees (`taskkill /T` on Windows) and **lists the two ports
+  afterwards** — the listing is the proof, not the kill. It refuses to start
+  if either port already answers, and **it never touches 5000 or 3000**, so
+  the rule above still holds: the one server somebody may be using is never
+  started or stopped by a script. Why: the first-test `ERR_CONNECTION_REFUSED`
+  that struck ~5 of ~10 sweeps against the `--watch` API has not occurred in
+  5/5 against a plain `node server.js` (`docs/KNOWN_ISSUES.md`). Plain
+  `npm run smoke` stays for watching it (`--headed`) against your own servers.
 - It runs against the **dev server**, not a production build, so `/dev/ui`
   and the DEV guards exist — a sweep that cannot see a `console.error` guard
   is half a sweep (§17f).
@@ -273,10 +285,13 @@ four or five times now. The admin dashboard is the worst case because each
 card fetches independently (§12), so a cold connection hits several requests
 at once.
 
-**Not diagnosed, and a re-run is not a fix.** If it fires, re-run that one
-test alone and report both results. A warm-up request in the smoke setup is
-queued in UI-C1; `docs/KNOWN_ISSUES.md` has the row. **Playwright retries
-are deliberately off** — a retry would hide it.
+**Closed 2026-09-25 on a correlation, not a traced cause:** every failure
+was against the `--watch` dev API, and 5/5 sweeps against a plain
+`node server.js` passed — so the working cause is the watcher's restart
+window, and the remedy is `npm run smoke:isolated` above. If it fires on a
+plain `npm run smoke` against the `--watch` API, that is this finding, not
+auth; re-run isolated and report both. **Playwright retries are deliberately
+off** — a retry would hide it. `docs/KNOWN_ISSUES.md` keeps the full history.
 
 **A negative control never touches a tracked template.** Use a temp copy or
 Write with full contents — this file's own guard was proved by appending a

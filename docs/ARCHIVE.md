@@ -3686,6 +3686,19 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (eleventh batch, the pre-Stage-5 #3 docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds two stubs (#3a, #3b) and must
+> land the file BELOW where it started, because #3b's baseline rows had to
+> go in with the seed. Four rows, the oldest.
+
+| 2026-09-25 | **Item 5** (`2000499`): nine pages staged their filter values and **none admitted it** — a select could read "Approved" over a Pending list. **Filed as §5f, corrected to §5b one level out.** Staging KEPT (three pages filter free text with no debounce); one bounded control auto-applies, eight gain a quiet↔filled Apply and a `role="status"` note. **`parent/EventsPage` already carried the auto-apply rule in its own words** — "no precedent for the affordance" was true of the cue only. **`isDirty` is key-by-key over the UNION, never `JSON.stringify`** (key order), search trimmed both sides, compared against DEFAULTS not falsiness. **A live defect fixed on the way:** T·Attendance records' Section bypassed `applied` and never reset the offset. §21. **The UI-polish queue is COMPLETE.** |
+| 2026-09-25 | **UI-E** (`3086086`): a teacher can read back a reviewed letter. **The remarks rendered only inside the review modal, which opens only for a PENDING letter** — so the teacher who wrote them lost them on save, at every width, and **nothing was broken enough for a check to see it.** Renders the list row, never `GET /:id` (which returns strictly LESS). **Two of the four omitted fields do not exist:** no `reviewed_at` column, and `reviewed_by` is an unresolved user id. **The card's own comment argued against moving its gate** — on a fact, not a principle, and the fact is what changed (§20b). `ssr-ui-e` 23, `ssr-cards` 31 → **32**. **Both my mistakes were in test code:** a regex that matched its own fixture's prose, and a probe that reported clean twice while `name: 'View'` was matching **"Review"**. |
+| 2026-09-25 | **UI-D-2+3** (`9d0c1cb`→`a6be0d2`, five commits): `ScrollCue` on both grids, the parent hero on `--brand-panel`. **UI-D is complete.** **The thresholds were the whole story and I got them wrong twice** — 1px fired on a **2px** overflow and flapped between 1279 and 1281px; 24px on BOTH tests then dropped "Performance Tasks" from the hint while its column was visibly cut. **Two constants: gate 24px, per-cell strict — legibility decides WHETHER to speak, not WHAT to say** (§19b). KS1's "A  D" was a hover-only `title`, which **does not exist on touch**; the average follows `current_term` now. **Two defects of mine, neither found by reasoning:** `ScrollCue.jsx` beside `scrollCue.js` (**Windows is case-insensitive**), and a fixture that invented a string where the API sends an object — **`/parent` rendered blank while build, oxlint and 71/71 were green** (§19f). `ssr-ui-d` **82**, contrast **74 pairs**, smoke 20/20. |
+| 2026-09-25 | **UI-D-1** (`7513457`): the app could not print and could not be read in the dark. **Zero print CSS existed** — the Summary of Grades printed the sidebar, the top bar and the Term select, and `overflow-x-auto` **clipped five of eight subjects and the Average column**. A scroller is a guillotine on paper, and **`min-w-max` is the other half**, so landscape alone would not have fixed it. **Landscape is scoped per page** by a `<style>` mounted with the route (`@page` cannot be nested; named pages fail in Firefox; **Safari ignores `size`** and is survivable only because `min-w-max` is released). The report card is **forced** to its table branch — a container query at print width is unprovable, and the narrow branch is **a different document**, not a broken layout. **Dark print is fixed in `theme.js`, not `@media print`** — the latter means a verbatim second copy of ~71 tokens; restoring **re-reads storage**, so System stays System. **`body { color: var(--color-fg) }`** — until it existed, uncoloured text inherited BLACK, ~1.06:1 on the dark page; `GradeValue` returns to pure inheritance and one DataTable call site moves to `fg-secondary`, accepted. `ssr-ui-d` **32/32**, and it states that **print layout is proved on paper, never by SSR** (§18). oxlint caught `Date.now()` in a render body — **impure, so the same props could produce two documents**. Smoke 20/20. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (tenth batch, the pre-Stage-5 #2 docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4686,6 +4699,51 @@ it), and **(m)'s "one-line client follow-up" was one line of data and three of
 proof** — the fixture had to be the server's `{ descriptor, remarks }` object,
 captured from the suite, with the object-as-child refusal asserted (§19f),
 because the previous hero fixture had invented a string and blanked `/parent`.
+
+### Pre-Stage-5 #3's items — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **#3a** (`85c5d8f`) and **#3b** (`642ccb2`,
+browser check passed). Four fragments of the pre-Stage-5 block, as they stood
+after #2's docs pass; the (i) fragment is kept because it is WRONG and the
+record of why matters more than the line itself.
+
+```
+      **(i) `test:restore`'s "token issued after the cutoff" assertion needs a
+      SUB-SECOND boundary** — it fails on a fast machine because the scripted
+      flow fits inside one `iat` second. **Fix the TEST, never the
+      comparison**; the production behaviour is correct.
+```
+```
+      **(d) a fixture learner who is nobody's test target**
+      (KNOWN_ISSUES).
+```
+```
+      **(h) the npm alias** `db:migrate:reading-and-literacy`,
+      deferred twice now because `package.json` keeps falling outside a
+      whitelist.
+```
+```
+      **Still queued from the originals:** email
+      validation; `test:attendance`'s cleanup deleting every row on three
+      dates rather than only its own; and the shared helper that clears the
+      orphan `notifications` rows the older suites leave behind — **seen again
+      after #2's `test:grades` run, 3 rows, the 2026-09-19 figure exactly.**
+      Every one is a `docs/KNOWN_ISSUES.md` row. **NEXT is #3, test hygiene:**
+      that cleanup and that helper, (i), (d), the `verify-grading-seed` alias,
+      and the no-watch smoke rule.
+```
+
+**Two of the four were not what they said.** (i) was never a timing
+problem: the crafted token carried no `v` claim, and the red-first run
+printed *"Your password was changed"* — the version check, on an account
+whose counter another suite had bumped. "Fix the test, never the comparison"
+was still the right instruction, for a reason the line did not know. (h) was
+**already done** — `db:migrate:reading-and-literacy` had sat at
+`server/package.json:12` since the Grade 1 rename; "deferred twice" was a
+sentence nobody re-checked against the file. (d) became Tala Halimbawa, and
+the item that closed it also cost a migration script the entry never
+mentioned, because a seed row that must reach a LIVE database cannot arrive
+by `db:setup`. The originals' third item — email validation — is #4's.
 
 ### UI-D (c) and (d) — moved from CLAUDE.md on 2026-09-25
 

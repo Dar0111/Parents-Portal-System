@@ -71,7 +71,7 @@ split — if a fact seems missing here, it is in one of these.
 |---|---|---|
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
-| `docs/TESTING.md` | every suite, proof and lint baseline; the two suites whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
+| `docs/TESTING.md` | every suite, proof and lint baseline; the one suite whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
 | `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§7b, with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
@@ -158,9 +158,9 @@ wiped assignments *and* grades. **Do not add a grades-exist guard on
 `DELETE /api/assignments/:id`.**
 
 **Tests — every baseline lives in `docs/TESTING.md`**: each suite's figure,
-the four lint baselines, and **the two suites whose clean run is not a clean
-number** (`test:restore` 28/1; `test:recovery` without `MAIL_TRANSPORT=file`
-on the SERVER). **A dispatch that re-measures a baseline updates it THERE, in
+the four lint baselines, and **the one suite whose clean run is not a clean
+number** (`test:recovery` without `MAIL_TRANSPORT=file` on the SERVER;
+`test:restore` is 29/29 since #3a). **A dispatch that re-measures a baseline updates it THERE, in
 the same commit** — a figure corrected in a report and nowhere else is how
 eight counts went stale at once. **The Seeded baseline above is DATA and
 stays here**; it is what the suites assert against, not a count of them.
@@ -1529,10 +1529,6 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       import a constant (migration + `schema.sql` + `seed.sql` + `ORDER BY`
       in `routes/grades.js` and `routes/subjects.js`). **Grade 1's order is
       PROVISIONAL** — ask the school before seeding it as fact.
-      **(i) `test:restore`'s "token issued after the cutoff" assertion needs a
-      SUB-SECOND boundary** — it fails on a fast machine because the scripted
-      flow fits inside one `iat` second. **Fix the TEST, never the
-      comparison**; the production behaviour is correct.
       **(j) decide the Back-button guard BEFORE Expo** —
       `createBrowserRouter` vs a `pushState` sentinel. Stage 5 brings its own
       navigation model, so choosing the router late is expensive.
@@ -1542,8 +1538,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       **(c) the school-calendar work (CAL)** — term dates, school-year range,
       a real `current_term`; nothing in the schema holds a term boundary,
       which is why Parent → Attendance derives its months from data. DV3 does
-      not depend on it. **(d) a fixture learner who is nobody's test target**
-      (KNOWN_ISSUES). **Four more added 2026-09-22: (e) ADVISER ENROLMENT** —
+      not depend on it. **Four more added 2026-09-22: (e) ADVISER ENROLMENT** —
       advisers enrol learners and create parent accounts, so confirm the
       enrolment path matches that and not only the teacher-assignment one;
       **(f) School ID and email settings fields** — `routes/settings.js`
@@ -1551,9 +1546,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       live (the keys, their validators, the seed, and the Admin → Settings
       inputs); **(g) an About page** for the DepEd Vision, Mission and Core
       Values the school adopts — a new route, a nav item and a page, none of
-      which exist; **(h) the npm alias** `db:migrate:reading-and-literacy`,
-      deferred twice now because `package.json` keeps falling outside a
-      whitelist. **Two more from the 2026-09-23 school answers: (k) seed
+      which exist. **Two more from the 2026-09-23 school answers: (k) seed
       `display_order` for Grades 2 and 3** (G2 Makabansa · Mathematics · GMRC ·
       English · Filipino; G3 English · Mathematics · Science · Filipino ·
       Makabansa · GMRC) — migration + `seed.sql`, the last grade levels on the
@@ -1561,17 +1554,24 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
       attendance** — handover is outside the system, so re-pointing scope at
       the new section and dropping the old adviser's access would strand the
-      records. **#2 is DONE 2026-09-25 (`819e892`)** — the attendance `400`,
-      the grades class filter, the users sort (role AND status), the health
-      ping, and (m) `term_average_descriptors`; its text left under the REFILL
-      RULE (`docs/ARCHIVE.md`). **Still queued from the originals:** email
-      validation; `test:attendance`'s cleanup deleting every row on three
-      dates rather than only its own; and the shared helper that clears the
-      orphan `notifications` rows the older suites leave behind — **seen again
-      after #2's `test:grades` run, 3 rows, the 2026-09-19 figure exactly.**
-      Every one is a `docs/KNOWN_ISSUES.md` row. **NEXT is #3, test hygiene:**
-      that cleanup and that helper, (i), (d), the `verify-grading-seed` alias,
-      and the no-watch smoke rule.
+      records. **#2 (`819e892`) and #3 (`85c5d8f`, `642ccb2`) are DONE
+      2026-09-25** — their text left under the REFILL RULE (`docs/ARCHIVE.md`).
+      Two of #3's lines were wrong as written and the archive keeps why:
+      **`test:restore`'s failure was the crafted token's missing `v` claim,
+      never a sub-second `iat` boundary**, and **(h) had existed at
+      `package.json:12` all along.** Rules that outlive #3, stated nowhere
+      else: **a suite cleans its own `notifications` rows by exact
+      `(item_type, item_id)` pairs through `scripts/test-helpers/notifications.js`
+      and asserts zero left** — the writers are content ×3, excuses ×2,
+      users ×1, grades ×1 (`recomputeGrade`, reached by the class-record PUT);
+      **Tala Halimbawa (G6 Malikhain, active parent) is the browser-fixture
+      learner and nobody's test target — every suite stays on Marwin**; a seed
+      row reaches a live database by `db:migrate:*`, never `db:setup`; and
+      **a verification smoke run is `npm run smoke:isolated`**, its own API
+      without `--watch` on 5001, never 5000. From the originals, only email
+      validation remains — **NEXT is #4, auth and gates:** (b), o4 email
+      validation, (e) adviser-only enrolment plus the matching
+      `POST /users/parents` gate.
       **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
       NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
       (`schema.sql:212-216`), so the shape is representable; `grade_components`
@@ -2014,12 +2014,10 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **Pre-Stage-5 #3b** (`642ccb2`): **Tala Halimbawa**, G6 Malikhain, active parent Ligaya — the browser-fixture learner; seed + `db:migrate:fixture-learner` (a live DB never gets a seed row by `db:setup`); two watermarks captured at start. **`smoke:isolated`** owns an API without `--watch` on 5001 and lists the ports after. Full suite set green, no count shifted; 20/20. |
+| 2026-09-25 | **Pre-Stage-5 #3a** (`85c5d8f`): the shared notifications cleanup by `(item_type, item_id)` pairs, every suite asserting zero left — **the writer list was wrong** (content ×3, excuses ×2, users ×1, grades ×1; messages/backups/user-management never could leave a row) and **the first run left one row** (content's spliced event). Attendance cleans by its own ids, proved by a sentinel. **`test:restore` was the missing `v` claim, not `iat`** — red-first printed the body. 29/29. |
 | 2026-09-25 | **Pre-Stage-5 #2** (`819e892`): five server fixes — attendance `date`+range → `400`; a class filter and `sort=class` on `GET /grades`; users sort by letters for **role AND status** (both ENUMs — the second had no header to show it); `/api/health` pings the pool, **503 path stated untested**; `term_average_descriptors` and the hero's `Term N · <word>`. **Fixture captured from the suite** (§19f), and the first negative control matched `· Adviser:` instead of the caption. Suites 62 / 255 / 64, `ssr-ui-d` **86**. Three orphan notifications after `test:grades` — the 2026-09-19 figure, again. |
 | 2026-09-25 | **Item 5b** (`84739bc`): the code review's seven findings on item 5. **The live region was mounted only while dirty — an accessibility defect, and the proof had CEMENTED it** by asserting the region absent when clean; a screen reader announces changes *inside* an existing region. `ScrollCue` already had the rule (§19d); `FilterActions` contradicted it. Also: Reset restores the staged Section; `isDirty` trims every string; `canResetFilters` removed; `buttonNeutralClass`; Events gets a real Reset. `ssr-item5` **39**. |
-| 2026-09-25 | **Item 5** (`2000499`): nine pages staged their filter values and **none admitted it** — a select could read "Approved" over a Pending list. **Filed as §5f, corrected to §5b one level out.** Staging KEPT (three pages filter free text with no debounce); one bounded control auto-applies, eight gain a quiet↔filled Apply and a `role="status"` note. **`parent/EventsPage` already carried the auto-apply rule in its own words** — "no precedent for the affordance" was true of the cue only. **`isDirty` is key-by-key over the UNION, never `JSON.stringify`** (key order), search trimmed both sides, compared against DEFAULTS not falsiness. **A live defect fixed on the way:** T·Attendance records' Section bypassed `applied` and never reset the offset. §21. **The UI-polish queue is COMPLETE.** |
-| 2026-09-25 | **UI-E** (`3086086`): a teacher can read back a reviewed letter. **The remarks rendered only inside the review modal, which opens only for a PENDING letter** — so the teacher who wrote them lost them on save, at every width, and **nothing was broken enough for a check to see it.** Renders the list row, never `GET /:id` (which returns strictly LESS). **Two of the four omitted fields do not exist:** no `reviewed_at` column, and `reviewed_by` is an unresolved user id. **The card's own comment argued against moving its gate** — on a fact, not a principle, and the fact is what changed (§20b). `ssr-ui-e` 23, `ssr-cards` 31 → **32**. **Both my mistakes were in test code:** a regex that matched its own fixture's prose, and a probe that reported clean twice while `name: 'View'` was matching **"Review"**. |
-| 2026-09-25 | **UI-D-2+3** (`9d0c1cb`→`a6be0d2`, five commits): `ScrollCue` on both grids, the parent hero on `--brand-panel`. **UI-D is complete.** **The thresholds were the whole story and I got them wrong twice** — 1px fired on a **2px** overflow and flapped between 1279 and 1281px; 24px on BOTH tests then dropped "Performance Tasks" from the hint while its column was visibly cut. **Two constants: gate 24px, per-cell strict — legibility decides WHETHER to speak, not WHAT to say** (§19b). KS1's "A  D" was a hover-only `title`, which **does not exist on touch**; the average follows `current_term` now. **Two defects of mine, neither found by reasoning:** `ScrollCue.jsx` beside `scrollCue.js` (**Windows is case-insensitive**), and a fixture that invented a string where the API sends an object — **`/parent` rendered blank while build, oxlint and 71/71 were green** (§19f). `ssr-ui-d` **82**, contrast **74 pairs**, smoke 20/20. |
-| 2026-09-25 | **UI-D-1** (`7513457`): the app could not print and could not be read in the dark. **Zero print CSS existed** — the Summary of Grades printed the sidebar, the top bar and the Term select, and `overflow-x-auto` **clipped five of eight subjects and the Average column**. A scroller is a guillotine on paper, and **`min-w-max` is the other half**, so landscape alone would not have fixed it. **Landscape is scoped per page** by a `<style>` mounted with the route (`@page` cannot be nested; named pages fail in Firefox; **Safari ignores `size`** and is survivable only because `min-w-max` is released). The report card is **forced** to its table branch — a container query at print width is unprovable, and the narrow branch is **a different document**, not a broken layout. **Dark print is fixed in `theme.js`, not `@media print`** — the latter means a verbatim second copy of ~71 tokens; restoring **re-reads storage**, so System stays System. **`body { color: var(--color-fg) }`** — until it existed, uncoloured text inherited BLACK, ~1.06:1 on the dark page; `GradeValue` returns to pure inheritance and one DataTable call site moves to `fg-secondary`, accepted. `ssr-ui-d` **32/32**, and it states that **print layout is proved on paper, never by SSR** (§18). oxlint caught `Date.now()` in a render body — **impure, so the same props could produce two documents**. Smoke 20/20. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2028,7 +2026,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in ten dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in eleven dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
@@ -2038,8 +2036,9 @@ Older stub lines are verbatim in `docs/ARCHIVE.md`, in ten dated batches —
 still to add), **3 under "sixth batch, the SMOKE-1 docs pass"**
 (2026-09-24, spent the same way), **2 under "seventh batch, the UI-D-1
 docs pass"**, **1 under "eighth batch, the UI-D-2+3 docs pass"** and **1
-under "ninth batch, the UI-E docs pass"** and **3 under "tenth batch, the
-pre-Stage-5 #2 docs pass"** (all 2026-09-25). **Every full row
+under "ninth batch, the UI-E docs pass"**, **3 under "tenth batch, the
+pre-Stage-5 #2 docs pass"** and **4 under "eleventh batch, the pre-Stage-5
+#3 docs pass"** (all 2026-09-25). **Every full row
 is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only

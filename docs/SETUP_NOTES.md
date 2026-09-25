@@ -63,7 +63,20 @@ cd "C:\Users\Win10 User\Parents_Portal\server"
 npm run test:auth
 ```
 
-**Browser:** `http://localhost:5000/api/health`
+**Browser:** `http://localhost:5000/api/health` — dapat `"db":"ok"` ang
+sagot (since 2026-09-25 nagpi-ping na ito ng MySQL; `503` kapag down).
+
+**Existing DB (hindi bagong `db:setup`):** may seed change na dumating na
+migration, hindi rebuild — kasi ang `db:setup` ay nagde-drop ng
+`activity_logs` at ng `backups` rows. Patakbuhin isang beses, safe ulitin:
+
+```bash
+cd "C:\Users\Win10 User\Parents_Portal\server"
+npm run db:migrate:fixture-learner   # Tala Halimbawa (G6 - Malikhain) + parent account; browser-fixture learner
+```
+
+Ang bawat `db:migrate:*` sa `package.json` ay idempotent at nagpi-print ng
+created / already present. Huwag i-`db:setup` para lang makuha ang seed row.
 
 **Workbench:**
 ```sql
@@ -244,6 +257,7 @@ Oo, safe — yung `Admin@2026`, `Teacher@2026` sa seed ay **test/demo passwords*
 
 | Date | Update |
 |------|--------|
+| Sep 25, 2026 | Quick run: `db:migrate:fixture-learner` for an existing DB (never `db:setup` for a seed row); health now reports `db` |
 | Aug 12, 2026 | Added protected routes explanation + GitHub security + `.gitignore` |
 | Aug 12, 2026 | Created SETUP_NOTES.md — chat summary, Claude Code FAQ |
 | Aug 12, 2026 | Phase 1 complete — database + auth |
