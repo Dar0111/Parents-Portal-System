@@ -40,16 +40,16 @@ direct-call unit test, no server or DB. **`test:restore` never triggers an
 actual restore** — see RESTORE.
 All re-run 2026-09-22; **stale ones marked with their old figure.**
 
-- `npm run test:students` — **94/94** (was 65)
+- `npm run test:students` — **98/98** (was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — **62/62**
 - `npm run test:grading-modes` — 13/13
 - `npm run test:grades` — **256/256** (was 255; #3a added the notifications rows-for-this-run = 0 assertion. #2 added the class filter's two `400`s and invariant, `sort=class`, the nine-key report card and `term_average_descriptors` on a KS1, a one-term and a complete card. Before that: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239 → 247)
-- `npm run test:auth` — **57/57** (was 56; #3a — the two parent accounts it creates fan out `parent_pending`, cleaned by the shared helper and asserted gone)
+- `npm run test:auth` — **60/60** (was 57; #4 — a bad email on an OUT-OF-SCOPE LRN is the email 400, not the scope 403 (order proved), a valid email is stored as sent, and a minted teacher assigned to Malikhain but not its adviser gets the same 403 as an unknown LRN. #3a — the two parent accounts it creates fan out `parent_pending`, cleaned by the shared helper and asserted gone). **Its SQL fixtures resolve `section_id` since #4** — the parents gate keys on it
 - `npm run test:attendance` — **64/64** (was 62; #3a — cleanup by its own ids, proved by an untracked sentinel row on a shared date that must survive. #2 added `?date=&from=` and `?date=&to=` → `400`)
 - `npm run test:content` — **97/97** (was 96; #3a — its posts' notifications cleaned by pairs and asserted gone: "25 deleted over 10 items" on a clean run. **The count of items is 10, not 9**: the API-deleted event is spliced out of the post cleanup list but stays in `notifiedEventIds`)
 - `npm run test:settings` — 29/29
-- `npm run test:users` — **64/64** (was 61; pre-Stage-5 #2 added `sort=role` and `sort=status` alphabetical invariants plus admin-before-parent). **The script is `test:users`** — the file is `test-user-management-flows.js`, and a dispatch that types `test:user-management` gets a silent no-op from npm, not a failure
+- `npm run test:users` — **68/68** (was 64; #4 — the email rule on POST /teachers ("not an email", `user@localhost`) and PUT (two `@`, and `""` clears to NULL). #2 added `sort=role` and `sort=status` alphabetical invariants plus admin-before-parent). **The script is `test:users`** — the file is `test-user-management-flows.js`, and a dispatch that types `test:user-management` gets a silent no-op from npm, not a failure
 - `npm run test:backups` — **47/47** (was 39)
 - `npm run test:sanitize` — 9/9
 - `npm run test:messages` — **80/80** (was 59)
@@ -112,8 +112,17 @@ Run from `client/`:
 npx vite build --ssr scripts/<name>.jsx --outDir .ssr-tmp && node .ssr-tmp/<name>.js
 ```
 
+**Two proofs have their own run-book, and a loop that ignores it reads a
+regression that is not one (pre-Stage-5 #4, measured):** `ssr-cards.jsx` is
+**32 only under `NODE_ENV=development`** (the DEV-guard assertions; a
+production build reports 28/4), and `ssr-dates.jsx` is **46 under a
+production build, run TWICE — `TZ=UTC` and `TZ=America/New_York`** (a DEV
+build of it is a different count again). Both run-books are below; check
+them before calling either number stale.
+
 | Proof | Baseline | What it covers |
 |---|---|---|
+| `ssr-auth-failure.jsx` | **14/14** (new, pre-Stage-5 #4) | §22: `classifyAuthFailure` driven with the four shapes axios produces (401 → logout; 503, `ERR_NETWORK`, `ECONNABORTED` → keep) plus three negative controls (a 401 never "keep", a 403 never a logout, `undefined` keeps); `AuthUnavailable` rendered — the condition, "Your session is kept", the reason as `role="alert"`, a real Try again, **no "log in"/"sign in" wording, no link away**. The effect (the token still stored after a failed boot) is the browser check |
 | `ssr-cards.jsx` | **32/32** (was 31; UI-E redrew the teacher card's gate) | the card contract, by RENDERING — `actions` beside a primary action, the DEV guard, both excuse-letter cards. Its teacher-card block asserted **"exactly ONE of the two is tappable"**, which was correct until a reviewed letter had somewhere to go; it now asserts both are tappable **plus the one dead end that survives** — a Pending letter in a section the teacher does not advise. **Needs `NODE_ENV=development`, see below** |
 | `ssr-item5.jsx` | **39/39** (was 37; item 5b) | the filter cue (§21): `isDirty` driven directly — **key order irrelevant** (with a control showing `JSON.stringify` would have called the same values different), **every string trimmed both sides** (a key named `query` too, with a control that an inner space is still a difference), type coercion, the four dependent Grade→Section transitions, and a non-empty `'all'` default; plus `FilterActions` **rendered** in both states — **the live region PRESENT and EMPTY when clean** (item 5b inverted item 5's assertion, which had cemented an accessibility defect: a region that first appears with its text already in it is never announced), `role="status"`, `aria-hidden` glyph, quiet vs filled, never disabled, Reset only when `canReset`. **Its header states what it cannot prove:** the change EVENT (no events under `renderToStaticMarkup`) and the 390px layout — both the browser check |
 | `ssr-ui-e.jsx` | **23/23** | the teacher's read-only letter view (§20): remarks reachable on an Approved AND a Declined letter, the learner and class named, **the `<dt>` set asserted exactly and in order** rather than by regex (§20f), NULL remarks and NULL details rendering no heading, no Edit, no identifier — and the card's three-way gate rendered through the real `DataTable`, with a negative control proving `canReview` still refuses. **Every fixture is a real `GET /api/excuse-letters` row captured from the running server**, not written from memory (§19f) |

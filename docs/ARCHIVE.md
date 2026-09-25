@@ -3686,6 +3686,16 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (twelfth batch, the pre-Stage-5 #4 docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds the #4 stub and closes four
+> pre-Stage-5 items with their rules kept. Two rows, the oldest.
+
+| 2026-09-25 | **Pre-Stage-5 #2** (`819e892`): five server fixes — attendance `date`+range → `400`; a class filter and `sort=class` on `GET /grades`; users sort by letters for **role AND status** (both ENUMs — the second had no header to show it); `/api/health` pings the pool, **503 path stated untested**; `term_average_descriptors` and the hero's `Term N · <word>`. **Fixture captured from the suite** (§19f), and the first negative control matched `· Adviser:` instead of the caption. Suites 62 / 255 / 64, `ssr-ui-d` **86**. Three orphan notifications after `test:grades` — the 2026-09-19 figure, again. |
+| 2026-09-25 | **Item 5b** (`84739bc`): the code review's seven findings on item 5. **The live region was mounted only while dirty — an accessibility defect, and the proof had CEMENTED it** by asserting the region absent when clean; a screen reader announces changes *inside* an existing region. `ScrollCue` already had the rule (§19d); `FilterActions` contradicted it. Also: Reset restores the staged Section; `isDirty` trims every string; `canResetFilters` removed; `buttonNeutralClass`; Events gets a real Reset. `ssr-item5` **39**. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (eleventh batch, the pre-Stage-5 #3 docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4699,6 +4709,34 @@ it), and **(m)'s "one-line client follow-up" was one line of data and three of
 proof** — the fixture had to be the server's `{ descriptor, remarks }` object,
 captured from the suite, with the object-as-child refusal asserted (§19f),
 because the previous hero fixture had invented a string and blanked `/parent`.
+
+### Pre-Stage-5 #4's items — moved from CLAUDE.md on 2026-09-26
+
+Under the REFILL RULE, closed by **#4** (`9c413f4`, browser check passed).
+The two pre-Stage-5 fragments as they stood, plus the closing paragraph
+that named #4 next. Rules: `docs/FRONTEND_CONVENTIONS.md` §22.
+
+```
+      **(b) `AuthContext` must tell a 401 from a network error or 5xx** —
+      today any `/auth/me` failure clears the token, so a refresh during an
+      outage discards a valid session; frequent on a school LAN.
+```
+```
+      **Four more added 2026-09-22: (e) ADVISER ENROLMENT** —
+      advisers enrol learners and create parent accounts, so confirm the
+      enrolment path matches that and not only the teacher-assignment one;
+```
+
+**(e) was confirmed, and the confirmation cut the other way from the
+2026-09-18 widening.** That change had let a subject teacher OR the adviser
+create a parent account so that "can create" equalled "can list"; the school
+says only the adviser does either, so both gates now key on
+`sections.adviser_id`, and the read scope stays wider than both. **(b)'s
+one-line fix grew a decision the line did not anticipate**: with admin kept
+out of enrolment as the school also said, twenty sections would have been
+unenrollable by anyone — so admin stayed, and the consequence (a learner in
+an adviser-less section can have no parent account) is a KNOWN ISSUES row,
+not a surprise for the defence.
 
 ### Pre-Stage-5 #3's items — moved from CLAUDE.md on 2026-09-25
 

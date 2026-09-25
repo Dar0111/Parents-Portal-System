@@ -2208,9 +2208,12 @@ for KS1, because it names subjects rather than implying a denominator.
 **The numerical average follows `current_term`** (§12), not the dashboard's
 "greatest term with any grade" — one panel was keying off two notions of term.
 `term_averages` is the same computation, checked rather than assumed.
-**No descriptor on that caption:** `general_average_descriptor` describes the
-YEAR's average, and deriving a band client-side is what §12 forbids. It is
-queued as a server field.
+**The descriptor on that caption is the server's:** `general_average_descriptor`
+describes the YEAR's average and deriving a band client-side is what §12
+forbids, so UI-D-3 shipped the caption as "Term N" alone. Pre-Stage-5 #2
+(2026-09-25) added `term_average_descriptors` to the report card, and the
+caption reads "Term N · <word>" from `[current_term].descriptor` — the string,
+never the object, never `remarks` (§19f, §4).
 
 ### 19f. A proof fixture must mirror the server's shape
 
@@ -2449,4 +2452,73 @@ off a 640px row.
 it is each page's primary control and was sized that way on purpose.
 **Flattening a considered choice into a shared constant is the wrong kind of
 consistency** — stated here so the exception is not later "tidied".
+
+## 22. A failed session read — only a 401 logs out
+
+**Frozen 2026-09-25 (pre-Stage-5 #4).** The companion to §2, one layer up:
+§2 says what a status code means for a request; this says what it means for
+the SESSION when the request is the one that establishes it.
+
+### 22a. The rule
+
+`/auth/me` is read once at boot (`auth/AuthContext.jsx`). **A 401 ends the
+session — and the axios interceptor is the ONE place that acts on it**
+(removes the token, stores the reason, redirects). **Every other failure
+keeps the token**: no response at all (offline, the API down, CORS, a hung
+request), a 5xx, or any status the server did not send as 401. The context
+exposes `authError` and `retry()`; `ProtectedRoute` and `RootRedirect`
+render `auth/AuthUnavailable.jsx` in the spinner's frame — *"Can't reach the
+school server. Your session is kept. Try again when you're connected."* with
+the reason through `ErrorAlert` and its Try again — **instead of
+`<Navigate to="/login">`**. The URL is untouched; a successful retry renders
+the page the user was on.
+
+### 22b. Why the "keep" bucket is that wide
+
+Until #4, `AuthContext`'s catch removed the token on **any** failure, so a
+refresh during a LAN outage — frequent on a school network — discarded a
+valid session and landed the user on `/login` with no reason shown. The only
+signal that a session is dead is a 401. A 403 on `/auth/me` cannot come from
+a live session (a forced password change is a **flag on the row**,
+`must_change_password`, routed by `ProtectedRoute`, never a 403 — §2 and
+§11), and a 404 or a 5xx says the server is broken, not that the session is.
+So `classifyAuthFailure(err)` (`auth/authFailure.js`, pure) answers
+`'unauthenticated'` for `response.status === 401` and `'unavailable'` for
+everything else, `undefined` included — treating an unknown shape as a
+logout is the mistake this section exists to prevent.
+
+### 22c. What is proved, and what is checked in a browser
+
+An SSR proof cannot fire a request. `scripts/ssr-auth-failure.jsx` (14)
+drives `classifyAuthFailure` with the four shapes axios produces — a 401, a
+503, `{ request }` with no response (`ERR_NETWORK`), a timeout
+(`ECONNABORTED`) — with three negative controls (a 401 is never "keep"; a 403
+is never a logout; `undefined` keeps), and renders the panel asserting the
+condition, "Your session is kept", the API's own wording as a `role="alert"`,
+a real Try again button, **and no "log in" / "sign in" wording and no link
+away** — copy that sends the user to `/login` would undo the fix in prose.
+**The effect path is the browser check:** DevTools → Network → Offline →
+refresh → the panel, with `pp_token` still in Local Storage; Online → Try
+again → the same page. `retry()` is guarded by `loading`, so a second click
+cannot stack a request behind the first.
+
+### 22d. Enrolment and the two gates a teacher page must not guess
+
+Same dispatch, same rule shape — a page shows a control only when the handler
+behind it will succeed (§5i), and the handler's gate is read from the same
+source the server reads, never reconstructed:
+
+- **Enrol** (`POST /students`): the adviser of the TARGET section. The
+  picker on Teacher → Students is the sections the signed-in teacher
+  advises — `GET /sections` (every row carries `adviser_id`) filtered on
+  `user.id` — **not `GET /assignments`**. `canEnroll` follows the same list.
+- **Edit** (`PUT /students/:id`): assigned OR adviser — `GET /assignments`
+  matched on grade + section, OR the student's `section_id` in the advised
+  list.
+- **Create parent** (`POST /users/parents`): the adviser of the learner's
+  section — the advised list only; otherwise muted copy, not a button that
+  403s.
+- **The Section FILTER's union (`students/sectionOptions.js`) still takes
+  the assignments list** — a filter narrows what is visible and is not a
+  write scope. Do not make it read the advised list "for consistency".
 

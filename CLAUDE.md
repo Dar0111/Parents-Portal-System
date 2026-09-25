@@ -1532,15 +1532,10 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       **(j) decide the Back-button guard BEFORE Expo** —
       `createBrowserRouter` vs a `pushState` sentinel. Stage 5 brings its own
       navigation model, so choosing the router late is expensive.
-      **(b) `AuthContext` must tell a 401 from a network error or 5xx** —
-      today any `/auth/me` failure clears the token, so a refresh during an
-      outage discards a valid session; frequent on a school LAN.
       **(c) the school-calendar work (CAL)** — term dates, school-year range,
       a real `current_term`; nothing in the schema holds a term boundary,
       which is why Parent → Attendance derives its months from data. DV3 does
-      not depend on it. **Four more added 2026-09-22: (e) ADVISER ENROLMENT** —
-      advisers enrol learners and create parent accounts, so confirm the
-      enrolment path matches that and not only the teacher-assignment one;
+      not depend on it. **Added 2026-09-22:**
       **(f) School ID and email settings fields** — `routes/settings.js`
       allow-lists five keys, so 136893 and 136893@deped.gov.ph have nowhere to
       live (the keys, their validators, the seed, and the Admin → Settings
@@ -1568,10 +1563,21 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       learner and nobody's test target — every suite stays on Marwin**; a seed
       row reaches a live database by `db:migrate:*`, never `db:setup`; and
       **a verification smoke run is `npm run smoke:isolated`**, its own API
-      without `--watch` on 5001, never 5000. From the originals, only email
-      validation remains — **NEXT is #4, auth and gates:** (b), o4 email
-      validation, (e) adviser-only enrolment plus the matching
-      `POST /users/parents` gate.
+      without `--watch` on 5001, never 5000. **#4 (`9c413f4`) is DONE
+      2026-09-25** — (b), email validation, (e) and the parents gate; its
+      text left under the REFILL RULE. Rules that outlive it, stated nowhere
+      else here: **only a 401 ends a session, and only the axios interceptor
+      acts on it — every other `/auth/me` failure keeps the token and shows
+      `AuthUnavailable` with Try again** (`docs/FRONTEND_CONVENTIONS.md`
+      §22); **the adviser of the TARGET section enrols and creates the
+      parent account** (`sections.adviser_id`, never `teacher_assignments`,
+      never the read predicate), **edit is assigned OR adviser**, and **admin
+      enrolment is KEPT because 20 of 23 sections have no adviser** — a
+      learner there can have no parent account until one is assigned by hand
+      (KNOWN ISSUES); **`utils/emailRule.js` is the one email rule** for
+      every write site, the school-email field included. The originals are
+      all closed. **NEXT is #5, settings, About and client:** (f), (g), (j)
+      the `pushState` sentinel, (k), and the o9 stale bonus-point docs.
       **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
       NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
       (`schema.sql:212-216`), so the shape is representable; `grade_components`
@@ -2014,10 +2020,9 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **Pre-Stage-5 #4** (`9c413f4`): **only a 401 ends a session** — `AuthContext` used to drop the token on any `/auth/me` failure; now `AuthUnavailable` + Try again, the interceptor alone logs out (§22, `ssr-auth-failure` 14). `utils/emailRule.js` at three write sites. **Only the adviser of the target section enrols and creates the parent**; edit is assigned OR adviser; **admin kept — 20 adviser-less sections**. Two fixture corrections the gate exposed (a NULL `section_id`, a fictional section). Suites 68 / 60 / 98. |
 | 2026-09-25 | **Pre-Stage-5 #3b** (`642ccb2`): **Tala Halimbawa**, G6 Malikhain, active parent Ligaya — the browser-fixture learner; seed + `db:migrate:fixture-learner` (a live DB never gets a seed row by `db:setup`); two watermarks captured at start. **`smoke:isolated`** owns an API without `--watch` on 5001 and lists the ports after. Full suite set green, no count shifted; 20/20. |
 | 2026-09-25 | **Pre-Stage-5 #3a** (`85c5d8f`): the shared notifications cleanup by `(item_type, item_id)` pairs, every suite asserting zero left — **the writer list was wrong** (content ×3, excuses ×2, users ×1, grades ×1; messages/backups/user-management never could leave a row) and **the first run left one row** (content's spliced event). Attendance cleans by its own ids, proved by a sentinel. **`test:restore` was the missing `v` claim, not `iat`** — red-first printed the body. 29/29. |
-| 2026-09-25 | **Pre-Stage-5 #2** (`819e892`): five server fixes — attendance `date`+range → `400`; a class filter and `sort=class` on `GET /grades`; users sort by letters for **role AND status** (both ENUMs — the second had no header to show it); `/api/health` pings the pool, **503 path stated untested**; `term_average_descriptors` and the hero's `Term N · <word>`. **Fixture captured from the suite** (§19f), and the first negative control matched `· Adviser:` instead of the caption. Suites 62 / 255 / 64, `ssr-ui-d` **86**. Three orphan notifications after `test:grades` — the 2026-09-19 figure, again. |
-| 2026-09-25 | **Item 5b** (`84739bc`): the code review's seven findings on item 5. **The live region was mounted only while dirty — an accessibility defect, and the proof had CEMENTED it** by asserting the region absent when clean; a screen reader announces changes *inside* an existing region. `ScrollCue` already had the rule (§19d); `FilterActions` contradicted it. Also: Reset restores the staged Section; `isDirty` trims every string; `canResetFilters` removed; `buttonNeutralClass`; Events gets a real Reset. `ssr-item5` **39**. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2026,7 +2031,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in eleven dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in twelve dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
@@ -2037,8 +2042,9 @@ still to add), **3 under "sixth batch, the SMOKE-1 docs pass"**
 (2026-09-24, spent the same way), **2 under "seventh batch, the UI-D-1
 docs pass"**, **1 under "eighth batch, the UI-D-2+3 docs pass"** and **1
 under "ninth batch, the UI-E docs pass"**, **3 under "tenth batch, the
-pre-Stage-5 #2 docs pass"** and **4 under "eleventh batch, the pre-Stage-5
-#3 docs pass"** (all 2026-09-25). **Every full row
+pre-Stage-5 #2 docs pass"**, **4 under "eleventh batch, the pre-Stage-5
+#3 docs pass"** (all 2026-09-25) and **2 under "twelfth batch, the
+pre-Stage-5 #4 docs pass"** (2026-09-26). **Every full row
 is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only
