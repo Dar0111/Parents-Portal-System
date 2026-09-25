@@ -2240,3 +2240,105 @@ Spelling the extension at each call site fixed the build and left the trap.
 The helper is `scrollCueState.js` now. **A pure-logic sibling of a component
 gets a name that is a different WORD, not a different case.**
 
+## 20. The teacher's read-only letter view
+
+**Frozen 2026-09-25 (UI-E).** `pages/teacher/excuseLetters/readingView.jsx`.
+
+### 20a. What it fixes, and why nothing caught it
+
+`details` and `teacher_remarks` rendered in exactly ONE place — inside the
+review Modal — and that modal opens only for a **Pending** letter in a section
+the teacher **advises**. So the moment a letter was reviewed, **the teacher who
+wrote the remarks could not read them back at any width.**
+
+**No automated check could have found it**, because nothing was broken: a view
+simply did not exist. It is also **not** the DV1b-a card regression it
+resembles — that was the parent side, introduced and fixed in one dispatch.
+This one was **symmetrical and pre-existing**.
+
+### 20b. Two open points, one entry function
+
+| Where | Approved / Declined | Pending, adviser | Pending, not adviser |
+|---|---|---|---|
+| Desktop Actions cell | **View** (outline) | **Review** (filled) | "Adviser only" |
+| Card, below `sm` | tappable | tappable | **static** |
+
+**The View button is secondary, not primary.** Reviewing is an action, reading
+is not, and two identically-filled buttons in one column would make the
+difference invisible at a glance.
+
+**One function decides what a row opens** (`openLetter`), so the card and the
+Actions cell cannot disagree. Pending → the review form; anything reviewed →
+the reading view.
+
+**The card's gate MOVED, and the old reasoning is why.** Its note said a card
+is tappable when there is something to READ, not something to do — and that
+the teacher's gate was correct because this page had no read-only view at any
+width. **That premise is now false.** The rule is unchanged; the fact
+underneath it is not. **One dead end survives and it is the whole remaining
+gate:** a Pending letter in a section the teacher does not advise, where there
+is nothing to read and `PATCH /:id/review` would answer 403.
+
+### 20c. It renders the LIST ROW — never `GET /:id`
+
+`GET /api/excuse-letters` selects `el.*, s.first_name, s.last_name,
+s.grade_level, s.section`, so the page already holds every field the view
+shows. **No second fetch means no scope to get wrong**, and the read scope
+(`TEACHER_VIEW_SCOPE_SQL`) is untouched.
+
+**`GET /:id` is scoped identically for teachers and still must not be called:**
+it selects `el.*` with no `students` join, so it returns **strictly less** than
+a list row — no learner name, no class.
+
+### 20d. Four omissions, each decided rather than overlooked
+
+| Not shown | Why |
+|---|---|
+| the reviewer's name | `reviewed_by` is a **user id** and nothing resolves it; a JOIN is a server change |
+| a reviewed date | **there is no `reviewed_at` column.** `updated_at` changes on review AND on anything else, so printing it as one is a claim the data cannot support (§5i) |
+| "Submitted" | `created_at` is available, but the parent's view omits it and parity matters more than the extra row |
+| the attachment | `attachment_url` exists and **nothing uploads**, on any screen in the app. A row that is always empty is noise |
+
+**"Adviser remarks", not "Your remarks."** The read scope is wider than the
+review scope — any assigned teacher may read this, only the adviser wrote it —
+so the possessive would be false for exactly the reader who most needs the view
+to be accurate. It is also the parent's wording, so one letter reads the same
+to both sides.
+
+**NULL remarks render nothing**, not an empty heading, which would read as a
+failed fetch. Remarks are optional at the API layer by decision, so a decline
+with no reason is a real row — **confirmed live in the browser check**, and the
+view drops to six headings.
+
+**The learner and class ARE shown** where the parent's view omits them: a
+parent has one child, a teacher has a list. No LRN reaches it (§5c) — there is
+none in the payload.
+
+### 20e. The parent's view is the PATTERN, not the code
+
+`parent/ExcuseLettersPage`'s reading modal is **inline `<dl>` markup** whose
+footer offers Edit, and the two views differ on **four of six rows**. Copying
+the layout keeps them recognisably one document; sharing the component would
+have meant parameterising that footer away on the first call.
+
+**The teacher's view is its own module** because it is a CONDITIONAL view, and
+a conditional view is what a source-text assertion cannot check (§17d).
+
+### 20f. Assert STRUCTURE, never a regex over fixture prose
+
+`ssr-ui-e` first asserted `!/attach/i` over the whole markup to prove no
+attachment row — and **failed on its own fixture**, whose details read
+*"certificate **attached** to the clinic record"*. The assertion was testing
+the learner's prose, not the app.
+
+**It extracts the `<dt>` set and asserts the exact seven, in order.** Stricter
+than the regex, and immune to fixture wording. **The general rule: when a
+proof means "this field is absent", assert the absence of its STRUCTURE — a
+heading, an element, a prop — not the absence of a word.**
+
+**And a Playwright note from the same dispatch**, because it cost a probe
+round: `getByRole('button', { name: 'View' })` matches by **case-insensitive
+substring**, so it also matches **"Review"**. Use `exact: true`. The same probe
+also passed `?status=Approved` in the URL, which does nothing — that page's
+filter is local `useState`, driven through the form and Apply.
+

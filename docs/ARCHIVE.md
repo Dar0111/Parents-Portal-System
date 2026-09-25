@@ -3686,6 +3686,15 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (ninth batch, the UI-E docs pass)
+
+> Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full row is in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds a §20 pointer and closes UI-E,
+> and the pointer may not be trimmed. One row, 1,435 bytes.
+
+| 2026-09-23 | CR3a + CR3 **docs pass** (`docs/class-summary`), covering three build dispatches. API_REFERENCE: `subjects.display_order` and the **null-last idiom** (MySQL sorts NULL first — without the leading term a MIXED grade level puts its unordered rows first); **`GET /assignments`' default follows the order, `sort=subject` stays A-Z**; the class summary's three-way scope (**a nonexistent section is the SAME 404 as "not yours"**), **two flags**, `general_average` **absent not null** in KS1, **no pagination — a document, not a list**; and **`TEACHER_ADVISES_CLASS_SQL` beside `TEACHER_VIEW_SCOPE_SQL`**, because routing grades through `students` would hide an EMPTY class from an assigned teacher. Counts **88 handlers / 89 endpoints**. GRADING_SPEC **§6d-i** — where each order came from, and a correction: **Grade 5 never fell back to alphabetical**. FRONTEND_CONVENTIONS **§14** — **a letter is not a number** (`TermValue`, never `GradeValue`, or every Grade 1 letter reads "— N/A"), **Pending ≠ N/A**, and **a self-fetching page cannot be SSR-proved**, so what must be proved is extracted and exported. KNOWN_ISSUES: the **shell-row trap**. Baselines 44 / 247 / 62 / 59, oxlint **43**. **CR3a and CR3 ticked — the grades track is complete**; pre-Stage-5 gains the `test:restore` sub-second fix and the Back-button decision. **The stub reserve was spent as designed** — four rows to ARCHIVE after this file hit 137,804. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (eighth batch, the UI-D-2+3 docs pass)
 
 > Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4542,6 +4551,44 @@ render body is impure, so the same props could produce two documents. §18i.
 whose line-51 assertion was the exact inverse of what UI-D shipped. That is
 now a working-agreement rule in CLAUDE.md: a whitelist includes every proof
 that renders a touched module, and a PLAN ONLY greps for them.
+
+### UI-E's entry — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **UI-E** (`3086086`, browser check passed).
+Rules: `docs/FRONTEND_CONVENTIONS.md` §20.
+
+```
+- [ ] **UI-E — a teacher's read-only letter view, after UI-D, BEFORE Stage 5.**
+      `details` and `teacher_remarks` render only inside the review modal,
+      which opens only for a Pending letter in a section the teacher advises,
+      so **once a letter is reviewed the teacher who wrote the remarks cannot
+      read them back at ANY width.** Not the DV1b-a card bug: symmetrical and
+      pre-existing. **The card's `canReview` gate is correct** — the fix is
+      the missing view. Reuse the parent's reading-view pattern (**no mockup:
+      pattern reuse, not a redesign**); `GET /:id` returns strictly less than
+      a list row and is not needed. `docs/KNOWN_ISSUES.md`.
+```
+
+**Two of its three predictions held exactly.** `GET /:id` really does return
+less than a list row — `el.*` with no `students` join, so no learner name and
+no class — and the parent's reading view really was reusable as a PATTERN and
+not as code: it is inline markup whose footer offers Edit, and the two views
+differ on four of six rows.
+
+**The third was wrong, and instructively so. "The card's `canReview` gate is
+correct" was true only while the entry itself was open.** That gate existed
+because a reviewed letter had nowhere to go; UI-E built the somewhere, and the
+card's own comment had argued against ever moving it — on the grounds that
+"this page has no read-only view of a letter at ANY width", which was a
+statement of fact rather than of principle. **The rule survived and the fact
+did not** (§20b), and one dead end remains: a Pending letter in a section the
+teacher does not advise.
+
+**What the entry could not have known** is that "no mockup, pattern reuse"
+still left four content decisions, each of which had to be made rather than
+copied — no reviewer name, no reviewed date, no "Submitted", no attachment —
+because **two of those fields do not exist in the database at all**
+(`reviewed_at` is not a column; `reviewed_by` is an unresolved user id).
 
 ### UI-D (c) and (d) — moved from CLAUDE.md on 2026-09-25
 
