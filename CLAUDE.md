@@ -46,9 +46,10 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 88** handlers defined in
-> `server/routes/`, and the API answers **89 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 89** handlers defined in
+> `server/routes/`, and the API answers **90 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
+> Both +1 on 2026-09-26 (`GET /api/settings/public`).
 > Both recounted from the code on 2026-09-22, which moved them twice in one
 > day: `PATCH /grades/:id/descriptive` retired (−1) and the class record's
 > `GET` and `PUT` landed (+2). The archived endpoint table's 81 rows are a
@@ -107,11 +108,12 @@ behind is the rule and the pointer, nothing else.
 
 **Last verified:** 2026-09-18 (**Stage 4 is COMPLETE.** Admin → Backup &
 Restore was the last page: every Figure 5 admin process has a page. **Admin
-nav is 8 items, all built** — Sections, Excuse Letters, Memos, Events and
+nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
-the scope decision under ADMIN SCOPE AUDIT; teacher (12) and parent (9) are
-unchanged, and **no role now has a `built: false` item**. **23 tables, 88
-handlers + `/api/health`** (2026-09-22). 20 of 23 sections have no adviser and
+the scope decision under ADMIN SCOPE AUDIT, and **About is last on every
+role since 2026-09-26** (9 / 13 / 10); **no role has a `built: false`
+item**. **23 tables, 89 handlers + `/api/health`**
+(2026-09-26). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
@@ -143,8 +145,8 @@ sits in `docs/ARCHIVE.md` (2026-09-19, before Notifications' 4 and account
 recovery's 5 landed); **it is not the live record.**
 
 **The arithmetic stays here because two numbers are both correct and mean
-different things: 88 handlers** are defined in `server/routes/`, and the API
-answers **89 endpoints** because `GET /api/health` is mounted in `server.js`.
+different things: 89 handlers** are defined in `server/routes/`, and the API
+answers **90 endpoints** because `GET /api/health` is mounted in `server.js`.
 **State which you mean.** Both moved twice on 2026-09-22 —
 `PATCH /grades/:id/descriptive` retired (still the only endpoint ever removed
 besides Contributions' eight) and the class record's `GET` and `PUT` landed.
@@ -1053,9 +1055,10 @@ Teacher → Class summary with a read-only drill-through to `ReportCard`.
   assigned teacher** — that is why both exist.
 - **The printed order is `subjects.display_order`, not a client constant.**
   Every reader sorts `display_order IS NULL, display_order, name` (null-last —
-  MySQL sorts NULL first). **Grades 2 and 3 are NULL on purpose**; Grade 1's
-  order is PROVISIONAL and Grades 4-6 share one KS2 SF9 transcription, both
-  pending confirmation.
+  MySQL sorts NULL first). **Every grade level carries an order since
+  2026-09-26** (all six confirmed by the school on 2026-09-23); nothing
+  falls back to `name ASC`, and the leading `IS NULL` term stays for the
+  idiom.
 - **A descriptive letter is NOT a `GradeValue`.** Cells go through
   `format/TermValue.jsx`, or `Number('A') → NaN → null` renders every Grade 1
   letter as "— N/A". **An unrecorded letter is Pending, not N/A.**
@@ -1529,23 +1532,11 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       import a constant (migration + `schema.sql` + `seed.sql` + `ORDER BY`
       in `routes/grades.js` and `routes/subjects.js`). **Grade 1's order is
       PROVISIONAL** — ask the school before seeding it as fact.
-      **(j) decide the Back-button guard BEFORE Expo** —
-      `createBrowserRouter` vs a `pushState` sentinel. Stage 5 brings its own
-      navigation model, so choosing the router late is expensive.
       **(c) the school-calendar work (CAL)** — term dates, school-year range,
       a real `current_term`; nothing in the schema holds a term boundary,
       which is why Parent → Attendance derives its months from data. DV3 does
-      not depend on it. **Added 2026-09-22:**
-      **(f) School ID and email settings fields** — `routes/settings.js`
-      allow-lists five keys, so 136893 and 136893@deped.gov.ph have nowhere to
-      live (the keys, their validators, the seed, and the Admin → Settings
-      inputs); **(g) an About page** for the DepEd Vision, Mission and Core
-      Values the school adopts — a new route, a nav item and a page, none of
-      which exist. **Two more from the 2026-09-23 school answers: (k) seed
-      `display_order` for Grades 2 and 3** (G2 Makabansa · Mathematics · GMRC ·
-      English · Filipino; G3 English · Mathematics · Science · Filipino ·
-      Makabansa · GMRC) — migration + `seed.sql`, the last grade levels on the
-      `name ASC` fallback; and **(l) the mid-year transfer scope fix must
+      not depend on it. **From the 2026-09-23 school answers: (l) the
+      mid-year transfer scope fix must
       leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
       attendance** — handover is outside the system, so re-pointing scope at
       the new section and dropping the old adviser's access would strand the
@@ -1576,8 +1567,19 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       learner there can have no parent account until one is assigned by hand
       (KNOWN ISSUES); **`utils/emailRule.js` is the one email rule** for
       every write site, the school-email field included. The originals are
-      all closed. **NEXT is #5, settings, About and client:** (f), (g), (j)
-      the `pushState` sentinel, (k), and the o9 stale bonus-point docs.
+      all closed. **#5 is DONE 2026-09-26** — #5a (`fe67803`, `5df33f2`: (f),
+      (g), (k)) and #5b (`4b092ee`: (j)); text left under the REFILL RULE.
+      Rules that outlive it, stated nowhere else: **nine `system_settings`
+      keys, and `GET /api/settings/public` is the ONE unauthenticated
+      settings read** — the six `school_*` keys, registered before `/:key`;
+      **the About page hardcodes no school value** — the DepEd VMV and
+      Mandate are constants citing DO 36, s. 2013 and RA 9155 (§23);
+      **every grade level has a confirmed `display_order`** (2–3 seeded
+      2026-09-26); and **the Back button on Teacher → Grades is a
+      `pushState` sentinel** (`classRecord/backGuard.js`, §13d), never a
+      data-router migration. **NEXT is #6, the attendance transfer scope
+      (l)** — `recorded_by` for the old adviser, the current section forward,
+      no schema — then #7 CAL (its own PLAN ONLY).
       **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
       NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
       (`schema.sql:212-216`), so the shape is representable; `grade_components`
@@ -1904,6 +1906,12 @@ questions.
   backticks in `` `activity_logs` ``, writing the sentence with the token
   missing. A count that must be stated is harder to forget than a rule that
   must be remembered.
+- **Before any live-DB write outside a suite — a migration, a by-hand
+  cleanup delete — `GET /api/health` must answer, then `POST /api/backups`
+  must return `201`, then write. If the backup call fails, the `--watch` API
+  is most likely mid-restart from a server-file edit: wait and retry; never
+  proceed without it.** Added 2026-09-26 after #5a's migration ran behind
+  two failed backup calls (`docs/CHANGELOG.md`).
 - Test assertions against shared tables must be scoped to rows the run
   itself created, or written as invariants (`.every(...)`) that additional
   real rows still satisfy. Never assert an exact row count or exact list
@@ -2020,9 +2028,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-25 | **Pre-Stage-5 #4** (`9c413f4`): **only a 401 ends a session** — `AuthContext` used to drop the token on any `/auth/me` failure; now `AuthUnavailable` + Try again, the interceptor alone logs out (§22, `ssr-auth-failure` 14). `utils/emailRule.js` at three write sites. **Only the adviser of the target section enrols and creates the parent**; edit is assigned OR adviser; **admin kept — 20 adviser-less sections**. Two fixture corrections the gate exposed (a NULL `section_id`, a fictional section). Suites 68 / 60 / 98. |
-| 2026-09-25 | **Pre-Stage-5 #3b** (`642ccb2`): **Tala Halimbawa**, G6 Malikhain, active parent Ligaya — the browser-fixture learner; seed + `db:migrate:fixture-learner` (a live DB never gets a seed row by `db:setup`); two watermarks captured at start. **`smoke:isolated`** owns an API without `--watch` on 5001 and lists the ports after. Full suite set green, no count shifted; 20/20. |
-| 2026-09-25 | **Pre-Stage-5 #3a** (`85c5d8f`): the shared notifications cleanup by `(item_type, item_id)` pairs, every suite asserting zero left — **the writer list was wrong** (content ×3, excuses ×2, users ×1, grades ×1; messages/backups/user-management never could leave a row) and **the first run left one row** (content's spliced event). Attendance cleans by its own ids, proved by a sentinel. **`test:restore` was the missing `v` claim, not `iat`** — red-first printed the body. 29/29. |
+| 2026-09-26 | **Pre-Stage-5 #5b** (`4b092ee`): **the Back button asks too** — a `pushState` sentinel, `classRecord/backGuard.js` a pure machine (`ssr-back-guard` 12), one effect keyed on `dirty` that touches history only, `'BACK'` through the existing leave modal. One accepted quirk: an in-app leave keeps the sentinel behind. Smoke 19/20 on `--watch` (the known first-test row), `smoke:isolated` 20/20. |
+| 2026-09-26 | **Pre-Stage-5 #5a** (`fe67803`, `5df33f2`): **nine settings keys, `GET /settings/public`, the About page** (redesigned per the board; every DepEd quotation checked against deped.gov.ph — three of the board's spellings corrected), **Grades 2–3 `display_order`** (46 seed checks). **The migration ran without a prior backup** — two calls failed in a `--watch` restart; the rule is health → backup → write now. Smoke caught a key collision the browser had not. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2031,7 +2038,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in twelve dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in thirteen dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
@@ -2043,8 +2050,9 @@ still to add), **3 under "sixth batch, the SMOKE-1 docs pass"**
 docs pass"**, **1 under "eighth batch, the UI-D-2+3 docs pass"** and **1
 under "ninth batch, the UI-E docs pass"**, **3 under "tenth batch, the
 pre-Stage-5 #2 docs pass"**, **4 under "eleventh batch, the pre-Stage-5
-#3 docs pass"** (all 2026-09-25) and **2 under "twelfth batch, the
-pre-Stage-5 #4 docs pass"** (2026-09-26). **Every full row
+#3 docs pass"** (all 2026-09-25), **2 under "twelfth batch, the
+pre-Stage-5 #4 docs pass"** and **3 under "thirteenth batch, the pre-Stage-5
+#5 docs pass"** (both 2026-09-26). **Every full row
 is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only

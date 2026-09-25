@@ -2,10 +2,10 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**88 handlers** across 15 route files, documented as **18 endpoint tables
+**89 handlers** across 15 route files, documented as **18 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **89 endpoints**. That 18 counts MARKDOWN TABLES IN THIS
+`server.js` = **90 endpoints** (both +1 on 2026-09-26: `GET /api/settings/public`). That 18 counts MARKDOWN TABLES IN THIS
 FILE — it is not a database-table count, and the database has **23**.
 Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
 retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
@@ -696,9 +696,10 @@ types.
 
 **A score above its highest possible score is ALLOWED and flagged, never
 refused or clamped.** That matches `utils/gradeComputation.js`, which does not
-clamp percentages over 100. Whether the school permits bonus points is a
-question nobody has asked them — the API's silence is not permission, and no
-screen may claim it is (§5i).
+clamp percentages over 100. The school does award bonus points (confirmed
+2026-09-23 — event participation, added to PT), so the grid's copy names
+them; the API still neither refuses nor clamps, and a cap would be explicit
+route validation if the school ever asked for one.
 
 ### The class summary: the adviser's Summary of Grades (CR3, 2026-09-22)
 
@@ -928,14 +929,15 @@ Final Grade.
 | PUT | `/:id` | `parent(own)` | `absence_date`, `reason`, `details` (any subset) | `excuse_letter` | `404` if not theirs; `403` if already reviewed |
 | PATCH | `/:id/review` | `teacher(adviser)`, `admin` | `status`* (`Approved`\|`Declined`), `teacher_remarks` | `excuse_letter` | `404` outside `wide` read-scope; `403` naming the reason if within `wide` but not `adviser`; `403` if already reviewed; never touches `attendance` |
 
-### Settings (4) — `/api/settings`
+### Settings (5) — `/api/settings`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `all` | — | `settings` (flat object) | only the 5 allow-listed keys |
-| GET | `/:key` | `all` | — | `key` + `value` (bare) | `404` if not one of the 5 allow-listed keys; `:key` is a **string**, not `parseId`-validated |
+| GET | `/` | `all` | — | `settings` (flat object) | only the **9** allow-listed keys: `school_name`, `school_address`, `academic_year`, `current_term`, `logo_url`, and since 2026-09-26 (pre-Stage-5 #5a) `school_id` (6 digits or empty), `school_email` (the email rule), `school_phone` (7–15 digits after stripping spaces/dashes/parens/`+` — a landline passes), `facebook_page` (≤ 255, free text; blank until the school gives it) |
+| GET | `/public` | **none — unauthenticated** | — | `settings` (flat object) | **The one public settings read** (2026-09-26): exactly the six `school_*` keys (`school_name`, `school_address`, `school_id`, `school_email`, `school_phone`, `facebook_page`), every key present, `''` when unset. For the signed-out About page. **Registered BEFORE `/:key`**, or Express parses `public` as a key and answers 404 |
+| GET | `/:key` | `all` | — | `key` + `value` (bare) | `404` if not one of the 9 allow-listed keys; `:key` is a **string**, not `parseId`-validated |
 | PUT | `/:key` | `admin` | `value`* | message + `key` + `value` | `400` if unknown key or fails per-key validation; a string value is trimmed before validation and stored, echoed and logged trimmed (2026-09-15) |
-| PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written; values trimmed as in PUT; the response is the 5 allow-listed keys only, same read as `GET /` (2026-09-15) |
+| PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written; values trimmed as in PUT; the response is the 9 allow-listed keys only, same read as `GET /` (2026-09-15; nine keys since 2026-09-26) |
 
 ### Backups (5) — `/api/backups`
 
@@ -1151,15 +1153,15 @@ the same as `router`.
 | Memos | 4 | `content.js` |
 | Events | 4 | `content.js` |
 | Excuse Letters | 6 | `excuses.js` |
-| Settings | 4 | `settings.js` |
+| Settings | 5 | `settings.js` |
 | Backups | 5 | `backups.js` |
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
 | **Total** | **87** | |
 
-8+10+5+3+1+3+13+1+6+4+4+4+6+4+5+6+4+1 = **88 handlers in `server/routes/`**.
-Plus `GET /api/health`, mounted directly in `server.js` = **89** endpoints in
+8+10+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1 = **89 handlers in `server/routes/`**.
+Plus `GET /api/health`, mounted directly in `server.js` = **90** endpoints in
 total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than

@@ -417,7 +417,8 @@ which cannot import a client constant, gets it in the payload.
 |---|---|---|
 | **4, 5, 6** | English · Mathematics · Filipino · Araling Panlipunan · GMRC · Science · MAPEH · EPP | The Key Stage 2 SF9's eight intermediate rows (§6c). **ONE transcription applied to all three grade levels** — not three independent observations. **Confirm at the next school visit.** |
 | **1** | Makabansa · Mathematics · GMRC · Reading and Literacy · Language | **PROVISIONAL.** This is the Grade 1 **class program** — a timetable, not a report card. It is used because an observed school artifact beats alphabetical-by-accident, and it was carried over exactly so the seeded card did not change. **The school has never given a printed order for Key Stage 1.** |
-| **2, 3** | `NULL` → `name ASC` | No printed order is known. **NULL is the honest value, not a gap to fill** — a guess here would be worse than the alphabetical fallback, and the seed asserts NULL so a future guess fails a test first. |
+| **2** | Makabansa · Mathematics · GMRC · English · Filipino | **CONFIRMED by the school, 2026-09-23; seeded 2026-09-26 (pre-Stage-5 #5a).** Until then both rows were `NULL` → `name ASC` on purpose — the honest value while no printed order was known, with `verify-grading-seed` asserting the NULL so a guess would fail first. The school's answer is not a guess; the same script now asserts this order. |
+| **3** | English · Mathematics · Science · Filipino · Makabansa · GMRC | **CONFIRMED by the school, 2026-09-23; seeded 2026-09-26.** As above. |
 
 **A correction worth recording:** an earlier note in this repo said Grades 2,
 3 **and 5** fell back to alphabetical. Grade 5 never did — it carries the Key
@@ -490,10 +491,11 @@ teacher TYPES, never what the system works out from it.
 
 **Allowed, flagged on screen, never refused and never clamped.** That matches
 `utils/gradeComputation.js`, which does not clamp a percentage over 100.
-Whether the school permits bonus points **has not been asked**, so the grid
-says "these are saved as typed — check for typing mistakes" and claims
-nothing about policy. A cap, if the school ever wants one, belongs in route
-validation as explicit policy.
+**The school confirmed on 2026-09-23 that it awards bonus points** (event
+participation, added to Performance Tasks), so the grid says "check that each
+is a bonus, not a typing mistake" — naming the reading the school recognises.
+The behaviour was already right; only the copy changed. A cap, if the school
+ever wants one, belongs in route validation as explicit policy.
 
 > One consequence, stated because it is not obvious: a weighted score above
 > 100 yields no band, so a Grade 1 letter comes back `null` and renders as

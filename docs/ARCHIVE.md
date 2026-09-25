@@ -3686,6 +3686,18 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (thirteenth batch, the pre-Stage-5 #5 docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds two stubs (#5a, #5b) and closes
+> five pre-Stage-5 items with their rules kept. Three rows, the oldest —
+> the third (#4) moved after the first measure came in at +945 bytes.
+
+| 2026-09-25 | **Pre-Stage-5 #4** (`9c413f4`): **only a 401 ends a session** — `AuthContext` used to drop the token on any `/auth/me` failure; now `AuthUnavailable` + Try again, the interceptor alone logs out (§22, `ssr-auth-failure` 14). `utils/emailRule.js` at three write sites. **Only the adviser of the target section enrols and creates the parent**; edit is assigned OR adviser; **admin kept — 20 adviser-less sections**. Two fixture corrections the gate exposed (a NULL `section_id`, a fictional section). Suites 68 / 60 / 98. |
+| 2026-09-25 | **Pre-Stage-5 #3b** (`642ccb2`): **Tala Halimbawa**, G6 Malikhain, active parent Ligaya — the browser-fixture learner; seed + `db:migrate:fixture-learner` (a live DB never gets a seed row by `db:setup`); two watermarks captured at start. **`smoke:isolated`** owns an API without `--watch` on 5001 and lists the ports after. Full suite set green, no count shifted; 20/20. |
+| 2026-09-25 | **Pre-Stage-5 #3a** (`85c5d8f`): the shared notifications cleanup by `(item_type, item_id)` pairs, every suite asserting zero left — **the writer list was wrong** (content ×3, excuses ×2, users ×1, grades ×1; messages/backups/user-management never could leave a row) and **the first run left one row** (content's spliced event). Attendance cleans by its own ids, proved by a sentinel. **`test:restore` was the missing `v` claim, not `iat`** — red-first printed the body. 29/29. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (twelfth batch, the pre-Stage-5 #4 docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4709,6 +4721,45 @@ it), and **(m)'s "one-line client follow-up" was one line of data and three of
 proof** — the fixture had to be the server's `{ descriptor, remarks }` object,
 captured from the suite, with the object-as-child refusal asserted (§19f),
 because the previous hero fixture had invented a string and blanked `/parent`.
+
+### Pre-Stage-5 #5's items — moved from CLAUDE.md on 2026-09-26
+
+Under the REFILL RULE, closed by **#5a** (`fe67803`, `5df33f2`) and **#5b**
+(`4b092ee`), browser checks passed. The four fragments as they stood in the
+pre-Stage-5 block; o9 was never a fragment there (three doc passages, now
+corrected in place). Rules: `docs/FRONTEND_CONVENTIONS.md` §13d and §23,
+`docs/API_REFERENCE.md` → Settings.
+
+```
+      **(j) decide the Back-button guard BEFORE Expo** —
+      `createBrowserRouter` vs a `pushState` sentinel. Stage 5 brings its own
+      navigation model, so choosing the router late is expensive.
+```
+```
+      **(f) School ID and email settings fields** — `routes/settings.js`
+      allow-lists five keys, so 136893 and 136893@deped.gov.ph have nowhere to
+      live (the keys, their validators, the seed, and the Admin → Settings
+      inputs); **(g) an About page** for the DepEd Vision, Mission and Core
+      Values the school adopts — a new route, a nav item and a page, none of
+      which exist. **Two more from the 2026-09-23 school answers: (k) seed
+      `display_order` for Grades 2 and 3** (G2 Makabansa · Mathematics · GMRC ·
+      English · Filipino; G3 English · Mathematics · Science · Filipino ·
+      Makabansa · GMRC) — migration + `seed.sql`, the last grade levels on the
+      `name ASC` fallback;
+```
+
+**(j) was decided for the sentinel, not the router** — local to one screen,
+proved by a pure state machine, and it leaves one quirk (an in-app leave
+keeps the sentinel behind) that a data router would not; recorded, accepted.
+**(k) needed no new migration**: the existing `migrate-subject-display-order`
+map gained two entries and set eleven values on the live database — and did
+so without a prior backup, because both backup calls before it landed in a
+`--watch` restart; the standing rule (health → backup, retried → write) dates
+from that. **(g) grew a public endpoint** the entry did not foresee: a
+signed-out About page cannot call an authenticated `GET /settings`, so
+`GET /settings/public` exists and the handler count moved for the first time
+since CR3. **(f)'s "School ID and email" became four keys**, because a phone
+and a Facebook page were on the same list the school gave.
 
 ### Pre-Stage-5 #4's items — moved from CLAUDE.md on 2026-09-26
 

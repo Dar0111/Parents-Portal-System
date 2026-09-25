@@ -1435,9 +1435,23 @@ The guard is a **capture-phase click listener** that intercepts in-app
 navigation while the grid holds unsaved edits. Two things it does NOT cover,
 stated rather than left to be discovered:
 
-- **The browser Back button is not covered.** A history pop is not a click.
-  Covering it needs a data router or a `pushState` sentinel. `docs/KNOWN_ISSUES.md`
-  has the row.
+- **The browser Back button is covered since pre-Stage-5 #5b (2026-09-26)
+  by a `pushState` SENTINEL, not a data router.** A history pop is not a
+  click, so the interceptor never saw it. `classRecord/backGuard.js` is a
+  pure state machine — `transition(state, event) → { state, action }` — and
+  the page performs only the action: `'dirty'` pushes ONE entry on the page's
+  own URL (idempotent, so StrictMode's double effect cannot push two); a
+  `popstate` while armed is `'ask'`, which opens the SAME leave modal with
+  `pendingHref = 'BACK'`; Stay re-pushes; Leave backs once more, past the
+  real previous entry; `'clean'` (a save, or the drafts discarded) consumes
+  the sentinel with one silent `back()`, so a clean page needs a single Back
+  press like any other; a pop on a clean page is `'none'`. **One effect keyed
+  on `record.dirty` touches history only** (never state — the
+  set-state-in-effect rule), one `popstate` listener lives for the page.
+  `scripts/ssr-back-guard.jsx` drives every transition plus the one-sentinel
+  negative control; the real Back press is the browser check. **Leaving
+  through an in-app link while armed leaves the sentinel behind** (one extra
+  Back from the next page) — accepted, `docs/KNOWN_ISSUES.md`.
 - A full page close is covered by nothing here; no blanket `beforeunload` was
   added (§5e).
 
@@ -2521,4 +2535,34 @@ source the server reads, never reconstructed:
 - **The Section FILTER's union (`students/sectionOptions.js`) still takes
   the assignments list** — a filter narrows what is visible and is not a
   write scope. Do not make it read the advised list "for consistency".
+
+## 23. The About page — settings for the school, constants for DepEd
+
+**Frozen 2026-09-26 (pre-Stage-5 #5a).** `pages/AboutPage.jsx`, one
+component, four mounts: `/admin/about`, `/teacher/about`, `/parent/about`
+(the last sidebar item of every role) and the public `/about` outside Shell,
+linked below the login card.
+
+- **Every school value comes from settings, nothing is hardcoded** — name,
+  address, DepEd School ID, email, phone, Facebook page — through
+  `GET /settings` when signed in and **`GET /settings/public`** when not (the
+  one unauthenticated settings read; exactly the six `school_*` keys). The
+  hero's school-year and section-count pills need a signed-in read, so **the
+  public view shows the School ID pill alone** rather than guessing. A blank
+  Facebook page reads "Not yet recorded"; no "School head" tile — there is no
+  `principal_name` setting (`docs/KNOWN_ISSUES.md`).
+- **The Vision, Mission, Core Values and Mandate are DepEd's, so they are
+  constants**, citing DepEd Order No. 36, s. 2013 (the VMV) and Republic Act
+  9155 (the Mandate), checked word for word against
+  deped.gov.ph/about-deped/vision-mission-core-values-and-mandate/ on
+  2026-09-26 — the 2013 enclosure is a scan with no text layer. Where the
+  design board's transcription differed, the Department's wording won. The
+  English glosses under the Core Values are the board's and are styled as
+  glosses. **Static lists take index keys** — two Mandate paragraphs share a
+  24-character prefix, and prefix keys collided (caught by the smoke, not by
+  build or lint — §5h again).
+- **Tokens only, and no new contrast pair**: the hero is `brand-panel` with
+  its two checked foregrounds, the pills sit on `brand-panel-lit`, every card
+  pair is one Settings and DataTable already use. The seal is the bundled
+  image on its white disc (§9); `logo_url` is read by nothing.
 

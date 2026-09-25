@@ -60,8 +60,9 @@ slot where a learner has no score makes that learner's whole group **Pending,
 never left out and never zero** (leaving it out silently raised the grade of a
 learner who missed an assessment); **every score and every maximum is a whole
 number**, refused on the server, though computed values keep two decimals; and
-**a score above its maximum is allowed and flagged, never clamped**, because
-nobody has asked the school about bonus points. **The client computes no
+**a score above its maximum is allowed and flagged, never clamped**, and the
+school confirmed on 2026-09-23 that it awards bonus points (event
+participation, added to PT). **The client computes no
 grade** — live totals come from a `dry_run` that runs the save in the
 transaction and rolls back. Detail: `docs/API_REFERENCE.md` → The class
 record, `docs/GRADING_SPEC.md` §6e, `docs/FRONTEND_CONVENTIONS.md` §13.
