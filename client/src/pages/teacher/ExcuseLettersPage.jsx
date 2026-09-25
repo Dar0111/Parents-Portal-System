@@ -3,7 +3,9 @@ import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate } from '../../format/date';
@@ -58,6 +60,12 @@ export default function ExcuseLettersPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [applied, setApplied] = useState({ status: 'Pending', from: '', to: '' });
+
+  // Assembled once, read by both `isDirty` and the submit handler (item 5).
+  // Note the default is the non-empty 'Pending', so the cue must compare
+  // values rather than test truthiness — `isDirty` does exactly that.
+  const draftFilters = { status, from, to };
+  const dirty = isDirty(draftFilters, applied);
 
   // --- review modal state -------------------------------------------------
   // Deliberately its own state, created when the modal opens and discarded when
@@ -341,7 +349,7 @@ export default function ExcuseLettersPage() {
         onSubmit={(e) => {
           e.preventDefault();
           setOffset(0);
-          setApplied({ status, from, to });
+          setApplied(draftFilters);
         }}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
       >
@@ -358,23 +366,21 @@ export default function ExcuseLettersPage() {
             </option>
           ))}
         </FormField>
-        <FormField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <FormField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        <button
-          type="submit"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-        >
-          Apply
-        </button>
-        {canReset ? (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
-            Reset
-          </button>
-        ) : null}
+        <FormField
+          label="From"
+          type="date"
+          className={filterFieldClass}
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <FormField
+          label="To"
+          type="date"
+          className={filterFieldClass}
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
+        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
       </form>
 
       <DataTable

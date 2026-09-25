@@ -3,7 +3,9 @@ import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { shortDate, todayLocalDateString } from '../../format/date';
 import { staffAudienceLabel } from '../../format/audience';
@@ -42,6 +44,12 @@ export default function EventsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [applied, setApplied] = useState({ grade: '', from: '', to: '' });
+
+  // Assembled ONCE and read by both `isDirty` and the submit handler below —
+  // two derivations of the same truth is how a cue and a commit drift apart
+  // (item 5).
+  const draftFilters = { grade: gradeFilter, from, to };
+  const dirty = isDirty(draftFilters, applied);
 
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -241,7 +249,7 @@ export default function EventsPage() {
           onSubmit={(e) => {
             e.preventDefault();
             setOffset(0);
-            setApplied({ grade: gradeFilter, from, to });
+            setApplied(draftFilters);
           }}
           className="flex flex-wrap items-end gap-3"
         >
@@ -263,14 +271,23 @@ export default function EventsPage() {
               </option>
             ))}
           </FormField>
-          <FormField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <FormField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          <button
-            type="submit"
-            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
-            Apply
-          </button>
+          <FormField
+            label="From"
+            type="date"
+            className={filterFieldClass}
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <FormField
+            label="To"
+            type="date"
+            className={filterFieldClass}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+          {/* No Reset in this bar — it never had one; the empty state's
+              "Clear filters" is this page's reset and stays where it is. */}
+          <FilterActions dirty={dirty} canReset={false} onReset={() => {}} />
         </form>
 
         {targetsLoading ? null : canPost ? (

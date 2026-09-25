@@ -6,7 +6,9 @@ import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import { longDate, shortDate } from '../../format/date';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -43,6 +45,18 @@ export default function AttendanceRecordsPage() {
 
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  // SECTION IS IN HERE NOW (item 5, 2026-09-25), and it fixes a real defect
+  // rather than only tidying the shape. It used to write `sectionId` straight
+  // through: it bypassed `applied` while still being a `load` dependency, AND
+  // it never called `setOffset(0)` — so switching section on page 3 refetched
+  // the NEW section at offset 100, against this page's own note that "a filter
+  // or sort change resets to the first page (C6)".
+  //
+  // The visible trade: the Section select now waits for Apply like the dates
+  // beside it, where before it applied instantly. That is the consistency the
+  // cue depends on — a bar where one control commits and two stage cannot
+  // honestly say "Changes not applied".
+  const [appliedSectionId, setAppliedSectionId] = useState(null);
   const [applied, setApplied] = useState({ from: '', to: '' });
 
   const [rows, setRows] = useState([]);
@@ -58,7 +72,14 @@ export default function AttendanceRecordsPage() {
         if (cancelled) return;
         const mine = all.filter((s) => s.adviser_id === user?.id);
         setSections(mine);
-        if (mine.length) setSectionId(mine[0].id);
+        // The first advisory section is both the draft AND the applied value
+        // on arrival: the page fetches immediately, so there is nothing
+        // staged and the cue must not appear before the reader has touched
+        // anything.
+        if (mine.length) {
+          setSectionId(mine[0].id);
+          setAppliedSectionId(mine[0].id);
+        }
       })
       .catch((err) => {
         if (!cancelled) setSectionsError(extractError(err));
@@ -69,9 +90,11 @@ export default function AttendanceRecordsPage() {
     };
   }, [user?.id]);
 
+  // THE FETCH READS THE APPLIED SECTION, never the draft — that is the whole
+  // point of moving it. The select's own value is still `sectionId`.
   const section = useMemo(
-    () => (sections || []).find((s) => s.id === sectionId) || null,
-    [sections, sectionId]
+    () => (sections || []).find((s) => s.id === appliedSectionId) || null,
+    [sections, appliedSectionId]
   );
 
   // Paged table (2026-09-19): one page of a server-sorted list (C1); a
@@ -121,7 +144,17 @@ export default function AttendanceRecordsPage() {
     setTo('');
     setOffset(0);
     setApplied({ from: '', to: '' });
+    // Reset clears the DATES, not the section: there is no "no section" state
+    // — the page always shows one advisory class — so resetting to nothing
+    // would have nothing to show. Unchanged from before item 5.
   }
+
+  // ASSEMBLED ONCE, read by BOTH `isDirty` and the submit handler. Building
+  // it twice is how the cue and the commit drift apart, which is §5b in
+  // miniature: two derivations of one truth.
+  const draftFilters = { sectionId, from, to };
+  const appliedFilters = { sectionId: appliedSectionId, from: applied.from, to: applied.to };
+  const dirty = isDirty(draftFilters, appliedFilters);
 
   const hasDateRange = Boolean(applied.from || applied.to);
   const canReset = hasDateRange;
@@ -219,6 +252,7 @@ export default function AttendanceRecordsPage() {
         onSubmit={(e) => {
           e.preventDefault();
           setOffset(0);
+          setAppliedSectionId(sectionId);
           setApplied({ from, to });
         }}
         className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
@@ -246,23 +280,21 @@ export default function AttendanceRecordsPage() {
           )}
         </div>
 
-        <FormField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        <FormField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        <button
-          type="submit"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-        >
-          Apply
-        </button>
-        {canReset ? (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
-            Reset
-          </button>
-        ) : null}
+        <FormField
+          label="From"
+          type="date"
+          className={filterFieldClass}
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <FormField
+          label="To"
+          type="date"
+          className={filterFieldClass}
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+        />
+        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
       </form>
 
       <DataTable

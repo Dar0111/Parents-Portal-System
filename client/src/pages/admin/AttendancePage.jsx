@@ -4,7 +4,9 @@ import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -50,6 +52,7 @@ export default function AdminAttendancePage() {
 
   const [draft, setDraft] = useState(EMPTY);
   const [applied, setApplied] = useState(EMPTY);
+  const dirty = isDirty(draft, applied);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -280,12 +283,14 @@ export default function AdminAttendancePage() {
         <FormField
           label="From"
           type="date"
+          className={filterFieldClass}
           value={draft.from}
           onChange={(e) => setDraft((prev) => ({ ...prev, from: e.target.value }))}
         />
         <FormField
           label="To"
           type="date"
+          className={filterFieldClass}
           value={draft.to}
           onChange={(e) => setDraft((prev) => ({ ...prev, to: e.target.value }))}
         />
@@ -303,21 +308,11 @@ export default function AdminAttendancePage() {
             </option>
           ))}
         </FormField>
-        <button
-          type="submit"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-        >
-          Apply
-        </button>
-        {canReset ? (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
-            Reset
-          </button>
-        ) : null}
+        {/* The cue appears here even before anything is fetched: this page
+            deliberately shows a PROMPT until a grade or a date range is
+            applied (`hasScope`), so "Changes not applied" over the prompt is
+            exactly right — something is staged and the list is not it. */}
+        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
       </form>
 
       {!hasScope ? (

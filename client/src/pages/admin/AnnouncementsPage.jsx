@@ -4,6 +4,8 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { staffAudienceLabel } from '../../format/audience';
@@ -90,6 +92,12 @@ export default function AdminAnnouncementsPage() {
 
   const [filterDraft, setFilterDraft] = useState(EMPTY_FILTER);
   const [filter, setFilter] = useState(EMPTY_FILTER);
+  // This page names its pair `filterDraft`/`filter` rather than
+  // `draft`/`applied`; the comparison is the same one either way (item 5).
+  // The dependent Grade→Class pair works out correctly: changing Grade blanks
+  // Class in the draft, so going 6 → 5 → 6 while "Malikhain" is APPLIED stays
+  // dirty — which is right, because the class really was cleared.
+  const dirty = isDirty(filterDraft, filter);
 
   // Keyed status, two keys for the two stacked lists: `announcements` and
   // `memos`. Every write here happens in a modal that closes on success, so
@@ -505,14 +513,12 @@ export default function AdminAnnouncementsPage() {
                 </option>
               ))}
             </FormField>
-            <button type="submit" className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted">
-              Apply
-            </button>
-            {canReset ? (
-              <button type="button" onClick={resetFilter} className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted">
-                Reset
-              </button>
-            ) : null}
+            {/* This page's Apply used the NEUTRAL bordered class — identical
+                to its Reset, and the only one of the nine that did. Under
+                item 5 neutral MEANS "nothing staged", so that styling was
+                already saying the wrong thing; it just had no vocabulary to
+                be wrong in. `FilterActions` now owns both states. */}
+            <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilter} />
           </form>
           <button
             type="button"

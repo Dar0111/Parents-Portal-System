@@ -5,6 +5,8 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import { PersonCell } from '../../components/Avatar';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -59,6 +61,12 @@ export default function StudentsPage() {
 
   const [draft, setDraft] = useState(DEFAULT_FILTERS);
   const [applied, setApplied] = useState(DEFAULT_FILTERS);
+  // Assembled once, trimmed exactly as the commit trims it (item 5). This
+  // page's `status` defaults to the STRING 'all', not '', so the comparison
+  // has to be value-by-value rather than a truthiness test — `isDirty` is,
+  // and `canReset` below already had to work around the same thing by hand.
+  const draftFilters = { ...draft, search: draft.search.trim() };
+  const dirty = isDirty(draftFilters, applied);
 
   // Keyed status. The only write here is a row action, so there is one key.
   // It renders directly above the table it describes, not at the top of the
@@ -136,7 +144,7 @@ export default function StudentsPage() {
     // empty copy (Admin → Users found this).
     setLoading(true);
     setOffset(0);
-    setApplied({ ...draft, search: draft.search.trim() });
+    setApplied(draftFilters);
   }
 
   function resetFilters() {
@@ -301,21 +309,10 @@ export default function StudentsPage() {
           onChange={(e) => setDraft((prev) => ({ ...prev, search: e.target.value }))}
           className="min-w-56 flex-1"
         />
-        <button
-          type="submit"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-        >
-          Apply
-        </button>
-        {canReset ? (
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
-            Reset
-          </button>
-        ) : null}
+        {/* Search keeps `min-w-56 flex-1` — like `teacher/StudentsPage`, it
+            is this page's widest control by choice, not by omission, so
+            `filterFieldClass` is deliberately not applied to it (item 5). */}
+        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
       </form>
 
       {/* §5f: two causes, two branches. canReset decides both the copy and

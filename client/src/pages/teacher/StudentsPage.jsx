@@ -6,6 +6,11 @@ import DataTable from '../../components/DataTable';
 import { PersonCell } from '../../components/Avatar';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
+// NOTE: no `filterFieldClass` here. This page's Search keeps `min-w-56
+// flex-1` — it is the primary control and was sized that way deliberately
+// (item 5).
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { sectionOptions, showSectionFilter } from './students/sectionOptions';
@@ -85,6 +90,13 @@ export default function StudentsPage() {
   const [search, setSearch] = useState('');
   const [section, setSection] = useState('');
   const [applied, setApplied] = useState({ search: '', section: '' });
+
+  // Assembled once and TRIMMED, exactly as the commit below trims it (item 5)
+  // — otherwise a trailing space would claim there were changes to apply and
+  // then apply nothing. `isDirty` trims `search` again on both sides, so the
+  // two agree even if this line is ever edited.
+  const draftFilters = { search: search.trim(), section: section.trim() };
+  const dirty = isDirty(draftFilters, applied);
 
   // Keyed status, one key. The wizard reports its own failures through
   // formError INSIDE the modal (already the right place); what survives the
@@ -199,7 +211,7 @@ export default function StudentsPage() {
   function applyFilters(event) {
     event.preventDefault();
     setOffset(0);
-    setApplied({ search: search.trim(), section: section.trim() });
+    setApplied(draftFilters);
   }
 
   function clearFilters() {
@@ -448,21 +460,13 @@ export default function StudentsPage() {
               ))}
             </FormField>
           ) : null}
-          <button
-            type="submit"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
-            Apply
-          </button>
-          {filtered ? (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              Clear
-            </button>
-          ) : null}
+          {/* "Clear", not "Reset" — this page's word, kept. */}
+          <FilterActions
+            dirty={dirty}
+            canReset={filtered}
+            onReset={clearFilters}
+            resetLabel="Clear"
+          />
         </form>
         {canEnroll ? (
           <button

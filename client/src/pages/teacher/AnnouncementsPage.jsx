@@ -355,20 +355,32 @@ export default function AnnouncementsPage() {
         </div>
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setOffset(0);
-            setApplied({ section: sectionFilter });
-          }}
-          className="flex flex-wrap items-end gap-3"
-        >
+        {/* NO APPLY BUTTON, AND NO FORM (item 5, 2026-09-25). This page has
+            exactly ONE bounded control, and "one control that refetches on
+            change has no state worth staging" — the rule both parent list
+            pages already state in their own words. Staging exists to stop a
+            request per keystroke on a free-text search; there is no text here
+            and nothing to commit together.
+
+            `applied` STAYS. It is a `load` dependency and the empty-state copy
+            keys on it (§5f), so collapsing it into the select's own value
+            would mean rewriting the fetch and the empty branches for no gain.
+            The select simply writes both at once, the way the parent pages do.
+
+            `setOffset(0)` travels with it: a filter change that left the
+            reader on page 3 of a different list is C6, and it is the exact
+            defect `teacher/AttendanceRecordsPage` shipped with. */}
+        <div className="flex flex-wrap items-end gap-3">
           <FormField
             label="Section"
             as="select"
             className={filterSelectClass}
             value={sectionFilter}
-            onChange={(e) => setSectionFilter(e.target.value)}
+            onChange={(e) => {
+              setSectionFilter(e.target.value);
+              setOffset(0);
+              setApplied({ section: e.target.value });
+            }}
           >
             {/* "All my classes", not "All I can read" — this is a SECTION
                 filter, and the page's own empty state says "posts for your
@@ -380,13 +392,7 @@ export default function AnnouncementsPage() {
               </option>
             ))}
           </FormField>
-          <button
-            type="submit"
-            className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
-            Apply
-          </button>
-        </form>
+        </div>
 
         {targetsLoading ? null : canPost ? (
           <button

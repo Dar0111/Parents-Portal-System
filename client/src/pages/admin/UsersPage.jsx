@@ -4,7 +4,9 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FilterActions from '../../components/FilterActions';
+import { isDirty } from '../../components/filterState';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import { PersonCell } from '../../components/Avatar';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist from '../../components/PasswordChecklist';
@@ -113,6 +115,11 @@ export default function UsersPage() {
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState({ role: '', status: '', search: '' });
+  // Assembled once, trimmed as the commit trims it (item 5). `status` here is
+  // the FILTER, not the FormStatus strip — the naming collision this file's
+  // header already warns about.
+  const draftFilters = { role, status, search: search.trim() };
+  const dirty = isDirty(draftFilters, applied);
 
   // The XOR this used to implement by hand (a successful create then a failed
   // deactivate must not leave both strips visible — Teacher → Grades,
@@ -239,7 +246,7 @@ export default function UsersPage() {
     // wrong cause. DataTable already prefers loading over empty.
     setLoading(true);
     setOffset(0);
-    setApplied({ role, status, search: search.trim() });
+    setApplied(draftFilters);
   }
 
   function resetFilters() {
@@ -771,24 +778,15 @@ export default function UsersPage() {
           <FormField
             label="Search"
             placeholder="Name or login ID"
+            className={filterFieldClass}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button
-            type="submit"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
-            Apply
-          </button>
-          {canReset ? (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              Reset
-            </button>
-          ) : null}
+          {/* This Apply commits TWO requests, not one — `load()` refetches
+              the pending queue and the directory together in a `Promise.all`
+              — so the cue is guarding a more expensive commit here than
+              anywhere else (item 5). */}
+          <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
         </form>
 
         <FormStatus status={formStatus.directory} />

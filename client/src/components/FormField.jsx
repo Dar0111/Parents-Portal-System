@@ -58,6 +58,25 @@ export function controlClassFor(invalid) {
 // on a narrow laptop. Uniform and stable beats snug and jumpy.
 export const filterSelectClass = 'w-full sm:w-72';
 
+// THE SAME FIX FOR DATE AND SEARCH INPUTS (item 5, 2026-09-25). Six filter
+// controls across four pages carried NO width class at all — every date input,
+// plus `admin/UsersPage`'s search — so their `FormField` wrapper was a
+// content-sized flex item and the input inside it rendered at the browser's
+// default width, around 180px, sitting beside the buttons instead of stacking.
+// That is the same defect the note above describes for selects, left unfixed
+// on the controls that are not selects.
+//
+// NARROWER THAN A SELECT ON PURPOSE. A date input's content is fixed and
+// short, and two dates at `sm:w-72` would push Apply off a 640px row — the
+// wrapping this constant exists to prevent. Below `sm` both are `w-full` and
+// stack, which is the part that matters at 390px.
+//
+// ONE DELIBERATE EXCEPTION, not an oversight: `teacher/StudentsPage`'s search
+// keeps `min-w-56 flex-1`. It is that page's primary control and was sized
+// that way on purpose; flattening a considered choice into a shared constant
+// would be the wrong kind of consistency.
+export const filterFieldClass = 'w-full sm:w-44';
+
 // Four supported call shapes, and only four:
 //
 //   1. <FormField label="Name" placeholder="…" />                  -> <input>
