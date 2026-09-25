@@ -8,11 +8,8 @@ import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
-// The `.jsx` is required — see the note on the same import in
-// ClassSummaryPage.jsx: the two filenames differ only in case and Windows
-// resolves `.js` first.
-import ScrollCue from '../../components/ScrollCue.jsx';
-import { listLabels } from '../../components/scrollCue.js';
+import ScrollCue from '../../components/ScrollCue';
+import { listLabels } from '../../components/scrollCueState';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';

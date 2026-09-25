@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { cueState, scrollStep } from './scrollCue';
+import { cueState, scrollStep } from './scrollCueState';
 
 // A horizontal scroller that SAYS it scrolls (UI-D-2, 2026-09-25).
 //
@@ -37,7 +37,7 @@ import { cueState, scrollStep } from './scrollCue';
 // `cells` COMES FROM THE PAGE, VIA `measureCells`, because only the page knows
 // which header row carries meaningful columns — the summary has one row of
 // learning areas, the record has two and the leaf row is not the one worth
-// naming. See `scrollCue.js`.
+// naming. See `scrollCueState.js`.
 export default function ScrollCue({
   ariaLabel,
   describe,

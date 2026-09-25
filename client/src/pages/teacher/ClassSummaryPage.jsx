@@ -6,11 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
-// THE `.jsx` IS REQUIRED, not stylistic. `ScrollCue.jsx` and `scrollCue.js`
-// differ only in CASE, and Windows filesystems are case-insensitive: an
-// extensionless `'../../components/ScrollCue'` tries `.js` first, matches the
-// helper module, and fails with "Missing export" — which is what it did.
-import ScrollCue from '../../components/ScrollCue.jsx';
+import ScrollCue from '../../components/ScrollCue';
 import { timestampDay } from '../../format/date';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
@@ -112,7 +108,7 @@ export function ClassSummaryTable({ data }) {
     // THE COUNT IS THE WORDING HERE because these columns are learning areas
     // and a number is the useful answer: a teacher who is told "6 more
     // subjects" knows what they have not seen. The class record names its
-    // groups instead, for the opposite reason (`components/scrollCue.js`).
+    // groups instead, for the opposite reason (`components/scrollCueState.js`).
     //
     // The cells measured are the ONE header row's, which is every column:
     // learner, each learning area, and the Average. `offsetLeft +

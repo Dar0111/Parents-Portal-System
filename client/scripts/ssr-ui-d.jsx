@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import GradeValue from '../src/format/grade.jsx';
-import { cueState, listLabels, scrollStep } from '../src/components/scrollCue.js';
+import { cueState, listLabels, scrollStep } from '../src/components/scrollCueState.js';
 import { ChildHero } from '../src/pages/dashboards/ParentDashboard.jsx';
 import {
   THEME_KEY,
