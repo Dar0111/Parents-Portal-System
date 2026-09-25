@@ -511,7 +511,10 @@ export default function ClassRecordPage() {
               `data-group` note in the header row. */}
           <ScrollCue
             ariaLabel="Class record, scrolls sideways"
-            scrollerClassName="rounded-xl border border-edge"
+            // The frame goes on the WHOLE cue, not the scroller, so the hint
+            // sits inside the card exactly as it does on the class summary —
+            // where the border comes from a wrapper in the page.
+            className="rounded-xl border border-edge"
             measureCells={(el) =>
               Array.from(el.querySelectorAll('thead tr:first-child th[data-group]')).map((cell) => ({
                 right: cell.offsetLeft + cell.offsetWidth,

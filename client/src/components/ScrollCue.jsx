@@ -38,12 +38,20 @@ import { cueState, scrollStep } from './scrollCueState';
 // which header row carries meaningful columns — the summary has one row of
 // learning areas, the record has two and the leaf row is not the one worth
 // naming. See `scrollCueState.js`.
+//
+// `className` FRAMES THE WHOLE THING, NOT THE SCROLLER. It started on the
+// scroller, which put the class record's card border BETWEEN the hint and the
+// table — the hint floating above the card on one page and sitting inside it
+// on the other, because the summary's border comes from a wrapper in the page
+// (browser check, 2026-09-25). The hint describes the table, so it belongs
+// inside the same box; putting the frame on the outer element is what makes
+// both pages agree.
 export default function ScrollCue({
   ariaLabel,
+  className = '',
   describe,
   endLabel = 'End of table',
   measureCells,
-  scrollerClassName = '',
   children,
 }) {
   const scrollerRef = useRef(null);
@@ -113,14 +121,24 @@ export default function ScrollCue({
     : null;
 
   return (
-    <div>
+    <div className={className}>
       {/* `aria-live="polite"`: the sentence changes as the reader scrolls, and
           a screen-reader user gets the update without being interrupted.
-          `min-h` reserves the line so the table does not jump when the text
-          appears, disappears or changes length. `print:hidden` — paper does
-          not scroll, and §18 releases the scroller entirely there. */}
+          `print:hidden` — paper does not scroll, and §18 releases the
+          scroller entirely there.
+
+          THE ELEMENT IS ALWAYS RENDERED, THE SPACE IS NOT. A live region has
+          to exist in the DOM BEFORE its content changes, or the first
+          announcement is missed — so this cannot be `{hint ? <p/> : null}`.
+          But it also must not reserve a line on a desktop table that does not
+          overflow: it first shipped with `min-h-5` and put a blank strip
+          above every wide class summary (browser check, 2026-09-25). `sr-only`
+          while empty keeps the region alive at zero layout cost, and the
+          visible classes come back with the text. */}
       <p
-        className="min-h-5 px-3 pt-2 text-xs text-fg-muted print:hidden"
+        className={
+          hint ? 'px-3 pt-2 text-xs text-fg-muted print:hidden' : 'sr-only'
+        }
         aria-live="polite"
       >
         {hint}
@@ -137,7 +155,7 @@ export default function ScrollCue({
           role="region"
           aria-label={ariaLabel}
           data-scrolled={state.scrolled ? 'true' : 'false'}
-          className={`print-sheet-scroller overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${scrollerClassName}`}
+          className="print-sheet-scroller overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           {children}
         </div>
