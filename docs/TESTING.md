@@ -179,7 +179,7 @@ reports a clean pass on code that is not in the bundle —
 ## The smoke run — a read-only browser sweep
 
 `client/e2e/smoke.spec.js`, Playwright, headless Chromium. **Twenty tests:
-five roles × two themes × two widths, 39 URLs, 264 screenshots** (recounted 2026-09-26: `e2e/pages.js` lists 39 — 15 admin, 16 teacher, 13 parent, About last in each — and the two teacher and two parent accounts share a list, so five accounts × their list × 4 = 264 files; the "61 / 244" that stood here was never a recount)**.** It is not
+five roles × two themes × two widths, 39 URLs, 264 screenshots** (recounted 2026-09-26 by loading `e2e/pages.js`: **39 UNIQUE URLs** — admin 12, teacher 15, parent 12, About last in each; the two teacher accounts and the two parent accounts each share their role's list, so the five accounts make **66 account-URL visits** (12 + 15 + 12 + 15 + 12), and 66 × 2 themes × 2 widths = **264** screenshot files; the "61 / 244" that stood here was never a recount)**.** It is not
 a suite and not a proof; it is the part of §5h a person should not have to
 do by hand — opening every sidebar page four times to find out whether any
 of them logs an error, requests something that 4xx's, renders no heading, or
