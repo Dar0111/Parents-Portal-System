@@ -1483,36 +1483,25 @@ seen, clock restored. **Do not "fix" those timestamps.**
 (`docs/ARCHIVE.md`); its rules are §4, §16, §5a-v, §17c and §17e. **MOCKUP
 FIRST outlived it** and still governs item 5 and UI-D (d).
 
-- [ ] **UI polish — opened 2026-09-20 as a list, now a QUEUE.** **NINE of the
-      fourteen items are closed and left permanently for `docs/ARCHIVE.md`**
-      (1, 3, then 6, 7, 8, 9, 10, 13 by UI-A and 2 by UI-B, with UI-B's
-      planner items P1 and P2). Three did not close as written and the
-      archive keeps why; the one that matters here: **item 7 shipped as
-      `className || 'text-fg'`, NOT pure inheritance** — nothing sets a base
-      text colour, so *inherit* means black, and **UI-D** takes it.
+- [ ] **UI polish — opened 2026-09-20 as a list, now a QUEUE.** **TWELVE of
+      the fourteen items are closed and left permanently for
+      `docs/ARCHIVE.md`** (1, 3, then 6, 7, 8, 9, 10, 13 by UI-A, 2 by UI-B
+      with its planner items P1 and P2, and 4, 12, 14 by UI-C). **Item 11 was
+      the print check, run on paper 2026-09-23; its finding IS UI-D (a).**
+      **Item 5 is all that is left here.** Three did not
+      close as written and the archive keeps why; the one that matters here:
+      **item 7 shipped as `className || 'text-fg'`, NOT pure inheritance** —
+      nothing sets a base text colour, so *inherit* means black, and **UI-D**
+      takes it.
 
-  **UI-C2 is DONE (2026-09-24)** — items 4 and 12, SMOKE-1's findings 1, 2,
-  5, 6, 7 and 12, and the Remarks hint. Its entry left under the REFILL RULE
-  (`docs/ARCHIVE.md`), which keeps the one sentence in it that was **false**:
-  events were said to drop a section, and **the `events` table has no
-  `target_section` column**. `format/audience.js` now takes `{ hasSections }`
-  so announcements and events differ out loud. **Smoke is 20/20.**
-
-  **UI-C1a is DONE (2026-09-25) — a live BUG, not polish.** Slicing a
+  **UI-C is DONE — C2 (2026-09-24), C1a and C1b (2026-09-25).** Items 4, 12
+  and 14, SMOKE-1's findings 1, 2, 5, 6, 7 and 12, the Remarks hint, the
+  Section labels and `backupAge`. All three entries left under the REFILL
+  RULE (`docs/ARCHIVE.md`), which keeps the one sentence in C2's that was
+  **false** — events were said to drop a section, and **the `events` table
+  has no `target_section` column**. **C1a was a live BUG**: slicing a
   `created_at` showed the **previous day before 08:00 PH**, where school
-  mornings are. Rule: **§5a-iv** — two kinds of value, two kinds of helper,
-  and an **aliased timestamp is still a timestamp**.
-
-  - [ ] **UI-C1b — DATE-column formatting, plus two leftovers.** No bug:
-    `dateStrings: ['DATE']` protects these, so it is consistency only.
-    **Item 14** — `shortDate()` on every column still printing raw
-    `YYYY-MM-DD`, `longDate()` in cards and modals. **Sorting is safe**:
-    `DataTable` sorts the row value (`:219`), not the render. **Plus** the
-    Section options reading `Grade 6 - Malikhain` (value stays the bare
-    name — the server scopes on that VARCHAR), and **`backupAge()`**
-    (`AdminDashboard.jsx:34-39`), which counts elapsed 24h blocks and calls
-    it "today": a 23:00 backup seen at 01:00 is 2 hours old and reads
-    "today" when it was yesterday. **Manila calendar days, not subtraction.**
+  mornings are. Everything they carry is **§5a-iv**. **Smoke is 20/20.**
 
   - [ ] **Item 5 — a Pending result set while the Status select reads
     Approved. MOCKUP FIRST, and it is in neither UI-C1 nor C2 for that
@@ -1525,7 +1514,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
     records / Events / Excuse Letters / Students, admin Announcements /
     Attendance / Students / Users). No precedent for the affordance.
 
-- [ ] **UI-D — global CSS, after UI-C1b. Two things that live above every page.**
+- [ ] **UI-D — global CSS, NEXT in the queue. Two things that live above every page.**
 
   **(a) There is NO print CSS in the client** — not one `print:` variant, not
   one `@media print`. On paper, 2026-09-23: Teacher → Class summary printed
@@ -2047,6 +2036,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **UI-C1b** (`388bf9d`): 14 DATE sites, two Birthday fields, `sectionOptions` → `{ value, label }`, `backupAge`. **The DATE work was consistency only as filed; `backupAge` was a live defect** — elapsed 24h blocks called a 23:00 backup read at 01:00 "today". **`new Date(null)` is the EPOCH**, caught by a proof assertion no render could have made. **A date sweep starts from the SCHEMA** — a client grep missed `birthday`. `ssr-dates` 25 → **46** (both zones, 48 DEV), `ssr-ui-c2` **39**. Smoke 19/20; **the flake's diagnostic fired at last** — `/auth/me` on `localhost`, and `netstat` says both stacks are bound, so the lead is `node --watch` restarts. |
 | 2026-09-23 | **DV1b-a** (`4b7508e`): 14 consumers → `renderCard`, four families (§16); `admin/GradesPage` carries JSX as a **declared exception — §3 outranks data-only**. Proof 87/87. **Three findings, none fixed**, incl. a regression I introduced: **at 390px a parent cannot reach the decline reason**. |
 | 2026-09-23 | **DV4** (`feat/dv4-dashboards`, `6d5034e` + `8adebc3`): parent dashboard elevation and the dark amber. **The rust cast was a HUE shift, not a lightness one** (`#461901`, hue 46, against light amber at ~95); five asserted pairs re-measured, light mode untouched, and the other two dashboards follow **through the token alone**. **Browser check FAILED first pass, four findings** — the hero average **invisible in light mode**; the KS1 hero showing **"Term 3 · C"** from a latest-term-with-data walk; weekend and not-recorded near-identical; an orphan caption. Rules in §12 and `docs/FRONTEND_CONVENTIONS.md` §15/§3a. Proofs 23/23 then 26/26, oxlint 43, `test:dashboard` 77/77. |
 | 2026-09-23 | CR3a + CR3 **docs pass** (`docs/class-summary`), covering three build dispatches. API_REFERENCE: `subjects.display_order` and the **null-last idiom** (MySQL sorts NULL first — without the leading term a MIXED grade level puts its unordered rows first); **`GET /assignments`' default follows the order, `sort=subject` stays A-Z**; the class summary's three-way scope (**a nonexistent section is the SAME 404 as "not yours"**), **two flags**, `general_average` **absent not null** in KS1, **no pagination — a document, not a list**; and **`TEACHER_ADVISES_CLASS_SQL` beside `TEACHER_VIEW_SCOPE_SQL`**, because routing grades through `students` would hide an EMPTY class from an assigned teacher. Counts **88 handlers / 89 endpoints**. GRADING_SPEC **§6d-i** — where each order came from, and a correction: **Grade 5 never fell back to alphabetical**. FRONTEND_CONVENTIONS **§14** — **a letter is not a number** (`TermValue`, never `GradeValue`, or every Grade 1 letter reads "— N/A"), **Pending ≠ N/A**, and **a self-fetching page cannot be SSR-proved**, so what must be proved is extracted and exported. KNOWN_ISSUES: the **shell-row trap**. Baselines 44 / 247 / 62 / 59, oxlint **43**. **CR3a and CR3 ticked — the grades track is complete**; pre-Stage-5 gains the `test:restore` sub-second fix and the Back-button decision. **The stub reserve was spent as designed** — four rows to ARCHIVE after this file hit 137,804. |

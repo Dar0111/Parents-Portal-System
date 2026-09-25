@@ -461,6 +461,43 @@ identical output, because a helper that reads the host zone passes on a
 Manila laptop and fails everywhere else. `scripts/ssr-dates.jsx` does exactly
 that, plus both 08:00 boundaries and a New Year.
 
+##### A DATE SWEEP STARTS FROM THE SCHEMA (UI-C1b, 2026-09-25)
+
+**The list of sites to convert comes from `database/schema.sql`'s DATE and
+TIMESTAMP columns, never from a client grep of field names you already know
+about.** The rule exists because the same sweep missed a site in each
+direction:
+
+- **A grep of the client missed `birthday`** — a DATE column on
+  `students`, rendered read-only on both StudentDetailPages. Nobody thinks
+  of a birthday as "a date field" while listing absence dates and event
+  dates, so it was not in the search.
+- **A grep for `created_at` missed `last_message_at`** — the aliased-timestamp
+  case above, found only after the first sweep had been declared complete.
+
+A schema column cannot hide from you the way a chosen field name can. Start
+there, map each column to its renderers, and the list is closed rather than
+remembered.
+
+##### A COUNT OF DAYS IS NOT A COUNT OF HOURS (UI-C1b, 2026-09-25)
+
+`backupAge` on the admin dashboard divided a millisecond difference by
+86,400,000 and called `0` **"today"**. That answers a question about
+duration with a word about dates, and the two disagree every night: a backup
+taken at **23:00** and read at **01:00** the next morning is two hours old,
+scored `0`, and reported itself as today's when it was yesterday's.
+
+**`calendarDaysAgo(value, now)` reduces both instants to their Manila
+calendar day FIRST**, then subtracts — so the answer depends on the date and
+not the hour. It takes `now` as a parameter, which is the only reason the
+proof can fix the clock and assert both sides of a midnight.
+
+**`new Date(null)` is the EPOCH, not an invalid date**, so a `Number.isNaN`
+check alone does not catch a missing timestamp — it silently becomes
+1 January 1970 and reports itself twenty thousand days old. `manilaDayKey`
+tests for nullish **before** it constructs the `Date`. Any helper that takes
+an optional instant needs the same two checks, in that order.
+
 #### 5a-v. The report card is a DOCUMENT, not a list — the one page that leaves DataTable
 
 **Frozen 2026-09-21 (DV3).** `pages/parent/ReportCard.jsx` is the only

@@ -116,8 +116,8 @@ npx vite build --ssr scripts/<name>.jsx --outDir .ssr-tmp && node .ssr-tmp/<name
 | Proof | Baseline | What it covers |
 |---|---|---|
 | `ssr-cards.jsx` | **31/31** | the card contract, by RENDERING — `actions` beside a primary action, the DEV guard, both excuse-letter cards. **Needs `NODE_ENV=development`, see below** |
-| `ssr-dates.jsx` | **25/25, and it must be run TWICE** — see below | the date helpers: the 08:00 PH rollover, both day boundaries, a New Year, the DEV guard and its production fallback, and a real card rendering a morning timestamp |
-| `ssr-ui-c2.jsx` | **32/32** (was 33 — UI-C1a removed the four lines asserting the announcement card still sliced its date; `ssr-dates` owns that claim now, and makes a stronger one) | the one staff audience wording and its `hasSections` split, the Section filter's option logic, and the report card's conditional copy. **It does NOT cover the Remarks hint** — that is behind a click inside a Modal, said in its own header so a green run is not over-read |
+| `ssr-dates.jsx` | **46/46, and it must be run TWICE** — see below (**48/48 under `NODE_ENV=development`**, where the two DEV-guard assertions replace the one production-silence assertion). Was 25; UI-C1b added the DATE-bearing cards and `calendarDaysAgo` | the date helpers: the 08:00 PH rollover, both day boundaries, a New Year, the DEV guard and its production fallback, a real card rendering a morning timestamp, the three converted DATE cards, and the calendar-day-vs-elapsed-hours boundary at midnight, a month end and a year end |
+| `ssr-ui-c2.jsx` | **39/39** (was 32; UI-C1b added the `{ value, label }` section options. 33 before that — UI-C1a removed the four lines asserting the announcement card still sliced its date; `ssr-dates` owns that claim now, and makes a stronger one) | the one staff audience wording and its `hasSections` split, the Section filter's option logic **and its labels**, and the report card's conditional copy. **It does NOT cover the Remarks hint** — that is behind a click inside a Modal, said in its own header so a green run is not over-read |
 | `ssr-ui-a.jsx` | **38/38** | `GradeValue`'s colour default, score pairs, `longDate` at the dashboard spots, the Attendance header |
 | `ssr-dv1b-a.jsx` | **83/83** | the fourteen `renderCard` consumers. **Source-text assertions** — it reads files and regexes them; that is what it is, and §17d is why nothing new should be written this way. Was 87; UI-B dropped the two excuse-letter pages, whose cards are modules now and are covered by `ssr-cards.jsx` |
 | `ssr-dv1b-b.jsx` | **30/30** | the attendance roster's behaviour, driven directly through `attendance/roster.js`. Was 35; UI-B deleted its five source-text letter assertions for the same reason |
@@ -126,8 +126,8 @@ npx vite build --ssr scripts/<name>.jsx --outDir .ssr-tmp && node .ssr-tmp/<name
 
 ```bash
 npx vite build --ssr scripts/ssr-dates.jsx --outDir .ssr-tmp
-TZ=UTC              node .ssr-tmp/ssr-dates.js     # 25/25
-TZ=America/New_York node .ssr-tmp/ssr-dates.js     # 25/25 — IDENTICAL
+TZ=UTC              node .ssr-tmp/ssr-dates.js     # 46/46
+TZ=America/New_York node .ssr-tmp/ssr-dates.js     # 46/46 — IDENTICAL
 ```
 
 **One run proves nothing.** The helpers convert an instant to the school's
@@ -136,9 +136,12 @@ Manila machine and is wrong everywhere else — which is the shape of the bug
 this proof exists for, one layer down. Two zones, same answers, or it is not
 proved.
 
-Add `NODE_ENV=development` for a third run (**27/27**) to exercise the DEV
+Add `NODE_ENV=development` for a third run (**48/48**) to exercise the DEV
 guard; the production build tree-shakes it away and asserts the fallback
 instead. Both paths are covered, each under the build that can see it.
+**Run the DEV build under both zones too** — the guard fires on the value,
+not the clock, but the run costs seconds and a one-zone DEV run is the same
+half-proof the block above refuses.
 
 ### `ssr-cards.jsx` needs `NODE_ENV=development`, and the reason is a trap
 

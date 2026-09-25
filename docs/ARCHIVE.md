@@ -4416,6 +4416,56 @@ than quietly dropped:** `globalSetup` runs in Node and the failure is in
 Chromium, so Node cannot warm a browser that has not started. Reverted; a
 `requestfailed` diagnostic replaces it. `docs/KNOWN_ISSUES.md` has the row.
 
+### UI-C1b's entry — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **UI-C1b** (`388bf9d`, browser check passed
+1-9). **UI-C is complete with it**, and item 14 closes with it.
+
+```
+  - [ ] **UI-C1b — DATE-column formatting, plus two leftovers.** No bug:
+    `dateStrings: ['DATE']` protects these, so it is consistency only.
+    **Item 14** — `shortDate()` on every column still printing raw
+    `YYYY-MM-DD`, `longDate()` in cards and modals. **Sorting is safe**:
+    `DataTable` sorts the row value (`:219`), not the render. **Plus** the
+    Section options reading `Grade 6 - Malikhain` (value stays the bare
+    name — the server scopes on that VARCHAR), and **`backupAge()`**
+    (`AdminDashboard.jsx:34-39`), which counts elapsed 24h blocks and calls
+    it "today": a 23:00 backup seen at 01:00 is 2 hours old and reads
+    "today" when it was yesterday. **Manila calendar days, not subtraction.**
+```
+
+**"Consistency only" held for fourteen of the sixteen sites and was wrong
+about the third leftover.** The DATE columns really were safe —
+`dateStrings: ['DATE']` had been doing its job — but **`backupAge` was a
+live defect of the same family as C1a's**, one level up: it answered a
+question about dates by measuring a duration, so every backup taken after
+16:00 and read the next morning reported itself as today's. The lesson is
+that a queue item's own framing is a prediction, not a finding, and the two
+non-DATE leftovers were bundled in precisely because nobody had looked yet.
+
+**A second defect surfaced only because the proof was written to drive the
+helper directly.** `manilaDayKey` tested `Number.isNaN(new Date(value))` and
+nothing else, but **`new Date(null)` is the epoch** — a missing `created_at`
+would have become 1 January 1970 and reported itself twenty thousand days
+old. The page never reached it (`backupAge` guards `!createdAt` first), so
+no render and no browser check could have found it; the assertion
+`calendarDaysAgo(null) === null` did. §5a-iv carries the rule.
+
+**Three things the entry did not predict, all recorded on their own:**
+
+- **The date sweep's source was wrong.** A client grep of known field names
+  missed `birthday`, a DATE column on both StudentDetailPages. The rule is
+  now §5a-iv: **start from the schema's DATE and TIMESTAMP columns.**
+- **`sectionOptions` had to change shape, not just wording.** Returning
+  `{ value, label }` was the only way to give the label the grade while the
+  value stayed the bare section name the server scopes on. Uniqueness across
+  the 23 sections makes a bare name a correct KEY; it never made it a
+  readable LABEL.
+- **`ssr-cards.jsx` fell outside the whitelist and had to be asked for** —
+  it asserts the parent letter card's title, which this dispatch changed. A
+  proof that renders a component is coupled to that component, and a
+  whitelist drawn from the pages alone will keep missing one.
+
 ### UI-C2's closed items — moved from CLAUDE.md on 2026-09-24
 
 Under the REFILL RULE, closed by **UI-C2** (`d1e7850` + `cc1ecbc`, browser
