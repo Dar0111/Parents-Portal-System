@@ -545,6 +545,13 @@ export default function ParentGradesPage() {
         emptyMessage={empty.message}
       />
 
+      {/* PRINTING WITH THE BREAKDOWN OPEN (UI-D). `Modal` renders inline —
+          no portal — behind a `fixed inset-0 z-50` backdrop, so a print
+          started while it is open would put the dialog over the report card
+          and paper has no way to dismiss it. Hidden through a wrapper rather
+          than inside the primitive: one page's printing decision does not
+          belong in a component every page shares. */}
+      <div className="print:hidden">
       <Modal
         open={Boolean(selected)}
         onClose={closeBreakdown}
@@ -557,6 +564,7 @@ export default function ParentGradesPage() {
           {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
         </div>
       </Modal>
+      </div>
     </div>
   );
 }

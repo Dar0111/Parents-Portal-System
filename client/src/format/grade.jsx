@@ -86,16 +86,26 @@ function formatGrade(value) {
 // stop a reorder hiding the number again. With the default conditional, the
 // losing class is never emitted at all, so there is no race left to guard.
 //
-// AND WHY NOT SIMPLY DROP IT AND INHERIT, which is the obvious reading:
-// nothing in this app sets a base text colour — no rule on `body`, `#root` or
-// in `@layer base` — so "inherit" resolves to the browser default, black.
-// Inside `DataTable` that is survivable (its `<td>` sets `text-fg-secondary`),
-// but the three grade-heavy screens build their own tables and set no colour
-// at all: `parent/ReportCard.jsx`'s `<table className="w-full
-// border-collapse text-sm">`, `teacher/ClassSummaryPage.jsx`'s, and
-// `teacher/ClassRecordPage.jsx`'s score cells. Black on a dark surface is
-// DV4's F1 again, pointed the other way. Pure inheritance becomes correct the
-// day a base colour exists; until then the default is what makes it safe.
+// AND IT IS NOW PURE INHERITANCE (UI-D, 2026-09-25). The default existed for
+// one reason: nothing in this app set a base text colour — no rule on `body`,
+// `#root` or in `@layer base` — so "inherit" resolved to the browser default,
+// black, and the grade-heavy screens that build their own tables
+// (`parent/ReportCard.jsx`, `teacher/ClassSummaryPage.jsx`,
+// `teacher/ClassRecordPage.jsx`) would have rendered black on a dark surface:
+// DV4's F1 again, pointed the other way. `index.css` sets
+// `body { color: var(--color-fg) }` as of UI-D, so that reason is spent and
+// the element sets no colour at all.
+//
+// ONE CALL SITE CHANGES COLOUR, AND IT IS A DELIBERATE ACCEPTANCE.
+// Inheritance resolves against the nearest COLOURED ancestor, which is not
+// always `body`: inside `DataTable` it is the `<td>`, and that sets
+// `text-fg-secondary`. So a grade rendered in a DataTable column —
+// `admin/GradesPage.jsx`'s Final Grade — moves from `fg` to `fg-secondary`.
+// Kept rather than pinned back with an explicit `text-fg` (Darryl,
+// 2026-09-25): every other cell in that table is `fg-secondary`, and a grade
+// that disagreed with the cells beside it would be the odder result. The
+// bespoke tables have no coloured ancestor between the cell and `body`, so
+// they get `fg` exactly as before.
 //
 // The NULL branch keeps `text-fg-muted` unconditionally, and that is not an
 // oversight: "— Pending" is muted because it is a statement about absence,
@@ -106,7 +116,7 @@ export default function GradeValue({ value, mode, whole = false, className = '' 
   const formatted = whole ? formatWholeGrade(value) : formatGrade(value);
 
   if (formatted !== null) {
-    return <span className={`tabular-nums ${className || 'text-fg'}`}>{formatted}</span>;
+    return <span className={`tabular-nums ${className}`}>{formatted}</span>;
   }
 
   const reason = reasonFor(mode);

@@ -462,6 +462,20 @@
 
 body {
   margin: 0;
+  /* THE BASE TEXT COLOUR (UI-D, 2026-09-25). Until this line existed there
+     was none — no rule on `body`, `#root` or in `@layer base` — so any
+     element that set no colour of its own inherited the BROWSER default,
+     black. `DataTable`'s `<td>` hid that (it sets `text-fg-secondary`), but
+     the screens that build their own tables did not: black on `--page`
+     slate-950 is about 1.06:1, which is invisible, and it is DV4's F1
+     pointed the other way.
+
+     `--color-fg` and not a literal, so it follows the theme like everything
+     else. In light this moves untouched text from #000 to slate-900 —
+     21:1 to 17.6:1 on white, both still AAA — and in dark from invisible to
+     about 17:1. It adds no token PAIR, so `lint:contrast` is unchanged:
+     `fg` on `surface` and `fg` on `page` are already asserted. */
+  color: var(--color-fg);
 }
 
 /* Text size "Large" (Settings -> Personalization). The whole type and spacing
@@ -471,4 +485,130 @@ body {
    toggled by src/pages/settings/textSize.js afterwards. */
 html.text-large {
   font-size: 112.5%;
+}
+
+/* -----------------------------------------------------------------------------
+   PRINT (UI-D, 2026-09-25)
+   -----------------------------------------------------------------------------
+   There was no print CSS at all before this block — not one `print:` variant,
+   not one `@media print`, not one `@page` — and the school accepts a printout
+   as the Summary of Grades. On paper the page came out with the sidebar, the
+   top bar and the Term select on it, and `overflow-x-auto` CLIPPED the table:
+   five of eight subjects and the Average column were simply missing, with a
+   scrollbar printed where they should have been.
+
+   WHAT LIVES HERE AND WHAT DOES NOT. This block hides the SHELL — the chrome
+   every page carries, which it can address by landmark because `Shell` uses
+   real ones. Which controls are noise on a given page is a per-page judgment,
+   so that is `print:hidden` at the call site; a blanket `button { display:
+   none }` here would also delete the report card's own term links.
+
+   THE DARK THEME IS NOT HANDLED HERE, DELIBERATELY. Printing in dark gives
+   near-white text on paper a browser does not print a background for, which
+   is not "hard to read" but invisible. Forcing the light values here would
+   mean a verbatim second copy of ~71 custom properties inside a media query,
+   and the next person to change a token would have to change it twice with
+   nothing to catch them. `pages/settings/theme.js` swaps the attribute for
+   the duration of the print instead — one mechanism, one copy of the values. */
+@media print {
+  /* The Shell's chrome, by landmark. `Shell.jsx` renders <aside> for the
+     sidebar and its mobile drawer, <header> for the top bar (which owns the
+     notification panel); <main> holds the routed page. Bare element
+     selectors, NOT `body > * > aside` — the Shell nests them below `#root`
+     and a depth-specific selector would silently match nothing. The only
+     other <aside> and <header> in the client are on Login and the dev
+     gallery, neither of which is a printable surface.
+
+     `LiveStatus` is NOT hidden here and that is a known gap, not an
+     oversight: it renders as the first child of <main> with no stable hook,
+     and giving it one means editing a file outside this dispatch. It only
+     appears when the socket is down. */
+  aside,
+  header,
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  /* <main> carries the page padding and the Shell's layout; on paper the
+     sheet owns its own margins. */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Backgrounds are not printed by default, so every surface is paper-white
+     and the tinted rows would vanish rather than print grey. Borders are what
+     carries structure on paper, so they must not be theme-light. */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* A HORIZONTAL SCROLLER CANNOT SURVIVE PRINT. `overflow-x-auto` clips at
+     the element's width, and paper has no scrollbar to reveal the rest, so
+     the clipped columns are simply lost. Made visible, and any `min-w-max`
+     that stops a table compressing is released so it can shrink to the sheet
+     — the class summary's table is `min-w-max`, which is why landscape alone
+     would not have been enough. */
+  .print-sheet-scroller {
+    overflow: visible !important;
+  }
+
+  .print-sheet-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: auto !important;
+    font-size: 9pt;
+  }
+
+  /* Headers are `whitespace-nowrap` on screen so a column cannot break mid
+     name while it scrolls. On paper the width is fixed and wrapping a long
+     learning area over two lines is what buys the fit — "Araling Panlipunan"
+     is the one that decides it. */
+  .print-sheet-table th,
+  .print-sheet-table td {
+    white-space: normal !important;
+    padding: 2pt 3pt !important;
+  }
+
+  /* A sticky column has nothing to stick to on paper and can overlap. */
+  .print-sheet-table .sticky {
+    position: static !important;
+  }
+
+  /* Rows must not be split across a page break. */
+  tr,
+  img {
+    break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  /* Screen-only and print-only, as a pair. `print-only` is for a block that
+     replaces on-screen chrome the printed sheet still needs — a masthead the
+     screen gets from the Shell. */
+  .print-only {
+    display: block !important;
+  }
+
+  /* THE REPORT CARD PRINTS AS ITS TABLE, NEVER AS ITS CARDS. That document
+     switches on a CONTAINER query (`@min-[36rem]`), and what the container
+     measures during a print is a render-time fact no build or SSR render can
+     settle. Printing the narrow branch would not be a broken layout, it would
+     be a DIFFERENT DOCUMENT. Forced here with `!important` rather than with a
+     `print:block` utility, because a print variant and a container variant
+     have equal specificity and stylesheet ORDER would decide it — §3a's
+     lesson. */
+  .print-doc-table {
+    display: block !important;
+  }
+
+  .print-doc-cards {
+    display: none !important;
+  }
+}
+
+.print-only {
+  display: none;
 }

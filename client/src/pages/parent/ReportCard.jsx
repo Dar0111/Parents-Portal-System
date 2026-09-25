@@ -333,8 +333,13 @@ const TH =
 function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAverageDescriptor, onOpenTerm }) {
   const showGeneralAverage = mode !== 'descriptive';
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+    // The same two print hooks the class summary uses (UI-D). This table is
+    // five columns and fits a portrait sheet with room to spare, so the
+    // scroller is not expected to clip here — but a scroller that CAN clip on
+    // paper is released as a matter of course, not once it has cost someone a
+    // reprint.
+    <div className="print-sheet-scroller overflow-x-auto">
+      <table className="print-sheet-table w-full border-collapse text-sm">
         <caption className="sr-only">
           {showGeneralAverage
             ? 'Grades by learning area and term, with the final grade for each learning area.'
@@ -727,7 +732,21 @@ export default function ReportCard({
       {header}
       {info}
 
-      <div className="hidden @min-[36rem]:block">
+      {/* PRINT FORCES THE TABLE BRANCH (UI-D). This card's crossover is a
+          CONTAINER query, and what the container measures during a print is
+          a render-time fact — §5h says a build and an SSR render cannot
+          settle it, and the arithmetic (A4 portrait ≈ 718px against a 576px
+          threshold) says the table should win but does not PROVE it. If it
+          ever resolved the other way the sheet would print as a stack of
+          per-term cards: not a broken layout, a DIFFERENT DOCUMENT, and the
+          kind of thing nobody notices until a parent is holding it.
+
+          `print-doc-table` / `print-doc-cards` are keyed in `index.css` with
+          `!important` rather than a `print:block` utility, because a Tailwind
+          print variant and a container variant have EQUAL specificity and the
+          winner would be decided by stylesheet order — the same order
+          dependence §3a exists to remove. */}
+      <div className="print-doc-table hidden @min-[36rem]:block">
         <DesktopTable
           subjects={subjects}
           mode={mode}
@@ -738,7 +757,7 @@ export default function ReportCard({
         />
       </div>
 
-      <div className="@min-[36rem]:hidden">
+      <div className="print-doc-cards @min-[36rem]:hidden">
         <TermView
           subjects={subjects}
           mode={mode}

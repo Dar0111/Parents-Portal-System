@@ -92,19 +92,85 @@ export function saveTheme(preference) {
   }
 }
 
+// PRINTING IN DARK PUTS NEAR-WHITE TEXT ON WHITE PAPER (UI-D, 2026-09-25).
+//
+// Browsers do not print backgrounds by default, so a dark theme's `--fg`
+// (slate-100) lands on an unprinted white sheet. That is not "hard to read",
+// it is invisible — and it would hit the one output the school actually
+// keeps, the Summary of Grades.
+//
+// WHY HERE AND NOT IN `@media print`. The obvious fix is to re-declare the
+// light values inside a print media query, and it is the wrong one: that is a
+// verbatim second copy of ~71 custom properties, and the next person to
+// change a token would have to change it in two places with nothing to catch
+// them missing one. This module already owns the attribute that IS the theme,
+// so it can swap the attribute for the duration of the print and leave one
+// copy of the values. Same mechanism as every other switch, no duplication.
+//
+// RESTORING READS STORAGE AGAIN RATHER THAN REMEMBERING. `endPrintTheme` does
+// not stash "what it was" before printing — it calls `applyTheme(readTheme())`,
+// the exact line `initTheme` uses at startup. So SYSTEM comes back as System
+// and re-resolves live against the OS, rather than being frozen to whichever
+// side it happened to be on when the print dialog opened. Nothing is written
+// to storage at any point: the stored preference is never touched.
+export function beginPrintTheme() {
+  return applyTheme('light');
+}
+
+export function endPrintTheme() {
+  return applyTheme(readTheme());
+}
+
+// `beforeprint`/`afterprint` cover Chrome, Edge and Firefox. SAFARI FIRES
+// NEITHER — it changes `matchMedia('print')` instead — so both are
+// registered. On a browser with both, each simply calls `applyTheme` twice
+// with the same argument, which is idempotent.
+function initPrintTheme() {
+  if (typeof window === 'undefined') return () => {};
+
+  const onBefore = () => beginPrintTheme();
+  const onAfter = () => endPrintTheme();
+  window.addEventListener('beforeprint', onBefore);
+  window.addEventListener('afterprint', onAfter);
+
+  let mq = null;
+  try {
+    mq = typeof window.matchMedia === 'function' ? window.matchMedia('print') : null;
+  } catch {
+    mq = null;
+  }
+  const onMediaChange = (event) => (event.matches ? beginPrintTheme() : endPrintTheme());
+  if (mq) {
+    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onMediaChange);
+    else if (typeof mq.addListener === 'function') mq.addListener(onMediaChange);
+  }
+
+  return () => {
+    window.removeEventListener('beforeprint', onBefore);
+    window.removeEventListener('afterprint', onAfter);
+    if (!mq) return;
+    if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onMediaChange);
+    else if (typeof mq.removeListener === 'function') mq.removeListener(onMediaChange);
+  };
+}
+
 // Called once at app start (main.jsx): applies the stored preference and
 // registers the ONE media-query listener that keeps "System" live — it
-// re-applies only while the stored preference is still `system`.
+// re-applies only while the stored preference is still `system`. It also
+// registers the print listeners above, so `main.jsx` needs no second call:
+// this module owns the attribute's whole lifecycle.
 export function initTheme() {
   applyTheme(readTheme());
+  const stopPrint = initPrintTheme();
   const mq = mediaQuery();
-  if (!mq) return () => {};
+  if (!mq) return stopPrint;
   const onChange = () => {
     if (readTheme() === 'system') applyTheme('system');
   };
   if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
   else if (typeof mq.addListener === 'function') mq.addListener(onChange);
   return () => {
+    stopPrint();
     if (typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onChange);
     else if (typeof mq.removeListener === 'function') mq.removeListener(onChange);
   };

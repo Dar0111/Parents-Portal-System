@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { timestampDay } from '../../format/date';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -98,8 +99,15 @@ export function ClassSummaryTable({ data }) {
     'sticky left-0 z-10 whitespace-nowrap bg-surface px-3 py-2 text-left font-normal group-hover:bg-surface-subtle';
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-max border-collapse text-sm">
+    // `print-sheet-scroller` / `print-sheet-table` are the two hooks
+    // `index.css`'s print block needs (UI-D). ON PAPER A SCROLLER IS A
+    // GUILLOTINE: `overflow-x-auto` clips at the element's width and there is
+    // no scrollbar to reveal the rest, so five of eight subjects and the
+    // Average column were simply missing from the printout. `min-w-max` is
+    // the other half — it stops the table compressing, so landscape alone
+    // would not have been enough. Both are released for print only.
+    <div className="print-sheet-scroller overflow-x-auto">
+      <table className="print-sheet-table w-full min-w-max border-collapse text-sm">
         <thead>
           <tr className="border-b border-edge bg-surface-subtle text-xs uppercase tracking-wider text-fg-muted">
             <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-surface-subtle px-3 py-2 text-left">
@@ -189,6 +197,27 @@ export default function ClassSummaryPage() {
   usePageTitle('Class summary');
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
+
+  // THE "PRINTED" DATE IS STATE, NOT A RENDER-TIME READ (UI-D).
+  //
+  // The first version called `timestampDay(Date.now())` straight in the JSX
+  // and oxlint's `react(purity)` rule refused it — correctly. `Date.now()` in
+  // a render body is an impure read: the value changes on every re-render, so
+  // the same component can produce two different documents from the same
+  // props. A lazy `useState` initialiser runs once instead.
+  //
+  // AND `beforeprint` REFRESHES IT, which is not belt-and-braces — it is what
+  // makes the line true. A teacher who leaves this tab open overnight and
+  // prints in the morning would otherwise hand out a sheet dated yesterday,
+  // and a wrong date on a record the school keeps is worse than no date.
+  // Safari fires no `beforeprint`, which is exactly why the lazy initialiser
+  // supplies a real value rather than an empty string.
+  const [printedAt, setPrintedAt] = useState(() => timestampDay(Date.now(), { style: 'long' }));
+  useEffect(() => {
+    const refresh = () => setPrintedAt(timestampDay(Date.now(), { style: 'long' }));
+    window.addEventListener('beforeprint', refresh);
+    return () => window.removeEventListener('beforeprint', refresh);
+  }, []);
 
   const [settings, setSettings] = useState(null);
   const [sections, setSections] = useState(null);
@@ -343,9 +372,55 @@ export default function ClassSummaryPage() {
 
   return (
     <div className="space-y-4">
+      {/* LANDSCAPE FOR THIS PAGE ONLY (UI-D). `@page` is a DOCUMENT-level
+          rule — it cannot be nested under a class or an ancestor selector —
+          so there is no way to scope one from `index.css`. The two options
+          are a NAMED page (`@page summary` + `page: summary`), which Firefox
+          does not support, or inserting the rule only while this route is
+          mounted. This is the second: React mounts and unmounts the <style>
+          with the page, so the report card at /teacher/class-summary/:id
+          stays portrait with nothing to clean up.
+
+          COVERAGE, stated rather than assumed: `size` in `@page` works in
+          Chrome and Edge, and in Firefox from 122. SAFARI IGNORES IT — the
+          reader picks orientation in the print dialog. That is survivable
+          precisely because the print block also releases `min-w-max`, so a
+          portrait sheet comes out cramped rather than clipped. */}
+      <style media="print">{'@page { size: landscape; margin: 10mm; }'}</style>
+
+      {/* THE PRINTED SHEET'S MASTHEAD. On screen the Shell supplies the
+          school and the page name; print hides the Shell, so a printout
+          would otherwise be an unlabelled grid of letters. `print-only`,
+          because on screen every one of these facts is already visible in
+          the header, the Class select and the line below it. */}
+      <div className="print-only mb-3 border-b border-edge pb-2">
+        <p className="text-base font-semibold">
+          {settings?.school_name || 'Captain H. Francisco Elementary School'}
+        </p>
+        <p className="text-sm">
+          Summary of Grades
+          {data?.school_year ? ` · School year ${data.school_year}` : ''}
+          {' · '}
+          {data?.show_final === true ? 'Final' : `Term ${term}`}
+        </p>
+        <p className="text-sm">
+          {selected ? `Grade ${selected.grade_level} - ${selected.name}` : ''}
+          {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
+        </p>
+        {/* The instant is formatted by `format/date.js`, never computed here
+            (§5a-iv), and it resolves through Asia/Manila — the date a school
+            record belongs to is a fact about the school, not about the
+            machine the printout came off. */}
+        <p className="text-xs">Printed {printedAt}</p>
+      </div>
+
       <Header />
 
-      <div className="flex flex-wrap items-end gap-3">
+      {/* The filters choose WHICH sheet to print; on the sheet itself they
+          are chrome. Per-page `print:hidden` rather than a blanket rule in
+          `index.css`, because which controls are noise is a per-page
+          judgment — the report card's term links are not. */}
+      <div className="flex flex-wrap items-end gap-3 print:hidden">
         {advised.length > 1 && (
           <FormField label="Class" as="select" value={String(selected?.id ?? '')} onChange={(e) => setParam('section', e.target.value)} className={filterSelectClass}>
             {advised.map((s) => (
@@ -366,7 +441,9 @@ export default function ClassSummaryPage() {
       </div>
 
       {advised.length === 1 && selected && (
-        <p className="text-sm text-fg-muted">
+        /* `print:hidden` — the masthead above already carries the class and
+           the adviser, and printing both would say each twice (UI-D). */
+        <p className="text-sm text-fg-muted print:hidden">
           Grade {selected.grade_level} - {selected.name}
           {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
         </p>
@@ -392,7 +469,9 @@ export default function ClassSummaryPage() {
         )}
       </div>
 
-      <p className="text-xs text-fg-muted">
+      {/* A statement about who may EDIT this screen. Paper cannot be edited,
+          so it says nothing to a reader holding the sheet (UI-D). */}
+      <p className="text-xs text-fg-muted print:hidden">
         Read-only. Grades are encoded by each subject&apos;s teacher under Grades.
       </p>
     </div>
@@ -404,7 +483,9 @@ function Header() {
     // NO <h1>: Shell renders this page's from `nav.js`, and a second one
     // made "Class summary" appear twice and gave the document two top-level
     // headings. The subtitle stays — it is not in the nav label.
-    <p className="text-sm text-fg-muted">
+    // `print:hidden`: on paper the masthead names the sheet, and a standing
+    // description of the screen is chrome (UI-D).
+    <p className="text-sm text-fg-muted print:hidden">
       Every learner in your advisory section, across every learning area.
     </p>
   );

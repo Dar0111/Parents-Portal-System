@@ -136,7 +136,11 @@ export default function ClassSummaryLearnerPage() {
 
   return (
     <div className="space-y-4">
-      <div>
+      {/* Navigation and a statement about editability: neither survives the
+          trip to paper (UI-D). `ReportCard` carries its own masthead — the
+          school name, the learner and the school year — so the printed sheet
+          is still labelled without this block. */}
+      <div className="print:hidden">
         <Link
           to="/teacher/class-summary"
           className="rounded text-sm text-fg-muted underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"

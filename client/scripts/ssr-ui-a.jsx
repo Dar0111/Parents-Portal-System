@@ -48,7 +48,18 @@ console.log('UI-A — the renderers:\n');
 console.log('item 7 — GradeValue colour:');
 
 const plain = render(<GradeValue value="88.05" mode="numerical" />);
-assert(/text-fg\b/.test(plain), 'with no className, the value keeps text-fg — nothing regressed');
+// UPDATED BY UI-D (2026-09-25). This line used to assert the OPPOSITE — that
+// a caller passing no className still got `text-fg`. That default existed for
+// one reason, which UI-D spent: nothing set a base text colour, so inheriting
+// meant the browser default black. `index.css` now sets
+// `body { color: var(--color-fg) }`, so the element sets no colour at all and
+// inherits the same value it used to hardcode. The four assertions below are
+// untouched and still hold.
+assert(
+  !/text-fg\b/.test(plain),
+  'with no className the value emits NO colour — it inherits the base colour on body (UI-D)',
+  plain
+);
 assert(plain.includes('88.05'), 'and still renders the value');
 
 const onNavy = render(<GradeValue value="88.05" mode="numerical" className="text-primary-fg" />);
