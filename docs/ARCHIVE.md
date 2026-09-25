@@ -3686,6 +3686,17 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (fourteenth batch, the pre-Stage-5 #6 docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds the #6 stub, the #6 rule and the
+> CAL dates that #7 needs, and the first measure came in at +845 bytes. Two
+> rows; the table keeps #6 alone until the next pass.
+
+| 2026-09-26 | **Pre-Stage-5 #5b** (`4b092ee`): **the Back button asks too** — a `pushState` sentinel, `classRecord/backGuard.js` a pure machine (`ssr-back-guard` 12), one effect keyed on `dirty` that touches history only, `'BACK'` through the existing leave modal. One accepted quirk: an in-app leave keeps the sentinel behind. Smoke 19/20 on `--watch` (the known first-test row), `smoke:isolated` 20/20. |
+| 2026-09-26 | **Pre-Stage-5 #5a** (`fe67803`, `5df33f2`): **nine settings keys, `GET /settings/public`, the About page** (redesigned per the board; every DepEd quotation checked against deped.gov.ph — three of the board's spellings corrected), **Grades 2–3 `display_order`** (46 seed checks). **The migration ran without a prior backup** — two calls failed in a `--watch` restart; the rule is health → backup → write now. Smoke caught a key collision the browser had not. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (thirteenth batch, the pre-Stage-5 #5 docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4721,6 +4732,43 @@ it), and **(m)'s "one-line client follow-up" was one line of data and three of
 proof** — the fixture had to be the server's `{ descriptor, remarks }` object,
 captured from the suite, with the object-as-child refusal asserted (§19f),
 because the previous hero fixture had invented a string and blanked `/parent`.
+
+### Pre-Stage-5 #6's item (l) — moved from CLAUDE.md on 2026-09-26
+
+Under the REFILL RULE, closed by **#6** (`2ae7639`, browser check passed).
+The fragment as it stood:
+
+```
+      **From the 2026-09-23 school answers: (l) the
+      mid-year transfer scope fix must
+      leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
+      attendance** — handover is outside the system, so re-pointing scope at
+      the new section and dropping the old adviser's access would strand the
+      records.
+```
+
+**What it became:** `recorded_by` as the first leg of a per-row teacher
+predicate, the adviser of the learner's current section as the second, no
+third — the plan's "assigned" leg was cut by Darryl so attendance stays
+adviser-only — and no schema. The entry said "view and print"; the print half
+needed a client change the entry had not named: a row carries the learner's
+CURRENT class, so a section filter on Attendance records could never show a
+moved learner's days, and "Everything I recorded" exists for that. **The
+school's answer went further than the build** — the new adviser "from the
+transfer date" — and the row does not hold a date to cut on; the new adviser
+sees every row of a current learner, and that superset was accepted rather
+than bought with a column. The transfer itself stays a SQL job for the admin,
+recorded as a KNOWN ISSUES decision the same day.
+
+### Deferred polish hygiene — three items DROPPED 2026-09-26
+
+Item 5 and 5b left three hygiene notes in KNOWN_ISSUES: a `useStagedFilters`
+hook the nine filter pages might share, the seven hand-written `canReset`
+expressions, and eight empty-state Clear/Reset buttons still carrying the
+`px-3 py-1.5` literal `buttonNeutralClass` replaced elsewhere. **All three are
+dropped, not deferred** (Darryl, 2026-09-26): none is user-visible, each is
+a refactor of working code, and Stage 5 brings its own component model. The
+KNOWN_ISSUES rows are marked DROPPED and stay so they are not re-filed.
 
 ### Pre-Stage-5 #5's items — moved from CLAUDE.md on 2026-09-26
 

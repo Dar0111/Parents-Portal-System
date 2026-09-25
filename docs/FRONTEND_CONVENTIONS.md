@@ -812,6 +812,24 @@ Messages pages' "New message", fixed on D2; Parent → Excuse Letters'
 "Submit letter", fixed on `fix/empty-state-duplicates`); the other twelve are
 all filter or range resets and stay.
 
+**Teacher → Attendance records has THREE branches since pre-Stage-5 #6
+(2026-09-26), where it had two.** The page's Section picker gained
+**"Everything I recorded"** — the value is the `MINE` sentinel (a string, so
+it can never collide with a section id and `Number()` is never called on
+it); applying it sends **no `grade_level` and no `section`**, so the server's
+per-row teacher scope (`recorded_by = me` OR adviser of the learner's
+current section) is the whole filter, and the table adds a sortable **Class**
+column because the rows now span classes. It is the **default when the
+teacher advises nothing** — the old "You have no advisory section" early
+return is gone, since a former adviser with rows to read is exactly that
+teacher. The three empty branches: a date range applied → *"No records match
+these dates"* (reset offered); "Everything I recorded" with nothing → *"You
+have not recorded any attendance yet"*; a section with nothing → *"No
+attendance recorded for this section yet"*. Why the option exists at all: an
+attendance row carries the learner's CURRENT class, so a section filter can
+never surface the days a former adviser recorded for a learner who has since
+moved — the print half of the school's "view and print" needed this view.
+
 ### 5g. When a live channel fails, say so — never fake liveness
 
 **A real-time surface that dies quietly is worse than one that was never

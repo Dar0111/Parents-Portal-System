@@ -528,7 +528,8 @@ must be structurally impossible outside its own filter. Whether the form
 differs from its default is its own value (`canReset`), never reused as the
 copy flag — that conflation produced wrong copy twice. The branch count
 differs per endpoint (Events three, Announcements two, Memos one, Admin →
-Attendance five) and that is a finding, not an inconsistency. **An empty
+Attendance five, Teacher → Attendance records three since #6) and that is a
+finding, not an inconsistency. **An empty
 state never repeats an action that is always visible in the page header
 (2026-09-19); its message names the header button instead. A filter or range
 reset may sit in the empty state.**
@@ -1535,12 +1536,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       **(c) the school-calendar work (CAL)** — term dates, school-year range,
       a real `current_term`; nothing in the schema holds a term boundary,
       which is why Parent → Attendance derives its months from data. DV3 does
-      not depend on it. **From the 2026-09-23 school answers: (l) the
-      mid-year transfer scope fix must
-      leave the OLD adviser able to VIEW AND PRINT the learner's pre-transfer
-      attendance** — handover is outside the system, so re-pointing scope at
-      the new section and dropping the old adviser's access would strand the
-      records. **#2 (`819e892`) and #3 (`85c5d8f`, `642ccb2`) are DONE
+      not depend on it. **#2 (`819e892`) and #3 (`85c5d8f`, `642ccb2`) are DONE
       2026-09-25** — their text left under the REFILL RULE (`docs/ARCHIVE.md`).
       Two of #3's lines were wrong as written and the archive keeps why:
       **`test:restore`'s failure was the crafted token's missing `v` claim,
@@ -1577,9 +1573,18 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       **every grade level has a confirmed `display_order`** (2–3 seeded
       2026-09-26); and **the Back button on Teacher → Grades is a
       `pushState` sentinel** (`classRecord/backGuard.js`, §13d), never a
-      data-router migration. **NEXT is #6, the attendance transfer scope
-      (l)** — `recorded_by` for the old adviser, the current section forward,
-      no schema — then #7 CAL (its own PLAN ONLY).
+      data-router migration. **#6 (`2ae7639`) is DONE 2026-09-26** — (l),
+      text left under the REFILL RULE. The rule, stated nowhere else: **a
+      teacher reads an attendance row if THEY RECORDED IT or the learner is
+      CURRENTLY in a section they advise** (`recorded_by` OR
+      `sections.adviser_id`, two params, no `teacher_assignments` leg, no
+      schema); **writes stay with the current adviser**; the new adviser
+      sees every row of a current learner, pre-transfer included — accepted;
+      Teacher → Attendance records' "Everything I recorded" is how a former
+      adviser views and prints. **NEXT is #7, CAL — its own PLAN ONLY** (a
+      real `current_term`; the school's dates are LOCKED: classes 2026-06-08
+      → 2027-04-08, Term 1 Jun 8–Sep 15, Term 2 Sep 16–Dec 18, Term 3
+      Jan 4–Apr 8, no Saturday classes).
       **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
       NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
       (`schema.sql:212-216`), so the shape is representable; `grade_components`
@@ -1734,13 +1739,8 @@ School questions and engineering questions are different. A school
 conversation does not answer an engineering row. **Do not trim them
 the same way.**
 
-### School questions — still open (TWO)
+### School questions — still open (ONE)
 
-- **"Quiz up to 10" — ten quizzes, or ten points each?** Said at the
-  2026-09-23 visit and recorded nowhere in the repo until 2026-09-25. Not
-  Stage-5-blocking: `WW_SLOTS = 5` is a client constant and the schema has
-  no CHECK on a slot count or a highest possible score, so either reading is
-  a one-line change once known. Do not seed a cap on a guess.
 - **Are there Saturday or make-up classes?** Asked because the code
   already permits them and nobody decided that it should:
   `POST /api/attendance/bulk` has **no weekday validation**, so a
@@ -1758,10 +1758,13 @@ None of these is a written policy. **Do not cite them in the manuscript as
 documented school policy, and do not re-ask them.** Full entries:
 `docs/ARCHIVE.md` → OPEN QUESTIONS.
 
+- **2026-09-26 — "Quiz up to 10" means FIVE written-work slots, confirmed**;
+  `WW_SLOTS = 5` stands as the school's figure, not a client guess.
 - **2026-09-23 — mid-year transfer: the OLD adviser owns pre-transfer
   attendance, the NEW adviser from the transfer date, the parent sees the
-  whole year.** Code is INVERTED; handover is outside the system — see
-  pre-Stage-5 (l).
+  whole year.** BUILT 2026-09-26 (#6) as `recorded_by` OR adviser of the
+  current section — the new adviser sees pre-transfer rows too, a superset
+  of the school's "via the card", accepted; handover is outside the system.
 - **2026-09-23 — the printed subject order is CONFIRMED for every grade**;
   Grades 2 and 3 are a seed change, pre-Stage-5 (k).
 - **2026-09-23 — the school DOES award bonus points** (event participation,
@@ -2028,8 +2031,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-26 | **Pre-Stage-5 #5b** (`4b092ee`): **the Back button asks too** — a `pushState` sentinel, `classRecord/backGuard.js` a pure machine (`ssr-back-guard` 12), one effect keyed on `dirty` that touches history only, `'BACK'` through the existing leave modal. One accepted quirk: an in-app leave keeps the sentinel behind. Smoke 19/20 on `--watch` (the known first-test row), `smoke:isolated` 20/20. |
-| 2026-09-26 | **Pre-Stage-5 #5a** (`fe67803`, `5df33f2`): **nine settings keys, `GET /settings/public`, the About page** (redesigned per the board; every DepEd quotation checked against deped.gov.ph — three of the board's spellings corrected), **Grades 2–3 `display_order`** (46 seed checks). **The migration ran without a prior backup** — two calls failed in a `--watch` restart; the rule is health → backup → write now. Smoke caught a key collision the browser had not. |
+| 2026-09-26 | **Pre-Stage-5 #6** (`2ae7639`): **the adviser who leaves keeps the days they recorded** — teacher attendance reads are `recorded_by = me` OR adviser of the learner's current section, per row, no assigned leg, no schema; writes stay with the current adviser. Attendance records gains **"Everything I recorded"** (a row carries the learner's CURRENT class, so no section filter could show a moved learner's days). `test:attendance` 64 → **73** with a transfer case moved by SQL on its own fixture. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2038,7 +2040,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in thirteen dated batches —
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in fourteen dated batches —
 14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
 2026-09-19", 14 more under the "second batch, N3" heading below it, **12
 (2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
@@ -2051,8 +2053,9 @@ docs pass"**, **1 under "eighth batch, the UI-D-2+3 docs pass"** and **1
 under "ninth batch, the UI-E docs pass"**, **3 under "tenth batch, the
 pre-Stage-5 #2 docs pass"**, **4 under "eleventh batch, the pre-Stage-5
 #3 docs pass"** (all 2026-09-25), **2 under "twelfth batch, the
-pre-Stage-5 #4 docs pass"** and **3 under "thirteenth batch, the pre-Stage-5
-#5 docs pass"** (both 2026-09-26). **Every full row
+pre-Stage-5 #4 docs pass"**, **3 under "thirteenth batch, the pre-Stage-5
+#5 docs pass"** and **2 under "fourteenth batch, the pre-Stage-5 #6 docs
+pass"** (all 2026-09-26). **Every full row
 is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. This table holds only
