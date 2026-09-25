@@ -3686,6 +3686,18 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-25 (seventh batch, the UI-D-1 docs pass)
+
+> Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
+> table. Dated rows are never edited; every full row is in
+> `docs/CHANGELOG.md`. Moved as the documented overflow valve — the UI-D-1
+> docs pass had a net ≤ 0 budget, and what it adds is a new §18 pointer plus
+> two live queue entries, neither of which may be trimmed. Two rows,
+> 2,585 bytes.
+
+| 2026-09-22 | CLAUDE.md trim, fifth batch: **135,967 → 134,080 on disk (−1,887)** — the blocks gave up 3,112 and this row costs about 1,200 of it back. Candidates 5, 6 and 7 — ~11,708 bytes offered, **the live-rule guard released about a quarter**. **§11 and §12 barely moved, and the reason is new: `docs/FRONTEND_CONVENTIONS.md` STOPS AT §10**, so this file is their only present-tense home and all eleven rules stayed; §12's per-card isolation, no-red, fraction-only, check-the-handler and recent-activity rules returned **zero** hits anywhere. The two attendance BLOCKED / RESOLVED subsections **left permanently under the REFILL RULE** (fully covered — GRADING_SPEC, ARCHIVE 512/2142/2638, and "Late counts as present" was **already in this file at line 1902**). The 2026-09-18 admin SCOPE DECISION had **no archived home** and moved out verbatim; **`Grade lock AND unlock are admin only` had zero hits** and stays word for word. **One STALE CLAIM corrected:** Parent → Attendance was still described as showing a percentage — **DV2 deleted it on 2026-09-20**. Trim-6 candidate found and left alone: `### Corrections` is duplicated in this file and `docs/FRONTEND_CONVENTIONS.md`, with no pointer. |
+| 2026-09-22 | Class record CR0–CR2 **docs pass** (`docs/class-record`): API_REFERENCE gains the two endpoints — slot addressing by `slot_id` **or** `type` + `slot_no`, `dry_run`, `group_hps`, `can_encode`, **locked is `409` and all-or-nothing**; **route order is load-bearing** (both registered before `GET /:id`). GRADING_SPEC **§6e** — **USED is the HPS, not the row**, and a used slot with no score makes that learner's group **Pending, never left out and never zero** (leaving it out silently RAISED an absent learner's grade). FRONTEND_CONVENTIONS **§13** — Teacher → Grades IS the grid, the client never computes a grade, the **sticky learner COLUMN** as DV1b's precedent, the pure `buildPayload.js`, and **a failed build can run the PREVIOUS bundle**. Counts recounted: **23 tables, 87 handlers / 88 endpoints**, oxlint **41**. **Every suite re-run — EIGHT baselines were stale** (students 94, grades 239, attendance 60, content 96, users 61, backups 47, messages 80, excuses 92); `test:class-record` **117**. Three KNOWN_ISSUES rows (**Back button escapes the unsaved guard**; `test:restore`'s `iat` failure — **fix the test, not the comparison**; `test:recovery` needs `MAIL_TRANSPORT=file` **on the server**), decimal-scores row CLOSED. REFILL RULE applied to three closed items. **Item 6 corrected: the guess that the grid would take the `ScorePair` fix was wrong.** |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-24 (sixth batch, the SMOKE-1 docs pass)
 
 > Verbatim, newest first, exactly as they stood in CLAUDE.md's CHANGELOG
@@ -4465,6 +4477,61 @@ no render and no browser check could have found it; the assertion
   it asserts the parent letter card's title, which this dispatch changed. A
   proof that renders a component is coupled to that component, and a
   whitelist drawn from the pages alone will keep missing one.
+
+### UI-D (a) and (b) — moved from CLAUDE.md on 2026-09-25
+
+Under the REFILL RULE, closed by **UI-D-1** (`7513457`, paper check passed
+1-9). (c) and (d) stay open in the queue and need a mockup first.
+
+```
+  **(a) There is NO print CSS in the client** — not one `print:` variant, not
+  one `@media print`. On paper, 2026-09-23: Teacher → Class summary printed
+  the **sidebar, top bar and Term select**, and **`overflow-x-auto` CLIPPED —
+  5 of 8 subjects and the Average column missing, scrollbar printed.** The
+  school accepts a printout as the Summary of Grades. **The clipped scroller
+  first:** chrome on the page is ugly, a missing column is wrong.
+
+  **(b) Nothing sets a base text colour** (no `body`, `#root` or `@layer
+  base` rule), so an element that sets none inherits black — invisible in
+  dark. `DataTable`'s `<td>` hides this; the three screens with their own
+  tables do not. **With a base colour, `GradeValue` returns to pure
+  inheritance** and UI-A's `className || 'text-fg'` comes back out (§3a).
+```
+
+**"The clipped scroller first" was the right instinct and an incomplete
+diagnosis.** Releasing `overflow-x-auto` alone would have changed nothing,
+because the table is also `min-w-max` — it never compresses, so it would have
+overflowed the sheet instead of being clipped by the wrapper. Both halves,
+plus wrapping the headers, are what make the columns fit. Every rule is
+`docs/FRONTEND_CONVENTIONS.md` §18.
+
+**Three things the entry did not anticipate:**
+
+- **`@page` cannot be scoped by a selector**, so "landscape for this page
+  only" is not a CSS question but a mounting one — a `<style>` that lives as
+  long as the route. The named-page alternative fails in Firefox, and
+  **Safari ignores `size` entirely**, which only became acceptable once
+  `min-w-max` was released and a portrait sheet came out cramped rather than
+  cut.
+- **The report card's container query could not be trusted at print width.**
+  The arithmetic said its table branch would win; nothing could prove it, and
+  the failure mode was not a broken layout but a DIFFERENT DOCUMENT. Forced
+  with `!important` rather than a `print:block` utility, because those two
+  variants have equal specificity and stylesheet order would have decided it
+  — §3a's lesson arriving in a new place.
+- **Dark print belonged in `theme.js`, not in `@media print`.** The media
+  query route means a verbatim second copy of ~71 custom properties; the
+  attribute swap means one. The part worth keeping is that restoring
+  **re-reads storage** instead of remembering, so System comes back as System
+  and re-resolves against the OS.
+
+**And one defect found by lint rather than by review:** `Date.now()` in a
+render body is impure, so the same props could produce two documents. §18i.
+
+**A second whitelist miss in as many dispatches** — `ssr-ui-a.jsx` this time,
+whose line-51 assertion was the exact inverse of what UI-D shipped. That is
+now a working-agreement rule in CLAUDE.md: a whitelist includes every proof
+that renders a touched module, and a PLAN ONLY greps for them.
 
 ### UI-C2's closed items — moved from CLAUDE.md on 2026-09-24
 

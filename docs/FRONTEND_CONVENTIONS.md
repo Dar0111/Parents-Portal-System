@@ -1916,3 +1916,182 @@ reports a clean pass on code that is not there.
 is still worth having. This one fires in the browser, which is where the
 defect was actually found both times.
 
+## 18. Print, and the base text colour
+
+**Frozen 2026-09-25 (UI-D-1).** Two things that live above every page and
+neither had ever been set. Before this dispatch the client contained **no
+print CSS at all** — not one `print:` variant, not one `@media print`, not
+one `@page` — and **no base text colour** — no rule on `body`, `#root` or in
+`@layer base`.
+
+### 18a. Only three surfaces print, and two of them are one component
+
+The school accepts a printout as the Summary of Grades. That is the whole
+requirement, and it lands on:
+
+| Surface | Component |
+|---|---|
+| Teacher → Class summary | `ClassSummaryPage.jsx` |
+| Teacher → a learner's report card | **`parent/ReportCard.jsx`** |
+| Parent → Grades | **`parent/ReportCard.jsx`** |
+
+`ClassSummaryLearnerPage.jsx` imports the parent's `ReportCard` unchanged, so
+**print work on that one file lands on a teacher screen and a parent screen at
+once.** Nothing else is in scope: Parent → Attendance is a month grid that
+would plausibly print, and **no school requirement is recorded for it**, so it
+was deliberately left out rather than added on a guess.
+
+### 18b. Where print CSS lives, and where it does not
+
+**The global block is in `client/src/index.css`.** It hides the SHELL — the
+chrome every page carries — and it can do that **by landmark**, because
+`Shell` uses real ones: `<aside>` for the sidebar and its drawer, `<header>`
+for the top bar (which owns the notification panel), `<main>` for the routed
+page.
+
+**Bare element selectors, never depth-specific ones.** The first version was
+`body > * > aside`, which matches nothing: the Shell nests its landmarks below
+`#root`, and a selector that is wrong about depth **fails silently** — the
+sidebar would simply have printed. The only other `<aside>` and `<header>` in
+the client are on Login and the dev gallery, neither of them printable.
+
+**Which controls are noise is a PER-PAGE judgment, so that is `print:hidden`
+at the call site.** A blanket `button { display: none }` in the global block
+would also delete the report card's own term links. What the pages hide:
+filters and selects, a standing description of the screen, a duplicate of a
+fact the masthead already carries, a statement about who may EDIT (paper
+cannot be edited), and the parent breakdown `Modal` — which renders **inline,
+not through a portal**, behind a `fixed inset-0 z-50` backdrop, so a print
+started while it is open would put the dialog over the report card and paper
+has no way to dismiss it.
+
+### 18c. A scroller is a guillotine on paper
+
+`overflow-x-auto` clips at the element's width, and **paper has no scrollbar
+to reveal the rest.** Measured on the class summary, 2026-09-23: **five of
+eight subjects and the Average column were missing from the printout**, with a
+scrollbar printed where they should have been.
+
+**`min-w-max` is the other half of it.** It stops the table compressing, so
+releasing the overflow alone changes nothing and **landscape alone would not
+have been enough either.** Both are released under print, via two hooks —
+`print-sheet-scroller` and `print-sheet-table` — together with letting headers
+wrap ("Araling Panlipunan" is the column that decides the fit) and making
+sticky cells static, since a sticky column has nothing to stick to on paper
+and can overlap.
+
+### 18d. Landscape is scoped per page, and Safari ignores it
+
+**`@page` is a DOCUMENT-level rule.** It cannot be nested under a class or an
+ancestor selector, so there is no way to scope one from `index.css`. Two
+options exist and only one is portable:
+
+- a **named page** (`@page summary` + `page: summary`) — **not supported in
+  Firefox**;
+- **inserting the rule only while that route is mounted** — a
+  `<style media="print">` rendered by the page, which React mounts and
+  unmounts with it. **This is the one used.** The report card at
+  `/teacher/class-summary/:id` stays portrait with nothing to clean up.
+
+**Coverage, stated rather than assumed: `size` in `@page` works in Chrome and
+Edge, and in Firefox from 122. SAFARI IGNORES IT** — the reader picks
+orientation in the print dialog. **That is acceptable only because §18c
+releases `min-w-max`:** a portrait sheet comes out cramped, never clipped.
+
+### 18e. A container query cannot be trusted at print width
+
+`ReportCard` switches between a table and per-term cards on a **container**
+query (`@min-[36rem]`, §5a-vi). **What that container measures during a print
+is a render-time fact**, and §5h already says a build and an SSR render cannot
+settle one. The arithmetic says the table wins (A4 portrait ≈ 718px against a
+576px threshold) but **does not prove it**, and printing the narrow branch
+would not be a broken layout — it would be **a different document**, which
+nobody notices until a parent is holding it.
+
+So print **forces** the table branch. **With `!important`, not with a
+`print:block` utility:** a print variant and a container variant have **equal
+specificity**, so the winner would be decided by stylesheet ORDER — the same
+order dependence §3a exists to remove.
+
+### 18f. Dark printing is fixed in `theme.js`, NOT in `@media print`
+
+**Browsers do not print backgrounds by default**, so a dark theme's `--fg`
+(slate-100) lands on an unprinted white sheet. That is not "hard to read", it
+is **invisible** — on the one output the school actually keeps.
+
+**The obvious fix is the wrong one.** Re-declaring the light values inside a
+print media query means a **verbatim second copy of ~71 custom properties**,
+and the next person to change a token would have to change it twice with
+nothing to catch them missing one — the "one number, one place" liability
+CLAUDE.md's front matter exists to prevent.
+
+`pages/settings/theme.js` already owns the `data-theme` attribute that IS the
+theme, so it **swaps the attribute for the duration of the print** and leaves
+one copy of the values. Three rules:
+
+- **`beforeprint`/`afterprint` cover Chrome, Edge and Firefox. SAFARI FIRES
+  NEITHER** — it changes `matchMedia('print')` instead — so both are
+  registered. On a browser with both, each calls `applyTheme` with the same
+  argument, which is idempotent.
+- **Restoring RE-READS storage rather than remembering.** `endPrintTheme()`
+  calls `applyTheme(readTheme())`, the exact line `initTheme` uses at startup,
+  so **System comes back as System and re-resolves live** rather than being
+  frozen to whichever side it was on when the dialog opened. Proved by
+  flipping the OS mid-print.
+- **Nothing is written to storage.** Printing is not a settings change.
+
+It registers from inside `initTheme()`, so `main.jsx` needs no second call —
+this module owns the attribute's whole lifecycle.
+
+### 18g. The base text colour, and the one call site it moves
+
+`body { color: var(--color-fg) }` in `index.css`. Until that line existed,
+**any element setting no colour inherited the browser default, black** —
+about **1.06:1** on the dark `--page`, which is invisible. `DataTable`'s
+`<td>` hid this (it sets `text-fg-secondary`); the screens that build their
+own tables did not.
+
+In light this moves untouched text from `#000` to slate-900 — 21:1 to 17.6:1
+on white, both still AAA. **`lint:contrast` is unchanged**, because a body
+colour adds no token PAIR: `fg` on `surface` and `fg` on `page` are already
+asserted.
+
+**`GradeValue` therefore returns to pure inheritance**, and the `className ||
+'text-fg'` default UI-A shipped comes back out. **One call site changes colour
+and it is an accepted trade, not an oversight:** inheritance resolves against
+the nearest COLOURED ancestor, which is not always `body` — inside `DataTable`
+it is the `<td>`, so `admin/GradesPage`'s Final Grade moves from `fg` to
+`fg-secondary`. Kept, because every other cell in that table is
+`fg-secondary` and a grade disagreeing with the cells beside it would be the
+odder result.
+
+### 18h. Print layout is proved ON PAPER, and by nothing else
+
+**`@media print` does not apply to a `renderToStaticMarkup` render.** There is
+no page box, no `@page`, no orientation and no paper width. §5h says a build
+and a lint prove the code compiles rather than that the page renders; **print
+is the case where even the SSR backstop cannot stand in.**
+
+What a proof *can* assert, and `scripts/ssr-ui-d.jsx` does:
+
+- the component emits no colour of its own, and a caller's class still wins;
+- **the base colour and every print rule reached the BUILT stylesheet** —
+  grepped, not trusted. **A Tailwind variant that generates no CSS fails
+  silently** (the `h-9.5` lesson, §5a-vi), so `print:hidden` being inert would
+  mean every "hidden" control printed, with nothing to say so;
+- the theme switch restores light, dark and System, including an OS flip
+  mid-print.
+
+**A proof that cannot reach the thing must say so in its own header**, rather
+than reporting a green run that reads as broader than it is.
+
+### 18i. `Date.now()` in a render body is impure
+
+Found by oxlint's `react(purity)` rule on the printed-on date, not by review.
+An impure read during render means **the same props can produce two different
+documents**. It is state with a lazy initialiser instead, **refreshed on
+`beforeprint`** — which is not belt-and-braces but what makes the line true: a
+tab left open overnight would otherwise print yesterday's date on a record the
+school keeps. Safari fires no `beforeprint`, which is exactly why the lazy
+initialiser supplies a real value rather than an empty string.
+
