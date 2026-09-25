@@ -48,6 +48,20 @@ function childName(user) {
   return name || null;
 }
 
+// The avatar's letters (UI-D-3). INITIALS BECAUSE THERE IS NO PHOTO: the
+// schema has no column for one and no route uploads one, so this is what the
+// data supports rather than a placeholder for something coming later.
+//
+// It is `aria-hidden` at the call site, so it never has to be readable as
+// text — the child's full name sits beside it. A learner with only one
+// recorded name gets one letter rather than a padded pair, and a learner with
+// neither gets nothing at all rather than a stray character.
+function childInitials(user) {
+  const first = (user?.student_first_name || '').trim().charAt(0);
+  const last = (user?.student_last_name || '').trim().charAt(0);
+  return `${first}${last}`.toUpperCase();
+}
+
 // (Present + Late) as the numerator: the school's rule, confirmed by the
 // principal on 2026-09-13 — Late counts as present, Excused counts as
 // absent.
@@ -272,86 +286,157 @@ function DateTile({ dateStr }) {
 // spinner under renderToStaticMarkup, and the states that matter here — a
 // Key Stage 1 card with letters and NO number, a pending average that must
 // never read 0 — are exactly the ones worth proving.
-export function ChildHero({ linked, user, section, grades, letterTerm, monthDays, letter }) {
+export function ChildHero({ linked, user, section, grades, letterTerm, monthDays, letter, term }) {
   return (
-    <section className="rounded-xl bg-primary p-5 text-primary-fg">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-primary-fg">Your child</h2>
+    // `brand-panel`, NOT `primary` (UI-D-3). `--primary` is designed as a
+    // BUTTON fill, and its dark value is `#ABA8F7` — a light indigo, which
+    // turned this full-width panel into the brightest thing on a dark screen,
+    // directly against the Dark option's own "easier on the eyes at night".
+    // `--brand-panel` exists for exactly this and was already in use by the
+    // Login split panel: a solid brand field in BOTH themes (`#08027C` light,
+    // `#23204F` dark) with `--brand-panel-fg` white on each. Reusing it means
+    // no new token and no new contrast pair — both foregrounds were already
+    // asserted; only the badge-on-panel boundaries are new.
+    <section className="rounded-xl bg-brand-panel p-5 text-brand-panel-fg">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-brand-panel-muted">Your child</h2>
       {!linked ? (
-        <p className="mt-2 text-sm text-primary-fg">
+        <p className="mt-2 text-sm text-brand-panel-fg">
           This account is not linked to a learner yet. Ask the school office.
         </p>
       ) : (
         <>
-          <p className="mt-1 text-xl font-semibold">{childName(user) || 'Name not recorded'}</p>
-          <p className="text-sm text-primary-fg">
-            {classLabel(user) || 'Class not recorded'}
-            {' · Adviser: '}
-            {section.loading ? '…' : section.data?.adviser_name || 'not yet assigned'}
-          </p>
+          {/* INITIALS, NOT A PHOTO. There is no photo column anywhere in the
+              schema and no upload route for one, so initials are what the
+              data can actually support — and they give the panel a fixed
+              anchor on the left that the three figures below line up to. */}
+          <div className="mt-1 flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-brand-panel-muted text-lg font-semibold"
+            >
+              {childInitials(user)}
+            </span>
+            <div className="min-w-0">
+              <p className="text-xl font-semibold">{childName(user) || 'Name not recorded'}</p>
+              <p className="text-sm text-brand-panel-muted">
+                {classLabel(user) || 'Class not recorded'}
+                {' · Adviser: '}
+                {section.loading ? '…' : section.data?.adviser_name || 'not yet assigned'}
+              </p>
+            </div>
+          </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {/* THIN DIVIDERS BETWEEN THE THREE FIGURES. Stacked on a phone they
+              are three unrelated blocks of text with only a gap between them;
+              a rule says they are three answers to three questions. The
+              divider follows the stacking direction — a top border while
+              stacked, a left border once they are side by side — so it is
+              never drawn across the flow. `first:border-0` keeps a rule off
+              the leading edge in both directions. */}
+          <div className="mt-4 grid gap-4 sm:grid-cols-3 [&>div]:border-t [&>div]:border-brand-panel-muted/40 [&>div]:pt-4 [&>div]:first:border-t-0 [&>div]:first:pt-0 sm:[&>div]:border-l sm:[&>div]:border-t-0 sm:[&>div]:pl-4 sm:[&>div]:pt-0 sm:[&>div]:first:border-l-0 sm:[&>div]:first:pl-0">
             <div>
-              <p className="text-xs uppercase tracking-wide text-primary-fg">
+              <p className="text-xs uppercase tracking-wide text-brand-panel-muted">
                 {grades?.descriptive ? 'Latest letters' : 'General average'}
               </p>
               {grades?.descriptive ? (
                 // KEY STAGE 1 HAS NO GENERAL AVERAGE (GRADING_SPEC §6a), so
                 // the hero shows the grades themselves. Darryl, 2026-09-23.
                 letterTerm ? (
+                  // A CHIP IS NOT A LABEL (UI-D-3). This rendered the letter
+                  // alone with the subject in a `title`, so the panel read
+                  // "A  D" — two letters with nothing to say what either was
+                  // about — and `title` does not exist on touch, which is the
+                  // device a parent reads this on. The subject name was in
+                  // scope on the element that printed the letter the whole
+                  // time; this is a rendering fix, not an API one.
+                  //
+                  // The DESCRIPTOR comes with it, from the same payload and
+                  // equally unused before now. It is the letter's meaning
+                  // (GRADING_SPEC Table 8) — "A" alone asks the parent to
+                  // remember a scale.
                   <div className="mt-1">
-                    <p className="text-xs text-primary-fg">Term {letterTerm.term}</p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
+                    <p className="text-xs text-brand-panel-muted">Term {letterTerm.term}</p>
+                    <ul className="mt-1 space-y-1.5">
                       {letterTerm.pills.map((p) => (
-                        <span
-                          key={p.name}
-                          title={p.name}
-                          className="rounded-md border border-primary-fg px-2 py-0.5 text-sm font-semibold"
-                        >
-                          {p.letter}
-                        </span>
+                        <li key={p.name} className="flex items-baseline gap-2">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-brand-panel-muted text-sm font-semibold">
+                            {p.letter}
+                          </span>
+                          <span className="min-w-0 text-sm">
+                            {p.name}
+                            {p.descriptor ? (
+                              <span className="text-brand-panel-muted"> · {p.descriptor}</span>
+                            ) : null}
+                          </span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
+                    {/* WHAT IS MISSING IS ALSO A FACT. The old panel filtered
+                        unrecorded subjects out and said nothing, so a learner
+                        with two letters of five looked complete. This is NOT
+                        the "N of M" progress figure §12 refuses for Key Stage
+                        1 — it does not imply a denominator of achievement or
+                        a bar to fill; it names the subjects that have no
+                        letter yet, which is the difference between silence
+                        and a claim. */}
+                    {letterTerm.missing > 0 ? (
+                      <p className="mt-2 text-xs text-brand-panel-muted">
+                        {letterTerm.missing} more{' '}
+                        {letterTerm.missing === 1 ? 'subject' : 'subjects'} not yet recorded for Term{' '}
+                        {letterTerm.term}
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
-                  <p className="mt-1 text-sm text-primary-fg">No letters recorded yet.</p>
+                  <p className="mt-1 text-sm text-brand-panel-fg">No letters recorded yet.</p>
                 )
-              ) : grades?.complete ? (
-                <p className="mt-1 text-2xl font-semibold">
-                  {/* TWO DECIMALS, through the one renderer the whole system
-                      uses — GRADING_SPEC §4a. This card printed "87.5"
-                      against the report card's "87.50" until DV4.
+              ) : grades?.average !== null && grades?.average !== undefined ? (
+                <>
+                  <p className="mt-1 text-2xl font-semibold">
+                    {/* TWO DECIMALS, through the one renderer the whole system
+                        uses — GRADING_SPEC §4a. This card printed "87.5"
+                        against the report card's "87.50" until DV4.
 
-                      `className` IS LOAD-BEARING HERE, not decoration (F1).
-                      GradeValue hardcodes `text-fg`, which is DARK in light
-                      mode — on this navy panel the average was invisible,
-                      while the plain-text figures beside it were fine because
-                      they inherit the hero's colour and this one did not.
-                      Passing the hero's foreground is what the prop exists
-                      for, and it keeps §3's one-renderer-for-every-grade rule
-                      rather than formatting a number by hand here.
+                        NO `className` SINCE UI-D-1. `GradeValue` used to
+                        hardcode `text-fg` — dark in light mode, so on this
+                        panel the average was invisible and DV4 had to pass
+                        the panel's foreground to beat it, winning only by
+                        stylesheet ORDER. `index.css` now sets a base colour
+                        and the component emits none, so the figure simply
+                        inherits `text-brand-panel-fg` from the section like
+                        every other number here. The race is gone rather than
+                        guarded. */}
+                    <GradeValue value={grades.average} mode="numerical" />
+                  </p>
+                  {/* THE TERM IS `current_term`, NOT "the greatest term with
+                      any grade" (§12). Those are two different questions and
+                      this panel used to answer them in two places at once:
+                      the letters column read `current_term` while the average
+                      read whatever term had data, so one hero could state two
+                      terms. The caption names the term so the figure cannot
+                      be read as a year-to-date number.
 
-                      It works because `.text-primary-fg` is generated AFTER
-                      `.text-fg`, so it wins when both sit on the element. The
-                      render proof asserts that ordering against the BUILT
-                      stylesheet, so a future Tailwind reorder fails loudly
-                      instead of quietly hiding this number again. */}
-                  <GradeValue
-                    value={grades.general_average}
-                    mode="numerical"
-                    className="text-primary-fg"
-                  />
-                </p>
+                      NO DESCRIPTOR, and its absence is a decision (Darryl,
+                      2026-09-25): `general_average_descriptor` describes the
+                      YEAR's general average, not a term's, and there is no
+                      per-term-average descriptor in the payload. Deriving one
+                      here would be a second implementation of the BANDS
+                      ladder in the client, which §12 forbids. Queued as a
+                      server field; the caption becomes "Term N · <word>" the
+                      day it exists. */}
+                  <p className="text-xs text-brand-panel-muted">Term {term}</p>
+                </>
               ) : (
-                <p className="mt-1 text-sm text-primary-fg">
-                  {grades?.term
-                    ? `Term ${grades.term} — ${grades.subjects_recorded} of ${grades.subjects_total} recorded`
+                <p className="mt-1 text-sm text-brand-panel-fg">
+                  {grades?.subjects_total
+                    ? `Term ${term} — ${grades.subjects_recorded ?? 0} of ${grades.subjects_total} recorded`
                     : 'No grades recorded yet.'}
                 </p>
               )}
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-wide text-primary-fg">Present this month</p>
+              <p className="text-xs uppercase tracking-wide text-brand-panel-muted">Present this month</p>
               {/* "recorded days" BELONGS TO THE FRACTION and goes inside the
                   branch with it (F4). It used to sit outside, so an account
                   with nothing recorded printed "Nothing recorded this month."
@@ -362,22 +447,26 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                   <p className="mt-1 text-2xl font-semibold">
                     {monthDays.present} <span className="text-base font-normal">of {monthDays.total}</span>
                   </p>
-                  <p className="text-xs text-primary-fg">recorded days</p>
+                  <p className="text-xs text-brand-panel-muted">recorded days</p>
                 </>
               ) : (
-                <p className="mt-1 text-sm text-primary-fg">Nothing recorded this month.</p>
+                <p className="mt-1 text-sm text-brand-panel-fg">Nothing recorded this month.</p>
               )}
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-wide text-primary-fg">Latest excuse letter</p>
+              <p className="text-xs uppercase tracking-wide text-brand-panel-muted">Latest excuse letter</p>
               {letter.data ? (
                 <div className="mt-1 space-y-1">
+                  {/* The badge paints its own tint, so it is unaffected by
+                      the panel behind it — but this is the first time one
+                      sits anywhere but `surface`, so `check-contrast` gained
+                      three boundary pairs for it (UI-D-3). */}
                   <StatusBadge status={letter.data.status} />
-                  <AbsenceLine date={letter.data.absence_date} className="text-xs text-primary-fg" />
+                  <AbsenceLine date={letter.data.absence_date} className="text-xs text-brand-panel-muted" />
                 </div>
               ) : (
-                <p className="mt-1 text-sm text-primary-fg">None sent.</p>
+                <p className="mt-1 text-sm text-brand-panel-fg">None sent.</p>
               )}
             </div>
           </div>
@@ -539,11 +628,50 @@ export default function ParentDashboard() {
   const letterTerm = (() => {
     const subjects = card.data?.subjects;
     if (!Array.isArray(subjects)) return null;
+    // The DESCRIPTOR travels with the letter (UI-D-3). It was already in this
+    // payload and already being thrown away here — `buildTermEntry` returns
+    // it beside `descriptive_grade` — and a letter without its meaning asks
+    // the parent to remember a five-point scale.
     const pills = subjects
-      .map((s) => ({ name: s.subject_name, letter: s.terms?.[currentTerm]?.descriptive_grade ?? null }))
+      .map((s) => ({
+        name: s.subject_name,
+        letter: s.terms?.[currentTerm]?.descriptive_grade ?? null,
+        // `.descriptor.descriptor` — the ENTRY is an object, `{ descriptor,
+        // filipino }` from `gradeComputation.js`'s Table 8, and the English
+        // word is the one every other screen renders (`TermValue.jsx:31`,
+        // `parent/GradesPage.jsx:290`). Passing the object itself crashed
+        // the whole dashboard to a blank page: React refuses an object as a
+        // child, and there is no error boundary above this.
+        descriptor: s.terms?.[currentTerm]?.descriptor?.descriptor ?? null,
+      }))
       .filter((p) => p.letter);
-    return pills.length ? { term: currentTerm, pills } : null;
+    // WHAT IS NOT RECORDED IS CARRIED TOO, rather than silently filtered:
+    // two letters out of five used to look like a complete card.
+    return pills.length
+      ? { term: currentTerm, pills, missing: subjects.length - pills.length }
+      : null;
   })();
+
+  // THE HERO'S AVERAGE IS `current_term`'s, NOT THE DASHBOARD'S (UI-D-3, §12).
+  //
+  // `GET /api/dashboard` picks "the greatest term 1..3 that has any grade"
+  // (`dashboard.js`), which is a different question from "which term is the
+  // school in". The letters column already read `current_term`, so one panel
+  // could state two terms at once — exactly the defect DV4 fixed for Key
+  // Stage 1, still live on the numerical side.
+  //
+  // `term_averages` from the report card is the SAME COMPUTATION, checked
+  // rather than assumed: `computeTermAverages` (`grades.js:660`) and the
+  // dashboard's own branch both take the mean of every subject's term grade,
+  // return null unless EVERY subject is recorded, and round to 2 — so this
+  // changes which term is shown and nothing about how it is worked out. A
+  // partial term stays null, and §12's "do not show a partial average" holds.
+  const heroGrades = grades?.descriptive
+    ? grades
+    : {
+        ...grades,
+        average: card.data?.term_averages?.[currentTerm] ?? null,
+      };
 
   const monthDays = recordedDays(month.data);
 
@@ -572,7 +700,8 @@ export default function ParentDashboard() {
         linked={linked}
         user={user}
         section={section}
-        grades={grades}
+        grades={heroGrades}
+        term={currentTerm}
         letterTerm={letterTerm}
         monthDays={monthDays}
         letter={letter}

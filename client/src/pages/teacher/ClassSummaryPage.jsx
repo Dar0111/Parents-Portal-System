@@ -6,6 +6,11 @@ import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+// THE `.jsx` IS REQUIRED, not stylistic. `ScrollCue.jsx` and `scrollCue.js`
+// differ only in CASE, and Windows filesystems are case-insensitive: an
+// extensionless `'../../components/ScrollCue'` tries `.js` first, matches the
+// helper module, and fails with "Missing export" — which is what it did.
+import ScrollCue from '../../components/ScrollCue.jsx';
 import { timestampDay } from '../../format/date';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
@@ -99,14 +104,41 @@ export function ClassSummaryTable({ data }) {
     'sticky left-0 z-10 whitespace-nowrap bg-surface px-3 py-2 text-left font-normal group-hover:bg-surface-subtle';
 
   return (
-    // `print-sheet-scroller` / `print-sheet-table` are the two hooks
-    // `index.css`'s print block needs (UI-D). ON PAPER A SCROLLER IS A
-    // GUILLOTINE: `overflow-x-auto` clips at the element's width and there is
-    // no scrollbar to reveal the rest, so five of eight subjects and the
-    // Average column were simply missing from the printout. `min-w-max` is
-    // the other half — it stops the table compressing, so landscape alone
-    // would not have been enough. Both are released for print only.
-    <div className="print-sheet-scroller overflow-x-auto">
+    // `ScrollCue` owns the scroller now (UI-D-2) — it applies
+    // `print-sheet-scroller` itself, so the print behaviour §18c describes is
+    // unchanged: `overflow-x-auto` and `min-w-max` are both released on
+    // paper, which is what stopped five of eight subjects going missing.
+    //
+    // THE COUNT IS THE WORDING HERE because these columns are learning areas
+    // and a number is the useful answer: a teacher who is told "6 more
+    // subjects" knows what they have not seen. The class record names its
+    // groups instead, for the opposite reason (`components/scrollCue.js`).
+    //
+    // The cells measured are the ONE header row's, which is every column:
+    // learner, each learning area, and the Average. `offsetLeft +
+    // offsetWidth` is measured against the scroller's own content box, so a
+    // page scrolled vertically cannot shift it.
+    <ScrollCue
+      ariaLabel="Class summary, scrolls sideways"
+      measureCells={(el) =>
+        Array.from(el.querySelectorAll('thead tr:last-child th')).map((th) => ({
+          right: th.offsetLeft + th.offsetWidth,
+        }))
+      }
+      describe={({ hiddenCount }) => {
+        if (hiddenCount < 1) return null;
+        // The Average is the last column, so when anything is hidden it is
+        // among them — name it rather than folding it into the count, since
+        // "7 more subjects" would be wrong by one and the Average is the
+        // column a teacher is most likely to be looking for.
+        const subjectsHidden = showGeneralAverage ? hiddenCount - 1 : hiddenCount;
+        if (showGeneralAverage && subjectsHidden < 1) return 'Swipe for the Average →';
+        const noun = subjectsHidden === 1 ? 'subject' : 'subjects';
+        return showGeneralAverage
+          ? `Swipe for ${subjectsHidden} more ${noun} and the Average →`
+          : `Swipe for ${subjectsHidden} more ${noun} →`;
+      }}
+    >
       <table className="print-sheet-table w-full min-w-max border-collapse text-sm">
         <thead>
           <tr className="border-b border-edge bg-surface-subtle text-xs uppercase tracking-wider text-fg-muted">
@@ -177,7 +209,7 @@ export function ClassSummaryTable({ data }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollCue>
   );
 }
 

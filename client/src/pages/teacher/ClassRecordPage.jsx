@@ -8,6 +8,11 @@ import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+// The `.jsx` is required — see the note on the same import in
+// ClassSummaryPage.jsx: the two filenames differ only in case and Windows
+// resolves `.js` first.
+import ScrollCue from '../../components/ScrollCue.jsx';
+import { listLabels } from '../../components/scrollCue.js';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
@@ -499,8 +504,28 @@ export default function ClassRecordPage() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded-xl border border-edge">
-            <table className="w-full border-collapse text-sm">
+          {/* THE SAME CUE AS THE CLASS SUMMARY, AND IT IS NEEDED MORE HERE
+              (UI-D-2). This grid has more columns than the summary and the
+              same silence: the pinned Learner column made the table usable
+              while scrolled, and nothing ever said it scrolled. A cue built
+              only for the summary would have been the narrower fix.
+
+              It names the GROUPS rather than counting columns — see the
+              `data-group` note in the header row. */}
+          <ScrollCue
+            ariaLabel="Class record, scrolls sideways"
+            scrollerClassName="rounded-xl border border-edge"
+            measureCells={(el) =>
+              Array.from(el.querySelectorAll('thead tr:first-child th[data-group]')).map((cell) => ({
+                right: cell.offsetLeft + cell.offsetWidth,
+                label: cell.dataset.group,
+              }))
+            }
+            describe={({ hiddenLabels }) =>
+              hiddenLabels.length ? `Swipe for ${listLabels(hiddenLabels)} →` : null
+            }
+          >
+            <table className="print-sheet-table w-full border-collapse text-sm">
               <caption className="sr-only">
                 {server.subject.name}, Grade {server.grade_level} - {server.section}, term {server.term}: every
                 learner&rsquo;s scores for each assessment, with the totals the server computed.
@@ -510,15 +535,38 @@ export default function ClassRecordPage() {
                   <th scope="col" className={`sticky left-0 z-10 ${th} text-left`} rowSpan={2}>
                     Learner
                   </th>
-                  <th scope="colgroup" colSpan={wwSlots.length + 3} className={`${th} border-l border-edge text-center`}>
+                  {/* `data-group` carries the BARE name for `ScrollCue`'s
+                      hint (UI-D-2). The visible label is
+                      `groupLabel(name, weight)` — "Performance Tasks · 50%" —
+                      and a sentence reading "Swipe for Performance Tasks ·
+                      50% and Grade" is not a sentence. The attribute keeps
+                      the two apart without a second constant to drift.
+
+                      NAMES, NOT A COUNT, and that is the difference from the
+                      class summary. These columns are assessment slots inside
+                      ONE subject, so "7 more assessments" tells a teacher
+                      nothing; "Summative and Grade" tells them exactly what
+                      they have not seen. */}
+                  <th
+                    scope="colgroup"
+                    colSpan={wwSlots.length + 3}
+                    data-group="Written / Oral Works"
+                    className={`${th} border-l border-edge text-center`}
+                  >
                     {groupLabel('Written / Oral Works', weights?.ww ?? '—')}
                   </th>
-                  <th scope="colgroup" colSpan={ptSlots.length + 3} className={`${th} border-l border-edge text-center`}>
+                  <th
+                    scope="colgroup"
+                    colSpan={ptSlots.length + 3}
+                    data-group="Performance Tasks"
+                    className={`${th} border-l border-edge text-center`}
+                  >
                     {groupLabel('Performance Tasks', weights?.pt ?? '—')}
                   </th>
                   <th
                     scope="colgroup"
                     colSpan={EXAM_FIELDS.length + 3}
+                    data-group={descriptive ? 'Summative' : 'Summative Tests & Term Exam'}
                     className={`${th} border-l border-edge text-center`}
                   >
                     {groupLabel(
@@ -526,7 +574,12 @@ export default function ClassRecordPage() {
                       weights?.ex ?? '—'
                     )}
                   </th>
-                  <th scope="colgroup" colSpan={2} className={`${th} border-l border-edge text-center`}>
+                  <th
+                    scope="colgroup"
+                    colSpan={2}
+                    data-group="Grade"
+                    className={`${th} border-l border-edge text-center`}
+                  >
                     Grade
                   </th>
                 </tr>
@@ -769,7 +822,7 @@ export default function ClassRecordPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollCue>
 
           {server.learners.length === 0 ? (
             <EmptyState

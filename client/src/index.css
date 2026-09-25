@@ -487,6 +487,31 @@ html.text-large {
   font-size: 112.5%;
 }
 
+/* The pinned first column's shadow, switched by `ScrollCue` (UI-D-2).
+   -----------------------------------------------------------------------------
+   ONLY ONCE SCROLLED, which is the whole point: at rest the pinned column is
+   simply the first column and a shadow would be decoration. The moment
+   content passes underneath it, the shadow is what says "I am on top of
+   something", and without it the pinned column and the scrolled columns read
+   as one continuous row that happens to have a seam in it.
+
+   On the CELL, not the wrapper, because the sticky cells are what stay put —
+   and `::after` rather than a `box-shadow` on the cell itself, so it cannot
+   be clipped by the neighbouring cell's background (§13c: every sticky cell
+   paints its own opaque background, and a shadow drawn inside that box would
+   be painted over). */
+[data-scrolled='true'] :is(th, td).sticky::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  transform: translateX(100%);
+  pointer-events: none;
+  background: linear-gradient(to right, var(--backdrop), transparent);
+}
+
 /* -----------------------------------------------------------------------------
    PRINT (UI-D, 2026-09-25)
    -----------------------------------------------------------------------------
@@ -570,9 +595,15 @@ html.text-large {
     padding: 2pt 3pt !important;
   }
 
-  /* A sticky column has nothing to stick to on paper and can overlap. */
+  /* A sticky column has nothing to stick to on paper and can overlap — and
+     its scrolled-state shadow goes with it, since nothing is underneath a
+     printed column (UI-D-2). */
   .print-sheet-table .sticky {
     position: static !important;
+  }
+
+  [data-scrolled] :is(th, td).sticky::after {
+    display: none !important;
   }
 
   /* Rows must not be split across a page break. */

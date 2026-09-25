@@ -277,7 +277,13 @@ function ReadingNote({ mode, canOpen, hasTermGrade }) {
             wide layout and a segment PLUS a subject row on the narrow one.
             Per-layout copy would mean two nodes, one always hidden, and a
             second place for the wording to drift. */}
-        {canOpen ? <li>Select any grade to see the scores behind it.</li> : null}
+        {/* `print:hidden` (UI-D-2): the sentence describes a tap, and paper
+            has none. Every other line in "Reading this report" explains what
+            the numbers mean and is as true on paper as on screen — this is
+            the one that is an instruction to the SCREEN. */}
+        {canOpen ? (
+          <li className="print:hidden">Select any grade to see the scores behind it.</li>
+        ) : null}
       </ul>
     </section>
   );

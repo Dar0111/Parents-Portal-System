@@ -83,6 +83,21 @@ const PAIRS = [
   // ever changes.
   ['brand-panel-fg', 'brand-panel-lit', 'text', 'Login panel text over the glow'], ['brand-panel-muted', 'brand-panel-lit', 'text', 'Login panel muted lines over the glow'],
   ['seal-bg', 'brand-panel', 'boundary', 'seal disc vs the Login panel'],
+  // UI-D-3: the parent hero moved to `brand-panel`, and it puts a StatusBadge
+  // on that panel — the FIRST time a badge sits anywhere but `surface`. The
+  // pill's own text is already scored above (`pill warning` and friends) and
+  // is unaffected, because the pill paints its own background; what was
+  // unchecked is whether that background separates from the panel it now
+  // sits on. `boundary`, because a pill that blends into its panel is a
+  // legibility problem and not a contrast FAILURE — the number is reported
+  // so a token change cannot quietly erase the separation.
+  ['warning-soft', 'brand-panel', 'boundary', 'Pending letter badge on the parent hero'],
+  ['success-soft', 'brand-panel', 'boundary', 'Approved letter badge on the parent hero'],
+  ['danger-soft', 'brand-panel', 'boundary', 'Declined letter badge on the parent hero'],
+  // The hero's own two foregrounds. Both pairs were already asserted for the
+  // Login panel, which is the point of reusing the token rather than adding
+  // one: a panel that is a solid brand field in BOTH themes already existed.
+  ['brand-panel-muted', 'brand-panel', 'text', 'the parent hero captions and class line'],
   // the notification bell (N2): the unread dot and its count chip sit on the
   // header and on the dropdown panel, both `surface`; a row hover is
   // `surface-muted`. The dot is a meaningful UI part, not decoration — it is
