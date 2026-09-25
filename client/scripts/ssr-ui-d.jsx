@@ -297,6 +297,35 @@ assert(
   listLabels(record849.hiddenLabels)
 );
 
+// THE REGRESSION THAT SPLIT THE ONE CONSTANT IN TWO (browser check,
+// 2026-09-25). A group whose last column is cut by only a few pixels, on a
+// table overflowing by hundreds: the gate is plainly open, and the group has
+// NOT been read — its final column is clipped and its highest-possible-score
+// sits behind the → button. One slack of 24 serving both questions dropped it
+// from the hint, which is the hint being wrong rather than quiet.
+const narrowlyCut = cueState({
+  scrollLeft: 0,
+  clientWidth: 390,
+  scrollWidth: 1200,
+  cells: [
+    { right: 400, label: 'Performance Tasks' }, // cut by 10px — under the GATE slack
+    { right: 1200, label: 'Grade' },
+  ],
+});
+assert(narrowlyCut.overflowing, 'the table is 810px over, so the cue is shown');
+assert(
+  listLabels(narrowlyCut.hiddenLabels) === 'Performance Tasks and Grade',
+  'AND A GROUP CUT BY 10px IS STILL NAMED — the per-cell test is strict, not 24px',
+  listLabels(narrowlyCut.hiddenLabels)
+);
+// The two constants are genuinely different, asserted so a later tidy-up
+// cannot quietly merge them back into one.
+assert(
+  cueState({ scrollLeft: 0, clientWidth: 390, scrollWidth: 400, cells: [{ right: 400, label: 'X' }] })
+    .hiddenLabels.length === 0,
+  'the SAME 10px cut names nothing when the table itself is only 10px over — the gate is shut'
+);
+
 // THE CLASS SUMMARY SHAPE — leaf cells, counted. 390px viewport, ten columns.
 const summaryCells = [220, 300, 380, 460, 540, 620, 700, 780, 860, 940].map((right) => ({ right }));
 const atStart = cueState({ scrollLeft: 0, clientWidth: 390, scrollWidth: 940, cells: summaryCells });
@@ -316,12 +345,13 @@ assert(
   'a column whose right edge is past the viewport is hidden even if it STARTS on screen'
 );
 
-// Scrolled 300 of 550: the viewport's right edge is 690, and with the 24px
-// slack a column counts as hidden past 714 — so 780, 860 and 940 remain.
-// (It read 4 while the slack was 1px, because 700 was then 9px over.)
+// Scrolled 300 of 550: the viewport's right edge is 690, and the per-cell
+// test is STRICT, so 700, 780, 860 and 940 are all still hidden. This read 4,
+// then 3 while one slack served both questions, and is back to 4 — the number
+// moved with the mistake and moved back with the fix.
 const midway = cueState({ scrollLeft: 300, clientWidth: 390, scrollWidth: 940, cells: summaryCells });
 assert(midway.scrolled, 'once scrolled, the pinned column gets its shadow');
-assert(midway.hiddenCount === 3, 'and fewer columns remain hidden', String(midway.hiddenCount));
+assert(midway.hiddenCount === 4, 'and fewer columns remain hidden', String(midway.hiddenCount));
 assert(
   midway.hiddenCount < atStart.hiddenCount && midway.hiddenCount > 0,
   'which is the invariant the number above is one instance of'
@@ -361,9 +391,14 @@ assert(
 );
 
 // ONE hidden group reads without a comma. Scrolled 560 of 610, so the
-// viewport ends at 850 and only Grade (900) clears the 24px slack — and 850
-// is short of 876, so this is not yet the end. (It used 600 while the slack
-// was 1px; at 24px that position is atEnd and reports nothing hidden.)
+// viewport ends at 850 and only Grade (900) is past it — and 850 is short of
+// 876, so the GATE does not call this the end.
+//
+// THIS ONE DID NOT MOVE BACK, and the asymmetry is the point: it used 600
+// while both tests shared 1px, and 600 is now inside the gate's 24px of end
+// slack, so the cue has already stood down there. The gate change is what
+// moved it, and the gate change was correct — unlike the per-cell change,
+// which moved `midway` above and has been reverted.
 const recOne = cueState({ scrollLeft: 560, clientWidth: 290, scrollWidth: 900, cells: groupCells });
 assert(recOne.hiddenLabels.length === 1 && listLabels(recOne.hiddenLabels) === 'Grade', 'one group: "Grade"');
 assert(listLabels([]) === '', 'no groups is an empty string, never "and"');

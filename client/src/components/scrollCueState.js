@@ -16,19 +16,26 @@
 // `cueState` takes the cells either way; whether a caller passes labels is
 // what decides which answer it gets back.
 
-// A column cut by less than this still shows its content, so a cue about it
-// costs more than it gives (measured: the desktop class summary overflowed by
-// 2px and nagged "Swipe for the Average →").
-const SLACK = 24;
+// WHETHER TO SHOW A CUE AT ALL. A table overhanging by less than a character
+// has nothing worth scrolling to (measured: the desktop class summary
+// overflowed by 2px and nagged "Swipe for the Average →").
+const GATE_SLACK = 24;
+
+// WHICH COLUMNS THE HINT NAMES — strict, sub-pixel only. These are two
+// different questions and one number cannot answer both: applying 24 here
+// dropped "Performance Tasks" from the class record's hint at 390px while its
+// WS column was visibly cut and its highest-possible-score hidden behind the
+// button (browser check, 2026-09-25). Once a cue is shown at all, a column cut
+// AT ALL is a column the reader has not read.
+const CELL_SLACK = 1;
 
 // A cell is "not fully visible" when its right edge is past the viewport's
-// right edge by more than SLACK. NOT when it merely starts past it: a column
-// half on screen is a column the reader has not read, and at 390px the layout
-// deliberately leaves the next one visibly cut off rather than fitting it
-// exactly, so the half-visible case is the COMMON one here and not an edge
-// case.
+// right edge. NOT when it merely starts past it: a column half on screen is a
+// column the reader has not read, and at 390px the layout deliberately leaves
+// the next one visibly cut off rather than fitting it exactly, so the
+// half-visible case is the COMMON one here and not an edge case.
 function hiddenCells(cells, viewportRight) {
-  return cells.filter((cell) => cell.right > viewportRight + SLACK);
+  return cells.filter((cell) => cell.right > viewportRight + CELL_SLACK);
 }
 
 // `cells` is `[{ right, label? }]` in document order — the caller measures
@@ -48,17 +55,19 @@ function hiddenCells(cells, viewportRight) {
 //   hiddenCount — for the counting caller
 //   hiddenLabels— for the naming caller
 export function cueState({ scrollLeft = 0, clientWidth = 0, scrollWidth = 0, cells = [] } = {}) {
-  // SLACK on both comparisons. It began at 1px, to absorb sub-pixel layout,
-  // and 1px was too literal a reading of the rule it exists for: the desktop
-  // class summary overflowed by exactly 2px — scrollWidth 992 against
-  // clientWidth 990 — and told the teacher to swipe for an Average column
-  // that was two pixels short of fully visible. It also FLAPPED, appearing at
-  // 1279px and vanishing at 1281px. A cue that appears on a table with
-  // nothing worth scrolling to is worse than no cue, and "nothing worth
-  // scrolling to" is a question about legibility, not about pixels being
-  // non-zero.
-  const overflowing = scrollWidth > clientWidth + SLACK;
-  const atEnd = !overflowing || scrollLeft + clientWidth >= scrollWidth - SLACK;
+  // GATE_SLACK, not CELL_SLACK. This began at 1px on both, and 1px was too
+  // literal a reading of the rule the gate exists for: the desktop class
+  // summary overflowed by exactly 2px — scrollWidth 992 against clientWidth
+  // 990 — and told the teacher to swipe for an Average column that was two
+  // pixels short of fully visible. It also FLAPPED, appearing at 1279px and
+  // vanishing at 1281px.
+  //
+  // Widening BOTH was the overcorrection, and it cost the hint its accuracy:
+  // see CELL_SLACK. The gate asks "is there anything worth scrolling to"; the
+  // cells ask "what has the reader not seen". Only the first is about
+  // legibility of the overhang.
+  const overflowing = scrollWidth > clientWidth + GATE_SLACK;
+  const atEnd = !overflowing || scrollLeft + clientWidth >= scrollWidth - GATE_SLACK;
   const viewportRight = scrollLeft + clientWidth;
   const hidden = overflowing && !atEnd ? hiddenCells(cells, viewportRight) : [];
 
