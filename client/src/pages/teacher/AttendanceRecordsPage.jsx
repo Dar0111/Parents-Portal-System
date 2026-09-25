@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
-import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import { longDate, shortDate } from '../../format/date';
 import FilterActions from '../../components/FilterActions';
@@ -14,12 +13,26 @@ import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
+// The picker value for "Everything I recorded" — a string, so it can never
+// collide with a section id and `Number()` is never called on it.
+const MINE = 'mine';
+
 // Teacher attendance RECORDS — read-only past rows. Encoding is the other
 // page (/teacher/attendance). This is a sibling, not a tab or a mode.
 //
 // Attendance is the ADVISER's job (Stage B1). Section list is the same
 // source as the encode page: GET /sections filtered on adviser_id, not
 // teacher_assignments, not useTeacherTargets, not GET /assignments.
+//
+// "EVERYTHING I RECORDED" (pre-Stage-5 #6, 2026-09-26). The server's teacher
+// scope is now "rows I recorded OR learners currently in a section I
+// advise", so a former adviser keeps the days they wrote for a learner who
+// has since moved. Those rows carry the learner's CURRENT class, so a
+// section filter can never surface them — this option sends NO grade_level
+// or section, the API returns the whole per-row union, and the class
+// column names each row's class. It is also the only view a teacher who
+// advises nothing today can have of what they recorded before. Print CSS
+// (UI-D-1) applies unchanged.
 //
 // GET /attendance (unwrap 'attendance') with grade_level + section.name
 // and optional from/to. Never send `date` — that param swallows the
@@ -75,11 +88,11 @@ export default function AttendanceRecordsPage() {
         // The first advisory section is both the draft AND the applied value
         // on arrival: the page fetches immediately, so there is nothing
         // staged and the cue must not appear before the reader has touched
-        // anything.
-        if (mine.length) {
-          setSectionId(mine[0].id);
-          setAppliedSectionId(mine[0].id);
-        }
+        // anything. A teacher who advises nothing lands on "Everything I
+        // recorded" — the one view they can have (#6).
+        const initial = mine.length ? mine[0].id : MINE;
+        setSectionId(initial);
+        setAppliedSectionId(initial);
       })
       .catch((err) => {
         if (!cancelled) setSectionsError(extractError(err));
@@ -96,6 +109,7 @@ export default function AttendanceRecordsPage() {
     () => (sections || []).find((s) => s.id === appliedSectionId) || null,
     [sections, appliedSectionId]
   );
+  const showingMine = appliedSectionId === MINE;
 
   // Paged table (2026-09-19): one page of a server-sorted list (C1); a
   // filter or sort change resets to the first page (C6).
@@ -104,14 +118,15 @@ export default function AttendanceRecordsPage() {
   const [page, setPage] = useState(null);
 
   const load = useCallback(async () => {
-    if (!section) return;
+    if (!section && !showingMine) return;
 
     setLoading(true);
     setError(null);
     try {
+      // "Everything I recorded" sends no class at all — the server's per-row
+      // scope is the whole filter (#6).
       const params = {
-        grade_level: section.grade_level,
-        section: section.name,
+        ...(section ? { grade_level: section.grade_level, section: section.name } : {}),
         ...listParams({ offset, sort }),
       };
       // Never send `date`. That branch ignores from/to.
@@ -128,7 +143,7 @@ export default function AttendanceRecordsPage() {
     } finally {
       setLoading(false);
     }
-  }, [section, applied, offset, sort]);
+  }, [section, showingMine, applied, offset, sort]);
 
   useEffect(() => {
     load();
@@ -172,12 +187,19 @@ export default function AttendanceRecordsPage() {
         message: 'Try a different date range, or reset to see every recorded day.',
         showReset: true,
       }
-    : {
-        icon: 'fa-clipboard-user',
-        title: 'No attendance recorded for this section yet',
-        message: 'Records appear here after the adviser saves a day on Attendance.',
-        showReset: false,
-      };
+    : showingMine
+      ? {
+          icon: 'fa-clipboard-user',
+          title: 'You have not recorded any attendance yet',
+          message: 'Every day you save on Attendance appears here, even for learners who later move to another section.',
+          showReset: false,
+        }
+      : {
+          icon: 'fa-clipboard-user',
+          title: 'No attendance recorded for this section yet',
+          message: 'Records appear here after the adviser saves a day on Attendance.',
+          showReset: false,
+        };
 
   const columns = useMemo(
     () => [
@@ -196,6 +218,23 @@ export default function AttendanceRecordsPage() {
           </span>
         ),
       },
+      // The class column is shown only for "Everything I recorded": a single
+      // section's list would repeat one value forty times, while the union
+      // needs it — a row's class is the learner's CURRENT one, which is what
+      // a former adviser is reading across (#6). The value stays sortable as
+      // the API's `class` key (grade, then section).
+      ...(showingMine
+        ? [
+            {
+              key: 'class',
+              header: 'Class',
+              sortable: true,
+              nowrap: true,
+              sortValue: (row) => `${row.grade_level}|${row.section}`,
+              render: (row) => `Grade ${row.grade_level} - ${row.section}`,
+            },
+          ]
+        : []),
       {
         key: 'status',
         header: 'Status',
@@ -203,7 +242,7 @@ export default function AttendanceRecordsPage() {
         render: (row) => <StatusBadge status={row.status} />,
       },
     ],
-    []
+    [showingMine]
   );
 
   const hint = (
@@ -237,18 +276,9 @@ export default function AttendanceRecordsPage() {
     );
   }
 
-  if (!sections.length) {
-    return (
-      <div className="space-y-4">
-        {hint}
-        <EmptyState
-          icon="fa-clipboard-user"
-          title="You have no advisory section"
-          message="Attendance records are for the class adviser."
-        />
-      </div>
-    );
-  }
+  // A teacher with no advisory section is NOT sent away any more (#6): the
+  // picker holds "Everything I recorded" alone, and the empty state below
+  // says what would appear there. The page's own §5i sentence still holds.
 
   return (
     <div className="space-y-4">
@@ -265,25 +295,23 @@ export default function AttendanceRecordsPage() {
       >
         <div>
           <p className="mb-1.5 text-sm font-medium text-fg-secondary">Section</p>
-          {sections.length === 1 ? (
-            <p className="py-2 text-sm font-semibold text-fg">
-              Grade {section?.grade_level} - {section?.name}
-            </p>
-          ) : (
-            <FormField
-              label={null}
-              as="select"
-              className={filterSelectClass}
-              value={sectionId ?? ''}
-              onChange={(e) => setSectionId(Number(e.target.value))}
-            >
-              {sections.map((s) => (
-                <option key={s.id} value={s.id}>
-                  Grade {s.grade_level} - {s.name}
-                </option>
-              ))}
-            </FormField>
-          )}
+          {/* Always a select since #6 — even one advisory section is two
+              choices with "Everything I recorded" beside it. The option's
+              value is the MINE sentinel, never a section id. */}
+          <FormField
+            label={null}
+            as="select"
+            className={filterSelectClass}
+            value={sectionId ?? ''}
+            onChange={(e) => setSectionId(e.target.value === MINE ? MINE : Number(e.target.value))}
+          >
+            {sections.map((s) => (
+              <option key={s.id} value={s.id}>
+                Grade {s.grade_level} - {s.name}
+              </option>
+            ))}
+            <option value={MINE}>Everything I recorded</option>
+          </FormField>
         </div>
 
         <FormField

@@ -40,12 +40,50 @@ async function teacherIsAdviserOfSection(teacherId, sectionId) {
   return rows.length > 0;
 }
 
+// THE TEACHER READ SCOPE, PER ROW (pre-Stage-5 #6, 2026-09-26): a teacher
+// sees an attendance row if THEY RECORDED IT, or if the learner is CURRENTLY
+// in a section they advise. The school's rule for a mid-year transfer is that
+// the adviser who leaves a section keeps the attendance they recorded —
+// handover happens outside the system — and until #6 the only link a row
+// had was the learner's current section, so the former adviser lost even
+// the days they personally wrote, while the new adviser gained months
+// recorded before the transfer. `recorded_by` is the first leg now.
+//
+// Two legs, deliberately: NO teacher_assignments leg. Attendance stays the
+// adviser's job (and utils/teacherScope.js's read predicate is not used
+// here) — a subject teacher records nothing and reads nothing. No schema
+// change: the row still carries no section, so the NEW adviser sees every
+// row of a learner who is currently theirs, pre-transfer included. That is
+// the existing behaviour, a superset of the school's "via the card", and it
+// is accepted (docs/KNOWN_ISSUES.md).
+//
+// One learner, one day, two teachers: `uq_attendance (student_id, date)`
+// keeps ONE row, and every write path sets `recorded_by` to the writer
+// (ON DUPLICATE KEY UPDATE, and PUT). A second recorder therefore takes the
+// row out of the first recorder's "recorded by me" set — the row's author is
+// whoever last wrote it. Accepted; stated here so nobody hunts for the row.
+//
+// The fragment assumes `attendance a` and `students s` are in scope. TWO
+// bound params, both the teacher's id — the same count hazard the shared
+// predicate documents: use teacherAttendanceParams(), never write them out.
+const TEACHER_ATTENDANCE_READ_SQL = `(
+      a.recorded_by = ?
+      OR EXISTS (
+        SELECT 1 FROM sections sec
+        WHERE sec.id = s.section_id AND sec.adviser_id = ?
+      )
+    )`;
+function teacherAttendanceParams(teacherId) {
+  return [teacherId, teacherId];
+}
+
 // Scope check shared by GET /student/:studentId and GET /summary/:studentId.
 // Returns true if the requesting user may see this student's attendance at
-// all (parent: own child only; teacher: adviser of the student's section;
-// admin: unscoped). Once this passes for a teacher, every attendance row
-// for the student is visible — attendance no longer splits by subject, so
-// there's no narrower per-record filter left to apply downstream.
+// all (parent: own child only; teacher: adviser of the student's CURRENT
+// section OR the recorder of at least one of their rows — since #6; admin:
+// unscoped). For a teacher this is only the gate that decides 404: the two
+// handlers then apply TEACHER_ATTENDANCE_READ_SQL per row, so a former
+// adviser sees the days they recorded and nothing written after handover.
 async function canViewStudent(user, studentId) {
   if (user.role === 'parent') {
     return studentId === user.student_id;
@@ -53,10 +91,13 @@ async function canViewStudent(user, studentId) {
   if (user.role === 'teacher') {
     const [rows] = await pool.query(
       `SELECT 1 FROM students s
-       JOIN sections sec ON sec.id = s.section_id
-       WHERE s.id = ? AND sec.adviser_id = ?
+       WHERE s.id = ?
+         AND (
+           EXISTS (SELECT 1 FROM sections sec WHERE sec.id = s.section_id AND sec.adviser_id = ?)
+           OR EXISTS (SELECT 1 FROM attendance a WHERE a.student_id = s.id AND a.recorded_by = ?)
+         )
        LIMIT 1`,
-      [studentId, user.id]
+      [studentId, user.id, user.id]
     );
     return rows.length > 0;
   }
@@ -72,11 +113,10 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
   const params = [];
 
   if (req.user.role === 'teacher') {
-    conditions.push(`EXISTS (
-      SELECT 1 FROM sections sec
-      WHERE sec.id = s.section_id AND sec.adviser_id = ?
-    )`);
-    params.push(req.user.id);
+    // Recorded by me, OR the learner is currently in a section I advise —
+    // see TEACHER_ATTENDANCE_READ_SQL above. Admin is unscoped.
+    conditions.push(TEACHER_ATTENDANCE_READ_SQL);
+    params.push(...teacherAttendanceParams(req.user.id));
   }
 
   if (student_id !== undefined) {
@@ -199,6 +239,12 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
 
     const conditions = ['a.student_id = ?'];
     const params = [studentId];
+    // Per-row scope for a teacher (#6): the parent and admin branches add
+    // nothing here — a parent sees the whole year, an admin everything.
+    if (req.user.role === 'teacher') {
+      conditions.push(TEACHER_ATTENDANCE_READ_SQL);
+      params.push(...teacherAttendanceParams(req.user.id));
+    }
 
     if (from) {
       if (!isValidDateFormat(from)) {
@@ -232,10 +278,15 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
       return res.status(400).json({ success: false, message: list.message });
     }
 
+    // `students s` is joined for the teacher predicate's adviser leg (#6);
+    // the parent and admin branches simply never reference it.
     const where = `WHERE ${conditions.join(' AND ')}`;
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM attendance a ${where}`, params);
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM attendance a JOIN students s ON s.id = a.student_id ${where}`,
+      params
+    );
     const [rows] = await pool.query(
-      `SELECT a.* FROM attendance a ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
+      `SELECT a.* FROM attendance a JOIN students s ON s.id = a.student_id ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
       [...params, list.limit, list.offset]
     );
 
@@ -263,6 +314,11 @@ router.get('/summary/:studentId', authenticate, authorize('teacher', 'admin', 'p
 
     const conditions = ['a.student_id = ?'];
     const params = [studentId];
+    // Per-row scope for a teacher (#6); parent and admin branches unchanged.
+    if (req.user.role === 'teacher') {
+      conditions.push(TEACHER_ATTENDANCE_READ_SQL);
+      params.push(...teacherAttendanceParams(req.user.id));
+    }
 
     if (from) {
       if (!isValidDateFormat(from)) {
@@ -280,7 +336,9 @@ router.get('/summary/:studentId', authenticate, authorize('teacher', 'admin', 'p
     }
 
     const [rows] = await pool.query(
-      `SELECT a.status, COUNT(*) AS count FROM attendance a WHERE ${conditions.join(' AND ')} GROUP BY a.status`,
+      `SELECT a.status, COUNT(*) AS count
+         FROM attendance a JOIN students s ON s.id = a.student_id
+        WHERE ${conditions.join(' AND ')} GROUP BY a.status`,
       params
     );
 

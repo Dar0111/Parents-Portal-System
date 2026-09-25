@@ -96,6 +96,13 @@ async function run() {
     'Other adviser login (TCH-002, Grade 5 - Masigasig)'
   );
 
+  // TCH-003 (seeded) advises Grade 1 - Mabait and records nothing in this
+  // run: the "neither leg" teacher for the transfer case. A normal login, no
+  // minted account.
+  const thirdTeacherLogin = await login('TCH-003', 'Teacher@2026');
+  const thirdTeacherToken = thirdTeacherLogin.data?.token;
+  assert(thirdTeacherLogin.status === 200 && thirdTeacherToken, 'Third adviser login (TCH-003, Grade 1 - Mabait)');
+
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
   assert(parentLogin.status === 200 && parentToken, 'Parent login (Marwin, Grade 6 - Malikhain)');
@@ -393,6 +400,80 @@ async function run() {
       marwinRowInList?.subject_id === undefined && marwinRowInList?.subject_name === undefined,
       'GET / carries no subject_id or subject_name — attendance is no longer per subject'
     );
+
+    // --- A MID-YEAR TRANSFER (pre-Stage-5 #6): the adviser who leaves keeps
+    // the rows they recorded; the new adviser sees every row of a learner who
+    // is currently theirs; a teacher with neither leg sees nothing. No
+    // transfer endpoint exists (PUT /students refuses a class change), so the
+    // move is a direct UPDATE on THIS RUN's own fixture learner — the same
+    // shape as the roster learner above. Every row is tracked by id.
+    console.log('\nMid-year transfer (recorded_by scope):');
+
+    const transferLrn = `2${String(Date.now()).slice(-11)}`;
+    const createTransfer = await request('POST', '/api/students', {
+      token: adviserToken,
+      body: { lrn: transferLrn, first_name: 'Transfer', last_name: 'Fixture', grade_level: 6, section: 'Malikhain' },
+    });
+    const transferId = createTransfer.data?.student?.id;
+    if (createTransfer.status === 201 && transferId) createdStudentIds.push(transferId);
+    const oldA = await request('POST', '/api/attendance', {
+      token: adviserToken,
+      body: { student_id: transferId, date: dateA, status: 'Present' },
+    });
+    trackAttendance(oldA);
+    const oldB = await request('POST', '/api/attendance', {
+      token: adviserToken,
+      body: { student_id: transferId, date: dateB, status: 'Late' },
+    });
+    trackAttendance(oldB);
+    assert(
+      createTransfer.status === 201 && oldA.status === 201 && oldB.status === 201,
+      `The adviser enrols a learner and records two days before the transfer (enrol ${createTransfer.status}, days ${oldA.status}/${oldB.status})`
+    );
+
+    await withDb((conn) =>
+      conn.query('UPDATE students SET grade_level = 5, section = ?, section_id = ? WHERE id = ?', [
+        'Masigasig',
+        masigasigId,
+        transferId,
+      ])
+    );
+    const dateC = daysAgo(1);
+    const newC = await request('POST', '/api/attendance/bulk', {
+      token: otherAdviserToken,
+      body: { section_id: masigasigId, date: dateC, entries: [{ student_id: transferId, status: 'Present' }] },
+    });
+    trackAttendance(newC);
+    assert(newC.status === 201, `After the transfer the NEW adviser (TCH-002) records a day (got ${newC.status})`);
+
+    const oldList = await request('GET', `/api/attendance?student_id=${transferId}&limit=200`, { token: adviserToken });
+    const oldDates = (oldList.data?.attendance || []).map((r) => r.date).sort();
+    assert(
+      oldList.status === 200 && JSON.stringify(oldDates) === JSON.stringify([dateB, dateA].sort()),
+      `The OLD adviser's list holds exactly the two days they recorded — not the new adviser's (got ${JSON.stringify(oldDates)})`
+    );
+    const oldStudent = await request('GET', `/api/attendance/student/${transferId}`, { token: adviserToken });
+    assert(
+      oldStudent.status === 200 && (oldStudent.data?.attendance || []).length === 2,
+      `GET /student/:id for the old adviser is 200 with their two rows, not 404 and not three (got ${oldStudent.status}, ${(oldStudent.data?.attendance || []).length})`
+    );
+    const oldSummary = await request('GET', `/api/attendance/summary/${transferId}`, { token: adviserToken });
+    assert(
+      oldSummary.status === 200 && oldSummary.data?.summary?.total === 2,
+      `The old adviser's summary counts their two days only (got total ${oldSummary.data?.summary?.total})`
+    );
+    const newStudent = await request('GET', `/api/attendance/student/${transferId}`, { token: otherAdviserToken });
+    assert(
+      newStudent.status === 200 && (newStudent.data?.attendance || []).length === 3,
+      `The NEW adviser sees every row of a learner currently theirs — pre-transfer included (got ${(newStudent.data?.attendance || []).length})`
+    );
+    const oldEdit = await request('PUT', `/api/attendance/${oldA.data?.attendance?.id}`, {
+      token: adviserToken,
+      body: { status: 'Absent' },
+    });
+    assert(oldEdit.status === 404, `Writes stay with the CURRENT adviser: the old adviser correcting their own past row is 404 (got ${oldEdit.status})`);
+    const thirdView = await request('GET', `/api/attendance/student/${transferId}`, { token: thirdTeacherToken });
+    assert(thirdView.status === 404, `A teacher with neither leg — not the adviser, recorded nothing — is 404 (got ${thirdView.status})`);
 
     const parentOwn = await request('GET', `/api/attendance/student/${marwinId}`, { token: parentToken });
     assert(parentOwn.status === 200 && parentOwn.data?.attendance?.length > 0, 'Parent reads own child attendance');
