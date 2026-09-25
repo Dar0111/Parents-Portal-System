@@ -14,9 +14,10 @@ USE parents_portal;
 -- The school's own details, confirmed 2026-09-22 (CLAUDE.md's front matter is
 -- the one place they are recorded; this seeds them). "– Main" is part of the
 -- official name and prints on every masthead that reads school_name. The
--- phone is a PHONE number, not the School ID. facebook_page is blank until
--- the school gives the page's name — nothing is guessed. A live database
--- gets these through Admin → Settings, not by re-seeding.
+-- phone is a PHONE number, not the School ID. The email, phone and Facebook
+-- page are as the school's own Facebook page shows them (2026-09-26). A live
+-- database gets these through Admin → Settings or a PATCH through the API,
+-- not by re-seeding.
 INSERT INTO system_settings (setting_key, setting_value) VALUES
   ('school_name', 'Captain H. Francisco Elementary School – Main'),
   ('school_address', 'P. Rosales St., Sta. Ana, Pateros, Metro Manila'),
@@ -25,8 +26,11 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
   ('logo_url', ''),
   ('school_id', '136893'),
   ('school_email', '136893@deped.gov.ph'),
-  ('school_phone', '3506114'),
-  ('facebook_page', '');
+  -- The 8-digit Metro Manila number with its area code, as the school's own
+  -- Facebook page shows it (2026-09-26); the validator strips the spaces,
+  -- dashes and parentheses and the About page dials it as tel:0283506114.
+  ('school_phone', '(02) 8350-6114'),
+  ('facebook_page', 'https://www.facebook.com/136893Capt.hipolitofrancisco.elemsch.main');
 
 -- ---------------------------------------------------------------------------
 -- DepEd subjects per grade level (G1-G6) — Stage G1b (2026-09-06). Real
