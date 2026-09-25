@@ -94,13 +94,19 @@ async function run() {
     }
   }
 
+  // section_id is resolved the way POST /students stores it (pre-Stage-5
+  // #4): the parents gate keys on sections.adviser_id through s.section_id,
+  // so a fixture inserted with NULL there is a learner with no adviser and
+  // no possible parent account — which is not what this fixture represents.
   async function insertTestStudent(lrn, firstName, lastName, grade, section) {
     await withDb((conn) =>
       conn.query(
-        `INSERT INTO students (lrn, first_name, last_name, grade_level, section, status, created_by)
-         VALUES (?, ?, ?, ?, ?, 'active', 2)
+        `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, status, created_by)
+         VALUES (?, ?, ?, ?, ?,
+                 (SELECT id FROM sections WHERE name = ? AND grade_level = ? AND school_year = '2026-2027' LIMIT 1),
+                 'active', 2)
          ON DUPLICATE KEY UPDATE first_name = VALUES(first_name)`,
-        [lrn, firstName, lastName, grade, section]
+        [lrn, firstName, lastName, grade, section, section, grade]
       )
     );
   }
@@ -440,7 +446,7 @@ async function run() {
     // B1 (2026-09-19): an unknown LRN is the SAME 403 as an out-of-scope
     // student — never a 404 that would tell a teacher whether an LRN exists.
     assert(
-      createParent.status === 403 && /assigned to this student's class, or the adviser/.test(createParent.data?.message || ''),
+      createParent.status === 403 && /adviser of this student's section/.test(createParent.data?.message || ''),
       'POST /parents: an unknown LRN is 403 naming the scope rule, not 404'
     );
     const unknownLrnResponse = `${createParent.status} ${JSON.stringify(createParent.data)}`;
@@ -492,8 +498,8 @@ async function run() {
       body: { lrn: outsideLrn, password: 'Parent@2026', name: 'Outside Guardian' },
     });
     assert(
-      outsideCreate.status === 403 && /assigned to this student's class, or the adviser/.test(outsideCreate.data?.message || ''),
-      'POST /parents: a teacher neither assigned to nor advising the student\'s section is 403 naming the rule'
+      outsideCreate.status === 403 && /adviser of this student's section/.test(outsideCreate.data?.message || ''),
+      "POST /parents: a teacher who is not the adviser of the student's section is 403 naming the rule"
     );
     assert(
       `${outsideCreate.status} ${JSON.stringify(outsideCreate.data)}` === unknownLrnResponse,
@@ -501,6 +507,19 @@ async function run() {
     );
     const outsideLogin = await login(outsideLrn, 'Parent@2026');
     assert(outsideLogin.status === 401, 'POST /parents: the refused out-of-scope create made no account');
+
+    // --- Email rule (utils/emailRule.js, pre-Stage-5 #4) runs BEFORE the
+    // scope query, like the password and contact rules: a bad address on an
+    // OUT-OF-SCOPE LRN is the email 400, not the scope 403, so the field's
+    // refusal reveals nothing about the LRN.
+    const outsideBadEmail = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: outsideLrn, password: 'Parent@2026', name: 'Outside Guardian', email: 'guardian@nowhere' },
+    });
+    assert(
+      outsideBadEmail.status === 400 && outsideBadEmail.data?.field === 'email',
+      'POST /parents: a bad email is 400 field "email" BEFORE the scope check (order proved on an out-of-scope LRN)'
+    );
 
     // The out-of-scope child now HAS a parent account (inserted by SQL, never
     // logged in as). The same teacher posting that LRN must still get the
@@ -537,6 +556,10 @@ async function run() {
     assert(
       createParent2.status === 201 && createParent2.data?.user?.status === 'pending',
       'Teacher creates parent (pending)'
+    );
+    assert(
+      createParent2.data?.user?.email === 'guardian@test.com',
+      `POST /parents: a valid email is stored as sent (got ${JSON.stringify(createParent2.data?.user?.email)})`
     );
     const pendingParentId = createParent2.data?.user?.id;
     if (createParent2.status === 201) {
@@ -604,6 +627,34 @@ async function run() {
 
     const rejectedLogin = await login(rejectLrn, 'Parent@2026');
     assert(rejectedLogin.status === 403 && rejectedLogin.data?.status === 'rejected', 'Rejected parent blocked');
+
+    // --- The parents gate is the ADVISER only (pre-Stage-5 #4): a teacher
+    // ASSIGNED to the learner's class but not its adviser is refused — the
+    // case the 2026-09-18 widening had allowed. The minted teacher above
+    // (active, no assignments) gets one Grade 6 - Malikhain assignment,
+    // which TCH-001 advises; the learner already has a (rejected) parent
+    // account, and B1 still holds: the scope 403 lands before the 409 and
+    // is byte-identical to the unknown-LRN reply. The assignment goes with
+    // the user in cleanup (fk_assignments_teacher cascades).
+    const g6Subjects = await request('GET', '/api/subjects?grade_level=6', { token: adminToken });
+    const teacherRow = await withDb((conn) => conn.query('SELECT id FROM users WHERE login_id = ? LIMIT 1', [newTeacherId]));
+    const mintedTeacherId = teacherRow[0]?.[0]?.id;
+    const assignMinted = await request('POST', '/api/assignments', {
+      token: adminToken,
+      body: { teacher_id: mintedTeacherId, subject_id: g6Subjects.data?.subjects?.[0]?.id, grade_level: 6, section: 'Malikhain' },
+    });
+    const mintedLogin = await login(newTeacherId, 'Teacher@2026');
+    const assignedNotAdviser = await request('POST', '/api/users/parents', {
+      token: mintedLogin.data?.token,
+      body: { lrn: rejectLrn, password: 'Parent@2026', name: 'Assigned Guardian' },
+    });
+    assert(
+      assignMinted.status === 201 &&
+        mintedLogin.status === 200 &&
+        assignedNotAdviser.status === 403 &&
+        `${assignedNotAdviser.status} ${JSON.stringify(assignedNotAdviser.data)}` === unknownLrnResponse,
+      `POST /parents: a teacher assigned to the class but not its adviser is the same 403 as an unknown LRN (assign ${assignMinted.status}, login ${mintedLogin.status}, create ${assignedNotAdviser.status})`
+    );
   } finally {
     await cleanup();
   }

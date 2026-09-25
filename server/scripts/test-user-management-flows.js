@@ -207,6 +207,26 @@ async function run() {
     const refusedLogin = await login(throwawayLoginId, 'abc1234');
     assert(refusedLogin.status === 401, 'POST /teachers: a refused password creates no account');
 
+    // --- Email rule on POST /teachers (utils/emailRule.js, pre-Stage-5 #4):
+    // optional; if given, one @, no whitespace, a dotted domain, ASCII only;
+    // a refusal names field "email" and creates nothing.
+    const emailSpace = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: throwawayLoginId, password: 'Teacher@2026', name: 'Throwaway Teacher', email: 'not an email' },
+    });
+    assert(
+      emailSpace.status === 400 && emailSpace.data?.field === 'email' && /name@example\.com/.test(emailSpace.data?.message || ''),
+      'POST /teachers: "not an email" is 400, field "email", the rule message'
+    );
+    const emailNoDot = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: throwawayLoginId, password: 'Teacher@2026', name: 'Throwaway Teacher', email: 'user@localhost' },
+    });
+    assert(
+      emailNoDot.status === 400 && emailNoDot.data?.field === 'email',
+      'POST /teachers: a domain with no dot (user@localhost) is 400, field "email" — not routable from here'
+    );
+
     const createThrowaway = await request('POST', '/api/users/teachers', {
       token: adminToken,
       body: { login_id: throwawayLoginId, password: 'Teacher@2026', name: 'Throwaway Teacher' },
@@ -260,6 +280,22 @@ async function run() {
       body: { name: '   ' },
     });
     assert(putBlankName.status === 400, 'PUT with a blank name rejected');
+
+    // --- Email rule on PUT (pre-Stage-5 #4): a bad address is 400 naming the
+    // field and changes nothing; an empty string clears it (stored NULL).
+    const putBadEmail = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { email: 'renamed@@chfes.edu.ph' },
+    });
+    assert(putBadEmail.status === 400 && putBadEmail.data?.field === 'email', 'PUT with two @ is 400, field "email"');
+    const putClearEmail = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { email: '' },
+    });
+    assert(
+      putClearEmail.status === 200 && putClearEmail.data?.user?.email === null,
+      `PUT with email "" clears the address to NULL (got ${JSON.stringify(putClearEmail.data?.user?.email)})`
+    );
 
     // --- Contact-number rule (utils/contactRule.js, 2026-09-18): optional;
     // if given, 11 digits starting with 09 after spaces/dashes are stripped,

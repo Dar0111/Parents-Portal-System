@@ -115,9 +115,15 @@ async function run() {
     }
   }
   const createdStudentIds = [];
+  // Teachers this run mints for the enrolment gate; their assignment rows
+  // cascade away with the user (fk_assignments_teacher).
+  const createdTeacherIds = [];
   async function cleanup() {
     if (createdStudentIds.length) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+    }
+    if (createdTeacherIds.length) {
+      await withDb((conn) => conn.query('DELETE FROM users WHERE id IN (?)', [createdTeacherIds]));
     }
   }
 
@@ -165,13 +171,60 @@ async function run() {
         lrn: `3${uniqueSuffix}`,
         first_name: 'OutOfScope',
         last_name: 'Student',
+        // A REAL Grade 3 section (seed.sql) with no adviser. The section is
+        // resolved before the gate since pre-Stage-5 #4, so a fictional name
+        // here would be the 400 "no section named", not the scope 403.
         grade_level: 3,
-        section: 'Aguinaldo',
+        section: 'Magiliw',
       },
     });
     assert(
       createOutOfScope.status === 403,
-      'Teacher creating student outside own assignment (Grade 3 - Aguinaldo) is rejected'
+      'Teacher creating a student into a section they do not advise (Grade 3 - Magiliw) is rejected'
+    );
+
+    // --- WHO ENROLS: THE ADVISER OF THE TARGET SECTION (pre-Stage-5 #4).
+    // TCH-002 advises Grade 5 - Masigasig and holds ZERO assignments — until
+    // today the assignments-only gate refused it; the school's rule is the
+    // opposite. A teacher ASSIGNED to a class but not its adviser is now the
+    // one refused: none is seeded, so one is minted (active, one Malikhain
+    // assignment — TCH-001 advises Malikhain) and deleted in cleanup.
+    const adviserCreate = await request('POST', '/api/students', {
+      token: adviserToken,
+      body: { lrn: `2${uniqueSuffix}`, first_name: 'Advised', last_name: 'Student', grade_level: 5, section: 'Masigasig' },
+    });
+    const adviserCreatedId = adviserCreate.data?.student?.id;
+    if (adviserCreate.status === 201 && adviserCreatedId) createdStudentIds.push(adviserCreatedId);
+    assert(adviserCreate.status === 201, `Adviser-only teacher (TCH-002) enrols into their own advisory section (got ${adviserCreate.status})`);
+    assert(
+      adviserCreate.data?.student?.section_id != null,
+      `adviser create stores non-null section_id (got ${adviserCreate.data?.student?.section_id})`
+    );
+
+    const mintedLoginId = `TCH-${uniqueSuffix}`;
+    const mintTeacher = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: mintedLoginId, password: 'Teacher@2026', name: 'Assigned Only Teacher' },
+    });
+    const mintedTeacherId = mintTeacher.data?.user?.id;
+    if (mintTeacher.status === 201 && mintedTeacherId) createdTeacherIds.push(mintedTeacherId);
+    const g6Subjects = await request('GET', '/api/subjects?grade_level=6', { token: adminToken });
+    const assignMinted = await request('POST', '/api/assignments', {
+      token: adminToken,
+      body: { teacher_id: mintedTeacherId, subject_id: g6Subjects.data?.subjects?.[0]?.id, grade_level: 6, section: 'Malikhain' },
+    });
+    const mintedLogin = await login(mintedLoginId, 'Teacher@2026');
+    const assignedNotAdviserCreate = await request('POST', '/api/students', {
+      token: mintedLogin.data?.token,
+      body: { lrn: `1${uniqueSuffix}`, first_name: 'Refused', last_name: 'Student', grade_level: 6, section: 'Malikhain' },
+    });
+    assert(
+      mintTeacher.status === 201 && assignMinted.status === 201 && mintedLogin.status === 200 && assignedNotAdviserCreate.status === 403,
+      `A teacher assigned to Grade 6 - Malikhain but not its adviser is refused (mint ${mintTeacher.status}, assign ${assignMinted.status}, login ${mintedLogin.status}, create ${assignedNotAdviserCreate.status})`
+    );
+    assert(
+      /adviser of Grade 6 - Malikhain/.test(assignedNotAdviserCreate.data?.message || ''),
+      'That 403 names the adviser rule and the class, not a bare "Access denied."'
     );
 
     // Mabini is fictional. Duplicate-LRN must fire BEFORE section resolve,
@@ -407,21 +460,22 @@ async function run() {
     });
     assert(teacherUpdateOutOfScope.status === 404, 'Teacher updating out-of-scope student returns 404');
 
-    // Write scope did NOT move with the read widening. An adviser who can now
-    // GET a student still cannot edit them — and the refusal is 403, not 404,
-    // because a 404 would contradict the 200 that GET /:id just returned to the
-    // same account. Same distinction routes/grades.js draws after Stage G3.
-    const adviserUpdateOwnSection = await request('PUT', `/api/students/${jeaId}`, {
+    // EDIT scope is assigned OR adviser since pre-Stage-5 #4: the adviser who
+    // enrolled a learner can correct the record. Written on THIS RUN's own
+    // Masigasig fixture (adviserCreatedId), never on Jea's seeded row, and
+    // re-read so the value asserted is the stored one (§5b).
+    const adviserUpdateOwnSection = await request('PUT', `/api/students/${adviserCreatedId}`, {
       token: adviserToken,
       body: { contact_number: '09170000000' },
     });
     assert(
-      adviserUpdateOwnSection.status === 403,
-      `Adviser-only teacher updating a student they can VIEW returns 403, not 404 (got ${adviserUpdateOwnSection.status})`
+      adviserUpdateOwnSection.status === 200 && adviserUpdateOwnSection.data?.student?.contact_number === '09170000000',
+      `Adviser-only teacher edits a learner in their advisory section — 200 (got ${adviserUpdateOwnSection.status})`
     );
+    const adviserEditReRead = await request('GET', `/api/students/${adviserCreatedId}`, { token: adviserToken });
     assert(
-      /assigned to teach/i.test(adviserUpdateOwnSection.data?.message || ''),
-      'That 403 names why editing is refused, not a bare "Access denied."'
+      adviserEditReRead.data?.student?.contact_number === '09170000000',
+      'and the edit is what GET /:id returns afterwards'
     );
 
     // Outside BOTH scopes stays 404 — indistinguishable from a nonexistent id.

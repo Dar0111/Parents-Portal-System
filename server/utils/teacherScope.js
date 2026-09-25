@@ -31,9 +31,13 @@
 //   `... WHERE s.id = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
 //   [id, ...teacherViewScopeParams(req.user.id)]
 //
-// DO NOT reuse this as a WRITE gate. students.js keeps PUT/POST on
-// teacher_assignments alone; excuses.js keeps review on its adviser check.
-// Widening reads must not make more records writable.
+// DO NOT reuse this as a WRITE gate. Each write names its own rule
+// (pre-Stage-5 #4, 2026-09-25): students.js POST checks sections.adviser_id
+// on the TARGET section — the adviser enrols, a subject teacher does not —
+// and POST /users/parents checks the same column on the learner's section;
+// students.js PUT carries its own assigned-OR-adviser EXISTS, written out
+// rather than imported, so that widening this READ constant can never widen
+// an edit by accident; excuses.js keeps review on its adviser check.
 //
 // EXTRACTION HISTORY, kept because the prediction was wrong in an instructive
 // way: students.js and excuses.js each carried a local copy with a twin comment

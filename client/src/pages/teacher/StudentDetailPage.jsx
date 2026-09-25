@@ -15,20 +15,22 @@ import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
+import { useAuth } from '../../auth/AuthContext';
 
-// One student record. Edit is shown only when this student's class
-// (grade_level + section, never section_id) appears in GET /assignments
-// — the same write-scope signal StudentsPage uses for Enroll. Do not
-// reuse useTeacherTargets (assigned-OR-adviser is the READ scope). Do
-// not probe PUT. An adviser-only teacher gets muted copy, not a button
-// that 403s. Create parent is shown whenever parent_account is null: since
-// 2026-09-18 POST /users/parents allows a teacher assigned to OR advising
-// the student's section — the same assigned-OR-adviser predicate that
-// decides whether this page can load the student at all — so every
-// teacher who can see this page may create the parent. Do not gate it on
-// GET /assignments (that would hide it from an adviser such as TCH-002).
-// "Already has a parent" comes from GET /students/:id's parent_account,
-// never from probing the 409.
+// One student record. TWO GATES, TWO SOURCES (pre-Stage-5 #4, 2026-09-25):
+//
+//   Edit           — PUT /students/:id is assigned OR adviser, so Edit is
+//                    shown when this student's class (grade_level + section)
+//                    appears in GET /assignments OR the student's section_id
+//                    is one this teacher advises (GET /sections' adviser_id).
+//   Create parent  — POST /users/parents is the ADVISER of the learner's
+//                    section only, so the button is shown only when the
+//                    student's section_id is advised by the signed-in
+//                    teacher; otherwise muted copy, not a button that 403s.
+//
+// Neither probes its endpoint, and neither reuses useTeacherTargets
+// (assigned-OR-adviser is the READ scope). "Already has a parent" comes
+// from GET /students/:id's parent_account, never from probing the 409.
 //
 // A separate route rather than a modal on the list: a student record is a
 // destination — deep-linkable, back-buttonable, and reachable later from the
@@ -111,6 +113,10 @@ export default function StudentDetailPage() {
   const [error, setError] = useState(null);
   const [notInScope, setNotInScope] = useState(false);
   const [assignments, setAssignments] = useState([]);
+  // Sections this teacher advises (GET /sections, adviser_id === me): the
+  // Create-parent gate and the adviser leg of the Edit gate.
+  const [advised, setAdvised] = useState([]);
+  const { user } = useAuth();
 
   // Keyed status, one key. Both modals report their own failures inside
   // themselves (formError on create-parent, editError on edit) — already the
@@ -187,10 +193,32 @@ export default function StudentDetailPage() {
     };
   }, []);
 
-  const canEdit = useMemo(
-    () => (student ? assignments.some((row) => assignmentMatchesStudent(row, student)) : false),
-    [assignments, student]
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    api
+      .get('/sections', { unwrap: 'sections' })
+      .then((rows) => {
+        if (!cancelled) setAdvised(rows.filter((sec) => Number(sec.adviser_id) === Number(user.id)));
+      })
+      .catch(() => {
+        if (!cancelled) setAdvised([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const advisesThisSection = useMemo(
+    () => (student ? advised.some((sec) => Number(sec.id) === Number(student.section_id)) : false),
+    [advised, student]
   );
+
+  const canEdit = useMemo(
+    () => (student ? assignments.some((row) => assignmentMatchesStudent(row, student)) || advisesThisSection : false),
+    [assignments, student, advisesThisSection]
+  );
+  const canCreateParent = advisesThisSection;
 
   function openCreate() {
     setParent(EMPTY_PARENT);
@@ -394,8 +422,7 @@ export default function StudentDetailPage() {
               </button>
             ) : (
               <p className="max-w-sm text-sm text-fg-muted">
-                Editing a student is limited to classes you are assigned to teach. Advising a
-                section is not enough.
+                Editing a student is limited to classes you teach or advise.
               </p>
             )}
             {parentAccount ? (
@@ -406,7 +433,7 @@ export default function StudentDetailPage() {
               <p className="text-sm text-fg-body">
                 Parent account: <StatusBadge status={parentAccount.status} />
               </p>
-            ) : (
+            ) : canCreateParent ? (
               <button
                 type="button"
                 onClick={openCreate}
@@ -414,6 +441,10 @@ export default function StudentDetailPage() {
               >
                 Create parent account
               </button>
+            ) : (
+              <p className="max-w-sm text-sm text-fg-muted">
+                Only the adviser of this section can create the parent account.
+              </p>
             )}
           </div>
         </div>

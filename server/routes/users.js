@@ -4,7 +4,7 @@ const pool = require('../config/db');
 const { hashPassword } = require('../utils/password');
 const { validateNewPassword } = require('../utils/passwordRule');
 const { validateContact } = require('../utils/contactRule');
-const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
+const { validateEmail } = require('../utils/emailRule');
 const { readListParams, pageMeta } = require('../utils/pagination');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
@@ -38,6 +38,13 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
   }
 
+  // Email: optional; if given, an address the mailer can deliver to, stored
+  // trimmed (utils/emailRule.js). `field` names the input.
+  const emailCheck = validateEmail(email);
+  if (emailCheck.error) {
+    return res.status(400).json({ success: false, message: emailCheck.error, field: 'email' });
+  }
+
   const trimmedLoginId = String(login_id).trim();
   if (trimmedLoginId.length > 20) {
     return res.status(400).json({
@@ -58,7 +65,7 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO users (login_id, password, role, status, name, email, contact_number, created_by)
        VALUES (?, ?, 'teacher', 'active', ?, ?, ?, ?)`,
-      [trimmedLoginId, hashed, name, email || null, contact.value, req.user.id]
+      [trimmedLoginId, hashed, name, emailCheck.value, contact.value, req.user.id]
     );
 
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [result.insertId]);
@@ -99,29 +106,48 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
   }
 
+  // Email (utils/emailRule.js) — checked BEFORE the student lookup, like the
+  // password and contact rules, so a bad address never reveals whether an
+  // LRN exists.
+  const emailCheck = validateEmail(email);
+  if (emailCheck.error) {
+    return res.status(400).json({ success: false, message: emailCheck.error, field: 'email' });
+  }
+
   const loginId = String(lrn).trim();
 
   try {
-    // Who may create it (Darryl, 2026-09-18): a teacher assigned to OR
-    // advising the student's section — the same shared predicate that decides
-    // whether the teacher can SEE the student (utils/teacherScope.js), so
-    // "can create a parent for" equals "can list". ONE query resolves the LRN
-    // and the scope together, so "no such LRN" and "not your student" are the
-    // same response byte for byte (B1, 2026-09-19): an out-of-scope teacher
-    // must not learn whether an LRN exists, and — because this runs BEFORE
-    // the two duplicate 409s below — must not learn whether that child
-    // already has a parent account either. 403 naming the rule (a write, §2);
-    // a teacher in scope who mistypes an LRN gets the same 403, and the
-    // enroll wizard never reaches this call with an unknown LRN (step 2 runs
-    // only after a successful POST /students).
+    // Who may create it (pre-Stage-5 #4, 2026-09-25): THE ADVISER OF THE
+    // STUDENT'S SECTION, and nobody else. The school's rule is that the
+    // adviser enrols a learner and creates the parent account; between
+    // 2026-09-18 and today this took the wider read predicate (assigned OR
+    // adviser), so a subject teacher could create the account too, which
+    // was never the process. Enrolment (POST /students) narrowed the same
+    // day, so "can enrol" and "can create the parent for" are one rule.
+    //
+    // ONE query resolves the LRN and the scope together, so "no such LRN" and
+    // "not your student" are the same response byte for byte (B1,
+    // 2026-09-19): an out-of-scope teacher must not learn whether an LRN
+    // exists, and — because this runs BEFORE the two duplicate 409s below —
+    // must not learn whether that child already has a parent account either.
+    // 403 naming the rule (a write, §2); an adviser who mistypes an LRN gets
+    // the same 403, and the enrol wizard never reaches this call with an
+    // unknown LRN (step 2 runs only after a successful POST /students).
+    //
+    // sections.adviser_id on s.section_id — the same column attendance and
+    // excuse review key on, NOT utils/teacherScope.js's read predicate, which
+    // its own header says is never a write gate.
     const [students] = await pool.query(
-      `SELECT s.id FROM students s WHERE s.lrn = ? AND ${TEACHER_VIEW_SCOPE_SQL} LIMIT 1`,
-      [loginId, ...teacherViewScopeParams(req.user.id)]
+      `SELECT s.id FROM students s
+       WHERE s.lrn = ?
+         AND EXISTS (SELECT 1 FROM sections sec WHERE sec.id = s.section_id AND sec.adviser_id = ?)
+       LIMIT 1`,
+      [loginId, req.user.id]
     );
     if (!students.length) {
       return res.status(403).json({
         success: false,
-        message: "Only a teacher assigned to this student's class, or the adviser of their section, can create the parent account.",
+        message: "Only the adviser of this student's section can create the parent account.",
       });
     }
     const student = students[0];
@@ -143,7 +169,7 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     const [result] = await pool.query(
       `INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by)
        VALUES (?, ?, 'parent', 'pending', ?, ?, ?, ?, ?)`,
-      [loginId, hashed, name, email || null, contact.value, student.id, req.user.id]
+      [loginId, hashed, name, emailCheck.value, contact.value, student.id, req.user.id]
     );
 
     const [rows] = await pool.query(
@@ -462,7 +488,16 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
 
     const { name, email, contact_number } = req.body;
     const nextName = name !== undefined ? name : existing.name;
-    const nextEmail = email !== undefined ? email || null : existing.email;
+    let nextEmail = existing.email;
+    if (email !== undefined) {
+      // Optional; if given, an address the mailer can deliver to, stored
+      // trimmed (utils/emailRule.js). An empty string clears it.
+      const emailCheck = validateEmail(email);
+      if (emailCheck.error) {
+        return res.status(400).json({ success: false, message: emailCheck.error, field: 'email' });
+      }
+      nextEmail = emailCheck.value;
+    }
     let nextContact = existing.contact_number;
     if (contact_number !== undefined) {
       // Optional; if given, 11 digits starting with 09, stored digits-only

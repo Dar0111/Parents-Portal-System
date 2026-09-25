@@ -85,16 +85,9 @@ async function parentAccountFor(studentId) {
 const CLASS_CHANGE_REFUSED =
   "Changing a student's class is not supported. Nothing else in this request was saved; other fields can be updated without sending a different grade_level or section.";
 
-// WRITE scope — teacher_assignments only. Used by POST / (create).
-// Deliberately NOT widened to advisers: see TEACHER_VIEW_SCOPE_SQL in
-// utils/teacherScope.js, which is the READ scope and must not be used here.
-async function teacherHasAssignment(teacherId, gradeLevel, section) {
-  const [rows] = await pool.query(
-    `SELECT 1 FROM teacher_assignments WHERE teacher_id = ? AND grade_level = ? AND section = ? LIMIT 1`,
-    [teacherId, gradeLevel, section]
-  );
-  return rows.length > 0;
-}
+// (teacherHasAssignment, the assignments-only enrolment gate, was removed
+// 2026-09-25 — POST / checks sections.adviser_id on the TARGET section now;
+// see the handler. PUT /:id carries its own assigned-OR-adviser EXISTS.)
 
 // Duplicated from routes/assignments.js. Extract on a third copy, not here.
 async function currentAcademicYear() {
@@ -278,16 +271,6 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
   }
 
   try {
-    if (req.user.role === 'teacher') {
-      const allowed = await teacherHasAssignment(req.user.id, gradeLevelNum, trimmedSection);
-      if (!allowed) {
-        return res.status(403).json({
-          success: false,
-          message: `You are not assigned to Grade ${gradeLevelNum} - ${trimmedSection}.`,
-        });
-      }
-    }
-
     // Duplicate-LRN 409 MUST run before section resolve. test-student-flows.js
     // posts Marwin's LRN with fictional section 'Mabini'; resolving first would
     // turn that 409 into a 400. A write of section_id on insert (same shape as
@@ -305,8 +288,12 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       });
     }
 
+    // The section is resolved BEFORE the teacher gate (pre-Stage-5 #4): the
+    // gate is a fact about the target row, so the row has to exist first.
+    // A nonexistent section is a 400 to every role — section names are
+    // reference data every authenticated user can list, so nothing leaks.
     const [sectionRows] = await pool.query(
-      `SELECT id FROM sections
+      `SELECT id, adviser_id FROM sections
        WHERE name = ? AND grade_level = ? AND school_year = ?
        LIMIT 1`,
       [trimmedSection, gradeLevelNum, schoolYear]
@@ -316,6 +303,28 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       return res.status(400).json({
         success: false,
         message: `No section named "${trimmedSection}" exists at Grade ${gradeLevelNum} for ${schoolYear}.`,
+      });
+    }
+
+    // WHO MAY ENROL (the school, 2026-09-23; built pre-Stage-5 #4,
+    // 2026-09-25): THE ADVISER OF THE TARGET SECTION. Not a subject teacher
+    // assigned there — a subject teacher records grades, the adviser keeps
+    // the class list — so the gate is sections.adviser_id on the row just
+    // resolved, never teacher_assignments and never the read predicate in
+    // utils/teacherScope.js. Until today this was assignments-only, which let
+    // a subject teacher enrol and stopped an adviser with no subject rows
+    // (TCH-002 in the seed) from enrolling into their own class.
+    //
+    // ADMIN IS KEPT, deliberately. The school's "only the adviser, not the
+    // admin" describes the process, and the client offers an admin no enrol
+    // form. But 20 of 23 sections have no adviser and no screen assigns one
+    // (KNOWN ISSUES) — an admin POST is the only way a learner reaches any
+    // of those sections, and the only way a test fixture does. Excluding
+    // admin here would make most of the school unenrollable.
+    if (req.user.role === 'teacher' && sectionRow.adviser_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: `Only the adviser of Grade ${gradeLevelNum} - ${trimmedSection} can enrol a learner into it.`,
       });
     }
 
@@ -384,42 +393,31 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
   try {
     let existing;
     if (req.user.role === 'teacher') {
-      // WRITE scope is teacher_assignments ONLY — deliberately NOT the wider
-      // TEACHER_VIEW_SCOPE_SQL used by the two reads. Widening reads must not
-      // make more records editable.
+      // EDIT scope is assigned OR adviser (pre-Stage-5 #4, 2026-09-25) — the
+      // same two legs as the read predicate, written out here rather than
+      // imported because utils/teacherScope.js's header says that constant
+      // is never a write gate, and this IS one. Until today edits were
+      // assignments-only, so the adviser of a section — the person who
+      // enrolled the learner and keeps the class list — could see a record
+      // they could not correct. A learner outside both legs is 404, exactly
+      // as GET /:id answers the same teacher (anti-enumeration, §2).
       const [rows] = await pool.query(
         `SELECT s.* FROM students s
          WHERE s.id = ?
-           AND EXISTS (
-             SELECT 1 FROM teacher_assignments ta
-             WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
+           AND (
+             EXISTS (
+               SELECT 1 FROM teacher_assignments ta
+               WHERE ta.teacher_id = ? AND ta.grade_level = s.grade_level AND ta.section = s.section
+             )
+             OR EXISTS (
+               SELECT 1 FROM sections sec
+               WHERE sec.id = s.section_id AND sec.adviser_id = ?
+             )
            )
          LIMIT 1`,
-        [id, req.user.id]
+        [id, req.user.id, req.user.id]
       );
       existing = rows[0];
-
-      // Read scope is wider than write scope, so a 404 here would contradict
-      // what GET /api/students/:id already shows this same teacher. Distinguish
-      // the two cases exactly as routes/grades.js does after Stage G3: inside
-      // view-scope but outside write-scope is 403 naming the reason; outside
-      // both is 404 and stays indistinguishable from a nonexistent id.
-      if (!existing) {
-        const [visible] = await pool.query(
-          `SELECT 1 FROM students s
-           WHERE s.id = ?
-             AND ${TEACHER_VIEW_SCOPE_SQL}
-           LIMIT 1`,
-          [id, ...teacherViewScopeParams(req.user.id)]
-        );
-        if (visible.length) {
-          return res.status(403).json({
-            success: false,
-            message:
-              'You can view this student as the adviser of their section, but editing student records is limited to teachers assigned to teach that class.',
-          });
-        }
-      }
     } else {
       const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
       existing = rows[0];

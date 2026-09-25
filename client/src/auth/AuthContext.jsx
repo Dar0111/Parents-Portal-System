@@ -1,32 +1,62 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import api, { TOKEN_KEY } from '../api/axios';
+import extractError from '../api/extractError';
+import { classifyAuthFailure } from './authFailure';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Set when /auth/me failed for a reason that is NOT a dead session (offline,
+  // 5xx, a hung request). The token stays in storage; ProtectedRoute and
+  // RootRedirect render AuthUnavailable with retry() instead of sending the
+  // user to /login. Cleared by a successful read.
+  const [authError, setAuthError] = useState(null);
 
-  useEffect(() => {
+  // Never trust the token's own claims for role/status — ask the server,
+  // which re-reads the user row on every request. A deactivated or
+  // rejected account must not render a dashboard just because the JWT
+  // it's carrying hasn't expired yet.
+  //
+  // ONLY A 401 ENDS THE SESSION (pre-Stage-5 #4, 2026-09-25). Until today
+  // this catch removed the token on ANY failure, so a refresh during a LAN
+  // outage discarded a valid session with no reason shown. The axios
+  // interceptor already removes the token and redirects on a 401 — this
+  // branch only mirrors it into context; everything else keeps the token
+  // and exposes `authError` for a retry (auth/authFailure.js says why the
+  // second bucket is deliberately that wide).
+  const readSession = useCallback(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
       setLoading(false);
       return;
     }
-
-    // Never trust the token's own claims for role/status — ask the server,
-    // which re-reads the user row on every request. A deactivated or
-    // rejected account must not render a dashboard just because the JWT
-    // it's carrying hasn't expired yet.
+    setLoading(true);
+    setAuthError(null);
     api
       .get('/auth/me', { unwrap: 'user' })
       .then((me) => setUser(me))
-      .catch(() => {
-        localStorage.removeItem(TOKEN_KEY);
-        setUser(null);
+      .catch((err) => {
+        if (classifyAuthFailure(err) === 'unauthenticated') {
+          localStorage.removeItem(TOKEN_KEY);
+          setUser(null);
+        } else {
+          setAuthError(extractError(err));
+        }
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    readSession();
+  }, [readSession]);
+
+  // Retry is guarded by `loading`: while a read is in flight a second click
+  // must not stack another request behind it.
+  const retry = useCallback(() => {
+    if (!loading) readSession();
+  }, [loading, readSession]);
 
   async function login(login_id, password) {
     // Multi-key unwrap rather than raw: login returns token + user as two flat
@@ -83,7 +113,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh, applyToken }}>
+    <AuthContext.Provider value={{ user, loading, authError, retry, login, logout, refresh, applyToken }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,9 +1,10 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import AuthUnavailable from './AuthUnavailable';
 import { roleHome } from './roles';
 
 export default function ProtectedRoute({ allowedRoles, children }) {
-  const { user, loading } = useAuth();
+  const { user, loading, authError, retry } = useAuth();
 
   if (loading) {
     return (
@@ -11,6 +12,14 @@ export default function ProtectedRoute({ allowedRoles, children }) {
         <i className="fa-solid fa-circle-notch fa-spin text-3xl text-fg-faint" />
       </div>
     );
+  }
+
+  // /auth/me failed for a reason that is not a dead session (pre-Stage-5
+  // #4): the token is still stored, so this is NOT a redirect to /login —
+  // that would throw away a valid session for a network blip. Checked
+  // BEFORE `!user`, because a failed read leaves `user` null too.
+  if (authError) {
+    return <AuthUnavailable message={authError} onRetry={retry} />;
   }
 
   if (!user) {

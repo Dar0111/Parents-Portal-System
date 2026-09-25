@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ProtectedRoute from './auth/ProtectedRoute';
+import AuthUnavailable from './auth/AuthUnavailable';
 import { roleHome } from './auth/roles';
 import Shell from './layout/Shell';
 import Login from './pages/Login';
@@ -45,8 +46,11 @@ import SchoolSettingsSection from './pages/settings/SchoolSettingsSection';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
-  const { user, loading } = useAuth();
+  const { user, loading, authError, retry } = useAuth();
   if (loading) return null;
+  // Same guard as ProtectedRoute (pre-Stage-5 #4): a stored token whose
+  // /auth/me read failed for a non-401 reason must not bounce "/" to /login.
+  if (authError) return <AuthUnavailable message={authError} onRetry={retry} />;
   return <Navigate to={user ? roleHome(user.role) : '/login'} replace />;
 }
 

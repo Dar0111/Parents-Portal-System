@@ -151,6 +151,10 @@ export default function UsersPage() {
   // field "contact_number" — under the field in each form (§7c).
   const [createContactError, setCreateContactError] = useState(null);
   const [editContactError, setEditContactError] = useState(null);
+  // field: 'email' from utils/emailRule.js (pre-Stage-5 #4) lands on the
+  // email input, like the contact rule's, not in the form's generic slot.
+  const [createEmailError, setCreateEmailError] = useState(null);
+  const [editEmailError, setEditEmailError] = useState(null);
   const [createSaving, setCreateSaving] = useState(false);
 
   const [editing, setEditing] = useState(null);
@@ -280,6 +284,7 @@ export default function UsersPage() {
   function openCreate() {
     setTeacherForm(EMPTY_TEACHER);
     setCreateError(null);
+    setCreateEmailError(null);
     setCreating(true);
   }
 
@@ -335,6 +340,8 @@ export default function UsersPage() {
         setPasswordError(extractError(err));
       } else if (field === 'contact_number') {
         setCreateContactError(extractError(err));
+      } else if (field === 'email') {
+        setCreateEmailError(extractError(err));
       } else {
         setCreateError(extractError(err));
       }
@@ -352,6 +359,7 @@ export default function UsersPage() {
     });
     setEditError(null);
     setEditContactError(null);
+    setEditEmailError(null);
   }
 
   function closeEdit() {
@@ -398,6 +406,8 @@ export default function UsersPage() {
     } catch (err) {
       if (err?.response?.data?.field === 'contact_number') {
         setEditContactError(extractError(err));
+      } else if (err?.response?.data?.field === 'email') {
+        setEditEmailError(extractError(err));
       } else {
         setEditError(extractError(err));
       }
@@ -895,7 +905,11 @@ export default function UsersPage() {
             label="Email"
             type="email"
             value={teacherForm.email}
-            onChange={(e) => setTeacherForm((f) => ({ ...f, email: e.target.value }))}
+            onChange={(e) => {
+              setCreateEmailError(null);
+              setTeacherForm((f) => ({ ...f, email: e.target.value }));
+            }}
+            error={createEmailError}
           />
           <FormField
             label="Contact number"
@@ -956,7 +970,11 @@ export default function UsersPage() {
               label="Email"
               type="email"
               value={editForm.email}
-              onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+              onChange={(e) => {
+                setEditEmailError(null);
+                setEditForm((f) => ({ ...f, email: e.target.value }));
+              }}
+              error={editEmailError}
             />
             <FormField
               label="Contact number"

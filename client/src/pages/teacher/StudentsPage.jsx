@@ -14,6 +14,7 @@ import { isDirty } from '../../components/filterState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { sectionOptions, showSectionFilter } from './students/sectionOptions';
+import { useAuth } from '../../auth/AuthContext';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
@@ -22,27 +23,29 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
-// Teacher student list. Enroll (POST /students, assignments-only) plus a
-// wizard step to create the pending parent. No Edit, no attendance history.
-// Detail Edit is assignments-only — PUT is teacher_assignments-only, and an
-// adviser-only teacher sees muted copy rather than a button that 403s.
+// Teacher student list. Enroll (POST /students) plus a wizard step to create
+// the pending parent. No Edit, no attendance history.
 //
-// Read scope is assigned OR section adviser (utils/teacherScope.js), so an
-// adviser holding no subject assignments still sees their advisory section —
-// TCH-002 is the account that proves it. WRITE is assignments-only: do not
-// reuse useTeacherTargets (assigned-OR-adviser). Class picker is
-// GET /assignments, no teacher_id. TCH-002's [] is the Enroll-vs-muted-copy
-// signal, not a third empty state on GET /students.
+// WHO ENROLS — THE ADVISER (the school, 2026-09-23; built pre-Stage-5 #4,
+// 2026-09-25). POST /students is gated on sections.adviser_id of the TARGET
+// section, so the class picker is the sections this teacher ADVISES: GET
+// /sections (adviser_id is on every row) filtered on the signed-in user's
+// id. NOT GET /assignments — a subject teacher assigned to a class does not
+// enrol into it, and an adviser with no subject rows (TCH-002 in the seed)
+// does. `canEnroll` follows the same list; a teacher who advises nothing
+// sees muted copy rather than a button that 403s.
 //
-// POST /users/parents is scoped since 2026-09-18: the teacher must be
-// assigned to the student's class OR advise its section (the same
-// predicate that lets them see the student), else 403 — and an unknown
-// LRN is that same 403, never a 404. Wizard step 2 runs only after a
-// successful enroll, so the LRN it sends is one this teacher just created
-// in their own assignment; LRN is locked from the student row. Do not hide
-// Create parent behind assignments on the detail page — an adviser-only
-// teacher (TCH-002) may create it, and the detail page's own read scope
-// already equals the create scope.
+// Read scope is still assigned OR adviser (utils/teacherScope.js), so the
+// list and the Section FILTER are wider than Enroll: the filter's union in
+// students/sectionOptions.js keeps taking the assignments list plus the
+// loaded rows, because a filter narrows what is visible and is not a write
+// scope. Do not reuse useTeacherTargets for either.
+//
+// POST /users/parents is gated the same way (the adviser of the learner's
+// section), else 403 — and an unknown LRN is that same 403, never a 404.
+// Wizard step 2 runs only after a successful enrol, so the LRN it sends is
+// one this adviser just created in their own section; LRN is locked from
+// the student row.
 
 const EMPTY_ENROLL = {
   lrn: '',
@@ -79,9 +82,13 @@ export default function StudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Own assignment rows only. [] for TCH-002 is correct — advising is not
-  // enough to enroll. Do not reconstruct from GET /students ∪ GET /sections.
+  // Own assignment rows — feeds the Section FILTER's union only (see the
+  // header). Enroll reads `advised` below.
   const [assignments, setAssignments] = useState([]);
+  // The sections this teacher advises, from GET /sections' adviser_id: the
+  // Enroll picker and the gate. [] for a teacher who advises nothing.
+  const [advised, setAdvised] = useState([]);
+  const { user } = useAuth();
 
   // Committed filter values — what has actually been sent to the API. Kept
   // separate from the input's own value so typing does not fire a request per
@@ -182,7 +189,25 @@ export default function StudentsPage() {
     };
   }, []);
 
-  const classOptions = useMemo(() => {
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let cancelled = false;
+    api
+      .get('/sections', { unwrap: 'sections' })
+      .then((rows) => {
+        if (!cancelled) setAdvised(rows.filter((sec) => Number(sec.adviser_id) === Number(user.id)));
+      })
+      .catch(() => {
+        if (!cancelled) setAdvised([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // The classes this teacher is ASSIGNED to — the Section filter's first
+  // source. Not the Enroll list.
+  const assignedClasses = useMemo(() => {
     const seen = new Set();
     const out = [];
     for (const row of assignments) {
@@ -199,6 +224,19 @@ export default function StudentsPage() {
     return out;
   }, [assignments]);
 
+  // The Enroll picker: sections this teacher ADVISES (pre-Stage-5 #4). Same
+  // shape as before so parseClassKey and the wizard are untouched.
+  const classOptions = useMemo(
+    () =>
+      advised.map((sec) => ({
+        key: `${sec.grade_level}|${sec.name}`,
+        grade_level: sec.grade_level,
+        section: sec.name,
+        label: `Grade ${sec.grade_level} - ${sec.name}`,
+      })),
+    [advised]
+  );
+
   const canEnroll = classOptions.length > 0;
 
   // The Section filter's options live in `students/sectionOptions.js` — a
@@ -206,7 +244,7 @@ export default function StudentsPage() {
   // an adviser with no assignments) can be driven by a proof instead of
   // reasoned about. Its header carries why the union exists and why Enroll
   // must NOT use it.
-  const filterSections = useMemo(() => sectionOptions(classOptions, students), [classOptions, students]);
+  const filterSections = useMemo(() => sectionOptions(assignedClasses, students), [assignedClasses, students]);
 
   function applyFilters(event) {
     event.preventDefault();
@@ -478,8 +516,8 @@ export default function StudentsPage() {
           </button>
         ) : (
           <p className="max-w-sm text-sm text-fg-muted">
-            Enrolling a student is limited to classes you are assigned to teach.
-            Advising a section is not enough.
+            Enrolling a learner is limited to the section you advise. Teaching a
+            subject in a class is not enough.
           </p>
         )}
       </div>
