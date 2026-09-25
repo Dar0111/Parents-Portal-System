@@ -154,10 +154,29 @@ async function run() {
   const rosterLrn = `6${String(Date.now()).slice(-11)}`;
 
   const createdStudentIds = [];
+  // Every attendance row this run writes, by id, from the 201 that created
+  // it (pre-Stage-5 #3a). Until then cleanup was `DELETE … WHERE date IN
+  // (dateA, dateB, today)` for EVERY learner — a test run destroyed real
+  // attendance on three dates (it wiped five browser fixtures on
+  // 2026-09-14). A POST is ON DUPLICATE KEY, so an id here may be a row that
+  // existed before the run and was overwritten by it — narrower than a date,
+  // and stated rather than hidden.
+  const createdAttendanceIds = [];
+  function trackAttendance(res) {
+    const body = res.data?.attendance;
+    const rows = Array.isArray(body) ? body : body ? [body] : [];
+    for (const row of rows) if (row?.id && !createdAttendanceIds.includes(row.id)) createdAttendanceIds.push(row.id);
+  }
+  // A row this run creates but deliberately keeps OUT of the id list: it must
+  // survive cleanup, which is the proof that cleanup is scoped to the list
+  // and not to the dates it shares with it.
+  let sentinelAttendanceId = null;
 
   async function cleanup() {
     await withDb(async (conn) => {
-      await conn.query('DELETE FROM attendance WHERE date IN (?)', [[dateA, dateB, todayLocal()]]);
+      if (createdAttendanceIds.length) {
+        await conn.query('DELETE FROM attendance WHERE id IN (?)', [createdAttendanceIds]);
+      }
       if (createdStudentIds.length) {
         await conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]);
       }
@@ -175,6 +194,16 @@ async function run() {
     const rosterStudentId = rosterResult.insertId;
     createdStudentIds.push(rosterStudentId);
 
+    // The sentinel: one row on a date the run also writes to, for a learner
+    // the run also writes for, NOT tracked. If cleanup ever goes back to
+    // deleting by date, the assertion in the finally block catches it.
+    const sentinel = await request('POST', '/api/attendance', {
+      token: adminToken,
+      body: { student_id: jeaId, date: todayLocal(), status: 'Present' },
+    });
+    sentinelAttendanceId = sentinel.data?.attendance?.id ?? null;
+    assert(sentinel.status === 201 && sentinelAttendanceId, 'Sentinel row written (kept out of the cleanup list on purpose)');
+
     // --- Single record: create, update-in-place, scoping, validation ---
     console.log('\nRecord one entry:');
 
@@ -182,6 +211,7 @@ async function run() {
       token: adviserToken,
       body: { student_id: marwinId, date: dateA, status: 'Present' },
     });
+    trackAttendance(recordPresent);
     assert(
       recordPresent.status === 201 && recordPresent.data?.attendance?.status === 'Present',
       'Adviser records attendance for their own section'
@@ -227,6 +257,7 @@ async function run() {
       token: adviserToken,
       body: { student_id: marwinId, date: todayLocal(), status: 'Present' },
     });
+    trackAttendance(recordToday);
     assert(
       recordToday.status === 201,
       `Today's actual date is accepted, not rejected as "future" (got ${recordToday.status})`
@@ -248,6 +279,7 @@ async function run() {
       token: adminToken,
       body: { student_id: jeaId, date: dateB, status: 'Present' },
     });
+    trackAttendance(adminRecordsAnywhere);
     assert(
       adminRecordsAnywhere.status === 201,
       'Admin records attendance for any section (no adviser check)'
@@ -267,6 +299,7 @@ async function run() {
         ],
       },
     });
+    trackAttendance(bulkOk);
     assert(
       bulkOk.status === 201 && bulkOk.data?.attendance?.length === 2,
       'Adviser bulk-records a full section roster'
@@ -309,8 +342,9 @@ async function run() {
       (afterFailedBulk.data?.attendance || []).length === 0,
       'Failed bulk wrote nothing for the valid entry either — all-or-nothing confirmed'
     );
-    // bulkBadDate not part of the cleanup date list, so remove any accidental writes explicitly.
-    await withDb((conn) => conn.query('DELETE FROM attendance WHERE date = ?', [bulkBadDate]));
+    // No delete for bulkBadDate: the assertion above proves the failed bulk
+    // wrote nothing, and an unscoped "just in case" delete over a whole date
+    // is exactly the defect #3a removed from cleanup().
 
     const nonAdviserBulk = await request('POST', '/api/attendance/bulk', {
       token: otherAdviserToken,
@@ -484,6 +518,18 @@ async function run() {
     );
   } finally {
     await cleanup();
+    // The scoping proof: the sentinel shares a date and a learner with rows
+    // the run deleted, and must still be there. Then it goes, by its own id.
+    if (sentinelAttendanceId) {
+      const [survivors] = await withDb((conn) =>
+        conn.query('SELECT id FROM attendance WHERE id = ?', [sentinelAttendanceId])
+      );
+      assert(
+        survivors.length === 1,
+        'cleanup deleted only the ids it tracked — the untracked sentinel on a shared date survived'
+      );
+      await withDb((conn) => conn.query('DELETE FROM attendance WHERE id = ?', [sentinelAttendanceId]));
+    }
   }
 
   // --- Summary ---

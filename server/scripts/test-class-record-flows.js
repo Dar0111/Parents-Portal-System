@@ -51,6 +51,7 @@ const {
   buildClassRecordPayload,
   slotKey,
 } = require('../../client/src/pages/teacher/classRecord/buildPayload.js');
+const { pairsFor, countNotificationsFor } = require('./test-helpers/notifications');
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
@@ -127,6 +128,21 @@ async function main() {
   const createdGradeIds = [];
 
   async function cleanup() {
+    // PUT /class-record reaches the same recomputeGrade() fan-out the per-row
+    // writes do, so this suite COULD leave notification rows. Measured
+    // 2026-09-25 (pre-Stage-5 #3a, red-first, before any helper was wired):
+    // ZERO — every learner it saves for is a fixture with no parent account,
+    // so the audience is empty. Asserted rather than deleted: a delete over
+    // rows that were never there is theatre, and this guard is what turns
+    // the measured fact into a maintained one. Grade ids are resolved
+    // BEFORE the deletes, because the student-keyed delete below cascades
+    // grades no list holds.
+    const gradeIds = new Set(createdGradeIds);
+    if (createdStudentIds.length) {
+      const [rows] = await withDb((conn) => conn.query('SELECT id FROM grades WHERE student_id IN (?)', [createdStudentIds]));
+      for (const r of rows) gradeIds.add(r.id);
+    }
+    const notificationPairs = pairsFor('grade', [...gradeIds]);
     // Grades first: their components cascade away, which is what frees the
     // slots (the slot FK is ON DELETE RESTRICT). Then the learners, then the
     // slots for the class this run used.
@@ -137,6 +153,12 @@ async function main() {
       await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id IN (?)', [createdStudentIds]));
       await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
     }
+    const leftover = await withDb((conn) => countNotificationsFor(conn, notificationPairs));
+    assert(
+      leftover === 0,
+      `no notification row for any of this run's ${notificationPairs.length} grades — the fan-out has no audience here (measured, not assumed)`,
+      `got ${leftover}`
+    );
     const [res] = await withDb((conn) =>
       conn.query('DELETE FROM assessment_slots WHERE section = ? AND school_year = ?', ['Matipid', SCHOOL_YEAR])
     );

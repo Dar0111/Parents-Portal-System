@@ -18,7 +18,11 @@
  * a deliberately chosen `iat`) rather than a real second login — sleeping
  * for real seconds to get two logins on either side of a cutoff would be
  * the same "timeout dressed up as proof" shape rejected for Socket.io
- * delivery. This is deterministic instead.
+ * delivery. This is deterministic instead. The crafted token also carries
+ * the account's CURRENT token_version as `v`, copied from the real login's
+ * token: the middleware checks the cutoff and then the version, so the
+ * "after the cutoff" assertion proves both, and a crafted token without `v`
+ * is refused by the second check on any account whose counter is above 0.
  *
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  * Usage: npm run test:restore
@@ -69,9 +73,12 @@ async function login(loginId, password) {
   return request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 }
 
+function decodePayload(token) {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+}
+
 function decodeIat(token) {
-  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-  return payload.iat;
+  return decodePayload(token).iat;
 }
 
 // Signs a real, correctly-verifiable token with a chosen iat/exp instead of
@@ -377,10 +384,30 @@ async function run() {
       "The cutoff applies to every user's pre-cutoff token, not just the admin's"
     );
 
-    const freshTokenPayload = { id: adminUser.id, role: adminUser.role, login_id: adminUser.login_id, student_id: adminUser.student_id || null };
+    // THE CRAFTED TOKEN MUST CARRY THE ACCOUNT'S CURRENT `v` (pre-Stage-5
+    // #3a). middleware/auth.js checks the restore cutoff FIRST, then the
+    // per-user token_version: a crafted payload with no `v` reads as version
+    // 0, and the moment any suite has bumped ADMIN001's counter (test:auth and
+    // test:recovery both do) the middleware answers 401 "Your password was
+    // changed" — indistinguishable from the restore 401 by status alone. That
+    // is what this assertion failed on for three days while KNOWN_ISSUES
+    // blamed a sub-second `iat` boundary; the red-first run printed the body.
+    // The real login's token carries the live version, so it is copied from
+    // there rather than read from the DB — what a real login would do.
+    const freshTokenPayload = {
+      id: adminUser.id,
+      role: adminUser.role,
+      login_id: adminUser.login_id,
+      student_id: adminUser.student_id || null,
+      v: decodePayload(adminToken).v,
+    };
     const newToken = craftToken(freshTokenPayload, cutoffSeconds + 5);
     const meWithNewToken = await request('GET', '/api/auth/me', { token: newToken });
-    assert(meWithNewToken.status === 200, 'A token issued after the cutoff still works');
+    assert(
+      meWithNewToken.status === 200,
+      'A token issued after the cutoff, carrying the current token_version, still works — cutoff AND version pass together',
+      `got ${meWithNewToken.status}: ${JSON.stringify(meWithNewToken.data)}`
+    );
 
     // Put back the cutoff found at the start (a real restore's, or none) —
     // not a DELETE, which would re-validate every pre-restore token.

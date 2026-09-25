@@ -10,6 +10,7 @@
  * Usage: npm run test:content
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
@@ -141,8 +142,25 @@ async function run() {
   const createdAnnouncementIds = [];
   const createdMemoIds = [];
   const createdEventIds = [];
+  // Every event id this run ever created, never spliced — the notification
+  // pairs are built from this, because an event deleted through the API
+  // leaves the cleanup list but not the notifications table.
+  const notifiedEventIds = [];
 
   async function cleanup() {
+    // Every post this run made fanned out to its audience, and those
+    // notifications rows have no FK to follow the post away (pre-Stage-5
+    // #3a). Pairs first, from the same id lists, then the posts.
+    // Events come from `notifiedEventIds`, not `createdEventIds`: the run
+    // deletes one event through the API and splices it out of the cleanup
+    // list, but the DELETE route does not touch notifications, so a pair list
+    // built from the spliced array missed that event's rows — measured on the
+    // first run of this helper (1 row left, to the Grade 5 adviser).
+    const notificationPairs = [
+      ...pairsFor('announcement', createdAnnouncementIds),
+      ...pairsFor('memo', createdMemoIds),
+      ...pairsFor('event', notifiedEventIds),
+    ];
     await withDb(async (conn) => {
       if (createdAnnouncementIds.length) {
         await conn.query('DELETE FROM announcements WHERE id IN (?)', [createdAnnouncementIds]);
@@ -153,6 +171,13 @@ async function run() {
       if (createdEventIds.length) {
         await conn.query('DELETE FROM events WHERE id IN (?)', [createdEventIds]);
       }
+      const deleted = await deleteNotificationsFor(conn, notificationPairs);
+      const leftover = await countNotificationsFor(conn, notificationPairs);
+      assert(
+        leftover === 0,
+        `every notification row THIS RUN fanned out is gone (${deleted} deleted over ${notificationPairs.length} items)`,
+        `got ${leftover}`
+      );
     });
   }
 
@@ -393,7 +418,10 @@ async function run() {
       body: { title: 'Grade 6 field trip', event_date: ownGradeEventDate, target_grade: 6 },
     });
     assert(teacherEventOwnGrade.status === 201, 'Teacher posts event within their assigned grade');
-    if (teacherEventOwnGrade.data?.event?.id) createdEventIds.push(teacherEventOwnGrade.data.event.id);
+    if (teacherEventOwnGrade.data?.event?.id) {
+      createdEventIds.push(teacherEventOwnGrade.data.event.id);
+      notifiedEventIds.push(teacherEventOwnGrade.data.event.id);
+    }
     assertPoster(
       teacherEventOwnGrade.data?.event,
       teacherUser,
@@ -435,21 +463,30 @@ async function run() {
       body: { title: 'Past event', event_date: daysAgo(30), target_grade: 6 },
     });
     assert(eventPastAllowed.status === 201, 'Past event date allowed (recorded after the fact)');
-    if (eventPastAllowed.data?.event?.id) createdEventIds.push(eventPastAllowed.data.event.id);
+    if (eventPastAllowed.data?.event?.id) {
+      createdEventIds.push(eventPastAllowed.data.event.id);
+      notifiedEventIds.push(eventPastAllowed.data.event.id);
+    }
 
     const adminEventSchoolWide = await request('POST', '/api/events', {
       token: adminToken,
       body: { title: 'School-wide assembly', event_date: daysAgo(1) },
     });
     assert(adminEventSchoolWide.status === 201, 'Admin posts school-wide event');
-    if (adminEventSchoolWide.data?.event?.id) createdEventIds.push(adminEventSchoolWide.data.event.id);
+    if (adminEventSchoolWide.data?.event?.id) {
+      createdEventIds.push(adminEventSchoolWide.data.event.id);
+      notifiedEventIds.push(adminEventSchoolWide.data.event.id);
+    }
 
     const adminEventG5 = await request('POST', '/api/events', {
       token: adminToken,
       body: { title: 'Grade 5 event', event_date: daysAgo(1), target_grade: 5 },
     });
     assert(adminEventG5.status === 201, 'Admin posts event for a grade the teacher does not teach');
-    if (adminEventG5.data?.event?.id) createdEventIds.push(adminEventG5.data.event.id);
+    if (adminEventG5.data?.event?.id) {
+      createdEventIds.push(adminEventG5.data.event.id);
+      notifiedEventIds.push(adminEventG5.data.event.id);
+    }
 
     // --- Events: read scoping ---
     console.log('\nEvents — read scoping:');
@@ -509,6 +546,9 @@ async function run() {
     assert(adminDeletesEvent.status === 200, 'Admin deletes an event');
     // Deleted directly via the API — remove from the cleanup list so we don't
     // try to delete it again (harmless no-op either way, but keep it accurate).
+    // Its NOTIFICATION rows are not removed by that DELETE (no FK), so the id
+    // stays in `notifiedEventIds` — this splice is exactly how one event's
+    // rows escaped the first run of the shared cleanup (#3a, 2026-09-25).
     const idx = createdEventIds.indexOf(adminEventG5.data.event.id);
     if (idx !== -1) createdEventIds.splice(idx, 1);
     // --- Pagination contract (2026-09-19, utils/pagination.js): every list

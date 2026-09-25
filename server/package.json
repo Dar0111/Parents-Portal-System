@@ -33,7 +33,8 @@
     "test:dashboard": "node scripts/test-dashboard-flows.js",
     "test:class-record": "node scripts/test-class-record-flows.js",
     "test:class-summary": "node scripts/test-class-summary-flows.js",
-    "test:recovery": "node scripts/test-recovery-flows.js"
+    "test:recovery": "node scripts/test-recovery-flows.js",
+    "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

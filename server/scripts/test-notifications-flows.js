@@ -114,20 +114,10 @@ const dbConfig = {
 // read-time re-check, but still rows. Cleanup therefore removes them by the
 // exact (item_type, item_id) pairs THIS RUN created. Never a blanket
 // DELETE FROM notifications: that would throw away real rows belonging to
-// anyone using the system, which is the mistake test-attendance's cleanup
-// already makes with attendance dates.
-async function deleteNotificationsFor(pairs) {
-  if (!pairs.length) return;
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection(dbConfig);
-  try {
-    for (const [itemType, itemId] of pairs) {
-      await conn.query('DELETE FROM notifications WHERE item_type = ? AND item_id = ?', [itemType, itemId]);
-    }
-  } finally {
-    await conn.end();
-  }
-}
+// anyone using the system. The rule was written here first; since
+// pre-Stage-5 #3a the implementation is shared with every suite that fans
+// out, in test-helpers/notifications.js, so there is one copy of it.
+const { deleteNotificationsFor } = require('./test-helpers/notifications');
 
 // SLOT FIXTURES (CR1, 2026-09-22). Every component write needs a slot_id
 // now. This suite is not testing slots — it is testing the grade_available
@@ -977,7 +967,14 @@ async function main() {
         await conn.end();
       }
 
-      await deleteNotificationsFor(notificationItems);
+      {
+        const conn = await mysql.createConnection(dbConfig);
+        try {
+          await deleteNotificationsFor(conn, notificationItems);
+        } finally {
+          await conn.end();
+        }
+      }
 
       // Baseline check — the Seeded baseline, asserted, not assumed.
       //

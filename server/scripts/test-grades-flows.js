@@ -34,6 +34,7 @@
  * Usage: npm run test:grades
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
@@ -248,6 +249,26 @@ async function run() {
   let deleteStudentFixtureId;
 
   async function cleanup() {
+    // A grade that first becomes computable notifies the learner's parent,
+    // keyed on the grade id, and no FK follows the grade away (pre-Stage-5
+    // #3a; this suite measured 3 rows per run on 2026-09-19 and again on
+    // 2026-09-25). Pairs are resolved BEFORE any delete, including the
+    // grades a fixture learner's DELETE cascades away, which no list holds.
+    const gradeIds = new Set([...createdGradeIds, ...gaGradeIds, ...roundingGradeIds]);
+    const fixtureStudentIds = [
+      inactiveStudentId,
+      grade1StudentFixtureId,
+      gaStudentFixtureId,
+      roundingStudentFixtureId,
+      deleteStudentFixtureId,
+    ].filter(Boolean);
+    if (fixtureStudentIds.length) {
+      const [rows] = await withDb((conn) =>
+        conn.query('SELECT id FROM grades WHERE student_id IN (?)', [fixtureStudentIds])
+      );
+      for (const r of rows) gradeIds.add(r.id);
+    }
+    const notificationPairs = pairsFor('grade', [...gradeIds]);
     if (createdGradeIds.length) {
       await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [createdGradeIds]));
     }
@@ -283,6 +304,15 @@ async function run() {
     if (createdSlotIds.length) {
       await withDb((conn) => conn.query('DELETE FROM assessment_slots WHERE id IN (?)', [createdSlotIds]));
     }
+    await withDb(async (conn) => {
+      const deleted = await deleteNotificationsFor(conn, notificationPairs);
+      const leftover = await countNotificationsFor(conn, notificationPairs);
+      assert(
+        leftover === 0,
+        `every notification row THIS RUN fanned out is gone (${deleted} deleted over ${notificationPairs.length} grades)`,
+        `got ${leftover}`
+      );
+    });
   }
 
   try {

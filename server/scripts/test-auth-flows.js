@@ -9,6 +9,7 @@
  * Usage: npm run test:auth
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
@@ -117,8 +118,14 @@ async function run() {
 
   const createdLoginIds = [];
   const createdLrns = [];
+  // Creating a parent fans out `parent_pending` to every admin, keyed on the
+  // new USER id (item_type 'user'), and deleting the user leaves those rows
+  // behind — 2 per run, measured 2026-09-19 (pre-Stage-5 #3a). The login ids
+  // above cannot address them; this holds the ids.
+  const createdParentUserIds = [];
 
   async function cleanup() {
+    const notificationPairs = pairsFor('user', createdParentUserIds);
     await withDb(async (conn) => {
       if (createdLoginIds.length) {
         await conn.query('DELETE FROM users WHERE login_id IN (?)', [createdLoginIds]);
@@ -126,6 +133,13 @@ async function run() {
       if (createdLrns.length) {
         await conn.query('DELETE FROM students WHERE lrn IN (?)', [createdLrns]);
       }
+      const deleted = await deleteNotificationsFor(conn, notificationPairs);
+      const leftover = await countNotificationsFor(conn, notificationPairs);
+      assert(
+        leftover === 0,
+        `every notification row THIS RUN fanned out is gone (${deleted} deleted over ${notificationPairs.length} parent accounts)`,
+        `got ${leftover}`
+      );
     });
   }
 
@@ -525,7 +539,10 @@ async function run() {
       'Teacher creates parent (pending)'
     );
     const pendingParentId = createParent2.data?.user?.id;
-    if (createParent2.status === 201) createdLoginIds.push(pendingLrn);
+    if (createParent2.status === 201) {
+      createdLoginIds.push(pendingLrn);
+      createdParentUserIds.push(pendingParentId);
+    }
 
     // parent_account on GET /students/:id (2026-09-18): the linked case — a
     // pending account exists for this student, so the detail says so and the
@@ -574,7 +591,10 @@ async function run() {
       body: { lrn: rejectLrn, password: 'Parent@2026', name: 'Reject Guardian' },
     });
     const rejectParentId = createForReject.data?.user?.id;
-    if (createForReject.status === 201) createdLoginIds.push(rejectLrn);
+    if (createForReject.status === 201) {
+      createdLoginIds.push(rejectLrn);
+      createdParentUserIds.push(rejectParentId);
+    }
 
     const reject = await request('PUT', `/api/users/parents/${rejectParentId}/reject`, {
       token: adminToken,

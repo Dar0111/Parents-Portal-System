@@ -19,6 +19,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const { hashPassword } = require('../utils/password');
+const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
@@ -141,6 +142,21 @@ async function run() {
   const createdLoginIds = [];
 
   async function cleanup() {
+    // Submitting a letter notifies the adviser and reviewing it notifies the
+    // parent, both keyed on the letter's id, and nothing cascades those rows
+    // away (pre-Stage-5 #3a). The two user/student deletes below cascade
+    // letters this list may not hold, so their ids are resolved BEFORE any
+    // delete runs.
+    const letterIds = new Set(createdExcuseLetterIds);
+    if (createdLrns.length) {
+      const [rows] = await withDb((conn) =>
+        conn.query('SELECT id FROM excuse_letters WHERE student_id IN (SELECT id FROM students WHERE lrn IN (?))', [
+          createdLrns,
+        ])
+      );
+      for (const r of rows) letterIds.add(r.id);
+    }
+    const notificationPairs = pairsFor('excuse_letter', [...letterIds]);
     if (createdExcuseLetterIds.length) {
       await withDb((conn) => conn.query('DELETE FROM excuse_letters WHERE id IN (?)', [createdExcuseLetterIds]));
     }
@@ -152,6 +168,15 @@ async function run() {
       // Cascades (fk_excuse_student) any letters tied to the fixture student.
       await withDb((conn) => conn.query('DELETE FROM students WHERE lrn IN (?)', [createdLrns]));
     }
+    await withDb(async (conn) => {
+      const deleted = await deleteNotificationsFor(conn, notificationPairs);
+      const leftover = await countNotificationsFor(conn, notificationPairs);
+      assert(
+        leftover === 0,
+        `every notification row THIS RUN fanned out is gone (${deleted} deleted over ${notificationPairs.length} letters)`,
+        `got ${leftover}`
+      );
+    });
   }
 
   try {
