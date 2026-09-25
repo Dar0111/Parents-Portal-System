@@ -2374,12 +2374,21 @@ showing form state beside a list showing database state.
 - **Apply is QUIET when clean and FILLED when dirty**, and **never disabled**.
   Disabling gives no reason, and re-applying an unchanged filter is a
   legitimate refetch — quiet says *"nothing is waiting"*, disabled would say
-  *"you may not"*, which is false. Clean reuses the **Reset class exactly**,
-  so the two are a matched pair by construction rather than by two strings
-  kept in step.
-- **The note is `text-brand`, `role="status"`, rendered only while dirty.**
-  Not `alert` — nothing has failed. Not left in the markup when clean — an
-  empty live region claims a state that is not true. **The `●` is
+  *"you may not"*, which is false. Clean and Reset both read
+  **`buttonNeutralClass`** (`FormField.jsx`, beside `filterFieldClass` — item
+  5b), so the two are a matched pair by construction rather than by two
+  strings kept in step. The pages' empty-state "Clear" buttons still carry
+  their own `px-3 py-1.5` literal; that is a `docs/KNOWN_ISSUES.md` row.
+- **The note is `text-brand`, `role="status"`, and its `<p>` is ALWAYS
+  mounted — `sr-only` while empty, text toggled.** Not `alert` — nothing has
+  failed. **Item 5 got this backwards and item 5b corrected it after code
+  review:** it rendered the `<p>` only while dirty, on the theory that an
+  empty live region "claims a state that is not true". A screen reader
+  announces *changes inside* an existing live region, not a node that appears
+  with its text already in it — so the sighted cue worked and the assistive
+  one never spoke, **and the proof had cemented the defect** by asserting the
+  region was absent when clean. **§19d already states the rule; this is the
+  same rule, and the two components must not disagree again.** **The `●` is
   `aria-hidden`:** the sentence carries the meaning, and a glyph that is the
   only carrier fails the way a colour-only one does.
 - **`resetLabel` exists for one caller.** `teacher/StudentsPage` says
@@ -2405,10 +2414,12 @@ vocabulary to be wrong in.
   `{status, from, to}` must equal `{from, to, status}`. The union also means
   a **missing** key compares against the other side's value rather than being
   skipped.
-- **`search` is trimmed on BOTH sides**, because commit trims
-  (`applyFilters` on both Students pages). Otherwise one trailing space
-  claims there are changes and then applies nothing. **Only `search`** — a
-  section name with a space is a different filter.
+- **Every string is trimmed on BOTH sides** (item 5b; item 5 trimmed only a
+  key literally named `search`). Commit trims, so without this one trailing
+  space claims there are changes and then applies nothing — and a rule keyed
+  on a field name is one a future page naming its box `query` would silently
+  miss. A select never carries whitespace, so trimming everything costs
+  nothing; an *inner* space is still a real difference.
 - **Values compare as strings.** A grade level is `6` from one source and
   `'6'` from a `<select>`; `null`, `undefined` and `''` are one filter.
 - **Compare against the page's DEFAULTS, never falsiness.**

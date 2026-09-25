@@ -1576,19 +1576,11 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       is not (`max_score NOT NULL`). If a write path allows a score with no
       denominator it is a server validation gap, and the parent breakdown now
       renders that line as nothing at all — correct, and a fact nobody decided.
-      **Plus one INVESTIGATE item, new 2026-09-20 and not yet a known-issue
-      row because the cause is unknown:** Teacher → Attendance logged
-      `bulk_record_attendance` **twice, one second apart, for a single Save
-      click** (seen during the 2026-09-21 banner check; Darryl confirms he
-      clicked once). **Find the cause before fixing** — a double submit, an
-      effect firing twice, or no `disabled` while saving are three different
-      bugs with three different fixes, and guessing would paper over
-      whichever one it is. The DATA is correct either way: `POST
-      /api/attendance/bulk` is `ON DUPLICATE KEY UPDATE`, so the second call
-      overwrote the first with the same values. **The audit trail is not
-      correct**, and that is the actual defect — `activity_logs` is what the
-      restore machinery counts and what a reviewer reads to reconstruct who
-      did what.
+      **The double `bulk_record_attendance` INVESTIGATE is CLOSED
+      (2026-09-25):** one occurrence in 119 saves, inside the clock-forward
+      session, no code path yields two rows from one request; no guard.
+      `docs/KNOWN_ISSUES.md` has the evidence. **The smoke flake's `--watch`
+      lead held across four no-watch sweeps** — procedural fix, same file.
       **Two more from DV1 (2026-09-20), both needing a server change the
       client cannot fake:** (a) **counts for the Admin → Users filter tabs**
       — `GET /api/users` returns `page.total` for the filters SENT, so four
@@ -2015,6 +2007,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-25 | **Item 5b** (`84739bc`): the code review's seven findings on item 5. **The live region was mounted only while dirty — an accessibility defect, and the proof had CEMENTED it** by asserting the region absent when clean; a screen reader announces changes *inside* an existing region. `ScrollCue` already had the rule (§19d); `FilterActions` contradicted it. Also: Reset restores the staged Section; `isDirty` trims every string; `canResetFilters` removed; `buttonNeutralClass`; Events gets a real Reset. `ssr-item5` **39**. |
 | 2026-09-25 | **Item 5** (`2000499`): nine pages staged their filter values and **none admitted it** — a select could read "Approved" over a Pending list. **Filed as §5f, corrected to §5b one level out.** Staging KEPT (three pages filter free text with no debounce); one bounded control auto-applies, eight gain a quiet↔filled Apply and a `role="status"` note. **`parent/EventsPage` already carried the auto-apply rule in its own words** — "no precedent for the affordance" was true of the cue only. **`isDirty` is key-by-key over the UNION, never `JSON.stringify`** (key order), search trimmed both sides, compared against DEFAULTS not falsiness. **A live defect fixed on the way:** T·Attendance records' Section bypassed `applied` and never reset the offset. §21. **The UI-polish queue is COMPLETE.** |
 | 2026-09-25 | **UI-E** (`3086086`): a teacher can read back a reviewed letter. **The remarks rendered only inside the review modal, which opens only for a PENDING letter** — so the teacher who wrote them lost them on save, at every width, and **nothing was broken enough for a check to see it.** Renders the list row, never `GET /:id` (which returns strictly LESS). **Two of the four omitted fields do not exist:** no `reviewed_at` column, and `reviewed_by` is an unresolved user id. **The card's own comment argued against moving its gate** — on a fact, not a principle, and the fact is what changed (§20b). `ssr-ui-e` 23, `ssr-cards` 31 → **32**. **Both my mistakes were in test code:** a regex that matched its own fixture's prose, and a probe that reported clean twice while `name: 'View'` was matching **"Review"**. |
 | 2026-09-25 | **UI-D-2+3** (`9d0c1cb`→`a6be0d2`, five commits): `ScrollCue` on both grids, the parent hero on `--brand-panel`. **UI-D is complete.** **The thresholds were the whole story and I got them wrong twice** — 1px fired on a **2px** overflow and flapped between 1279 and 1281px; 24px on BOTH tests then dropped "Performance Tasks" from the hint while its column was visibly cut. **Two constants: gate 24px, per-cell strict — legibility decides WHETHER to speak, not WHAT to say** (§19b). KS1's "A  D" was a hover-only `title`, which **does not exist on touch**; the average follows `current_term` now. **Two defects of mine, neither found by reasoning:** `ScrollCue.jsx` beside `scrollCue.js` (**Windows is case-insensitive**), and a fixture that invented a string where the API sends an object — **`/parent` rendered blank while build, oxlint and 71/71 were green** (§19f). `ssr-ui-d` **82**, contrast **74 pairs**, smoke 20/20. |
