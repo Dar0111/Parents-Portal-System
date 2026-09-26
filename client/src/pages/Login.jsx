@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
 import extractError from '../api/extractError';
-import { takeLogoutReason } from '../api/axios';
+import api, { takeLogoutReason } from '../api/axios';
 import FormField, { controlClassFor } from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import seal from '../assets/school-seal.png';
@@ -40,9 +40,33 @@ import seal from '../assets/school-seal.png';
 // Visible consequence, accepted: the shared control is `focus:ring-2` with a
 // shadow where the old hand-rolled input was `focus:ring-1` with none, so the
 // focus ring here is now the same one every other form has.
+// THE PANEL'S SCHOOL NAME IS THE SETTING, WITH THE FALLBACK CARRYING
+// "– Main" (fix/polish, 2026-09-26). The line was a static string without
+// "– Main", and mastheads carry it (LOCKED). `GET /settings/public` is the
+// one unauthenticated settings read, so this page can ask for the real
+// value; until it answers — or if it never does — the fallback is the copy,
+// so there is no error state and nothing to retry.
+const SCHOOL_NAME_FALLBACK = 'Captain H. Francisco Elementary School – Main';
+
 export default function Login() {
   const { user, loading, login } = useAuth();
   const navigate = useNavigate();
+
+  const [schoolName, setSchoolName] = useState(SCHOOL_NAME_FALLBACK);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/settings/public', { unwrap: 'settings' })
+      .then((settings) => {
+        if (!cancelled && settings?.school_name) setSchoolName(settings.school_name);
+      })
+      .catch(() => {
+        // The fallback is already on screen; a failed read changes nothing.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
@@ -108,9 +132,7 @@ export default function Login() {
             />
           </div>
           <h1 className="text-2xl font-semibold lg:text-4xl">Parent&rsquo;s Portal</h1>
-          <p className="mt-2 text-sm text-brand-panel-muted lg:mt-3 lg:text-base">
-            Captain H. Francisco Elementary School
-          </p>
+          <p className="mt-2 text-sm text-brand-panel-muted lg:mt-3 lg:text-base">{schoolName}</p>
         </div>
 
         <p className="hidden text-xs uppercase tracking-[0.18em] text-brand-panel-muted lg:block">Est. 1961</p>

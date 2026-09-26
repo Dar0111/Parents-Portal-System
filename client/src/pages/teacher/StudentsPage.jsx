@@ -11,7 +11,7 @@ import { isDirty } from '../../components/filterState';
 // NOTE: no `filterFieldClass` here. This page's Search keeps `min-w-56
 // flex-1` — it is the primary control and was sized that way deliberately
 // (item 5).
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FormField, { buttonNeutralClass, filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { sectionOptions, showSectionFilter } from './students/sectionOptions';
 import { useAuth } from '../../auth/AuthContext';
@@ -507,11 +507,13 @@ export default function StudentsPage() {
           />
         </form>
         {canEnroll ? (
-          <button
-            type="button"
-            onClick={openWizard}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
+          // NEUTRAL, NOT PRIMARY (fix/polish, 2026-09-26). Beside it sits
+          // FilterActions' Apply, whose FILL is the "changes not applied"
+          // signal (§21b) — so while a filter was dirty this row showed two
+          // identical primaries, and one of them meant "something is
+          // waiting". The pending Apply is the more urgent of the two;
+          // Enroll is always available and its label says what it is.
+          <button type="button" onClick={openWizard} className={buttonNeutralClass}>
             Enroll student
           </button>
         ) : (

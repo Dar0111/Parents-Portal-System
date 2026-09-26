@@ -158,7 +158,12 @@ export default function SchoolSettingsSection() {
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
-      <section className="max-w-md space-y-3">
+      {/* `max-w-2xl`, not `max-w-md` (fix/polish, 2026-09-26): the panel
+          SettingsLayout gives this tab is 42.5rem wide, and a 28rem cap
+          inside it left the right third of the screen empty on a desktop.
+          The short pairs below sit side by side from `sm`; below it every
+          field stacks as before. */}
+      <section className="max-w-2xl space-y-3">
         <h3 className="text-sm font-semibold text-fg">School year and term</h3>
         <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4">
           <Field label="School year" value={stored.academic_year} />
@@ -177,7 +182,7 @@ export default function SchoolSettingsSection() {
         </p>
       </section>
 
-      <section className="max-w-md space-y-3">
+      <section className="max-w-2xl space-y-3">
         <h3 className="text-sm font-semibold text-fg">School details</h3>
         <form onSubmit={saveDetails} className="space-y-3">
           <FormField
@@ -194,34 +199,41 @@ export default function SchoolSettingsSection() {
             onChange={(e) => editDetail('school_address', e.target.value)}
             required
           />
-          <FormField
-            label="DepEd School ID"
-            inputMode="numeric"
-            maxLength={6}
-            value={details.school_id}
-            onChange={(e) => editDetail('school_id', e.target.value)}
-            hint="Six digits. Shown on the About page."
-          />
-          <FormField
-            label="School email"
-            type="email"
-            value={details.school_email}
-            onChange={(e) => editDetail('school_email', e.target.value)}
-            hint="Shown on the About page. This is the school's address, not yours."
-          />
-          <FormField
-            label="School phone"
-            inputMode="tel"
-            value={details.school_phone}
-            onChange={(e) => editDetail('school_phone', e.target.value)}
-            hint="A landline or a mobile number, 7 to 15 digits. Shown on the About page."
-          />
-          <FormField
-            label="Facebook page"
-            value={details.facebook_page}
-            onChange={(e) => editDetail('facebook_page', e.target.value)}
-            hint="The page's name or address. Leave blank until the school gives one — the About page then says so."
-          />
+          {/* Two short pairs share a row from `sm` — the ID beside the
+              phone, the email beside the Facebook page — so the widened
+              section does not read as one long column of narrow facts. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField
+              label="DepEd School ID"
+              inputMode="numeric"
+              maxLength={6}
+              value={details.school_id}
+              onChange={(e) => editDetail('school_id', e.target.value)}
+              hint="Six digits. Shown on the About page."
+            />
+            <FormField
+              label="School phone"
+              inputMode="tel"
+              value={details.school_phone}
+              onChange={(e) => editDetail('school_phone', e.target.value)}
+              hint="A landline or a mobile number, 7 to 15 digits. Shown on the About page."
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField
+              label="School email"
+              type="email"
+              value={details.school_email}
+              onChange={(e) => editDetail('school_email', e.target.value)}
+              hint="Shown on the About page. This is the school's address, not yours."
+            />
+            <FormField
+              label="Facebook page"
+              value={details.facebook_page}
+              onChange={(e) => editDetail('facebook_page', e.target.value)}
+              hint="The page's name or address. Leave blank until the school gives one — the About page then says so."
+            />
+          </div>
           <FormField
             label="Logo URL"
             type="url"

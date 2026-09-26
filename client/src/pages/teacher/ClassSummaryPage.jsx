@@ -136,14 +136,26 @@ export function ClassSummaryTable({ data }) {
           : `Swipe for ${subjectsHidden} more ${noun} →`;
       }}
     >
-      <table className="print-sheet-table w-full min-w-max border-collapse text-sm">
+      {/* NO `min-w-max`, AND THE SUBJECT HEADERS MAY WRAP (fix/polish,
+          2026-09-26). Measured at 1280px on the Grade 6 sheet: the scroller
+          was 990px wide and the table's max-content width 998 — the sum of
+          nine nowrap headers, the widest "Araling Panlipunan" at 169px — so
+          the sheet overflowed by 8px, under ScrollCue's 24px gate (§19b):
+          the cue was rightly silent and a native scrollbar appeared for
+          eight pixels. `min-w-max` pinned the table to that sum. Without it
+          `w-full` lets the table fit its container, and a learning-area name
+          breaks onto two lines instead of forcing a scroll — the same call
+          the class record's SlotHeader makes. Learner names and every value
+          cell stay nowrap, so at 390px the table still overflows and the
+          cue still speaks; print still releases the scroller (§18c). */}
+      <table className="print-sheet-table w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-edge bg-surface-subtle text-xs uppercase tracking-wider text-fg-muted">
             <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-surface-subtle px-3 py-2 text-left">
               Learner
             </th>
             {subjects.map((subject) => (
-              <th key={subject.id} scope="col" className="whitespace-nowrap px-3 py-2 text-center align-top">
+              <th key={subject.id} scope="col" className="px-3 py-2 text-center align-top">
                 {subject.name}
                 {!isFinal && <Completeness entry={completenessBySubject.get(subject.id)} />}
               </th>
@@ -439,7 +451,7 @@ export default function ClassSummaryPage() {
           the header, the Class select and the line below it. */}
       <div className="print-only mb-3 border-b border-edge pb-2">
         <p className="text-base font-semibold">
-          {settings?.school_name || 'Captain H. Francisco Elementary School'}
+          {settings?.school_name || 'Captain H. Francisco Elementary School – Main'}
         </p>
         <p className="text-sm">
           Summary of Grades

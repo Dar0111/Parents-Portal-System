@@ -622,11 +622,18 @@ export default function ClassRecordPage() {
                       ONE subject, so "7 more assessments" tells a teacher
                       nothing; "Summative and Grade" tells them exactly what
                       they have not seen. */}
+                  {/* LEFT-ALIGNED, NOT CENTRED (fix/polish, 2026-09-26). A
+                      group spans up to eight 4.5rem columns — 576px — so a
+                      centred label sat ~288px into its group, past the
+                      right edge of a 390px viewport that also holds the
+                      pinned Learner column: at scroll start no group name
+                      was on screen at all. At the group's left edge the
+                      name is visible the moment its first column is. */}
                   <th
                     scope="colgroup"
                     colSpan={wwSlots.length + 3}
                     data-group="Written / Oral Works"
-                    className={`${th} border-l border-edge text-center`}
+                    className={`${th} border-l border-edge text-left`}
                   >
                     {groupLabel('Written / Oral Works', weights?.ww ?? '—')}
                   </th>
@@ -634,7 +641,7 @@ export default function ClassRecordPage() {
                     scope="colgroup"
                     colSpan={ptSlots.length + 3}
                     data-group="Performance Tasks"
-                    className={`${th} border-l border-edge text-center`}
+                    className={`${th} border-l border-edge text-left`}
                   >
                     {groupLabel('Performance Tasks', weights?.pt ?? '—')}
                   </th>
@@ -642,7 +649,7 @@ export default function ClassRecordPage() {
                     scope="colgroup"
                     colSpan={EXAM_FIELDS.length + 3}
                     data-group={descriptive ? 'Summative' : 'Summative Tests & Term Exam'}
-                    className={`${th} border-l border-edge text-center`}
+                    className={`${th} border-l border-edge text-left`}
                   >
                     {groupLabel(
                       descriptive ? 'Summative' : 'Summative Tests & Term Exam',
@@ -653,7 +660,7 @@ export default function ClassRecordPage() {
                     scope="colgroup"
                     colSpan={2}
                     data-group="Grade"
-                    className={`${th} border-l border-edge text-center`}
+                    className={`${th} border-l border-edge text-left`}
                   >
                     Grade
                   </th>
