@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
+import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate } from '../../format/date';
@@ -78,6 +79,13 @@ export default function ExcuseLettersPage() {
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+
+  // The outcome of the last review, rendered above the list (§7c — it
+  // outlives the modal). `writeStatus`, not `status`: this page's `status` is
+  // the filter. It NAMES THE LEARNER because a reviewed letter leaves the
+  // default Pending list on the reload, so without it the row simply vanished
+  // and nothing said what had happened to it (fix/smoke-gate).
+  const [writeStatus, setWriteStatus] = useState({});
 
   // --- reading view state (UI-E) ------------------------------------------
   // SEPARATE FROM `reviewing`, deliberately. They are two different documents
@@ -170,6 +178,7 @@ export default function ExcuseLettersPage() {
   }
 
   function openReview(letter) {
+    setWriteStatus({});
     setReviewing(letter);
     setDecision(null);
     setRemarks('');
@@ -203,11 +212,15 @@ export default function ExcuseLettersPage() {
         { status: decision, teacher_remarks: remarks.trim() || undefined },
         { unwrap: 'excuse_letter' }
       );
+      const message = `Letter from ${reviewing.last_name}, ${reviewing.first_name} ${
+        decision === 'Approved' ? 'approved' : 'declined'
+      }.`;
       setReviewing(null);
       // Refetch rather than patching the row locally: the server is the
       // authority on what is now stored, and a client-side merge is exactly the
       // shape convention 5b exists to prevent.
       await load();
+      setWriteStatus({ letters: ok(message) });
     } catch (err) {
       setReviewError(extractError(err));
       setConfirming(false); // back to the decision step so the teacher can re-read
@@ -382,6 +395,8 @@ export default function ExcuseLettersPage() {
         />
         <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
       </form>
+
+      <FormStatus status={writeStatus.letters} />
 
       <DataTable
         // The card is `excuseLetters/card.jsx` — a module, so the proof can

@@ -5,6 +5,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
+import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { staffAudienceLabel } from '../../format/audience';
@@ -81,6 +82,19 @@ export default function AnnouncementsPage() {
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
+  // The outcome of the last post, edit or delete, rendered above the list
+  // (§7c — it outlives the modal). Admin → Announcements' pattern, and its
+  // words: this page closed its modal and reloaded, and a changed row was the
+  // only sign a write had landed (fix/smoke-gate). Cleared whenever a modal
+  // opens, so a stale message never sits beside a new action.
+  const [writeStatus, setWriteStatus] = useState({});
+
+  function openDelete(row) {
+    setWriteStatus({});
+    setDeleting(row);
+    setDeleteError(null);
+  }
+
   // Paged table (2026-09-19): one page of a server-sorted list (C1); a
   // filter or sort change resets to the first page (C6); a page emptied by
   // a delete steps back on its own (C7, in DataTable).
@@ -150,6 +164,7 @@ export default function AnnouncementsPage() {
   }, [location.state, targetsLoading, sections, navigate]);
 
   function openCompose() {
+    setWriteStatus({});
     setEditing(null);
     setForm({ ...EMPTY_FORM, target: sections.length === 1 ? keyOf(sections[0]) : '' });
     setFormError(null);
@@ -171,6 +186,7 @@ export default function AnnouncementsPage() {
     } else {
       target = sections.length === 1 ? keyOf(sections[0]) : '';
     }
+    setWriteStatus({});
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
@@ -183,6 +199,7 @@ export default function AnnouncementsPage() {
   }
 
   function openEdit(row) {
+    setWriteStatus({});
     setEditing(row);
     setForm({
       title: row.title || '',
@@ -213,8 +230,10 @@ export default function AnnouncementsPage() {
       } else {
         await api.post('/announcements', body, { unwrap: 'announcement' });
       }
+      const message = editing ? 'Announcement updated.' : 'Announcement posted.';
       setComposing(false);
       await load();
+      setWriteStatus({ announcements: ok(message) });
     } catch (err) {
       setFormError(extractError(err));
     } finally {
@@ -229,6 +248,7 @@ export default function AnnouncementsPage() {
       await api.delete(`/announcements/${deleting.id}`, { raw: true });
       setDeleting(null);
       await load();
+      setWriteStatus({ announcements: ok('Announcement deleted.') });
     } catch (err) {
       setDeleteError(extractError(err));
     } finally {
@@ -306,10 +326,7 @@ export default function AnnouncementsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setDeleting(row);
-                  setDeleteError(null);
-                }}
+                onClick={() => openDelete(row)}
                 className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
               >
                 Delete
@@ -411,6 +428,8 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
+      <FormStatus status={writeStatus.announcements} />
+
       <DataTable
         // CONTENT-LIST CARD (DV1b-a). Each fact appears ONCE: the headline as
         // the title, the body preview as the subtitle, and audience + date
@@ -437,10 +456,7 @@ export default function AnnouncementsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setDeleting(row);
-                    setDeleteError(null);
-                  }}
+                  onClick={() => openDelete(row)}
                   className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
                 >
                   Delete

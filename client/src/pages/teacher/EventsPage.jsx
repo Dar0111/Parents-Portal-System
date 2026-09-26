@@ -6,6 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
+import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
 import { shortDate, todayLocalDateString } from '../../format/date';
 import { staffAudienceLabel } from '../../format/audience';
@@ -60,6 +61,18 @@ export default function EventsPage() {
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
+  // The outcome of the last post, edit or delete, rendered above the list
+  // (§7c — it outlives the modal). Admin → Announcements' pattern: this page
+  // closed its modal and reloaded, and a changed row was the only sign a write
+  // had landed (fix/smoke-gate). Cleared whenever a modal opens.
+  const [writeStatus, setWriteStatus] = useState({});
+
+  function openDelete(row) {
+    setWriteStatus({});
+    setDeleting(row);
+    setDeleteError(null);
+  }
+
   // Paged table (2026-09-19): one page of a server-sorted list (C1); a
   // filter or sort change resets to the first page (C6); a page emptied by
   // a delete steps back on its own (C7, in DataTable).
@@ -97,6 +110,7 @@ export default function EventsPage() {
   }, [load]);
 
   function openCompose() {
+    setWriteStatus({});
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
@@ -108,6 +122,7 @@ export default function EventsPage() {
   }
 
   function openEdit(row) {
+    setWriteStatus({});
     setEditing(row);
     setForm({
       title: row.title || '',
@@ -137,8 +152,10 @@ export default function EventsPage() {
       } else {
         await api.post('/events', body, { unwrap: 'event' });
       }
+      const message = editing ? 'Event updated.' : 'Event posted.';
       setComposing(false);
       await load();
+      setWriteStatus({ events: ok(message) });
     } catch (err) {
       setFormError(extractError(err));
     } finally {
@@ -153,6 +170,7 @@ export default function EventsPage() {
       await api.delete(`/events/${deleting.id}`, { raw: true });
       setDeleting(null);
       await load();
+      setWriteStatus({ events: ok('Event deleted.') });
     } catch (err) {
       setDeleteError(extractError(err));
     } finally {
@@ -242,10 +260,7 @@ export default function EventsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setDeleting(row);
-                  setDeleteError(null);
-                }}
+                onClick={() => openDelete(row)}
                 className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
               >
                 Delete
@@ -318,6 +333,8 @@ export default function EventsPage() {
         )}
       </div>
 
+      <FormStatus status={writeStatus.events} />
+
       <DataTable
         // CONTENT-LIST CARD (DV1b-a). The DATE LEADS the meta line here, not
         // the posting date: an event is defined by when it happens, and that
@@ -340,10 +357,7 @@ export default function EventsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setDeleting(row);
-                    setDeleteError(null);
-                  }}
+                  onClick={() => openDelete(row)}
                   className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
                 >
                   Delete

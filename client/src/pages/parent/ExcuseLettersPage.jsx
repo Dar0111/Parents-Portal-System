@@ -4,6 +4,7 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
+import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
@@ -63,6 +64,14 @@ export default function ParentExcuseLettersPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+
+  // The outcome of the last write, rendered above the list it changed (§7c —
+  // it outlives the modal that caused it). `writeStatus`, not `status`: this
+  // page's `status` is the filter. Cleared whenever a modal opens, so a stale
+  // "Letter submitted." never sits beside a fresh edit (fix/smoke-gate: the
+  // page closed its modal and reloaded, and the new row was the only sign the
+  // write had worked).
+  const [writeStatus, setWriteStatus] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,6 +133,7 @@ export default function ParentExcuseLettersPage() {
   const canSubmit = studentId != null;
 
   function openCompose() {
+    setWriteStatus({});
     setEditing(null);
     setForm(EMPTY_FORM);
     setFormError(null);
@@ -131,6 +141,7 @@ export default function ParentExcuseLettersPage() {
   }
 
   function openEdit(letter) {
+    setWriteStatus({});
     setEditing(letter);
     setForm({
       absence_date: letter.absence_date || '',
@@ -166,9 +177,11 @@ export default function ParentExcuseLettersPage() {
       } else {
         await api.post('/excuse-letters', body, { unwrap: 'excuse_letter' });
       }
+      const message = editing ? 'Letter updated.' : 'Letter submitted.';
       setComposing(false);
       setEditing(null);
       await load();
+      setWriteStatus({ letters: ok(message) });
     } catch (err) {
       setFormError(extractError(err));
     } finally {
@@ -267,6 +280,8 @@ export default function ParentExcuseLettersPage() {
           Submitting is unavailable until the school office links this account to a student.
         </p>
       ) : null}
+
+      <FormStatus status={writeStatus.letters} />
 
       <DataTable
         // RECORD CARD (DV1b-a). The absence DATE is the title here, not a
