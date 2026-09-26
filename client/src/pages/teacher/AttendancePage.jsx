@@ -278,15 +278,23 @@ export default function AttendancePage() {
         { section_id: section.id, date, entries },
         { unwrap: 'attendance' }
       );
+      // Re-read rather than trusting local state: the response is the source of
+      // truth for what is now recorded, and this is also what flips the button
+      // to "Update attendance" without a special case.
+      //
+      // THE RE-READ COMES FIRST, THE MESSAGE SECOND (fix/smoke-gate). loadRoster
+      // opens with setStatus({}) so that a section or date change clears a stale
+      // message — and when the success was set BEFORE it, React batched the two
+      // and the message never painted: measured at 0 appearances across a real
+      // save in the 2026-09-26 smoke gate. loadRoster never throws (it keeps its
+      // own error in rosterError), so a failed re-read cannot turn a saved
+      // roster into a "failed" message here.
+      await loadRoster();
       setStatus({
         roster: ok(
           `Attendance saved for ${entries.length} student${entries.length === 1 ? '' : 's'}.`
         ),
       });
-      // Re-read rather than trusting local state: the response is the source of
-      // truth for what is now recorded, and this is also what flips the button
-      // to "Update attendance" without a special case.
-      await loadRoster();
     } catch (err) {
       setStatus({ roster: fail(extractError(err)) });
     } finally {
