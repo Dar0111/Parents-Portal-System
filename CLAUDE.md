@@ -76,6 +76,7 @@ split — if a fact seems missing here, it is in one of these.
 | `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§23 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
+| `docs/MOBILE_CONVENTIONS.md` | the full text of STAGE 5 MOBILE CONVENTIONS — only where the phone DIFFERS from the web, and why; frozen per section as each Stage 5 branch lands (since 2026-09-27) | frozen rules |
 
 `docs/API_REFERENCE.md` (request/response detail), `docs/GRADING_SPEC.md`
 (DepEd policy) and `docs/PROJECT_PROGRESS.md` (a state-only snapshot since
@@ -177,6 +178,10 @@ that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
 `scripts/` (setup, **seven migrations**, `verify-grading-seed`, the twenty-three test files); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
+**`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
+`src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
+`src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
++ `scripts/` (three checks, two proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -215,7 +220,10 @@ and the 2026-09-19 section-trim block.
 
 ### Not started — zero handlers
 
-**No Expo app.**
+**The Expo app has zero role screens.** `feat/mobile-scaffold` (2026-09-27)
+built the package, the hotspot path, sign-in, the session rules and the theme;
+every role's screens are still BUILD ORDER → Stage 5, and Stage 5 adds no
+endpoint.
 
 Grades is no longer in this section — see below.
 
@@ -859,6 +867,59 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27
+
+The phone inherits every STAGE 4 rule; this section states only where it
+differs and why. Rule statements here, reasoning and mechanism in
+`docs/MOBILE_CONVENTIONS.md` (M1–M8). Darryl's decisions of 2026-09-27
+that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
+only; text size dropped for the OS scale; notifications as a screen; FA 7
+SVG icons; React Navigation drawer; the seal as icon and splash; a
+15 000 ms axios timeout; `beforeRemove` on Teacher → Attendance.
+
+- **`mobile/` is its own package and imports nothing from `client/` or
+  `server/`.** A module the web owns is COPIED byte for byte and
+  `npm run lint:mirrors` proves each copy equal; a divergence is a new file,
+  never an edit to a mirror. Renderers (`grade.jsx`, `TermValue.jsx`) are
+  rewritten over the copied logic. (M1)
+- **Tokens are GENERATED from `client/src/index.css`** — `npm run
+  lint:tokens` regenerates `src/theme/tokens.js` and `global.css` in memory
+  and fails on any difference; `npm run tokens:write` refreshes them. RN
+  reads no `oklch()`, so the values are converted (OKLab reference, probed
+  against seven Tailwind hexes). `tailwind.config.js` REPLACES the palette:
+  `bg-slate-500` does not compile. `npm run lint:colors` also refuses a hex /
+  rgb / hsl literal outside `tokens.js`. (M2)
+- **The theme is NativeWind's colour scheme**, key `pp.theme` in
+  AsyncStorage, **Light by default**, System live only while stored. **Text
+  size is a declared deviation: dropped for the OS font scale.** (M3)
+- **Auth parity is §22 with three named differences**: the token in
+  expo-secure-store behind an injected provider (`api/client.js` imports
+  nothing native, so a proof can load it); a 401 clears the store and
+  signals `AuthContext`, the reason in memory, never a navigation param; a
+  15 s timeout, filed as "keep the token". The root navigator IS
+  `ProtectedRoute`: an unmounted `Stack.Screen` cannot be reached. (M4)
+- **The network proof order is fixed:** phone Chrome reaches
+  `/api/health` with `"db":"ok"` before `npx expo start`.
+  `EXPO_PUBLIC_API_URL` is inlined at bundle time (restart Metro to change
+  it). **What opened 5000 and 8081 is the program rule for `node.exe`, not
+  a port rule.** (M5)
+- **Dev-only code is excluded at Metro's resolver (`context.dev`), never by
+  `__DEV__`** — the Hermes export does not inline it (measured: 26 literal
+  `__DEV__`s and every dev string in the first bundle). `src/screens/dev/`
+  is an empty module in production and is grepped absent, with a positive
+  control, before each mobile commit. (M5, TESTING → Mobile proofs)
+- **The template's `CLAUDE.md`, `AGENTS.md` and `.claude/` do not survive
+  the scaffold** — a nested instruction file is a second source of truth.
+  (M6)
+- **There is no render proof on mobile; every screen is proved on the
+  phone**, both themes, every field typed, the error path seen once, and a
+  check that writes cleans up by id, backup first. Four lint figures per
+  dispatch: oxlint, mirrors, tokens, colors. (M7)
+- **Icons are the web's `fa-*` names resolved by `src/icons.js`; an
+  unmapped name throws in DEV.** (M8)
+
+---
+
 ## THE AUTH PATTERN IS THE TEMPLATE
 
 The auth module was security-audited and came back clean. **Every new module
@@ -1256,6 +1317,8 @@ is still open, needing its own dispatch:**
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` before believing a user typed their login id wrong.** Fix is a health probe, never a different response body |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
+| **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
+| **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1616,12 +1679,27 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
 
 ### Stage 5 — Mobile (Expo)
 
-- [ ] Expo project setup + navigation
-- [ ] Login + role routing
-- [ ] Parent screens
-- [ ] Teacher screens
-- [ ] Admin screens (Backup/Restore excluded — web only)
-- [ ] Push notifications
+**Plan approved 2026-09-27; order Parent → Teacher → Admin, one branch per
+step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
+2026-10-02, a buffer, not a cutoff.**
+
+- [x] **Expo project setup + navigation — `feat/mobile-scaffold`,
+      2026-09-27.** SDK 57, NativeWind, the generated tokens, React
+      Navigation, the hotspot path proved phone → `/api/health`. **Merge gate:
+      Darryl's phone check** (each seeded role, the 401 path, the 503 path,
+      both themes).
+- [x] **Login + role routing — same branch.** Login, Forgot password, Forced
+      change, `AuthUnavailable`, the root navigator, three empty role homes.
+- [ ] Parent screens (+ socket, bell, badges, `LiveStatus`, drawer, Settings,
+      About, the Notifications screen)
+- [ ] Teacher screens (+ `beforeRemove` on Attendance)
+- [ ] Admin screens (Backup/Restore excluded — web only; not in the nav)
+- [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
+      (Darryl, 2026-09-27).** The bell, badges and `LiveStatus` on the same
+      socket as the web; no `expo-notifications`, no `push_token` column.
+      Remote push is unavailable in Expo Go on Android since SDK 53 and would
+      need a development build, Firebase and a server-side send — a separate
+      decision if ever wanted. Built on the Parent branch.
 
 ### Stage 6 — Integration
 
@@ -2040,6 +2118,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (NOT merged; the phone check is the gate): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:

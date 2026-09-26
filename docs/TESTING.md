@@ -388,6 +388,44 @@ Write with full contents — this file's own guard was proved by appending a
 placeholder to the committed example, which broke the Write/Edit-only rule
 for one line.
 
+## Mobile proofs — `mobile/scripts/`, plain Node, no render
+
+**Added 2026-09-27 (`feat/mobile-scaffold`).** Not suites: no server, no
+database. Each is a Node script that drives a pure module and prints a
+count. **There is no render proof on mobile** — React Native does not render
+under Node, so every screen is proved on the phone (docs/MOBILE_CONVENTIONS.md
+M7). Run from `mobile/`:
+
+| Proof | Baseline | What it covers |
+|---|---|---|
+| `npm run proof:api-unwrap` | **21/21** | `src/api/client.js`'s pure parts: `readBody` (string unwrap, array unwrap copying ONLY the named keys — the `term_averages` lesson — `raw`, and the three refusals naming what was missing and what came back, including a null body), `endsSession` (401 off `/auth/login` only; 403, 503 and no-response never), `logoutReasonFor` (the two human-readable 401s pass through, token-shaped and missing messages become the one sentence), `listParams`, and the socket origin derivation. **Cannot prove:** the interceptors firing, SecureStore — the phone check |
+| `npm run proof:auth-failure` | **8/8** | §22 on the mobile copy of `classifyAuthFailure`: 401 → logout; 503, `ERR_NETWORK`, `ECONNABORTED` (the 15 s timeout) → keep; four negative controls (a 401 never "keep", a 403 never a logout, `undefined` and a status-less response keep). **Cannot render `AuthUnavailable`** — its copy is the phone check |
+
+Both run with `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`: the modules
+are ESM `.js` in a package with no `"type"` (Metro does not care; the Expo
+config files must stay CommonJS), and Node 24 loads them by syntax
+detection with that one warning.
+
+**The production-bundle grep is a proof too, run before each mobile commit:**
+`npx expo export --platform android --output-dir dist`, then grep the `.hbc`
+for the DEV-only strings (expect 0 files) AND a production string (expect 1,
+the positive control), then delete `dist/`. **Measured 2026-09-27: `__DEV__`
+is NOT inlined by the Hermes export** — the first bundle carried every
+Connection-screen string and 26 literal `__DEV__`s — so dev-only code is
+excluded at Metro's resolver (`context.dev`), not by a branch.
+
+### Lint baselines (mobile)
+
+Four figures, one set, run from `mobile/` AFTER the last file is written:
+
+| Command | Baseline | Note |
+|---|---|---|
+| `npm run lint` (oxlint 1.85) | **0 errors, 8 warnings** | 7 × `react(only-export-components)` for the same structural reason the web accepts (hooks and builders beside their components), 1 × `react(set-state-in-effect)` on `AuthContext.readSession` — a rule oxlint 1.79 on the web does not have; the shape is the web's own. **Stated, never absorbed.** |
+| `no-undef` (inside oxlint) | **0** | `__DEV__` and `process` as globals; `scripts/**`, the config files and the generated `src/theme/tokens.js` (CommonJS by design) under `env.node` |
+| `npm run lint:mirrors` | **6 identical** | `scripts/check-mirrors.mjs` — every copied module byte-equal to its `client/src` source |
+| `npm run lint:tokens` | **71 tokens × 2 themes, both files match** | `scripts/check-tokens.mjs` — `src/theme/tokens.js` and `global.css` regenerate equal from `client/src/index.css` |
+| `npm run lint:colors` | **0** | the web's token lint plus a hex / rgb / hsl literal rule outside `theme/tokens.js` |
+
 ## Lint baselines
 
 Every client dispatch reports all four. **They are one set: three of them

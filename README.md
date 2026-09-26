@@ -24,6 +24,7 @@ buong detalye ay nasa ibang files:
 | `docs/TESTING.md` | Bawat suite, proof at lint baseline, at ang smoke run. **Ang tanging lugar ng mga bilang.** |
 | `docs/KNOWN_ISSUES.md` | Bawat known issue, bukas at sarado. |
 | `docs/FRONTEND_CONVENTIONS.md` | Ang buong teksto ng web conventions at ang dahilan ng bawat isa. |
+| `docs/MOBILE_CONVENTIONS.md` | Kung saan IBA ang telepono sa web, at bakit — Stage 5 (Expo). |
 | `docs/GRADING_SPEC.md` | DepEd DO 015 & DO 009 s. 2026 grading policy — transmutation table, weights, descriptive grading. |
 | `docs/RESTORE.md` | Ang design record ng Backup & Restore. |
 | `docs/ARCHIVE.md` | Lumang teksto na inalis sa CLAUDE.md at PROJECT_PROGRESS, verbatim. History lang. |
@@ -45,7 +46,7 @@ buong detalye ay nasa ibang files:
 | Seed data | ✅ Done |
 | **Backend API** | ✅ Lahat ng module, pati Socket.io. Bilang ng endpoints: front matter ng `CLAUDE.md` |
 | Web — lahat ng tatlong role (Teacher, Parent, Admin) | ✅ Stage 4 sarado 2026-09-14; ang mga dagdag pagkatapos nito ay nasa BUILD ORDER ng `CLAUDE.md` |
-| Mobile (Expo) | ⏳ Hindi pa nasisimulan (Stage 5) |
+| Mobile (Expo) | 🔧 Stage 5 sinimulan 2026-09-27 — scaffold, login at session sa `mobile/`; ang mga screen per role ay nasa BUILD ORDER ng `CLAUDE.md` |
 
 Siyam na feature ang ship. Ang Feature 7 (Contributions/Fees) ay ginawa at
 **tinanggal noong 2026-09-13** — hindi puwedeng mangolekta ng contributions
@@ -143,6 +144,44 @@ Buksan ang **http://localhost:3000**.
 Sa dev, may lalabas na `LiveStatus` strip ("Live updates paused") sa taas ng
 bawat page kapag patay ang Socket.io connection — sinasadya iyon, para hindi
 tahimik na mamatay ang real-time updates.
+
+---
+
+## Mobile (Expo) — Stage 5, sa telepono sa pamamagitan ng Expo Go
+
+**Expo SDK 57**, Expo Go mula sa Play Store (auto-update OFF sa telepono —
+lilipat sa SDK 58 ang store build sa Oktubre). Sariling folder at
+`package.json` ang `mobile/`; hindi ito shared sa `client/`.
+
+**Setup (once lang, sa home Wi-Fi):**
+
+```bash
+cd "C:\Users\Win10 User\Parents_Portal\mobile"
+npm install
+copy .env.example .env
+```
+
+**Bawat session — ang telepono ang hotspot, ang laptop ang sumasali:**
+
+1. Buksan ang hotspot ng telepono; i-connect ang laptop.
+2. `ipconfig` → "Wireless LAN adapter Wi-Fi" → IPv4 Address. Ilagay sa
+   `mobile\.env`: `EXPO_PUBLIC_API_URL=http://<ip>:5000/api`. **Binabasa ito
+   sa bundle time** — i-restart ang `npx expo start` kapag binago.
+3. Terminal 1: `cd server` → `npm run dev` (kailangang tumatakbo).
+4. **Patunay muna sa Chrome ng telepono:** `http://<ip>:5000/api/health` →
+   dapat `"db":"ok"`. Kung umiikot lang — firewall; kung "refused" — maling IP.
+5. Terminal 3: `cd mobile` → `npx expo start`, i-scan ang QR sa Expo Go.
+   Kung maling interface ang napili ng Expo (may apat na 169.254.x.x adapter
+   ang laptop): `set REACT_NATIVE_PACKAGER_HOSTNAME=<ip>` bago ang `start`.
+
+**Firewall:** ang nagbukas ng port 5000 at 8081 (Metro) ay ang program rule
+na "Node.js JavaScript Runtime" para sa `D:\node.js\node.exe` sa Public at
+Private profiles — hindi port rule. Public profile ang hotspot.
+
+**Lint at proofs (sa `mobile/`):** `npm run lint`, `npm run lint:mirrors`,
+`npm run lint:tokens`, `npm run lint:colors`, `npm run proof:api-unwrap`,
+`npm run proof:auth-failure`. Mga bilang: `docs/TESTING.md`. Ang mga rule:
+`docs/MOBILE_CONVENTIONS.md`.
 
 ---
 
