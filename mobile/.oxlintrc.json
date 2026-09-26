@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "oxc"],
+  "ignorePatterns": ["node_modules", ".expo", "dist", "android", "ios"],
+  "env": { "browser": true, "es2024": true },
+  "globals": { "__DEV__": "readonly", "process": "readonly" },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-undef": "error"
+  },
+  "overrides": [
+    {
+      "files": ["scripts/**", "*.config.js", "babel.config.js", "src/theme/tokens.js"],
+      "env": { "node": true }
+    }
+  ]
+}
