@@ -12,7 +12,8 @@
     "lint:colors": "node scripts/check-color-tokens.mjs",
     "tokens:write": "node scripts/check-tokens.mjs --write",
     "proof:api-unwrap": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-api-unwrap.mjs",
-    "proof:auth-failure": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-auth-failure.mjs"
+    "proof:auth-failure": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-auth-failure.mjs",
+    "proof:routes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-routes.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",

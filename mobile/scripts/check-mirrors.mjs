@@ -30,6 +30,8 @@ export const PAIRS = [
   ['src/navigation/nav.js', 'layout/nav.js'],
   ['src/format/passwordRule.js', 'format/passwordRule.js'],
   ['src/format/contactRule.js', 'format/contactRule.js'],
+  // Branch 2 — the parent screens.
+  ['src/screens/settings/tabs.js', 'pages/settings/tabs.js'],
 ];
 
 function read(file) {

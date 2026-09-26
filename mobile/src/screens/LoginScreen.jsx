@@ -164,6 +164,18 @@ export default function LoginScreen({ navigation }) {
             </Text>
           </View>
 
+          {/* The school's details and the DepEd VMV, signed out (pre-Stage-5
+              #5a): a parent looking for the office phone should not need an
+              account to find it. BELOW the card, as on the web. */}
+          <Pressable
+            onPress={() => navigation.navigate('About', { publicView: true })}
+            accessibilityRole="link"
+            className="mt-4 flex-row items-center justify-center gap-2"
+          >
+            <Icon name="fa-circle-info" size={13} color={tokens['fg-muted']} />
+            <Text className="text-sm font-medium text-fg-muted">About the school</Text>
+          </Pressable>
+
           {/* DEV ONLY — src/screens/dev/ is an empty module in a production
               bundle (metro.config.js), so `DevLink` is undefined there and
               nothing renders. The /dev/ui rule, at the resolver. */}

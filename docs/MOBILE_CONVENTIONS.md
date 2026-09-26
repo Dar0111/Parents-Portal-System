@@ -289,3 +289,95 @@ value from `ThemeProvider`, never a literal (M2).
 
 The seal (`src/components/Seal.jsx`) always sits on its `seal-bg` disc, white
 in both themes, with the web's alt text as `accessibilityLabel` (§9).
+
+---
+
+## M9. The shell: a drawer named by paths, and a route map that is pure
+
+**Frozen 2026-09-27 (`feat/mobile-parent`, checkpoint).** The phone's `Shell`
+is `navigation/AppShell.jsx`: a drawer per role built from the verbatim
+`nav.js`, inside a native stack that holds the screens which are not nav
+items (Notifications, the Settings sub-screens; later the thread, the
+reading views, compose, the grade breakdown).
+
+**A drawer route is NAMED BY ITS PATH.** Two web-shaped strings arrive on the
+phone — a nav item's `to` and a notification's `link`, both `/parent/…` — and
+naming the route by that string means both navigate with what they already
+carry. `navigation/routes.js` maps path → screen NAME and **stays pure** (no
+RN import) so `scripts/proof-routes.mjs` can load it; `AppShell.jsx` is the
+one file that maps a name to a component. Adding a screen is two lines.
+
+**Unbuilt is decided by the route map, not by `nav.js`'s `built` flag.**
+`nav.js` is a copy of the web's, where every item is built. A path with no
+route renders dimmed in the drawer with "not on the phone yet" as its
+accessible name — §6's unbuilt state, reintroduced exactly as CLAUDE.md
+said Stage 5 would — and a notification whose link is unbuilt opens the
+role's home instead (`linkToRoute`). Nothing throws on an unknown path.
+Teacher and admin therefore get the drawer now with Settings and About live
+and the rest dimmed, and `RoleHome` as their placeholder home (decision 3).
+
+**The strip is in the navigator's layout, not in each screen.** Both
+navigators wrap every screen with `LiveStatus` through `screenLayout`, which
+is §5g's "wherever anything depending on the channel is shown": the badges
+are in the drawer and the bell is in every header, so that is every screen.
+
+**Badges are joined at the row.** `DrawerContent.badgeFor` is the web's
+`badgeFor`: Messages from `UnreadProvider`, the rest from
+`NotificationProvider`, admin's Announcements carrying memos, a badge only
+on a built item. Nothing sums the two providers.
+
+## M10. The socket on a phone: three additions, no server change
+
+`realtime/SocketProvider.jsx` keeps the web's contract — one socket, two
+events, receive-only, a latency optimisation never the delivery path — and
+adds what a phone needs:
+
+1. **`auth` is a function**, evaluated on every (re)connect, so a session
+   that came back through `applyToken` reconnects with the fresh token.
+2. **`AppState`**: Android drops idle sockets in the background; on return to
+   `active` the provider calls `connect()`. socket.io's own reconnection
+   covers the rest.
+3. **`subscribeConnect`**: both count providers refetch on every connect,
+   because a background gap may have missed a `notification_counts`. A
+   refetch, never a count computed on the phone (§10).
+
+**`LiveStatus` Refresh reconnects and refetches both counts** (decision 4);
+every list has pull-to-refresh for its own rows. The strip's copy is the
+web's. **No server file changed**: `server/socket.js` verifies
+`handshake.auth.token` and joins `user:<id>` for any client.
+
+**The providers mount only around a signed-in tree.** A count provider
+mounted with no token fires a request, takes the 401, and stores a logout
+reason for a session that never existed — so `RootNavigator` wraps the
+navigator in the three providers only when `user` exists and is not on the
+forced-change screen.
+
+## M11. Lists without DataTable: one card contract, a FlatList, no local sort
+
+`components/DataList.jsx` is the phone's `DataTable`: presentational, never
+fetches, loading / error / empty inside the frame, rows in the server's
+order. Paging is the caller's: `hasMore` + `onLoadMore` renders a "Show
+more" footer against the API's `page.has_more`, and `onRefresh` gives
+pull-to-refresh. **Nothing is sorted on the phone** — a list arrives in the
+order the endpoint chose, and a sort control is a `sort` param, not
+`Array#sort`.
+
+`components/RecordCard.jsx` renders the web's `renderCard` DATA contract
+(§5a-iii): `avatar`, `title`, `subtitle`, `meta`, `status` + `statusTone`,
+and exactly one interactive element, `onSelect`. That is why a page's card
+builder copies verbatim (`parent/excuseLetters/card.jsx`). One mobile
+addition: `unread`, for the Notifications rows — a dot AND a bolder title, so
+read and unread differ by more than colour.
+
+**The Notifications screen is the web's bell panel as a screen** (decision
+4): same rows, same page size of 8, same two writes, the row's `link`
+resolved through `routes.js`. Opening a row marks it read and asks the
+provider to refetch; nothing subtracts one.
+
+**Settings is a list of rows pushing sub-screens** (decision 2). `tabs.js` is
+a verbatim copy, so the rows and their order are the web's; the screen each
+opens is looked up by LABEL, because the web keys admin's first tab and
+everyone else's on the same empty `to`. Account information is the ONE
+screen that shows a parent's `login_id`, masked until Show is tapped (§5c).
+Change password confirms with a native `Alert` naming the decision (§5e).
+Personalization is Theme only (M3).

@@ -1,0 +1,101 @@
+import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useAuth } from '../auth/AuthContext';
+import NotificationBell from '../components/NotificationBell';
+import LiveStatus from '../realtime/LiveStatus';
+import AboutScreen from '../screens/AboutScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import RoleHome from '../screens/RoleHome';
+import AccountInfoScreen from '../screens/settings/AccountInfoScreen';
+import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
+import PersonalizationScreen from '../screens/settings/PersonalizationScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
+import { useTheme } from '../theme/ThemeProvider';
+import DrawerContent from './DrawerContent';
+import { navForRole } from './nav';
+import { isBuilt, routeFor } from './routes';
+
+// THE PHONE'S Shell (MOBILE_CONVENTIONS M9). A drawer per role, built from
+// navigation/nav.js exactly as the web's sidebar is, with each drawer route
+// NAMED BY ITS PATH so nav items and notification links navigate by the
+// string they already carry (routes.js). Around the drawer, a native stack
+// holds the screens that are not nav items — Notifications and the three
+// Settings sub-screens here; the thread, the reading views, compose and the
+// grade breakdown on the parent branch's second half.
+//
+// THE STRIP IS IN THE LAYOUT, NOT IN EACH SCREEN. `screenLayout` wraps every
+// screen of both navigators with LiveStatus above its content, which is §5g's
+// "wherever anything depending on the channel is shown" — the badges are in
+// the drawer and the bell is in every header, so that is every screen.
+//
+// This is the ONE file that imports screens; routes.js maps a path to a
+// screen NAME and stays pure so a proof can load it.
+const Drawer = createDrawerNavigator();
+const Stack = createNativeStackNavigator();
+
+const COMPONENTS = {
+  RoleHome,
+  Settings: SettingsScreen,
+  About: AboutScreen,
+};
+
+function withStrip({ children }) {
+  return (
+    <>
+      <LiveStatus />
+      {children}
+    </>
+  );
+}
+
+function headerOptions(tokens) {
+  return {
+    headerStyle: { backgroundColor: tokens.surface },
+    headerTintColor: tokens.fg,
+    headerTitleStyle: { fontSize: 16, fontWeight: '600', color: tokens.fg },
+    headerShadowVisible: false,
+    contentStyle: { backgroundColor: tokens.page },
+  };
+}
+
+function RoleDrawer() {
+  const { user } = useAuth();
+  const { tokens } = useTheme();
+  const items = navForRole(user?.role);
+  const built = items.filter((item) => isBuilt(item.to) && COMPONENTS[routeFor(item.to)]);
+
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <DrawerContent {...props} items={items} />}
+      screenLayout={withStrip}
+      screenOptions={{
+        ...headerOptions(tokens),
+        headerRight: () => <NotificationBell />,
+        drawerStyle: { backgroundColor: tokens.surface, width: 280 },
+        sceneStyle: { backgroundColor: tokens.page },
+      }}
+    >
+      {built.map((item) => (
+        <Drawer.Screen
+          key={item.to}
+          name={item.to}
+          component={COMPONENTS[routeFor(item.to)]}
+          options={{ title: item.label }}
+        />
+      ))}
+    </Drawer.Navigator>
+  );
+}
+
+export default function AppShell() {
+  const { tokens } = useTheme();
+  return (
+    <Stack.Navigator screenLayout={withStrip} screenOptions={headerOptions(tokens)}>
+      <Stack.Screen name="Main" component={RoleDrawer} options={{ headerShown: false }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
+      <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Account information' }} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change password' }} />
+      <Stack.Screen name="Personalization" component={PersonalizationScreen} options={{ title: 'Personalization' }} />
+    </Stack.Navigator>
+  );
+}
