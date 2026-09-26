@@ -88,9 +88,7 @@ proved in a browser (`docs/CHANGELOG.md`, 2026-09-26).
 **Open, not queued** (each a `docs/KNOWN_ISSUES.md` row): can an exam score
 be stored with no denominator (INVESTIGATE); Admin → Users filter-tab counts
 and a "Linked to" column, both needing server fields first; Teacher →
-Excuse Letters does not refetch its list on the counts signal (low); two
-excuse letters for one learner and date are accepted by omission (a school
-question).
+Excuse Letters does not refetch its list on the counts signal (low).
 
 ---
 
