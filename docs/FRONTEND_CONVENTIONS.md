@@ -2049,6 +2049,20 @@ wrap ("Araling Panlipunan" is the column that decides the fit) and making
 sticky cells static, since a sticky column has nothing to stick to on paper
 and can overlap.
 
+**On screen too, since fix/polish (2026-09-26): the class summary has NO
+`min-w-max` and its subject headers wrap.** Measured before the change at
+1280px: the scroller was 990px and the table's max-content 998 — nine
+nowrap headers, "Araling Panlipunan" 169px — an 8px overflow under
+ScrollCue's 24px gate, so the cue was rightly silent and a native scrollbar
+showed for eight pixels. With `w-full` alone the table fits its container
+and a learning-area name breaks onto two lines, the call SlotHeader already
+makes. **Learner names, the Average header and every value cell stay
+nowrap**, so at 390 the table still overflows (356 vs 937 measured) and the
+cue still speaks; print is unchanged. The class record keeps its own
+widths. **And its four colgroup headers are `text-left`**: a group spans up
+to eight 4.5rem columns, so a centred name sat ~288px in and at 390 no
+group name was on screen at scroll start.
+
 ### 18d. Landscape is scoped per page, and Safari ignores it
 
 **`@page` is a DOCUMENT-level rule.** It cannot be nested under a class or an
@@ -2633,4 +2647,20 @@ linked below the login card.
   item) and the text column, or `min-width: auto` still holds the tile open.
   The value arrived by a settings write with no smoke behind it; **any
   settings value that renders on a page gets a smoke before merge.**
+- **The Vision and Mission cards are equal height, by decision (2026-09-26).**
+  `lg:items-start` — each card ending at its own text — was built and
+  reverted on the browser check; the matched pair is preferred. The space
+  under the shorter Vision paragraph is not a defect.
+- **The Login panel reads `school_name` from `/settings/public`, with a
+  "– Main" fallback** (fix/polish, 2026-09-26). The line was a static string
+  without "– Main", and mastheads carry it (LOCKED). `useState` holds the
+  fallback; one effect's `.then` replaces it when the setting is non-empty;
+  `.catch` does nothing — the fallback IS the copy, so there is no error
+  state and nothing to retry. The class-summary print masthead's fallback
+  carries "– Main" for the same reason.
+- **A Settings section is `max-w-2xl`, with short pairs in `sm:grid-cols-2`
+  rows** (fix/polish). `SettingsLayout` gives a tab a 42.5rem panel; a
+  `max-w-md` section inside it left the right third of a desktop empty. Two
+  short fields share a row from `sm` (School ID + phone, email + Facebook)
+  and stack below it — width and one paired row, not a redesign.
 

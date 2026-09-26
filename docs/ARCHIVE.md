@@ -3686,6 +3686,17 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (sixteenth batch, the polish docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds the fix/auth-503 and polish
+> stubs, the §2 outage rule and the "Set HPS" bullet, and the first measure
+> came in at +2,399 bytes. Two rows.
+
+| 2026-09-26 | **About at 390px** (`eae36e4`): the Facebook URL from `chore/school-contacts` — 66 characters, no space, **no smoke run** — held a detail tile open at 522px; every `/about` route scrolled sideways. `break-words` does not reduce a grid item's min-content width; **`[overflow-wrap:anywhere]` on the `<a>` itself** plus `min-w-0` on the tile does. `smoke:isolated` 10/20 → 20/20. |
+| 2026-09-26 | **Pre-Stage-5 #7 — CAL** (`2decc74`): **the term follows the school calendar and `current_term` is not a setting.** One pure module (server decides, client mirrors, strings only, a `Date` throws), the latest-start-≤-today rule, the two teacher pages pin `?term=` by `replace` before the sentinel arms, Attendance opens inside the school year, Settings shows the term read-only. `test:school-calendar` **34** (new), `ssr-school-calendar` **28/28** in both zones, `test:settings` 35 with two cases swapped; every neighbour unchanged. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (fifteenth batch, the pre-Stage-5 #7 docs pass)
 
 > Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4770,6 +4781,36 @@ transfer date" — and the row does not hold a date to cut on; the new adviser
 sees every row of a current learner, and that superset was accepted rather
 than bought with a column. The transfer itself stays a SQL job for the admin,
 recorded as a KNOWN ISSUES decision the same day.
+
+### POLISH's five items — moved from CLAUDE.md on 2026-09-26
+
+Under the REFILL RULE, closed by **fix/polish** (`1408b81`, `70b30b0`,
+browser check five of six). The entry as it stood:
+
+```
+- [ ] **POLISH — NEXT, five items, one dispatch, PLAN ONLY first**, all
+      browser-found: (1) the class-record group header at 390px; (2) the 2px
+      class-summary overflow at 1280px (under the 24px `ScrollCue` gate,
+      §19b — the cue is rightly silent, the table still clips); (3) Teacher →
+      Students' two identical primaries (KNOWN ISSUES, 2026-09-25); (4) the
+      About Vision card's dead space; (5) the Settings page width.
+```
+
+**What each became.** (1) Not a sticky column, not an initial scroll, not a
+repeated header — `text-center` → `text-left` on the four colgroup headers,
+because the name was centred in a group wider than the viewport. (2) The
+"2px" was measured before it was fixed: 8px in a headless browser at 1280,
+the table's max-content (nine nowrap headers, "Araling Panlipunan" the
+widest) against the scroller; `min-w-max` went and subject headers wrap,
+and the same measurement afterwards read 990/990 there and 356/937 at 390.
+(3) The plan's recommendation held over the first lean: Enroll went neutral
+and the shared Apply stayed the item-5 signal, on Students only. (4) Built
+as `lg:items-start` and **reverted on the browser check** — the equal-height
+pair is preferred, recorded in KNOWN_ISSUES as accepted. (5) Width plus two
+paired rows, no redesign, no board. A sixth item rode along: the Login
+panel's school name became the setting with a "– Main" fallback. The
+dispatch also carried fix/auth-503 (its own CHANGELOG row), found by the
+by-hand 503 check the polish plan was written beside.
 
 ### Pre-Stage-5 #7's item (c), and the block's header — moved from CLAUDE.md on 2026-09-26
 

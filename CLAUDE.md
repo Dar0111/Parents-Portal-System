@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **five migrations**, the twenty-one test files); `database/`
+`scripts/` (setup, **five migrations**, the twenty-two test files); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 
 #### File rules that bite
@@ -355,6 +355,12 @@ api.post('/backups/3/restore', body, { raw: true })       // -> the axios respon
   `401` since 2026-09-18, so a deactivated user is logged out on their next
   request. Not string-matched. No count of 403 origins — it cannot be
   checked mechanically.
+- **A database outage is `503`, never `401` (fix/auth-503, 2026-09-26).**
+  `middleware/auth.js` verifies the token in one try (401) and reads the
+  database in another (`503`, the health body, via
+  `utils/dbUnavailable.js`); `/me` likewise on a connection-level error.
+  The client keeps the token on anything but 401 (§22). Proved by
+  `test:auth-middleware` on a stubbed pool.
 - **Reads out of scope return `404`** (anti-enumeration); **writes return
   `403`**. Two exceptions return `403` where a read would 404, because a
   broader `GET` already exposes the resource: excuse-letter review and the
@@ -1585,39 +1591,27 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       Attendance opens on today's month **clamped to the school year**;
       **a new school year is a new `TERMS` table AND `academic_year`** —
       `GET /dashboard` is `500` naming both when they differ; the server
-      runs on Asia/Manila or with `TZ` pinned (KNOWN ISSUES). The open
-      leftovers below are not queued.
-      **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
-      NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
-      (`schema.sql:212-216`), so the shape is representable; `grade_components`
-      is not (`max_score NOT NULL`). If a write path allows a score with no
-      denominator it is a server validation gap, and the parent breakdown now
-      renders that line as nothing at all — correct, and a fact nobody decided.
-      **The double `bulk_record_attendance` INVESTIGATE is CLOSED
-      (2026-09-25):** one occurrence in 119 saves, inside the clock-forward
-      session, no code path yields two rows from one request; no guard.
-      `docs/KNOWN_ISSUES.md` has the evidence. **The smoke flake's `--watch`
-      lead held across four no-watch sweeps** — procedural fix, same file.
-      **Two more from DV1 (2026-09-20), both needing a server change the
-      client cannot fake:** (a) **counts for the Admin → Users filter tabs**
-      — `GET /api/users` returns `page.total` for the filters SENT, so four
-      tabs would mean four requests fetched only to read a number; a
-      `counts { all, teachers, parents, pending }` sibling computed by one
-      grouped query is the fix, and the tabs stay unbuilt until it exists.
-      (b) **"Linked to" on the same page** — `linked_student_name` (a
-      `LEFT JOIN students` on `users.student_id`) and `advises[]` (a grouped
-      subquery on `sections.adviser_id`, because a teacher may advise more
-      than one). Neither is in the payload today, which is why the column
-      was dropped from DV1.
-- [ ] **POLISH — NEXT, five items, one dispatch, PLAN ONLY first**, all
-      browser-found: (1) the class-record group header at 390px; (2) the 2px
-      class-summary overflow at 1280px (under the 24px `ScrollCue` gate,
-      §19b — the cue is rightly silent, the table still clips); (3) Teacher →
-      Students' two identical primaries (KNOWN ISSUES, 2026-09-25); (4) the
-      About Vision card's dead space; (5) the Settings page width.
-- [ ] **Docs pass** — the README suite table, the `docs/API_REFERENCE.md` scope
-      labels stale for every widened read, and the dead pointers recorded in
-      KNOWN ISSUES.
+      runs on Asia/Manila or with `TZ` pinned (KNOWN ISSUES). **Three open
+      leftovers are NOT queued and each is a `docs/KNOWN_ISSUES.md` row:**
+      the NULL-max INVESTIGATE (can an exam score be stored with no
+      denominator), and DV1's two Admin → Users server changes — the filter
+      tabs' `counts` sibling and the "Linked to" column's `linked_student_name`
+      + `advises[]`. Two INVESTIGATEs are CLOSED there (the double
+      `bulk_record_attendance`; the smoke flake's `--watch` lead).
+- [x] **POLISH — DONE 2026-09-26** (`1408b81`, `70b30b0`); the pre-Stage-5
+      block is fully closed. Five of six landed; the Vision card's dead
+      space was **reverted by decision** (equal-height cards). Rules, stated
+      nowhere else: **the class summary has no `min-w-max` and its subject
+      headers wrap** (measured, §18c); **class-record colgroup headers are
+      left-aligned**; **Enroll is neutral beside a filled Apply** (§21b);
+      **Login reads `school_name` from `/settings/public` with a "– Main"
+      fallback**; **a Settings section is `max-w-2xl` with short pairs in
+      `sm:grid-cols-2` rows** (§23). **fix/auth-503** (`1d2b228`): a
+      database error in the middleware or `/me` is `503`, never `401` — §2.
+- [ ] **Docs pass — NEXT, on Opus:** `docs/PROJECT_PROGRESS.md`, the README
+      suite table, `docs/SETUP_NOTES.md`, `.cursorrules`, the stale
+      `docs/API_REFERENCE.md` scope labels, the dead pointers in KNOWN
+      ISSUES. **Then the smoke gate, then Stage 5.**
 
 ### Stage 5 — Mobile (Expo)
 
@@ -1923,6 +1917,9 @@ questions.
   is most likely mid-restart from a server-file edit: wait and retry; never
   proceed without it.** Added 2026-09-26 after #5a's migration ran behind
   two failed backup calls (`docs/CHANGELOG.md`).
+- **"Set HPS" on Teacher → Grades writes a grade row AT ONCE** (HPS-only,
+  no score). A browser check that touches it ends with the cleanup protocol
+  above — twice (#5b, #7) a later suite's baseline found the row instead.
 - Test assertions against shared tables must be scoped to rows the run
   itself created, or written as invariants (`.every(...)`) that additional
   real rows still satisfy. Never assert an exact row count or exact list
@@ -2039,8 +2036,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-26 | **About at 390px** (`eae36e4`): the Facebook URL from `chore/school-contacts` — 66 characters, no space, **no smoke run** — held a detail tile open at 522px; every `/about` route scrolled sideways. `break-words` does not reduce a grid item's min-content width; **`[overflow-wrap:anywhere]` on the `<a>` itself** plus `min-w-0` on the tile does. `smoke:isolated` 10/20 → 20/20. |
-| 2026-09-26 | **Pre-Stage-5 #7 — CAL** (`2decc74`): **the term follows the school calendar and `current_term` is not a setting.** One pure module (server decides, client mirrors, strings only, a `Date` throws), the latest-start-≤-today rule, the two teacher pages pin `?term=` by `replace` before the sentinel arms, Attendance opens inside the school year, Settings shows the term read-only. `test:school-calendar` **34** (new), `ssr-school-calendar` **28/28** in both zones, `test:settings` 35 with two cases swapped; every neighbour unchanged. |
+| 2026-09-26 | **Polish** (`1408b81`, `70b30b0`): five of six — class-record group headers left-aligned; **the class summary measured at 1280 (scroller 990, table 998), `min-w-max` dropped**, headers wrap, 990/990 after; Enroll neutral beside the filled Apply; Settings `max-w-2xl` with paired rows; Login's school name from `/settings/public`, "– Main" fallback. **Item 4 reverted by decision.** Smoke 20/20 twice. |
+| 2026-09-26 | **fix/auth-503** (`1d2b228`): with MySQL stopped every request was `401 "Invalid or expired token."` and the client logged out. **Token in one try, database in another; a database error is `503` with the health body**; `/me` the same. `test:auth-middleware` **23** on a stubbed pool. Seen by hand: panel, token kept, Try again resumes. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2049,7 +2046,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in **fifteen dated
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in **sixteen dated
 batches** (2026-09-19 → 2026-09-26), each headed "CHANGELOG stubs moved from
 CLAUDE.md on <date> (<nth> batch, <the pass that spent it>)" — grep that;
 the per-batch counts once listed here were a third copy of a number the

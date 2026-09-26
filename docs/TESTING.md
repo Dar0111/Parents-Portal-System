@@ -19,9 +19,9 @@
 Moved verbatim from `CLAUDE.md` → CURRENT STATE → Tests on 2026-09-23.
 **No figure below was re-measured in that move; every one was copied.**
 
-**Tests:** twenty-one `test:*` scripts — **eighteen HTTP suites** plus three
-direct-call unit tests (`sanitize`, `grade-computation`, and since #7
-`school-calendar`). **Every count below
+**Tests:** twenty-two `test:*` scripts — **eighteen HTTP suites** plus four
+direct-call unit tests (`sanitize`, `grade-computation`, since #7
+`school-calendar`, and since fix/auth-503 `auth-middleware`). **Every count below
 was re-run on 2026-09-22 and EIGHT were stale** — students, grades,
 attendance, content, users, backups, messages and excuses had all drifted
 upward, most since pagination (2026-09-19) touched every list endpoint and no
@@ -50,6 +50,7 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 - `npm run test:attendance` — **73/73** (was 64; pre-Stage-5 #6 — TCH-003's login and **the mid-year transfer case**: TCH-001 enrols a fixture learner into Malikhain and records two days; the learner is moved to Masigasig by a direct `UPDATE` on that fixture row (no transfer endpoint exists, by design); TCH-002 records a third day; the OLD adviser's list and summary hold exactly their two days and `GET /student/:id` is 200 with two; the NEW adviser sees three; the old adviser's `PUT` on their own row is 404; TCH-003 — neither adviser nor recorder — is 404. Cleanup by tracked attendance id, learner by id. #3a — cleanup by its own ids, proved by an untracked sentinel row on a shared date that must survive. #2 added `?date=&from=` and `?date=&to=` → `400`)
 - `npm run test:content` — **97/97** (was 96; #3a — its posts' notifications cleaned by pairs and asserted gone: "25 deleted over 10 items" on a clean run. **The count of items is 10, not 9**: the API-deleted event is spliced out of the post cleanup list but stays in `notifiedEventIds`)
 - `npm run test:settings` — **35/35** (count unchanged by pre-Stage-5 #7, two cases swapped: OUT "current_term outside 1-3 rejected, naming the allowed values" and "Valid current_term accepted"; IN "PUT current_term is the unknown-key 400, and the allowed list no longer names it" and "GET /api/settings carries no current_term" — the latter reads the row directly and says whether a dead row EXISTS on this database. The bad-value PATCH now uses `school_id: '12'`, the all-valid PATCH `logo_url`. Was 29 before #5a — the four `school_*` rules, the four-key PATCH, `GET /settings/public` without a token carrying exactly six keys, `GET /settings` still 401 without one)
+- `npm run test:auth-middleware` — **23/23** (new, fix/auth-503, 2026-09-26; direct calls on `middleware/auth.js` with **a stubbed pool planted in `require.cache` before the middleware is required** — no server, no DB, scripted per call to return rows or throw a mysql2-shaped error). An outage on the first or the second query → `503` with the health body key for key; any throw inside the database block → 503; **the 503 body never says "token" or "log in"**; no token, a garbage token and an expired token → 401 with **zero pool calls** (verify runs before any database work, so an outage cannot mask a bad token or vice versa); the restore cutoff, a missing user, an inactive account and a `token_version` mismatch → 401; the forced-change 403 off `/me` and `next()` on `/me`; a live session → `next()` in exactly two pool calls; `isDbUnavailable` accepts connection codes and refuses a SQL error, a plain Error and null. **This is how the outage path is proved without stopping MySQL under every other suite**; the by-hand check (KNOWN ISSUES) is the browser half
 - `npm run test:school-calendar` — **34/34** (new, pre-Stage-5 #7; a direct-call unit test like `grade-computation`, no server, no DB) — the ten boundary days both sides of each line (Jun 7/8, Sep 15/16, Dec 18/19, Jan 3/4, Apr 8/9), three far dates, six month clamps, the table's own consistency (three terms, each start before its end, in order and non-overlapping, `CLASSES_START`/`END` on the first and last term, frozen, `termDates` by number or string), **the seed's `academic_year` equals `SCHOOL_YEAR` and the seed writes no `current_term` row**, and five refusals — a `Date`, another format, no argument, a number, `termDates(4)`
 - `npm run test:users` — **68/68** (was 64; #4 — the email rule on POST /teachers ("not an email", `user@localhost`) and PUT (two `@`, and `""` clears to NULL). #2 added `sort=role` and `sort=status` alphabetical invariants plus admin-before-parent). **The script is `test:users`** — the file is `test-user-management-flows.js`, and a dispatch that types `test:user-management` gets a silent no-op from npm, not a failure
 - `npm run test:backups` — **47/47** (was 39)
@@ -191,6 +192,22 @@ invisible to a production-mode proof.** Anything wrapped in
 `import.meta.env.DEV` has to be kept alive deliberately, or the harness
 reports a clean pass on code that is not in the bundle —
 `docs/FRONTEND_CONVENTIONS.md` §17f.
+
+## Measuring a layout before fixing it (fix/polish, 2026-09-26)
+
+A "2px overflow" is a number, and a number is measured before it is
+fixed. The class-summary overflow at 1280 was measured in a headless
+browser: a throwaway Playwright script (scratchpad, never committed) that
+logs in through the real form with the `e2e/.env.e2e` credentials — the
+same one-`activity_logs`-row cost as the smoke — opens the page at a
+`viewport` of the width in question, and reads **`scroller.scrollWidth −
+clientWidth`** on `.print-sheet-scroller` plus every header cell's
+`getBoundingClientRect().width`. That gave 998 vs 990 and named the widest
+column, which is what decided the fix (release `min-w-max`, let subject
+headers wrap) over the alternative (`border-separate`); the same script run
+again after the change is the proof — 990/990 at 1280, 356/937 at 390.
+Measure the element, not the window (§5a-vi), and run it against the dev
+server, never during a suite.
 
 ## The smoke run — a read-only browser sweep
 

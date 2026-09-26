@@ -277,6 +277,37 @@ The **global** cutoff (`auth_security_state.token_valid_after`, set only by
 a restore) is unchanged and still a timestamp — it revokes everything at
 once, where whole seconds are precise enough.
 
+### 5c. What `middleware/auth.js` answers, and why an outage is not a verdict (fix/auth-503, 2026-09-26)
+
+Every authenticated endpoint can return these before its handler runs. The
+middleware verifies the token in one `try` and reads the database in
+another, so a database failure can never be reported as a token failure.
+
+| Status | Body `message` | Cause | Client |
+|---|---|---|---|
+| `401` | `Authentication required.` | no `Bearer` token | logout + `/login` |
+| `401` | `Invalid or expired token.` | `verifyToken` threw — malformed, wrong secret, expired. **The pool is never called for this** | logout + `/login` |
+| `401` | `Session invalidated by a database restore. Please log in again.` | `iat` before `auth_security_state.token_valid_after` | logout + `/login` |
+| `401` | `User not found.` | the token's `id` has no `users` row | logout + `/login` |
+| `401` | `Account is not active.` | `users.status` ≠ `active` | logout + `/login` |
+| `401` | `Your password was changed. Please log in again.` | token `v` ≠ `users.token_version` (§5b) | logout + `/login` |
+| `403` | `You must change your password before continuing.` + `code` | `must_change_password`, off `/me` and `/change-password` (§5b) | routed on the field, never the 403 |
+| **`503`** | **`Database unreachable.`** | **any throw inside the database block — the pool's error, MySQL down, a connection lost.** The health endpoint's body, verbatim | **keeps the token**; `AuthUnavailable` + Try again (§22); every other page shows the message in its own `ErrorAlert` |
+
+**`GET /auth/me`** adds one row: a connection-level error in its own read is
+the same `503`; any other throw stays `500 "Failed to fetch profile."`.
+The distinction is `utils/dbUnavailable.js` → `isDbUnavailable(err)`: true
+for `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `ENOTFOUND`, `EHOSTUNREACH`,
+`EPIPE`, `PROTOCOL_CONNECTION_LOST`, `PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR`,
+`PROTOCOL_ENQUEUE_AFTER_QUIT`, `PROTOCOL_SEQUENCE_TIMEOUT`,
+`ER_ACCESS_DENIED_ERROR`, `ER_CON_COUNT_ERROR`; false for every other `ER_*`
+(a SQL error is a defect to fix, not an outage to wait out), a plain Error
+and null. The same file holds the frozen body and `sendDbUnavailable(res,
+context, err)`, which logs the context and sends it. `GET /api/health`
+already answers that body from its own catch and is the third place the
+shape appears; a fourth should import it. Proved by `test:auth-middleware`
+(23) on a stubbed pool.
+
 ---
 
 ## 6. Socket.io
@@ -459,7 +490,7 @@ the bottom must equal 88 handlers (89 with `GET /api/health`).
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
-| GET | `/me` | any authenticated | — | `user` |
+| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500` |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
 | PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule since 2026-09-18 — exactly 11 digits starting with 09 after spaces and dashes are stripped, stored digits-only, `server/utils/contactRule.js`; a refusal is `400` with `field: "contact_number"`) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | POST | `/forgot-password` | **public** | `login_id`* | message only — **`202` on every path**, see below |
