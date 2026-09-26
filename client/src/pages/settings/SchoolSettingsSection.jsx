@@ -173,12 +173,21 @@ export default function SchoolSettingsSection() {
           />
         </dl>
         {/* §5i: says it cannot be changed here and why; does not promise
-            where it can be — no such screen or process exists. */}
+            where it can be — no such screen or process exists.
+
+            THE TERM SENTENCE NAMES ITS SCREENS (fix/smoke-gate). It said
+            "every screen that opens on a term uses the same rule", and the
+            report card does not: on a phone it opens on the latest term that
+            has a grade in it (ReportCard.jsx), which is kept by decision. The
+            dashboards, the class record and the class summary do follow the
+            calendar; the report card's desktop view shows all three terms, so
+            only the phone view "opens on" one. */}
         <p className="text-sm text-fg-muted">
           The school year cannot be changed here. Sections, grading setup and existing grades are
           all tied to the school year, and changing this value would not move any of them. The
           current term is not a setting either: it follows today&rsquo;s date on the school
-          calendar, and every screen that opens on a term uses the same rule.
+          calendar. The dashboards, Grades and the class summary open on it; on a phone, a report
+          card opens on the latest term that has a grade in it.
         </p>
       </section>
 
