@@ -1,0 +1,84 @@
+import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
+import {
+  faArrowRight,
+  faBullhorn,
+  faCalendarDays,
+  faChartSimple,
+  faCircle,
+  faCircleCheck,
+  faCircleExclamation,
+  faCircleInfo,
+  faCircleNotch,
+  faClipboardUser,
+  faClockRotateLeft,
+  faComments,
+  faDatabase,
+  faEnvelopeOpenText,
+  faEye,
+  faEyeSlash,
+  faFileLines,
+  faGauge,
+  faGear,
+  faLock,
+  faPlugCircleXmark,
+  faRightFromBracket,
+  faTableList,
+  faUser,
+  faUserGraduate,
+  faUsersGear,
+} from '@fortawesome/free-solid-svg-icons';
+
+// THE WEB'S ICON NAMES, RESOLVED. Every screen and `navigation/nav.js` (a
+// verbatim copy of the web's) name an icon the way the web does — `fa-gauge`,
+// `fa-lock` — and this map turns the string into the FA 7 SVG object. FA 7 to
+// match the web's fontawesome-free 7.3.1 (Darryl, Stage 5 decision 5), through
+// the official react-native package over react-native-svg.
+//
+// AN UNMAPPED NAME THROWS IN DEV rather than rendering nothing: a missing glyph
+// beside a label is invisible in a screenshot, and the web's equivalent (a
+// class with no CSS rule) is exactly the silent failure §5h warns about.
+// Production falls back to the info glyph so a typo cannot blank a screen.
+const ICONS = {
+  'fa-arrow-right': faArrowRight,
+  'fa-bullhorn': faBullhorn,
+  'fa-calendar-days': faCalendarDays,
+  'fa-chart-simple': faChartSimple,
+  'fa-circle': faCircle,
+  'fa-circle-check': faCircleCheck,
+  'fa-circle-exclamation': faCircleExclamation,
+  'fa-circle-info': faCircleInfo,
+  'fa-circle-notch': faCircleNotch,
+  'fa-clipboard-user': faClipboardUser,
+  'fa-clock-rotate-left': faClockRotateLeft,
+  'fa-comments': faComments,
+  'fa-database': faDatabase,
+  'fa-envelope-open-text': faEnvelopeOpenText,
+  'fa-eye': faEye,
+  'fa-eye-slash': faEyeSlash,
+  'fa-file-lines': faFileLines,
+  'fa-gauge': faGauge,
+  'fa-gear': faGear,
+  'fa-lock': faLock,
+  'fa-plug-circle-xmark': faPlugCircleXmark,
+  'fa-right-from-bracket': faRightFromBracket,
+  'fa-table-list': faTableList,
+  'fa-user': faUser,
+  'fa-user-graduate': faUserGraduate,
+  'fa-users-gear': faUsersGear,
+};
+
+export function iconFor(name) {
+  const icon = ICONS[name];
+  if (icon) return icon;
+  if (__DEV__) throw new Error(`icons.js: no icon is mapped for "${name}" — add it to ICONS.`);
+  return faCircleInfo;
+}
+
+// `<Icon name="fa-lock" size={14} color={tokens.light.fg} />`. `color` is a hex
+// from theme/tokens.js, never a literal: FontAwesomeIcon draws SVG and does
+// not read a className, so this is one of the places a token reaches the
+// screen as a value rather than a class (§8 still holds — the value is the
+// token's, chosen in index.css).
+export default function Icon({ name, size = 16, color, style }) {
+  return <FontAwesomeIcon icon={iconFor(name)} size={size} color={color} style={style} />;
+}
