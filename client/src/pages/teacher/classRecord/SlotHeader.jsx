@@ -21,17 +21,28 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
   const maxValue = draft?.max_score !== undefined ? draft.max_score : slot.max_score === null ? '' : String(slot.max_score);
   const nameValue = draft?.name !== undefined ? draft.name : slot.name || '';
   const inUse = maxValue !== '' && maxValue !== null;
+  // The column's CODE — WW1…WW5, PT1…PT3 — the same shape as the exam
+  // columns' ST1 / ST2 / TE beside it. Built here from type + slot_no, not
+  // from the API's `short_label`, which stays the bare number or the name
+  // (test:class-record asserts that contract, and buildPayload mirrors it).
+  const code = `${slot.type}${slot.slot_no}`;
+  const shownName = nameValue.trim();
 
   return (
     <>
       <div className="flex w-[4.5rem] flex-col items-center gap-1">
-        {/* TWO LINES, NOT TRUNCATED. The first build cut "Written Work 3"
-            to "Written ..." because the column was 3.75rem and the label
-            carried the category. The group header above now says the
-            category, so this shows the NUMBER — or the slot's own name,
-            which is the reason to name one. `line-clamp-2` wraps a long
-            name over two lines instead of clipping it, and the full text
-            is in the title and the Modal. */}
+        {/* THE CODE ALWAYS, THE NAME UNDER IT (fix/smoke-gate). This showed
+            the bare number — or a named slot's name alone — on the grounds
+            that the group header above already said the category. But that
+            header is one cell over a whole group, and scrolling puts it under
+            the pinned Learner column for most of the group's width (measured:
+            hidden from 200px to 624px of scroll with up to 429px of the
+            group's own columns still on screen), so "3" stopped saying which
+            3. Every column now carries its code, readable at any scroll
+            position. A named slot keeps its name on a second, truncated line
+            — same two-line height as the old clamp (72px header row, 81px
+            column, measured) — and the full text is in the title and the
+            Modal, as before. */}
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -39,7 +50,8 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
           className="line-clamp-2 w-full rounded px-0.5 text-center text-xs font-semibold leading-tight text-fg-body underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent disabled:no-underline"
           title={`${slot.display_label} — rename or change its highest possible score`}
         >
-          {draft?.name !== undefined && draft.name ? draft.name : slot.short_label}
+          <span className="block">{code}</span>
+          {shownName ? <span className="block truncate font-normal">{shownName}</span> : null}
         </button>
 
         {/* autoComplete on every input below: see Cell.jsx. A browser

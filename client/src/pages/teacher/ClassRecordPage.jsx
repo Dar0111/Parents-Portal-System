@@ -682,9 +682,15 @@ export default function ClassRecordPage() {
                       />
                     </th>
                   ))}
-                  <th scope="col" className={totalTh}>Total</th>
-                  <th scope="col" className={totalTh}>PS</th>
-                  <th scope="col" className={totalTh}>WS</th>
+                  {/* THE GROUP CODE ON EVERY SUMMARY COLUMN (fix/smoke-gate).
+                      Three groups each end in Total / PS / WS, and the group
+                      name above is one cell that scrolls under the pinned
+                      Learner column, so a bare "PS" stopped saying whose.
+                      Measured: only "WW Total" widens (76 → 82px) and the
+                      table grows 1845 → 1850px inside its own scroller. */}
+                  <th scope="col" className={totalTh}>WW Total</th>
+                  <th scope="col" className={totalTh}>WW PS</th>
+                  <th scope="col" className={totalTh}>WW WS</th>
 
                   {ptSlots.map((slot, i) => (
                     <th
@@ -701,9 +707,9 @@ export default function ClassRecordPage() {
                       />
                     </th>
                   ))}
-                  <th scope="col" className={totalTh}>Total</th>
-                  <th scope="col" className={totalTh}>PS</th>
-                  <th scope="col" className={totalTh}>WS</th>
+                  <th scope="col" className={totalTh}>PT Total</th>
+                  <th scope="col" className={totalTh}>PT PS</th>
+                  <th scope="col" className={totalTh}>PT WS</th>
 
                   {/* THE SUMMATIVE MAXIMA SIT IN THIS HEADER ROW, like a
                       slot's, because a Summative is one paper sat by the
@@ -740,9 +746,11 @@ export default function ClassRecordPage() {
                       </div>
                     </th>
                   ))}
-                  <th scope="col" className={totalTh}>Total</th>
-                  <th scope="col" className={totalTh}>PS</th>
-                  <th scope="col" className={totalTh}>WS</th>
+                  {/* "ST", by decision (2026-09-26) — the group's own codes
+                      are ST1 / ST2 / TE, and ST is the one they share. */}
+                  <th scope="col" className={totalTh}>ST Total</th>
+                  <th scope="col" className={totalTh}>ST PS</th>
+                  <th scope="col" className={totalTh}>ST WS</th>
 
                   <th scope="col" className={`${totalTh} border-l border-edge`}>Initial</th>
                   <th scope="col" className={totalTh}>{descriptive ? 'Letter' : 'Term'}</th>
