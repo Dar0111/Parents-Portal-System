@@ -5,43 +5,55 @@
 `CLAUDE.md` in the repo root is the single source of truth for this project.
 Read it before answering anything about architecture, features, or current
 state. Do not duplicate its contents here — if this file and CLAUDE.md ever
-disagree, CLAUDE.md wins.
+disagree, CLAUDE.md wins. The rules below are pointers, not copies.
 
 ## Non-negotiables
 
-- **Trust the code, not the docs.** `PROJECT_PROGRESS.md` overstates progress.
-  It lists modules as done that have tables only and no handlers. Verify
-  against actual route files before claiming anything works.
+- **Trust the code, not the docs.** `docs/PROJECT_PROGRESS.md` is a short
+  snapshot and may lag; CLAUDE.md can lag too, and when it disagrees with the
+  code the code is right. Verify against the route files before claiming
+  anything works. A module with tables and no handlers is not started.
 
-- **The auth module is the template.** Every new module follows the exact
-  pattern in `routes/users.js`: `authenticate` + `authorize()`,
-  `sanitizeUser()` on any response containing a user row, `logActivity()` on
-  every write. Do not invent a new structure.
+- **The auth module is the template.** Every new module follows the pattern
+  in `routes/users.js` and `routes/students.js`: `authenticate` +
+  `authorize()`, `parseId()` on every `:id` param, `sanitizeUser()` on any
+  response built from a `users` row, `logActivity()` on every write. Do not
+  invent a new structure (CLAUDE.md → THE AUTH PATTERN IS THE TEMPLATE).
 
 - **Never take `role` or `student_id` from the client.** Both come from the
-  database row. `role` from `users.role`, `student_id` from
-  `users.student_id`. Not from `req.body`, not from a URL param.
+  database row — `users.role`, `users.student_id` — never `req.body` or a URL.
+
+- **Only a `401` ends a session; a database outage is `503`.** `403` is a
+  refusal with a reason and never redirects (CLAUDE.md §2).
+
+- **No LRN in a URL, a query string or an error message.** A parent's login
+  id is their child's LRN (CLAUDE.md §5c).
 
 - **Stack is locked.** React + Tailwind + Font Awesome for web. React Native
   (Expo) for mobile. No other UI library, no PWA, no Flutter. `server/` and
   `client/` stay separate — no monorepo tooling.
 
-- **Grades module is blocked.** Grading periods, components, and weights are
-  unconfirmed pending a school visit. Do not build grade computation logic
-  on assumptions. See the Blocked section in CLAUDE.md.
+- **Grades is fully built — do not re-derive its rules.** The DepEd policy is
+  `docs/GRADING_SPEC.md`; the rules that bind the code are CLAUDE.md →
+  BLOCKED / RESOLVED → Grades module. Encoding stays with the subject
+  teacher; do not widen it to advisers.
 
 ## When starting work
 
 State plainly what already exists and what does not before proposing
 anything. If a file, endpoint, or column is not in the repo, say so rather
-than assuming it is there.
+than assuming it is there. Follow CLAUDE.md → HOW TO WORK WITH DARRYL →
+Working agreement: branch first, never on `main`; an exact file list and
+`SCOPE EXPANSION` for anything outside it; file content through the editor,
+never through the shell; never `git checkout --` on uncommitted work; before
+any live-database write, `GET /api/health` and a `201` from
+`POST /api/backups`.
 
 ## When finishing work
 
-Update the CURRENT STATE section of `CLAUDE.md` and add a dated row to
-`docs/CHANGELOG.md` (the CHANGELOG table moved there on 2026-09-18; the
-long text behind the other sections lives in the `docs/` companion files
-listed in CLAUDE.md's COMPANION DOCUMENTS section). Keep `CLAUDE.md`
-under 150k chars — never delete to make room. List endpoints, not
-percentages. If a module has tables but no handlers, it is
-not started.
+Follow CLAUDE.md → END OF EVERY SESSION: a dated row in
+`docs/CHANGELOG.md`, CURRENT STATE and BUILD ORDER updated, and
+`docs/PROJECT_PROGRESS.md` refreshed as a snapshot (state only — history
+goes to the CHANGELOG). Mind CLAUDE.md → THE SIZE RULE: measure its on-disk
+bytes, trim at 138,000, never start above 142,000 — never delete to make
+room. List endpoints, not percentages.

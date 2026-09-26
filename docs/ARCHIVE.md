@@ -3686,6 +3686,18 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (seventeenth batch, the docs pass)
+
+> Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full rows are in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — the docs pass adds its own stub, the ticked
+> item, the end-of-session rule and six pointer and count fixes, and
+> measured +154 before its stub.
+> Two rows; the table keeps the docs pass alone.
+
+| 2026-09-26 | **Polish** (`1408b81`, `70b30b0`): five of six — class-record group headers left-aligned; **the class summary measured at 1280 (scroller 990, table 998), `min-w-max` dropped**, headers wrap, 990/990 after; Enroll neutral beside the filled Apply; Settings `max-w-2xl` with paired rows; Login's school name from `/settings/public`, "– Main" fallback. **Item 4 reverted by decision.** Smoke 20/20 twice. |
+| 2026-09-26 | **fix/auth-503** (`1d2b228`): with MySQL stopped every request was `401 "Invalid or expired token."` and the client logged out. **Token in one try, database in another; a database error is `503` with the health body**; `/me` the same. `test:auth-middleware` **23** on a stubbed pool. Seen by hand: panel, token kept, Try again resumes. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (sixteenth batch, the polish docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows

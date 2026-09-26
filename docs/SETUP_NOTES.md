@@ -11,7 +11,8 @@ Para sa full run guide, tingnan ang [`README.md`](../README.md) sa project root.
 |------|-------|
 | **MySQL Workbench** | Database (`parents_portal`) — view tables, run queries |
 | **CMD / PowerShell** | Run server, tests, npm commands |
-| **Cursor** | Code editor + AI chat (ito ang ginagamit natin ngayon) |
+| **Claude Code** | Ang pangunahing AI tool ngayon — binabasa nito ang `CLAUDE.md` nang kusa |
+| **Cursor** | Code editor; binabasa ng AI nito ang `.cursorrules`, na tumuturo sa `CLAUDE.md` |
 
 **Hindi kailangan:** XAMPP, Postman — hindi part ng setup natin.
 
@@ -40,31 +41,44 @@ npm run db:setup
 - Walang self-registration, walang grade selection after login
 
 ### Sample accounts
-| Login ID | Password | Role | Status |
-|----------|----------|------|--------|
-| ADMIN001 | Admin@2026 | admin | active |
-| TCH-001 | Teacher@2026 | teacher | active |
-| 13567454 | Parent@2026 | parent (Marwin) | active |
-| 1234567 | Parent@2026 | parent (Jea) | pending |
+Walang password dito — nasa `database/seed.sql` sila (hina-hash ng
+`server/scripts/setup-db.js`). Ang login ID ng parent ay LRN ng bata, kaya
+hindi pinagsasama sa iisang doc ang login ID at password.
+
+| Login ID | Role | Status |
+|----------|------|--------|
+| ADMIN001 | admin | active |
+| TCH-001 | teacher (Maria Santos, adviser + assigned, G6 - Malikhain) | active |
+| TCH-002 | teacher (Ana Reyes, adviser lang, G5 - Masigasig) | active |
+| TCH-003 | teacher (Lito Bautista, adviser + lahat ng subject, G1 - Mabait) | active |
+| 13567454 | parent (Marwin) | active |
+| 1234567 | parent (Jea) | pending |
+| 1090001 | parent (Rosa, para kay Nino) | active |
+| LRN ni Tala (nasa `seed.sql`) | parent (Ligaya, para kay Tala — browser fixture) | active |
 
 ---
 
 ## Quick run (araw-araw)
 
-**Terminal 1:**
+**Terminal 1 — backend (port 5000):**
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
-npm start
+npm run dev
 ```
 
-**Terminal 2:**
+**Terminal 2 — client (port 3000):**
 ```bash
-cd "C:\Users\Win10 User\Parents_Portal\server"
-npm run test:auth
+cd "C:\Users\Win10 User\Parents_Portal\client"
+npm run dev
 ```
 
 **Browser:** `http://localhost:5000/api/health` — dapat `"db":"ok"` ang
 sagot (since 2026-09-25 nagpi-ping na ito ng MySQL; `503` kapag down).
+
+**Tests (third terminal, sa `server/`):** isa-isa lang ang suite, hal.
+`npm run test:auth`. Ang `npm run dev` ay `--watch` — nagre-restart ito
+kapag may binago kang server file, kaya hintayin muna ang `/api/health`
+bago mag-suite. **Huwag magpatakbo ng smoke habang may suite.**
 
 **Existing DB (hindi bagong `db:setup`):** may seed change na dumating na
 migration, hindi rebuild — kasi ang `db:setup` ay nagde-drop ng
@@ -77,6 +91,17 @@ npm run db:migrate:fixture-learner   # Tala Halimbawa (G6 - Malikhain) + parent 
 
 Ang bawat `db:migrate:*` sa `package.json` ay idempotent at nagpi-print ng
 created / already present. Huwag i-`db:setup` para lang makuha ang seed row.
+
+**Dalawang run na may sariling kailangan:**
+
+- **`npm run test:recovery`** — kailangan ng server na sinimulan na may
+  `MAIL_TRANSPORT=file`, **sa server**, hindi sa test command (binabasa ng
+  suite ang emailed code mula sa disk). Run-book: `docs/TESTING.md`.
+- **`npm run smoke:isolated`** (sa `client/`) — ang verification smoke:
+  sariling API sa 5001 (walang `--watch`) at Vite sa 3001, kaya hindi nito
+  ginagalaw ang 5000/3000. Kailangan ng `client/e2e/.env.e2e` (kopya ng
+  `.env.e2e.example`, punan ng seed accounts) at isang beses na
+  `npx playwright install chromium`.
 
 **Oras ng server (since 2026-09-26, pre-Stage-5 #7):** ang current term ay
 hindi na setting — kinukuha ito sa petsa ngayon ng
@@ -115,10 +140,11 @@ C:\Users\Win10 User\Parents_Portal
 ## Ano na ang tapos (Phase 1)
 
 > **SNAPSHOT NG PHASE 1, hindi kasalukuyang estado.** Tama ang mga numero sa
-> ibaba noong isinulat sila; matagal nang lumampas ang code. Ngayon: **22
-> tables**, `npm run test:auth` **56**, at tapos na ang React web (Stage 4) —
-> ang mga unchecked na kahon sa ibaba ay hindi na bukas na trabaho. Ang buhay
-> na estado ay nasa `CLAUDE.md` at `docs/PROJECT_PROGRESS.md`. Hindi ito
+> ibaba noong isinulat sila; matagal nang lumampas ang code. Tapos na ang
+> React web (Stage 4) — ang mga unchecked na kahon sa ibaba ay hindi na bukas
+> na trabaho. Ang buhay na estado ay nasa `CLAUDE.md` (tables, endpoints) at
+> `docs/TESTING.md` (suites); walang bilang dito para hindi ito ma-stale
+> ulit. Hindi ito
 > ina-update nang paisa-isa: ang pag-aayos ng isang linya lang dito ang
 > magpapamukha sa buong seksyon na maintained, na siyang mismong babala sa
 > README.
@@ -169,18 +195,12 @@ Pero:
 - **Same files** ang ma-e-edit — pareho silang nagbabago sa `Parents_Portal` folder
 
 ### Recommendation para sa project na ito
-- **Cursor** — main tool (may README, may chat history, may agent na alam ang buong setup)
-- **Claude Code** — optional kung gusto mo ng second opinion sa terminal; i-share mo manually ang `README.md` o `docs/SYSTEM_ARCHITECTURE.md` para may context siya
-
-### Para may context ang Claude Code
-Kung gagamitin mo siya, sabihin o i-paste:
-```
-Project: Parents Portal — Captain H. Francisco Elementary School
-Path: C:\Users\Win10 User\Parents_Portal
-Read: README.md and docs/SYSTEM_ARCHITECTURE.md
-Stack: Node.js + Express + MySQL + React + Expo
-Current phase: Auth done, backend modules pending
-```
+- **Claude Code** — ang pangunahing tool. Kusa nitong binabasa ang
+  `CLAUDE.md` sa project root, kaya hindi na kailangang mag-paste ng context.
+- **Cursor** — editor; ang AI nito ay binabasa ang `.cursorrules`, na
+  tumuturo rin sa `CLAUDE.md`. Huwag gamitin ang `docs/SYSTEM_ARCHITECTURE.md`
+  bilang context doc — sinasabi ng `CLAUDE.md` na huwag pagkatiwalaan ang
+  heading nito.
 
 ---
 
@@ -201,7 +221,7 @@ Kahit anong URL i-try ng user sa API, chine-check ang **JWT token + role**:
 | Endpoint | Sino lang pwede |
 |----------|-----------------|
 | `POST /api/users/teachers` | Admin lang |
-| `POST /api/users/parents` | Teacher lang |
+| `POST /api/users/parents` | Adviser lang ng section ng bata (pre-Stage-5 #4) |
 | `GET /api/users/parents/pending` | Admin lang |
 | Approve / Reject parent | Admin lang |
 
@@ -213,15 +233,17 @@ Na-te-test na sa `npm run test:auth`:
 - Teacher cannot create teacher ✓
 - Teacher cannot list pending parents ✓
 
-### Sa frontend (React web) — ⏳ Gagawin later
+### Sa frontend (React web) — ✅ MERON NA
 
-Kapag ginawa na ang web app, kailangan din ng **ProtectedRoute** sa React:
+May **ProtectedRoute** at role routing sa React:
 ```
 /admin/*   → admin role lang
 /teacher/* → teacher role lang
 /parent/*  → parent role lang
 ```
-Kung teacher pumunta sa `/admin` → redirect sa unauthorized o sariling dashboard.
+Kung teacher pumunta sa `/admin` → babalik sa sariling dashboard. Ang
+**401 lang** ang nagla-logout; ang `503` (patay ang database) ay nagpapakita
+ng "Can't reach the school server" at hindi ka nila-logout (`CLAUDE.md` §2).
 
 **Important:** Frontend protection = UX lang. Ang tunay na security ay sa **API/backend** — at meron na tayo nun.
 
@@ -267,7 +289,7 @@ git check-ignore -v server/.env
 
 ### Seed passwords sa GitHub — OK ba?
 
-Oo, safe — yung `Admin@2026`, `Teacher@2026` sa seed ay **test/demo passwords** lang para sa local dev. Sa production, ibang password dapat gamitin at hindi na i-seed ang defaults.
+OK para sa local dev lang — ang seed passwords ay **test/demo passwords**. Pero nasa public repo sila, at ang login ID ng parent ay LRN ng bata. **Bago may totoong parent: palitan ang lahat** (`CLAUDE.md` → BEFORE THE PARENT DEMO).
 
 ---
 
@@ -275,6 +297,7 @@ Oo, safe — yung `Admin@2026`, `Teacher@2026` sa seed ay **test/demo passwords*
 
 | Date | Update |
 |------|--------|
+| Sep 26, 2026 | Docs pass: Claude Code as the main tool; passwords out of the accounts table (pointer to `seed.sql`) and the missing accounts in; Quick run is the two-terminal dev run; `test:recovery` and `smoke:isolated` run-books; frontend protection marked built; the Cursor paste block removed |
 | Sep 26, 2026 | Quick run: the server's timezone requirement (current term comes from `schoolCalendar.js`, not a setting) and the two-edit new-school-year procedure |
 | Sep 25, 2026 | Quick run: `db:migrate:fixture-learner` for an existing DB (never `db:setup` for a seed row); health now reports `db` |
 | Aug 12, 2026 | Added protected routes explanation + GitHub security + `.gitignore` |

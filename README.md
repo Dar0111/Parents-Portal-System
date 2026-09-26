@@ -1,7 +1,7 @@
 # Parent's Portal System
 
-**Captain H. Francisco Elementary School (Grades 1–6)**
-187 P. Rosales Street, Barangay Sta. Ana-Kaliwa, Pateros City
+**Captain H. Francisco Elementary School – Main (Grades 1–6)**
+P. Rosales St., Sta. Ana, Pateros, Metro Manila
 
 Web + mobile portal para sa parents, teachers, at admin (principal).
 Capstone project — Pateros Technological College, Institute of Information and Computing Technology.
@@ -18,17 +18,22 @@ buong detalye ay nasa ibang files:
 
 | File | Para saan |
 |------|-----------|
-| **`CLAUDE.md`** | **Ang authoritative project doc.** Current state, locked decisions, build order, open questions, at ang totoong changelog. Kung mag-disagree ito at ang code, **tama ang code** at kailangang ayusin ang file. |
+| **`CLAUDE.md`** | **Ang authoritative project doc.** Current state, locked decisions, build order, open questions. Kung mag-disagree ito at ang code, **tama ang code** at kailangang ayusin ang file. |
+| `docs/CHANGELOG.md` | Ang totoong changelog — bawat dispatch, may petsa, newest first. |
 | `docs/API_REFERENCE.md` | Lahat ng endpoints — body fields, exact response wrapper key, role scoping, 404-vs-403 convention. Ito ang basahin bago gumawa ng screen. |
+| `docs/TESTING.md` | Bawat suite, proof at lint baseline, at ang smoke run. **Ang tanging lugar ng mga bilang.** |
+| `docs/KNOWN_ISSUES.md` | Bawat known issue, bukas at sarado. |
+| `docs/FRONTEND_CONVENTIONS.md` | Ang buong teksto ng web conventions at ang dahilan ng bawat isa. |
 | `docs/GRADING_SPEC.md` | DepEd DO 015 & DO 009 s. 2026 grading policy — transmutation table, weights, descriptive grading. |
-| `docs/PROJECT_PROGRESS.md` | Mirror ng CLAUDE.md, para sa tool-switching. Authoritative pa rin ang CLAUDE.md. |
-| `docs/SETUP_NOTES.md` | Extra setup notes. |
-| `docs/SYSTEM_ARCHITECTURE.md` | System design (3-tier). |
+| `docs/RESTORE.md` | Ang design record ng Backup & Restore. |
+| `docs/ARCHIVE.md` | Lumang teksto na inalis sa CLAUDE.md at PROJECT_PROGRESS, verbatim. History lang. |
+| `docs/PROJECT_PROGRESS.md` | Maikling snapshot ng CLAUDE.md, para sa tool-switching. Walang history. |
+| `docs/SETUP_NOTES.md` | Extra setup notes (Taglish), kasama ang oras ng server at bagong school year. |
 
-> **Walang changelog dito.** Dati meron, pero na-stale — nag-claim pa rin ito ng
-> "18 tables" at "23 tests" habang malayo na ang code. Mas masama ang lumang
-> changelog kaysa wala, kasi mukhang record siya. Ang totoong changelog ay nasa
-> **`CLAUDE.md`**, dated at maintained.
+> **Walang changelog dito, at walang bilang ng tests o endpoints.** Dati
+> meron, at parehong na-stale habang tumatakbo ang code. Mas masama ang
+> lumang bilang kaysa wala, kasi mukhang totoo. Isang lugar lang ang bawat
+> bilang.
 
 ---
 
@@ -38,24 +43,13 @@ buong detalye ay nasa ibang files:
 |--------|--------|
 | Database schema (23 tables) | ✅ Done |
 | Seed data | ✅ Done |
-| **Backend API** | ✅ **Sampung modules complete — lahat ng suite pumapasa.** Bilang ng endpoints: `CLAUDE.md`. Bilang ng tests: `docs/TESTING.md` |
-| Socket.io (real-time messaging) | ✅ Done |
-| Web — foundation (shell, routing, shared UI) | ✅ Done |
-| Web — **Teacher pages (7)** | ✅ Attendance, Students (list + detail), Excuse Letters, Announcements, Memos, Events, Messages (list + thread) |
-| Web — Teacher Grades at Contributions | ⏳ Hindi pa nasisimulan |
-| Web — Parent pages | ⏳ Hindi pa nasisimulan |
-| Web — Admin pages | ⏳ Hindi pa nasisimulan |
-| Mobile (Expo) | ⏳ Hindi pa nasisimulan |
+| **Backend API** | ✅ Lahat ng module, pati Socket.io. Bilang ng endpoints: front matter ng `CLAUDE.md` |
+| Web — lahat ng tatlong role (Teacher, Parent, Admin) | ✅ Stage 4 sarado 2026-09-14; ang mga dagdag pagkatapos nito ay nasa BUILD ORDER ng `CLAUDE.md` |
+| Mobile (Expo) | ⏳ Hindi pa nasisimulan (Stage 5) |
 
-**Hindi sinasabing "100% complete" ang backend, at sinasadya iyon.** Isang known
-gap: **walang endpoint na gumagawa o nagbabasa ng `teacher_assignments`** — kaya
-hindi pa kayang mag-assign ng admin ng teacher sa isang subject/section sa API,
-at kailangang i-reconstruct ng client ang valid targets ng teacher. Naka-record
-sa CLAUDE.md's KNOWN ISSUES, kasama kung anong pages ang nabo-block nito.
-
-Ang endpoint audit ay **tumakbo noong 2026-09-07** — tatlong bucket, lahat empty
-(walang documented-pero-walang-handler, walang handler-pero-hindi-documented,
-walang orphan na mount).
+Siyam na feature ang ship. Ang Feature 7 (Contributions/Fees) ay ginawa at
+**tinanggal noong 2026-09-13** — hindi puwedeng mangolekta ng contributions
+ang paaralan (`CLAUDE.md` → SCOPE DECISION).
 
 ---
 
@@ -64,6 +58,8 @@ walang orphan na mount).
 1. **Node.js** — [https://nodejs.org](https://nodejs.org) (LTS version)
 2. **MySQL Workbench** — para sa database (`parents_portal`)
 3. **CMD** o **PowerShell** — para i-run ang servers at tests
+4. **Oras ng machine: Asia/Manila.** Ang current term ay kinukuha sa petsa
+   ngayon ng server — tingnan ang `docs/SETUP_NOTES.md`
 
 ---
 
@@ -81,22 +77,13 @@ cd "C:\Users\Win10 User\Parents_Portal\server"
 copy .env.example .env
 ```
 
-Buksan ang `server\.env`:
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=          # ilagay ang MySQL password mo (blank kung wala)
-DB_NAME=parents_portal
-
-JWT_SECRET=change-this-to-a-long-random-secret
-PORT=5000
-CORS_ORIGIN=http://localhost:3000
-```
-
-> `CORS_ORIGIN` ay dapat tugma sa port ng client (3000). Dito rin naka-base ang
-> Socket.io CORS.
+Buksan ang `server\.env` at punan. **Ang lahat ng key ay nasa
+`server/.env.example`** — kopyahin iyon, huwag itong README. Ang
+kailangang tama agad: `DB_PASSWORD` (blank kung wala), `JWT_SECRET`
+(mahabang random na string), at `CORS_ORIGIN=http://localhost:3000` — dapat
+tugma sa port ng client, at dito rin naka-base ang Socket.io CORS. Ang
+`SMTP_*` ay para sa forgot-password email; ang `MAIL_TRANSPORT=file` ay para
+lang sa `test:recovery` (tingnan ang Tests).
 
 ### Step 3 — Backend install at database
 
@@ -107,7 +94,12 @@ npm run db:setup
 ```
 
 Pag successful, makikita mo sa Workbench ang database na **`parents_portal`**
-kasama ang **22 tables**.
+kasama ang **23 tables**.
+
+> **`db:setup` ay para sa bagong machine lang.** Binubura nito ang
+> `activity_logs` at ang `backups` rows. Sa database na may laman na, ang
+> bagong seed row ay dumarating sa `npm run db:migrate:*` (idempotent, safe
+> ulitin) — tingnan ang `docs/SETUP_NOTES.md`.
 
 ### Step 4 — Client environment at install
 
@@ -145,7 +137,8 @@ Buksan ang **http://localhost:3000**.
 
 > **Kailangang tumakbo pareho.** Kung backend lang, blangko ang pages —
 > lahat ng data ay galing sa API. Kung client lang, hindi ka makaka-login.
-> Quick check kung buhay ang backend: `curl http://localhost:5000/api/health`.
+> Quick check kung buhay ang backend: `curl http://localhost:5000/api/health`
+> — `"db":"ok"` kapag buhay ang MySQL, `503` kapag hindi.
 
 Sa dev, may lalabas na `LiveStatus` strip ("Live updates paused") sa taas ng
 bawat page kapag patay ang Socket.io connection — sinasadya iyon, para hindi
@@ -155,22 +148,27 @@ tahimik na mamatay ang real-time updates.
 
 ## Test accounts (seed data)
 
-| Role | Login ID | Password | Status | Notes |
-|------|----------|----------|--------|-------|
-| Admin | `ADMIN001` | `Admin@2026` | active | Principal |
-| Teacher | `TCH-001` | `Teacher@2026` | active | Maria Santos — adviser **at** assigned teacher ng Grade 6 - Malikhain |
-| Teacher | `TCH-002` | `Teacher@2026` | active | Ana Reyes — adviser ng Grade 5 - Masigasig, **walang `teacher_assignments`** |
-| Parent | `13567454` | `Parent@2026` | active | Marwin Conde (Grade 6 - Malikhain) |
-| Parent | `1234567` | `Parent@2026` | **pending** | Jea Mae Bargaso (Grade 5 - Masigasig) |
+**Walang password dito, sinasadya.** Nasa `database/seed.sql` sila (at
+hina-hash ng `server/scripts/setup-db.js`). Ang login ID ng parent ay ang
+**LRN mismo ng bata**, kaya ang login ID at password na magkasama sa iisang
+doc ay isang buong credential — at kalahati na nito ang table sa ibaba.
 
-> ⚠️ **Kung gagawing public ang repo o ibibigay sa panel, ito ang unang
-> tatanggalin.** OK lang sila ngayon — private repo, fixture credentials, hindi
-> totoong accounts. Pero pansinin: **ang login ID ng parent ay ang LRN mismo ng
-> bata.** Kaya ang table na ito ay hindi lang listahan ng passwords — kalahati
-> na siya ng totoong credential. Ganito rin ang dahilan kung bakit walang LRN sa
-> anumang URL o error message sa buong app (CLAUDE.md convention §5c).
+| Role | Login ID | Status | Notes |
+|------|----------|--------|-------|
+| Admin | `ADMIN001` | active | Principal |
+| Teacher | `TCH-001` | active | Maria Santos — adviser **at** assigned teacher ng Grade 6 - Malikhain |
+| Teacher | `TCH-002` | active | Ana Reyes — adviser ng Grade 5 - Masigasig, **walang `teacher_assignments`** |
+| Teacher | `TCH-003` | active | Lito Bautista — adviser ng Grade 1 - Mabait **at** assigned sa lahat ng limang Grade 1 subject |
+| Parent | `13567454` | active | Marwin Conde (Grade 6 - Malikhain) |
+| Parent | `1234567` | **pending** | Jea Mae Bargaso (Grade 5 - Masigasig) |
+| Parent | `1090001` | active | Rosa Alcantara, parent ni Nino Alcantara (Grade 1 - Mabait) |
+| Parent | LRN ni Tala (nasa `seed.sql`) | active | Ligaya Halimbawa, parent ni **Tala Halimbawa** (Grade 6 - Malikhain) — ang browser-fixture learner |
 
-**Huwag "ayusin" ang dalawang ito — may dahilan sila:**
+> ⚠️ **Bago may totoong parent: palitan ang lahat ng default password**
+> (`CLAUDE.md` → BEFORE THE PARENT DEMO). Ganito rin ang dahilan kung bakit
+> walang LRN sa anumang URL o error message sa buong app (convention §5c).
+
+**Huwag "ayusin" ang mga ito — may dahilan sila:**
 
 - **`TCH-002`** — ito lang ang account na kayang paghiwalayin ang dalawang
   scoping authorities ng sistema. Ang ibang teacher fixtures ay adviser **at**
@@ -180,6 +178,9 @@ tahimik na mamatay ang real-time updates.
 - **`1234567`** — sinasadyang **pending**. Umaasa dito ang `npm run test:auth`,
   at minsan nang na-corrupt ang exact row na ito sa isang crashed test run.
   Huwag i-approve para lang makapag-login.
+- **Tala Halimbawa** — para sa browser checks lang; walang suite na gumagamit
+  sa kanya, at lahat ng suite ay nasa Marwin. Sa database na may laman na,
+  dumarating siya sa `npm run db:migrate:fixture-learner`.
 
 ---
 
@@ -189,7 +190,7 @@ tahimik na mamatay ang real-time updates.
 parents_portal
 ```
 
-Makikita sa MySQL Workbench under **SCHEMAS** → `parents_portal`. **22 tables.**
+Makikita sa MySQL Workbench under **SCHEMAS** → `parents_portal`. **23 tables.**
 
 Quick check sa Query tab:
 
@@ -201,69 +202,55 @@ SELECT lrn, first_name, last_name, grade_level, section FROM students;
 
 ---
 
-## API endpoints — 78 total
+## API endpoints
 
-**Walang buong table dito, sinasadya.** Ang lumang 9-row table sa README na ito
-ay na-stale at naging mali — kaya hindi na uulitin. Ang buo at tama ay nasa
-**`docs/API_REFERENCE.md`**: bawat body field, exact response wrapper key
+**Walang table o bilang dito, sinasadya.** Ang buo at tama ay nasa
+**`docs/API_REFERENCE.md` §8**: bawat body field, exact response wrapper key
 (mag-iba-iba sila — walang consistent rule), role scoping, at ang 404-vs-403
-convention.
+convention. Ang dalawang total — handlers sa `server/routes/` at lahat ng
+reachable endpoints kasama ang `GET /api/health` — ay nasa front matter ng
+`CLAUDE.md`.
 
 Base URL: `http://localhost:5000`
-
-| Module | Endpoints |
-|--------|-----------|
-| Auth | 3 |
-| Users | 9 |
-| Students | 5 |
-| Sections | 3 |
-| Grades | 10 |
-| Attendance | 6 |
-| Announcements / Memos / Events | 12 (4 bawat isa) |
-| Contributions | 8 |
-| Excuse Letters | 6 |
-| Settings | 4 |
-| Backups | 5 |
-| Messages | 6 |
-| **Sa `server/routes/`** | **77** |
-| `GET /api/health` (nasa `server.js`) | 1 |
-| **Total** | **78** |
-
-> **Bakit 77 at 78 pareho tama:** ang `docs/API_REFERENCE.md` ay bumibilang ng
-> handlers na nasa `server/routes/` lang — 77. Ang `GET /api/health` ay
-> naka-mount diretso sa `server.js`, kaya 78 ang lahat ng reachable endpoints.
-> Sabihin kung alin ang tinutukoy.
 
 ---
 
 ## Tests
 
-**Ang mga baseline ay nasa `docs/TESTING.md` — doon lang, hindi dito.** Bawat
-suite at ang bilang nito, ang apat na lint baselines, at ang **dalawang suite
-na may kilalang caveat** (`test:restore`, `test:recovery`) ay nandoon. Ang
-kopya na dating nakalista rito ay **naging mali nang tahimik** — `15 suites,
-673 assertions`, kasama pa ang `test:contributions` na tinanggal noong
-2026-09-13. Isang lugar lang ang bilang; kung mag-re-measure ka, doon mo
-i-update, sa parehong commit.
-
-Idempotent lahat — hindi kailangan ng `npm run db:setup` sa pagitan ng runs.
+**Ang mga baseline ay nasa `docs/TESTING.md` — doon lang, hindi dito.**
+Idempotent ang mga suite — hindi kailangan ng `npm run db:setup` sa pagitan
+ng runs — **maliban sa `test:attendance`**, na nagbubura ng lahat ng
+attendance row sa tatlong petsa (`docs/KNOWN_ISSUES.md`).
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
 npm run test:auth
 ```
 
-**Dalawa sa mga ito ay hindi HTTP suites** — `test:sanitize` at
-`test:grade-computation` ay direct-call unit tests: **walang server, walang
-database**. Pumapasa sila kahit patay ang backend, kaya huwag magtaka.
+- **Isa-isa lang ang suite**, at hintayin ang `/api/health` pagkatapos
+  mag-edit ng server file (`npm run dev` ay `--watch`, nagre-restart ito).
+- **Apat ang hindi HTTP suite** — `test:sanitize`, `test:grade-computation`,
+  `test:school-calendar` at `test:auth-middleware` ay direct-call unit tests:
+  **walang server, walang database**. Pumapasa sila kahit patay ang backend.
+- **`test:recovery`** — kailangan ng server na sinimulan na may
+  `MAIL_TRANSPORT=file` **sa server mismo**, hindi sa test command
+  (run-book: `docs/TESTING.md`).
+- **`test:restore`** — sinasadyang **hindi** nag-t-trigger ng totoong restore
+  (`DROP DATABASE` iyon sa shared dev DB). Basahin ang RESTORE section ng
+  `CLAUDE.md` bago galawin.
+- **`npm run verify:grading-seed`** — verification ng grading seed data,
+  patakbuhin **after** ng `npm run db:setup`.
 
-May isa pang script na hindi kabilang sa mga suite:
-`node scripts/verify-grading-seed.js` — verification ng grading seed data,
-patakbuhin **after** ng `npm run db:setup`.
+**Client proofs at smoke** (mula sa `client/`):
 
-`test:restore` ay sinasadyang **hindi** nag-t-trigger ng totoong restore —
-`DROP DATABASE` iyon sa shared dev DB. Basahin ang RESTORE section ng CLAUDE.md
-bago galawin.
+- Ang render proofs ay `client/scripts/ssr-*.jsx` — walang npm script; bawat
+  isa ay may run-book sa `docs/TESTING.md` (may dalawang dapat patakbuhin sa
+  dalawang timezone, at isa sa `NODE_ENV=development`).
+- **`npm run smoke:isolated`** — ang verification smoke: sariling API (5001,
+  walang `--watch`) at sariling Vite (3001), kaya hindi nito ginagalaw ang
+  5000/3000. Kailangan ng `client/e2e/.env.e2e` (kopya ng
+  `.env.e2e.example`) at, isang beses, `npx playwright install chromium`.
+  **Huwag patakbuhin habang may suite.**
 
 ---
 
@@ -271,56 +258,25 @@ bago galawin.
 
 ```
 Parents_Portal/
-├── README.md                    ← ito (run guide)
-├── CLAUDE.md                    ← ANG authoritative project doc
-├── docs/
-│   ├── API_REFERENCE.md         ← lahat ng 78 endpoints
-│   ├── GRADING_SPEC.md          ← DO 015 / DO 009 grading policy
-│   ├── PROJECT_PROGRESS.md      ← mirror ng CLAUDE.md
-│   ├── SETUP_NOTES.md
-│   ├── SYSTEM_ARCHITECTURE.md
-│   └── agents/                  ← issue tracker + domain notes
-├── database/
-│   ├── schema.sql               ← 22 tables
-│   └── seed.sql                 ← subjects, sections, settings, sample data
-├── scripts/
-│   └── create-backup-zip.js     ← SOURCE-CODE archiver (zip ng repo).
-│                                  HINDI ito ang database backup —
-│                                  server/routes/backups.js iyon (mysqldump).
-├── server/
-│   ├── .env / .env.example
-│   ├── server.js                ← Express + http.createServer (kasama Socket.io)
-│   ├── socket.js                ← Socket.io: JWT auth sa connect, isang room bawat user
-│   ├── config/db.js             ← MySQL pool (may resetPool para sa restore)
-│   ├── middleware/auth.js       ← authenticate + authorize
-│   ├── routes/                  ← auth, users, students, sections, grades,
-│   │                              attendance, content, contributions, excuses,
-│   │                              settings, backups, messages
-│   ├── utils/                   ← jwt, password, activity, validateId,
-│   │                              sanitizeUser, dateFormat, gradeComputation,
-│   │                              teacherScope
-│   ├── backups/                 ← .sql dumps (gitignored)
-│   └── scripts/                 ← setup-db.js + 14 test scripts
-└── client/
-    ├── .env / .env.example
-    ├── vite.config.js           ← port 3000
-    └── src/
-        ├── api/                 ← axios (mandatory unwrap), extractError
-        ├── auth/                ← AuthContext, ProtectedRoute, roles
-        ├── components/          ← DataTable, Modal, FormField, StatusBadge,
-        │                          EmptyState, ErrorAlert, LoadingSpinner
-        ├── format/              ← grade.jsx, date.js
-        ├── hooks/               ← useTeacherTargets
-        ├── layout/              ← Shell, nav, usePageTitle
-        ├── realtime/            ← SocketProvider, UnreadProvider, LiveStatus
-        └── pages/
-            ├── Login.jsx
-            ├── dashboards/      ← admin, teacher, parent
-            ├── dev/UiGallery.jsx  ← component gallery (DEV builds lang)
-            └── teacher/         ← Attendance, Students, StudentDetail,
-                                   ExcuseLetters, Announcements, Memos,
-                                   Events, Messages, MessageThread
+├── README.md, CLAUDE.md, .cursorrules
+├── docs/            ← ang mga dokumento sa itaas; docs/agents/ para sa skills
+├── database/        ← schema.sql (23 tables), seed.sql
+├── scripts/         ← create-backup-zip.js: SOURCE-CODE archiver, hindi DB backup
+├── server/          ← Express + Socket.io API
+│   ├── routes/      ← isang file bawat module
+│   ├── utils/       ← shared helpers (scoping, rules, calendar, mailer, …)
+│   ├── middleware/  ← authenticate + authorize
+│   ├── config/      ← MySQL pool (may resetPool para sa restore)
+│   ├── scripts/     ← setup-db, db:migrate:*, verify-grading-seed, lahat ng test:*
+│   └── backups/     ← .sql dumps (gitignored) — ito ang DB backup
+└── client/          ← React + Vite + Tailwind (port 3000)
+    ├── src/         ← api, auth, components, format, layout, realtime, pages
+    ├── scripts/     ← render proofs (ssr-*), lint:tokens, lint:contrast, smoke:isolated
+    └── e2e/         ← Playwright smoke run
 ```
+
+Ang detalye ng bawat folder ay nasa `docs/ARCHIVE.md` → CURRENT STATE →
+Files that exist, at sa code mismo.
 
 ---
 
@@ -331,10 +287,12 @@ Parents_Portal/
 | Command | Ano ginagawa |
 |---------|--------------|
 | `npm install` | Install dependencies (once) |
-| `npm run db:setup` | Gumawa ng database, tables, at seed data |
+| `npm run db:setup` | Gumawa ng database, tables at seed data — **bagong machine lang** |
+| `npm run db:migrate:<name>` | Idempotent na migration para sa database na may laman na (pito; nasa `package.json`) |
 | `npm run dev` | Backend na may auto-restart (`node --watch`) |
 | `npm start` | Backend na walang watch |
-| `npm run test:<suite>` | Isa sa mga test suites (`docs/TESTING.md`) |
+| `npm run test:<suite>` | Isa sa mga test suite (`docs/TESTING.md`) |
+| `npm run verify:grading-seed` | Tsek ng grading seed data |
 
 ### `client/`
 
@@ -343,12 +301,16 @@ Parents_Portal/
 | `npm install` | Install dependencies (once) |
 | `npm run dev` | Vite dev server sa port 3000 |
 | `npm run build` | Production build |
+| `npm run preview` | Silipin ang production build |
 | `npm run lint` | oxlint |
+| `npm run lint:tokens` | Walang raw color sa labas ng `index.css` |
+| `npm run lint:contrast` | Contrast ng bawat color pair, sa dalawang theme |
+| `npm run smoke` | Playwright smoke laban sa 5000/3000 |
+| `npm run smoke:isolated` | Ang smoke sa sariling 5001/3001 — gamitin ito para sa verification |
 
 > **Tandaan:** ang `npm run build` at `npm run lint` ay nagpapatunay lang na
 > nag-c-compile ang code — **hindi** nila pinapatunayan na nagre-render ang
-> page. Dalawang beses nang may bug na dumaan sa dalawang ito at nahuli lang
-> sa browser. Buksan mo talaga ang page. (CLAUDE.md convention §5h.)
+> page. Buksan mo talaga ang page. (`CLAUDE.md` convention §5h.)
 
 ---
 
@@ -358,6 +320,9 @@ Parents_Portal/
 |----------|-----------|
 | `ECONNREFUSED` sa client | Hindi tumatakbo ang backend. Terminal 1 → `npm run dev` |
 | `Access denied for user 'root'` | Mali ang `DB_PASSWORD` sa `server\.env` |
+| "Can't reach the school server" + `Database unreachable.` | Patay ang MySQL. **Hindi ka na-logout** — buhayin ang MySQL, tapos Try again |
 | Blangko ang page, may error sa console | Buksan ang browser console — doon lumalabas ang ganitong bug, hindi sa build |
-| Failing test na parang account/status issue | Baka may natirang state sa crashed run. `npm run db:setup` muna bago maghanap ng regression |
-| `WebSocket ... closed before the connection is established` sa console | **Normal sa dev.** React StrictMode ito — dev-only, kumokonekta naman ang socket. Tingnan ang CLAUDE.md §5h |
+| Failing test na parang account/status issue | Tingnan muna ang Seeded baseline sa `CLAUDE.md` at linisin ang natira ayon sa cleanup protocol (health → backup → delete sa API). **Huwag `db:setup`** sa database na may totoong data |
+| Unang test ng `npm run smoke` ay `ERR_CONNECTION_REFUSED` | Nagre-restart ang `--watch` API. Gamitin ang `npm run smoke:isolated` |
+| Maling term sa screen | Hindi Asia/Manila ang oras ng server (`docs/SETUP_NOTES.md`) |
+| `WebSocket ... closed before the connection is established` sa console | **Normal sa dev.** React StrictMode ito — dev-only, kumokonekta naman ang socket. Tingnan ang `CLAUDE.md` §5h |

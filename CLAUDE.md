@@ -73,13 +73,13 @@ split — if a fact seems missing here, it is in one of these.
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
 | `docs/TESTING.md` | every suite, proof and lint baseline; the one suite whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
-| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§7b, with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
+| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§23 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
 
 `docs/API_REFERENCE.md` (request/response detail), `docs/GRADING_SPEC.md`
-(DepEd policy) and `docs/PROJECT_PROGRESS.md` (the mirror updated at the end
-of every session) predate the split and are unchanged by it.
+(DepEd policy) and `docs/PROJECT_PROGRESS.md` (a state-only snapshot since
+2026-09-26; its history is in ARCHIVE) predate the split.
 
 **Keeping this file under the limit is part of every dispatch that edits it:**
 a new narrative goes to `docs/ARCHIVE.md` (or the living file it belongs to)
@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **five migrations**, the twenty-two test files); `database/`
+`scripts/` (setup, **seven migrations**, `verify-grading-seed`, the twenty-three test files); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 
 #### File rules that bite
@@ -737,7 +737,7 @@ audiences and the accessibility contract are in
 
 **Frozen 2026-09-19 (R1 server, R2 client).** Four rules. **This file is the
 only present-tense home for §11 and §12 — `docs/FRONTEND_CONVENTIONS.md`
-stops at §10.** The reasoning and the endpoint detail are
+has neither; it resumes at §13.** The reasoning and the endpoint detail are
 `docs/API_REFERENCE.md` → Auth (the trimmed clauses are verbatim in
 `docs/ARCHIVE.md`); the dump exclusion is in `docs/RESTORE.md`.
 
@@ -1245,7 +1245,7 @@ is still open, needing its own dispatch:**
 |---|---|---|
 | **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**23** since `assessment_slots` landed 2026-09-22; it was 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
-| **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `admin/SettingsPage.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
+| **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
 | **`test:attendance` deletes every attendance row on three dates, not just its own** | `test-attendance-flows.js` `cleanup()` | `daysAgo(2)`, `daysAgo(3)` and today, for ALL students; `daysAgo(4)` likewise. Do not run it against data you want to keep on those dates. A test-file dispatch |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
@@ -1474,7 +1474,7 @@ own place; the one exception is kept below.
       gone; the fraction replaced it.
 - [x] **DV3 — SF9-style Grades report card** (2026-09-21). §5a-v, §5a-vi.
 - [x] **DV4 — dashboard elevation + the dark amber** (2026-09-23). The rust
-      cast was a HUE shift, not a lightness one. §14 for the page rules.
+      cast was a HUE shift, not a lightness one. §15 for the page rules.
 - [x] **Grade 1 computed letters** (2026-09-22). `docs/GRADING_SPEC.md` §6a.
 - [x] **Class-record grid, CR0–CR2** (2026-09-22). §13.
 - [x] **CR3a — `subjects.display_order`** (2026-09-22).
@@ -1608,10 +1608,10 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       fallback**; **a Settings section is `max-w-2xl` with short pairs in
       `sm:grid-cols-2` rows** (§23). **fix/auth-503** (`1d2b228`): a
       database error in the middleware or `/me` is `503`, never `401` — §2.
-- [ ] **Docs pass — NEXT, on Opus:** `docs/PROJECT_PROGRESS.md`, the README
-      suite table, `docs/SETUP_NOTES.md`, `.cursorrules`, the stale
-      `docs/API_REFERENCE.md` scope labels, the dead pointers in KNOWN
-      ISSUES. **Then the smoke gate, then Stage 5.**
+- [x] **Docs pass — DONE 2026-09-26.** PROJECT_PROGRESS is a snapshot (its
+      old text verbatim in ARCHIVE); README and SETUP_NOTES carry no counts
+      or passwords; the API scope legend matches the code. **NEXT: the smoke
+      gate, then Stage 5.**
 
 ### Stage 5 — Mobile (Expo)
 
@@ -1649,7 +1649,8 @@ Update CLAUDE.md AND docs/PROJECT_PROGRESS.md:
    when it belongs there) and CLAUDE.md gets the rule and the pointer.
    Never delete to make room.
 3. Tick off completed items in BUILD ORDER
-4. Mirror the same state into docs/PROJECT_PROGRESS.md
+4. Refresh the docs/PROJECT_PROGRESS.md snapshot (state only;
+   history goes to docs/CHANGELOG.md — never append narrative)
 
 Both files must agree. Only list what is verifiably working. If a
 module has tables but no handlers, it is NOT started. Endpoints, not
@@ -2036,8 +2037,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-26 | **Polish** (`1408b81`, `70b30b0`): five of six — class-record group headers left-aligned; **the class summary measured at 1280 (scroller 990, table 998), `min-w-max` dropped**, headers wrap, 990/990 after; Enroll neutral beside the filled Apply; Settings `max-w-2xl` with paired rows; Login's school name from `/settings/public`, "– Main" fallback. **Item 4 reverted by decision.** Smoke 20/20 twice. |
-| 2026-09-26 | **fix/auth-503** (`1d2b228`): with MySQL stopped every request was `401 "Invalid or expired token."` and the client logged out. **Token in one try, database in another; a database error is `503` with the health body**; `/me` the same. `test:auth-middleware` **23** on a stubbed pool. Seen by hand: panel, token kept, Try again resumes. |
+| 2026-09-26 | **Docs pass** (`100c560` + commit 2): **PROJECT_PROGRESS is a state-only snapshot**; its 156 KB of narrative moved to ARCHIVE verbatim (diffed identical, 154,288 bytes). README and SETUP_NOTES carry no counts or passwords; `.cursorrules` lost "Grades is blocked"; the API scope legend matches the code (`wide` is assigned-OR-adviser, new `recorder`); seven dead pointers fixed; **23 test scripts (19 HTTP + 4 unit), 7 migrations, 12 proofs** — CLAUDE.md and TESTING had 22, 5 and four. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2046,7 +2046,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in **sixteen dated
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in **seventeen dated
 batches** (2026-09-19 → 2026-09-26), each headed "CHANGELOG stubs moved from
 CLAUDE.md on <date> (<nth> batch, <the pass that spent it>)" — grep that;
 the per-batch counts once listed here were a third copy of a number the

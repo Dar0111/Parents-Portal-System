@@ -19,9 +19,14 @@
 Moved verbatim from `CLAUDE.md` → CURRENT STATE → Tests on 2026-09-23.
 **No figure below was re-measured in that move; every one was copied.**
 
-**Tests:** twenty-two `test:*` scripts — **eighteen HTTP suites** plus four
+**Tests:** twenty-three `test:*` scripts — **nineteen HTTP suites** plus four
 direct-call unit tests (`sanitize`, `grade-computation`, since #7
-`school-calendar`, and since fix/auth-503 `auth-middleware`). **Every count below
+`school-calendar`, and since fix/auth-503 `auth-middleware`). Counted from
+`server/package.json` on 2026-09-26 (docs pass): the "twenty-two … eighteen"
+that stood here was wrong by one HTTP suite, because `test:grade-computation`
+is described in a paragraph below rather than a bullet and the bullets alone
+number twenty-two. **Also in `package.json`:** `verify:grading-seed` and seven
+`db:migrate:*` scripts. **Every count below
 was re-run on 2026-09-22 and EIGHT were stale** — students, grades,
 attendance, content, users, backups, messages and excuses had all drifted
 upward, most since pagination (2026-09-19) touched every list endpoint and no
@@ -102,11 +107,13 @@ number changes, something really did move.
 
 ---
 
-## Render proofs — the client's four, and their baselines
+## Render proofs — the client's twelve, and their baselines
 
 They are not suites: no server, no database, no `test:*` script. Each is an
 SSR build plus a node run, and each is **kept** rather than thrown away
-after its dispatch. All four live in `client/scripts/` because
+after its dispatch. **Twelve** `client/scripts/ssr-*.jsx` files as of
+2026-09-26 (the heading said "four" from the day there were four). All live
+in `client/scripts/` because
 `.oxlintrc.json` gives `env.node` only there (§17a).
 
 Run from `client/`:
