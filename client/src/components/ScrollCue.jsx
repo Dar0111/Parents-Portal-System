@@ -174,12 +174,23 @@ export default function ScrollCue({
                 to avoid announcing the same thing twice — but it is NOT
                 hidden from the keyboard, because the scroller itself is
                 focusable and arrow keys do the same job. */}
+            {/* DESKTOP ONLY, AND IT NEVER TAKES FOCUS (fix/smoke-gate).
+                Below `sm` a phone swipes, and the "Swipe for …" line above is
+                the cue — the round button sat over the last visible header
+                ("MATHEMATICS", "FI…"). And a MOUSE CLICK FOCUSED IT: measured,
+                document.activeElement was this button after every click, which
+                is an aria-hidden element holding focus — Chrome's "Blocked
+                aria-hidden on an element because its descendant retained
+                focus". preventDefault on mousedown keeps focus where it was;
+                the click still scrolls, and the keyboard path is unchanged
+                (tabIndex -1, the scroller itself takes the arrow keys). */}
             <button
               type="button"
               onClick={nudge}
+              onMouseDown={(e) => e.preventDefault()}
               aria-hidden="true"
               tabIndex={-1}
-              className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-edge-strong bg-surface text-fg-body shadow-sm transition hover:bg-surface-muted print:hidden"
+              className="absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-edge-strong bg-surface text-fg-body shadow-sm transition hover:bg-surface-muted sm:flex print:hidden"
             >
               <i className="fa-solid fa-arrow-right" aria-hidden="true" />
             </button>
