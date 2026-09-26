@@ -265,9 +265,15 @@ cold boot with a stale token → Login with the session-ended sentence; the
 forced change (TCH-002 temp password → new password → home). **The 503 path
 FAILED**: MySQL stopped, cold boot with a stored token → Expo Go's spinner
 for 30+ s, and Terminal 1 logged no `Authenticate: database unreachable:`
-for it, while the same cold boot reaches `/auth/me` with MySQL up. Root
-cause not yet known from the laptop — the boot trace and the released splash
-above are what the re-check runs with.
+for it, while the same cold boot reaches `/auth/me` with MySQL up. **The
+re-check on the released-splash build PASSED:** `[boot]` printed token
+present → `/auth/me -> 503 (unavailable)` → the navigator with
+`authError="Database unreachable."`, Terminal 1 logged the one request, the
+phone showed "Can't reach the school server" with Try again, and Try again
+after MySQL started landed on the role home. The first build's boot made no
+request and nothing measured says why — the row is closed as not reproduced,
+with the cause stated as not established (`docs/KNOWN_ISSUES.md`). **All
+seven checks passed on 2026-09-27 and the branch merged.**
 
 ## M8. Icons are the web's names, resolved once
 

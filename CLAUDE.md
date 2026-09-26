@@ -1692,9 +1692,10 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
 
 - [x] **Expo project setup + navigation — `feat/mobile-scaffold`,
       2026-09-27.** SDK 57, NativeWind, the generated tokens, React
-      Navigation, the hotspot path proved phone → `/api/health`. **Merge gate:
-      Darryl's phone check** (each seeded role, the 401 path, the 503 path,
-      both themes).
+      Navigation, the hotspot path proved phone → `/api/health`. **Darryl's
+      phone check PASSED 2026-09-27, all seven items** (Connection check,
+      each seeded role, Light / Dark / System, the 401 path, the 503 path
+      after one re-check round, the forced change); merged fast-forward.
 - [x] **Login + role routing — same branch.** Login, Forgot password, Forced
       change, `AuthUnavailable`, the root navigator, three empty role homes.
 - [ ] Parent screens (+ socket, bell, badges, `LiveStatus`, drawer, Settings,
@@ -2125,7 +2126,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (NOT merged; the phone check is the gate): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
