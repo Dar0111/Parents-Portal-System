@@ -78,9 +78,20 @@ function Pill({ children }) {
   );
 }
 
+// THE TILE MUST SHRINK BELOW ITS LONGEST WORD (pre-Stage-5 #7 follow-up,
+// 2026-09-26). The Facebook page is one 66-character URL with no space in
+// it. `break-words` is `overflow-wrap: break-word`, which wraps a long word
+// only AFTER the box has been sized — it does not reduce the min-content
+// width a grid or flex item claims — so the tile grew to 522px inside a
+// 390px viewport and the whole page scrolled sideways (smoke, 390px, all
+// three /about routes). `overflow-wrap: anywhere` is the value that DOES
+// count the break opportunity in min-content, and it goes on the element
+// whose text it is: the <a> for a link, the <p> otherwise. Both the outer
+// grid item and the text column carry `min-w-0`, or their `min-width: auto`
+// would still hold the tile open.
 function DetailTile({ icon, label, value, href, empty = 'Not recorded' }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex min-w-0 items-start gap-3">
       <span
         aria-hidden="true"
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-subtle text-brand"
@@ -89,10 +100,10 @@ function DetailTile({ icon, label, value, href, empty = 'Not recorded' }) {
       </span>
       <div className="min-w-0">
         <p className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</p>
-        <p className="mt-0.5 break-words text-sm text-fg">
+        <p className="mt-0.5 text-sm text-fg [overflow-wrap:anywhere]">
           {value ? (
             href ? (
-              <a href={href} className="text-brand underline-offset-2 hover:underline">
+              <a href={href} className="text-brand underline-offset-2 [overflow-wrap:anywhere] hover:underline">
                 {value}
               </a>
             ) : (
