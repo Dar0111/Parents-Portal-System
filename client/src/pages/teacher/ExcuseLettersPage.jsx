@@ -257,8 +257,13 @@ export default function ExcuseLettersPage() {
       return {
         icon: 'fa-envelope-open-text',
         title: 'Nothing waiting for review',
+        // TRUE WHETHER OR NOT A LETTER HAS EVER BEEN SENT (fix/smoke-gate).
+        // "Every letter for your classes has been reviewed" was vacuously
+        // true on a fresh term with no letters at all, and read as a claim
+        // that some had been. A present-tense fact and an instruction claim
+        // nothing about what exists (§5i).
         message:
-          'Every letter for your classes has been reviewed. Switch the status filter to see past letters.',
+          'No letter from your classes is waiting for review. To see letters already reviewed, switch the status filter.',
         showReset: false,
       };
     }
