@@ -96,8 +96,21 @@ export default function FilterActions({
           the assistive one never spoke. `ScrollCue` had already stated the
           right rule (§19d) and this component contradicted it in the same
           codebase. `sr-only` while empty keeps the region alive at zero
-          layout cost; the visible classes return with the text. */}
-      <p role="status" className={dirty ? 'text-sm text-brand' : 'sr-only'}>
+          layout cost; the visible classes return with the text.
+
+          CENTRED ON APPLY BY A TRANSFORM, NOT BY LAYOUT (fix/smoke-gate).
+          Every filter row is `items-end` so the button lines up with the
+          inputs under their labels, which left this 1.25rem line sitting on
+          Apply's 2.25rem bottom edge — its centre 8px low, measured on all
+          eight pages at 1280 and 390. `-translate-y-2` (0.5rem, so it scales
+          with the Large text size) lifts it exactly onto Apply's centre, and
+          a transform moves NOTHING ELSE: 0 other controls differed from the
+          untransformed layout on any page. A wrapper around Apply + cue
+          would have centred it too, but it wraps as a unit and moved Apply
+          on the three rows where only the cue wraps today. On those rows
+          (Admin → Users 1280, both Students pages 390) the cue is on its
+          own line and sits 4px under Apply instead of 12px. */}
+      <p role="status" className={dirty ? 'text-sm text-brand -translate-y-2' : 'sr-only'}>
         {dirty ? (
           <>
             <span aria-hidden="true">●</span> Changes not applied
