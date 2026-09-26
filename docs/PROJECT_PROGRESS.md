@@ -11,7 +11,8 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot of `main` at `7f6ad7b`, 2026-09-26.** 23 tables; 89 handlers in
+**Snapshot of `main` at `12a3495`, 2026-09-26** (after the smoke gate and
+`fix/smoke-gate`). 23 tables; 89 handlers in
 `server/routes/` plus `GET /api/health` in `server.js` (CLAUDE.md front
 matter is the one home of both counts). Suite, proof and lint baselines:
 `docs/TESTING.md`, and only there.
@@ -26,7 +27,7 @@ matter is the one home of both counts). Suite, proof and lint baselines:
 | 2 — Auth frontend: login, `ProtectedRoute`, three dashboards | — | ✅ | — |
 | 3 — Backend modules, all ten (Contributions removed 2026-09-13) | ✅ | — | — |
 | 4 — Web pages, all three roles | — | ✅ closed 2026-09-14 | — |
-| After Stage 4 — hardening, notifications, recovery, dashboards, data views, grades track, pre-Stage-5, polish | ✅ | ✅ closed 2026-09-26 | — |
+| After Stage 4 — hardening, notifications, recovery, dashboards, data views, grades track, pre-Stage-5, polish, smoke gate | ✅ | ✅ closed 2026-09-26 | — |
 | 5 — Mobile (Expo) | — | — | ❌ not started, zero code |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ |
 
@@ -76,19 +77,20 @@ has been opened in a browser (CLAUDE.md §5h).
 
 ## What is next
 
-1. **Docs pass** — this dispatch (the README, SETUP_NOTES, `.cursorrules`,
-   this snapshot, the API scope labels, the dead pointers).
-2. **The smoke gate** — a full `npm run smoke:isolated`, plus the two items
-   parked for it: Events' "New event" beside a filled Apply, and the
-   class-record group name under the pinned column at a group's start
-   (`docs/KNOWN_ISSUES.md`).
-3. **Stage 5 — Expo**: project setup and navigation, login and role routing,
+1. **Stage 5 — Expo**: project setup and navigation, login and role routing,
    parent, teacher and admin screens (Backup & Restore excluded), push
    notifications.
 
+The docs pass and the smoke gate are done — every suite, proof, lint and
+the smoke run green on `main`, twelve web write flows and a real restore
+proved in a browser (`docs/CHANGELOG.md`, 2026-09-26).
+
 **Open, not queued** (each a `docs/KNOWN_ISSUES.md` row): can an exam score
 be stored with no denominator (INVESTIGATE); Admin → Users filter-tab counts
-and a "Linked to" column, both needing server fields first.
+and a "Linked to" column, both needing server fields first; Teacher →
+Excuse Letters does not refetch its list on the counts signal (low); two
+excuse letters for one learner and date are accepted by omission (a school
+question).
 
 ---
 

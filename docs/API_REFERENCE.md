@@ -963,7 +963,7 @@ Final Grade.
 | GET | `/:id` | `parent(own)`, `teacher(wide)`, `admin` | — | `excuse_letter` | `404` out-of-scope |
 | POST | `/` | `parent` only | `absence_date`*, `reason`*, `details` | `excuse_letter` | `parent_id`/`student_id`/`status` always from `req.user`, never the body. Unlinked parent (`users.student_id` NULL) is **409**, not 400 — the body is valid; `student_id` does not come from it. Same family as `POST /api/students` with no `academic_year` and a missing `grading_mode_configs` row. Message names the school office (parent-facing; matches Parent → Excuse Letters unlinked copy), not "An admin" |
 | PUT | `/:id` | `parent(own)` | `absence_date`, `reason`, `details` (any subset) | `excuse_letter` | `404` if not theirs; `403` if already reviewed |
-| PATCH | `/:id/review` | `teacher(adviser)`, `admin` | `status`* (`Approved`\|`Declined`), `teacher_remarks` | `excuse_letter` | `404` outside `wide` read-scope; `403` naming the reason if within `wide` but not `adviser`; `403` if already reviewed; never touches `attendance` |
+| PATCH | `/:id/review` | `teacher(adviser)`, `admin` | `status`* (`Approved`\|`Declined`), `teacher_remarks` | `excuse_letter` | `404` outside `wide` read-scope; `403` naming the reason if within `wide` but not `adviser`; `403` if already reviewed; never touches `attendance`; emits `notification_counts` to the parent AND the reviewer (the reviewer's `excuse_submitted` self-heals — Notifications) |
 
 ### Settings (5) — `/api/settings`
 
@@ -1017,6 +1017,16 @@ item was deleted, or whose audience no longer includes this user (a deleted
 returned — the list joins each row back to its item through that item’s own
 list `WHERE`. Nothing deletes the row and there is no cleanup job.
 
+**A call to act self-heals** (fix/smoke-gate `12a3495`, 2026-09-26): an
+adviser's `excuse_submitted` is listed and counted only while its letter is
+still `Pending` (`n.type <> 'excuse_submitted' OR x.status = 'Pending'` in
+the teacher visibility clause) — the same shape as admin's pending parent.
+The row is neither deleted nor marked read; it stays, unread, as history.
+Before this the adviser's Excuse Letters badge and the bell kept counting a
+letter that needed nothing more. `PATCH /api/excuse-letters/:id/review`
+therefore also emits `notification_counts` to the **reviewer**, not only to
+the parent, so the drop is live.
+
 | Method | Path | Roles | Request | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | any authenticated | query: `limit` (1–200, default 50), `offset`, `sort` (`created_at` only), `order`, `unread_only` (`true`/`false`) | `notifications` (array) + `page` | Newest first. Row: `{ id, type, item_type, item_id, title, body, link, actor_name, created_at, read_at }` — `read_at` `null` means unread. `title`/`body` are **composed server-side from the LIVE item**, never stored text (an edited announcement reads as it reads now); `link` is the client route to open, so no client keeps a type→route map. `page.total` counts the filtered AND visibility-checked set (§6b C4). `unread_only` outside `true`/`false` is `400`. |
@@ -1046,7 +1056,7 @@ but never concludes (CLAUDE.md §4).
 | `announcement` | New announcement | `{actor} posted "{live title}".` |
 | `memo` | New memo | `{actor} posted "{live title}".` |
 | `event` | New event | `{actor} added "{live title}" on {event_date}.` |
-| `excuse_submitted` | New excuse letter | `{student first + last} has a new excuse letter for {absence_date}.` — to the adviser, who is already authorised to see that student |
+| `excuse_submitted` | New excuse letter | `{student first + last} has a new excuse letter for {absence_date}.` — to the adviser, who is already authorised to see that student; **listed and counted only while the letter is Pending** (self-heals on review, above) |
 | `excuse_reviewed` (Approved) | Excuse letter approved | `Your excuse letter for {absence_date} was approved.` |
 | `excuse_reviewed` (Declined) | Excuse letter declined | `Your excuse letter for {absence_date} was declined. Open it to read the teacher’s remarks.` — the remarks are **not** inlined; they are optional and can be long |
 | `parent_pending` | Parent account waiting for approval | `A new parent account for {student first + last} is waiting for approval.` — names the STUDENT, never the login id |

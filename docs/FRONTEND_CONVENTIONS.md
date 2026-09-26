@@ -307,10 +307,13 @@ A column may set **`nowrap: true`**, which puts `whitespace-nowrap` on its
 cells. Header cells are always `nowrap`, so a label like "Grade & section"
 cannot stack into a column of single words.
 
-**Default wrapping already breaks at SPACES ONLY**, so with `wrap-anywhere`
-gone an LRN, a grade or a date — none of which contain a space — cannot be
-broken at all. `nowrap` is the stronger promise, for values that DO contain
-spaces and still must not break:
+**Default wrapping breaks at spaces AND AT HYPHENS** — corrected at the
+2026-09-26 smoke gate. This paragraph used to say "spaces only", so that an
+identifier with no space "cannot be broken at all"; Admin → Backups then
+showed `parents_portal_2026-09-` / `26_203944.sql` at 1280. An LRN has no
+hyphen and still cannot break, but **an ISO date, a login id like
+`TCH-001` and a backup filename can**. So `nowrap` is the promise for any
+value that must read as one, spaces or hyphens:
 
 | Use `nowrap` for | Why |
 |---|---|
@@ -319,8 +322,13 @@ spaces and still must not break:
 | an actions column | the icon cluster keeps one row and claims its own width — without it the buttons wrap under the text beside them and the neighbouring column appears to run into them |
 
 Let names and free text wrap normally, at spaces. Only a genuinely
-unbreakable long string in its own cell (an email, a backup filename) may
-use `break-words`.
+unbreakable long string in its own cell (an email) may use `break-words`.
+**A backup filename is `nowrap`** (fix/smoke-gate `996e697`, both lists on
+Admin → Backups): measured on the built page, 0 of 70 file cells on more
+than one line at 1280/1024/768, table overflow 0 at 1280, and at 1024 the
+table's OWN scroller (which already scrolled 31px) scrolls 137px — the page
+never scrolls sideways. The actions and "Created by" there still wrap, at a
+space, by decision: holding them on one line cost 40px of scroll at 1280.
 
 #### 5a-iii. `renderCard` — the card layout below `sm`
 
@@ -1146,6 +1154,27 @@ the section trim, not caused by it. This is the CLAUDE.md text verbatim —
 the worked examples behind it are on the 2026-09-18 `docs/CHANGELOG.md`
 row and in `client/src/components/FormStatus.jsx`’s own header.
 
+**Four pages had NO success message at all until 2026-09-26** (smoke gate,
+fix/smoke-gate `7a9ff2b`): Parent → Excuse Letters (submit, edit), Teacher
+→ Excuse Letters (review), Teacher → Announcements and Teacher → Events
+(post, edit, delete). Each closed its modal and reloaded, and a changed row
+was the only sign. They now follow Admin → Announcements: one keyed object,
+set **after** the reload, `FormStatus` directly above the list, cleared when
+any modal opens. Two conventions from that dispatch:
+
+- **Where the page's `status` is already the FILTER, the write result is
+  `writeStatus`** — both excuse-letter pages. Do not rename the filter.
+- **Set the message AFTER any re-read that clears status.** Teacher →
+  Attendance set "Attendance saved for N students." and then awaited a
+  `loadRoster()` that opens with `setStatus({})`; React batched the two
+  and the message was measured at **0 appearances** across a real save
+  (`962b226` swapped the order). A success that is set and cleared in one
+  batch never paints, and no build, lint or SSR proof can see it — only a
+  DOM observer across a real write can.
+- **A review message names what left the list.** A reviewed letter drops
+  out of the default Pending view on reload, so "Letter from Last, First
+  approved." says where it went.
+
 ### 8. Colors are tokens — no raw palette utility, no `dark:`, outside `index.css`
 
 **Frozen 2026-09-19, `feat/design-tokens` (D1 of the Dark mode plan).** Every
@@ -1548,6 +1577,35 @@ with a class's worth of drafts orphaned. So:
 `clampMonthToSchoolYear(monthBounds(today))` — May opens on June, the summer
 after on April — and its month LIST is still derived from data (DV2 Q6):
 the calendar decides only where the page opens, never adds an empty month.
+
+### 13h. Every column carries its group code
+
+**Added 2026-09-26 (fix/smoke-gate `3162495`).** A group's name ("Written /
+Oral Works · 20%") is ONE header cell over the whole group, and scrolling
+puts it under the pinned Learner column (§13c) for most of the group's
+width — measured at the smoke gate: fully hidden from 200 to 624px of
+scroll with up to 429px of the group's own columns on screen. A bare "3" or
+"PS" then says nothing about whose. So:
+
+- **Slot headers show the CODE** — WW1…WW5, PT1…PT3 — the same shape as
+  the exam columns' ST1 / ST2 / TE. A NAMED slot shows the code, then its
+  name on a second truncated line (same 72px header row as the old two-line
+  clamp; full name in the title and the Modal).
+- **The summary columns are prefixed**: WW Total / WW PS / WW WS, PT …,
+  ST … ("ST" by decision — the group's own codes are ST1 / ST2 / TE).
+- **The code is built client-side from `type` + `slot_no`.** The API's
+  `short_label` stays the bare number or the name — `test:class-record`
+  asserts that contract and `buildPayload.js` mirrors it. Do not "fix" the
+  server to match.
+- Measured after, G6 and G1, 390 and 1280: 0 bare headers on screen at any
+  16px scroll step; header row 59px unchanged; table 1845 → 1850px inside
+  its own scroller (only "WW TOTAL" widens, 76 → 82px). **The sticky group
+  label stays parked** — no longer needed.
+
+**Set HPS → Done is a dry run** (the grid's `dry_run: true` PUT writes
+nothing); **"Save all" writes** a grade row for EVERY learner in the section
+— shell rows included — plus slots and components. A browser check that
+saves ends with cleanup by id, backup first (CLAUDE.md working agreement).
 
 ---
 
@@ -2326,6 +2384,22 @@ Spelling the extension at each call site fixed the build and left the trap.
 The helper is `scrollCueState.js` now. **A pure-logic sibling of a component
 gets a name that is a different WORD, not a different case.**
 
+### 19h. The arrow is desktop-only, and an `aria-hidden` control never takes focus
+
+**Added 2026-09-26 (fix/smoke-gate `e33f7ae`).** Two findings from the
+smoke gate's browser check. **Below `sm` the round arrow is hidden**
+(`hidden sm:flex`): a phone swipes, the "Swipe for …" line (§19a) is the
+cue, and the button sat over the last visible header ("MATHEMATICS",
+"FI…"). The edge fade stays at every width. **And a MOUSE CLICK FOCUSED
+IT** — measured: `document.activeElement` was the button after every click,
+which is an `aria-hidden` element holding focus, Chrome's "Blocked
+aria-hidden on an element because its descendant retained focus".
+`tabIndex={-1}` keeps a control out of the TAB order; it does not stop a
+click from focusing it. **`onMouseDown={(e) => e.preventDefault()}`** does:
+after the fix a click still scrolls (792px on the class record at 1280) and
+focus stays on `body`. **The rule for any `aria-hidden` control: it must not
+be focusable by any route**, or the hiding is a lie the browser reports.
+
 ## 20. The teacher's read-only letter view
 
 **Frozen 2026-09-25 (UI-E).** `pages/teacher/excuseLetters/readingView.jsx`.
@@ -2535,6 +2609,40 @@ off a 640px row.
 it is each page's primary control and was sized that way on purpose.
 **Flattening a considered choice into a shared constant is the wrong kind of
 consistency** — stated here so the exception is not later "tidied".
+
+### 21e. A page's action never sits in the filter card, and the cue is centred by a transform
+
+**Added 2026-09-26 (fix/smoke-gate `b84694c`, `8cac83d`).** Two rules the
+smoke gate measured into existence.
+
+**The page's primary action lives OUTSIDE the filter card, outlined.**
+Inside the card beside Apply, a staged filter showed two identical filled
+buttons — and Apply's fill is §21b's signal — and the cue's 140px pushed the
+row past its card (1009px of 958 on Teacher → Events, 993 of 958 on Admin →
+Announcements at 1280), so "New event" jumped to a new line the moment a
+filter was touched. Students' `flex-1` form (§21d) stops the sideways jump
+but NOT a 32px downward one, because the row is `items-end` and the form
+grows a line. Out of the card, the button holds identical coordinates clean
+and dirty, 1280 and 390. **Where it goes:** its own right-aligned row above
+the card (Events — Teacher → Messages' shape), or the section heading row
+(Admin → Announcements — the Memos shape). **Class:** `buttonNeutralClass`,
+as Enroll student — and "New memo" too, so a page's two "New …" actions do
+not read as different weights. **Admin → Announcements does NOT auto-apply**
+(it has Apply); only Teacher → Announcements does.
+
+**"● Changes not applied" is centred on Apply by `-translate-y-2`.** Every
+filter row is `items-end` (so buttons line up with inputs under labels), and
+that sat the 1.25rem cue on Apply's 2.25rem bottom edge — its centre **8px
+low**, measured on all eight `FilterActions` pages at 1280 and 390 wherever
+it shares Apply's row. The 0.5rem lift scales with the Large text size, and
+**a transform moves nothing else**: the clean→dirty movement counts were
+identical before and after on all 16 page/width cases. A wrapper around
+Apply + cue was rejected — it wraps as a unit and would move Apply on the
+three rows where the cue alone wraps today (Admin → Users 1280, both
+Students pages 390); there the cue sits on its own line, 4px under Apply
+instead of 12px (accepted). The clean state — `sr-only`, empty, the §21b /
+item-5b live region — is untouched, and `ssr-item5` still asserts it
+exactly.
 
 ## 22. A failed session read — only a 401 logs out
 

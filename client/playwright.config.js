@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 
 // SMOKE-1's config. Deliberately small: one browser, one worker, no HTML
-// report, no trace viewer. What this run produces is 144 screenshots and a
+// report, no trace viewer. What this run produces is 264 screenshots and a
 // list of failures with URLs in them — both readable without a UI.
 
 // `.env.e2e` by hand rather than by dotenv: one less dependency for six

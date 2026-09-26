@@ -432,9 +432,9 @@ concludes.** Adding one requires the school to have said otherwise first.
   small. **Do not reopen it.** The full account, and the sticky-first-COLUMN
   question it does NOT close, are §5a-i and OPEN QUESTIONS.
 - **`nowrap: true` on a column, and NEVER wrap an identifier.** Default
-  wrapping breaks at spaces only, so an LRN, a grade or a date cannot break at
-  all; `nowrap` is for values that DO contain spaces and still must not.
-  Header cells are always `nowrap`. Detail: §5a-ii.
+  wrapping breaks at spaces **and hyphens** — a backup filename broke after
+  `2026-09-` at 1280 — so an identifier or a value that must read as one sets
+  `nowrap`. Header cells are always `nowrap`. Detail: §5a-ii.
 - **`format/date.js` is the ONLY home for date maths.** A page formats a date;
   **it never computes one. Identity is a `YYYY-MM-DD` STRING compared with
   `===`** — nothing is parsed, so nothing can shift. A `Date` is for PLACEMENT
@@ -731,7 +731,9 @@ audiences and the accessibility contract are in
   `WHERE` (or a DECLARED narrowing, never a widening), and every read
   re-checks visibility against live rows. Adding a page for something
   currently excluded means changing BOTH places; flipping a nav flag will
-  not do it.
+  not do it. **A call to act SELF-HEALS**: a pending parent once decided, an
+  adviser's `excuse_submitted` once the letter is no longer Pending — the
+  row stays, unread — and a review also signals the REVIEWER to refetch.
 
 ### 11. Account recovery — what may be said, and what revokes a session
 
@@ -1247,7 +1249,6 @@ is still open, needing its own dispatch:**
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
-| **`test:attendance` deletes every attendance row on three dates, not just its own** | `test-attendance-flows.js` `cleanup()` | `daysAgo(2)`, `daysAgo(3)` and today, for ALL students; `daysAgo(4)` likewise. Do not run it against data you want to keep on those dates. A test-file dispatch |
 | **`DELETE /api/grades/:id` is deliberately NOT surfaced on Admin → Grades. Do not add a Delete button as an "obvious" omission** | `admin/GradesPage.jsx` + `routes/grades.js` | Darryl, 2026-09-14: the lock, not delete. Irreversible, reaches the SF9, no need named — a wrong grade is EDITED by the teacher |
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
@@ -1561,8 +1562,8 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       every write site, the school-email field included. The originals are
       all closed. **#5 is DONE 2026-09-26** — #5a (`fe67803`, `5df33f2`: (f),
       (g), (k)) and #5b (`4b092ee`: (j)); text left under the REFILL RULE.
-      Rules that outlive it, stated nowhere else: **nine `system_settings`
-      keys, and `GET /api/settings/public` is the ONE unauthenticated
+      Rules that outlive it, stated nowhere else: **eight `system_settings`
+      keys (#7 retired `current_term`), and `GET /api/settings/public` is the ONE unauthenticated
       settings read** — the six `school_*` keys, registered before `/:key`;
       **the About page hardcodes no school value** — the DepEd VMV and
       Mandate are constants citing DO 36, s. 2013 and RA 9155 (§23);
@@ -1608,10 +1609,10 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       fallback**; **a Settings section is `max-w-2xl` with short pairs in
       `sm:grid-cols-2` rows** (§23). **fix/auth-503** (`1d2b228`): a
       database error in the middleware or `/me` is `503`, never `401` — §2.
-- [x] **Docs pass — DONE 2026-09-26.** PROJECT_PROGRESS is a snapshot (its
-      old text verbatim in ARCHIVE); README and SETUP_NOTES carry no counts
-      or passwords; the API scope legend matches the code. **NEXT: the smoke
-      gate, then Stage 5.**
+- [x] **Smoke gate + fix/smoke-gate — DONE 2026-09-26** (to `12a3495`).
+      Docs pass entry left under the REFILL RULE. The rule that outlives the
+      gate is the Set HPS / Save all line in the working agreement.
+      **NEXT: Stage 5.**
 
 ### Stage 5 — Mobile (Expo)
 
@@ -1918,9 +1919,11 @@ questions.
   is most likely mid-restart from a server-file edit: wait and retry; never
   proceed without it.** Added 2026-09-26 after #5a's migration ran behind
   two failed backup calls (`docs/CHANGELOG.md`).
-- **"Set HPS" on Teacher → Grades writes a grade row AT ONCE** (HPS-only,
-  no score). A browser check that touches it ends with the cleanup protocol
-  above — twice (#5b, #7) a later suite's baseline found the row instead.
+- **Set HPS → Done on Teacher → Grades is a DRY RUN; "Save all" writes**
+  grade rows for EVERY learner in the section (shell rows included), plus
+  slots and components (measured 2026-09-26). A browser check that saves
+  ends with cleanup by id, backup first — twice (#5b, #7) a later suite's
+  baseline found the rows instead.
 - Test assertions against shared tables must be scoped to rows the run
   itself created, or written as invariants (`.every(...)`) that additional
   real rows still satisfy. Never assert an exact row count or exact list
@@ -2037,7 +2040,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-26 | **Docs pass** (`100c560` + commit 2): **PROJECT_PROGRESS is a state-only snapshot**; its 156 KB of narrative moved to ARCHIVE verbatim (diffed identical, 154,288 bytes). README and SETUP_NOTES carry no counts or passwords; `.cursorrules` lost "Grades is blocked"; the API scope legend matches the code (`wide` is assigned-OR-adviser, new `recorder`); seven dead pointers fixed; **23 test scripts (19 HTTP + 4 unit), 7 migrations, 12 proofs** — CLAUDE.md and TESTING had 22, 5 and four. |
+| 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2046,7 +2049,7 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in **seventeen dated
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in **eighteen dated
 batches** (2026-09-19 → 2026-09-26), each headed "CHANGELOG stubs moved from
 CLAUDE.md on <date> (<nth> batch, <the pass that spent it>)" — grep that;
 the per-batch counts once listed here were a third copy of a number the

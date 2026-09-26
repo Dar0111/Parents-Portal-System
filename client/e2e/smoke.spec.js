@@ -1,5 +1,5 @@
 // SMOKE-1 — a READ-ONLY sweep of every sidebar page, for every role, at two
-// widths and in both themes. 36 URLs x 2 x 2 = 144 screenshots.
+// widths and in both themes. 66 account-URL visits (39 URLs) x 2 x 2 = 264 screenshots.
 //
 // WHAT THIS IS FOR: §5h says a page is not done until it has been opened in
 // a browser, and Darryl opens them. This does not replace that — a person

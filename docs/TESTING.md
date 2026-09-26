@@ -45,6 +45,11 @@ reset and confirming the Seeded baseline after. `test:sanitize` is a
 direct-call unit test, no server or DB. **`test:restore` never triggers an
 actual restore** — see RESTORE.
 All re-run 2026-09-22; **stale ones marked with their old figure.**
+**All 23 re-run 2026-09-26 at the smoke gate** (Part 1, one at a time, the
+19 HTTP suites on one plain `MAIL_TRANSPORT=file PORT=5001 node server.js`
+with `API_BASE` pointed at it): every figure below held, `test:recovery`
+62/62 on that server, and the live database matched its before-snapshot on
+every table but `activity_logs`.
 
 - `npm run test:students` — **98/98** (was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — 30/30
@@ -53,7 +58,7 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 - `npm run test:grades` — **256/256** (was 255; #3a added the notifications rows-for-this-run = 0 assertion. #2 added the class filter's two `400`s and invariant, `sort=class`, the nine-key report card and `term_average_descriptors` on a KS1, a one-term and a complete card. Before that: 167 → pagination 182 → DV3 188 → 189 → rounding 197 → Grade 1 letters 212 → CR0/CR1 239 → 247)
 - `npm run test:auth` — **60/60** (was 57; #4 — a bad email on an OUT-OF-SCOPE LRN is the email 400, not the scope 403 (order proved), a valid email is stored as sent, and a minted teacher assigned to Malikhain but not its adviser gets the same 403 as an unknown LRN. #3a — the two parent accounts it creates fan out `parent_pending`, cleaned by the shared helper and asserted gone). **Its SQL fixtures resolve `section_id` since #4** — the parents gate keys on it
 - `npm run test:attendance` — **73/73** (was 64; pre-Stage-5 #6 — TCH-003's login and **the mid-year transfer case**: TCH-001 enrols a fixture learner into Malikhain and records two days; the learner is moved to Masigasig by a direct `UPDATE` on that fixture row (no transfer endpoint exists, by design); TCH-002 records a third day; the OLD adviser's list and summary hold exactly their two days and `GET /student/:id` is 200 with two; the NEW adviser sees three; the old adviser's `PUT` on their own row is 404; TCH-003 — neither adviser nor recorder — is 404. Cleanup by tracked attendance id, learner by id. #3a — cleanup by its own ids, proved by an untracked sentinel row on a shared date that must survive. #2 added `?date=&from=` and `?date=&to=` → `400`)
-- `npm run test:content` — **97/97** (was 96; #3a — its posts' notifications cleaned by pairs and asserted gone: "25 deleted over 10 items" on a clean run. **The count of items is 10, not 9**: the API-deleted event is spliced out of the post cleanup list but stays in `notifiedEventIds`)
+- `npm run test:content` — **97/97** (was 96; #3a — its posts' notifications cleaned by pairs and asserted gone: "**32** deleted over 10 items" on a clean run (it was 25 when #3a measured it; Ligaya Halimbawa's account, active since #3b, is one more recipient — measured at the 2026-09-26 smoke gate, pass count unchanged). **The count of items is 10, not 9**: the API-deleted event is spliced out of the post cleanup list but stays in `notifiedEventIds`)
 - `npm run test:settings` — **35/35** (count unchanged by pre-Stage-5 #7, two cases swapped: OUT "current_term outside 1-3 rejected, naming the allowed values" and "Valid current_term accepted"; IN "PUT current_term is the unknown-key 400, and the allowed list no longer names it" and "GET /api/settings carries no current_term" — the latter reads the row directly and says whether a dead row EXISTS on this database. The bad-value PATCH now uses `school_id: '12'`, the all-valid PATCH `logo_url`. Was 29 before #5a — the four `school_*` rules, the four-key PATCH, `GET /settings/public` without a token carrying exactly six keys, `GET /settings` still 401 without one)
 - `npm run test:auth-middleware` — **23/23** (new, fix/auth-503, 2026-09-26; direct calls on `middleware/auth.js` with **a stubbed pool planted in `require.cache` before the middleware is required** — no server, no DB, scripted per call to return rows or throw a mysql2-shaped error). An outage on the first or the second query → `503` with the health body key for key; any throw inside the database block → 503; **the 503 body never says "token" or "log in"**; no token, a garbage token and an expired token → 401 with **zero pool calls** (verify runs before any database work, so an outage cannot mask a bad token or vice versa); the restore cutoff, a missing user, an inactive account and a `token_version` mismatch → 401; the forced-change 403 off `/me` and `next()` on `/me`; a live session → `next()` in exactly two pool calls; `isDbUnavailable` accepts connection codes and refuses a SQL error, a plain Error and null. **This is how the outage path is proved without stopping MySQL under every other suite**; the by-hand check (KNOWN ISSUES) is the browser half
 - `npm run test:school-calendar` — **34/34** (new, pre-Stage-5 #7; a direct-call unit test like `grade-computation`, no server, no DB) — the ten boundary days both sides of each line (Jun 7/8, Sep 15/16, Dec 18/19, Jan 3/4, Apr 8/9), three far dates, six month clamps, the table's own consistency (three terms, each start before its end, in order and non-overlapping, `CLASSES_START`/`END` on the first and last term, frozen, `termDates` by number or string), **the seed's `academic_year` equals `SCHOOL_YEAR` and the seed writes no `current_term` row**, and five refusals — a `Date`, another format, no argument, a number, `termDates(4)`
@@ -63,7 +68,7 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 - `npm run test:messages` — **80/80** (was 59)
 - `npm run test:restore` — **29/29** (was 28 passed / 1 FAILED for three days). **The failure was never `iat` resolution** — the crafted "after the cutoff" token carried no `v` claim and ADMIN001's `token_version` had been bumped to 2 by other suites, so the middleware's version check refused it with a 401 the assertion could not tell from the restore one. The token carries the live `v` now (#3a); `middleware/auth.js` is untouched. KNOWN ISSUES has the corrected row
 - `npm run test:excuses` — **93/93** (was 92; #3a — letter notifications cleaned by pairs, resolved BEFORE the user/student cascades, and asserted gone)
-- `npm run test:notifications` — **136/136** (was 124). Since #3b its users/students watermark is **captured at start and printed** (`i watermark at start: users 8, students 4`), not the literal 7/3 — a seed change must not fail a suite that has no defect. `test:recovery` does the same
+- `npm run test:notifications` — **151/151** (was 136; fix/smoke-gate `12a3495` — an adviser's `excuse_submitted` SELF-HEALS: the badge and the bell are +1 while the letter is Pending and back to the start after approve AND after decline, each asserted as a delta from counts read just before the letter; a `socket.io-client` socket proves the reviewer receives `notification_counts` on both reviews; the approved letter's row is no longer listed, still EXISTS and was NOT marked read; the parent is still told a declined letter was reviewed. The old "both events coexist" assertion, which asserted the adviser still SAW the submitted row after approval — the defect itself — is replaced by its table-level half. Was 124 before that). Since #3b its users/students watermark is **captured at start and printed** (`i watermark at start: users 8, students 4`), not the literal 7/3 — a seed change must not fail a suite that has no defect. `test:recovery` does the same
 - `npm run test:dashboard` — 77/77
 - `npm run test:class-record` — **118/118** (CR1 105 → CR2 117 → #3a 118: it asserts NO notification row for its grades — measured zero before the helper existed, because its fixture learners have no parent; asserted rather than deleted). **It is the only suite that imports a CLIENT module** — `buildPayload.js` — so the grid's real payload is exercised against the real API; see §13e
 - `npm run test:class-summary` — **59/59** (CR3). Two assertions are the dispatch: **TCH-002, adviser with zero assignments, gets 200 on the summary AND on a learner's report card.** Its cleanup is a **WATERMARK, not an id list** — `PUT /class-record` creates a shell row for every learner in the class, so deleting only its own learners' grades left eight behind on a SEEDED one (KNOWN ISSUES)
@@ -165,6 +170,31 @@ instead. Both paths are covered, each under the build that can see it.
 **Run the DEV build under both zones too** — the guard fires on the value,
 not the clock, but the run costs seconds and a one-zone DEV run is the same
 half-proof the block above refuses.
+
+**`NODE_ENV=development` goes on BOTH steps — the build AND the `node` run.**
+The proof picks its branch from `process.env.NODE_ENV` at RUN time
+(`ssr-dates.jsx:110`), so a DEV bundle run without it fires the guard twice
+and then asserts the production branch: **45 passed / 1 failed**, which
+reads like a broken guard and is a broken harness (measured at the
+2026-09-26 smoke gate). `ssr-cards` does not have this trap.
+
+### Git Bash DROPS `TZ=America/New_York` — run the zone legs from PowerShell
+
+Measured at the 2026-09-26 smoke gate: in Git Bash on this machine
+`TZ=UTC node …` reaches Node, but **`TZ=America/New_York` does not** —
+`process.env.TZ` is `undefined` and the offset is −480, Manila. The run
+still prints 46/46, so **a "two-zone" run typed in Git Bash was UTC plus
+Manila**, which never exercises a zone west of Greenwich — the case these
+proofs exist for. Run the zone legs from PowerShell (build in either shell):
+
+```powershell
+$env:TZ = 'America/New_York'; node .ssr-tmp/ssr-dates.js; $env:TZ = ''
+```
+
+**The header is the check**: `ssr-dates` prints `under TZ=<zone>` and
+`ssr-school-calendar` prints `(TZ=<zone>)`. A header saying `(host
+default)` or naming the wrong zone is not a run of that zone, whatever the
+count says.
 
 ### `ssr-school-calendar.jsx` runs TWICE too
 
@@ -317,6 +347,16 @@ UI-C2 deleted both — **and a third the sweep could not see**, on the
 `:studentId` learner route it excludes.
 
 **A green run is the expectation now, so any failure is news.**
+
+**The 2026-09-26 smoke gate ran it four times, `smoke:isolated`, 20/20 each**
+— on `main` at `3c457ab`, and after each round of `fix/smoke-gate`
+(`f3b9e28`, `32e441f`, `12a3495`); the flake did not appear. **All 264
+screenshots of the first run were reviewed by eye** — 66 four-up sheets
+(light and dark desktop, light and dark 390, per account-URL), anything
+suspect re-read at full resolution; the flags are `docs/KNOWN_ISSUES.md`
+rows or `fix/smoke-gate` commits. **The sweep never interacts, so it cannot
+see a staged filter, a save message or a focus warning** — every defect the
+gate fixed was found by a write flow or a by-hand check, not by this run.
 
 ### The one flake, and what it looks like
 

@@ -3686,6 +3686,16 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (eighteenth batch, the smoke-gate docs pass)
+
+> Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full row is in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — the smoke-gate docs pass adds its own stub, a
+> self-healing clause in §10 and two reworded rules, and must land at net ≤ 0.
+> One row; the table keeps the smoke gate alone.
+
+| 2026-09-26 | **Docs pass** (`100c560` + commit 2): **PROJECT_PROGRESS is a state-only snapshot**; its 156 KB of narrative moved to ARCHIVE verbatim (diffed identical, 154,288 bytes). README and SETUP_NOTES carry no counts or passwords; `.cursorrules` lost "Grades is blocked"; the API scope legend matches the code (`wide` is assigned-OR-adviser, new `recorder`); seven dead pointers fixed; **23 test scripts (19 HTTP + 4 unit), 7 migrations, 12 proofs** — CLAUDE.md and TESTING had 22, 5 and four. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (seventeenth batch, the docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4793,6 +4803,23 @@ transfer date" — and the row does not hold a date to cut on; the new adviser
 sees every row of a current learner, and that superset was accepted rather
 than bought with a column. The transfer itself stays a SQL job for the admin,
 recorded as a KNOWN ISSUES decision the same day.
+
+### The docs pass item, and a closed KNOWN ISSUES compact row — moved from CLAUDE.md on 2026-09-26 (smoke-gate docs pass)
+
+Under the REFILL RULE: the docs pass is done, and the smoke gate that it
+named as NEXT is done too (`fix/smoke-gate`, to `12a3495`). The BUILD ORDER
+entry as it stood:
+
+- [x] **Docs pass — DONE 2026-09-26.** PROJECT_PROGRESS is a snapshot (its
+      old text verbatim in ARCHIVE); README and SETUP_NOTES carry no counts
+      or passwords; the API scope legend matches the code. **NEXT: the smoke
+      gate, then Stage 5.**
+
+And the compact row from CLAUDE.md's open KNOWN ISSUES table, which had
+stayed there after its full row in `docs/KNOWN_ISSUES.md` was CLOSED on
+2026-09-25 (pre-Stage-5 #3a, `85c5d8f`) — found stale by the smoke gate:
+
+| **`test:attendance` deletes every attendance row on three dates, not just its own** | `test-attendance-flows.js` `cleanup()` | `daysAgo(2)`, `daysAgo(3)` and today, for ALL students; `daysAgo(4)` likewise. Do not run it against data you want to keep on those dates. A test-file dispatch |
 
 ### POLISH's five items — moved from CLAUDE.md on 2026-09-26
 
