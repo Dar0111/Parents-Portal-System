@@ -199,11 +199,13 @@ export function AboutBody({ settings, sections = null }) {
         s. 2013. The Mandate is the Department's under Republic Act 9155, as the Department publishes it.
       </p>
 
-      {/* VISION + MISSION side by side at lg, stacked below. `lg:items-start`
-          so each card ends at its own text: grid items stretch to the row by
-          default, and the shorter Vision card was padded to the Mission's
-          height with dead space under its paragraph (fix/polish, 2026-09-26). */}
-      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      {/* VISION + MISSION side by side at lg, stacked below. EQUAL HEIGHT
+          BY DECISION (Darryl, 2026-09-26): grid items stretch to the row, so
+          the shorter Vision card carries space under its paragraph. An
+          `lg:items-start` that ended each card at its own text was built and
+          reverted on the browser check — the matched pair reads better. Do
+          not re-file the dead space as a defect. */}
+      <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-edge bg-surface p-5">
           <SectionHeading icon="fa-eye">The DepEd Vision</SectionHeading>
           {/* Index keys, deliberately: these are static constants, and the two
