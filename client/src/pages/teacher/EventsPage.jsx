@@ -5,7 +5,7 @@ import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
-import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
+import FormField, { buttonNeutralClass, filterFieldClass, filterSelectClass } from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
 import { shortDate, todayLocalDateString } from '../../format/date';
@@ -274,7 +274,30 @@ export default function EventsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
+      {/* THE PAGE'S ACTION HAS ITS OWN ROW, ABOVE THE FILTER CARD, AND IS
+          NEUTRAL (fix/smoke-gate). It sat inside the card beside Apply, so a
+          staged filter showed two identical filled buttons — and Apply's fill
+          is the "changes not applied" signal (§21b), the one that needs the
+          eye. Worse, the cue's 140px pushed the dirty row to 1009px in a
+          958px card at 1280 and "New event" jumped to a new line the moment a
+          filter was touched. Out of the card, it measured at identical
+          coordinates clean and dirty at 1280 and 390. Teacher → Messages'
+          "New message" row is the precedent; Enroll student is the neutral. */}
+      {targetsLoading ? null : (
+        <div className="flex justify-end">
+          {canPost ? (
+            <button type="button" onClick={openCompose} className={buttonNeutralClass}>
+              New event
+            </button>
+          ) : (
+            <p className="max-w-sm text-sm text-fg-muted">
+              You can post once you are assigned to a class or made a section adviser.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-edge bg-surface p-4">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -317,20 +340,6 @@ export default function EventsPage() {
           />
           <FilterActions dirty={dirty} canReset={hasFilter} onReset={resetFilters} />
         </form>
-
-        {targetsLoading ? null : canPost ? (
-          <button
-            type="button"
-            onClick={openCompose}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
-            New event
-          </button>
-        ) : (
-          <p className="max-w-sm text-sm text-fg-muted">
-            You can post once you are assigned to a class or made a section adviser.
-          </p>
-        )}
       </div>
 
       <FormStatus status={writeStatus.events} />

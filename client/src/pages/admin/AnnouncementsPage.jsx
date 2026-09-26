@@ -6,7 +6,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FormField, { buttonNeutralClass, filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
 import { staffAudienceLabel } from '../../format/audience';
 import { timestampDay } from '../../format/date';
@@ -481,8 +481,20 @@ export default function AdminAnnouncementsPage() {
       </p>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-fg">Announcements</h2>
-        <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
+        {/* THE ACTION SITS ON THE HEADING ROW, NEUTRAL — the Memos section's
+            shape below (fix/smoke-gate). Inside the filter card, a staged
+            filter showed two identical filled buttons (Apply's fill is the
+            §21b signal), and the "changes not applied" cue pushed the row to
+            993px in a 958px card at 1280, so "New announcement" jumped to a
+            new line the moment a filter was touched. On the heading row it
+            measured at identical coordinates clean and dirty, 1280 and 390. */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h2 className="text-sm font-semibold text-fg">Announcements</h2>
+          <button type="button" onClick={openNewAnnouncement} className={buttonNeutralClass}>
+            New announcement
+          </button>
+        </div>
+        <div className="rounded-xl border border-edge bg-surface p-4">
           <form onSubmit={applyFilter} className="flex flex-wrap items-end gap-3">
             <FormField
               label="Grade"
@@ -520,13 +532,6 @@ export default function AdminAnnouncementsPage() {
                 be wrong in. `FilterActions` now owns both states. */}
             <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilter} />
           </form>
-          <button
-            type="button"
-            onClick={openNewAnnouncement}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
-            New announcement
-          </button>
         </div>
         {/* §5f: two causes, two branches. A grade filter is an exact match on
             target_grade, so school-wide posts (NULL) are never in it — said. */}
@@ -589,11 +594,11 @@ export default function AdminAnnouncementsPage() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="text-sm font-semibold text-fg">Memos</h2>
-          <button
-            type="button"
-            onClick={openNewMemo}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
+          {/* Neutral too, so the page's two "New …" actions match (Darryl,
+              2026-09-26) — there is no Apply beside this one, but a filled
+              "New memo" under a neutral "New announcement" would read as a
+              difference in weight that does not exist. */}
+          <button type="button" onClick={openNewMemo} className={buttonNeutralClass}>
             New memo
           </button>
         </div>
