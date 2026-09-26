@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { verifyToken } = require('../utils/jwt');
+const { sendDbUnavailable } = require('../utils/dbUnavailable');
 
 async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
@@ -9,9 +10,23 @@ async function authenticate(req, res, next) {
     return res.status(401).json({ success: false, message: 'Authentication required.' });
   }
 
+  // TWO TRIES, BECAUSE THEY ANSWER TWO DIFFERENT QUESTIONS (fix/auth-503,
+  // 2026-09-26). The first asks "is this token genuine" — a failure is the
+  // caller's, and 401 is right. The second asks the DATABASE about the
+  // session, and a failure there is the server's: with MySQL stopped, one
+  // try around both turned every request into 401 "Invalid or expired
+  // token.", and the web client — which logs out on 401 alone (§2,
+  // pre-Stage-5 #4) — discarded a valid session and sent the user to
+  // /login with "Your session has ended". A 503 with the health endpoint's
+  // body keeps the token on the client and shows "Try again" instead.
+  let decoded;
   try {
-    const decoded = verifyToken(token);
+    decoded = verifyToken(token);
+  } catch {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+  }
 
+  try {
     // A restore can replace every users row with different data — a JWT
     // pointing at a user_id that no longer means the same person must stop
     // working. token_valid_after is NULL until the first restore ever runs,
@@ -99,7 +114,10 @@ async function authenticate(req, res, next) {
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired token.' });
+    // Everything in this block is database work on fixed SQL, so any throw
+    // here is the connection, never the caller. 503, never 401: a session
+    // is ended by a verdict, not by an outage.
+    return sendDbUnavailable(res, 'Authenticate', error);
   }
 }
 

@@ -7,6 +7,7 @@ const { signToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { sanitizeUser } = require('../utils/sanitizeUser');
+const { isDbUnavailable, sendDbUnavailable } = require('../utils/dbUnavailable');
 const codes = require('../utils/authCodes');
 const mailer = require('../utils/mailer');
 
@@ -123,6 +124,11 @@ router.get('/me', authenticate, async (req, res) => {
     }
     return res.json({ success: true, user: withAccountFlags(sanitizeUser(user), user) });
   } catch (error) {
+    // Reachable only if the database dies between the middleware's read and
+    // this one; when it does, say so the way the middleware and /api/health
+    // do (503, one body) rather than as a generic 500. The client keeps the
+    // token on either — this is about the message, not the logout.
+    if (isDbUnavailable(error)) return sendDbUnavailable(res, 'Me', error);
     console.error('Me error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch profile.' });
   }
