@@ -897,23 +897,30 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   nothing native, so a proof can load it); a 401 clears the store and
   signals `AuthContext`, the reason in memory, never a navigation param; a
   15 s timeout, filed as "keep the token". The root navigator IS
-  `ProtectedRoute`: an unmounted `Stack.Screen` cannot be reached. (M4)
+  `ProtectedRoute`: an unmounted `Stack.Screen` cannot be reached. **The
+  native splash is released when the theme is ready, never held for
+  `/auth/me`** — held, a stuck request leaves the phone on Expo Go's overlay
+  with no way out; our own spinner covers the read. (M4)
 - **The network proof order is fixed:** phone Chrome reaches
   `/api/health` with `"db":"ok"` before `npx expo start`.
   `EXPO_PUBLIC_API_URL` is inlined at bundle time (restart Metro to change
   it). **What opened 5000 and 8081 is the program rule for `node.exe`, not
   a port rule.** (M5)
 - **Dev-only code is excluded at Metro's resolver (`context.dev`), never by
-  `__DEV__`** — the Hermes export does not inline it (measured: 26 literal
-  `__DEV__`s and every dev string in the first bundle). `src/screens/dev/`
-  is an empty module in production and is grepped absent, with a positive
-  control, before each mobile commit. (M5, TESTING → Mobile proofs)
+  `__DEV__`** — a `__DEV__ ?` JSX branch left its strings in the first
+  production bundle (measured), and a static import keeps a module in the
+  graph whatever any branch says; what the toolchain folds is not a rule to
+  build on. `src/screens/dev/` is an empty module in production and is
+  grepped absent, with a positive control, before each mobile commit.
+  (M5, TESTING → Mobile proofs)
 - **The template's `CLAUDE.md`, `AGENTS.md` and `.claude/` do not survive
   the scaffold** — a nested instruction file is a second source of truth.
   (M6)
 - **There is no render proof on mobile; every screen is proved on the
   phone**, both themes, every field typed, the error path seen once, and a
-  check that writes cleans up by id, backup first. Four lint figures per
+  check that writes cleans up by id, backup first. **Reload by cold boot
+  (force-close, reopen), never by `r` in Metro** — it stuck twice on the
+  hotspot and a result read off it is not a result. Four lint figures per
   dispatch: oxlint, mirrors, tokens, colors. (M7)
 - **Icons are the web's `fa-*` names resolved by `src/icons.js`; an
   unmapped name throws in DEV.** (M8)

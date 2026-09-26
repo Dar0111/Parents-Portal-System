@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
 import { useAuth } from '../auth/AuthContext';
 import AuthUnavailable from '../auth/AuthUnavailable';
+import LoadingSpinner from '../components/LoadingSpinner';
 import ConnectionScreen from '../screens/dev/ConnectionScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -14,7 +16,7 @@ import { useTheme } from '../theme/ThemeProvider';
 // THE PHONE'S ProtectedRoute + RootRedirect, in one place. Which stack is
 // mounted is decided from context, in the web's order:
 //
-//   loading            the splash stays up (no login flash — the web's spinner)
+//   loading            OUR spinner on bg-page (no login flash — the web's)
 //   authError          AuthUnavailable, token kept, Try again (§22)
 //   !user              the auth stack: Login, Forgot password
 //   must_change_password   ONLY the forced-change screen (§11)
@@ -26,19 +28,45 @@ import { useTheme } from '../theme/ThemeProvider';
 // reached before AND after sign-in — and only when its import resolved to a
 // component: in a production bundle src/screens/dev/ is an empty module
 // (metro.config.js), so `ConnectionScreen` is undefined and nothing is
-// registered. `__DEV__` is deliberately NOT the guard; it is not inlined by
-// the Hermes export and would leave the screen in the bundle.
+// registered. `__DEV__` is deliberately NOT the guard: a `__DEV__ ?` JSX
+// branch left its strings in the first production bundle (measured), and a
+// static import keeps the module in the graph regardless of any branch.
 const Stack = createNativeStackNavigator();
 
+// THE SPLASH IS RELEASED WHEN THE THEME IS READY, NOT WHEN /auth/me ANSWERS
+// (phone check, 2026-09-27). The first build held it until the session read
+// finished; on the 503 check the phone sat on Expo Go's white loading view
+// for 30+ seconds with no way out and nothing to read — under that overlay
+// the dev menu does not open and no screen of ours can show. The web never
+// had this hazard: its "no login flash" is a SPINNER of its own, not a
+// native overlay. So: theme applied → splash hidden → our spinner on
+// `bg-page` while the session reads → then Login, AuthUnavailable or the
+// home. The 15 s timeout in api/client.js guarantees the spinner ends.
 export default function RootNavigator() {
   const { user, loading, authError, retry } = useAuth();
   const { ready, resolved, tokens } = useTheme();
 
   useEffect(() => {
-    if (!loading && ready) SplashScreen.hideAsync().catch(() => {});
-  }, [loading, ready]);
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
 
-  if (loading || !ready) return null;
+  useEffect(() => {
+    if (__DEV__) {
+      console.log(
+        `[boot] navigator: ready=${ready} loading=${loading} authError=${authError ? JSON.stringify(authError) : 'null'} user=${user ? user.role : 'null'}`
+      );
+    }
+  }, [ready, loading, authError, user]);
+
+  if (!ready) return null;
+
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-page">
+        <LoadingSpinner />
+      </View>
+    );
+  }
 
   if (authError) {
     return <AuthUnavailable message={authError} onRetry={retry} />;

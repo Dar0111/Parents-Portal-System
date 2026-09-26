@@ -26,8 +26,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
+  // BOOT TRACE (phone check, 2026-09-27). DEV-only console lines that Expo
+  // forwards to the Metro terminal — the one channel a phone stuck at boot
+  // still has. Never the token, never a login id: presence and status only.
+  // The 503 check left the phone on a spinner with Terminal 1 showing no
+  // request; these lines say which of the three stages it stopped at.
+  const trace = (line) => {
+    if (__DEV__) console.log(`[boot] ${line}`);
+  };
+
   const readSession = useCallback(async () => {
+    trace('session read: start');
     const token = await tokenStore.load();
+    trace(`session read: stored token ${token ? 'present' : 'absent'}`);
     if (!token) {
       setLoading(false);
       return;
@@ -36,8 +47,10 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const me = await api.get('/auth/me', { unwrap: 'user' });
+      trace(`/auth/me -> 200, role ${me?.role}`);
       setUser(me);
     } catch (err) {
+      trace(`/auth/me -> ${err?.response?.status || err?.code || 'no response'} (${classifyAuthFailure(err)})`);
       if (classifyAuthFailure(err) === 'unauthenticated') {
         // The interceptor has already cleared the store and stored the reason;
         // this only mirrors it into context.
@@ -48,6 +61,7 @@ export function AuthProvider({ children }) {
       }
     } finally {
       setLoading(false);
+      trace('session read: done');
     }
   }, []);
 

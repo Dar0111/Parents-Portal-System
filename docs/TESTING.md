@@ -409,10 +409,12 @@ detection with that one warning.
 **The production-bundle grep is a proof too, run before each mobile commit:**
 `npx expo export --platform android --output-dir dist`, then grep the `.hbc`
 for the DEV-only strings (expect 0 files) AND a production string (expect 1,
-the positive control), then delete `dist/`. **Measured 2026-09-27: `__DEV__`
-is NOT inlined by the Hermes export** — the first bundle carried every
-Connection-screen string and 26 literal `__DEV__`s — so dev-only code is
-excluded at Metro's resolver (`context.dev`), not by a branch.
+the positive control), then delete `dist/`. **Measured 2026-09-27: the
+first bundle carried every Connection-screen string and the label of a
+`__DEV__ ?` JSX branch**, so dev-only code is excluded at Metro's resolver
+(`context.dev`), not by a branch. A later export dropped `if (__DEV__)
+console.log` strings entirely — what the toolchain folds is not a rule to
+build on; the grep with its control is the proof each time.
 
 ### Lint baselines (mobile)
 

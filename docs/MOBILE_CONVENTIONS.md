@@ -141,8 +141,23 @@ re-reading `/me`.
 MOUNTED is decided from context, in the web's order (loading → authError →
 !user → must_change_password → home). A `Stack.Screen` that is not mounted
 cannot be navigated to, which is what makes the guards structural rather than
-a redirect that could loop. The splash stays up until the theme is applied
-and `/auth/me` has answered — the phone's "spinner with no login flash".
+a redirect that could loop.
+
+**The native splash is released when the THEME is ready, never held for
+`/auth/me` (phone check, 2026-09-27).** The first build held it until the
+session read finished, and on the 503 check the phone sat on Expo Go's white
+loading view for 30+ seconds: under that overlay nothing of ours can render,
+the dev menu does not open, and there is no way out but a force-close. The
+web never had this hazard — its "no login flash" is a spinner of its own. So
+the order is theme applied → splash hidden → **our** `LoadingSpinner` on
+`bg-page` while the session reads → Login, `AuthUnavailable` or the home.
+The 15 s timeout guarantees the spinner ends. **Do not move the hide back
+behind the session read.**
+
+**Boot trace.** `AuthContext` and `RootNavigator` print `[boot] …` lines
+under `__DEV__` — Expo forwards `console.log` to the Metro terminal, the one
+channel a phone stuck at boot still has. Token PRESENCE and the status code
+only; never the token, never a login id.
 
 ## M5. The network is the hotspot, and the proof order is fixed
 
@@ -166,9 +181,22 @@ The order, and it does not change: phone Chrome reaches
 `http://<ip>:5000/api/health` with `"db":"ok"` FIRST; only then
 `npx expo start`. The DEV-only Connection screen (`src/screens/dev/`) shows
 the URL the bundle was built with and repeats that request from inside the
-app — the Expo equivalent of `/dev/ui`, registered under `__DEV__` only and
-**grepped absent from `npx expo export` output before the commit**, with a
-positive control (a production string that must be present).
+app — the Expo equivalent of `/dev/ui`, **excluded at Metro's resolver
+(`src/screens/dev/**` is the empty module when `!context.dev`) and grepped
+absent from `npx expo export` output before each commit**, with a positive
+control (a production string that must be present).
+
+**Why the resolver and not `__DEV__` — two measurements, stated as
+measurements.** The first production export carried every string of the
+Connection screen (a static import keeps a module in the graph whatever any
+branch says) AND the label of a `__DEV__ ? <Link/> : null` branch in two
+screens — so a `__DEV__` JSX branch is not removed code. A later export of
+the same toolchain dropped the strings of `if (__DEV__) console.log(...)`
+lines entirely. Which constructs the Babel → Hermes pipeline folds is not
+established here, and "the export does not inline `__DEV__`" — written on
+the first measurement — was an inference, not a fact. **Do not build an
+exclusion rule on `__DEV__`; the resolver rule is measured and holds, and
+the grep with its positive control is what proves it each time.**
 
 Two traps recorded from the first run: **npm during a Wi-Fi switch fails with
 `ECONNRESET` and `create-expo-app` prints "Your project is ready!" anyway** —
@@ -218,6 +246,28 @@ token kept, Try again recovers) · Light / Dark / System on the role home.
 as the web's browser checks: `GET /api/health` answers → `POST /api/backups`
 returns 201 → write. Tala Halimbawa is the fixture learner; every suite stays
 on Marwin; never during a server suite.
+
+**Reload by COLD BOOT — force-close Expo Go and reopen the project — never
+by `r` in the Metro terminal (measured 2026-09-27).** Over the hotspot, `r`
+printed "› Reloading apps" with no "Bundled" line after it twice in one
+evening and left the phone on Expo Go's spinner; a cold boot loaded every
+time. A check result read off an `r` reload is not a result: the first
+"401 path shows no message" was one of those stuck reloads, and the cold boot
+passed. Two more facts about that overlay: while it is up the shake gesture
+opens no dev menu (Expo Go disables it during load), so "no dev menu" is not
+evidence that the JS crashed; and Metro's "(1 module)" on a warm reload is
+the delta count, not a broken bundle.
+
+**The scaffold's phone check (2026-09-27):** Connection check 200 in 76 ms;
+ADMIN001, TCH-001 and Tala's parent each on the role home; Light / Dark /
+System all flipping (System read the phone's night mode); the 401 path on a
+cold boot with a stale token → Login with the session-ended sentence; the
+forced change (TCH-002 temp password → new password → home). **The 503 path
+FAILED**: MySQL stopped, cold boot with a stored token → Expo Go's spinner
+for 30+ s, and Terminal 1 logged no `Authenticate: database unreachable:`
+for it, while the same cold boot reaches `/auth/me` with MySQL up. Root
+cause not yet known from the laptop — the boot trace and the released splash
+above are what the re-check runs with.
 
 ## M8. Icons are the web's names, resolved once
 

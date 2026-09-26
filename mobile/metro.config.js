@@ -11,10 +11,13 @@ const config = getDefaultConfig(__dirname);
 
 // DEV-ONLY MODULES ARE EXCLUDED AT THE RESOLVER, NOT BY `__DEV__` (measured
 // 2026-09-27). The first production export carried every string of the
-// Connection screen and 26 literal `__DEV__`s: Expo's Hermes export does not
-// inline `__DEV__`, so `__DEV__ ? <X/> : null` is a runtime-false branch, not
-// removed code, and a static import stays in the module graph whatever the
-// branch says. Metro hands `resolveRequest` a `context.dev` flag, so anything
+// Connection screen AND the label of a `__DEV__ ? <Link/> : null` branch in
+// two screens — so a `__DEV__` JSX branch is not removed code, and a static
+// import stays in the module graph whatever the branch says. (A later export
+// dropped the strings of `if (__DEV__) console.log(...)` lines entirely, so
+// WHAT the toolchain folds is not something to build a rule on; this
+// resolver rule is measured and holds.) Metro hands `resolveRequest` a
+// `context.dev` flag, so anything
 // under src/screens/dev/ resolves to Metro's EMPTY module when the bundle is
 // not a dev bundle — the import yields `undefined`, the callers guard on
 // that, and the module's code and strings are absent. This is the /dev/ui
