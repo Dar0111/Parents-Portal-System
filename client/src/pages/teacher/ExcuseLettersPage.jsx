@@ -518,10 +518,18 @@ export default function ExcuseLettersPage() {
                 table (enforced server-side — that handler references no
                 attendance query at all). A teacher who approves believing the
                 absence clears has been misled by the interface into a wrong
-                model of their own records. */}
+                model of their own records.
+
+                TRUE WHATEVER THE DAY HOLDS (fix/smoke-gate). It used to end
+                "the student stays marked Absent for that day", which is false
+                when the day is not Absent — Tala's 09-24 letter was approved
+                over a Present mark in the browser check — or not recorded at
+                all. The rule it carried is the first half: the record does not
+                change. A letter states a reason; it does not establish that
+                the day was an absence (§5i). */}
             <p className="rounded-lg border border-info-edge bg-info-soft px-3 py-2 text-sm text-info-strong">
-              Approving records the reason for this absence. It does not change the attendance
-              record — the student stays marked Absent for that day.
+              Approving records the reason given in this letter. It does not change the attendance
+              record for that day.
             </p>
 
             {confirming ? (
