@@ -23,6 +23,46 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// A socket for ONE assertion family: that a review signals the REVIEWER to
+// refetch (fix/smoke-gate). The same connect shape as test-messages-flows.js.
+const { io: ioClient } = require('socket.io-client');
+
+function connectSocket(token) {
+  return new Promise((resolve) => {
+    const socket = ioClient(BASE, { auth: { token }, reconnection: false, timeout: 3000 });
+    const timer = setTimeout(() => {
+      socket.close();
+      resolve(null);
+    }, 4000);
+    socket.on('connect', () => {
+      clearTimeout(timer);
+      resolve(socket);
+    });
+    socket.on('connect_error', () => {
+      clearTimeout(timer);
+      socket.close();
+      resolve(null);
+    });
+  });
+}
+
+// Resolves true when `notification_counts` arrives within `ms`, else false.
+// Armed BEFORE the write, so a fast emit cannot be missed.
+function nextCountsSignal(socket, ms = 3000) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      socket.off('notification_counts', onSignal);
+      resolve(false);
+    }, ms);
+    function onSignal() {
+      clearTimeout(timer);
+      socket.off('notification_counts', onSignal);
+      resolve(true);
+    }
+    socket.on('notification_counts', onSignal);
+  });
+}
+
 let passed = 0;
 let failed = 0;
 
@@ -337,6 +377,11 @@ async function main() {
     // -----------------------------------------------------------------------
     console.log('\nExcuse letter — submitted goes to the ADVISER alone');
     // -----------------------------------------------------------------------
+    // The adviser's counts BEFORE the letter: every count assertion below is
+    // a delta from here, so unread rows left by earlier sections of this run
+    // (or by anyone using the system) cannot move the result.
+    const countsBeforeLetter = await countsOf(tch1.token);
+    requireFixture(countsBeforeLetter != null, "the adviser's unread counts can be read");
     const letterRes = await request('POST', '/api/excuse-letters', {
       token: parentMarwin.token,
       body: { absence_date: ABSENCE_DATE, reason: 'NOTIF TEST fever' },
@@ -367,14 +412,35 @@ async function main() {
     assert(subRow?.body?.includes(ABSENCE_DATE), 'submitted text names the absence date', JSON.stringify(subRow?.body));
     assert(!/\d{12}/.test(subRow?.body || ''), 'submitted text contains no 12-digit LRN');
 
+    const countsPending = await countsOf(tch1.token);
+    assert(
+      countsPending?.excuse_letters === countsBeforeLetter.excuse_letters + 1,
+      'BADGE: while the letter is Pending, the adviser’s Excuse Letters count is one higher',
+      JSON.stringify({ before: countsBeforeLetter.excuse_letters, pending: countsPending?.excuse_letters })
+    );
+    assert(
+      countsPending?.total === countsBeforeLetter.total + 1,
+      'BELL: and so is the adviser’s total',
+      JSON.stringify({ before: countsBeforeLetter.total, pending: countsPending?.total })
+    );
+
     // -----------------------------------------------------------------------
     console.log('\nExcuse letter — reviewed goes back to the parent, as its own type');
     // -----------------------------------------------------------------------
+    // The reviewer's socket is armed BEFORE the review, so the signal cannot
+    // arrive before the listener exists.
+    const reviewerSocket = await connectSocket(tch1.token);
+    requireFixture(reviewerSocket != null, 'the adviser’s socket connects');
+    const approveSignal = nextCountsSignal(reviewerSocket);
     const reviewRes = await request('PATCH', `/api/excuse-letters/${letterId}/review`, {
       token: tch1.token,
       body: { status: 'Approved', teacher_remarks: 'NOTIF TEST ok' },
     });
     requireFixture(reviewRes.status === 200, 'the adviser approves the letter', why(reviewRes));
+    assert(
+      await approveSignal,
+      'LIVE: approving sends the REVIEWER a notification_counts signal, so the badge drops without a reload'
+    );
 
     const revRow = find(await notificationsOf(parentMarwin.token), 'excuse_reviewed', letterId);
     assert(revRow != null, 'the parent is notified that the letter was reviewed');
@@ -392,10 +458,81 @@ async function main() {
       !has(await notificationsOf(tch1.token), 'excuse_reviewed', letterId),
       'A1: the teacher who reviewed it is not notified'
     );
+    // SELF-HEALING (fix/smoke-gate). This used to assert the adviser still
+    // SAW excuse_submitted after approving — true, and the defect: the badge
+    // and the bell kept saying 1 for a letter that needed nothing more. The
+    // submitted row now stops being listed and counted once the letter is no
+    // longer Pending, like admin's pending-parent row. The two events still
+    // COEXIST as rows (distinct types, same item) — that half of the old
+    // assertion is kept, read from the table.
+    const countsApproved = await countsOf(tch1.token);
     assert(
-      has(await notificationsOf(tch1.token), 'excuse_submitted', letterId),
-      'both events coexist on one letter id — distinct types, same item'
+      countsApproved?.excuse_letters === countsBeforeLetter.excuse_letters,
+      'BADGE: after approving, the adviser’s Excuse Letters count is back where it was',
+      JSON.stringify({ before: countsBeforeLetter.excuse_letters, approved: countsApproved?.excuse_letters })
     );
+    assert(
+      countsApproved?.total === countsBeforeLetter.total,
+      'BELL: and so is the adviser’s total',
+      JSON.stringify({ before: countsBeforeLetter.total, approved: countsApproved?.total })
+    );
+    assert(
+      !has(await notificationsOf(tch1.token), 'excuse_submitted', letterId),
+      'the reviewed letter’s "submitted" notification is no longer listed for the adviser'
+    );
+    {
+      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      try {
+        const [rows] = await conn.query(
+          `SELECT user_id, type, read_at FROM notifications
+            WHERE item_type = 'excuse_letter' AND item_id = ? ORDER BY type`,
+          [letterId]
+        );
+        const sub = rows.find((r) => r.type === 'excuse_submitted' && Number(r.user_id) === Number(tch1.id));
+        const rev = rows.find((r) => r.type === 'excuse_reviewed');
+        assert(sub != null && rev != null, 'both rows still EXIST on one letter id — distinct types, same item; nothing deleted', JSON.stringify(rows));
+        assert(sub?.read_at == null, 'and the adviser’s row was not marked read — hidden by the live status, not by a write');
+      } finally {
+        await conn.end();
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    console.log('\nExcuse letter — a DECLINED letter self-heals the same way');
+    // -----------------------------------------------------------------------
+    const letter2Res = await request('POST', '/api/excuse-letters', {
+      token: parentMarwin.token,
+      body: { absence_date: daysAgo(4), reason: 'NOTIF TEST second letter' },
+    });
+    requireFixture(letter2Res.status === 201, "Marwin's parent submits a second letter", why(letter2Res));
+    const letter2Id = letter2Res.data.excuse_letter.id;
+    created.excuseLetters.push(letter2Id);
+    notificationItems.push(['excuse_letter', letter2Id]);
+
+    const countsPending2 = await countsOf(tch1.token);
+    assert(
+      countsPending2?.excuse_letters === countsBeforeLetter.excuse_letters + 1,
+      'BADGE: the second letter, Pending, counts one',
+      JSON.stringify({ before: countsBeforeLetter.excuse_letters, pending: countsPending2?.excuse_letters })
+    );
+    const declineSignal = nextCountsSignal(reviewerSocket);
+    const declineRes = await request('PATCH', `/api/excuse-letters/${letter2Id}/review`, {
+      token: tch1.token,
+      body: { status: 'Declined', teacher_remarks: 'NOTIF TEST no note' },
+    });
+    requireFixture(declineRes.status === 200, 'the adviser declines the second letter', why(declineRes));
+    assert(await declineSignal, 'LIVE: declining signals the reviewer too');
+    const countsDeclined = await countsOf(tch1.token);
+    assert(
+      countsDeclined?.excuse_letters === countsBeforeLetter.excuse_letters,
+      'BADGE: after declining, the count is back where it was',
+      JSON.stringify({ before: countsBeforeLetter.excuse_letters, declined: countsDeclined?.excuse_letters })
+    );
+    assert(
+      has(await notificationsOf(parentMarwin.token), 'excuse_reviewed', letter2Id),
+      'the parent is still told the second letter was reviewed — self-healing hides only the adviser’s call to act'
+    );
+    reviewerSocket.close();
 
     // -----------------------------------------------------------------------
     console.log('\nPending parent — admin only, and self-healing on approval');

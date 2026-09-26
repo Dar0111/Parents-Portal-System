@@ -97,6 +97,15 @@ function visibilityClause(user) {
   }
 
   if (user.role === 'teacher') {
+    // EXCUSE LETTERS SELF-HEAL, the pending-parent shape (admin clause
+    // below): "a letter was submitted" is a call to review it, so an
+    // adviser's excuse_submitted row stops being listed and counted once the
+    // letter is no longer Pending — `n.type <> 'excuse_submitted' OR
+    // x.status = 'Pending'`. Nothing is deleted or marked read; the row
+    // stays, as history. Before this (fix/smoke-gate) the sidebar badge and
+    // the bell both still said 1 after the adviser approved the only letter,
+    // because reviewing never read that row. The review handler signals the
+    // reviewer so the drop is live (routes/excuses.js).
     return {
       sql: `(
         (n.item_type = 'announcement' AND a.id IS NOT NULL AND (
@@ -113,6 +122,7 @@ function visibilityClause(user) {
             OR EXISTS (SELECT 1 FROM teacher_assignments ta WHERE ta.teacher_id = n.user_id AND ta.grade_level = e.target_grade)
             OR EXISTS (SELECT 1 FROM sections sec WHERE sec.adviser_id = n.user_id AND sec.grade_level = e.target_grade)))
         OR (n.item_type = 'excuse_letter' AND x.id IS NOT NULL
+            AND (n.type <> 'excuse_submitted' OR x.status = 'Pending')
             AND EXISTS (SELECT 1 FROM students s2
                           JOIN sections sec2 ON sec2.id = s2.section_id
                          WHERE s2.id = x.student_id AND sec2.adviser_id = n.user_id))

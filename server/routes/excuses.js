@@ -484,6 +484,15 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       console.error('Excuse review notification fan-out failed:', notifyError);
     }
 
+    // The REVIEWER'S counts changed too: their own "letter submitted" row
+    // stops counting now that the letter is no longer Pending (the
+    // self-healing clause in routes/notifications.js). Nothing was inserted
+    // for them, so the fan-out above never signals them — without this the
+    // badge dropped only on the next reload (fix/smoke-gate). The signal
+    // carries nothing and means "refetch" (utils/notify.js), and it is sent
+    // outside the fan-out's try so a failed parent insert cannot skip it.
+    emitNotifications(req, [req.user.id]);
+
     return res.json({ success: true, message: 'Excuse letter reviewed.', excuse_letter: updated[0] });
   } catch (error) {
     console.error('Review excuse letter error:', error);
