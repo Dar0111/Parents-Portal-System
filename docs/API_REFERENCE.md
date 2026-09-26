@@ -933,11 +933,11 @@ Final Grade.
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `all` | — | `settings` (flat object) | only the **9** allow-listed keys: `school_name`, `school_address`, `academic_year`, `current_term`, `logo_url`, and since 2026-09-26 (pre-Stage-5 #5a) `school_id` (6 digits or empty), `school_email` (the email rule), `school_phone` (7–15 digits after stripping spaces/dashes/parens/`+` — a landline passes), `facebook_page` (≤ 255, free text; blank until the school gives it) |
+| GET | `/` | `all` | — | `settings` (flat object) | only the **8** allow-listed keys: `school_name`, `school_address`, `academic_year`, `logo_url`, and since 2026-09-26 (pre-Stage-5 #5a) `school_id` (6 digits or empty), `school_email` (the email rule), `school_phone` (7–15 digits after stripping spaces/dashes/parens/`+` — a landline passes), `facebook_page` (≤ 255, free text; blank until the school gives it). **`current_term` is RETIRED (pre-Stage-5 #7, 2026-09-26)** — the term is derived from today's date by `utils/schoolCalendar.js`; a PUT or PATCH naming the key is the ordinary unknown-key `400`, whose allowed-keys list no longer contains it, and a row left on a live database never appears in any read |
 | GET | `/public` | **none — unauthenticated** | — | `settings` (flat object) | **The one public settings read** (2026-09-26): exactly the six `school_*` keys (`school_name`, `school_address`, `school_id`, `school_email`, `school_phone`, `facebook_page`), every key present, `''` when unset. For the signed-out About page. **Registered BEFORE `/:key`**, or Express parses `public` as a key and answers 404 |
-| GET | `/:key` | `all` | — | `key` + `value` (bare) | `404` if not one of the 9 allow-listed keys; `:key` is a **string**, not `parseId`-validated |
+| GET | `/:key` | `all` | — | `key` + `value` (bare) | `404` if not one of the 8 allow-listed keys (so `/current_term` is `404` since #7); `:key` is a **string**, not `parseId`-validated |
 | PUT | `/:key` | `admin` | `value`* | message + `key` + `value` | `400` if unknown key or fails per-key validation; a string value is trimmed before validation and stored, echoed and logged trimmed (2026-09-15) |
-| PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written; values trimmed as in PUT; the response is the 9 allow-listed keys only, same read as `GET /` (2026-09-15; nine keys since 2026-09-26) |
+| PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written; values trimmed as in PUT; the response is the 8 allow-listed keys only, same read as `GET /` (2026-09-15; nine keys from #5a, eight since #7 retired `current_term`, both 2026-09-26) |
 
 ### Backups (5) — `/api/backups`
 
@@ -1044,10 +1044,16 @@ row a caller cannot open, because nothing on screen names where it came
 from. The admin totals in particular mirror the page each card opens, so a
 card reading 42 cannot lead to a list of 37.
 
-Common to every role: `role`, `school_year`. A missing `academic_year` or
-`current_term` in `system_settings` is `500` naming the key — both are
-seeded and validated by `PUT /api/settings/:key`, so absence is a real
-misconfiguration, not an empty state.
+Common to every role: `role`, `school_year`. A missing `academic_year` in
+`system_settings` is `500` naming the key — it is seeded and validated by
+`PUT /api/settings/:key`, so absence is a real misconfiguration, not an
+empty state. **The term is not read from settings since pre-Stage-5 #7
+(2026-09-26): `readSchoolContext()` takes it from
+`utils/schoolCalendar.js` — the latest term whose start is on or before
+today's local date, else 1 — and answers `500` naming both strings when
+`academic_year` differs from the module's `SCHOOL_YEAR`** ("academic_year is
+2027-2028 in system settings but the school calendar is for 2026-2027"), so
+a new school year cannot be half-configured.
 
 **teacher** — `term`, `classes[]`, `classes_complete`, `classes_total`.
 
@@ -1097,9 +1103,10 @@ be a second implementation of a figure parents check against their child's
 card, and the two would eventually disagree in the last digit.
 
 - `term` is the greatest term 1–3 in which any subject has a non-null
-  `term_grade` — deliberately NOT `system_settings.current_term`, which an
-  admin can advance before anyone encodes, leaving the card reading
-  "Pending — 0 of 8" for a term nobody has started.
+  `term_grade` — deliberately NOT the current term (once a setting an admin
+  could advance, since #7 the calendar's), which on the first day of a term
+  would leave the card reading "Pending — 0 of 8" for a term nobody has
+  encoded yet.
 - `complete` means every subject AT THE GRADE LEVEL has a non-null term
   grade for that term, including subjects with no grade row at all.
 - `general_average` is returned **only when `complete`**, `null` otherwise —

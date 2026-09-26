@@ -387,7 +387,13 @@ the only writer of the second. Comments at both declarations say so.
 #### 5a-iv. `format/date.js` is the ONLY home for date maths
 
 **Frozen 2026-09-20 (DV2).** A page may format a date for display; it may
-not compute one. `monthBounds` had lived in `parent/AttendancePage.jsx`
+not compute one. **One sibling since pre-Stage-5 #7 (2026-09-26):
+`format/schoolCalendar.js`**, the term dates of the school year and the
+rule that turns today into a term — it follows rule 1 below to the letter
+(strings compared with `<`, no `Date` ever built, a `Date` argument
+throws), and its header says what its shape is: **it mirrors
+`server/utils/schoolCalendar.js`, and the server decides**. The proof
+loads both and asserts they agree; §13g has the one pattern built on it. `monthBounds` had lived in `parent/AttendancePage.jsx`
 since 2026-09-09 and moved here the moment a second caller appeared, along
 with `monthGrid`, `addMonths`, `daysInMonth`, `monthName`, `longDate` and
 `weekdayName`. This is the file whose entire purpose is "local dates, never
@@ -1512,6 +1518,37 @@ builds and then runs, the run is meaningless when the build failed. Check the
 build exited 0 before believing anything the run printed. This generalises
 past SSR to any two-step verification.
 
+### 13g. The term is pinned in the URL, once, by `replace`, before the sentinel arms
+
+**Frozen 2026-09-26 (pre-Stage-5 #7).** The class record and the class
+summary open on today's term from the school calendar (§5a-iv), and a term
+derived on every render is a hazard on one night a year: a grid open across
+midnight on 15 September would re-key its `classKey` to Term 2 and reload
+with a class's worth of drafts orphaned. So:
+
+- **Derived ONCE**, in a lazy `useState` initializer (`pinnedTerm`), never in
+  the render body — the same purity reason as §18i.
+- **`term` is the URL's `?term=` when valid, else the pinned value**, and a
+  mount effect writes the pinned value into the URL with
+  `setParams(next, { replace: true })` whenever the URL carries no valid
+  term. `replace`, not `push`: the page's own default must not cost the
+  teacher a Back press. The effect's deps are complete (`params`,
+  `setParams`, `pinnedTerm`), so it re-runs on every URL change and acts
+  only when the term is missing — no exhaustive-deps warning, no loop.
+- **Before the Back sentinel arms.** §13d's sentinel pushes
+  `window.location.href` on the first edit; by then the replace has landed,
+  so the pushed entry already carries `?term=` and a Stay after a Back lands
+  on the same term. Nothing here is a `setState` in an effect — `setParams`
+  is a router navigation.
+- **A save at 00:01 still writes Term 1 rows**: the term is in the payload,
+  not re-read. The parent dashboard re-derives freely; it is read-only.
+- **The summary's `'final'` stays URL-only.** Nothing defaults to it.
+
+**Parent → Attendance takes the clamp, not the pin.** Its initial month is
+`clampMonthToSchoolYear(monthBounds(today))` — May opens on June, the summer
+after on April — and its month LIST is still derived from data (DV2 Q6):
+the calendar decides only where the page opens, never adds an empty month.
+
 ---
 
 ## 14. The class summary — the adviser's sheet (CR3, frozen 2026-09-22)
@@ -2583,4 +2620,17 @@ linked below the login card.
   its two checked foregrounds, the pills sit on `brand-panel-lit`, every card
   pair is one Settings and DataTable already use. The seal is the bundled
   image on its white disc (§9); `logo_url` is read by nothing.
+- **A detail tile must shrink below its longest word (2026-09-26).** The
+  Facebook page is one 66-character URL with no space, and `break-words`
+  (`overflow-wrap: break-word`) was not enough: it wraps a long word only
+  after the box is sized and **does not reduce the min-content width a grid
+  or flex item claims**, so the tile held itself open at 522px inside a
+  390px viewport and every `/about` route scrolled sideways — found by the
+  smoke, ten tests at once. **`[overflow-wrap:anywhere]` is the value that
+  counts the break in min-content, and it goes on the element whose text it
+  is** — the `<a>` for a link, the `<p>` otherwise; a class on the container
+  does not reach an inline anchor — with `min-w-0` on BOTH the tile (the grid
+  item) and the text column, or `min-width: auto` still holds the tile open.
+  The value arrived by a settings write with no smoke behind it; **any
+  settings value that renders on a page gets a smoke before merge.**
 

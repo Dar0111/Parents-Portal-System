@@ -19,8 +19,9 @@
 Moved verbatim from `CLAUDE.md` → CURRENT STATE → Tests on 2026-09-23.
 **No figure below was re-measured in that move; every one was copied.**
 
-**Tests:** twenty `test:*` scripts — **eighteen HTTP suites** plus two
-direct-call unit tests (`sanitize`, `grade-computation`). **Every count below
+**Tests:** twenty-one `test:*` scripts — **eighteen HTTP suites** plus three
+direct-call unit tests (`sanitize`, `grade-computation`, and since #7
+`school-calendar`). **Every count below
 was re-run on 2026-09-22 and EIGHT were stale** — students, grades,
 attendance, content, users, backups, messages and excuses had all drifted
 upward, most since pagination (2026-09-19) touched every list endpoint and no
@@ -48,7 +49,8 @@ All re-run 2026-09-22; **stale ones marked with their old figure.**
 - `npm run test:auth` — **60/60** (was 57; #4 — a bad email on an OUT-OF-SCOPE LRN is the email 400, not the scope 403 (order proved), a valid email is stored as sent, and a minted teacher assigned to Malikhain but not its adviser gets the same 403 as an unknown LRN. #3a — the two parent accounts it creates fan out `parent_pending`, cleaned by the shared helper and asserted gone). **Its SQL fixtures resolve `section_id` since #4** — the parents gate keys on it
 - `npm run test:attendance` — **73/73** (was 64; pre-Stage-5 #6 — TCH-003's login and **the mid-year transfer case**: TCH-001 enrols a fixture learner into Malikhain and records two days; the learner is moved to Masigasig by a direct `UPDATE` on that fixture row (no transfer endpoint exists, by design); TCH-002 records a third day; the OLD adviser's list and summary hold exactly their two days and `GET /student/:id` is 200 with two; the NEW adviser sees three; the old adviser's `PUT` on their own row is 404; TCH-003 — neither adviser nor recorder — is 404. Cleanup by tracked attendance id, learner by id. #3a — cleanup by its own ids, proved by an untracked sentinel row on a shared date that must survive. #2 added `?date=&from=` and `?date=&to=` → `400`)
 - `npm run test:content` — **97/97** (was 96; #3a — its posts' notifications cleaned by pairs and asserted gone: "25 deleted over 10 items" on a clean run. **The count of items is 10, not 9**: the API-deleted event is spliced out of the post cleanup list but stays in `notifiedEventIds`)
-- `npm run test:settings` — **35/35** (was 29; pre-Stage-5 #5a — the four `school_*` rules, the four-key PATCH, `GET /settings/public` without a token carrying exactly six keys, `GET /settings` still 401 without one)
+- `npm run test:settings` — **35/35** (count unchanged by pre-Stage-5 #7, two cases swapped: OUT "current_term outside 1-3 rejected, naming the allowed values" and "Valid current_term accepted"; IN "PUT current_term is the unknown-key 400, and the allowed list no longer names it" and "GET /api/settings carries no current_term" — the latter reads the row directly and says whether a dead row EXISTS on this database. The bad-value PATCH now uses `school_id: '12'`, the all-valid PATCH `logo_url`. Was 29 before #5a — the four `school_*` rules, the four-key PATCH, `GET /settings/public` without a token carrying exactly six keys, `GET /settings` still 401 without one)
+- `npm run test:school-calendar` — **34/34** (new, pre-Stage-5 #7; a direct-call unit test like `grade-computation`, no server, no DB) — the ten boundary days both sides of each line (Jun 7/8, Sep 15/16, Dec 18/19, Jan 3/4, Apr 8/9), three far dates, six month clamps, the table's own consistency (three terms, each start before its end, in order and non-overlapping, `CLASSES_START`/`END` on the first and last term, frozen, `termDates` by number or string), **the seed's `academic_year` equals `SCHOOL_YEAR` and the seed writes no `current_term` row**, and five refusals — a `Date`, another format, no argument, a number, `termDates(4)`
 - `npm run test:users` — **68/68** (was 64; #4 — the email rule on POST /teachers ("not an email", `user@localhost`) and PUT (two `@`, and `""` clears to NULL). #2 added `sort=role` and `sort=status` alphabetical invariants plus admin-before-parent). **The script is `test:users`** — the file is `test-user-management-flows.js`, and a dispatch that types `test:user-management` gets a silent no-op from npm, not a failure
 - `npm run test:backups` — **47/47** (was 39)
 - `npm run test:sanitize` — 9/9
@@ -122,6 +124,7 @@ them before calling either number stale.
 
 | Proof | Baseline | What it covers |
 |---|---|---|
+| `ssr-school-calendar.jsx` | **28/28, run TWICE** — `TZ=UTC` and `TZ=America/New_York`, identical (new, pre-Stage-5 #7) | the client copy of the school calendar: the ten boundary days, three far dates, five clamps; **six mirror-agreement assertions against the server's CJS module**, loaded through `createRequire` from `../server/utils/` (which is why it runs from `client/`) — `SCHOOL_YEAR`, the class dates, the `TERMS` table entry for entry, `currentTerm` on every date, the clamp, `termDates`; four negative controls (a `Date` throws, an unpadded string throws, no "today" default, the table is frozen). Two zones for the same reason as `ssr-dates`: the module builds no `Date`, so a differing count means one crept in |
 | `ssr-back-guard.jsx` | **12/12** (new, pre-Stage-5 #5b) | §13d: `classRecord/backGuard.js` driven through the six transitions (dirty → push; pop while armed → ask; stay → push; leave → back; clean → back; pop while clean → none) plus the one-sentinel negative control (a second dirty pushes nothing — StrictMode), clean-with-no-sentinel never backs, Stay/Leave outside a question are no-ops, the pop after Leave is the router's, and the input state is never mutated. The real Back press is the browser check |
 | `ssr-auth-failure.jsx` | **14/14** (new, pre-Stage-5 #4) | §22: `classifyAuthFailure` driven with the four shapes axios produces (401 → logout; 503, `ERR_NETWORK`, `ECONNABORTED` → keep) plus three negative controls (a 401 never "keep", a 403 never a logout, `undefined` keeps); `AuthUnavailable` rendered — the condition, "Your session is kept", the reason as `role="alert"`, a real Try again, **no "log in"/"sign in" wording, no link away**. The effect (the token still stored after a failed boot) is the browser check |
 | `ssr-cards.jsx` | **32/32** (was 31; UI-E redrew the teacher card's gate) | the card contract, by RENDERING — `actions` beside a primary action, the DEV guard, both excuse-letter cards. Its teacher-card block asserted **"exactly ONE of the two is tappable"**, which was correct until a reviewed letter had somewhere to go; it now asserts both are tappable **plus the one dead end that survives** — a Pending letter in a section the teacher does not advise. **Needs `NODE_ENV=development`, see below** |
@@ -154,6 +157,19 @@ instead. Both paths are covered, each under the build that can see it.
 **Run the DEV build under both zones too** — the guard fires on the value,
 not the clock, but the run costs seconds and a one-zone DEV run is the same
 half-proof the block above refuses.
+
+### `ssr-school-calendar.jsx` runs TWICE too
+
+```bash
+npx vite build --ssr scripts/ssr-school-calendar.jsx --outDir .ssr-tmp
+TZ=UTC              node .ssr-tmp/ssr-school-calendar.js   # 28/28
+TZ=America/New_York node .ssr-tmp/ssr-school-calendar.js   # 28/28 — IDENTICAL
+```
+
+Same discipline as `ssr-dates`, opposite reason: that proof exists because
+its helpers DO touch instants; this one exists to show the calendar never
+does. Run from `client/` — the server module is resolved from
+`process.cwd()/../server`.
 
 ### `ssr-cards.jsx` needs `NODE_ENV=development`, and the reason is a trap
 

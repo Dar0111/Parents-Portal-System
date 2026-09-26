@@ -78,6 +78,24 @@ npm run db:migrate:fixture-learner   # Tala Halimbawa (G6 - Malikhain) + parent 
 Ang bawat `db:migrate:*` sa `package.json` ay idempotent at nagpi-print ng
 created / already present. Huwag i-`db:setup` para lang makuha ang seed row.
 
+**Oras ng server (since 2026-09-26, pre-Stage-5 #7):** ang current term ay
+hindi na setting — kinukuha ito sa petsa ngayon ng
+`server/utils/schoolCalendar.js` (Term 1 Jun 8 – Sep 15, Term 2 Sep 16 –
+Dec 18, Term 3 Jan 4 – Apr 8). Kaya **dapat Asia/Manila ang oras ng machine
+na nagpapatakbo ng server**, o naka-pin ang `TZ=Asia/Manila` sa service kung
+cloud — kung UTC ang server, 8 oras na huli ang "today" niya at mali ang
+term mula 00:00 hanggang 08:00 sa Sep 16 at Jan 4. Sa laptop dito, OK na.
+
+**Bagong school year (SY 2027-2028):** DALAWANG edit, sa ganitong order —
+(1) bagong petsa sa `server/utils/schoolCalendar.js` AT sa kopya nito sa
+`client/src/format/schoolCalendar.js` (`SCHOOL_YEAR`, `CLASSES_START/END`,
+`TERMS`; ang `ssr-school-calendar` proof ang magsasabi kung hindi magkapareho
+ang dalawa), tapos (2) `academic_year` sa Admin → Settings ay `PATCH` lang sa
+API (naka-lock sa page). Kapag hindi magkapareho ang dalawa, `500` ang
+`GET /api/dashboard` at pinapangalanan ang dalawang string. Hindi kasama dito
+ang sections, grading configs at transmutation rows ng bagong taon — proseso
+pa rin iyon, hindi field (`docs/KNOWN_ISSUES.md`).
+
 **Workbench:**
 ```sql
 USE parents_portal;
@@ -257,6 +275,7 @@ Oo, safe — yung `Admin@2026`, `Teacher@2026` sa seed ay **test/demo passwords*
 
 | Date | Update |
 |------|--------|
+| Sep 26, 2026 | Quick run: the server's timezone requirement (current term comes from `schoolCalendar.js`, not a setting) and the two-edit new-school-year procedure |
 | Sep 25, 2026 | Quick run: `db:migrate:fixture-learner` for an existing DB (never `db:setup` for a seed row); health now reports `db` |
 | Aug 12, 2026 | Added protected routes explanation + GitHub security + `.gitignore` |
 | Aug 12, 2026 | Created SETUP_NOTES.md — chat summary, Claude Code FAQ |

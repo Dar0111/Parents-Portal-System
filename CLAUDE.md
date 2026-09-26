@@ -8,13 +8,13 @@ Capstone project for **Captain H. Francisco Elementary School – Main**
 (Grades 1–6), P. Rosales St., Sta. Ana, Pateros, Metro Manila.
 
 **The school's own details, confirmed 2026-09-22 — this is the one place they
-live.** `school_name` and `school_address` are `system_settings` rows, updated
-through Admin → Settings. The rest have **no field yet** (`routes/settings.js`
-allow-lists five keys) and are queued with the pre-Stage-5 fixes: **DepEd
-School ID 136893**, **136893@deped.gov.ph**, and the **DepEd Vision, Mission
-and Core Values, which the school adopts** (no About page exists to put them
-on). **Phone 3506114 — that is a PHONE number and NOT the School ID**; the
-mistake was made once and corrected.
+live.** All six are `system_settings` rows, updated through Admin → Settings
+and read by the About page (`docs/FRONTEND_CONVENTIONS.md` §23): the name and
+address, **DepEd School ID 136893**, **136893@deped.gov.ph**, the phone and
+the Facebook page. **Phone (02) 8350-6114 — that is a PHONE number and NOT
+the School ID**; the mistake was made once and corrected. **A settings value
+that renders on a page gets a smoke before merge** (the Facebook URL clipped
+`/about` at 390px).
 
 **Two process facts the code must keep matching.** **Advisers enrol learners
 and create parent accounts; an admin approves parent accounts and does not
@@ -144,12 +144,10 @@ convention are all there and were never in this file. A dated 81-row snapshot
 sits in `docs/ARCHIVE.md` (2026-09-19, before Notifications' 4 and account
 recovery's 5 landed); **it is not the live record.**
 
-**The arithmetic stays here because two numbers are both correct and mean
-different things: 89 handlers** are defined in `server/routes/`, and the API
-answers **90 endpoints** because `GET /api/health` is mounted in `server.js`.
-**State which you mean.** Both moved twice on 2026-09-22 —
-`PATCH /grades/:id/descriptive` retired (still the only endpoint ever removed
-besides Contributions' eight) and the class record's `GET` and `PUT` landed.
+**The two counts live in the front matter above (89 handlers / 90
+endpoints) — one place, not two; state which you mean.**
+`PATCH /grades/:id/descriptive` is still the only endpoint ever removed
+besides Contributions' eight.
 
 **A scope change removes future authority, never past records.** Three places,
 one principle: deleting a `teacher_assignments` row does not touch `grades`
@@ -177,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **five migrations**, the twenty test files); `database/`
+`scripts/` (setup, **five migrations**, the twenty-one test files); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 
 #### File rules that bite
@@ -806,8 +804,9 @@ temporary-password endpoint is admin-only and refuses your own id (§5i).
 **The PARENT dashboard adds four rules (DV4, 2026-09-23). Reasoning and the
 worked failures: `docs/FRONTEND_CONVENTIONS.md` §15.**
 
-- **One term, and it is `current_term` from settings — never "the latest term
-  that has data."** One screen showing two terms is worse than showing none.
+- **One term, and it is today's term from the school calendar
+  (`format/schoolCalendar.js`, since #7) — never "the latest term that has
+  data."** One screen showing two terms is worse than showing none.
 - **Key Stage 1 lists EVERY subject with Pending; the numerical card lists
   only what is recorded** — that card's caption already says "N of M", and
   KS1 has none because §12 refuses one.
@@ -1525,19 +1524,10 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       keep Apply beside a "Changes not applied" cue. Entry archived under the
       REFILL RULE; rules are **`docs/FRONTEND_CONVENTIONS.md` §21**.
       **Order from here: pre-Stage-5 → docs pass → Stage 5.**
-- [ ] **Pre-Stage-5 server fixes**, one dispatch. **NEXT — start with
-      PLAN ONLY.** **Four added by DV3
-      (2026-09-21); the first two are what Expo hits first.**
-      **(a) `subjects.display_order`** — the printed order is a client
-      constant because the table has no ordering column, and Expo cannot
-      import a constant (migration + `schema.sql` + `seed.sql` + `ORDER BY`
-      in `routes/grades.js` and `routes/subjects.js`). **Grade 1's order is
-      PROVISIONAL** — ask the school before seeding it as fact.
-      **(c) the school-calendar work (CAL)** — term dates, school-year range,
-      a real `current_term`; nothing in the schema holds a term boundary,
-      which is why Parent → Attendance derives its months from data. DV3 does
-      not depend on it. **#2 (`819e892`) and #3 (`85c5d8f`, `642ccb2`) are DONE
-      2026-09-25** — their text left under the REFILL RULE (`docs/ARCHIVE.md`).
+- [x] **Pre-Stage-5 server fixes — CLOSED 2026-09-26**, #2 → #7. Every
+      item's text left under the REFILL RULE (`docs/ARCHIVE.md`); the rules
+      that outlive each are below. **#2 (`819e892`) and #3 (`85c5d8f`,
+      `642ccb2`) DONE 2026-09-25.**
       Two of #3's lines were wrong as written and the archive keeps why:
       **`test:restore`'s failure was the crafted token's missing `v` claim,
       never a sub-second `iat` boundary**, and **(h) had existed at
@@ -1581,10 +1571,22 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       schema); **writes stay with the current adviser**; the new adviser
       sees every row of a current learner, pre-transfer included — accepted;
       Teacher → Attendance records' "Everything I recorded" is how a former
-      adviser views and prints. **NEXT is #7, CAL — its own PLAN ONLY** (a
-      real `current_term`; the school's dates are LOCKED: classes 2026-06-08
-      → 2027-04-08, Term 1 Jun 8–Sep 15, Term 2 Sep 16–Dec 18, Term 3
-      Jan 4–Apr 8, no Saturday classes).
+      adviser views and prints. **#7 (`2decc74`, CAL) is DONE 2026-09-26.**
+      The rules, stated nowhere else: **the school calendar is a PURE
+      MODULE** — `server/utils/schoolCalendar.js` decides,
+      `client/src/format/schoolCalendar.js` mirrors it (proved to agree);
+      **`YYYY-MM-DD` strings only, a `Date` argument THROWS**; **the term
+      is the latest term whose start is ≤ today, else Term 1** (the December
+      break is Term 2); **`current_term` is NOT a
+      setting** — retired from the allow-list, seed and Settings page; a
+      leftover live row is dead data the allow-list hides; **the class record
+      and class summary PIN the term ONCE** (lazy `useState`) and write
+      `?term=` by `replace` before the Back sentinel can arm; Parent →
+      Attendance opens on today's month **clamped to the school year**;
+      **a new school year is a new `TERMS` table AND `academic_year`** —
+      `GET /dashboard` is `500` naming both when they differ; the server
+      runs on Asia/Manila or with `TZ` pinned (KNOWN ISSUES). The open
+      leftovers below are not queued.
       **INVESTIGATE, new 2026-09-23: can a write store an exam score with a
       NULL max?** `ex_st1_max` / `ex_st2_max` / `ex_te_max` are `DEFAULT NULL`
       (`schema.sql:212-216`), so the shape is representable; `grade_components`
@@ -1607,6 +1609,12 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       subquery on `sections.adviser_id`, because a teacher may advise more
       than one). Neither is in the payload today, which is why the column
       was dropped from DV1.
+- [ ] **POLISH — NEXT, five items, one dispatch, PLAN ONLY first**, all
+      browser-found: (1) the class-record group header at 390px; (2) the 2px
+      class-summary overflow at 1280px (under the 24px `ScrollCue` gate,
+      §19b — the cue is rightly silent, the table still clips); (3) Teacher →
+      Students' two identical primaries (KNOWN ISSUES, 2026-09-25); (4) the
+      About Vision card's dead space; (5) the Settings page width.
 - [ ] **Docs pass** — the README suite table, the `docs/API_REFERENCE.md` scope
       labels stale for every widened read, and the dead pointers recorded in
       KNOWN ISSUES.
@@ -2031,7 +2039,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-26 | **Pre-Stage-5 #6** (`2ae7639`): **the adviser who leaves keeps the days they recorded** — teacher attendance reads are `recorded_by = me` OR adviser of the learner's current section, per row, no assigned leg, no schema; writes stay with the current adviser. Attendance records gains **"Everything I recorded"** (a row carries the learner's CURRENT class, so no section filter could show a moved learner's days). `test:attendance` 64 → **73** with a transfer case moved by SQL on its own fixture. |
+| 2026-09-26 | **About at 390px** (`eae36e4`): the Facebook URL from `chore/school-contacts` — 66 characters, no space, **no smoke run** — held a detail tile open at 522px; every `/about` route scrolled sideways. `break-words` does not reduce a grid item's min-content width; **`[overflow-wrap:anywhere]` on the `<a>` itself** plus `min-w-0` on the tile does. `smoke:isolated` 10/20 → 20/20. |
+| 2026-09-26 | **Pre-Stage-5 #7 — CAL** (`2decc74`): **the term follows the school calendar and `current_term` is not a setting.** One pure module (server decides, client mirrors, strings only, a `Date` throws), the latest-start-≤-today rule, the two teacher pages pin `?term=` by `replace` before the sentinel arms, Attendance opens inside the school year, Settings shows the term read-only. `test:school-calendar` **34** (new), `ssr-school-calendar` **28/28** in both zones, `test:settings` 35 with two cases swapped; every neighbour unchanged. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2040,24 +2049,11 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in fourteen dated batches —
-14 (2026-09-14 → 2026-09-18) under "CHANGELOG stubs moved from CLAUDE.md on
-2026-09-19", 14 more under the "second batch, N3" heading below it, **12
-(2026-09-19 → 2026-09-20) under "third batch, the DV3 trim"**, **5
-(2026-09-20 → 2026-09-21) under "fourth batch, the Grade 1 docs dispatch"**
-(both 2026-09-22), **4 under "fifth batch, the CR3 docs pass"**
-(2026-09-23 — spent as the reserve when this file reached 137,804 with a row
-still to add), **3 under "sixth batch, the SMOKE-1 docs pass"**
-(2026-09-24, spent the same way), **2 under "seventh batch, the UI-D-1
-docs pass"**, **1 under "eighth batch, the UI-D-2+3 docs pass"** and **1
-under "ninth batch, the UI-E docs pass"**, **3 under "tenth batch, the
-pre-Stage-5 #2 docs pass"**, **4 under "eleventh batch, the pre-Stage-5
-#3 docs pass"** (all 2026-09-25), **2 under "twelfth batch, the
-pre-Stage-5 #4 docs pass"**, **3 under "thirteenth batch, the pre-Stage-5
-#5 docs pass"** and **2 under "fourteenth batch, the pre-Stage-5 #6 docs
-pass"** (all 2026-09-26). **Every full row
-is in `docs/CHANGELOG.md` with one
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in **fifteen dated
+batches** (2026-09-19 → 2026-09-26), each headed "CHANGELOG stubs moved from
+CLAUDE.md on <date> (<nth> batch, <the pass that spent it>)" — grep that;
+the per-batch counts once listed here were a third copy of a number the
+headings carry. **Every full row is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
-stub in the third batch is the only surviving summary. This table holds only
-the newest one-line summaries, and a stub is moved out when this file
-approaches its size limit, never deleted.
+stub in the third batch is the only surviving summary. A stub is moved out
+when this file approaches its size limit, never deleted.

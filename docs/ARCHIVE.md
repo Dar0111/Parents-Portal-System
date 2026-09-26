@@ -3686,6 +3686,17 @@ and in API_REFERENCE the `records` two-shape wrapper gotcha, the `mine` vs
 
 ---
 
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (fifteenth batch, the pre-Stage-5 #7 docs pass)
+
+> Verbatim, exactly as it stood in CLAUDE.md's CHANGELOG table. Dated rows
+> are never edited; the full row is in `docs/CHANGELOG.md`. Moved as the
+> documented overflow valve — this pass adds the #7 stub, the About-at-390
+> stub, the #7 rule and the POLISH queue, and the first measure came in at
+> +2,076 bytes. One row; the same pass also condensed CLAUDE.md's
+> per-batch count list into a pointer at these headings.
+
+| 2026-09-26 | **Pre-Stage-5 #6** (`2ae7639`): **the adviser who leaves keeps the days they recorded** — teacher attendance reads are `recorded_by = me` OR adviser of the learner's current section, per row, no assigned leg, no schema; writes stay with the current adviser. Attendance records gains **"Everything I recorded"** (a row carries the learner's CURRENT class, so no section filter could show a moved learner's days). `test:attendance` 64 → **73** with a transfer case moved by SQL on its own fixture. |
+
 ## CHANGELOG stubs moved from CLAUDE.md on 2026-09-26 (fourteenth batch, the pre-Stage-5 #6 docs pass)
 
 > Verbatim, exactly as they stood in CLAUDE.md's CHANGELOG table. Dated rows
@@ -4759,6 +4770,46 @@ transfer date" — and the row does not hold a date to cut on; the new adviser
 sees every row of a current learner, and that superset was accepted rather
 than bought with a column. The transfer itself stays a SQL job for the admin,
 recorded as a KNOWN ISSUES decision the same day.
+
+### Pre-Stage-5 #7's item (c), and the block's header — moved from CLAUDE.md on 2026-09-26
+
+Under the REFILL RULE, closed by **#7** (`2decc74`, browser check passed),
+which also closed the pre-Stage-5 list. The fragments as they stood — the
+list's header with its (a), which CR3a and #5a had already closed in place,
+and the (c) pointer #7 answered:
+
+```
+- [ ] **Pre-Stage-5 server fixes**, one dispatch. **NEXT — start with
+      PLAN ONLY.** **Four added by DV3
+      (2026-09-21); the first two are what Expo hits first.**
+      **(a) `subjects.display_order`** — the printed order is a client
+      constant because the table has no ordering column, and Expo cannot
+      import a constant (migration + `schema.sql` + `seed.sql` + `ORDER BY`
+      in `routes/grades.js` and `routes/subjects.js`). **Grade 1's order is
+      PROVISIONAL** — ask the school before seeding it as fact.
+      **(c) the school-calendar work (CAL)** — term dates, school-year range,
+      a real `current_term`; nothing in the schema holds a term boundary,
+      which is why Parent → Attendance derives its months from data. DV3 does
+      not depend on it.
+      …
+      **NEXT is #7, CAL — its own PLAN ONLY** (a
+      real `current_term`; the school's dates are LOCKED: classes 2026-06-08
+      → 2027-04-08, Term 1 Jun 8–Sep 15, Term 2 Sep 16–Dec 18, Term 3
+      Jan 4–Apr 8, no Saturday classes).
+```
+
+**What it became:** not "a real `current_term`" but no `current_term` at
+all. The plan offered two homes — a pure module, or admin-editable date
+settings — and Darryl took the module and retired the setting, because two
+sources of "the term" is what put "Term 3 · C" on a Term 1 hero (DV4). The
+schema still holds no term boundary; the module does, and the term is
+derived from the date on every screen from one rule. Parent → Attendance
+still derives its month LIST from data — the entry's reason survives — and
+the calendar decides only which month the page opens on. Two things the
+fragment did not foresee and the build had to: a grid open across a term
+boundary would have re-keyed itself, so the two teacher pages pin the term
+in the URL; and a settings value with no smoke behind it clipped the About
+page at 390px, which #7's own smoke caught.
 
 ### Deferred polish hygiene — three items DROPPED 2026-09-26
 
