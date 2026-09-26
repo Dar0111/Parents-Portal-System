@@ -278,6 +278,15 @@ export default function AdminBackupsPage() {
       key: 'filename',
       header: 'File',
       sortable: true,
+      // NOWRAP — an identifier never wraps (§5), and this one DID: a HYPHEN is
+      // a line-break opportunity, so "parents_portal_2026-09-26_203944.sql"
+      // broke after "2026-09-" at 1280 even with no space in it (smoke gate,
+      // 2026-09-26). Measured with nowrap: 0px table overflow at 1280; at 1024
+      // the table's own scroller (which already scrolled 31px) scrolls 137px;
+      // the page never scrolls sideways. The actions and "Created by" still
+      // wrap — at a space, which §5 allows; holding them on one line cost 40px
+      // of scroll at 1280.
+      nowrap: true,
       render: (row) => <span className="font-mono text-xs text-fg">{row.filename}</span>,
     },
     {
@@ -362,6 +371,8 @@ export default function AdminBackupsPage() {
     {
       key: 'filename',
       header: 'File',
+      // NOWRAP, same reason as the backups list above: a hyphen breaks it.
+      nowrap: true,
       render: (row) => <span className="font-mono text-xs text-fg-secondary">{row.filename}</span>,
     },
     { key: 'file_size', header: 'Size', align: 'right', nowrap: true, render: (row) => formatSize(row.file_size) },
