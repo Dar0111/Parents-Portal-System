@@ -1574,7 +1574,7 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
       adviser views and prints. **#7 (`2decc74`, CAL) is DONE 2026-09-26.**
       The rules, stated nowhere else: **the school calendar is a PURE
       MODULE** — `server/utils/schoolCalendar.js` decides,
-      `client/src/format/schoolCalendar.js` mirrors it (proved to agree);
+      `client/src/format/schoolCalendar.js` mirrors it;
       **`YYYY-MM-DD` strings only, a `Date` argument THROWS**; **the term
       is the latest term whose start is ≤ today, else Term 1** (the December
       break is Term 2); **`current_term` is NOT a
