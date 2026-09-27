@@ -1701,9 +1701,10 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
 - [x] **Login + role routing — same branch.** Login, Forgot password, Forced
       change, `AuthUnavailable`, the root navigator, three empty role homes.
 - [x] **Parent screens — `feat/mobile-parent`, 2026-09-27** (+ drawer, socket,
-      bell, badges, `LiveStatus`, Settings, About, Notifications). Checkpoint
-      phone check passed (8 items); the second half's check is the merge gate.
-      Rules: `docs/MOBILE_CONVENTIONS.md` M9–M12.
+      bell, badges, `LiveStatus`, Settings, About, Notifications). Phone
+      checks passed: the checkpoint (8), the second half (7), three re-check
+      rounds (safe areas, the keyboard). Rules: `docs/MOBILE_CONVENTIONS.md`
+      M9–M12. **NEXT: `feat/mobile-teacher`.**
 - [ ] Teacher screens (+ `beforeRemove` on Attendance)
 - [ ] Admin screens (Backup/Restore excluded — web only; not in the nav)
 - [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
@@ -2130,7 +2131,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (checkpoint passed; second-half phone check is the merge gate): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (seven commits, merged fast-forward after the checkpoint check, the second-half check and three re-check rounds): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
 
