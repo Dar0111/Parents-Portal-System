@@ -433,6 +433,14 @@ Personalization is Theme only (M3).
   rendered.
 - **The month grid is five columns of letter pills**; the year record scrolls
   sideways with its row labels fixed; "Also recorded" carries a weekend row.
+- **`KeyboardAvoidingView` uses `behavior="padding"` on Android as well as
+  iOS (re-check 2 finding, 2026-09-27).** With edge-to-edge, Android no
+  longer resizes the window for the keyboard, so the iOS-only line every
+  form carried left the thread's composer behind it. The screen frame's
+  bottom inset and the view's padding add up to exactly the keyboard's
+  height, so no `keyboardVerticalOffset` is set. Every screen with a text
+  field near the bottom — the thread, compose, the two Settings forms, the
+  three auth screens — carries the same line.
 - **The thread's "Load earlier" is the web's button with the web's wording**
   (decision 5), paged by `before=<id>`; it writes read-all on open exactly as
   the web does, and the badge refetches.

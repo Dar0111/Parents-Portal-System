@@ -193,7 +193,7 @@ export default function AccountInfoScreen() {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-page">
+    <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="p-4 pb-10">
         <Text className="text-base font-semibold text-fg">Account information</Text>
         <Text className="mt-1 text-sm text-fg-muted">{ROLE_COPY[role] || ''}</Text>

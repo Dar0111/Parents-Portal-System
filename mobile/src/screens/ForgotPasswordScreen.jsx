@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
 import extractError from '../api/extractError';
@@ -84,7 +84,7 @@ export default function ForgotPasswordScreen({ navigation }) {
     `flex-row items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 ${disabled ? 'opacity-60' : ''}`;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-page">
+    <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerClassName="flex-grow justify-center px-4 pb-10"

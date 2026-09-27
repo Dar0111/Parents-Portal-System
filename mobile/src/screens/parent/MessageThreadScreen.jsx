@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
@@ -127,7 +127,11 @@ export default function MessageThreadScreen({ navigation, route }) {
   if (loading) return <LoadingSpinner className="py-16" label="Loading conversation…" />;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} className="flex-1 bg-page">
+    // `padding` ON ANDROID TOO (re-check 2 finding, 2026-09-27): with
+    // edge-to-edge, Android no longer resizes the window for the keyboard, so
+    // the composer sat behind it. The frame's bottom inset and this padding
+    // add up to exactly the keyboard's height (M11).
+    <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       {error ? (
         <View className="p-4">
           <ErrorAlert message={error} onRetry={load} />
