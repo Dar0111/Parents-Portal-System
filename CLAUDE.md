@@ -867,11 +867,13 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 with the parent branch
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
-`docs/MOBILE_CONVENTIONS.md` (M1–M8). Darryl's decisions of 2026-09-27
+`docs/MOBILE_CONVENTIONS.md` (M1–M8 below; **M9 the shell and the pure route
+map, M10 the socket on a phone, M11 lists without DataTable, M12 writes and
+cleanup — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -1698,8 +1700,10 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       after one re-check round, the forced change); merged fast-forward.
 - [x] **Login + role routing — same branch.** Login, Forgot password, Forced
       change, `AuthUnavailable`, the root navigator, three empty role homes.
-- [ ] Parent screens (+ socket, bell, badges, `LiveStatus`, drawer, Settings,
-      About, the Notifications screen)
+- [x] **Parent screens — `feat/mobile-parent`, 2026-09-27** (+ drawer, socket,
+      bell, badges, `LiveStatus`, Settings, About, Notifications). Checkpoint
+      phone check passed (8 items); the second half's check is the merge gate.
+      Rules: `docs/MOBILE_CONVENTIONS.md` M9–M12.
 - [ ] Teacher screens (+ `beforeRemove` on Attendance)
 - [ ] Admin screens (Backup/Restore excluded — web only; not in the nav)
 - [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
@@ -2126,6 +2130,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (checkpoint passed; second-half phone check is the merge gate): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
 

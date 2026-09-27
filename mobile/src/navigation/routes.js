@@ -22,7 +22,14 @@ export const PLACEHOLDER = 'RoleHome';
 // role, so all three prefixes route; each role's other pages arrive on its
 // own branch and are added here in that branch's commit.
 export const ROUTES = Object.freeze({
-  '/parent': PLACEHOLDER,
+  '/parent': 'ParentDashboard',
+  '/parent/grades': 'ParentGrades',
+  '/parent/attendance': 'ParentAttendance',
+  '/parent/excuse-letters': 'ParentExcuseLetters',
+  '/parent/announcements': 'ParentAnnouncements',
+  '/parent/memos': 'ParentMemos',
+  '/parent/events': 'ParentEvents',
+  '/parent/messages': 'ParentMessages',
   '/parent/settings': 'Settings',
   '/parent/about': 'About',
 

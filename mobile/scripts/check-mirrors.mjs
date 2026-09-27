@@ -32,7 +32,20 @@ export const PAIRS = [
   ['src/format/contactRule.js', 'format/contactRule.js'],
   // Branch 2 — the parent screens.
   ['src/screens/settings/tabs.js', 'pages/settings/tabs.js'],
+  ['src/format/date.js', 'format/date.js'],
+  ['src/format/schoolCalendar.js', 'format/schoolCalendar.js'],
+  ['src/format/scorePair.js', 'format/scorePair.js'],
+  ['src/screens/dashboards/useCard.js', 'pages/dashboards/useCard.js'],
+  ['src/screens/parent/excuseLetters/card.jsx', 'pages/parent/excuseLetters/card.jsx'],
 ];
+
+// THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The
+// client proof (ssr-school-calendar) holds the first two equal on every
+// boundary; this holds the mobile copy equal to the client's above AND,
+// because the server module is CommonJS and the client's is ESM, checks the
+// one thing that can differ between them without a byte diff — the TERMS
+// table — by value against the server's module.
+export const SERVER_CALENDAR = path.resolve(MOBILE, '..', 'server', 'utils', 'schoolCalendar.js');
 
 function read(file) {
   return fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
@@ -61,9 +74,26 @@ for (const [copy, source] of PAIRS) {
   }
 }
 
+// The calendar's value check against the server (see SERVER_CALENDAR).
+try {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const server = require(SERVER_CALENDAR);
+  const { pathToFileURL } = await import('node:url');
+  const mobile = await import(pathToFileURL(path.join(MOBILE, 'src', 'format', 'schoolCalendar.js')).href);
+  const same =
+    server.SCHOOL_YEAR === mobile.SCHOOL_YEAR &&
+    server.CLASSES_START === mobile.CLASSES_START &&
+    server.CLASSES_END === mobile.CLASSES_END &&
+    JSON.stringify(server.TERMS) === JSON.stringify(mobile.TERMS);
+  if (!same) problems.push('src/format/schoolCalendar.js: SCHOOL_YEAR / class dates / TERMS differ from server/utils/schoolCalendar.js');
+} catch (err) {
+  problems.push(`src/format/schoolCalendar.js: could not compare against the server module (${err.message})`);
+}
+
 if (problems.length) {
-  console.error(`check-mirrors: ${problems.length} of ${PAIRS.length} mirrored files drifted:`);
+  console.error(`check-mirrors: ${problems.length} problem(s) across ${PAIRS.length} mirrored files:`);
   for (const p of problems) console.error('  ' + p);
   process.exit(1);
 }
-console.log(`check-mirrors: ${PAIRS.length} mirrored files identical to their client/src sources`);
+console.log(`check-mirrors: ${PAIRS.length} mirrored files identical to their client/src sources; the calendar also equals the server's by value`);

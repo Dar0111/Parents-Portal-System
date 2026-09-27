@@ -1,0 +1,83 @@
+import { isWeekend, lastNDays, todayLocalDateString } from '../../../format/date';
+
+// THE PURE HALF OF THE WEB'S ParentDashboard.jsx, lifted into a module so
+// scripts/proof-parent-dashboard.mjs can drive it (§17b). Every function is
+// the web's, byte for byte in logic; only the file moved. Rules carried:
+// Late counts as present (the school's, never DepEd's); the weekly strip
+// has THREE states told apart by kind, never colour alone; the hero's
+// descriptor is `.descriptor` only, never the object, never `remarks`.
+
+export function classLabel(user) {
+  if (user?.grade_level == null && !user?.section) return null;
+  return `Grade ${user.grade_level} - ${user.section || ''}`.replace(/ - $/, '');
+}
+
+export function childName(user) {
+  const name = `${user?.student_first_name || ''} ${user?.student_last_name || ''}`.trim();
+  return name || null;
+}
+
+export function childInitials(user) {
+  const first = (user?.student_first_name || '').trim().charAt(0);
+  const last = (user?.student_last_name || '').trim().charAt(0);
+  return `${first}${last}`.toUpperCase();
+}
+
+export function recordedDays(summary) {
+  const n = (key) => {
+    const value = Number(summary?.[key] ?? 0);
+    return Number.isFinite(value) ? value : 0;
+  };
+  const total = n('total');
+  if (total <= 0) return null;
+  return { present: n('Present') + n('Late'), absent: n('Absent'), late: n('Late'), total };
+}
+
+export function firstOfMonth(today = todayLocalDateString()) {
+  return `${today.slice(0, 7)}-01`;
+}
+
+export const STATUS_INITIAL = { Present: 'P', Absent: 'A', Late: 'L', Excused: 'E' };
+
+export function weekStrip(rows, end) {
+  const byDate = new Map();
+  for (const row of rows || []) byDate.set(String(row.date).slice(0, 10), row.status);
+  return lastNDays(7, end).map((date) => {
+    const status = byDate.get(date) || null;
+    if (status) return { date, kind: 'recorded', status };
+    if (isWeekend(date)) return { date, kind: 'weekend', status: null };
+    return { date, kind: 'unrecorded', status: null };
+  });
+}
+
+// The Key Stage 1 hero column: one pill per recorded letter for the current
+// term, and the count of subjects with no letter yet — a fact, not the
+// "N of M" progress figure §12 refuses for Key Stage 1.
+export function letterTerm(subjects, currentTerm) {
+  if (!Array.isArray(subjects)) return null;
+  const pills = subjects
+    .map((s) => ({
+      name: s.subject_name,
+      letter: s.terms?.[currentTerm]?.descriptive_grade ?? null,
+      descriptor: s.terms?.[currentTerm]?.descriptor?.descriptor ?? null,
+    }))
+    .filter((p) => p.letter);
+  return pills.length ? { term: currentTerm, pills, missing: subjects.length - pills.length } : null;
+}
+
+// The numerical hero column: the CURRENT term's average from the report
+// card, and the server's band word for it — a STRING, flattened here, so a
+// renderer that receives the object refuses it rather than printing
+// "[object Object]" (§19f).
+export function heroGrades(grades, card, currentTerm) {
+  if (grades?.descriptive) return grades;
+  const descriptor = card?.term_average_descriptors?.[currentTerm]?.descriptor ?? null;
+  if (descriptor !== null && typeof descriptor !== 'string') {
+    throw new TypeError('heroGrades: term_average_descriptors[term].descriptor must be a string');
+  }
+  return {
+    ...grades,
+    average: card?.term_averages?.[currentTerm] ?? null,
+    descriptor,
+  };
+}

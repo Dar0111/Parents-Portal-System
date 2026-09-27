@@ -22,7 +22,19 @@ function assert(condition, label) {
   }
 }
 
-const KNOWN_SCREENS = new Set(['RoleHome', 'Settings', 'About']);
+const KNOWN_SCREENS = new Set([
+  'RoleHome',
+  'Settings',
+  'About',
+  'ParentDashboard',
+  'ParentGrades',
+  'ParentAttendance',
+  'ParentExcuseLetters',
+  'ParentAnnouncements',
+  'ParentMemos',
+  'ParentEvents',
+  'ParentMessages',
+]);
 
 console.log('nav paths');
 const allItems = Object.entries(NAV_BY_ROLE).flatMap(([role, items]) => items.map((i) => ({ role, ...i })));
@@ -36,6 +48,11 @@ for (const role of ['parent', 'teacher', 'admin']) {
 }
 const parentBuilt = NAV_BY_ROLE.parent.filter((i) => isBuilt(i.to)).map((i) => i.label);
 console.log(`  parent built: ${parentBuilt.join(', ')}`);
+assert(parentBuilt.length === NAV_BY_ROLE.parent.length, `every parent nav item is built (${parentBuilt.length} of ${NAV_BY_ROLE.parent.length})`);
+assert(
+  NAV_BY_ROLE.teacher.filter((i) => isBuilt(i.to)).length === 3 && NAV_BY_ROLE.admin.filter((i) => isBuilt(i.to)).length === 3,
+  'teacher and admin have exactly home, Settings and About built — their pages are their own branches'
+);
 
 console.log('notification links (server/routes/notifications.js shapes, role parent)');
 for (const link of ['/parent/announcements', '/parent/memos', '/parent/events', '/parent/excuse-letters', '/parent/grades']) {

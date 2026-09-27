@@ -294,7 +294,7 @@ in both themes, with the web's alt text as `accessibilityLabel` (§9).
 
 ## M9. The shell: a drawer named by paths, and a route map that is pure
 
-**Frozen 2026-09-27 (`feat/mobile-parent`, checkpoint).** The phone's `Shell`
+**Frozen 2026-09-27 (`feat/mobile-parent`; M9–M12 with the branch).** The phone's `Shell`
 is `navigation/AppShell.jsx`: a drawer per role built from the verbatim
 `nav.js`, inside a native stack that holds the screens which are not nav
 items (Notifications, the Settings sub-screens; later the thread, the
@@ -381,3 +381,76 @@ everyone else's on the same empty `to`. Account information is the ONE
 screen that shows a parent's `login_id`, masked until Show is tapped (§5c).
 Change password confirms with a native `Alert` naming the decision (§5e).
 Personalization is Theme only (M3).
+
+**The parent screens (branch 2, second half) keep these shapes:**
+
+- **A reading view is a PUSHED screen and renders the LIST ROW it was given**
+  — excuse letters, announcements, memos, events — never `GET /:id` (§20c;
+  the three content endpoints have no `GET /:id` at all). One `PostRead`
+  screen carries the three content kinds; only the meta line differs.
+- **Compose and the grade breakdown are MODAL screens** (`presentation:
+  'modal'`), the two the web opened as dialogs. Compose navigates back to the
+  list WITH `notice` in the route params; the list shows it above its rows
+  (§7c) and re-reads on that focus only, not on every focus.
+- **A bounded filter auto-applies** through `components/Segmented.jsx` — the
+  status chips, Upcoming / All, the four term segments (§21).
+- **A date from the native picker is a STRING built from its local parts**
+  (`getFullYear` / `getMonth` / `getDate`), never `toISOString()` (§5a-iv);
+  `maximumDate` mirrors the server's not-in-the-future rule and the server
+  still decides.
+- **The report card is the web's NARROW branch only** — four segments and one
+  row per learning area; the wide SF9 table is not built on a phone. Two
+  renderers for the Final cell by mode (§5a-v), no General Average box in
+  Key Stage 1 (§14c), and `initial_grade` is in the payload and never
+  rendered.
+- **The month grid is five columns of letter pills**; the year record scrolls
+  sideways with its row labels fixed; "Also recorded" carries a weekend row.
+- **The thread's "Load earlier" is the web's button with the web's wording**
+  (decision 5), paged by `before=<id>`; it writes read-all on open exactly as
+  the web does, and the badge refetches.
+- **The pure half of each page lives in a `logic.js` beside it**
+  (`dashboard/`, `reportCard/`, `attendance/`), the web's functions lifted
+  unchanged so a proof can drive them (§17b).
+
+## M12. Writes on the phone, and the cleanup that follows every check
+
+Every write a phone check makes ends with cleanup **by id**, and the order
+is the working agreement's: `GET /api/health` answers → `POST /api/backups`
+returns 201 → the delete → assert zero left. **The cleanup is a scratchpad
+Node script on the server pool** (correction a): run from `server/` so its
+`.env` and `config/db.js` resolve, `dotenv` required by absolute path, the
+admin token never printed. The checkpoint's run is the pattern:
+
+```
+1. health: 200 {"db":"ok"}          3. backup: 201 parents_portal_2026-09-27_114346.sql
+4. before: notifications(memo,96) = 6   5. DELETE /api/memos/96: 200 — notifications left: 6
+6. SQL deleted 6; left = 0; memo rows left = 0      7. Ligaya contact: 09171234567 -> 09170000007
+```
+
+**A content DELETE endpoint removes its row and NOTHING ELSE** (measured on
+`DELETE /api/memos/:id`, 2026-09-27; the announcements and events handlers
+have the same shape): the fan-out's `notifications` rows — one per
+recipient, six for one memo — stay behind, hidden by the read-time
+visibility re-check and never deleted (`docs/API_REFERENCE.md` →
+Notifications: "nothing deletes the row and there is no cleanup job"). So
+cleanup after any web action that fanned out is **the API delete, then SQL
+by `item_type` + `item_id`, then a count that must be zero** (correction b).
+
+| Write on the phone | Rows it creates | Cleanup |
+|---|---|---|
+| `POST /excuse-letters`, `PUT /excuse-letters/:id` | `excuse_letters` (Tala), one `excuse_submitted` notification to the adviser, `activity_logs` | no delete endpoint: SQL `notifications` by (`excuse_letter`, id) then `excuse_letters` by id; the review's `excuse_reviewed` row the same way |
+| `POST /messages` (and the teacher's reply) | `messages`, both directions | no delete endpoint: SQL by id |
+| `PATCH /messages/read-all/:id`, `PATCH /notifications/:id/read`, `read-all` | none; flips on fixture rows | none — the rows go with their items |
+| `PUT /auth/contact` | none; Ligaya's number | restore the fixture value `09170000007` (`migrate-fixture-learner.js`) — read it first; the checkpoint did not and had to look it up |
+| `PUT /auth/change-password` | none; `token_version` | restore the seed password through the same screen; a web session for the account 401s once, expected |
+| a teacher's or admin's web action (memo, announcement, event, review) | its row + one notification per recipient | the API delete, then the notifications by `item_type` + `item_id`, assert zero |
+
+`activity_logs` rows are audit history and are never cleaned. Tala Halimbawa
+is the fixture learner and Ligaya her parent; every suite stays on Marwin;
+never during a server suite.
+
+**Proofs that import the app's modules register a resolve hook.** Metro
+resolves `'../format/date'`; Node's ESM loader needs the `.js`. Each proof
+registers one hook from a `data:` URL (`node:module`'s `register`) that
+appends `.js` to a relative, extensionless specifier and nothing else, then
+imports the module dynamically — no new file, no `"type": "module"`.

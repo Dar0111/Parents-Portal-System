@@ -5,6 +5,20 @@ import NotificationBell from '../components/NotificationBell';
 import LiveStatus from '../realtime/LiveStatus';
 import AboutScreen from '../screens/AboutScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import AnnouncementsScreen from '../screens/parent/AnnouncementsScreen';
+import AttendanceScreen from '../screens/parent/AttendanceScreen';
+import DashboardScreen from '../screens/parent/DashboardScreen';
+import EventsScreen from '../screens/parent/EventsScreen';
+import ExcuseLetterComposeScreen from '../screens/parent/ExcuseLetterComposeScreen';
+import ExcuseLetterReadScreen from '../screens/parent/ExcuseLetterReadScreen';
+import ExcuseLettersScreen from '../screens/parent/ExcuseLettersScreen';
+import GradeBreakdownScreen from '../screens/parent/GradeBreakdownScreen';
+import GradesScreen from '../screens/parent/GradesScreen';
+import MemosScreen from '../screens/parent/MemosScreen';
+import MessagesScreen from '../screens/parent/MessagesScreen';
+import MessageThreadScreen from '../screens/parent/MessageThreadScreen';
+import NewMessageScreen from '../screens/parent/NewMessageScreen';
+import PostReadScreen from '../screens/parent/PostReadScreen';
 import RoleHome from '../screens/RoleHome';
 import AccountInfoScreen from '../screens/settings/AccountInfoScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
@@ -37,7 +51,17 @@ const COMPONENTS = {
   RoleHome,
   Settings: SettingsScreen,
   About: AboutScreen,
+  ParentDashboard: DashboardScreen,
+  ParentGrades: GradesScreen,
+  ParentAttendance: AttendanceScreen,
+  ParentExcuseLetters: ExcuseLettersScreen,
+  ParentAnnouncements: AnnouncementsScreen,
+  ParentMemos: MemosScreen,
+  ParentEvents: EventsScreen,
+  ParentMessages: MessagesScreen,
 };
+
+const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event' };
 
 function withStrip({ children }) {
   return (
@@ -96,6 +120,23 @@ export default function AppShell() {
       <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Account information' }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change password' }} />
       <Stack.Screen name="Personalization" component={PersonalizationScreen} options={{ title: 'Personalization' }} />
+      {/* The parent's detail screens. Modal presentation for the two that
+          the web opened as dialogs (the breakdown, compose); a push for the
+          reading views and the thread. */}
+      <Stack.Screen
+        name="GradeBreakdown"
+        component={GradeBreakdownScreen}
+        options={({ route }) => ({ presentation: 'modal', title: route.params?.subjectName ? `${route.params.subjectName} · Term ${route.params.term}` : 'Grade' })}
+      />
+      <Stack.Screen name="ExcuseLetterRead" component={ExcuseLetterReadScreen} options={{ title: 'Excuse letter' }} />
+      <Stack.Screen
+        name="ExcuseLetterCompose"
+        component={ExcuseLetterComposeScreen}
+        options={({ route }) => ({ presentation: 'modal', title: route.params?.letter ? 'Edit excuse letter' : 'Submit excuse letter' })}
+      />
+      <Stack.Screen name="PostRead" component={PostReadScreen} options={({ route }) => ({ title: POST_TITLES[route.params?.kind] || 'Post' })} />
+      <Stack.Screen name="NewMessage" component={NewMessageScreen} options={{ title: 'New message' }} />
+      <Stack.Screen name="MessageThread" component={MessageThreadScreen} options={({ route }) => ({ title: route.params?.name || 'Conversation' })} />
     </Stack.Navigator>
   );
 }
