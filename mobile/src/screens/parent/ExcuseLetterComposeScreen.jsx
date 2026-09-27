@@ -91,13 +91,18 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
                   mode="date"
                   display="default"
                   maximumDate={dateToLocal(today)}
-                  onChange={(event, picked) => {
+                  // The 9.x API: `onChange` is deprecated (it raised a LogBox
+                  // warning on the phone check that covered the drawer's
+                  // Logout). `onValueChange` fires on Set with the Date;
+                  // `onDismiss` on Cancel or the back gesture.
+                  onValueChange={(event, picked) => {
                     setShowPicker(Platform.OS === 'ios');
-                    if (event.type === 'set' && picked) {
+                    if (picked) {
                       setDateError(null);
                       setAbsenceDate(dateFromParts(picked));
                     }
                   }}
+                  onDismiss={() => setShowPicker(false)}
                 />
               ) : null}
             </>

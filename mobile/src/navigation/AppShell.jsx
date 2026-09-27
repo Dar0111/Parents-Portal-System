@@ -1,7 +1,12 @@
 import { createDrawerNavigator } from '@react-navigation/drawer';
+import { useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Pressable, View } from 'react-native';
 import { useAuth } from '../auth/AuthContext';
 import NotificationBell from '../components/NotificationBell';
+import Icon from '../icons';
+import { useNotifications } from '../realtime/NotificationProvider';
+import { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
 import AboutScreen from '../screens/AboutScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
@@ -25,9 +30,39 @@ import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
 import PersonalizationScreen from '../screens/settings/PersonalizationScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import { useTheme } from '../theme/ThemeProvider';
-import DrawerContent from './DrawerContent';
+import DrawerContent, { badgeFor } from './DrawerContent';
 import { navForRole } from './nav';
 import { isBuilt, routeFor } from './routes';
+
+// THE MENU BUTTON CARRIES A DOT WHEN ANY DRAWER BADGE IS ABOVE ZERO — a
+// MOBILE ADDITION, declared (MOBILE_CONVENTIONS M9). The web's narrow-screen
+// header has no badge on its hamburger (layout/Header.jsx), because its
+// sidebar is on screen from `sm` up; on a phone the drawer is closed nearly
+// always, so a Messages badge nobody can see is a count that does not exist.
+// The dot is presence only — the numbers stay on the drawer rows — and it
+// is the SUM OF THE ROWS' OWN BADGES, each the server's (§10): messages are
+// not in the bell and grades are never badged, so this dot and the bell's
+// count answer different questions and neither is derived from the other.
+function MenuButton() {
+  const navigation = useNavigation();
+  const { user } = useAuth();
+  const { tokens } = useTheme();
+  const { counts } = useNotifications();
+  const { unread } = useUnread();
+  const items = navForRole(user?.role);
+  const total = items.reduce((sum, item) => sum + (badgeFor(item, user?.role, counts, unread) || 0), 0);
+  return (
+    <Pressable
+      onPress={() => navigation.toggleDrawer()}
+      accessibilityRole="button"
+      accessibilityLabel={total > 0 ? `Open menu, ${total} unread` : 'Open menu'}
+      className="ml-2 h-9 w-9 items-center justify-center rounded-lg border border-edge-strong"
+    >
+      <Icon name="fa-bars" size={15} color={tokens['fg-body']} />
+      {total > 0 ? <View className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-surface bg-primary" /> : null}
+    </Pressable>
+  );
+}
 
 // THE PHONE'S Shell (MOBILE_CONVENTIONS M9). A drawer per role, built from
 // navigation/nav.js exactly as the web's sidebar is, with each drawer route
@@ -94,6 +129,7 @@ function RoleDrawer() {
       screenLayout={withStrip}
       screenOptions={{
         ...headerOptions(tokens),
+        headerLeft: () => <MenuButton />,
         headerRight: () => <NotificationBell />,
         drawerStyle: { backgroundColor: tokens.surface, width: 280 },
         sceneStyle: { backgroundColor: tokens.page },

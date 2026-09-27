@@ -326,6 +326,17 @@ are in the drawer and the bell is in every header, so that is every screen.
 `NotificationProvider`, admin's Announcements carrying memos, a badge only
 on a built item. Nothing sums the two providers.
 
+**The menu button carries a DOT when any drawer badge is above zero — a
+mobile addition, declared here (phone check, 2026-09-27).** The web's
+narrow-screen header has no badge on its hamburger (`layout/Header.jsx`)
+because its sidebar is on screen from `sm` up; on a phone the drawer is
+closed nearly always, so a Messages badge nobody can see is a count that
+does not exist — a message rang no bell (correct, messages are not in the
+bell) and the phone showed nothing at all. The dot is presence only; the
+numbers stay on the drawer rows. It is the sum of the rows' own badges,
+each the server's (§10), so it answers a different question from the bell's
+count and neither is derived from the other. `AppShell.MenuButton`.
+
 ## M10. The socket on a phone: three additions, no server change
 
 `realtime/SocketProvider.jsx` keeps the web's contract — one socket, two
@@ -393,7 +404,12 @@ Personalization is Theme only (M3).
   list WITH `notice` in the route params; the list shows it above its rows
   (§7c) and re-reads on that focus only, not on every focus.
 - **A bounded filter auto-applies** through `components/Segmented.jsx` — the
-  status chips, Upcoming / All, the four term segments (§21).
+  status chips, Upcoming / All, the four term segments (§21). **The page
+  action is on its own row, neutral, out of the filter** (the web's §21b):
+  beside the chips it squeezed them and cut "Declined" off (phone check,
+  2026-09-27). `DataList` keeps the list's 16px gutter around its header in
+  every branch, the empty one included — "New message" sat flush against
+  the edge before the first conversation existed.
 - **A date from the native picker is a STRING built from its local parts**
   (`getFullYear` / `getMonth` / `getDate`), never `toISOString()` (§5a-iv);
   `maximumDate` mirrors the server's not-in-the-future rule and the server

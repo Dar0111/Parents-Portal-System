@@ -32,9 +32,16 @@ export default function DataList({
 }) {
   const { tokens } = useTheme();
 
+  // THE HEADER KEEPS THE LIST'S 16px GUTTER IN EVERY BRANCH (phone check
+  // finding, 2026-09-27): the empty branch rendered it flush against the
+  // screen edge, so "New message" had no right margin before the first
+  // conversation existed. The FlatList branch pads through its content
+  // container; the other three pad here.
+  const gutter = 'px-4 pt-4';
+
   if (loading && !rows.length) {
     return (
-      <View className="flex-1">
+      <View className={`flex-1 ${gutter}`}>
         {header}
         <LoadingSpinner className="py-12" />
       </View>
@@ -43,7 +50,7 @@ export default function DataList({
 
   if (error) {
     return (
-      <View className="flex-1 px-4 pt-4">
+      <View className={`flex-1 ${gutter}`}>
         {header}
         <ErrorAlert message={error} onRetry={onRetry} />
       </View>
@@ -52,7 +59,7 @@ export default function DataList({
 
   if (!rows.length) {
     return (
-      <View className="flex-1">
+      <View className={`flex-1 ${gutter}`}>
         {header}
         <EmptyState icon={empty.icon} title={empty.title} message={empty.message} action={empty.action} />
       </View>

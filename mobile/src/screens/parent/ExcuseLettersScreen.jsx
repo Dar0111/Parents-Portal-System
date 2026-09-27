@@ -84,23 +84,29 @@ export default function ExcuseLettersScreen({ navigation, route }) {
     };
   })();
 
+  // THE PAGE ACTION IS ON ITS OWN ROW, NEUTRAL, OUT OF THE FILTER (phone
+  // check finding, 2026-09-27; the web's §21b rule — "the page action leaves
+  // the filter card, neutral"). Beside the chips it squeezed them and cut
+  // "Declined" off; the chips now have the whole width and scroll.
   const header = (
     <View className="mb-3 gap-3">
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="min-w-0 flex-1">
-          <Segmented
-            label="Status"
-            value={status}
-            onChange={setStatus}
-            options={STATUS_FILTERS.map((s) => ({ key: s, label: s === 'All' ? 'All statuses' : s }))}
-          />
-        </View>
-        {canSubmit ? (
-          <Pressable onPress={() => navigation.navigate('ExcuseLetterCompose')} accessibilityRole="button" className="rounded-lg bg-primary px-4 py-2">
-            <Text className="text-sm font-medium text-primary-fg">Submit letter</Text>
+      {canSubmit ? (
+        <View className="flex-row justify-end">
+          <Pressable
+            onPress={() => navigation.navigate('ExcuseLetterCompose')}
+            accessibilityRole="button"
+            className="rounded-lg border border-edge-strong bg-surface px-4 py-2"
+          >
+            <Text className="text-sm font-medium text-fg-body">Submit letter</Text>
           </Pressable>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
+      <Segmented
+        label="Status"
+        value={status}
+        onChange={setStatus}
+        options={STATUS_FILTERS.map((s) => ({ key: s, label: s === 'All' ? 'All statuses' : s }))}
+      />
       {!canSubmit ? <Text className="text-sm text-fg-muted">Submitting is unavailable until the school office links this account to a student.</Text> : null}
       {notice ? (
         <View>
