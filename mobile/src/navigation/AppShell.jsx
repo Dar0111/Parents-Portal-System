@@ -26,6 +26,20 @@ import MessageThreadScreen from '../screens/parent/MessageThreadScreen';
 import NewMessageScreen from '../screens/parent/NewMessageScreen';
 import PostReadScreen from '../screens/parent/PostReadScreen';
 import RoleHome from '../screens/RoleHome';
+import TeacherAnnouncementComposeScreen from '../screens/teacher/AnnouncementComposeScreen';
+import TeacherAnnouncementsScreen from '../screens/teacher/AnnouncementsScreen';
+import TeacherDashboardScreen from '../screens/teacher/DashboardScreen';
+import TeacherEnrollScreen from '../screens/teacher/EnrollScreen';
+import TeacherEventComposeScreen from '../screens/teacher/EventComposeScreen';
+import TeacherEventsScreen from '../screens/teacher/EventsScreen';
+import TeacherExcuseLetterReviewScreen from '../screens/teacher/ExcuseLetterReviewScreen';
+import TeacherExcuseLettersScreen from '../screens/teacher/ExcuseLettersScreen';
+import TeacherExcuseLetterReadScreen from '../screens/teacher/excuseLetters/LetterReadingView';
+import TeacherMemosScreen from '../screens/teacher/MemosScreen';
+import TeacherMessagesScreen from '../screens/teacher/MessagesScreen';
+import TeacherNewMessageScreen from '../screens/teacher/NewMessageScreen';
+import TeacherStudentDetailScreen from '../screens/teacher/StudentDetailScreen';
+import TeacherStudentsScreen from '../screens/teacher/StudentsScreen';
 import AccountInfoScreen from '../screens/settings/AccountInfoScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
 import PersonalizationScreen from '../screens/settings/PersonalizationScreen';
@@ -95,6 +109,13 @@ const COMPONENTS = {
   ParentMemos: MemosScreen,
   ParentEvents: EventsScreen,
   ParentMessages: MessagesScreen,
+  TeacherDashboard: TeacherDashboardScreen,
+  TeacherStudents: TeacherStudentsScreen,
+  TeacherExcuseLetters: TeacherExcuseLettersScreen,
+  TeacherAnnouncements: TeacherAnnouncementsScreen,
+  TeacherMemos: TeacherMemosScreen,
+  TeacherEvents: TeacherEventsScreen,
+  TeacherMessages: TeacherMessagesScreen,
 };
 
 const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event' };
@@ -188,6 +209,28 @@ export default function AppShell() {
       <Stack.Screen name="PostRead" component={PostReadScreen} options={({ route }) => ({ title: POST_TITLES[route.params?.kind] || 'Post' })} />
       <Stack.Screen name="NewMessage" component={NewMessageScreen} options={{ title: 'New message' }} />
       <Stack.Screen name="MessageThread" component={MessageThreadScreen} options={({ route }) => ({ title: route.params?.name || 'Conversation' })} />
+      {/* The teacher's detail screens (branch 3). Modal for the web's
+          dialogs — enrol, review, the two composers; a push for the record,
+          the reading view and the contact picker. The thread is shared. */}
+      <Stack.Screen name="StudentDetail" component={TeacherStudentDetailScreen} options={{ title: 'Student' }} />
+      <Stack.Screen
+        name="Enroll"
+        component={TeacherEnrollScreen}
+        options={({ route }) => ({ presentation: 'modal', title: route.params?.student ? 'Create parent account' : 'Enroll a student' })}
+      />
+      <Stack.Screen name="ExcuseLetterReview" component={TeacherExcuseLetterReviewScreen} options={{ presentation: 'modal', title: 'Review letter' }} />
+      <Stack.Screen name="TeacherExcuseLetterRead" component={TeacherExcuseLetterReadScreen} options={{ title: 'Excuse letter' }} />
+      <Stack.Screen
+        name="AnnouncementCompose"
+        component={TeacherAnnouncementComposeScreen}
+        options={({ route }) => ({ presentation: 'modal', title: route.params?.editing ? 'Edit announcement' : 'New announcement' })}
+      />
+      <Stack.Screen
+        name="EventCompose"
+        component={TeacherEventComposeScreen}
+        options={({ route }) => ({ presentation: 'modal', title: route.params?.editing ? 'Edit event' : 'New event' })}
+      />
+      <Stack.Screen name="TeacherNewMessage" component={TeacherNewMessageScreen} options={{ title: 'New message' }} />
     </Stack.Navigator>
   );
 }

@@ -21,12 +21,15 @@ import {
   faLandmark,
   faLinkSlash,
   faLocationDot,
+  faMagnifyingGlass,
   faPaperPlane,
   faPen,
   faPhone,
   faSchool,
   faShareNodes,
   faSliders,
+  faUserSlash,
+  faUsersRectangle,
   faXmark,
   faCalendarDays,
   faChartSimple,
@@ -118,6 +121,10 @@ const ICONS = {
   'fa-share-nodes': faShareNodes,
   'fa-sliders': faSliders,
   'fa-xmark': faXmark,
+  // Branch 3 (the teacher screens).
+  'fa-magnifying-glass': faMagnifyingGlass,
+  'fa-user-slash': faUserSlash,
+  'fa-users-rectangle': faUsersRectangle,
 };
 
 export function iconFor(name) {

@@ -37,6 +37,14 @@ export const PAIRS = [
   ['src/format/scorePair.js', 'format/scorePair.js'],
   ['src/screens/dashboards/useCard.js', 'pages/dashboards/useCard.js'],
   ['src/screens/parent/excuseLetters/card.jsx', 'pages/parent/excuseLetters/card.jsx'],
+  // Branch 3 — the teacher screens.
+  ['src/screens/teacher/students/sectionOptions.js', 'pages/teacher/students/sectionOptions.js'],
+  ['src/components/filterState.js', 'components/filterState.js'],
+  ['src/format/audience.js', 'format/audience.js'],
+  ['src/format/lrnRule.js', 'format/lrnRule.js'],
+  ['src/screens/teacher/excuseLetters/card.jsx', 'pages/teacher/excuseLetters/card.jsx'],
+  ['src/screens/teacher/announcements/card.jsx', 'pages/teacher/announcements/card.jsx'],
+  ['src/screens/teacher/events/card.jsx', 'pages/teacher/events/card.jsx'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

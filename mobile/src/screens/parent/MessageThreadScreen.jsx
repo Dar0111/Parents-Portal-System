@@ -17,9 +17,22 @@ import { useTheme } from '../../theme/ThemeProvider';
 // once a live message arrives. A 403 on send is a reason, not a logout
 // (§2): the composer is replaced by the sentence and the thread stays
 // readable. `dateTime` is the one place the time of day is the point.
+//
+// ONE THREAD SCREEN FOR BOTH ROLES (branch 3). The teacher's thread adds
+// exactly one thing, "Announce to a class", and it is ROLE-GATED here rather
+// than a second thread file: the button opens the ONE composer
+// (AnnouncementCompose) with the UNSENT DRAFT — never the last incoming
+// message — and a target only when the contacts row for this thread is a
+// parent row carrying the child's class. GET /messages/contacts is the one
+// messages endpoint with a class, fetched ONCE per thread in its own effect
+// (load() re-runs on every socket message). The client PRESELECTS; the
+// composer re-validates and the server decides. "This conversation will
+// not" is the sentence that stops a teacher believing they replied.
 export default function MessageThreadScreen({ navigation, route }) {
   const otherId = Number(route.params.otherId);
   const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+  const [contactInfo, setContactInfo] = useState({ forId: null, row: null });
   const { subscribe } = useSocket();
   const { refresh: refreshUnread } = useUnread();
   const { tokens } = useTheme();
@@ -39,6 +52,34 @@ export default function MessageThreadScreen({ navigation, route }) {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Teacher only: the contacts row for this thread, once per thread, never
+  // inside load(). A failure is not surfaced — the unnamed button is the
+  // honest fallback, and the thread must render if contacts fails.
+  useEffect(() => {
+    if (!isTeacher) return undefined;
+    let cancelled = false;
+    api
+      .get('/messages/contacts', { unwrap: 'contacts' })
+      .then((rows) => {
+        if (!cancelled) setContactInfo({ forId: otherId, row: rows.find((c) => c.id === otherId) || null });
+      })
+      .catch(() => {
+        if (!cancelled) setContactInfo({ forId: otherId, row: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTeacher, otherId]);
+
+  const contactRow = contactInfo.forId === otherId ? contactInfo.row : null;
+  const announceClass =
+    contactRow?.student_name && contactRow.student_grade_level != null && contactRow.student_section
+      ? { key: `${contactRow.student_grade_level}|${contactRow.student_section}`, label: `Grade ${contactRow.student_grade_level} - ${contactRow.student_section}` }
+      : null;
+  const announceHint = announceClass
+    ? `Opens an announcement to ${announceClass.label}, already selected. Every parent in that section will see it. This conversation will not.`
+    : 'Opens a class announcement. Every parent in the section you pick will see it. This conversation will not.';
 
   const other = useMemo(() => {
     const row = messages.find((m) => m.sender_id === otherId || m.receiver_id === otherId);
@@ -132,6 +173,26 @@ export default function MessageThreadScreen({ navigation, route }) {
     // the composer sat behind it. The frame's bottom inset and this padding
     // add up to exactly the keyboard's height (M11).
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
+      {isTeacher ? (
+        <View className="gap-1 border-b border-edge bg-surface px-4 py-3">
+          <Pressable
+            onPress={() =>
+              navigation.navigate(
+                'AnnouncementCompose',
+                announceClass ? { content: draft.trim(), target: announceClass.key } : { content: draft.trim() }
+              )
+            }
+            accessibilityRole="button"
+            accessibilityHint={announceHint}
+            className="self-end rounded-lg border border-edge-strong px-3 py-1.5"
+          >
+            <Text className="text-sm text-fg-secondary">{announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}</Text>
+          </Pressable>
+          {/* Visible, not a tooltip: touch has no hover, and "This
+              conversation will not" is the sentence that matters. */}
+          <Text className="text-right text-xs text-fg-muted">{announceHint}</Text>
+        </View>
+      ) : null}
       {error ? (
         <View className="p-4">
           <ErrorAlert message={error} onRetry={load} />

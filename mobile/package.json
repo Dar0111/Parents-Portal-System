@@ -16,7 +16,8 @@
     "proof:routes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-routes.mjs",
     "proof:parent-dashboard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-parent-dashboard.mjs",
     "proof:report-card": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-report-card.mjs",
-    "proof:attendance": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-attendance.mjs"
+    "proof:attendance": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-attendance.mjs",
+    "proof:teacher-dashboard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-teacher-dashboard.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",

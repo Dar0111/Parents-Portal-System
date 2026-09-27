@@ -11,6 +11,33 @@ import StatusBadge from './StatusBadge';
 // a URL), and `unread` is a mobile addition for the Notifications rows: a
 // dot and a bolder title, so a read row and an unread row differ by more
 // than colour.
+//
+// `actions` (branch 3) is the web's slot with the web's rule: rendered ONLY
+// on the static branch — no `onSelect` — because a button beside a primary
+// action would be a button inside one (§5a-iii, §17d). Pass both and the
+// actions vanish, exactly as `DataTable`'s card does. On the phone the slot
+// is DATA, not JSX: `[{ label, onPress, tone: 'neutral' | 'danger' }]`, so
+// the verbatim card builders (`teacher/announcements/card.jsx` and friends)
+// pass through whatever the screen hands them and the contract stays "a
+// card returns data".
+function Actions({ actions }) {
+  if (!Array.isArray(actions) || actions.length === 0) return null;
+  return (
+    <View className="mt-3 flex-row flex-wrap gap-2 border-t border-edge-soft pt-3">
+      {actions.map((action) => (
+        <Pressable
+          key={action.label}
+          onPress={action.onPress}
+          accessibilityRole="button"
+          className={`rounded-lg border px-3 py-1.5 ${action.tone === 'danger' ? 'border-danger-edge' : 'border-edge-strong'}`}
+        >
+          <Text className={`text-sm ${action.tone === 'danger' ? 'text-danger-text' : 'text-fg-body'}`}>{action.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function RecordCard({ card }) {
   const body = (
     <View className="flex-row items-start gap-3">
@@ -58,5 +85,10 @@ export default function RecordCard({ card }) {
       </Pressable>
     );
   }
-  return <View className={shell}>{body}</View>;
+  return (
+    <View className={shell}>
+      {body}
+      <Actions actions={card.actions} />
+    </View>
+  );
 }

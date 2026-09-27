@@ -33,7 +33,15 @@ export const ROUTES = Object.freeze({
   '/parent/settings': 'Settings',
   '/parent/about': 'About',
 
-  '/teacher': PLACEHOLDER,
+  // Branch 3, first half. Attendance, Attendance records, Grades and Class
+  // summary arrive with the second half and stay dimmed until then.
+  '/teacher': 'TeacherDashboard',
+  '/teacher/students': 'TeacherStudents',
+  '/teacher/excuse-letters': 'TeacherExcuseLetters',
+  '/teacher/announcements': 'TeacherAnnouncements',
+  '/teacher/memos': 'TeacherMemos',
+  '/teacher/events': 'TeacherEvents',
+  '/teacher/messages': 'TeacherMessages',
   '/teacher/settings': 'Settings',
   '/teacher/about': 'About',
 
@@ -55,8 +63,14 @@ export function isBuilt(path) {
 // itself when it is a built drawer route, else the role's home path. The
 // return value is always a drawer route NAME, so a caller can pass it
 // straight to navigation.navigate().
+//
+// THE LINK MUST BE THIS ROLE'S OWN (branch 3, found by proof-routes): once
+// teacher paths were built, "is it built" alone would hand a parent a
+// `/teacher/...` name their drawer does not register, and navigate() would
+// fail. The server never emits another role's link; this makes that a
+// guarantee on the phone rather than an assumption.
 export function linkToRoute(link, role) {
   const home = `/${role}`;
-  if (typeof link !== 'string' || !link.startsWith('/')) return home;
+  if (typeof link !== 'string' || !(link === home || link.startsWith(`${home}/`))) return home;
   return isBuilt(link) ? link : home;
 }
