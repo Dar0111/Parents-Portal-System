@@ -321,6 +321,18 @@ navigators wrap every screen with `LiveStatus` through `screenLayout`, which
 is §5g's "wherever anything depending on the channel is shown": the badges
 are in the drawer and the bell is in every header, so that is every screen.
 
+**The same layout owns the BOTTOM SAFE AREA (re-check finding,
+2026-09-27).** Android runs edge-to-edge here, so the system navigation bar
+overlays the bottom of every screen: on the first re-check it sat on the
+thread's composer and on the drawer's Logout, and the status bar sat on the
+drawer's seal. `AppShell.ScreenFrame` pads every screen's bottom by
+`useSafeAreaInsets().bottom` on the page colour, applied through
+`screenLayout` in the drawer, the detail stack AND the auth stack (there
+without the strip, since the providers are not mounted). The headers own
+the top inset. **The drawer is outside every screen layout and pads both
+edges itself** (`DrawerContent`: the scroll view's top, the footer's
+bottom). A screen never adds its own bottom inset on top of the frame.
+
 **Badges are joined at the row.** `DrawerContent.badgeFor` is the web's
 `badgeFor`: Messages from `UnreadProvider`, the rest from
 `NotificationProvider`, admin's Announcements carrying memos, a badge only

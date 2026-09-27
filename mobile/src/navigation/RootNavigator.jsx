@@ -15,7 +15,7 @@ import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import LoginScreen from '../screens/LoginScreen';
 import { useTheme } from '../theme/ThemeProvider';
-import AppShell from './AppShell';
+import AppShell, { ScreenFrame } from './AppShell';
 import { isBuilt } from './routes';
 
 // THE PHONE'S ProtectedRoute + RootRedirect, in one place. Which stack is
@@ -98,7 +98,12 @@ export default function RootNavigator() {
 
   const tree = (
     <NavigationContainer theme={navTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false, animation: 'fade' }}>
+      {/* `screenLayout={ScreenFrame}`: the auth screens sit outside AppShell's
+          navigators and need the same bottom safe-area frame (their tops
+          pad by inset already). Not `withStrip` — the providers are not
+          mounted here, and the strip would report a channel that has not
+          been opened. */}
+      <Stack.Navigator screenLayout={ScreenFrame} screenOptions={{ headerShown: false, animation: 'fade' }}>
         {!user ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />

@@ -2,6 +2,7 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Pressable, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthContext';
 import NotificationBell from '../components/NotificationBell';
 import Icon from '../icons';
@@ -98,12 +99,26 @@ const COMPONENTS = {
 
 const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event' };
 
+// THE SCREEN FRAME OWNS THE BOTTOM SAFE AREA (re-check finding, 2026-09-27).
+// Android runs edge-to-edge here, so the system navigation bar overlays
+// the bottom of every screen: it sat on the thread's composer and on the
+// drawer's Logout. One frame, applied by both navigators' `screenLayout`,
+// pads every screen's bottom by the inset on the page colour, so nothing a
+// screen anchors at its bottom — a composer, a form's buttons, the last
+// card of a list — can land under the bar. The headers own the top inset;
+// the drawer, outside any screen layout, pads both edges itself.
+export function ScreenFrame({ children }) {
+  const insets = useSafeAreaInsets();
+  const { tokens } = useTheme();
+  return <View style={{ flex: 1, paddingBottom: insets.bottom, backgroundColor: tokens.page }}>{children}</View>;
+}
+
 function withStrip({ children }) {
   return (
-    <>
+    <ScreenFrame>
       <LiveStatus />
       {children}
-    </>
+    </ScreenFrame>
   );
 }
 

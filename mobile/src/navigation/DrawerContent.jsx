@@ -1,5 +1,6 @@
 import { DrawerContentScrollView } from '@react-navigation/drawer';
 import { Pressable, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthContext';
 import Seal from '../components/Seal';
 import Icon from '../icons';
@@ -53,11 +54,16 @@ export default function DrawerContent({ navigation, state, items }) {
   const { tokens } = useTheme();
   const { unread } = useUnread();
   const { counts } = useNotifications();
+  const insets = useSafeAreaInsets();
   const activeName = state.routeNames[state.index];
 
+  // THE DRAWER PADS BOTH EDGES ITSELF (re-check finding, 2026-09-27): it is
+  // outside any screen layout, and edge-to-edge Android put the status bar
+  // over the seal and the navigation bar over Logout. `paddingTop: 0` had
+  // removed the scroll view's own top inset; both insets are explicit now.
   return (
     <View className="flex-1 bg-surface">
-      <DrawerContentScrollView contentContainerStyle={{ paddingTop: 0 }}>
+      <DrawerContentScrollView contentContainerStyle={{ paddingTop: insets.top + 8 }}>
         <View className="flex-row items-center gap-3 px-4 py-4">
           <Seal size={40} />
           <View className="min-w-0 flex-1">
@@ -103,7 +109,7 @@ export default function DrawerContent({ navigation, state, items }) {
         </View>
       </DrawerContentScrollView>
 
-      <View className="border-t border-edge px-4 py-3">
+      <View className="border-t border-edge px-4 pt-3" style={{ paddingBottom: insets.bottom + 12 }}>
         <Text numberOfLines={1} className="text-sm font-medium text-fg">
           {user?.name || user?.login_id}
         </Text>
