@@ -45,6 +45,9 @@ export const PAIRS = [
   ['src/screens/teacher/excuseLetters/card.jsx', 'pages/teacher/excuseLetters/card.jsx'],
   ['src/screens/teacher/announcements/card.jsx', 'pages/teacher/announcements/card.jsx'],
   ['src/screens/teacher/events/card.jsx', 'pages/teacher/events/card.jsx'],
+  ['src/screens/teacher/attendance/roster.js', 'pages/teacher/attendance/roster.js'],
+  ['src/screens/teacher/classRecord/buildPayload.js', 'pages/teacher/classRecord/buildPayload.js'],
+  ['src/screens/teacher/classRecord/backGuard.js', 'pages/teacher/classRecord/backGuard.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

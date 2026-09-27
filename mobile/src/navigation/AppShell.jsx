@@ -28,6 +28,12 @@ import PostReadScreen from '../screens/parent/PostReadScreen';
 import RoleHome from '../screens/RoleHome';
 import TeacherAnnouncementComposeScreen from '../screens/teacher/AnnouncementComposeScreen';
 import TeacherAnnouncementsScreen from '../screens/teacher/AnnouncementsScreen';
+import TeacherAttendanceRecordsScreen from '../screens/teacher/AttendanceRecordsScreen';
+import TeacherAttendanceScreen from '../screens/teacher/AttendanceScreen';
+import TeacherClassSummaryLearnerScreen from '../screens/teacher/ClassSummaryLearnerScreen';
+import TeacherClassSummaryScreen from '../screens/teacher/ClassSummaryScreen';
+import TeacherGradesScreen from '../screens/teacher/GradesScreen';
+import TeacherSlotScreen from '../screens/teacher/SlotScreen';
 import TeacherDashboardScreen from '../screens/teacher/DashboardScreen';
 import TeacherEnrollScreen from '../screens/teacher/EnrollScreen';
 import TeacherEventComposeScreen from '../screens/teacher/EventComposeScreen';
@@ -111,6 +117,10 @@ const COMPONENTS = {
   ParentMessages: MessagesScreen,
   TeacherDashboard: TeacherDashboardScreen,
   TeacherStudents: TeacherStudentsScreen,
+  TeacherAttendance: TeacherAttendanceScreen,
+  TeacherAttendanceRecords: TeacherAttendanceRecordsScreen,
+  TeacherGrades: TeacherGradesScreen,
+  TeacherClassSummary: TeacherClassSummaryScreen,
   TeacherExcuseLetters: TeacherExcuseLettersScreen,
   TeacherAnnouncements: TeacherAnnouncementsScreen,
   TeacherMemos: TeacherMemosScreen,
@@ -231,6 +241,10 @@ export default function AppShell() {
         options={({ route }) => ({ presentation: 'modal', title: route.params?.editing ? 'Edit event' : 'New event' })}
       />
       <Stack.Screen name="TeacherNewMessage" component={TeacherNewMessageScreen} options={{ title: 'New message' }} />
+      {/* The second half: one class-record column (a push, so Back is the
+          guarded removal), and a learner's read-only report card. */}
+      <Stack.Screen name="ClassRecordSlot" component={TeacherSlotScreen} options={({ route }) => ({ title: route.params?.title || 'Slot' })} />
+      <Stack.Screen name="ClassSummaryLearner" component={TeacherClassSummaryLearnerScreen} options={({ route }) => ({ title: route.params?.name || 'Report card' })} />
     </Stack.Navigator>
   );
 }

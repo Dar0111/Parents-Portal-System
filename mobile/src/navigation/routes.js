@@ -33,10 +33,13 @@ export const ROUTES = Object.freeze({
   '/parent/settings': 'Settings',
   '/parent/about': 'About',
 
-  // Branch 3, first half. Attendance, Attendance records, Grades and Class
-  // summary arrive with the second half and stay dimmed until then.
+  // Branch 3: every teacher item.
   '/teacher': 'TeacherDashboard',
   '/teacher/students': 'TeacherStudents',
+  '/teacher/attendance': 'TeacherAttendance',
+  '/teacher/attendance-records': 'TeacherAttendanceRecords',
+  '/teacher/grades': 'TeacherGrades',
+  '/teacher/class-summary': 'TeacherClassSummary',
   '/teacher/excuse-letters': 'TeacherExcuseLetters',
   '/teacher/announcements': 'TeacherAnnouncements',
   '/teacher/memos': 'TeacherMemos',

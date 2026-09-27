@@ -41,6 +41,10 @@ const KNOWN_SCREENS = new Set([
   'TeacherMemos',
   'TeacherEvents',
   'TeacherMessages',
+  'TeacherAttendance',
+  'TeacherAttendanceRecords',
+  'TeacherGrades',
+  'TeacherClassSummary',
 ]);
 
 console.log('nav paths');
@@ -56,13 +60,12 @@ for (const role of ['parent', 'teacher', 'admin']) {
 const parentBuilt = NAV_BY_ROLE.parent.filter((i) => isBuilt(i.to)).map((i) => i.label);
 console.log(`  parent built: ${parentBuilt.join(', ')}`);
 assert(parentBuilt.length === NAV_BY_ROLE.parent.length, `every parent nav item is built (${parentBuilt.length} of ${NAV_BY_ROLE.parent.length})`);
-// Branch 3, first half: nine of thirteen teacher items; the four the second
-// half builds are named, so a premature route is a failure here.
-const TEACHER_LATER = ['/teacher/attendance', '/teacher/attendance-records', '/teacher/grades', '/teacher/class-summary'];
+// Branch 3 complete: every teacher item, the second half's four included.
+const SECOND_HALF = ['/teacher/attendance', '/teacher/attendance-records', '/teacher/grades', '/teacher/class-summary'];
 const teacherBuilt = NAV_BY_ROLE.teacher.filter((i) => isBuilt(i.to));
 console.log(`  teacher built: ${teacherBuilt.map((i) => i.label).join(', ')}`);
-assert(teacherBuilt.length === NAV_BY_ROLE.teacher.length - TEACHER_LATER.length, `teacher: every item but the second half's four is built (${teacherBuilt.length} of ${NAV_BY_ROLE.teacher.length})`);
-assert(TEACHER_LATER.every((p) => !isBuilt(p)), 'teacher: Attendance, Attendance records, Grades and Class summary are still unbuilt (dimmed)');
+assert(teacherBuilt.length === NAV_BY_ROLE.teacher.length, `every teacher nav item is built (${teacherBuilt.length} of ${NAV_BY_ROLE.teacher.length})`);
+assert(SECOND_HALF.every((p) => routeFor(p) !== null), 'teacher: Attendance, Attendance records, Grades and Class summary route to their screens');
 assert(NAV_BY_ROLE.admin.filter((i) => isBuilt(i.to)).length === 3, 'admin has exactly home, Settings and About built — its pages are its own branch');
 
 console.log('notification links (role teacher)');

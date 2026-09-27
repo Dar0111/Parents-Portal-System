@@ -490,3 +490,109 @@ resolves `'../format/date'`; Node's ESM loader needs the `.js`. Each proof
 registers one hook from a `data:` URL (`node:module`'s `register`) that
 appends `.js` to a relative, extensionless specifier and nothing else, then
 imports the module dynamically — no new file, no `"type": "module"`.
+
+## M13. Grades on a phone: one slot at a time, the web's guard driven by React Navigation
+
+**Branch 3, 2026-09-28. Darryl's decision 1: the save confirmation is an
+inline panel with the web's full lists.**
+
+The web's class record is one sheet of 30-odd columns. The phone keeps the
+**same data, the same request and the same server**, and changes only what is
+on screen at once: Teacher → Grades is Subject → Class → Term and then the
+fixed frame (WW1–5, PT1–3, ST1 / ST2 / TE) as a LIST, each row naming its
+highest possible score ("Set HPS" when it has none) and "N of M scored". A
+row opens the **slot screen**, the only place anything is typed or saved; the
+list re-reads on focus so a save shows on return.
+
+- **The request is the web's, by construction.** `classRecord/buildPayload.js`
+  is a verbatim copy; the slot screen only ever writes drafts for its own
+  column, so the body carries that one slot (by `type` + `slot_no` when it is
+  new, by `slot_id` when it exists), its scores and — for a Summative part —
+  the class-wide maxima. `proof:one-slot` drives it with those drafts.
+  `classRecord/useSlotRecord.js` is the web's `useClassRecord` over the
+  phone's api module (not a mirror: its imports differ).
+- **Set HPS is a dry run; Save all writes** (the working agreement's line):
+  typing the HPS or a score sends `PUT /grades/class-record` with
+  `dry_run: true` after 400 ms, and the live line under each learner (the
+  group's total, PS, WS, Initial, Term or Letter) is the server's answer,
+  dimmed while one is in flight. Save writes the slot, a `grades` row for
+  EVERY active learner in the class who lacks one, and the typed components.
+- **The leave guard is `classRecord/backGuard.js`, verbatim.** The web's
+  machine decides; only what its actions DO changes. `push` and `back` are the
+  web's history sentinel and are no-ops on a phone (a cancellable removal
+  needs no sentinel); `ask` is a native Alert with the web's words ("Leave
+  without saving?" / Stay on this page / Leave and discard); and
+  `usePreventRemove` is armed exactly while the machine's `armed` is true.
+  The slot screen is a STACK screen, so Back is a real removal and the prompt
+  fires. `proof:back-guard` drives every transition and the action map.
+- **The term is pinned once** from the school calendar (a lazy `useState`,
+  §13g) and the segment overrides it; encode scope is `GET /assignments`
+  only, never `useTeacherTargets`.
+
+## M14. The attendance roster, and where the approved `beforeRemove` can fire
+
+**Branch 3, 2026-09-28. Darryl's decision 2: a date or section change with
+unsaved marks prompts in-screen too.**
+
+The encode screen is the web's phone card list (§17c): one card per learner,
+the four full-word buttons 44px tall, `pickStatus` / `markRestPresent` /
+`rosterCounts` from the verbatim `attendance/roster.js` (`proof:roster`), and
+a pinned Save bar with the unsaved count. Counts only, never a rate.
+
+**MEASURED IN THE ROUTER, NOT ASSUMED: a DRAWER screen is never removed.**
+`@react-navigation/routers`' drawer router keeps every route in its state and
+changes only the index — a drawer item, the header's menu and the hardware
+Back (`backBehavior: 'firstRoute'`) all move the index. So `beforeRemove`
+cannot fire on Teacher → Attendance, and the screen stays MOUNTED: **its
+unsaved marks survive a trip to another screen and are there on return.**
+The approved prompt is wired anyway (`usePreventRemove`, for any real
+removal), and the prompt that DOES fire is the in-screen one — a date or
+section change reloads the roster and would discard the marks, so it asks
+first with the same words. **Not covered, and stated:** signing out, or the
+app being killed, discards unsaved marks with no prompt — neither is a
+navigation. A prompt on the drawer jump itself would need the drawer to know
+about the screen's state; it was not built, because nothing is lost there.
+
+## M15. The teacher's lists and writes
+
+**Branch 3, 2026-09-27/28.**
+
+- **A staged filter carries Apply, Reset and the cue** (`components/
+  FilterActions.jsx`, §21): Students (search + section), Excuse Letters and
+  Events (status or grade + range), Attendance records (section + range).
+  **One bounded control auto-applies** (Announcements' section).
+  `components/filterState.js` is a verbatim copy.
+- **A date is `components/DateField.jsx`** (SCOPE EXPANSION, approved): a
+  YYYY-MM-DD string in and out, built from the picker's LOCAL parts, never
+  `toISOString()`; `maximumDate` mirrors a server rule. **The birthday rule
+  is the server's and only the server's: a valid date, not in the future**
+  (`validateStudentOptionals`); the web sets no limit either, so today is
+  accepted on both — no age rule was invented (first-half finding,
+  2026-09-28).
+- **`RecordCard` renders `actions` only on a static card**, as data
+  (`[{ label, onPress, tone }]`), so the verbatim card builders pass through
+  whatever the screen hands them. Edit / Delete are author-only; Delete is a
+  native Alert naming the post (§5e).
+- **ONE composer.** "Announce to a class" on the thread (role-gated on the
+  shared thread screen) opens `AnnouncementCompose` with the unsent draft and
+  a target only from the contacts row; the composer re-validates it.
+- **A notification link must carry the viewer's own role prefix**
+  (`linkToRoute`, found by `proof:routes` once `/teacher/...` was built).
+- **The report card is one view, two readers** (`parent/ReportCardView.jsx`):
+  the parent's Grades, and the teacher's read-only learner screen from the
+  class summary — no breakdown tap there.
+- **The class summary is a sideways sheet with a fixed learner column**
+  (Darryl's decision 3): two halves side by side, every row one fixed height
+  on both, the subjects and the Average scrolling. No print on the phone.
+- **Enrol is one modal screen with the web's four phases** (decision 4), and
+  Create parent on a record opens the same screen at its parent phase.
+
+**Cleanup for this branch's writes** (M12's order, backup first, zero
+counts): the first-half check left a fictional learner, its pending parent,
+a declined letter, two messages and the fan-out of two announcements, one
+event, the letter and the pending parent — 11 `notifications` rows, all
+deleted by `(item_type, item_id)` on 2026-09-28 with Tala compared by value
+before and after. **The second half writes the class key** (`grades` shell
+rows for every learner, `assessment_slots`, `grade_components`, possible
+`grade_available` notifications) **and one attendance date**; both are empty
+before the check, so the cleanup deletes everything under them by key.
