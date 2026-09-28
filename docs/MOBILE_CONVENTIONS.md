@@ -552,6 +552,16 @@ first with the same words. **Not covered, and stated:** signing out, or the
 app being killed, discards unsaved marks with no prompt — neither is a
 navigation. A prompt on the drawer jump itself would need the drawer to know
 about the screen's state; it was not built, because nothing is lost there.
+Accepted by Darryl on 2026-09-28; sign-out and a killed app are a LOW
+`docs/KNOWN_ISSUES.md` row.
+
+**THE OTHER SIDE OF "NEVER UNMOUNTED": A READ SCREEN GOES STALE (F1,
+2026-09-28).** The same fact that keeps unsaved marks alive kept Attendance
+records showing its first fetch: a day saved on Attendance afterwards did not
+appear until a filter was re-applied. **A drawer screen that shows what
+another screen writes fetches in `useFocusEffect`, not a mount-only
+`useEffect`** — it runs on every focus and whenever the fetch changes while
+focused. Found on Records, the screen that reads what Attendance writes.
 
 ## M15. The teacher's lists and writes
 

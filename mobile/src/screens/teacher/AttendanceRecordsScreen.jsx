@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, Text, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
@@ -89,9 +90,21 @@ export default function AttendanceRecordsScreen({ navigation }) {
     [section, showingMine, applied]
   );
 
-  useEffect(() => {
-    load(0);
-  }, [load]);
+  // FETCH ON FOCUS, NOT ONLY ON A FILTER CHANGE (F1, 2026-09-28). A drawer
+  // screen is never unmounted (M14), so a `useEffect` on `load` fetched once
+  // and then only when an APPLIED filter changed: a day saved on Attendance
+  // afterwards stayed invisible here — "Everything I recorded" read "You
+  // have not recorded any attendance yet" beside a saved row until a chip
+  // was re-applied. `useFocusEffect` runs on every focus AND whenever `load`
+  // changes while focused, so it covers both. The server was measured
+  // correct first: the same two requests, replayed as TCH-001, returned both
+  // rows. Rows already on screen stay while the refetch runs (DataList shows
+  // its spinner only on an empty list).
+  useFocusEffect(
+    useCallback(() => {
+      load(0);
+    }, [load])
+  );
 
   function applyFilters() {
     setAppliedSectionId(sectionId);
