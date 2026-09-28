@@ -637,8 +637,12 @@ only — no screen, no nav item.**
   is set; otherwise `navigate` PUSHES a second `Main` — a fresh drawer whose
   screens have lost their state. Measured on the real `StackRouter`:
   `navigate` left `[Main, GradeLock, Main]`, `popTo` left `[Main]` with the
-  original key. Fixed on the five admin modal screens; six non-admin
-  screens still use `navigate` (`docs/KNOWN_ISSUES.md`).
+  original key. Fixed on the five admin modal screens (branch 4) and on
+  every other return on `fix/mobile-popto` (`5440bca`): the parent letter
+  compose, four teacher screens, Notifications, a record's return from
+  Enroll (`popTo('StudentDetail', …)`) and the sign-in stack's Forgot
+  password (`popTo('Login')`). `proof:routes` drives the real router and
+  scans `mobile/src` for any `navigate('Main'` or `navigate('Login'`.
 - **Every admin screen re-fetches on focus** (M14; Darryl's A4) — the
   dashboard, Users and School settings — and Users asks the bell's provider
   to refetch too, so the Users badge follows a review (§10: a refetch, never

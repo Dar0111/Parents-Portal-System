@@ -1711,8 +1711,12 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
 - [x] **Admin screens — `feat/mobile-admin`, 2026-09-29** (Backup & Restore
       web only, hidden from the drawer). Phone checks passed: first half
       (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
-      role's screens are built. NEXT: `fix/mobile-popto`, then a server
-      reliability branch** (KNOWN ISSUES).
+      role's screens are built.** **NEXT, in order (2026-09-29):**
+      `fix/mobile-popto` → SMS transport → server reliability (backup
+      first-call reset, orphan notifications + A2, web Attendance leave
+      prompt) → UI polish → `docs/stage5` → full phone test / smoke gate →
+      manuscript delta list. SMS moved before server reliability by
+      Darryl's decision.
 - [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
       (Darryl, 2026-09-27).** The bell, badges and `LiveStatus` on the same
       socket as the web; no `expo-notifications`, no `push_token` column.
@@ -2138,6 +2142,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16). `proof:routes` 31/31. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (seven commits, merged fast-forward after the checkpoint check, the second-half check and three re-check rounds): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
