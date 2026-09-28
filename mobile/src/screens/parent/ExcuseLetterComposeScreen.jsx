@@ -52,7 +52,8 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
       const body = { absence_date: absenceDate, reason, details: details.trim() ? details : null };
       if (editing) await api.put(`/excuse-letters/${editing.id}`, body, { unwrap: 'excuse_letter' });
       else await api.post('/excuse-letters', body, { unwrap: 'excuse_letter' });
-      navigation.navigate('Main', { screen: '/parent/excuse-letters', params: { notice: editing ? 'Letter updated.' : 'Letter submitted.' } });
+      // popTo, not navigate: navigate pushes a second drawer (M16).
+      navigation.popTo('Main', { screen: '/parent/excuse-letters', params: { notice: editing ? 'Letter updated.' : 'Letter submitted.' } });
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'absence_date') setDateError(extractError(err));

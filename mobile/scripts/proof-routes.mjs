@@ -101,5 +101,49 @@ assert(linkToRoute('/parent', 'parent') === '/parent', 'the fallback link opens 
 assert(linkToRoute('/teacher/excuse-letters', 'parent') === '/parent', "another role's link opens this role's home, not that role's screen");
 assert(linkToRoute(undefined, 'parent') === '/parent' && linkToRoute('nonsense', 'parent') === '/parent', 'a missing or malformed link never throws');
 
+// STACK RETURNS (fix/mobile-popto, M16). React Navigation 7's StackRouter
+// goes back to an existing route only when it is the current one or `pop`
+// is set, so a modal returning with navigate('Main', …) PUSHES a second
+// drawer. These drive the phone's own router: the first documents the
+// library behaviour (red if an upgrade changes it), the next two are the
+// fix, and the scans hold every screen to it.
+console.log('stack returns (the real @react-navigation/routers StackRouter)');
+const { CommonActions, StackActions, StackRouter } = await import('@react-navigation/routers');
+const fs = await import('node:fs');
+const path = await import('node:path');
+const { fileURLToPath } = await import('node:url');
+const stack = StackRouter({});
+function stackOf(names) {
+  return {
+    stale: false,
+    type: 'stack',
+    key: 'stack-root',
+    index: names.length - 1,
+    routeNames: [...new Set(names)],
+    preloadedRoutes: [],
+    routes: names.map((name, i) => ({ key: `${name}-${i}`, name })),
+  };
+}
+function apply(state, action) {
+  return stack.getStateForAction(state, action, { routeNames: state.routeNames, routeParamList: {}, routeGetIdList: {} });
+}
+const modal = stackOf(['Main', 'GradeLock']);
+const pushed = apply(modal, CommonActions.navigate('Main', { screen: '/admin/grades', params: { notice: 'x' } }));
+assert(pushed.routes.filter((r) => r.name === 'Main').length === 2, "navigate('Main', …) from a modal pushes a SECOND drawer (the library behaviour the fix exists for)");
+const back = apply(modal, StackActions.popTo('Main', { screen: '/admin/grades', params: { notice: 'x' } }));
+assert(back.routes.length === 1 && back.routes[0].key === 'Main-0', "popTo('Main', …) leaves one drawer, the original key");
+const login = apply(stackOf(['Login', 'ForgotPassword']), StackActions.popTo('Login'));
+assert(login.routes.length === 1 && login.routes[0].key === 'Login-0', "popTo('Login') from Forgot password leaves one Login, the original key");
+
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
+function sourceFiles(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sourceFiles(path.join(dir, e.name)) : /\.(jsx?|mjs)$/.test(e.name) ? [path.join(dir, e.name)] : []));
+}
+const hits = (needle) => sourceFiles(SRC).filter((f) => fs.readFileSync(f, 'utf8').includes(needle)).map((f) => path.relative(SRC, f));
+const mainHits = hits("navigate('Main'");
+const loginHits = hits("navigate('Login'");
+assert(mainHits.length === 0, `0 navigate('Main' calls in mobile/src${mainHits.length ? ` — found in ${mainHits.join(', ')}` : ''}`);
+assert(loginHits.length === 0, `0 navigate('Login' calls in mobile/src${loginHits.length ? ` — found in ${loginHits.join(', ')}` : ''}`);
+
 console.log(`\nproof-routes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

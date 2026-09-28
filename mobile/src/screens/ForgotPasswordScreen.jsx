@@ -70,7 +70,9 @@ export default function ForgotPasswordScreen({ navigation }) {
         { login_id: loginId.trim(), code: code.trim(), new_password: newPassword },
         { unwrap: 'message' }
       );
-      navigation.navigate('Login');
+      // popTo, not navigate: React Navigation 7 pushes a second Login from
+      // here (M16, fix/mobile-popto).
+      navigation.popTo('Login');
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'new_password') setNewError(extractError(err));
@@ -194,7 +196,7 @@ export default function ForgotPasswordScreen({ navigation }) {
           )}
         </View>
 
-        <Pressable onPress={() => navigation.navigate('Login')} accessibilityRole="link" className="mt-5 items-center">
+        <Pressable onPress={() => navigation.popTo('Login')} accessibilityRole="link" className="mt-5 items-center">
           <Text className="text-sm font-medium text-brand">Back to sign in</Text>
         </Pressable>
 

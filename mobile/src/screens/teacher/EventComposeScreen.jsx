@@ -48,7 +48,8 @@ export default function EventComposeScreen({ navigation, route }) {
       };
       if (editing) await api.put(`/events/${editing.id}`, body, { unwrap: 'event' });
       else await api.post('/events', body, { unwrap: 'event' });
-      navigation.navigate('Main', { screen: '/teacher/events', params: { notice: editing ? 'Event updated.' : 'Event posted.' } });
+      // popTo, not navigate: navigate pushes a second drawer (M16).
+      navigation.popTo('Main', { screen: '/teacher/events', params: { notice: editing ? 'Event updated.' : 'Event posted.' } });
     } catch (err) {
       setFormError(extractError(err));
     } finally {

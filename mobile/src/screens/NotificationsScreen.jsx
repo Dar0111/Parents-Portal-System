@@ -83,7 +83,8 @@ export default function NotificationsScreen({ navigation }) {
       // absorb the repeat.
     }
     const route = linkToRoute(row.link, user?.role);
-    navigation.navigate('Main', { screen: route });
+    // popTo, not navigate: navigate pushes a second drawer (M16).
+    navigation.popTo('Main', { screen: route });
   }
 
   async function markAllRead() {

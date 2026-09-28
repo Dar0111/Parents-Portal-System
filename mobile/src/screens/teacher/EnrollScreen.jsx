@@ -85,8 +85,10 @@ export default function EnrollScreen({ navigation, route }) {
   }
 
   function leave(notice) {
-    if (fromRecord) navigation.navigate('StudentDetail', { id: fromRecord.id, notice });
-    else navigation.navigate('Main', { screen: '/teacher/students', params: { notice } });
+    // popTo, not navigate: navigate pushes a second record or a second
+    // drawer instead of going back (M16, fix/mobile-popto).
+    if (fromRecord) navigation.popTo('StudentDetail', { id: fromRecord.id, notice });
+    else navigation.popTo('Main', { screen: '/teacher/students', params: { notice } });
   }
 
   function requestEnroll() {

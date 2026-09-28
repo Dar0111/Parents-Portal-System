@@ -44,7 +44,8 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
     try {
       await api.patch(`/excuse-letters/${letter.id}/review`, { status: decision, teacher_remarks: remarks.trim() || undefined }, { unwrap: 'excuse_letter' });
       const message = `Letter from ${letter.last_name}, ${letter.first_name} ${decision === 'Approved' ? 'approved' : 'declined'}.`;
-      navigation.navigate('Main', { screen: '/teacher/excuse-letters', params: { notice: message } });
+      // popTo, not navigate: navigate pushes a second drawer (M16).
+      navigation.popTo('Main', { screen: '/teacher/excuse-letters', params: { notice: message } });
     } catch (err) {
       setReviewError(extractError(err));
       setConfirming(false);

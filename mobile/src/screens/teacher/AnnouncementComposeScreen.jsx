@@ -66,7 +66,9 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
       };
       if (editing) await api.put(`/announcements/${editing.id}`, body, { unwrap: 'announcement' });
       else await api.post('/announcements', body, { unwrap: 'announcement' });
-      navigation.navigate('Main', { screen: '/teacher/announcements', params: { notice: editing ? 'Announcement updated.' : 'Announcement posted.' } });
+      // popTo, not navigate: navigate pushes a second drawer (M16). From a
+      // message thread this also closes the thread — accepted.
+      navigation.popTo('Main', { screen: '/teacher/announcements', params: { notice: editing ? 'Announcement updated.' : 'Announcement posted.' } });
     } catch (err) {
       setFormError(extractError(err));
     } finally {
