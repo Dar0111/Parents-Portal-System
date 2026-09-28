@@ -181,7 +181,7 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, ten proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, fourteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -220,8 +220,8 @@ and the 2026-09-19 section-trim block.
 
 ### Not started — zero handlers
 
-**The Expo app has parent and teacher screens; admin's are BUILD ORDER →
-Stage 5.** Stage 5 adds no endpoint.
+**The Expo app has every role's screens** (Backup & Restore stays web
+only). Stage 5 adds no endpoint.
 
 Grades is no longer in this section — see below.
 
@@ -865,14 +865,16 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
 `docs/MOBILE_CONVENTIONS.md` (M1–M8 below; **M9 the shell and the pure route
 map, M10 the socket on a phone, M11 lists without DataTable, M12 writes and
 cleanup, M13 Grades one slot at a time, M14 the roster and where
-`beforeRemove` can fire, M15 the teacher's lists — stated only there**). Darryl's decisions of 2026-09-27
+`beforeRemove` can fire, M15 the teacher's lists, M16 the admin shell and
+`popTo` back to the drawer, M17 sensitive actions and the shown-once
+password, M18 the admin's lists — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -1706,8 +1708,11 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       M9–M12.
 - [x] **Teacher screens — `feat/mobile-teacher`, 2026-09-28.** Phone checks
       passed: first half (8), second half, one fix round (F1). Rules: M13–M15.
-      **NEXT: `feat/mobile-admin`.**
-- [ ] Admin screens (Backup/Restore excluded — web only; not in the nav)
+- [x] **Admin screens — `feat/mobile-admin`, 2026-09-29** (Backup & Restore
+      web only, hidden from the drawer). Phone checks passed: first half
+      (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
+      role's screens are built. NEXT: `fix/mobile-popto`, then a server
+      reliability branch** (KNOWN ISSUES).
 - [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
       (Darryl, 2026-09-27).** The bell, badges and `LiveStatus` on the same
       socket as the web; no `expo-notifications`, no `push_token` column.
@@ -2133,6 +2138,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (seven commits, merged fast-forward after the checkpoint check, the second-half check and three re-check rounds): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
