@@ -25,6 +25,13 @@ import MessagesScreen from '../screens/parent/MessagesScreen';
 import MessageThreadScreen from '../screens/parent/MessageThreadScreen';
 import NewMessageScreen from '../screens/parent/NewMessageScreen';
 import PostReadScreen from '../screens/parent/PostReadScreen';
+import AdminAnnouncementsScreen from '../screens/admin/AnnouncementsScreen';
+import AdminAttendanceScreen from '../screens/admin/AttendanceScreen';
+import AdminGradeLockScreen from '../screens/admin/GradeLockScreen';
+import AdminGradesScreen from '../screens/admin/GradesScreen';
+import AdminPostComposeScreen from '../screens/admin/PostComposeScreen';
+import AdminStudentDetailScreen from '../screens/admin/StudentDetailScreen';
+import AdminStudentsScreen from '../screens/admin/StudentsScreen';
 import AdminCreateTeacherScreen from '../screens/admin/CreateTeacherScreen';
 import AdminDashboardScreen from '../screens/admin/DashboardScreen';
 import AdminEditUserScreen from '../screens/admin/EditUserScreen';
@@ -132,6 +139,10 @@ const COMPONENTS = {
   TeacherMessages: TeacherMessagesScreen,
   AdminDashboard: AdminDashboardScreen,
   AdminUsers: AdminUsersScreen,
+  AdminStudents: AdminStudentsScreen,
+  AdminGrades: AdminGradesScreen,
+  AdminAttendance: AdminAttendanceScreen,
+  AdminAnnouncements: AdminAnnouncementsScreen,
 };
 
 const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event' };
@@ -261,6 +272,16 @@ export default function AppShell() {
       <Stack.Screen name="EditUser" component={AdminEditUserScreen} options={({ route }) => ({ presentation: 'modal', title: route.params?.target ? `Edit ${route.params.target.name}` : 'Edit user' })} />
       <Stack.Screen name="ReviewParent" component={AdminReviewParentScreen} options={{ presentation: 'modal', title: 'Review parent' }} />
       <Stack.Screen name="SchoolSettings" component={SchoolSettingsScreen} options={{ title: 'School settings' }} />
+      <Stack.Screen name="AdminStudentDetail" component={AdminStudentDetailScreen} options={{ title: 'Student' }} />
+      <Stack.Screen name="GradeLock" component={AdminGradeLockScreen} options={{ presentation: 'modal', title: 'Lock or unlock' }} />
+      <Stack.Screen
+        name="PostCompose"
+        component={AdminPostComposeScreen}
+        options={({ route }) => ({
+          presentation: 'modal',
+          title: `${route.params?.editing ? 'Edit' : 'New'} ${route.params?.kind === 'memo' ? 'memo' : 'announcement'}`,
+        })}
+      />
     </Stack.Navigator>
   );
 }

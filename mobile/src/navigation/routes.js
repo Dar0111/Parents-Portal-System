@@ -57,11 +57,14 @@ export const ROUTES = Object.freeze({
   '/teacher/settings': 'Settings',
   '/teacher/about': 'About',
 
-  // Branch 4, first half. Students, Grades, Attendance and Announcements
-  // arrive with the second half and stay dimmed until then; Backup &
-  // Restore never arrives (WEB_ONLY above).
+  // Branch 4: every admin item but Backup & Restore, which never arrives
+  // (WEB_ONLY above).
   '/admin': 'AdminDashboard',
   '/admin/users': 'AdminUsers',
+  '/admin/students': 'AdminStudents',
+  '/admin/grades': 'AdminGrades',
+  '/admin/attendance': 'AdminAttendance',
+  '/admin/announcements': 'AdminAnnouncements',
   '/admin/settings': 'Settings',
   '/admin/about': 'About',
 });

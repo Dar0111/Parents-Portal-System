@@ -23,7 +23,8 @@
     "proof:one-slot": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-one-slot.mjs",
     "proof:admin-dashboard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-dashboard.mjs",
     "proof:admin-users": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-users.mjs",
-    "proof:school-settings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-school-settings.mjs"
+    "proof:school-settings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-school-settings.mjs",
+    "proof:admin-posts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-posts.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",

@@ -659,5 +659,36 @@ the control; the last-active-admin refusal is the server's 400, shown.
   clipboard can keep it in a history the app cannot clear. In development,
   Expo's attached network inspector can still see the response; a
   production build has none.
+
+**Every live-DB write outside a suite accepts a backup only when it is
+COMPLETE** (branch 4, after three first-call resets left truncated or empty
+dumps): a 201, its `backups` row, a real size and the "-- Dump completed on"
+footer — else one retry, else nothing is written. Any `.sql` the run left
+with no row is listed and never deleted (`docs/KNOWN_ISSUES.md`,
+truncated-dump row).
+
+## M18. The admin's lists: status on the list, a lock sheet, a switch for memos
+
+**Branch 4, 2026-09-29.**
+
+- **Students** defaults to ALL statuses (an admin roster hiding inactive
+  learners is incomplete); status, grade, section and search are staged. The
+  web keeps Deactivate / Activate on the LIST, and the web's narrow card had
+  no status control at all; the phone card therefore carries two peers —
+  **Open and Deactivate / Activate — as a static card with actions**
+  (§5a-iii), a declared difference. The record screen is the teacher's shape
+  without scope: Edit always, "Student not found" on a 404, no Create parent.
+- **Grades is its own subject list, not the report card** — the web's admin
+  page draws its own table too — with the lock mark on each term cell. A term
+  cell WITH A GRADE ROW opens the lock sheet, a Pending one included (the lock
+  has no completeness gate); a term with no row is not a button. One
+  deliberate step, no confirmation (reversible). **`ReportCardView` is
+  untouched**, so Darryl's A2 holds by construction. Delete is not surfaced.
+- **Attendance is view only** and fetches NOTHING until a grade or a date
+  range is applied; it names a section with no adviser.
+- **Announcements and memos switch with two segments** (Darryl, Q3 — the web
+  stacks them). Edit only your own announcement, delete any; every memo is
+  the admin's. Every write sends both target keys, null when absent. Delete
+  is a native Alert with the web's sentence.
 Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
 notifications; Marwin 0 grade rows before and after.
