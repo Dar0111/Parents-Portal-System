@@ -42,6 +42,19 @@ import { isBuilt } from './routes';
 // static import keeps the module in the graph regardless of any branch.
 const Stack = createNativeStackNavigator();
 
+// A `screenLayout` IS CALLED AS A PLAIN FUNCTION, NOT RENDERED (B1,
+// fix/mobile-popto, 2026-09-29). React Navigation's useDescriptors calls
+// `layout({ children, ... })` once per route INSIDE the navigator's own
+// render, so a layout that calls hooks puts them in the navigator's hook
+// list — and the list changes length every time a route is pushed or
+// popped: React's "change in the order of Hooks called by
+// NativeStackNavigator". `ScreenFrame` reads two contexts, so it is
+// RENDERED here as an element, the shape AppShell's `withStrip` already
+// has. Never pass a hook-calling component to `screenLayout` directly.
+function frameLayout({ children }) {
+  return <ScreenFrame>{children}</ScreenFrame>;
+}
+
 // THE SPLASH IS RELEASED WHEN THE THEME IS READY, NOT WHEN /auth/me ANSWERS
 // (phone check, 2026-09-27). The first build held it until the session read
 // finished; on the 503 check the phone sat on Expo Go's white loading view
@@ -98,12 +111,12 @@ export default function RootNavigator() {
 
   const tree = (
     <NavigationContainer theme={navTheme}>
-      {/* `screenLayout={ScreenFrame}`: the auth screens sit outside AppShell's
+      {/* `screenLayout={frameLayout}`: the auth screens sit outside AppShell's
           navigators and need the same bottom safe-area frame (their tops
           pad by inset already). Not `withStrip` — the providers are not
           mounted here, and the strip would report a channel that has not
           been opened. */}
-      <Stack.Navigator screenLayout={ScreenFrame} screenOptions={{ headerShown: false, animation: 'fade' }}>
+      <Stack.Navigator screenLayout={frameLayout} screenOptions={{ headerShown: false, animation: 'fade' }}>
         {!user ? (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />

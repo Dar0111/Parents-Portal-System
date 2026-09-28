@@ -145,5 +145,23 @@ const loginHits = hits("navigate('Login'");
 assert(mainHits.length === 0, `0 navigate('Main' calls in mobile/src${mainHits.length ? ` — found in ${mainHits.join(', ')}` : ''}`);
 assert(loginHits.length === 0, `0 navigate('Login' calls in mobile/src${loginHits.length ? ` — found in ${loginHits.join(', ')}` : ''}`);
 
+// A `screenLayout` is CALLED as a plain function inside the navigator's
+// render (useDescriptors), so a hook in it joins the navigator's hook list
+// and the list changes length on every push / pop (B1, 2026-09-29). Every
+// site must name a module-level function, and that function calls no hook.
+const layoutSites = sourceFiles(SRC).flatMap((f) => {
+  const text = fs.readFileSync(f, 'utf8');
+  const all = text.match(/screenLayout=\{/g) || [];
+  const named = [...text.matchAll(/screenLayout=\{(\w+)\}/g)].map((m) => m[1]);
+  return all.map((_, i) => {
+    const name = named[i];
+    const body = name ? (text.match(new RegExp(`\\nfunction ${name}\\([^)]*\\) \\{\\r?\\n([\\s\\S]*?)\\r?\\n\\}`)) || [])[1] : undefined;
+    return { file: path.relative(SRC, f), name, body };
+  });
+});
+const badLayouts = layoutSites.filter((s) => !s.name || s.body === undefined || /\buse[A-Z]\w*\(/.test(s.body));
+assert(layoutSites.length >= 3 && badLayouts.length === 0,
+  `every screenLayout (${layoutSites.length}) names a module-level function that calls no hook${badLayouts.length ? ` — ${badLayouts.map((s) => `${s.file}: ${s.name || 'inline'}`).join(', ')}` : ''}`);
+
 console.log(`\nproof-routes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);
