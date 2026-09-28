@@ -21,8 +21,9 @@ import useSlotRecord from './classRecord/useSlotRecord';
 // server's dry run, dimmed while one is in flight or failed.
 //
 // SET HPS IS A DRY RUN; SAVE ALL WRITES (the working agreement). Typing the
-// HPS or a score only previews. Save writes the slot, a grade row for EVERY
-// active learner in the class who lacks one, and the typed components. The
+// HPS or a score only previews. Save writes the slot, the typed components
+// and a grade row per learner scored — for EVERY learner only when it
+// carries Summative maxima (M13). The
 // cell rings are the web's three: red for an invalid keystroke, amber for a
 // score above its HPS (a bonus is allowed, never refused), blue for changed.
 //

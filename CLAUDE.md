@@ -181,7 +181,7 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, two proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, ten proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -220,10 +220,8 @@ and the 2026-09-19 section-trim block.
 
 ### Not started — zero handlers
 
-**The Expo app has zero role screens.** `feat/mobile-scaffold` (2026-09-27)
-built the package, the hotspot path, sign-in, the session rules and the theme;
-every role's screens are still BUILD ORDER → Stage 5, and Stage 5 adds no
-endpoint.
+**The Expo app has parent and teacher screens; admin's are BUILD ORDER →
+Stage 5.** Stage 5 adds no endpoint.
 
 Grades is no longer in this section — see below.
 
@@ -867,13 +865,14 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 with the parent branch
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
 `docs/MOBILE_CONVENTIONS.md` (M1–M8 below; **M9 the shell and the pure route
 map, M10 the socket on a phone, M11 lists without DataTable, M12 writes and
-cleanup — stated only there**). Darryl's decisions of 2026-09-27
+cleanup, M13 Grades one slot at a time, M14 the roster and where
+`beforeRemove` can fire, M15 the teacher's lists — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -1704,8 +1703,10 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       bell, badges, `LiveStatus`, Settings, About, Notifications). Phone
       checks passed: the checkpoint (8), the second half (7), three re-check
       rounds (safe areas, the keyboard). Rules: `docs/MOBILE_CONVENTIONS.md`
-      M9–M12. **NEXT: `feat/mobile-teacher`.**
-- [ ] Teacher screens (+ `beforeRemove` on Attendance)
+      M9–M12.
+- [x] **Teacher screens — `feat/mobile-teacher`, 2026-09-28.** Phone checks
+      passed: first half (8), second half, one fix round (F1). Rules: M13–M15.
+      **NEXT: `feat/mobile-admin`.**
 - [ ] Admin screens (Backup/Restore excluded — web only; not in the nav)
 - [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
       (Darryl, 2026-09-27).** The bell, badges and `LiveStatus` on the same
@@ -2011,8 +2012,9 @@ questions.
   proceed without it.** Added 2026-09-26 after #5a's migration ran behind
   two failed backup calls (`docs/CHANGELOG.md`).
 - **Set HPS → Done on Teacher → Grades is a DRY RUN; "Save all" writes**
-  grade rows for EVERY learner in the section (shell rows included), plus
-  slots and components (measured 2026-09-26). A browser check that saves
+  slots, components and a grade row for each learner scored — for EVERY
+  learner (shell rows) only when it carries Summative maxima (measured
+  2026-09-26 and 2026-09-28). A browser check that saves
   ends with cleanup by id, backup first — twice (#5b, #7) a later suite's
   baseline found the rows instead.
 - Test assertions against shared tables must be scoped to rows the run
@@ -2131,6 +2133,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (seven commits, merged fast-forward after the checkpoint check, the second-half check and three re-check rounds): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |

@@ -515,8 +515,12 @@ list re-reads on focus so a save shows on return.
   typing the HPS or a score sends `PUT /grades/class-record` with
   `dry_run: true` after 400 ms, and the live line under each learner (the
   group's total, PS, WS, Initial, Term or Letter) is the server's answer,
-  dimmed while one is in flight. Save writes the slot, a `grades` row for
-  EVERY active learner in the class who lacks one, and the typed components.
+  dimmed while one is in flight. Save writes the slot, the typed components
+  and a `grades` row for each learner given a score. **A row for EVERY
+  active learner (a shell row) comes only from a save that carries the
+  Summative maxima** — `server/routes/grades.js` fans `exam_max` out to the
+  whole class and creates rows where there are none. Measured 2026-09-28: a
+  WW1-only save with a score for Tala left Marwin with no row.
 - **The leave guard is `classRecord/backGuard.js`, verbatim.** The web's
   machine decides; only what its actions DO changes. `push` and `back` are the
   web's history sentinel and are no-ops on a phone (a cancellable removal
@@ -602,7 +606,10 @@ counts): the first-half check left a fictional learner, its pending parent,
 a declined letter, two messages and the fan-out of two announcements, one
 event, the letter and the pending parent — 11 `notifications` rows, all
 deleted by `(item_type, item_id)` on 2026-09-28 with Tala compared by value
-before and after. **The second half writes the class key** (`grades` shell
-rows for every learner, `assessment_slots`, `grade_components`, possible
-`grade_available` notifications) **and one attendance date**; both are empty
-before the check, so the cleanup deletes everything under them by key.
+before and after. **The second half writes the class key** (`grades` rows —
+for every learner only if Summative maxima were saved — `assessment_slots`,
+`grade_components`, possible `grade_available` notifications) **and one
+attendance date**; both are empty before the check, so the cleanup deletes
+everything under them by key, guarded by the ids a read-only survey found.
+Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
+notifications; Marwin 0 grade rows before and after.

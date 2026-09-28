@@ -20,8 +20,9 @@ import { buildClassRecordPayload } from './buildPayload';
 // THE DRY RUN IS THE PREVIEW (the working agreement's line): typing an HPS or
 // a score sends `PUT /grades/class-record` with `dry_run: true` after a
 // 400 ms pause — nothing is written, nobody is notified. SAVE WRITES: the
-// server creates the slot, a `grades` row for EVERY active learner in the
-// class who lacks one, and a component per typed score.
+// server creates the slot, a component per typed score and a `grades` row
+// for each learner scored; a row for EVERY active learner only when the
+// save carries Summative maxima (measured 2026-09-28, M13).
 //
 // The unwrap list is the contract (§1): a key the screen reads and this list
 // forgets is silently undefined.
