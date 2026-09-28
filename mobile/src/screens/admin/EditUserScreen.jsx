@@ -41,7 +41,8 @@ export default function EditUserScreen({ navigation, route }) {
     try {
       await api.put(`/users/${target.id}`, { name: form.name.trim(), email: form.email.trim(), contact_number: form.contact_number.trim() }, { unwrap: 'user' });
       if (target.id === me?.id) await refresh().catch(() => {});
-      navigation.navigate('Main', { screen: '/admin/users', params: { notice: 'User updated.', noticeKey: 'directory' } });
+      // popTo, not navigate: navigate pushes a second drawer (A1, M16).
+      navigation.popTo('Main', { screen: '/admin/users', params: { notice: 'User updated.', noticeKey: 'directory' } });
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'contact_number' || field === 'email') setFieldErrors({ [field]: extractError(err) });

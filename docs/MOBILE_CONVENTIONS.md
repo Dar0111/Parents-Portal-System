@@ -631,6 +631,14 @@ only — no screen, no nav item.**
 - **The dashboard's System card shows the last backup's age and links to
   School settings, never to backups**, and says the feature is on the web.
 - **`RoleHome.jsx` is gone** (Darryl, Q4): every role has a real home.
+- **A modal screen returns to the drawer with `popTo('Main', …)`, never
+  `navigate('Main', …)`** (A1, 2026-09-29). React Navigation 7's stack
+  goes back to an existing route only when it is the current one or `pop`
+  is set; otherwise `navigate` PUSHES a second `Main` — a fresh drawer whose
+  screens have lost their state. Measured on the real `StackRouter`:
+  `navigate` left `[Main, GradeLock, Main]`, `popTo` left `[Main]` with the
+  original key. Fixed on the five admin modal screens; six non-admin
+  screens still use `navigate` (`docs/KNOWN_ISSUES.md`).
 - **Every admin screen re-fetches on focus** (M14; Darryl's A4) — the
   dashboard, Users and School settings — and Users asks the bell's provider
   to refetch too, so the Users badge follows a review (§10: a refetch, never

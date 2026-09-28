@@ -42,7 +42,8 @@ export default function CreateTeacherScreen({ navigation }) {
     setSaving(true);
     try {
       await api.post('/users/teachers', createTeacherBody(form), { unwrap: 'user' });
-      navigation.navigate('Main', { screen: '/admin/users', params: { notice: 'Teacher account created and activated.', noticeKey: 'directory' } });
+      // popTo, not navigate: navigate pushes a second drawer (A1, M16).
+      navigation.popTo('Main', { screen: '/admin/users', params: { notice: 'Teacher account created and activated.', noticeKey: 'directory' } });
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'password' || field === 'contact_number' || field === 'email') setFieldErrors({ [field]: extractError(err) });

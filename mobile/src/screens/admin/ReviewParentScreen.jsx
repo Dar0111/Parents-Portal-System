@@ -43,7 +43,8 @@ export default function ReviewParentScreen({ navigation, route }) {
     try {
       if (decision === 'approve') await api.put(`/users/parents/${parent.id}/approve`, {}, { unwrap: 'user' });
       else await api.put(`/users/parents/${parent.id}/reject`, { reason: reason.trim() }, { unwrap: 'message' });
-      navigation.navigate('Main', { screen: '/admin/users', params: { notice: reviewDoneText(decision), noticeKey: 'pending' } });
+      // popTo, not navigate: navigate pushes a second drawer (A1, M16).
+      navigation.popTo('Main', { screen: '/admin/users', params: { notice: reviewDoneText(decision), noticeKey: 'pending' } });
     } catch (err) {
       setError(extractError(err));
       setConfirming(false);

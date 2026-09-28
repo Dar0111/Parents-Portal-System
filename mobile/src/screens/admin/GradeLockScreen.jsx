@@ -26,7 +26,12 @@ export default function GradeLockScreen({ navigation, route }) {
     setError(null);
     try {
       await api.patch(`/grades/${entry.grade_id}/lock`, { is_locked: next }, { unwrap: 'grade' });
-      navigation.navigate('Main', { screen: '/admin/grades', params: { notice: `${subjectName}, Term ${term} ${next ? 'locked' : 'unlocked'}.` } });
+      // popTo, NOT navigate (A1, 2026-09-29): React Navigation 7's stack
+      // pushes a SECOND 'Main' on navigate() from here — a fresh drawer whose
+      // Grades screen has no grade, section or learner. popTo returns to the
+      // original drawer, whose Grades screen keeps its selection and
+      // re-fetches on focus (M14). Measured on the real StackRouter.
+      navigation.popTo('Main', { screen: '/admin/grades', params: { notice: `${subjectName}, Term ${term} ${next ? 'locked' : 'unlocked'}.` } });
     } catch (err) {
       setError(extractError(err));
     } finally {

@@ -62,7 +62,8 @@ export default function PostComposeScreen({ navigation, route }) {
       if (editing) await api.put(`${path}/${editing.id}`, body, { unwrap });
       else await api.post(path, body, { unwrap });
       const notice = isMemo ? (editing ? 'Memo updated.' : 'Memo posted.') : editing ? 'Announcement updated.' : 'Announcement posted.';
-      navigation.navigate('Main', { screen: '/admin/announcements', params: { notice, kind } });
+      // popTo, not navigate: navigate pushes a second drawer (A1, M16).
+      navigation.popTo('Main', { screen: '/admin/announcements', params: { notice, kind } });
     } catch (err) {
       setError(extractError(err));
     } finally {
