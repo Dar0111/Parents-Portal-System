@@ -125,6 +125,22 @@ export function VerifiedMark({ at }) {
   );
 }
 
+// The stored number (always 09XXXXXXXXX) read as 0917 123 4567. Display only
+// (§5d) — the value sent, stored and compared is never the spaced one.
+function spacedNumber(value) {
+  return /^09\d{9}$/.test(value || '') ? `${value.slice(0, 4)} ${value.slice(4, 7)} ${value.slice(7)}` : value;
+}
+
+function ContactValue({ value, at }) {
+  if (!value) return <span className="text-fg-muted">Not recorded</span>;
+  return (
+    <>
+      {spacedNumber(value)}
+      <VerifiedMark at={at} />
+    </>
+  );
+}
+
 const ROLE_COPY = {
   teacher: 'Your name, Teacher ID and email are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.',
   admin: 'Your name, Admin ID and email are school records. You can update your contact number here and your password under Change password.',
@@ -165,6 +181,18 @@ export default function AccountInfoSection() {
   const [emailCode, setEmailCode] = useState('');
   const [emailCodeError, setEmailCodeError] = useState(null);
   const [emailBusy, setEmailBusy] = useState(false);
+
+  // MOBILE NUMBER CONFIRMATION (feat/sms-transport, 2026-09-29) — the email
+  // flow's twin. POST /auth/verify-contact/request texts a code to the stored
+  // number; /confirm sets contact_verified_at. Unlike the email, the number
+  // IS editable here, and saving a different one removes the confirmation
+  // (the server clears it; the success line below says so). §5b: "Confirmed"
+  // renders from user.contact_verified_at on the last /auth/me only.
+  const contactVerifiedAt = user?.contact_verified_at || null;
+  const [contactStep, setContactStep] = useState('idle');
+  const [contactCode, setContactCode] = useState('');
+  const [contactCodeError, setContactCodeError] = useState(null);
+  const [contactBusy, setContactBusy] = useState(false);
 
   // RE-READ /auth/me ON MOUNT (browser check, 2026-09-19). AuthContext holds
   // the row fetched at sign-in and only rewrites it when this page or the
@@ -210,11 +238,23 @@ export default function AccountInfoSection() {
       return;
     }
     setSaving(true);
+    const wasConfirmed = Boolean(contactVerifiedAt);
     try {
-      await api.put('/auth/contact', { contact_number: next }, { unwrap: 'user' });
+      const saved = await api.put('/auth/contact', { contact_number: next }, { unwrap: 'user' });
       await refresh();
       setDraft(null);
-      setStatus({ contact: ok('Contact number updated.') });
+      setContactStep('idle');
+      setContactCode('');
+      // The server decides whether this was a CHANGE (it compares the one
+      // stored form, so +63… of the same number is not); its row says whether
+      // the confirmation survived.
+      setStatus({
+        contact: ok(
+          wasConfirmed && !saved?.contact_verified_at
+            ? 'Contact number updated. The new number is not confirmed yet — text yourself a code above to confirm it.'
+            : 'Contact number updated.'
+        ),
+      });
     } catch (err) {
       if (err?.response?.data?.field === 'contact_number') setContactFieldError(extractError(err));
       else setStatus({ contact: fail(extractError(err)) });
@@ -273,6 +313,48 @@ export default function AccountInfoSection() {
     }
   }
 
+  async function requestContactCode() {
+    setStatus({});
+    setContactCodeError(null);
+    setContactBusy(true);
+    try {
+      const message = await api.post('/auth/verify-contact/request', {}, { unwrap: 'message' });
+      // As email: the already-confirmed 200 sent nothing, so re-read rather
+      // than open a code box that can never be filled.
+      if (/already confirmed/i.test(message)) {
+        await refresh();
+        setContactStep('idle');
+      } else {
+        setContactStep('code');
+      }
+      setStatus({ mobile: ok(message) });
+    } catch (err) {
+      // 400 (no number), 429 (rate limit) and 503 (the text would not send)
+      // all carry the server's own sentence.
+      setStatus({ mobile: fail(extractError(err)) });
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function confirmContactCode(event) {
+    event.preventDefault();
+    setStatus({});
+    setContactCodeError(null);
+    setContactBusy(true);
+    try {
+      const message = await api.post('/auth/verify-contact/confirm', { code: contactCode.trim() }, { unwrap: 'message' });
+      await refresh();
+      setContactCode('');
+      setContactStep('idle');
+      setStatus({ mobile: ok(message) });
+    } catch (err) {
+      setContactCodeError(extractError(err));
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -300,7 +382,9 @@ export default function AccountInfoSection() {
                 <span className="text-fg-muted">Not recorded</span>
               )}
             </Field>
-            <Field label="Contact number" value={storedContact} />
+            <Field label="Contact number">
+              <ContactValue value={storedContact} at={contactVerifiedAt} />
+            </Field>
             <Field label="Login ID (child's LRN)">
               <MaskedLoginId value={user?.login_id} />
             </Field>
@@ -319,7 +403,9 @@ export default function AccountInfoSection() {
                 <span className="text-fg-muted">Not recorded</span>
               )}
             </Field>
-            <Field label="Contact number" value={storedContact} />
+            <Field label="Contact number">
+              <ContactValue value={storedContact} at={contactVerifiedAt} />
+            </Field>
           </>
         )}
       </dl>
@@ -398,6 +484,72 @@ export default function AccountInfoSection() {
           </>
         )}
         <FormStatus status={status.email} />
+      </section>
+
+      <section className="max-w-md space-y-3">
+        <h3 className="text-sm font-semibold text-fg">Mobile number</h3>
+        {!storedContact ? (
+          <p className="text-sm text-fg-muted">
+            There is no mobile number on this account. Add one below — once it is confirmed, reset
+            codes can also come by text message.
+          </p>
+        ) : contactVerifiedAt ? (
+          <p className="text-sm text-fg-muted">
+            This number is confirmed, so reset codes can also come to it by text message. Changing
+            the number below removes the confirmation.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-fg-muted">
+              This number is not confirmed yet. Confirming it lets you get password reset codes by
+              text message.
+            </p>
+            {contactStep === 'code' ? (
+              <form onSubmit={confirmContactCode} className="space-y-3">
+                <FormField
+                  label="Six-digit code"
+                  value={contactCode}
+                  onChange={(e) => {
+                    setContactCodeError(null);
+                    setContactCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  hint={`Sent to ${spacedNumber(storedContact)} by text message. It expires shortly and can be used once.`}
+                  error={contactCodeError}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={contactBusy || !/^\d{6}$/.test(contactCode)}
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {contactBusy ? 'Confirming…' : 'Confirm number'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={requestContactCode}
+                    disabled={contactBusy}
+                    className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+                  >
+                    Send a new code
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={requestContactCode}
+                disabled={contactBusy}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {contactBusy ? 'Sending…' : 'Text me a code'}
+              </button>
+            )}
+          </>
+        )}
+        <FormStatus status={status.mobile} />
       </section>
 
       <section className="max-w-md space-y-3">

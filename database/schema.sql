@@ -52,6 +52,10 @@ CREATE TABLE users (
   -- only read itself and change its password.
   must_change_password TINYINT(1) NOT NULL DEFAULT 0,
   contact_number VARCHAR(20) DEFAULT NULL,
+  -- NULL until the account proves it receives texts at that number (a code
+  -- sent by SMS and entered back; feat/sms-transport, 2026-09-29). Cleared
+  -- whenever contact_number changes. Seeded NULL for everyone, as email.
+  contact_verified_at TIMESTAMP NULL DEFAULT NULL,
   profile_pic VARCHAR(255) DEFAULT NULL,
   student_id INT UNSIGNED DEFAULT NULL,
   created_by INT UNSIGNED DEFAULT NULL,
@@ -528,6 +532,9 @@ CREATE TABLE notifications (
 -- code_hash is bcrypt, via the same helper passwords use: a code is a
 -- credential for the length of its life. email_snapshot records where it was
 -- actually sent, because an admin can change the address in between.
+-- contact_snapshot is the same for a text (feat/sms-transport, 2026-09-29):
+-- confirm refuses a code whose number no longer matches the account's. A code
+-- sent only by text has no email, so email_snapshot is NULL-able since then.
 --
 -- ITS ROWS ARE EXCLUDED FROM EVERY mysqldump (routes/backups.js). A hash of
 -- a six-digit code is a 10^6 search space; a dump on disk containing live
@@ -535,9 +542,10 @@ CREATE TABLE notifications (
 CREATE TABLE auth_codes (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL,
-  purpose ENUM('password_reset','email_verification') NOT NULL,
+  purpose ENUM('password_reset','email_verification','contact_verification') NOT NULL,
   code_hash VARCHAR(255) NOT NULL,
-  email_snapshot VARCHAR(100) NOT NULL,
+  email_snapshot VARCHAR(100) NULL DEFAULT NULL,
+  contact_snapshot VARCHAR(20) NULL DEFAULT NULL,
   expires_at TIMESTAMP NOT NULL,
   attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
   consumed_at TIMESTAMP NULL DEFAULT NULL,

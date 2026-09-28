@@ -103,7 +103,7 @@ export default function ForgotPasswordScreen({ navigation }) {
           {step === 'request' ? (
             <View className="gap-4">
               <Text className="text-sm text-fg-muted">
-                Enter your Login ID. If the account has a confirmed email address, we will send a six-digit code to it.
+                Enter your Login ID. If the account has a confirmed email address or mobile number, we will send a six-digit code to it.
               </Text>
               <FormField
                 label="Login ID"
@@ -201,7 +201,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         </Pressable>
 
         <Text className="mt-2 text-center text-sm text-fg-muted">
-          No email on your account? Ask your child’s adviser or the school office.
+          No confirmed email or mobile number on your account? Ask your child’s adviser or the school office.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

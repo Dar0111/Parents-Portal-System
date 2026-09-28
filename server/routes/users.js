@@ -11,6 +11,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { activeAdmins, insertNotifications, emitNotifications } = require('../utils/notify');
 const { sanitizeUser } = require('../utils/sanitizeUser');
+const codes = require('../utils/authCodes');
 
 const router = express.Router();
 
@@ -31,8 +32,8 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
-  // Contact number: optional; if given, 11 digits starting with 09, stored
-  // as digits only (utils/contactRule.js). `field` names the input.
+  // Contact number: optional; if given, 09…, +639… or 639…, stored as
+  // 09XXXXXXXXX (utils/contactRule.js). `field` names the input.
   const contact = validateContact(contact_number);
   if (contact.error) {
     return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
@@ -500,7 +501,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     }
     let nextContact = existing.contact_number;
     if (contact_number !== undefined) {
-      // Optional; if given, 11 digits starting with 09, stored digits-only
+      // Optional; if given, 09…, +639… or 639…, stored as 09XXXXXXXXX
       // (utils/contactRule.js). An empty string clears it.
       const contact = validateContact(contact_number);
       if (contact.error) {
@@ -519,7 +520,22 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     // email — no self-service screen writes it — so this is the only place
     // the flag has to be cleared. `<=>` is the NULL-safe comparison; a
     // change from NULL to an address must count.
+    //
+    // AND IT BURNS THE CODES ALREADY SENT (feat/sms-transport, Q4,
+    // 2026-09-29). Until then a code mailed to the OLD address stayed live and
+    // could confirm the NEW one — a confirmation nobody earned. The mobile
+    // number follows the same two rules: a change clears contact_verified_at
+    // and burns pending text codes. Both comparisons use the stored form
+    // (contactRule normalises first), so a number re-typed as +63… is not a
+    // change.
+    const emailChanged = (existing.email ?? null) !== (nextEmail ?? null);
+    const contactChanged = (existing.contact_number ?? null) !== (nextContact ?? null);
     await pool.query('UPDATE users SET email_verified_at = NULL WHERE id = ? AND NOT (email <=> ?)', [id, nextEmail]);
+    if (emailChanged) await codes.burnPending(id, 'email_verification');
+    if (contactChanged) {
+      await pool.query('UPDATE users SET contact_verified_at = NULL WHERE id = ?', [id]);
+      await codes.burnPending(id, 'contact_verification');
+    }
     await pool.query('UPDATE users SET name = ?, email = ?, contact_number = ? WHERE id = ?', [
       nextName,
       nextEmail,

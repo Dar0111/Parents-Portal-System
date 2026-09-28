@@ -10,6 +10,7 @@ const { sanitizeUser } = require('../utils/sanitizeUser');
 const { isDbUnavailable, sendDbUnavailable } = require('../utils/dbUnavailable');
 const codes = require('../utils/authCodes');
 const mailer = require('../utils/mailer');
+const sms = require('../utils/smsTransport');
 
 const router = express.Router();
 
@@ -241,8 +242,8 @@ router.put('/contact', authenticate, async (req, res) => {
   }
 
   // Required and non-empty here (this endpoint exists to set one), then the
-  // shared rule: 11 digits starting with 09 after spaces/dashes are stripped,
-  // stored as digits only (utils/contactRule.js). `field` names the input.
+  // shared rule: 09…, +639… or 639… after spaces/dashes are stripped, stored
+  // as 09XXXXXXXXX (utils/contactRule.js). `field` names the input.
   if (!String(body.contact_number).trim()) {
     return res.status(400).json({ success: false, message: 'contact_number must not be empty.', field: 'contact_number' });
   }
@@ -253,7 +254,19 @@ router.put('/contact', authenticate, async (req, res) => {
   const nextContact = contact.value;
 
   try {
-    await pool.query('UPDATE users SET contact_number = ? WHERE id = ?', [nextContact, req.user.id]);
+    // A NUMBER CHANGE UNCONFIRMS IT (feat/sms-transport, 2026-09-29): the
+    // confirmation proved texts reach the OLD number, and any code already
+    // sent there must not be able to confirm the new one. Compared in the one
+    // stored form (utils/contactRule.js), so the same number re-typed as
+    // +63… or 63… is NOT a change and keeps its confirmation.
+    const [[current]] = await pool.query('SELECT contact_number FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const changed = (current?.contact_number ?? null) !== nextContact;
+    if (changed) {
+      await pool.query('UPDATE users SET contact_number = ?, contact_verified_at = NULL WHERE id = ?', [nextContact, req.user.id]);
+      await codes.burnPending(req.user.id, 'contact_verification');
+    } else {
+      await pool.query('UPDATE users SET contact_number = ? WHERE id = ?', [nextContact, req.user.id]);
+    }
     await logActivity(req.user.id, 'update_contact', 'Contact number updated');
 
     // Re-fetch via login_id so the JOIN student fields stay on the row —
@@ -286,10 +299,12 @@ router.put('/contact', authenticate, async (req, res) => {
 // logs in with their child’s LRN, so an endpoint that answered "no such
 // account" would be an LRN oracle (§5c).
 
-// The same body on every path, success or not.
+// The same body on every path, success or not — and for every channel
+// (feat/sms-transport, 2026-09-29, decision Q1): no masked number, no "by
+// text" vs "by email", because either would say which LRN has which contact.
 const FORGOT_REPLY = {
   success: true,
-  message: 'If this account has a verified email, we sent a code.',
+  message: 'If this account has a confirmed email or mobile number, we sent a code to it.',
 };
 
 // POST /api/auth/forgot-password  { login_id }  -> 202, always
@@ -307,15 +322,20 @@ router.post('/forgot-password', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, name, email, email_verified_at, status FROM users WHERE login_id = ? LIMIT 1',
+      'SELECT id, name, email, email_verified_at, contact_number, contact_verified_at, status FROM users WHERE login_id = ? LIMIT 1',
       [loginId]
     );
     const user = rows[0];
 
-    const eligible =
-      user && user.status === 'active' && user.email && user.email_verified_at;
+    // EVERY CONFIRMED CHANNEL gets the SAME code (decision Q2). A confirmed
+    // number counts only while SMS is switched on for this server.
+    const channels = [];
+    if (user && user.status === 'active') {
+      if (user.email && user.email_verified_at) channels.push('email');
+      if (sms.isEnabled() && user.contact_number && user.contact_verified_at) channels.push('sms');
+    }
 
-    if (!eligible) {
+    if (!channels.length) {
       // TIMING, half one (Darryl, Q2). A miss skips the bcrypt a hit pays
       // for, so without this the response time answers the question the
       // message refuses to. ~100ms at cost 10, thrown away.
@@ -328,33 +348,59 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(202).json(FORGOT_REPLY);
     }
 
+    // One code, one row, whatever the number of channels — so one request
+    // counts once toward the hourly limit.
     const { code, minutes } = await codes.createCode({
       userId: user.id,
       purpose: 'password_reset',
-      email: user.email,
+      email: channels.includes('email') ? user.email : null,
+      contact: channels.includes('sms') ? user.contact_number : null,
       ip,
     });
 
-    // TIMING, half two: respond BEFORE the SMTP round trip. An SMTP call
-    // inside the response is a half-second tell that the account exists,
-    // and no uniform message survives that.
+    // TIMING, half two: respond BEFORE the SMTP or gateway round trip. A
+    // send inside the response is a half-second tell that the account
+    // exists, and no uniform message survives that.
     res.status(202).json(FORGOT_REPLY);
 
-    const msg = mailer.resetCodeMessage({ name: user.name, code, minutes });
-    mailer
-      .sendMail({ to: user.email, subject: msg.subject, text: msg.text })
-      .then(() => logActivity(user.id, 'password_reset_requested', 'Reset code sent'))
-      .catch(async (err) => {
-        // The response has already gone and must not change. Burn the code
-        // so an unsendable one cannot be used by whoever reads the table,
-        // and record the failure WITHOUT the code.
-        await pool.query('UPDATE auth_codes SET consumed_at = NOW() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL', [
-          user.id,
-          'password_reset',
-        ]);
-        await logActivity(user.id, 'password_reset_email_failed', 'Reset code could not be sent');
-        console.error('Reset email failed:', err.message);
-      });
+    const sends = channels.map((channel) => {
+      if (channel === 'email') {
+        const msg = mailer.resetCodeMessage({ name: user.name, code, minutes });
+        return mailer.sendMail({ to: user.email, subject: msg.subject, text: msg.text }).then(
+          () => ({ channel, ok: true }),
+          async (err) => {
+            await logActivity(user.id, 'password_reset_email_failed', 'Reset code could not be sent');
+            console.error('Reset email failed:', err.message);
+            return { channel, ok: false };
+          }
+        );
+      }
+      return sms.send({ to: user.contact_number, text: sms.resetCodeText({ code, minutes }), ttlSeconds: minutes * 60 }).then(
+        () => ({ channel, ok: true }),
+        async (err) => {
+          // A1: the FIXED reason only — never err.message from fetch, which
+          // can carry the gateway's host and port.
+          const reason = err.reason || 'unreachable';
+          await logActivity(user.id, 'password_reset_sms_failed', `Reset code could not be sent by text (${reason})`);
+          console.error('Reset SMS failed:', reason);
+          return { channel, ok: false };
+        }
+      );
+    });
+    Promise.all(sends).then(async (results) => {
+      const sent = results.filter((r) => r.ok).map((r) => r.channel);
+      if (sent.length) {
+        await logActivity(user.id, 'password_reset_requested', `Reset code sent (${sent.join(', ')})`);
+      } else {
+        // The response has already gone and must not change. Nothing went
+        // out, so burn the code — an unsendable one must not be usable by
+        // whoever reads the table. If ANY channel delivered, it stays valid.
+        await codes.burnPending(user.id, 'password_reset');
+      }
+    }).catch((err) => {
+      // Bookkeeping after the reply; must never become an unhandled rejection.
+      console.error('Reset send bookkeeping failed:', err.code || 'error');
+    });
     return undefined;
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -405,7 +451,7 @@ router.post('/reset-password', async (req, res) => {
       'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
       [hashed, user.id]
     );
-    await logActivity(user.id, 'password_reset', 'Password reset with an emailed code');
+    await logActivity(user.id, 'password_reset', 'Password reset with a sent code');
 
     return res.json({ success: true, message: 'Password updated. You can sign in now.' });
   } catch (error) {
@@ -480,6 +526,94 @@ router.post('/verify-email/confirm', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Verify email confirm error:', error);
     return res.status(500).json({ success: false, message: 'Failed to confirm the email.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// MOBILE NUMBER CONFIRMATION (feat/sms-transport, 2026-09-29) — the twin of
+// verify-email. Authenticated, so honest replies leak nothing: this caller
+// already knows their own number. A confirmed number is what lets
+// /forgot-password send a reset code by text.
+// ---------------------------------------------------------------------------
+const SMS_UNAVAILABLE = {
+  success: false,
+  message: 'Could not send the code right now. Try again, or ask the school office.',
+};
+
+// POST /api/auth/verify-contact/request
+//
+// A REQUEST THAT FAILS TO SEND STILL COUNTS toward the 3-per-hour limit: the
+// code row is written before the gateway is called, then burned. That is the
+// email flow's rule too, and it is what stops a dead gateway being hammered.
+// A server with SMS switched off answers 503 BEFORE writing a code, so that
+// case counts for nothing.
+router.post('/verify-contact/request', authenticate, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT contact_number, contact_verified_at FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const row = rows[0];
+    if (!row || !row.contact_number) {
+      return res.status(400).json({ success: false, message: 'There is no mobile number on this account. Add one first.' });
+    }
+    if (row.contact_verified_at) {
+      return res.json({ success: true, message: 'This number is already confirmed.' });
+    }
+    if (!sms.isEnabled()) {
+      console.error('Verification SMS failed:', 'bad_config');
+      return res.status(503).json(SMS_UNAVAILABLE);
+    }
+    if (await codes.isRateLimited(req.user.id, 'contact_verification', req.ip)) {
+      return res.status(429).json({ success: false, message: 'Too many codes requested. Try again in an hour.' });
+    }
+
+    const { code, minutes } = await codes.createCode({
+      userId: req.user.id,
+      purpose: 'contact_verification',
+      contact: row.contact_number,
+      ip: req.ip,
+    });
+
+    try {
+      await sms.send({ to: row.contact_number, text: sms.verifyCodeText({ code, minutes }), ttlSeconds: minutes * 60 });
+    } catch (err) {
+      // A1: the fixed reason only, in the console and in activity_logs.
+      const reason = err.reason || 'unreachable';
+      await codes.burnPending(req.user.id, 'contact_verification');
+      await logActivity(req.user.id, 'contact_verification_sms_failed', `Confirmation code could not be sent by text (${reason})`);
+      console.error('Verification SMS failed:', reason);
+      return res.status(503).json(SMS_UNAVAILABLE);
+    }
+
+    await logActivity(req.user.id, 'contact_verification_requested', 'Confirmation code sent by text');
+    return res.status(202).json({ success: true, message: 'We sent a code to your mobile number.' });
+  } catch (error) {
+    console.error('Verify contact request error:', error.code || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to send the code.' });
+  }
+});
+
+// POST /api/auth/verify-contact/confirm — authenticated, { code }
+router.post('/verify-contact/confirm', authenticate, async (req, res) => {
+  const { code } = req.body;
+  const INVALID = { success: false, message: 'That code is not valid. Request a new one.' };
+  try {
+    const result = await codes.consumeCode({ userId: req.user.id, purpose: 'contact_verification', code });
+    if (!result.ok) return res.status(400).json(INVALID);
+
+    // THE SNAPSHOT'S JOB: the code must have gone to the number the account
+    // holds NOW. A number change already burns pending codes; this also
+    // refuses one that raced it. The UPDATE repeats the check, so a change
+    // landing between the two statements confirms nothing.
+    const [upd] = await pool.query(
+      'UPDATE users SET contact_verified_at = NOW() WHERE id = ? AND contact_number = ?',
+      [req.user.id, result.contactSnapshot]
+    );
+    if (!result.contactSnapshot || upd.affectedRows === 0) return res.status(400).json(INVALID);
+
+    await logActivity(req.user.id, 'contact_verified', 'Mobile number confirmed');
+    return res.json({ success: true, message: 'Mobile number confirmed. You can now get reset codes by text message.' });
+  } catch (error) {
+    console.error('Verify contact confirm error:', error.code || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to confirm the number.' });
   }
 });
 

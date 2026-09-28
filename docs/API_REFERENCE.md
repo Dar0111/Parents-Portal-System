@@ -2,10 +2,10 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**89 handlers** across 15 route files, documented as **18 endpoint tables
+**91 handlers** across 15 route files, documented as **18 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **90 endpoints** (both +1 on 2026-09-26: `GET /api/settings/public`). That 18 counts MARKDOWN TABLES IN THIS
+`server.js` = **92 endpoints** (both +2 on 2026-09-29: `POST /api/auth/verify-contact/request` and `/confirm`, feat/sms-transport; both +1 on 2026-09-26: `GET /api/settings/public`). That 18 counts MARKDOWN TABLES IN THIS
 FILE — it is not a database-table count, and the database has **23**.
 Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
 retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
@@ -488,20 +488,22 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 88 handlers (89 with `GET /api/health`).
+the bottom must equal 91 handlers (92 with `GET /api/health`).
 
-### Auth (8) — `/api/auth`
+### Auth (10) — `/api/auth`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
 | GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500` |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
-| PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule since 2026-09-18 — exactly 11 digits starting with 09 after spaces and dashes are stripped, stored digits-only, `server/utils/contactRule.js`; a refusal is `400` with `field: "contact_number"`) — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
+| PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule — since 2026-09-29 `09XXXXXXXXX`, `+639XXXXXXXXX` or `639XXXXXXXXX` after spaces and dashes are stripped, always STORED as `09XXXXXXXXX`, `server/utils/contactRule.js`; a refusal is `400` "Contact number must be a Philippine mobile number: 09XXXXXXXXX, +639XXXXXXXXX or 639XXXXXXXXX (for example 0917 123 4567)." with `field: "contact_number"`). **A CHANGED number clears `contact_verified_at` and burns pending `contact_verification` codes; the same number re-typed in another form is not a change** — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | POST | `/forgot-password` | **public** | `login_id`* | message only — **`202` on every path**, see below |
 | POST | `/reset-password` | **public** | `login_id`*, `code`* (6 digits), `new_password`* (the password rule) | message only |
 | POST | `/verify-email/request` | any authenticated | — | message only (`202` when a code is sent) |
 | POST | `/verify-email/confirm` | any authenticated | `code`* (6 digits) | message only |
+| POST | `/verify-contact/request` | any authenticated | — | message only — `202` "We sent a code to your mobile number."; `200` "This number is already confirmed."; `400` "There is no mobile number on this account. Add one first."; `429` "Too many codes requested. Try again in an hour."; `503` "Could not send the code right now. Try again, or ask the school office." (the text would not send, or SMS is off on this server) |
+| POST | `/verify-contact/confirm` | any authenticated | `code`* (6 digits) | message only — `200` "Mobile number confirmed. You can now get reset codes by text message."; `400` "That code is not valid. Request a new one." for every failure, including a code sent to a number the account no longer holds |
 
 **`PUT /change-password` also returns `token`** since R1 (2026-09-19) — a
 replacement JWT at the account's new `token_version`. It is **not optional**:
@@ -517,7 +519,8 @@ hashed at rest** in `auth_codes`, valid 10 minutes, 5 attempts, single use,
 for an account+purpose is valid** — issuing one consumes the older ones.
 
 1. **`POST /forgot-password` answers `202` with one sentence, always** —
-   *"If this account has a verified email, we sent a code."* — for a verified
+   *"If this account has a confirmed email or mobile number, we sent a code
+   to it."* (since 2026-09-29; before that it named email only) — for a verified
    account, an unverified one, an inactive one, an unknown `login_id`, a
    rate-limited account, and its own internal failure. A parent's `login_id`
    IS their child's LRN (§5c in CLAUDE.md), so any other answer is an LRN
@@ -539,22 +542,57 @@ for an account+purpose is valid** — issuing one consumes the older ones.
    signed in; they go and log in. That is the point of a reset — every
    session the old password left open dies.
 
-**Eligibility is `status = 'active'` AND an email AND `email_verified_at`.**
-An admin changing a user's email through `PUT /users/:id` clears
-`email_verified_at`, so the address must be confirmed again.
+**Eligibility is `status = 'active'` AND at least one confirmed channel** —
+an email with `email_verified_at`, or (since 2026-09-29, and only while
+`SMS_TRANSPORT` is set on the server) a `contact_number` with
+`contact_verified_at`. An admin changing a user's email through
+`PUT /users/:id` clears `email_verified_at` **and burns the email codes
+already sent (since 2026-09-29)**, so the address must be confirmed again;
+a changed number does the same for `contact_verified_at` there and on
+`PUT /auth/contact`.
+
+#### SMS — a second channel beside email (feat/sms-transport, 2026-09-29)
+
+Email, with SMS through a phone-hosted gateway ("SMS Gateway for Android" in
+LOCAL mode on the demo phone — plain HTTP with Basic auth on the hotspot LAN,
+a demo arrangement; `docs/KNOWN_ISSUES.md`).
+
+- **One code, every confirmed channel.** A forgot request writes ONE
+  `auth_codes` row and sends that same code by email and by text when both
+  are confirmed, so one request counts once toward the hourly limit. If
+  every channel fails the code is burned; if any went out it stays valid.
+  The reply is the one sentence above in every case — no masked number,
+  no channel named.
+- **The limits are email's, unchanged**: 3 per account per purpose per
+  hour, 10 per IP per hour. **A verify-contact request whose text fails
+  still counts** — the row is written before the gateway is called, then
+  burned — exactly as a failed verify-email does. A server with SMS off
+  answers `503` before writing a code, so that counts for nothing.
+- **The number is stored in one form, `09XXXXXXXXX`**; E.164
+  (`+639XXXXXXXXX`) exists only at send time (`toE164`, called by
+  `server/utils/smsTransport.js` alone). `auth_codes.contact_snapshot`
+  records the number a code went to, and confirm refuses a code whose
+  snapshot is not the account's number now.
+- **A failed send is logged as a FIXED reason** — `unreachable`,
+  `timeout`, `http_<status>` or `bad_config` — in `activity_logs`
+  (`password_reset_sms_failed`, `contact_verification_sms_failed`) and on
+  the console. Never the fetch error's message, which can carry the
+  gateway's host and port; never the URL, credentials, number or code.
+- **The texts** are ASCII, one GSM-7 part, and carry no LRN, login id or
+  student name.
 
 ### Users (10) — `/api/users`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
-| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — 11 digits starting with 09, spaces/dashes stripped, stored digits-only — `400` with `field: "contact_number"`; **`email` follows the email rule since 2026-09-25** — `server/utils/emailRule.js`, `400` "Email must look like name@example.com." with `field: "email"`, stored trimmed) | `user` |
+| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — `09…`, `+639…` or `639…`, spaces/dashes stripped, stored as `09XXXXXXXXX` since 2026-09-29 — `400` with `field: "contact_number"`; **`email` follows the email rule since 2026-09-25** — `server/utils/emailRule.js`, `400` "Email must look like name@example.com." with `field: "email"`, stored trimmed) | `user` |
 | POST | `/parents` | `teacher(adviser)` — **the ADVISER of the student's section only** (`sections.adviser_id` on `s.section_id`, since pre-Stage-5 #4, 2026-09-25; from 2026-09-18 to then it was the wider assigned-OR-adviser read predicate, which let a subject teacher create the account — never the school's process). Order: password rule → contact rule → **email rule** → ONE query resolving the LRN and the scope together → the two duplicate `409`s → hash + insert. An unknown LRN and an out-of-scope student are the same `403` "Only the adviser of this student's section can create the parent account." (no `404` exists on this route since 2026-09-19), and because the scope check runs before the `409`s, an out-of-scope teacher posting the LRN of a child who already has a parent gets that same `403`, never a `409`. A learner whose `section_id` is NULL has no adviser and therefore no possible parent account through this route. Nothing is created on any refusal | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email` (optional; **the email rule** — `server/utils/emailRule.js`: trimmed, one `@`, no whitespace, a dotted domain, ASCII, ≤ 100 — `400` "Email must look like name@example.com." with `field: "email"`, checked before the student lookup too), `contact_number` (optional; the contact rule — `400` with `field: "contact_number"`, checked before the student lookup too) | `user` |
 | GET | `/parents/pending` | `admin` | — | `parents` |
 | PUT | `/parents/:id/approve` | `admin` | — | `user` |
 | PUT | `/parents/:id/reject` | `admin` | `reason`* | message only |
 | GET | `/` | `admin` | query: `role`, `status`, `search` | `users` | `sort` keys `name`, `login_id`, `role`, `status`, `created_at`. **`role` and `status` sort by their LETTERS** (`CAST(... AS CHAR)`, 2026-09-25) — both are ENUMs and MySQL sorts an ENUM by ordinal, so `sort=role&order=asc` used to yield parent, teacher, admin under an A–Z header |
 | GET | `/:id` | `admin` | — | `user` |
-| PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset; `contact_number` follows the contact rule since 2026-09-18 and **`email` the email rule since 2026-09-25** — `400` with `field: "contact_number"` / `field: "email"`, an empty string clears either; a changed email is stored trimmed and un-verifies the address) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
+| PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset; `contact_number` follows the contact rule since 2026-09-18 and **`email` the email rule since 2026-09-25** — `400` with `field: "contact_number"` / `field: "email"`, an empty string clears either; a changed email is stored trimmed, un-verifies the address and burns the email codes already sent; a changed number clears `contact_verified_at` and burns pending text codes — the same number in another form is not a change) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `user` |
 | POST | `/:id/temp-password` | `admin` | — | message + **`temporary_password`** | The office fallback for an account that cannot use `/forgot-password` (no email, unverified, or an inbox they cannot reach). Generates a rule-satisfying password with `crypto`, bumps `token_version` (every session of that account dies now) and sets `must_change_password = 1`. **The password is in this response and nowhere else** — never stored in plain form, never logged, not retrievable again. Your own id is `400` "Use Change password for your own account.", a nonexistent id is `404`. |
 
@@ -1193,7 +1231,7 @@ the same as `router`.
 
 | Table | Endpoints | Route file |
 |---|---|---|
-| Auth | 8 | `auth.js` |
+| Auth | 10 | `auth.js` |
 | Users | 10 | `users.js` |
 | Students | 5 | `students.js` |
 | Sections | 3 | `sections.js` |
@@ -1211,19 +1249,20 @@ the same as `router`.
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
-| **Total** | **87** | |
+| **Total** | **91** | |
 
-8+10+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1 = **89 handlers in `server/routes/`**.
-Plus `GET /api/health`, mounted directly in `server.js` = **90** endpoints in
-total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+10+10+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1 = **91 handlers in `server/routes/`**
+(recounted from the code 2026-09-29; the Total row had said 87 while the sum
+said 89). Plus `GET /api/health`, mounted directly in `server.js` = **92**
+endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than
 Contributions' eight — then the class record's `GET` and `PUT` landed, then
 the class summary's `GET`.
 
-**State which number you mean.** 88 is handlers in route files; 89 is every
+**State which number you mean.** 91 is handlers in route files; 92 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport). Re-run the existence diff after a dispatch that adds or removes an endpoint.

@@ -76,6 +76,22 @@ function VerifiedMark({ at }) {
   );
 }
 
+// The stored number (always 09XXXXXXXXX) read as 0917 123 4567. Display only
+// (§5d) — the value sent, stored and compared is never the spaced one.
+function spacedNumber(value) {
+  return /^09\d{9}$/.test(value || '') ? `${value.slice(0, 4)} ${value.slice(4, 7)} ${value.slice(7)}` : value;
+}
+
+function ContactValue({ value, at }) {
+  if (!value) return <Text className="text-sm text-fg-muted">Not recorded</Text>;
+  return (
+    <>
+      <Text className="text-sm text-fg">{spacedNumber(value)}</Text>
+      <VerifiedMark at={at} />
+    </>
+  );
+}
+
 const ROLE_COPY = {
   teacher:
     'Your name, Teacher ID and email are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.',
@@ -119,6 +135,12 @@ export default function AccountInfoScreen() {
   const [emailCode, setEmailCode] = useState('');
   const [emailCodeError, setEmailCodeError] = useState(null);
   const [emailBusy, setEmailBusy] = useState(false);
+  // The web's mobile-number confirmation, word for word (feat/sms-transport).
+  const contactVerifiedAt = user?.contact_verified_at || null;
+  const [contactStep, setContactStep] = useState('idle');
+  const [contactCode, setContactCode] = useState('');
+  const [contactCodeError, setContactCodeError] = useState(null);
+  const [contactBusy, setContactBusy] = useState(false);
 
   const refreshRef = useRef(refresh);
   useEffect(() => {
@@ -142,11 +164,20 @@ export default function AccountInfoScreen() {
       return;
     }
     setSaving(true);
+    const wasConfirmed = Boolean(contactVerifiedAt);
     try {
-      await api.put('/auth/contact', { contact_number: next }, { unwrap: 'user' });
+      const saved = await api.put('/auth/contact', { contact_number: next }, { unwrap: 'user' });
       await refresh();
       setDraft(null);
-      setStatus({ contact: ok('Contact number updated.') });
+      setContactStep('idle');
+      setContactCode('');
+      setStatus({
+        contact: ok(
+          wasConfirmed && !saved?.contact_verified_at
+            ? 'Contact number updated. The new number is not confirmed yet — text yourself a code above to confirm it.'
+            : 'Contact number updated.'
+        ),
+      });
     } catch (err) {
       if (err?.response?.data?.field === 'contact_number') setContactFieldError(extractError(err));
       else setStatus({ contact: fail(extractError(err)) });
@@ -192,6 +223,43 @@ export default function AccountInfoScreen() {
     }
   }
 
+  async function requestContactCode() {
+    setStatus({});
+    setContactCodeError(null);
+    setContactBusy(true);
+    try {
+      const message = await api.post('/auth/verify-contact/request', {}, { unwrap: 'message' });
+      if (/already confirmed/i.test(message)) {
+        await refresh();
+        setContactStep('idle');
+      } else {
+        setContactStep('code');
+      }
+      setStatus({ mobile: ok(message) });
+    } catch (err) {
+      setStatus({ mobile: fail(extractError(err)) });
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
+  async function confirmContactCode() {
+    setStatus({});
+    setContactCodeError(null);
+    setContactBusy(true);
+    try {
+      const message = await api.post('/auth/verify-contact/confirm', { code: contactCode.trim() }, { unwrap: 'message' });
+      await refresh();
+      setContactCode('');
+      setContactStep('idle');
+      setStatus({ mobile: ok(message) });
+    } catch (err) {
+      setContactCodeError(extractError(err));
+    } finally {
+      setContactBusy(false);
+    }
+  }
+
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="p-4 pb-10">
@@ -214,7 +282,9 @@ export default function AccountInfoScreen() {
                   <Text className="text-sm text-fg-muted">Not recorded</Text>
                 )}
               </Field>
-              <Field label="Contact number" value={storedContact} />
+              <Field label="Contact number">
+                <ContactValue value={storedContact} at={contactVerifiedAt} />
+              </Field>
               <Field label="Login ID (child's LRN)">
                 <MaskedLoginId value={user?.login_id} />
               </Field>
@@ -233,7 +303,9 @@ export default function AccountInfoScreen() {
                   <Text className="text-sm text-fg-muted">Not recorded</Text>
                 )}
               </Field>
-              <Field label="Contact number" value={storedContact} />
+              <Field label="Contact number">
+                <ContactValue value={storedContact} at={contactVerifiedAt} />
+              </Field>
             </>
           )}
         </View>
@@ -291,6 +363,58 @@ export default function AccountInfoScreen() {
             </>
           )}
           <FormStatus status={status.email} />
+        </View>
+
+        <View className="mt-6 gap-3">
+          <Text className="text-sm font-semibold text-fg">Mobile number</Text>
+          {!storedContact ? (
+            <Text className="text-sm text-fg-muted">
+              There is no mobile number on this account. Add one below — once it is confirmed, reset codes can also come by
+              text message.
+            </Text>
+          ) : contactVerifiedAt ? (
+            <Text className="text-sm text-fg-muted">
+              This number is confirmed, so reset codes can also come to it by text message. Changing the number below
+              removes the confirmation.
+            </Text>
+          ) : (
+            <>
+              <Text className="text-sm text-fg-muted">
+                This number is not confirmed yet. Confirming it lets you get password reset codes by text message.
+              </Text>
+              {contactStep === 'code' ? (
+                <View className="gap-3">
+                  <FormField
+                    label="Six-digit code"
+                    value={contactCode}
+                    onChangeText={(text) => {
+                      setContactCodeError(null);
+                      setContactCode(text.replace(/\D/g, '').slice(0, 6));
+                    }}
+                    keyboardType="number-pad"
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    maxLength={6}
+                    hint={`Sent to ${spacedNumber(storedContact)} by text message. It expires shortly and can be used once.`}
+                    error={contactCodeError}
+                  />
+                  <View className="flex-row flex-wrap gap-2">
+                    <Button
+                      label={contactBusy ? 'Confirming…' : 'Confirm number'}
+                      onPress={confirmContactCode}
+                      disabled={contactBusy || !/^\d{6}$/.test(contactCode)}
+                    />
+                    <Button label="Send a new code" onPress={requestContactCode} disabled={contactBusy} primary={false} />
+                  </View>
+                </View>
+              ) : (
+                <View className="self-start">
+                  <Button label={contactBusy ? 'Sending…' : 'Text me a code'} onPress={requestContactCode} disabled={contactBusy} />
+                </View>
+              )}
+            </>
+          )}
+          <FormStatus status={status.mobile} />
         </View>
 
         <View className="mt-6 gap-3">

@@ -46,10 +46,10 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 89** handlers defined in
-> `server/routes/`, and the API answers **90 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 91** handlers defined in
+> `server/routes/`, and the API answers **92 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
-> Both +1 on 2026-09-26 (`GET /api/settings/public`).
+> Both +2 on 2026-09-29 (the `verify-contact` pair); +1 on 2026-09-26.
 > Both recounted from the code on 2026-09-22, which moved them twice in one
 > day: `PATCH /grades/:id/descriptive` retired (−1) and the class record's
 > `GET` and `PUT` landed (+2). The archived endpoint table's 81 rows are a
@@ -113,8 +113,8 @@ nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT, and **About is last on every
 role since 2026-09-26** (9 / 13 / 10); **no role has a `built: false`
-item**. **23 tables, 89 handlers + `/api/health`**
-(2026-09-26). 20 of 23 sections have no adviser and
+item**. **23 tables, 91 handlers + `/api/health`**
+(2026-09-29). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
@@ -145,8 +145,8 @@ convention are all there and were never in this file. A dated 81-row snapshot
 sits in `docs/ARCHIVE.md` (2026-09-19, before Notifications' 4 and account
 recovery's 5 landed); **it is not the live record.**
 
-**The two counts live in the front matter above (89 handlers / 90
-endpoints) — one place, not two; state which you mean.**
+**The two counts live in the front matter above — one place, not two;
+state which you mean.**
 `PATCH /grades/:id/descriptive` is still the only endpoint ever removed
 besides Contributions' eight.
 
@@ -160,7 +160,7 @@ wiped assignments *and* grades. **Do not add a grades-exist guard on
 
 **Tests — every baseline lives in `docs/TESTING.md`**: each suite's figure,
 the four lint baselines, and **the one suite whose clean run is not a clean
-number** (`test:recovery` without `MAIL_TRANSPORT=file` on the SERVER;
+number** (`test:recovery` without `MAIL_TRANSPORT=file SMS_TRANSPORT=file` on the SERVER;
 `test:restore` is 29/29 since #3a). **A dispatch that re-measures a baseline updates it THERE, in
 the same commit** — a figure corrected in a report and nowhere else is how
 eight counts went stale at once. **The Seeded baseline above is DATA and
@@ -176,7 +176,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **seven migrations**, `verify-grading-seed`, the twenty-three test files); `database/`
+`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, the twenty-four test files); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -752,7 +752,9 @@ has neither; it resumes at §13.** The reasoning and the endpoint detail are
 - **`POST /api/auth/forgot-password` answers the same sentence, always** —
   verified, unverified, inactive, unknown `login_id`, rate-limited, internal
   failure: one `202`, one message. A parent's `login_id` IS their child's LRN
-  (§5c), so anything else is an LRN oracle. **The client advances its step on
+  (§5c), so anything else is an LRN oracle. **Since SMS (2026-09-29) one code
+  goes to EVERY confirmed channel, and the sentence names no channel and shows
+  no masked number** — either would be the same oracle. **The client advances its step on
   that reply and must not branch on whether a code was really sent.** The
   reset endpoint has **one** failure message for every cause and **no count
   of tries remaining** — that is the same oracle, slower.
@@ -1324,8 +1326,9 @@ is still open, needing its own dispatch:**
 | **Ten `.sql` files on disk have no `backups` row and cannot be restored through the API** | `server/backups/` + Admin → Backup & Restore | Rows went with the 2026-09-07 `db:setup`. Listed read-only under "Files with no record", no adopt affordance. Do not delete them; recovery is by hand (the 2026-08-29 adoption method) |
 | **Safety copies (`pre_restore_*`) have no Delete in the UI — one accumulates per restore** | `admin/BackupsPage.jsx` | Deleting one removes the only undo for the restore that made it. Revisit trigger: a retention rule from the school, or disk space. Deleting one today is a direct API call |
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
-| **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
-| **A broken mailer is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` before believing a user typed their login id wrong.** Fix is a health probe, never a different response body |
+| **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
+| **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
+| **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
 | **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
 | **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |
@@ -1712,7 +1715,8 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       web only, hidden from the drawer). Phone checks passed: first half
       (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
       role's screens are built.** **NEXT, in order (2026-09-29):**
-      `fix/mobile-popto` → SMS transport → server reliability (backup
+      `fix/mobile-popto` (merged) → SMS transport (`feat/sms-transport`,
+      built, phone check pending) → server reliability (backup
       first-call reset, orphan notifications + A2, web Attendance leave
       prompt) → UI polish → `docs/stage5` → full phone test / smoke gate →
       manuscript delta list. SMS moved before server reliability by
@@ -2142,6 +2146,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-29 | **`feat/sms-transport`** (built, not merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |

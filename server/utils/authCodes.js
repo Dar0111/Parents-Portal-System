@@ -2,7 +2,8 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const { hashPassword, comparePassword } = require('./password');
 
-// Six-digit codes for password reset and email verification. One table, one
+// Six-digit codes for password reset, email verification and — since
+// feat/sms-transport (2026-09-29) — mobile-number verification. One table, one
 // lifecycle, one set of limits (R1, 2026-09-19).
 //
 // WHY ONE TABLE WITH A `purpose` COLUMN rather than two tables: the two flows
@@ -61,24 +62,37 @@ async function isRateLimited(userId, purpose, ip) {
 // a user who asks twice cannot be confused about which of two codes works, and
 // an older code sitting in an inbox stops being a credential the moment a
 // newer one is sent.
-async function createCode({ userId, purpose, email, ip }) {
-  await pool.query(
-    'UPDATE auth_codes SET consumed_at = NOW() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL',
-    [userId, purpose]
-  );
+//
+// `email` and `contact` are SNAPSHOTS of where the code is going — either may
+// be null (a text-only code has no email; feat/sms-transport, 2026-09-29).
+async function createCode({ userId, purpose, email = null, contact = null, ip }) {
+  await burnPending(userId, purpose);
 
   const code = generateCode();
   const codeHash = await hashPassword(code);
   await pool.query(
-    `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, expires_at, request_ip)
-     VALUES (?, ?, ?, ?, (NOW() + INTERVAL ? MINUTE), ?)`,
-    [userId, purpose, codeHash, email, CODE_TTL_MINUTES, ip || null]
+    `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, contact_snapshot, expires_at, request_ip)
+     VALUES (?, ?, ?, ?, ?, (NOW() + INTERVAL ? MINUTE), ?)`,
+    [userId, purpose, codeHash, email, contact, CODE_TTL_MINUTES, ip || null]
   );
 
   return { code, minutes: CODE_TTL_MINUTES };
 }
 
-// Returns { ok: true } or { ok: false }. DELIBERATELY NO REASON: the caller
+// Consumes every live code of one purpose for one account. Used when a new
+// code replaces them (A2), when a send failed, and when the address or number
+// a code was sent to CHANGES — so a code already sitting in an old inbox or on
+// an old phone stops being able to confirm the new one.
+async function burnPending(userId, purpose) {
+  await pool.query(
+    'UPDATE auth_codes SET consumed_at = NOW() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL',
+    [userId, purpose]
+  );
+}
+
+// Returns { ok: true, emailSnapshot, contactSnapshot } or { ok: false }. The
+// snapshots let a caller refuse a code whose destination is no longer the
+// account's. DELIBERATELY NO REASON on a failure: the caller
 // must not be able to tell wrong-code from expired from already-used from
 // too-many-attempts, because the user-facing message is identical for all of
 // them and a reason here would eventually leak into one.
@@ -86,7 +100,7 @@ async function consumeCode({ userId, purpose, code }) {
   if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return { ok: false };
 
   const [rows] = await pool.query(
-    `SELECT id, code_hash, attempts FROM auth_codes
+    `SELECT id, code_hash, attempts, email_snapshot, contact_snapshot FROM auth_codes
       WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > NOW()
       ORDER BY id DESC LIMIT 1`,
     [userId, purpose]
@@ -110,7 +124,7 @@ async function consumeCode({ userId, purpose, code }) {
   }
 
   await pool.query('UPDATE auth_codes SET consumed_at = NOW() WHERE id = ?', [row.id]);
-  return { ok: true };
+  return { ok: true, emailSnapshot: row.email_snapshot, contactSnapshot: row.contact_snapshot };
 }
 
 // Burned on the miss path of forgot-password so an unknown login id costs the
@@ -128,6 +142,7 @@ module.exports = {
   generateCode,
   isRateLimited,
   createCode,
+  burnPending,
   consumeCode,
   burnTiming,
 };

@@ -316,6 +316,82 @@ async function run() {
       putSpacedContact.status === 200 && putSpacedContact.data?.user?.contact_number === '09171112233',
       'PUT /users/:id: "0917 111 2233" is accepted and stored as 09171112233'
     );
+
+    // --- feat/sms-transport (2026-09-29): the two international forms are
+    // accepted and folded onto the one stored form; a change of number
+    // unconfirms it and burns the codes sent to the old one; and (Q4) the same
+    // for an email change. Codes are planted in the DB directly — this suite
+    // runs against a normal server and must never send a real mail or text.
+    const { hashPassword } = require('../utils/password');
+    const putPlusContact = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { contact_number: '+63 917 111 2233' },
+    });
+    assert(
+      putPlusContact.status === 200 && putPlusContact.data?.user?.contact_number === '09171112233',
+      'PUT /users/:id: "+63 917 111 2233" is stored as 09171112233'
+    );
+    const plant = async (purpose, email, contact) => {
+      const hash = await hashPassword('246810');
+      await withDb((conn) =>
+        conn.query(
+          `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, contact_snapshot, expires_at)
+           VALUES (?, ?, ?, ?, ?, NOW() + INTERVAL 10 MINUTE)`,
+          [throwawayId, purpose, hash, email, contact]
+        )
+      );
+    };
+    const liveCodes = async (purpose) => {
+      const [[row]] = await withDb((conn) =>
+        conn.query('SELECT COUNT(*) AS n FROM auth_codes WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL', [throwawayId, purpose])
+      );
+      return Number(row.n);
+    };
+
+    await withDb((conn) => conn.query('UPDATE users SET contact_verified_at = NOW() WHERE id = ?', [throwawayId]));
+    await plant('contact_verification', null, '09171112233');
+    const putSameContact = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { contact_number: '639171112233' },
+    });
+    assert(
+      putSameContact.status === 200 && Boolean(putSameContact.data?.user?.contact_verified_at) && (await liveCodes('contact_verification')) === 1,
+      'PUT /users/:id: the same number re-typed as 639… is not a change — still confirmed, the pending code survives'
+    );
+    const putNewContact = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { contact_number: '09171112244' },
+    });
+    assert(
+      putNewContact.status === 200 && putNewContact.data?.user?.contact_verified_at == null && (await liveCodes('contact_verification')) === 0,
+      'PUT /users/:id: a NEW number clears contact_verified_at and burns the pending text code'
+    );
+
+    const putOldEmail = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { email: 'um.old@example.test' },
+    });
+    await plant('email_verification', 'um.old@example.test', null);
+    const putNewEmail = await request('PUT', `/api/users/${throwawayId}`, {
+      token: adminToken,
+      body: { email: 'um.new@example.test' },
+    });
+    assert(
+      putOldEmail.status === 200 && putNewEmail.status === 200 && (await liveCodes('email_verification')) === 0,
+      'Q4: an admin email change burns the code already mailed to the OLD address'
+    );
+    const staleLogin = await login(throwawayLoginId, 'Teacher@2026');
+    const staleConfirm = await request('POST', '/api/auth/verify-email/confirm', {
+      token: staleLogin.data?.token,
+      body: { code: '246810' },
+    });
+    const [[staleRow]] = await withDb((conn) => conn.query('SELECT email_verified_at FROM users WHERE id = ?', [throwawayId]));
+    assert(
+      staleConfirm.status === 400 && staleRow.email_verified_at == null,
+      'Q4: that old code can no longer confirm the new address'
+    );
+    await withDb((conn) => conn.query('DELETE FROM auth_codes WHERE user_id = ?', [throwawayId]));
+
     const putClearContact = await request('PUT', `/api/users/${throwawayId}`, {
       token: adminToken,
       body: { contact_number: '' },

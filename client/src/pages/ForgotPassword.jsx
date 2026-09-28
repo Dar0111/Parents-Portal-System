@@ -126,8 +126,8 @@ export default function ForgotPassword() {
           {step === 'request' ? (
             <form onSubmit={requestCode} className="space-y-4">
               <p className="text-sm text-fg-muted">
-                Enter your Login ID. If the account has a confirmed email address, we will send a
-                six-digit code to it.
+                Enter your Login ID. If the account has a confirmed email address or mobile
+                number, we will send a six-digit code to it.
               </p>
               <FormField
                 label="Login ID"
@@ -221,12 +221,13 @@ export default function ForgotPassword() {
         </p>
 
         {/* The fallback, and it is the whole reason the admin temporary
-            password exists: an account with no confirmed email cannot be
-            reset from this page, and gets no hint here that it is the
-            reason — that would be the oracle again. The office is the
-            answer either way. */}
+            password exists: an account with no confirmed email or mobile
+            number cannot be reset from this page, and gets no hint here
+            that it is the reason — that would be the oracle again. The
+            office is the answer either way. */}
         <p className="mt-2 text-center text-sm text-fg-muted">
-          No email on your account? Ask your child&rsquo;s adviser or the school office.
+          No confirmed email or mobile number on your account? Ask your child&rsquo;s adviser or the
+          school office.
         </p>
       </div>
     </div>

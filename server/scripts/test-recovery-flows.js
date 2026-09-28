@@ -3,10 +3,13 @@
  * limits, per-user token revocation (A1), newest-code-only (A2), the forced
  * change, and the test transport's own safety.
  *
- * Prerequisite: npm run db:migrate:auth-codes, and the API started with
- *   MAIL_TRANSPORT=file
+ * Prerequisite: npm run db:migrate:auth-codes and
+ * npm run db:migrate:contact-verification, and the API started with
+ *   MAIL_TRANSPORT=file SMS_TRANSPORT=file
  * because a code must never be readable through any endpoint. The suite
- * refuses to run without it rather than reporting green on a half-test.
+ * refuses to run without them rather than reporting green on a half-test.
+ * The SMS half (feat/sms-transport, 2026-09-29) uses a second throwaway
+ * teacher, TCH-REC2, with a fictional number; no real text is ever sent.
  *
  * Idempotent: every row it creates is deleted in a finally block.
  *
@@ -21,6 +24,9 @@ const path = require('path');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const MAIL_DIR = path.join(__dirname, '..', 'tmp', 'mail');
+// feat/sms-transport (2026-09-29): the SMS half needs the server started with
+// SMS_TRANSPORT=file too, for the same reason — no endpoint returns a code.
+const SMS_DIR = path.join(__dirname, '..', 'tmp', 'sms');
 
 let passed = 0;
 let failed = 0;
@@ -75,6 +81,20 @@ function newestCodeSince(before) {
   const m = body.text.match(/\b(\d{6})\b/);
   return m ? { code: m[1], to: body.to, text: body.text, files: fresh } : null;
 }
+function smsFilesBefore() {
+  if (!fs.existsSync(SMS_DIR)) return new Set();
+  return new Set(fs.readdirSync(SMS_DIR));
+}
+function newestSmsSince(before) {
+  if (!fs.existsSync(SMS_DIR)) return null;
+  const fresh = fs.readdirSync(SMS_DIR).filter((f) => !before.has(f));
+  if (!fresh.length) return null;
+  fresh.sort();
+  const body = JSON.parse(fs.readFileSync(path.join(SMS_DIR, fresh[fresh.length - 1]), 'utf8'));
+  const m = body.text.match(/\b(\d{6})\b/);
+  return m ? { code: m[1], to: body.to, text: body.text, count: fresh.length } : null;
+}
+const settle = () => new Promise((r) => setTimeout(r, 400));
 
 async function main() {
   console.log(`\nAccount recovery tests against ${BASE}\n`);
@@ -153,6 +173,8 @@ async function main() {
       'known, unknown, unverified and pending all answer 202');
     assert(known.text === unknown.text && known.text === unverified.text && known.text === pendingAcct.text,
       'all four bodies are byte-identical', JSON.stringify([known.text, unknown.text, unverified.text, pendingAcct.text]));
+    assert(known.data?.message === 'If this account has a confirmed email or mobile number, we sent a code to it.',
+      'the one sentence names both channels and no destination', JSON.stringify(known.data?.message));
     const missing = await request('POST', '/api/auth/forgot-password', { body: {} });
     assert(missing.status === 400, 'a missing login_id is 400 — it describes the REQUEST, not an account');
 
@@ -334,6 +356,155 @@ async function main() {
     assert(withNew.status !== 403, 'the replacement token is no longer blocked', why(withNew));
     const withOld = await request('GET', '/api/auth/me', { token: forced.token });
     assert(withOld.status === 401, 'A1: the pre-change token is dead', why(withOld));
+
+    // -----------------------------------------------------------------------
+    console.log('\nSMS — a confirmed mobile number (feat/sms-transport)');
+    // -----------------------------------------------------------------------
+    // Reopen the per-IP window: every row this run has written so far is
+    // backdated, so the SMS half is not silently rate-limited by the email
+    // half above (10 per IP per hour).
+    await withDb((c) => c.query('UPDATE auth_codes SET created_at = (NOW() - INTERVAL 2 HOUR) WHERE user_id IN (?)', [created.users]));
+
+    const SMS_ID = 'TCH-REC2';
+    const SMS_PW = 'Recovery2';
+    const mk2 = await request('POST', '/api/users/teachers', {
+      token: admin.token,
+      body: { login_id: SMS_ID, password: SMS_PW, name: 'Recovery SMS Fixture', contact_number: '+63 917 000 0123' },
+    });
+    requireFixture(mk2.status === 201, 'admin creates the SMS fixture teacher (no email)', why(mk2));
+    created.users.push(mk2.data.user.id);
+    created.loginIds.push(SMS_ID);
+    assert(mk2.data.user.contact_number === '09170000123', 'a number typed as +63 is stored as 09…', mk2.data.user.contact_number);
+    assert(mk2.data.user.contact_verified_at == null, 'a new number is not confirmed');
+    const s1 = await login(SMS_ID, SMS_PW);
+    requireFixture(s1.status === 200, 'the SMS fixture logs in', why(s1));
+    let smsUser = { token: s1.data.token, id: s1.data.user.id };
+
+    const beforeUnconf = smsFilesBefore();
+    const unconf = await request('POST', '/api/auth/forgot-password', { body: { login_id: SMS_ID } });
+    await settle();
+    assert(unconf.status === 202 && unconf.text === known.text, 'forgot with an UNCONFIRMED number: the same 202 and body');
+    assert(newestSmsSince(beforeUnconf) === null, 'and no text goes to an unconfirmed number');
+
+    const beforeReq = smsFilesBefore();
+    const creq = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    requireFixture(creq.status === 202, 'confirmation code requested', why(creq));
+    assert(creq.data.message === 'We sent a code to your mobile number.', 'the request says where, to its own caller', creq.data.message);
+    const text1 = newestSmsSince(beforeReq);
+    requireFixture(text1 != null, 'the file transport wrote the text — the server runs with SMS_TRANSPORT=file', 'no new file in server/tmp/sms');
+    assert(text1.to === '+639170000123', 'sent to the E.164 form of the stored number', text1.to);
+    assert(text1.text.length <= 160 && /^[\x20-\x7E]+$/.test(text1.text), 'one GSM-7 part');
+    assert(!/\d{12}/.test(text1.text) && !text1.text.includes(SMS_ID), 'no LRN and no login id in the text');
+
+    const cBad = await request('POST', '/api/auth/verify-contact/confirm', { token: smsUser.token, body: { code: '000000' } });
+    assert(cBad.status === 400 && cBad.data.message === 'That code is not valid. Request a new one.', 'a wrong code is 400 with the one message', why(cBad));
+
+    // The same number re-typed in another form is NOT a change: the pending
+    // code survives it and still confirms.
+    const retype = await request('PUT', '/api/auth/contact', { token: smsUser.token, body: { contact_number: '639170000123' } });
+    assert(retype.status === 200 && retype.data.user.contact_number === '09170000123', 'the 639… form is stored as the same 09… value', why(retype));
+    const cOk = await request('POST', '/api/auth/verify-contact/confirm', { token: smsUser.token, body: { code: text1.code } });
+    requireFixture(cOk.status === 200, 'the pending code still confirms after a same-number re-type', why(cOk));
+    assert(cOk.data.message === 'Mobile number confirmed. You can now get reset codes by text message.', 'the confirmed message', cOk.data.message);
+    const me1 = await request('GET', '/api/auth/me', { token: smsUser.token });
+    assert(Boolean(me1.data?.user?.contact_verified_at), '/auth/me reports contact_verified_at');
+    const again = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    assert(again.status === 200 && again.data.message === 'This number is already confirmed.', 'a confirmed number is not re-texted', why(again));
+    const retype2 = await request('PUT', '/api/auth/contact', { token: smsUser.token, body: { contact_number: '0917-000-0123' } });
+    const me2 = await request('GET', '/api/auth/me', { token: smsUser.token });
+    assert(retype2.status === 200 && Boolean(me2.data?.user?.contact_verified_at), 're-saving the same number keeps the confirmation');
+
+    // Forgot, text only (this account has no email).
+    const beforeF1 = smsFilesBefore();
+    const mailBeforeF1 = mailFilesBefore();
+    const f1 = await request('POST', '/api/auth/forgot-password', { body: { login_id: SMS_ID } });
+    await settle();
+    assert(f1.status === 202 && f1.text === known.text, 'forgot with a confirmed number: the same 202 and body');
+    const resetText = newestSmsSince(beforeF1);
+    requireFixture(resetText != null, 'the reset code went out by text');
+    assert(resetText.to === '+639170000123' && /password reset code/.test(resetText.text), 'the reset text, to the confirmed number');
+    assert(newestCodeSince(mailBeforeF1) === null, 'and no mail — the account has no email');
+
+    // Both channels: give the account a confirmed email too.
+    const addEmail = await request('PUT', `/api/users/${smsUser.id}`, { token: admin.token, body: { email: 'recovery.sms@example.test' } });
+    requireFixture(addEmail.status === 200, 'admin adds an email to the SMS fixture', why(addEmail));
+    const meKeep = await request('GET', '/api/auth/me', { token: smsUser.token });
+    assert(Boolean(meKeep.data?.user?.contact_verified_at), 'an admin EMAIL change leaves the number confirmed');
+    const mb = mailFilesBefore();
+    const ve = await request('POST', '/api/auth/verify-email/request', { token: smsUser.token });
+    const vmail = newestCodeSince(mb);
+    requireFixture(ve.status === 202 && vmail != null, 'email code for the SMS fixture', why(ve));
+    const vc = await request('POST', '/api/auth/verify-email/confirm', { token: smsUser.token, body: { code: vmail.code } });
+    requireFixture(vc.status === 200, 'its email is confirmed', why(vc));
+
+    const bothSms = smsFilesBefore();
+    const bothMail = mailFilesBefore();
+    const f2 = await request('POST', '/api/auth/forgot-password', { body: { login_id: SMS_ID } });
+    await settle();
+    const bText = newestSmsSince(bothSms);
+    const bMail = newestCodeSince(bothMail);
+    assert(f2.status === 202 && f2.text === known.text, 'forgot with both confirmed: the same 202 and body');
+    requireFixture(bText != null && bMail != null, 'both a text and a mail went out');
+    assert(bText.code === bMail.code, 'Q2: the SAME code by both channels');
+    const [[pr]] = await withDb((c) => c.query("SELECT COUNT(*) n FROM auth_codes WHERE user_id = ? AND purpose = 'password_reset' AND consumed_at IS NULL", [smsUser.id]));
+    assert(Number(pr.n) === 1, 'one live code row, whatever the number of channels', `got ${pr.n}`);
+    const NEW_SMS_PW = 'ByText123';
+    const rs = await request('POST', '/api/auth/reset-password', { body: { login_id: SMS_ID, code: bText.code, new_password: NEW_SMS_PW } });
+    requireFixture(rs.status === 200, 'the texted code resets the password', why(rs));
+    const s2 = await login(SMS_ID, NEW_SMS_PW);
+    requireFixture(s2.status === 200, 'and the new password signs in', why(s2));
+    smsUser = { token: s2.data.token, id: s2.data.user.id };
+
+    // A number change unconfirms it and burns the code sent to the old one.
+    const ch1 = await request('PUT', '/api/auth/contact', { token: smsUser.token, body: { contact_number: '09170000124' } });
+    const me3 = await request('GET', '/api/auth/me', { token: smsUser.token });
+    assert(ch1.status === 200 && !me3.data?.user?.contact_verified_at, 'a NEW number clears the confirmation');
+    const beforeOld = smsFilesBefore();
+    const oreq = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    const oldText = newestSmsSince(beforeOld);
+    requireFixture(oreq.status === 202 && oldText != null && oldText.to === '+639170000124', 'a code goes to the new number', why(oreq));
+    const ch2 = await request('PUT', '/api/auth/contact', { token: smsUser.token, body: { contact_number: '09170000125' } });
+    assert(ch2.status === 200, 'the number changes again before confirming');
+    const stale2 = await request('POST', '/api/auth/verify-contact/confirm', { token: smsUser.token, body: { code: oldText.code } });
+    assert(stale2.status === 400, 'the code sent to the PREVIOUS number cannot confirm the new one', why(stale2));
+    const me4 = await request('GET', '/api/auth/me', { token: smsUser.token });
+    assert(!me4.data?.user?.contact_verified_at, 'and nothing was confirmed');
+
+    // Admin number change clears a confirmation too.
+    const beforeC3 = smsFilesBefore();
+    const r3 = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    const t3 = newestSmsSince(beforeC3);
+    requireFixture(r3.status === 202 && t3 != null, 'a code for the current number', why(r3));
+    const c3 = await request('POST', '/api/auth/verify-contact/confirm', { token: smsUser.token, body: { code: t3.code } });
+    requireFixture(c3.status === 200, 'confirmed', why(c3));
+    const adminCh = await request('PUT', `/api/users/${smsUser.id}`, { token: admin.token, body: { contact_number: '0917 000 0126' } });
+    const me5 = await request('GET', '/api/auth/me', { token: smsUser.token });
+    assert(adminCh.status === 200 && !me5.data?.user?.contact_verified_at, 'an ADMIN number change clears the confirmation');
+
+    // The hourly limit, shared with email's rules: three contact codes have
+    // been issued for this account in the hour.
+    const beforeLim = smsFilesBefore();
+    const lim = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    assert(lim.status === 429 && lim.data.message === 'Too many codes requested. Try again in an hour.', 'the 4th confirmation request in an hour is 429', why(lim));
+    assert(newestSmsSince(beforeLim) === null, 'and sends nothing');
+
+    // No number at all.
+    const clr = await request('PUT', `/api/users/${smsUser.id}`, { token: admin.token, body: { contact_number: '' } });
+    const none = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    assert(clr.status === 200 && none.status === 400 && none.data.message === 'There is no mobile number on this account. Add one first.',
+      'no number: 400 with the add-one-first message', why(none));
+
+    // The switch cannot be turned on by a request.
+    const smsSrc = fs.readFileSync(path.join(__dirname, '..', 'utils', 'smsTransport.js'), 'utf8');
+    assert(!/\breq\b/.test(smsSrc) && /const MODE = process\.env\.SMS_TRANSPORT === 'gateway'/.test(smsSrc),
+      'utils/smsTransport.js reads no request and picks its mode once, from a const');
+    const sneakSms = smsFilesBefore();
+    await request('POST', '/api/auth/forgot-password', {
+      body: { login_id: 'NO-SUCH-ID', SMS_TRANSPORT: 'file' },
+      headers: { 'X-Sms-Transport': 'file' },
+    });
+    await settle();
+    assert(newestSmsSince(sneakSms) === null, 'a smuggled SMS flag writes no text for an account that does not exist');
   } catch (error) {
     if (error instanceof FixtureFailure) console.error(`\nFIXTURE FAILED — run stopped: ${error.message}`);
     else { console.error('\nUNEXPECTED ERROR:', error); failed += 1; }
@@ -351,6 +522,9 @@ async function main() {
       if (fs.existsSync(MAIL_DIR)) {
         for (const f of fs.readdirSync(MAIL_DIR)) fs.unlinkSync(path.join(MAIL_DIR, f));
       }
+      if (fs.existsSync(SMS_DIR)) {
+        for (const f of fs.readdirSync(SMS_DIR)) fs.unlinkSync(path.join(SMS_DIR, f));
+      }
 
       const counts = await withDb((c) =>
         c.query(
@@ -366,6 +540,8 @@ async function main() {
       assert(jea[0][0].status === 'pending', "Jea's parent account is still pending");
       const mailLeft = fs.existsSync(MAIL_DIR) ? fs.readdirSync(MAIL_DIR).length : 0;
       assert(mailLeft === 0, `no mail files left behind — got ${mailLeft}`);
+      const smsLeft = fs.existsSync(SMS_DIR) ? fs.readdirSync(SMS_DIR).length : 0;
+      assert(smsLeft === 0, `no text files left behind — got ${smsLeft}`);
     } catch (e) {
       console.error('CLEANUP ERROR:', e.message);
       failed += 1;
