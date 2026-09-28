@@ -8,7 +8,7 @@
 // Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-routes.mjs
 import { NAV_BY_ROLE } from '../src/navigation/nav.js';
-import { ROUTES, isBuilt, linkToRoute, routeFor } from '../src/navigation/routes.js';
+import { ROUTES, isBuilt, isWebOnly, linkToRoute, routeFor } from '../src/navigation/routes.js';
 
 let passed = 0;
 let failed = 0;
@@ -23,7 +23,6 @@ function assert(condition, label) {
 }
 
 const KNOWN_SCREENS = new Set([
-  'RoleHome',
   'Settings',
   'About',
   'ParentDashboard',
@@ -45,6 +44,8 @@ const KNOWN_SCREENS = new Set([
   'TeacherAttendanceRecords',
   'TeacherGrades',
   'TeacherClassSummary',
+  'AdminDashboard',
+  'AdminUsers',
 ]);
 
 console.log('nav paths');
@@ -66,7 +67,21 @@ const teacherBuilt = NAV_BY_ROLE.teacher.filter((i) => isBuilt(i.to));
 console.log(`  teacher built: ${teacherBuilt.map((i) => i.label).join(', ')}`);
 assert(teacherBuilt.length === NAV_BY_ROLE.teacher.length, `every teacher nav item is built (${teacherBuilt.length} of ${NAV_BY_ROLE.teacher.length})`);
 assert(SECOND_HALF.every((p) => routeFor(p) !== null), 'teacher: Attendance, Attendance records, Grades and Class summary route to their screens');
-assert(NAV_BY_ROLE.admin.filter((i) => isBuilt(i.to)).length === 3, 'admin has exactly home, Settings and About built — its pages are its own branch');
+// Branch 4, first half: Dashboard, Users, Settings, About. The second half's
+// four are named, so a premature route fails here; Backup & Restore is
+// WEB ONLY — never routed, and dropped from the drawer rather than dimmed.
+const ADMIN_LATER = ['/admin/students', '/admin/grades', '/admin/attendance', '/admin/announcements'];
+const adminVisible = NAV_BY_ROLE.admin.filter((i) => !isWebOnly(i.to));
+const adminBuilt = adminVisible.filter((i) => isBuilt(i.to));
+console.log(`  admin on the phone: ${adminVisible.map((i) => i.label).join(', ')}`);
+assert(adminVisible.length === 8 && adminVisible.every((i) => i.to !== '/admin/backups'), 'admin shows eight items; Backup & Restore is not one of them');
+assert(isWebOnly('/admin/backups') && !isBuilt('/admin/backups'), 'Backup & Restore is web-only and has no screen');
+assert(adminBuilt.map((i) => i.label).join(',') === 'Dashboard,Users,Settings,About', 'admin first half: Dashboard, Users, Settings and About are built');
+assert(ADMIN_LATER.every((p) => !isBuilt(p)), 'admin: Students, Grades, Attendance and Announcements are still unbuilt (dimmed)');
+
+console.log('notification links (role admin)');
+assert(linkToRoute('/admin/users', 'admin') === '/admin/users', '/admin/users (parent_pending) → its own screen');
+assert(linkToRoute('/admin/backups', 'admin') === '/admin', 'a link to the web-only Backup & Restore opens the admin home');
 
 console.log('notification links (role teacher)');
 for (const link of ['/teacher/announcements', '/teacher/memos', '/teacher/events', '/teacher/excuse-letters']) {

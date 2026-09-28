@@ -20,7 +20,10 @@
     "proof:teacher-dashboard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-teacher-dashboard.mjs",
     "proof:roster": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-roster.mjs",
     "proof:back-guard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-back-guard.mjs",
-    "proof:one-slot": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-one-slot.mjs"
+    "proof:one-slot": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-one-slot.mjs",
+    "proof:admin-dashboard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-dashboard.mjs",
+    "proof:admin-users": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-users.mjs",
+    "proof:school-settings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-school-settings.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
@@ -33,6 +36,7 @@
     "@react-navigation/native-stack": "^7.19.2",
     "axios": "^1.20.0",
     "expo": "~57.0.25",
+    "expo-screen-capture": "~57.0.3",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",

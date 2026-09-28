@@ -8,9 +8,10 @@ import { settingsTabsForRole } from './tabs';
 // 2). `tabs.js` is a verbatim copy of the web's, so the rows and their order
 // are the web's; the screen each opens is looked up by LABEL, because the
 // web keys admin's first tab and everyone else's on the same empty `to`.
-// A tab with no screen on the phone yet (admin's School settings) renders
-// dimmed, the same unbuilt state the drawer uses.
+// A tab with no screen on the phone yet would render dimmed, the same unbuilt
+// state the drawer uses; since branch 4 admin's School settings has its own.
 const SCREEN_BY_LABEL = {
+  'School settings': 'SchoolSettings',
   'Account information': 'AccountInfo',
   'Change password': 'ChangePassword',
   Personalization: 'Personalization',

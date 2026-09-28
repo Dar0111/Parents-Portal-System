@@ -1,0 +1,41 @@
+import { calendarDaysAgo, calendarDaysAgoLabel } from '../../../format/date';
+
+// THE PURE HALF OF THE WEB'S AdminDashboard.jsx (Stage 5 branch 4), lifted so
+// scripts/proof-admin-dashboard.mjs can drive it. `backupAge` is the web's
+// function with one change the proof needs: `now` is a parameter, as it is on
+// `calendarDaysAgo` itself, so a proof can pin the clock.
+//
+// NEVER RED (§12, the web's spec): green at or under a week, amber beyond it
+// or when there is no backup. A stale backup is a prompt, not a failure.
+// CALENDAR DAYS in Manila, never elapsed hours (UI-C1b): a backup at 23:00
+// read at 01:00 is "yesterday", not "today".
+export function backupAge(createdAt, now = Date.now()) {
+  if (!createdAt) return { tone: 'warning', label: 'No backup yet' };
+  const days = calendarDaysAgo(createdAt, now);
+  if (days === null) return { tone: 'warning', label: 'No backup yet' };
+  return { tone: days <= 7 ? 'success' : 'warning', label: `Last backup ${calendarDaysAgoLabel(createdAt, now)}` };
+}
+
+// EACH COUNT OPENS THE LIST WHOSE WHERE IT REPEATS (the web's rule: a card
+// reading 42 that opens a list of 37 is a bug report). The phone's routes are
+// drawer paths. BACKUP & RESTORE IS WEB ONLY (Darryl, fixed): the System card
+// shows the last backup and links to School settings, never to backups.
+export const CARD_LINKS = Object.freeze({
+  students: '/admin/students',
+  teachers: '/admin/users',
+  parents: '/admin/users',
+  pending: '/admin/users',
+  system: '/admin/settings',
+});
+
+// The lockout hazard (§12): shown only while the server says the one admin
+// has no confirmed email; it clears itself, names no account, and is amber,
+// never red — a state that COULD strand you is a warning.
+export function showLockoutHazard(dashboard) {
+  return dashboard?.hazard?.single_unverified_admin === true;
+}
+
+// The waiting card is amber only when something waits.
+export function pendingTone(count) {
+  return Number(count) > 0 ? 'warning' : 'default';
+}

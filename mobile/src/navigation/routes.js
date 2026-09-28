@@ -16,7 +16,16 @@
 // its path here, its component there — and proof-routes catches a path that
 // names a screen AppShell does not know.
 
-export const PLACEHOLDER = 'RoleHome';
+// WEB-ONLY PATHS (Darryl, fixed decision: Backup & Restore is web only). The
+// verbatim `nav.js` still lists the item — it is a mirror of the web's and
+// must stay byte-equal — so the phone HIDES it: the drawer drops a web-only
+// item entirely rather than dimming it (a dimmed row would claim the page is
+// coming), and a link to it falls back to the role's home. Branch 4.
+export const WEB_ONLY = Object.freeze(['/admin/backups']);
+
+export function isWebOnly(path) {
+  return WEB_ONLY.includes(path);
+}
 
 // path -> screen name. Settings and About are the same screens for every
 // role, so all three prefixes route; each role's other pages arrive on its
@@ -48,7 +57,11 @@ export const ROUTES = Object.freeze({
   '/teacher/settings': 'Settings',
   '/teacher/about': 'About',
 
-  '/admin': PLACEHOLDER,
+  // Branch 4, first half. Students, Grades, Attendance and Announcements
+  // arrive with the second half and stay dimmed until then; Backup &
+  // Restore never arrives (WEB_ONLY above).
+  '/admin': 'AdminDashboard',
+  '/admin/users': 'AdminUsers',
   '/admin/settings': 'Settings',
   '/admin/about': 'About',
 });

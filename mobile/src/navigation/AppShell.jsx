@@ -25,7 +25,12 @@ import MessagesScreen from '../screens/parent/MessagesScreen';
 import MessageThreadScreen from '../screens/parent/MessageThreadScreen';
 import NewMessageScreen from '../screens/parent/NewMessageScreen';
 import PostReadScreen from '../screens/parent/PostReadScreen';
-import RoleHome from '../screens/RoleHome';
+import AdminCreateTeacherScreen from '../screens/admin/CreateTeacherScreen';
+import AdminDashboardScreen from '../screens/admin/DashboardScreen';
+import AdminEditUserScreen from '../screens/admin/EditUserScreen';
+import AdminReviewParentScreen from '../screens/admin/ReviewParentScreen';
+import AdminUsersScreen from '../screens/admin/UsersScreen';
+import SchoolSettingsScreen from '../screens/settings/SchoolSettingsScreen';
 import TeacherAnnouncementComposeScreen from '../screens/teacher/AnnouncementComposeScreen';
 import TeacherAnnouncementsScreen from '../screens/teacher/AnnouncementsScreen';
 import TeacherAttendanceRecordsScreen from '../screens/teacher/AttendanceRecordsScreen';
@@ -53,7 +58,7 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import { useTheme } from '../theme/ThemeProvider';
 import DrawerContent, { badgeFor } from './DrawerContent';
 import { navForRole } from './nav';
-import { isBuilt, routeFor } from './routes';
+import { isBuilt, isWebOnly, routeFor } from './routes';
 
 // THE MENU BUTTON CARRIES A DOT WHEN ANY DRAWER BADGE IS ABOVE ZERO — a
 // MOBILE ADDITION, declared (MOBILE_CONVENTIONS M9). The web's narrow-screen
@@ -104,7 +109,6 @@ const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
 const COMPONENTS = {
-  RoleHome,
   Settings: SettingsScreen,
   About: AboutScreen,
   ParentDashboard: DashboardScreen,
@@ -126,6 +130,8 @@ const COMPONENTS = {
   TeacherMemos: TeacherMemosScreen,
   TeacherEvents: TeacherEventsScreen,
   TeacherMessages: TeacherMessagesScreen,
+  AdminDashboard: AdminDashboardScreen,
+  AdminUsers: AdminUsersScreen,
 };
 
 const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event' };
@@ -166,7 +172,9 @@ function headerOptions(tokens) {
 function RoleDrawer() {
   const { user } = useAuth();
   const { tokens } = useTheme();
-  const items = navForRole(user?.role);
+  // A WEB-ONLY item (Backup & Restore) is dropped here, before the drawer
+  // sees the list: hidden, not dimmed (routes.js WEB_ONLY, branch 4).
+  const items = navForRole(user?.role).filter((item) => !isWebOnly(item.to));
   const built = items.filter((item) => isBuilt(item.to) && COMPONENTS[routeFor(item.to)]);
 
   return (
@@ -245,6 +253,14 @@ export default function AppShell() {
           guarded removal), and a learner's read-only report card. */}
       <Stack.Screen name="ClassRecordSlot" component={TeacherSlotScreen} options={({ route }) => ({ title: route.params?.title || 'Slot' })} />
       <Stack.Screen name="ClassSummaryLearner" component={TeacherClassSummaryLearnerScreen} options={({ route }) => ({ title: route.params?.name || 'Report card' })} />
+      {/* The admin's detail screens (branch 4): the web's dialogs as modal
+          screens, and School settings pushed from the Settings list. The
+          temporary password is NOT a screen — it is a popup inside Users,
+          so it never becomes a navigation param. */}
+      <Stack.Screen name="CreateTeacher" component={AdminCreateTeacherScreen} options={{ presentation: 'modal', title: 'Create teacher' }} />
+      <Stack.Screen name="EditUser" component={AdminEditUserScreen} options={({ route }) => ({ presentation: 'modal', title: route.params?.target ? `Edit ${route.params.target.name}` : 'Edit user' })} />
+      <Stack.Screen name="ReviewParent" component={AdminReviewParentScreen} options={{ presentation: 'modal', title: 'Review parent' }} />
+      <Stack.Screen name="SchoolSettings" component={SchoolSettingsScreen} options={{ title: 'School settings' }} />
     </Stack.Navigator>
   );
 }

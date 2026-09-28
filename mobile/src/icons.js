@@ -22,6 +22,10 @@ import {
   faLinkSlash,
   faLocationDot,
   faMagnifyingGlass,
+  faChalkboardUser,
+  faServer,
+  faUserClock,
+  faUsers,
   faPaperPlane,
   faPen,
   faPhone,
@@ -125,6 +129,11 @@ const ICONS = {
   'fa-magnifying-glass': faMagnifyingGlass,
   'fa-user-slash': faUserSlash,
   'fa-users-rectangle': faUsersRectangle,
+  // Branch 4 (the admin screens).
+  'fa-chalkboard-user': faChalkboardUser,
+  'fa-server': faServer,
+  'fa-user-clock': faUserClock,
+  'fa-users': faUsers,
 };
 
 export function iconFor(name) {

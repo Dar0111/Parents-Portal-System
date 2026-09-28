@@ -611,5 +611,53 @@ for every learner only if Summative maxima were saved — `assessment_slots`,
 `grade_components`, possible `grade_available` notifications) **and one
 attendance date**; both are empty before the check, so the cleanup deletes
 everything under them by key, guarded by the ids a read-only survey found.
+
+## M16. The admin shell: eight items, one web-only item hidden, one Settings
+
+**Branch 4, 2026-09-29. Darryl's fixed decision: Backup & Restore is web
+only — no screen, no nav item.**
+
+- **The nav is the verbatim `nav.js`, so it still lists Backup & Restore.**
+  `routes.js` names it in `WEB_ONLY`, and `AppShell` drops a web-only item
+  before the drawer sees the list: **hidden, not dimmed** — a dimmed row
+  would claim the page is coming. A notification link to it opens the admin
+  home. The admin sees eight items: Dashboard, Users, Students, Grades,
+  Attendance, Announcements, Settings, About.
+- **One Settings, and the web's words.** The drawer item is Settings for
+  every role; the verbatim `tabs.js` gives the admin a first row, **School
+  settings** — the school's details, with the school year locked and the term
+  derived from the calendar — then Account information, Change password and
+  Personalization (the theme). No second "Settings" exists to clash with.
+- **The dashboard's System card shows the last backup's age and links to
+  School settings, never to backups**, and says the feature is on the web.
+- **`RoleHome.jsx` is gone** (Darryl, Q4): every role has a real home.
+- **Every admin screen re-fetches on focus** (M14; Darryl's A4) — the
+  dashboard, Users and School settings — and Users asks the bell's provider
+  to refetch too, so the Users badge follows a review (§10: a refetch, never
+  a decrement).
+
+## M17. Sensitive admin actions, and the one value shown once
+
+**Branch 4, 2026-09-29.** Each action confirms exactly as the web does (§5e,
+decided by whether the API can undo it): **create teacher, edit, and
+deactivate / activate do not confirm** (the undo is deactivate, or the same
+endpoint); **approve / reject confirm and name the decision** ("…cannot be
+returned to pending afterward"), a rejection needing a reason; **reset
+password is two phases** — confirm by name, then the password shown once.
+Your own active account shows "You cannot deactivate yourself" instead of
+the control; the last-active-admin refusal is the server's 400, shown.
+
+**The temporary password** (`admin/users/TempPasswordModal.jsx`):
+
+- lives only in that popup's state — never a navigation param (they persist
+  in navigation state), never a status line, never a log;
+- is cleared on close AND **when the app leaves the foreground** (Darryl's
+  A3), which also closes the popup;
+- is covered by **`expo-screen-capture`** (Darryl, Q1) — Android's secure
+  flag, set only while a password is on screen and lifted when it clears;
+- has **no Copy button** (Darryl, Q2, a declared difference): the phone's
+  clipboard can keep it in a history the app cannot clear. In development,
+  Expo's attached network inspector can still see the response; a
+  production build has none.
 Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
 notifications; Marwin 0 grade rows before and after.
