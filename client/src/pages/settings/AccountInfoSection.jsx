@@ -414,9 +414,19 @@ export default function AccountInfoSection() {
         <h3 className="text-sm font-semibold text-fg">Email address</h3>
         {!hasEmail ? (
           <p className="text-sm text-fg-muted">
-            {isAdmin
-              ? 'There is no email address on this account. Add one by editing your account in Admin → Users — without it you cannot reset your own password, and only another admin can get you back in.'
-              : 'There is no email address on this account. Ask the school office to add one — without it you cannot reset your own password, and the office has to do it for you.'}
+            {/* F1 (feat/sms-transport, 2026-09-29): "without it you cannot
+                reset your own password" stopped being true once a confirmed
+                mobile number is also a reset channel (§5i). Keyed on the
+                stored confirmation, so it switches the moment refresh()
+                lands after a confirm or a number change. The admin keeps
+                its own wording — an admin IS the office (§11). */}
+            {contactVerifiedAt
+              ? isAdmin
+                ? 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Add an email by editing your account in Admin → Users if you also want one.'
+                : 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Ask the school office if you also want an email added.'
+              : isAdmin
+                ? 'There is no email address on this account. Add one by editing your account in Admin → Users, or confirm a mobile number below — without either, you cannot reset your own password and only another admin can get you back in.'
+                : 'There is no email address on this account. Ask the school office to add one, or confirm a mobile number below — without either, you cannot reset your own password and the office has to do it for you.'}
           </p>
         ) : emailVerifiedAt ? (
           <p className="text-sm text-fg-muted">

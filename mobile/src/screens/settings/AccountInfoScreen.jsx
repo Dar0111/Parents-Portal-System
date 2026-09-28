@@ -314,9 +314,14 @@ export default function AccountInfoScreen() {
           <Text className="text-sm font-semibold text-fg">Email address</Text>
           {!hasEmail ? (
             <Text className="text-sm text-fg-muted">
-              {isAdmin
-                ? 'There is no email address on this account. Add one by editing your account in Admin → Users — without it you cannot reset your own password, and only another admin can get you back in.'
-                : 'There is no email address on this account. Ask the school office to add one — without it you cannot reset your own password, and the office has to do it for you.'}
+              {/* F1: the web's four sentences, keyed on the stored confirmation. */}
+              {contactVerifiedAt
+                ? isAdmin
+                  ? 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Add an email by editing your account in Admin → Users if you also want one.'
+                  : 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Ask the school office if you also want an email added.'
+                : isAdmin
+                  ? 'There is no email address on this account. Add one by editing your account in Admin → Users, or confirm a mobile number below — without either, you cannot reset your own password and only another admin can get you back in.'
+                  : 'There is no email address on this account. Ask the school office to add one, or confirm a mobile number below — without either, you cannot reset your own password and the office has to do it for you.'}
             </Text>
           ) : emailVerifiedAt ? (
             <Text className="text-sm text-fg-muted">
