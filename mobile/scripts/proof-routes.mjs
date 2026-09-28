@@ -163,5 +163,16 @@ const badLayouts = layoutSites.filter((s) => !s.name || s.body === undefined || 
 assert(layoutSites.length >= 3 && badLayouts.length === 0,
   `every screenLayout (${layoutSites.length}) names a module-level function that calls no hook${badLayouts.length ? ` — ${badLayouts.map((s) => `${s.file}: ${s.name || 'inline'}`).join(', ')}` : ''}`);
 
+// Every drawer dashboard shows what other screens write, and `popTo` returns
+// to the same, still-mounted instance — so each re-fetches on focus (M14,
+// P1, 2026-09-29), and parent and teacher skip the first focus, which is the
+// mount useCard has already fetched.
+const dashboards = ['parent', 'teacher', 'admin'].map((role) => {
+  const text = fs.readFileSync(path.join(SRC, 'screens', role, 'DashboardScreen.jsx'), 'utf8');
+  return { role, focus: /useFocusEffect\(/.test(text), skipsFirst: /firstFocus\.current/.test(text) };
+});
+const notRefetching = dashboards.filter((x) => !x.focus || (x.role !== 'admin' && !x.skipsFirst)).map((x) => x.role);
+assert(notRefetching.length === 0, `parent, teacher and admin dashboards re-fetch on focus; parent and teacher skip the mount's focus${notRefetching.length ? ` — not: ${notRefetching.join(', ')}` : ''}`);
+
 console.log(`\nproof-routes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

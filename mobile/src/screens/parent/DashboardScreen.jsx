@@ -1,3 +1,5 @@
+import { useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import api from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
@@ -285,9 +287,38 @@ export default function DashboardScreen({ navigation }) {
   const hero = heroGrades(grades, card.data, currentTerm);
   const monthDays = recordedDays(month.data);
 
-  function reloadAll() {
-    for (const c of [summary, section, month, allTime, letter, posts, events, card, week, latestMessage]) c.reload();
-  }
+  // RE-FETCH ON FOCUS (M14, fix/mobile-popto P1, 2026-09-29). A drawer
+  // screen is never unmounted, and `popTo` returns to this same instance, so
+  // without this a letter just submitted, a new announcement or event, or
+  // attendance recorded meanwhile stayed as first loaded until a pull. The
+  // first focus is the mount, which useCard has already fetched — skipped,
+  // so a cold open fetches once. Each `reload` is stable until its card's
+  // deps change, so `reloadAll` is too.
+  const reloadAll = useCallback(() => {
+    for (const reload of [
+      summary.reload,
+      section.reload,
+      month.reload,
+      allTime.reload,
+      letter.reload,
+      posts.reload,
+      events.reload,
+      card.reload,
+      week.reload,
+      latestMessage.reload,
+    ])
+      reload();
+  }, [summary.reload, section.reload, month.reload, allTime.reload, letter.reload, posts.reload, events.reload, card.reload, week.reload, latestMessage.reload]);
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      reloadAll();
+    }, [reloadAll])
+  );
 
   return (
     <ScrollView

@@ -1,3 +1,5 @@
+import { useCallback, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import api from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
@@ -25,13 +27,15 @@ function openIfBuilt(navigation, path) {
   return isBuilt(path) ? () => navigation.navigate(path) : null;
 }
 
-function AttendanceBanner({ section, today, navigation }) {
+// `tick` is the dashboard's reload count: the banner owns its card, so a
+// focus re-fetch or a pull reaches it by changing this dep, not by a ref.
+function AttendanceBanner({ section, today, tick, navigation }) {
   const day = useCard(
     () =>
       api.get(`/attendance?grade_level=${section.grade_level}&section=${encodeURIComponent(section.name)}&date=${today}&limit=200`, {
         unwrap: 'attendance',
       }),
-    [section.id, today]
+    [section.id, today, tick]
   );
   const className = `Grade ${section.grade_level} - ${section.name}`;
 
@@ -92,9 +96,28 @@ export default function DashboardScreen({ navigation }) {
   const d = summary.data;
   const advisory = sections.data || [];
 
-  function reloadAll() {
-    for (const c of [summary, sections, pending, events]) c.reload();
-  }
+  // RE-FETCH ON FOCUS (M14, fix/mobile-popto P1, 2026-09-29). A drawer
+  // screen is never unmounted, and `popTo` returns to this same instance, so
+  // without this the letter count, the banner and the events stayed as
+  // first loaded after a write on another screen. The first focus is the
+  // mount, which useCard has already fetched — skipped, so a cold open
+  // fetches once. Each `reload` is stable until its card's deps change, so
+  // `reloadAll` is too.
+  const [bannerTick, setBannerTick] = useState(0);
+  const reloadAll = useCallback(() => {
+    for (const reload of [summary.reload, sections.reload, pending.reload, events.reload]) reload();
+    setBannerTick((t) => t + 1);
+  }, [summary.reload, sections.reload, pending.reload, events.reload]);
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      reloadAll();
+    }, [reloadAll])
+  );
 
   return (
     <ScrollView
@@ -105,7 +128,7 @@ export default function DashboardScreen({ navigation }) {
       <Text className="text-sm text-fg-muted">{user?.name ? `Good day, ${user.name}.` : 'Good day.'}</Text>
 
       {!weekend && advisory.length
-        ? advisory.map((section) => <AttendanceBanner key={section.id} section={section} today={today} navigation={navigation} />)
+        ? advisory.map((section) => <AttendanceBanner key={section.id} section={section} today={today} tick={bannerTick} navigation={navigation} />)
         : null}
 
       <Card
