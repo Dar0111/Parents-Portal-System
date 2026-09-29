@@ -1716,7 +1716,7 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
       role's screens are built.** **NEXT, in order (2026-09-29):**
       `fix/mobile-popto` (merged) → SMS transport (`feat/sms-transport`,
-      built, phone check pending) → server reliability (backup
+      phone check passed, merge-ready) → server reliability (backup
       first-call reset, orphan notifications + A2, web Attendance leave
       prompt) → UI polish → `docs/stage5` → full phone test / smoke gate →
       manuscript delta list. SMS moved before server reliability by
@@ -2146,7 +2146,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-29 | **`feat/sms-transport`** (built, not merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-29 | **`feat/sms-transport`** (merge-ready, not merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
