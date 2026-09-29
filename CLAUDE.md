@@ -525,10 +525,10 @@ it be undone — not by how important it feels. **Check the handler first.**
 | Absorbs a repeat — attendance `POST /bulk` (ON DUPLICATE KEY), student status, settings, memo/announcement edit, contact | no confirmation |
 | Rejects a second attempt or has no undo — excuse review (`403` once reviewed), parent approve/reject, hard DELETE of a post or a manual backup, restore, password change | explicit confirmation **naming the specific decision back** |
 
-A sentence of warning text is not a confirmation step. **No unsaved-changes
-guard on Teacher → Grades** (every score is its own request); whether
-Teacher → Attendance, a bulk submit, warrants one is an OPEN QUESTION — do not
-add a blanket `beforeunload`.
+A sentence of warning text is not a confirmation step. **The two bulk-submit
+pages guard unsaved work** — Teacher → Grades' class record (§13d) and, since
+2026-09-30, Teacher → Attendance (§17c) — only while something is unsaved;
+never a blanket `beforeunload`.
 
 ### 5f. Empty-state copy is derived from the filter state, never from a flag
 
@@ -735,7 +735,9 @@ audiences and the accessibility contract are in
   `GET /api/events` and is still not notified about events. Enforced twice:
   the fan-out picks the audience with the matching list endpoint’s own
   `WHERE` (or a DECLARED narrowing, never a widening), and every read
-  re-checks visibility against live rows. Adding a page for something
+  re-checks visibility against live rows. **Deleting an item deletes its
+  notifications in the same transaction and signals their recipients**
+  (2026-09-30). Adding a page for something
   currently excluded means changing BOTH places; flipping a nav flag will
   not do it. **A call to act SELF-HEALS**: a pending parent once decided, an
   adviser's `excuse_submitted` once the letter is no longer Pending — the
@@ -1329,7 +1331,7 @@ is still open, needing its own dispatch:**
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
-| **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted) |
+| **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
 | **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
 | **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |
 
@@ -1715,8 +1717,8 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       web only, hidden from the drawer). Phone checks passed: first half
       (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
       role's screens are built.** **NEXT, in order (2026-09-29):**
-      `fix/mobile-popto` (merged) → SMS transport (`feat/sms-transport`,
-      phone check passed, merge-ready) → server reliability (backup
+      `fix/mobile-popto` (merged) → SMS transport (merged) → server
+      reliability (`fix/server-reliability`, built, check pending) (backup
       first-call reset, orphan notifications + A2, web Attendance leave
       prompt) → UI polish → `docs/stage5` → full phone test / smoke gate →
       manuscript delta list. SMS moved before server reliability by
@@ -1731,7 +1733,8 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
 ### Stage 6 — Integration
 
 - [ ] End-to-end testing across web and mobile
-- [ ] Deployment decision: localhost or Railway + Vercel + Cloudinary
+- [ ] Deployment decision: localhost or Railway + Vercel + Cloudinary. **The
+      demo API runs `npm start`, never `--watch`** (decided 2026-09-30)
 - [ ] Demo data and rehearsal
 
 **Why auth frontend comes before the other backend modules:** finishing all
@@ -1936,7 +1939,8 @@ questions.
 - **Parent demo — data:** real names and LRNs need the school's answer on
   consent (RA 10173 — see BEFORE THE PARENT DEMO). **Parent demo —
   logistics:** how many parents, when, is there a PTA meeting to join?
-- **Should Teacher → Attendance warn before leaving with unsaved marks?**
+- **ANSWERED 2026-09-30 — yes, built with the phone's words (§17c).** **Should
+  Teacher → Attendance warn before leaving with unsaved marks?**
   A bulk submit can lose a whole roster in one navigation; Teacher → Grades
   does not warn because every score is its own request. Decide for Attendance
   specifically; no blanket `beforeunload`.
@@ -2146,7 +2150,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-29 | **`feat/sms-transport`** (merge-ready, not merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`fix/server-reliability`** (built, not merged): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-29 | **`feat/sms-transport`** (merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |

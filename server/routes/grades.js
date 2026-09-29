@@ -3,7 +3,7 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
-const { parentOfStudent, insertNotifications, emitNotifications } = require('../utils/notify');
+const { parentOfStudent, insertNotifications, removeItemNotifications, emitNotifications } = require('../utils/notify');
 const { isValidDateFormat } = require('../utils/dateFormat');
 const {
   isWholeNumber,
@@ -3009,7 +3009,23 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
       });
     }
 
-    await pool.query('DELETE FROM grades WHERE id = ?', [gradeId]);
+    // The row and its `grade_available` notifications go together, then the
+    // parent's bell refetches (fix/server-reliability, 2026-09-30 — the same
+    // rule as the content deletes; no screen surfaces this endpoint).
+    const conn = await pool.getConnection();
+    let recipients = [];
+    try {
+      await conn.beginTransaction();
+      recipients = await removeItemNotifications(conn, 'grade', gradeId);
+      await conn.query('DELETE FROM grades WHERE id = ?', [gradeId]);
+      await conn.commit();
+    } catch (error) {
+      await conn.rollback().catch(() => {});
+      throw error;
+    } finally {
+      conn.release();
+    }
+    emitNotifications(req, recipients);
     await logActivity(req.user.id, 'delete_grade', `Deleted grade #${gradeId}`);
 
     return res.json({ success: true, message: 'Grade record deleted.' });

@@ -1018,21 +1018,39 @@ async function main() {
     );
 
     // -----------------------------------------------------------------------
-    console.log('\nRead-time visibility re-check — a deleted item disappears');
+    console.log('\nA delete removes its notifications and signals the recipients (A2, 2026-09-30)');
     // -----------------------------------------------------------------------
+    // Until fix/server-reliability the row stayed in the table and only the
+    // read-time re-check hid it, and no signal went out — so a recipient's
+    // cached bell kept counting it. Now the delete removes the rows in the
+    // same transaction and emits `notification_counts` to each recipient.
+    const marwinSock = await connectSocket(parentMarwin.token);
+    requireFixture(Boolean(marwinSock), "Marwin's parent opens a socket");
+    const annSignal = nextCountsSignal(marwinSock);
     const delRes = await request('DELETE', `/api/announcements/${secId}`, { token: tch1.token });
     requireFixture(delRes.status === 200, 'the section announcement is deleted', why(delRes));
     created.announcements = created.announcements.filter((id) => id !== secId);
+    assert(await annSignal, 'LIVE: the recipient receives notification_counts on the delete, so the bell refetches without a reload');
+    marwinSock.close();
     assert(
       !has(await notificationsOf(parentMarwin.token), 'announcement', secId),
-      'its notification stops being listed the moment the announcement is gone'
+      'its notification is no longer listed'
     );
-    const stillThere = await dbCount('notifications', 'WHERE item_type = ? AND item_id = ?', ['announcement', secId]);
-    assert(
-      stillThere > 0,
-      'the row is still in the table — nothing deleted it; the read-time re-check filtered it out',
-      `rows=${stillThere}`
-    );
+    const annLeft = await dbCount('notifications', 'WHERE item_type = ? AND item_id = ?', ['announcement', secId]);
+    assert(annLeft === 0, 'and its rows are gone from the table — deleted with the announcement, not merely hidden', `rows=${annLeft}`);
+
+    // The grade delete (admin, on no screen) follows the same rule.
+    const gradeParentSock = await connectSocket(fixtureParent.token);
+    requireFixture(Boolean(gradeParentSock), 'the fixture parent opens a socket');
+    const gradeRowsBefore = await dbCount('notifications', 'WHERE item_type = ? AND item_id = ?', ['grade', gradeId]);
+    const gradeSignal = nextCountsSignal(gradeParentSock);
+    const delGrade = await request('DELETE', `/api/grades/${gradeId}`, { token: admin.token });
+    assert(delGrade.status === 200, 'admin deletes the fixture grade', why(delGrade));
+    if (delGrade.status === 200) created.grades = created.grades.filter((id) => id !== gradeId);
+    assert(gradeRowsBefore > 0 && (await gradeSignal), 'LIVE: the parent it notified receives notification_counts on the grade delete', `rows before=${gradeRowsBefore}`);
+    gradeParentSock.close();
+    const gradeLeft = await dbCount('notifications', 'WHERE item_type = ? AND item_id = ?', ['grade', gradeId]);
+    assert(gradeLeft === 0, 'and its grade_available rows are gone with it', `rows=${gradeLeft}`);
 
     // -----------------------------------------------------------------------
     console.log('\nMark all as read');

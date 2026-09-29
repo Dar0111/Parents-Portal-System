@@ -10,8 +10,32 @@ const {
   memoAudience,
   eventAudience,
   insertNotifications,
+  removeItemNotifications,
   emitNotifications,
 } = require('../utils/notify');
+
+// ONE DELETE, ITS NOTIFICATIONS WITH IT (fix/server-reliability, 2026-09-30).
+// The item row and every notification about it go in ONE transaction, and
+// after the commit each recipient gets `notification_counts` — so a bell or a
+// badge that counted the item refetches instead of showing "1 unread" over an
+// empty list (KNOWN ISSUES A2). `table` is one of three constants below,
+// never request input.
+async function deleteWithNotifications(req, table, itemType, id) {
+  const conn = await pool.getConnection();
+  let recipients = [];
+  try {
+    await conn.beginTransaction();
+    recipients = await removeItemNotifications(conn, itemType, id);
+    await conn.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback().catch(() => {});
+    throw error;
+  } finally {
+    conn.release();
+  }
+  emitNotifications(req, recipients);
+}
 
 function isValidGradeLevel(value) {
   const n = Number(value);
@@ -397,7 +421,7 @@ announcementsRouter.delete('/:id', authenticate, authorize('teacher', 'admin'), 
 
     // Hard delete — this table has no status column. Log the title before it's
     // gone so activity_logs still has a record of what existed.
-    await pool.query('DELETE FROM announcements WHERE id = ?', [id]);
+    await deleteWithNotifications(req, 'announcements', 'announcement', id);
     await logActivity(req.user.id, 'delete_announcement', `Deleted announcement "${existing.title}" (#${id})`);
 
     return res.json({ success: true, message: 'Announcement deleted.' });
@@ -548,7 +572,7 @@ memosRouter.delete('/:id', authenticate, authorize('admin'), async (req, res) =>
       return res.status(404).json({ success: false, message: 'Memo not found.' });
     }
 
-    await pool.query('DELETE FROM memos WHERE id = ?', [id]);
+    await deleteWithNotifications(req, 'memos', 'memo', id);
     await logActivity(req.user.id, 'delete_memo', `Deleted memo "${existing.title}" (#${id})`);
 
     return res.json({ success: true, message: 'Memo deleted.' });
@@ -777,7 +801,7 @@ eventsRouter.delete('/:id', authenticate, authorize('teacher', 'admin'), async (
       return res.status(403).json({ success: false, message: 'You may only delete your own events.' });
     }
 
-    await pool.query('DELETE FROM events WHERE id = ?', [id]);
+    await deleteWithNotifications(req, 'events', 'event', id);
     await logActivity(req.user.id, 'delete_event', `Deleted event "${existing.title}" (#${id})`);
 
     return res.json({ success: true, message: 'Event deleted.' });

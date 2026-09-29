@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
@@ -7,7 +8,9 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { todayLocalDateString } from '../../format/date';
+import Modal from '../../components/Modal';
+import { longDate, todayLocalDateString } from '../../format/date';
+import { INITIAL_GUARD, transition as guardTransition } from './classRecord/backGuard';
 import { rosterColumns } from './attendance/columns';
 import {
   STATUS_ORDER,
@@ -268,6 +271,113 @@ export default function AttendancePage() {
     [recorded]
   );
 
+  // ---- the leave-without-saving prompt (fix/server-reliability, 2026-09-30) ----
+  // The phone's prompt, on the web: the same title, the same sentence, the
+  // same two buttons (mobile/src/screens/teacher/AttendanceScreen.jsx). This
+  // page is one bulk submit, so unsaved marks are lost by FOUR paths, and each
+  // needs its own guard — the pattern Teacher → Grades already proved
+  // (ClassRecordPage.jsx, §13d), not a new one:
+  //   1. a date or section change reloads the roster and resets the marks;
+  //   2. an in-app link (sidebar, header, bell) — a capture-phase click
+  //      interceptor, because this app mounts <BrowserRouter>, not a data
+  //      router, so `useBlocker` throws;
+  //   3. the browser Back button — the pure classRecord/backGuard.js machine,
+  //      reused unchanged (its proof is ssr-back-guard.jsx);
+  //   4. a reload or a closed tab — `beforeunload`, and ONLY while there is
+  //      something unsaved: a blanket one is what §5e says not to build.
+  // `pendingLeave` is one of { kind: 'change', field, value } · { kind:
+  // 'link', href } · { kind: 'back' } · null.
+  const dirty = unsaved > 0;
+  const navigate = useNavigate();
+  const [pendingLeave, setPendingLeave] = useState(null);
+
+  function requestChange(field, value) {
+    if (!dirty) {
+      if (field === 'section') setSectionId(value);
+      else setDate(value);
+      return;
+    }
+    setPendingLeave({ kind: 'change', field, value });
+  }
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onClick = (event) => {
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target.closest?.('a[href]');
+      if (!anchor || anchor.target === '_blank') return;
+      const url = new URL(anchor.href, window.location.origin);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname) return;
+      event.preventDefault();
+      setPendingLeave({ kind: 'link', href: url.pathname + url.search });
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [dirty]);
+
+  const guardRef = useRef(INITIAL_GUARD);
+  const applyGuardHistory = (action) => {
+    if (action === 'push') window.history.pushState({ ppSentinel: true }, '', window.location.href);
+    else if (action === 'back') window.history.back();
+  };
+
+  useEffect(() => {
+    const next = guardTransition(guardRef.current, dirty ? 'dirty' : 'clean');
+    guardRef.current = next.state;
+    applyGuardHistory(next.action);
+  }, [dirty]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const next = guardTransition(guardRef.current, 'pop');
+      guardRef.current = next.state;
+      if (next.action === 'ask') setPendingLeave({ kind: 'back' });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  function dismissLeave() {
+    if (pendingLeave?.kind === 'back') {
+      const next = guardTransition(guardRef.current, 'stay');
+      guardRef.current = next.state;
+      applyGuardHistory(next.action);
+    }
+    setPendingLeave(null);
+  }
+
+  function confirmLeave() {
+    const pending = pendingLeave;
+    setPendingLeave(null);
+    if (!pending) return;
+    if (pending.kind === 'back') {
+      const next = guardTransition(guardRef.current, 'leave');
+      guardRef.current = next.state;
+      applyGuardHistory(next.action);
+    } else if (pending.kind === 'link') {
+      navigate(pending.href);
+    } else if (pending.field === 'section') {
+      setSectionId(pending.value);
+    } else {
+      setDate(pending.value);
+    }
+  }
+
+  const classLabel = section ? `Grade ${section.grade_level} - ${section.name}` : '';
+  const leaveVerb = pendingLeave?.kind === 'change' ? 'Changing the date or section' : 'Leaving now';
+
   async function handleSubmit() {
     setSaving(true);
     setStatus({});
@@ -340,7 +450,7 @@ export default function AttendancePage() {
               as="select"
               className={filterSelectClass}
               value={sectionId ?? ''}
-              onChange={(e) => setSectionId(Number(e.target.value))}
+              onChange={(e) => requestChange('section', Number(e.target.value))}
             >
               {sections.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -359,7 +469,7 @@ export default function AttendancePage() {
           // to the API verbatim — never parsed into a Date. max prevents a
           // future date in the UI; the API rejects one too.
           max={todayLocalDateString()}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => requestChange('date', e.target.value)}
         />
       </div>
 
@@ -480,6 +590,33 @@ export default function AttendancePage() {
           </div>
         </>
       ) : null}
+
+      {/* The phone's words, word for word. Escape or the backdrop counts as
+          Stay — only the red button discards. */}
+      <Modal open={pendingLeave !== null} onClose={dismissLeave} title="Leave without saving attendance?" size="sm">
+        <div className="space-y-4 text-sm text-fg-body">
+          <p>
+            You have {unsaved} unsaved mark{unsaved === 1 ? '' : 's'} for {classLabel} on {longDate(date)}.{' '}
+            {leaveVerb} discards them — nothing has been sent to the server yet.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
+              onClick={dismissLeave}
+            >
+              Stay on this page
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-danger-edge px-3 py-1.5 text-sm text-danger-fg hover:bg-danger-soft"
+              onClick={confirmLeave}
+            >
+              Leave and discard
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

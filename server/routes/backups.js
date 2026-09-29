@@ -18,6 +18,53 @@ function ensureBackupsDir() {
   fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 }
 
+// A DUMP IS WRITTEN AS `<name>.sql.partial` AND RENAMED TO `.sql` ONLY WHEN
+// IT IS COMPLETE (fix/server-reliability, 2026-09-30) — a SAFEGUARD, not the
+// fix for the first-call reset. That reset was the dev server's own
+// `node --watch` restarting mid-dump when NTFS wrote an access time to a
+// node_modules file in its import graph (the dev script now watches our code
+// only). A process that dies mid-dump never reaches the catch below that
+// removes its file, and until now left a truncated `.sql` that Admin →
+// Backup & Restore listed under "Files with no record" as though it could be
+// restored. A `.partial` is by construction never a backup: the list and the
+// restore endpoint only ever see `.sql`, so removing a `.partial` does not
+// touch the rule that no backup file is deleted.
+const PARTIAL_SUFFIX = '.partial';
+
+// This process has no dump in flight while its module loads, but ANOTHER
+// server process on the same directory might (the dev API beside a test or
+// loop server). A dump takes well under a second, so only a `.partial`
+// untouched for over a minute is treated as left by a process that died.
+// Each one is logged by name before it goes.
+const PARTIAL_STALE_MS = 60 * 1000;
+function sweepPartials() {
+  try {
+    ensureBackupsDir();
+    for (const name of fs.readdirSync(BACKUPS_DIR).filter((n) => n.endsWith(`.sql${PARTIAL_SUFFIX}`))) {
+      const full = path.join(BACKUPS_DIR, name);
+      if (Date.now() - fs.statSync(full).mtimeMs < PARTIAL_STALE_MS) continue;
+      fs.unlinkSync(full);
+      console.log(`Removed an incomplete backup left by a stopped process: ${name}`);
+    }
+  } catch (error) {
+    console.error('Backup .partial sweep failed:', error.code || error.message);
+  }
+}
+sweepPartials();
+
+// The same test a cleanup script applies: mysqldump's own last line.
+function hasDumpFooter(filePath, size) {
+  const length = Math.min(200, size);
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buf = Buffer.alloc(length);
+    fs.readSync(fd, buf, 0, length, size - length);
+    return /-- Dump completed on/.test(buf.toString('utf8'));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 // <prefix>_YYYY-MM-DD_HHmmss.sql — no colons/T/Z from toISOString(), no spaces.
 // prefix distinguishes a regular backup ("parents_portal") from an automatic
 // pre-restore safety dump ("pre_restore") — same machinery, different name.
@@ -40,7 +87,10 @@ function reserveBackupPath(prefix) {
   const base = formatBackupFilename(prefix);
   let filename = base;
   let attempt = 1;
-  while (fs.existsSync(path.join(BACKUPS_DIR, filename))) {
+  while (
+    fs.existsSync(path.join(BACKUPS_DIR, filename)) ||
+    fs.existsSync(path.join(BACKUPS_DIR, `${filename}${PARTIAL_SUFFIX}`))
+  ) {
     attempt += 1;
     filename = base.replace(/\.sql$/, `-${attempt}.sql`);
   }
@@ -71,11 +121,25 @@ function runMysqldump(outputPath, args, { append = false } = {}) {
       stderr += chunk.toString();
     });
 
-    child.on('error', (err) => {
+    // A FAILURE REJECTS ONLY AFTER THE OUTPUT FILE IS CLOSED (fix/server-
+    // reliability, 2026-09-30). createWriteStream opens its file
+    // asynchronously, so rejecting at once let the caller's cleanup look for
+    // the file before it existed — and the stream created it a moment later,
+    // leaving a 0-byte file (measured: test:backups' forced failure). On
+    // Windows an open handle also makes the caller's unlink fail. Destroying
+    // the stream and waiting for its `close` means the file exists and is
+    // released when the caller removes it.
+    const fail = (err) => {
       if (settled) return;
       settled = true;
+      child.stdout.unpipe(out);
+      out.once('close', () => reject(err));
+      out.destroy();
+    };
+
+    child.on('error', (err) => {
       if (err.code === 'ENOENT') {
-        reject(
+        fail(
           new Error(
             'mysqldump was not found. Install the MySQL command-line client and ensure its bin ' +
               'directory is on PATH, or set MYSQLDUMP_PATH in server/.env to its full path ' +
@@ -83,15 +147,11 @@ function runMysqldump(outputPath, args, { append = false } = {}) {
           )
         );
       } else {
-        reject(err);
+        fail(err);
       }
     });
 
-    out.on('error', (err) => {
-      if (settled) return;
-      settled = true;
-      reject(err);
-    });
+    out.on('error', (err) => fail(err));
 
     child.on('close', (code) => {
       if (settled) return;
@@ -215,15 +275,20 @@ function stripBackupsTableDdl(sql) {
 async function createBackupRecord({ prefix, createdBy }) {
   ensureBackupsDir();
   const { filename, filePath } = reserveBackupPath(prefix);
+  const partialPath = `${filePath}${PARTIAL_SUFFIX}`;
 
   try {
-    await dumpDatabase(filePath);
+    await dumpDatabase(partialPath);
 
-    const stats = fs.statSync(filePath);
-    if (!stats.size) {
-      fs.unlinkSync(filePath);
+    const partialStats = fs.statSync(partialPath);
+    if (!partialStats.size) {
       throw new Error('mysqldump produced an empty file.');
     }
+    if (!hasDumpFooter(partialPath, partialStats.size)) {
+      throw new Error('mysqldump did not finish the dump (no "-- Dump completed on" line).');
+    }
+    fs.renameSync(partialPath, filePath);
+    const stats = fs.statSync(filePath);
 
     const [result] = await pool.query(
       'INSERT INTO backups (filename, file_path, file_size, created_by) VALUES (?, ?, ?, ?)',
@@ -235,11 +300,15 @@ async function createBackupRecord({ prefix, createdBy }) {
 
     return rows[0];
   } catch (error) {
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch {
-        // ignore cleanup failure — the dump error itself is what we report
+    // Both names: the `.partial` if the dump itself failed, the `.sql` if the
+    // rename happened and a later step (the INSERT) failed.
+    for (const p of [partialPath, filePath]) {
+      if (fs.existsSync(p)) {
+        try {
+          fs.unlinkSync(p);
+        } catch {
+          // ignore cleanup failure — the dump error itself is what we report
+        }
       }
     }
     throw error;

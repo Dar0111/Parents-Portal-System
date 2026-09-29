@@ -1018,7 +1018,7 @@ Final Grade.
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | `admin` only | — | `backups` + `orphaned_files` | newest first; each row flags `file_exists` |
-| POST | `/` | `admin` only | — | `backup` | real `mysqldump`; row inserted only after success |
+| POST | `/` | `admin` only | — | `backup` | real `mysqldump`; row inserted only after success. **Since 2026-09-30 the dump is written as `<name>.sql.partial` and renamed to `.sql` only when non-empty and footer-complete**; a failure removes it, and a startup sweep removes any `.partial` older than a minute (a safeguard against a process killed mid-dump — never a `.sql`, so no backup file is deleted). The list's `orphaned_files` is `.sql` only |
 | GET | `/:id/download` | `admin` only | — | binary file stream, no JSON on success | `404` if row or file missing |
 | DELETE | `/:id` | `admin` only | — | message only | row still removed if file already gone |
 | POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `400` on missing password, `403` "Incorrect password." on a wrong one (both were `401` until 2026-09-15 — the session is valid), `400` on `confirm_filename` mismatch; since 2026-09-18 the two password refusals carry `field: "password"` and the mismatch carries `field: "confirm_filename"`; each of those refusals is logged as `restore_refused` |
@@ -1054,6 +1054,15 @@ item was deleted, or whose audience no longer includes this user (a deleted
 `teacher_assignments` row, an approved pending parent), is simply not
 returned — the list joins each row back to its item through that item’s own
 list `WHERE`. Nothing deletes the row and there is no cleanup job.
+
+**Except a deleted ITEM (since 2026-09-30, `fix/server-reliability`).**
+`DELETE /api/announcements/:id`, `/api/memos/:id`, `/api/events/:id` and
+`/api/grades/:id` delete the item's `notifications` rows in the same
+transaction as the item (`utils/notify.js` `removeItemNotifications`) and,
+after the commit, emit `notification_counts` to every recipient those rows
+had — so a cached bell or badge refetches instead of counting a row the
+read-time check already hides. The re-check above still covers the other
+case, an audience that changed while the item lives.
 
 **A call to act self-heals** (fix/smoke-gate `12a3495`, 2026-09-26): an
 adviser's `excuse_submitted` is listed and counted only while its letter is

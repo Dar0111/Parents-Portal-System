@@ -198,6 +198,24 @@ async function insertNotifications(conn, { type, itemType, itemId, actorId, titl
   return recipients;
 }
 
+// DELETING AN ITEM DELETES ITS NOTIFICATIONS (fix/server-reliability,
+// 2026-09-30). Called inside the item's DELETE transaction, BEFORE the item
+// row goes. Returns the recipients so the caller can emitNotifications()
+// after commit — without that signal each recipient's cached bell and badge
+// kept counting a row the read-time visibility check already hid (KNOWN
+// ISSUES A2: "1 unread" over "No notifications yet"). The rows are not left
+// to be hidden forever: a notification about something that no longer
+// exists cannot be opened (§10), and leaving it was what every cleanup kept
+// finding.
+async function removeItemNotifications(conn, itemType, itemId) {
+  const [rows] = await conn.query('SELECT DISTINCT user_id FROM notifications WHERE item_type = ? AND item_id = ?', [
+    itemType,
+    itemId,
+  ]);
+  await conn.query('DELETE FROM notifications WHERE item_type = ? AND item_id = ?', [itemType, itemId]);
+  return rows.map((r) => r.user_id);
+}
+
 // Per-user rooms already exist — socket.js:44 joins `user:<id>` at connect
 // time and routes/messages.js:402 established the pattern. NEVER io.emit().
 //
@@ -226,5 +244,6 @@ module.exports = {
   parentOfStudent,
   activeUserById,
   insertNotifications,
+  removeItemNotifications,
   emitNotifications,
 };

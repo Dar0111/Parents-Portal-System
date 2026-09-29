@@ -1965,6 +1965,18 @@ own card list; the table is unchanged above it.**
 - **Counts only, never a rate.** Parent → Attendance owns the percentage and
   its rounding (§12); a second implementation on an encode screen is a number
   the two could disagree on.
+- **Unsaved marks are guarded on every path, with the PHONE's words
+  (`fix/server-reliability`, 2026-09-30 — this answers the old OPEN
+  QUESTION).** The Modal "Leave without saving attendance?" says "You have N
+  unsaved mark(s) for Grade X - Section on <date>. Changing the date or
+  section / Leaving now discards them — nothing has been sent to the server
+  yet." with **Stay on this page** and **Leave and discard**, exactly as
+  `mobile/…/teacher/AttendanceScreen.jsx`. Four paths, the Grades page's
+  pattern (§13d), not a new one: a date or section change (asked BEFORE the
+  roster reloads), a capture-phase click on an in-app link, the Back button
+  through the shared `classRecord/backGuard.js` machine, and `beforeunload`
+  **only while something is unsaved** — §5e's "no blanket `beforeunload`"
+  still stands.
 
 ### 17d. `actions` beside `onSelect` is SILENTLY DROPPED
 

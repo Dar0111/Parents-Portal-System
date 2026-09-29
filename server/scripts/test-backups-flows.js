@@ -377,6 +377,70 @@ async function run() {
           JSON.stringify((fullList.data?.orphaned_files || []).map((f) => f.filename).sort()),
       'GET /backups?limit=1: orphaned_files is the same set as on the full list (disk minus EVERY row)'
     );
+
+    // --- The .partial safeguard (fix/server-reliability, 2026-09-30) ---
+    // A dump is written as <name>.sql.partial and renamed only when complete.
+    // Proved on a SECOND API process on its own port, started with a
+    // MYSQLDUMP_PATH that does not exist, so its dump fails for certain —
+    // the running server under test is never reconfigured. The same child
+    // proves the startup sweep: a stale .partial planted before it starts is
+    // gone once it is up.
+    console.log('\n.partial safeguard');
+    const nodePath = require('path');
+    const { spawn, execSync } = require('child_process');
+    const backupsDir = nodePath.join(__dirname, '..', 'backups');
+    assert(
+      !fs.readdirSync(backupsDir).some((n) => n.endsWith('.sql.partial')),
+      'after this suite\'s successful backups, no .partial is left on disk'
+    );
+    const planted = nodePath.join(backupsDir, `suite_probe_${Date.now()}.sql.partial`);
+    fs.writeFileSync(planted, '');
+    const stale = new Date(Date.now() - 5 * 60 * 1000);
+    fs.utimesSync(planted, stale, stale);
+    const FAIL_PORT = Number(process.env.FAIL_PORT || 5002);
+    const child = spawn(process.execPath, ['server.js'], {
+      cwd: nodePath.join(__dirname, '..'),
+      env: { ...process.env, PORT: String(FAIL_PORT), MYSQLDUMP_PATH: nodePath.join(__dirname, 'no-such-mysqldump.exe') },
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    try {
+      let up = false;
+      for (let i = 0; i < 100 && !up; i += 1) {
+        try {
+          up = (await fetch(`http://127.0.0.1:${FAIL_PORT}/api/health`)).status === 200;
+        } catch {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+      }
+      assert(up, `a second API with a broken MYSQLDUMP_PATH starts on ${FAIL_PORT}`);
+      assert(!fs.existsSync(planted), 'its startup sweep removed the stale .partial planted before it started');
+      const before = new Set(fs.readdirSync(backupsDir));
+      const failLogin = await fetch(`http://127.0.0.1:${FAIL_PORT}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login_id: 'ADMIN001', password: 'Admin@2026' }),
+      }).then((r) => r.json());
+      const failRes = await fetch(`http://127.0.0.1:${FAIL_PORT}/api/backups`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${failLogin.token}` },
+      });
+      assert(failRes.status === 500, 'the forced dump failure answers 500', `got ${failRes.status}`);
+      const leftover = fs.readdirSync(backupsDir).filter((n) => !before.has(n));
+      assert(
+        leftover.length === 0,
+        'the forced failure leaves neither a .sql nor a .partial behind',
+        leftover.join(', ')
+      );
+    } finally {
+      if (fs.existsSync(planted)) fs.unlinkSync(planted);
+      try {
+        if (process.platform === 'win32') execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' });
+        else child.kill('SIGKILL');
+      } catch {
+        // already gone
+      }
+    }
   } finally {
     await cleanup();
   }

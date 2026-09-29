@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "node --watch-path=./server.js --watch-path=./socket.js --watch-path=./routes --watch-path=./utils --watch-path=./middleware --watch-path=./config server.js",
     "db:setup": "node scripts/setup-db.js",
     "db:migrate:notifications": "node scripts/migrate-notifications.js",
     "db:migrate:auth-codes": "node scripts/migrate-auth-codes.js",
@@ -16,6 +16,7 @@
     "db:migrate:fixture-learner": "node scripts/migrate-fixture-learner.js",
     "db:migrate:contact-verification": "node scripts/migrate-contact-verification.js",
     "sms:probe": "node scripts/probe-sms-gateway.js",
+    "proof:backups": "node scripts/proof-backup-loop.js",
     "test:sms-transport": "node scripts/test-sms-transport.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:auth-middleware": "node scripts/test-auth-middleware.js",
