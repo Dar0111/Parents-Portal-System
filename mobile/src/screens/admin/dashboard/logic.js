@@ -39,3 +39,11 @@ export function showLockoutHazard(dashboard) {
 export function pendingTone(count) {
   return Number(count) > 0 ? 'warning' : 'default';
 }
+
+// THE LEAD LINE of the EMPHASISED card (feat/ui-polish f2, 2026-09-30):
+// Stat's `{ value, caption }`, the web's words, shown at 0 too. It is first on
+// the screen and the bigger number — on one column, that is the emphasis.
+export function pendingLead(count) {
+  const n = Number(count) || 0;
+  return { value: String(n), caption: n === 1 ? 'parent account waiting' : 'parent accounts waiting' };
+}

@@ -10,7 +10,21 @@ import { register } from 'node:module';
 const HOOK = `export async function resolve(s, c, n) { try { return await n(s, c); } catch (e) { if (e.code === 'ERR_MODULE_NOT_FOUND' && /^\\.{1,2}\\//.test(s) && !/\\.[a-z]+$/.test(s)) return n(s + '.js', c); throw e; } }`;
 register('data:text/javascript,' + encodeURIComponent(HOOK), import.meta.url);
 
-const { childInitials, childName, classLabel, heroGrades, letterTerm, recordedDays, weekStrip } = await import('../src/screens/parent/dashboard/logic.js');
+const {
+  attendanceLead,
+  childInitials,
+  childName,
+  classLabel,
+  gradesLead,
+  heroGrades,
+  letterLead,
+  letterTerm,
+  nextEventLead,
+  postsLead,
+  recordedDays,
+  unreadLead,
+  weekStrip,
+} = await import('../src/screens/parent/dashboard/logic.js');
 
 let passed = 0;
 let failed = 0;
@@ -78,6 +92,38 @@ console.log('labels');
 assert(classLabel({ grade_level: 6, section: 'Malikhain' }) === 'Grade 6 - Malikhain' && classLabel({}) === null && classLabel({ grade_level: 6 }) === 'Grade 6', 'classLabel: full, none, no section');
 assert(childName({ student_first_name: 'Tala', student_last_name: 'Halimbawa' }) === 'Tala Halimbawa' && childName({}) === null, 'childName: a name is not an identifier; empty → null');
 assert(childInitials({ student_first_name: 'tala', student_last_name: 'halimbawa' }) === 'TH', 'childInitials upper-cases');
+
+console.log('lead lines (feat/ui-polish f2) — a number or the next action');
+const partial = gradesLead({ term: 1, subjects_recorded: 3, subjects_total: 8, complete: false });
+const whole = gradesLead({ term: 1, complete: true, general_average: '88.05' });
+assert(
+  partial.value === '3 of 8' && partial.caption === 'subjects recorded · Term 1' && whole.average === '88.05' && whole.caption === 'General average · Term 1' && !('value' in whole),
+  'grades: "3 of 8 subjects recorded · Term 1" until complete, then the average (raw, for GradeValue) — never a partial average'
+);
+assert(
+  gradesLead({ term: 1, descriptive: true }) === null && gradesLead({ unavailable: true }) === null && gradesLead({ term: null }) === null && gradesLead(null) === null,
+  'grades: no lead for Key Stage 1 (§12 refuses N of M), for no grading config, or before any term'
+);
+const one = attendanceLead({ present: 4, absent: 1, late: 0, total: 5 }, '2026-10-01');
+const none = attendanceLead({ present: 5, absent: 0, late: 1, total: 5 }, '2026-09-30');
+assert(
+  one.value === '1' && one.caption === 'absence in October' && none.value === '0' && none.caption === 'absences in September' && attendanceLead(null) === null,
+  'attendance: "1 absence in October", "0 absences in September" (a 0 is printed), nothing recorded → no lead'
+);
+assert(
+  unreadLead(1).caption === 'unread message' && unreadLead(0, true).value === '0' && unreadLead(0, false) === null && unreadLead(3, false).caption === 'unread messages',
+  'messages: the provider\'s count, shown at 0 once a conversation exists, no lead with none'
+);
+assert(
+  letterLead({ status: 'Pending' }).value === 'Pending' && letterLead({ status: 'Pending' }).caption === 'Latest letter' && letterLead(null).value === 'Submit a letter',
+  'excuse letters: the latest status, or the next action'
+);
+assert(
+  postsLead({ announcements: 2, memos: 1, events: 5, total: 9 }).value === '3' && postsLead(undefined).value === '0',
+  'announcements & memos: the bell\'s announcements + memos only (§10), never events or the total'
+);
+const next = nextEventLead([{ title: 'Foundation Day', event_date: '2026-10-05' }, { title: 'PTA', event_date: '2026-10-09' }]);
+assert(next.value === 'Foundation Day' && next.caption === 'Next event · 5 October 2026' && nextEventLead([]) === null, 'events: the next one leads, dated in long form; none → no lead');
 
 console.log(`\nproof-parent-dashboard: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

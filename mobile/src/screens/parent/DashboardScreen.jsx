@@ -8,11 +8,28 @@ import { longDate, monthName, todayLocalDateString, weekdayName, lastNDays } fro
 import GradeValue from '../../format/GradeValue';
 import { currentTerm as calendarTerm } from '../../format/schoolCalendar';
 import TermValue from '../../format/TermValue';
+import { useNotifications } from '../../realtime/NotificationProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import Card, { CardEmpty, Stat } from '../dashboards/Card';
 import { useCard } from '../dashboards/useCard';
-import { STATUS_INITIAL, childInitials, childName, classLabel, firstOfMonth, heroGrades, letterTerm, recordedDays, weekStrip } from './dashboard/logic';
+import {
+  STATUS_INITIAL,
+  attendanceLead,
+  childInitials,
+  childName,
+  classLabel,
+  firstOfMonth,
+  gradesLead,
+  heroGrades,
+  letterLead,
+  letterTerm,
+  nextEventLead,
+  postsLead,
+  recordedDays,
+  unreadLead,
+  weekStrip,
+} from './dashboard/logic';
 
 // THE PARENT DASHBOARD (§12, §15) — the web's ParentDashboard.jsx in one
 // column. Every card owns its state through useCard (a verbatim copy); no
@@ -229,6 +246,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm: letters, 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
   const { unread } = useUnread();
+  const { counts } = useNotifications();
   const { tokens } = useTheme();
   const studentId = user?.student_id ?? null;
   const linked = Boolean(studentId);
@@ -286,6 +304,14 @@ export default function DashboardScreen({ navigation }) {
   const letters = letterTerm(card.data?.subjects, currentTerm);
   const hero = heroGrades(grades, card.data, currentTerm);
   const monthDays = recordedDays(month.data);
+  // The lead lines (f2): every card opens on a number or the next action, and
+  // Grades and Attendance — first after the hero — carry the bigger number.
+  const gLead = gradesLead(grades);
+  const aLead = attendanceLead(monthDays, today);
+  const mLead = unreadLead(unread, Boolean(latestMessage.data));
+  const eLead = nextEventLead(events.data);
+  const lLead = letterLead(letter.data);
+  const pLead = postsLead(counts);
 
   // RE-FETCH ON FOCUS (M14, fix/mobile-popto P1, 2026-09-29). A drawer
   // screen is never unmounted, and `popTo` returns to this same instance, so
@@ -342,14 +368,9 @@ export default function DashboardScreen({ navigation }) {
             <Text className="text-sm text-fg-muted">Reported as a letter for each subject.</Text>
             <SubjectList card={card} mode="descriptive" term={currentTerm} />
           </View>
-        ) : grades?.complete ? (
+        ) : gLead ? (
           <View>
-            <Stat value={<GradeValue value={grades.general_average} mode="numerical" />} caption={`General average, Term ${grades.term}`} />
-            <SubjectList card={card} mode="numerical" term={currentTerm} />
-          </View>
-        ) : grades?.term ? (
-          <View>
-            <Stat value="Pending" muted caption={`Term ${grades.term} — ${grades.subjects_recorded} of ${grades.subjects_total} subjects recorded`} />
+            <Stat large value={gLead.average !== undefined ? <GradeValue value={gLead.average} mode="numerical" /> : gLead.value} caption={gLead.caption} />
             <SubjectList card={card} mode="numerical" term={currentTerm} />
           </View>
         ) : (
@@ -384,7 +405,10 @@ export default function DashboardScreen({ navigation }) {
             }
             return (
               <View>
-                <Stat value={`${m.present} of ${m.total}`} caption="Present on recorded days, this month" />
+                <Stat large value={aLead.value} caption={aLead.caption} />
+                <View className="mt-3">
+                  <Stat value={`${m.present} of ${m.total}`} caption="Present on recorded days, this month" />
+                </View>
                 <Text className="mt-2 text-sm text-fg-muted">
                   {m.absent} absent · {m.late} late
                 </Text>
@@ -397,9 +421,9 @@ export default function DashboardScreen({ navigation }) {
       </Card>
 
       <Card title="Messages" icon="fa-comments" onOpen={() => navigation.navigate('/parent/messages')} loading={latestMessage.loading} error={latestMessage.error} onRetry={latestMessage.reload}>
-        {unread > 0 ? <Stat value={String(unread)} caption={unread === 1 ? 'unread message' : 'unread messages'} /> : null}
+        {mLead ? <Stat value={mLead.value} caption={mLead.caption} /> : null}
         {latestMessage.data ? (
-          <View className={unread > 0 ? 'mt-3 border-t border-edge pt-2' : ''}>
+          <View className="mt-3 border-t border-edge pt-2">
             <Text className="text-sm font-medium text-fg">{latestMessage.data.other_user_name}</Text>
             <Text numberOfLines={2} className="mt-0.5 text-sm text-fg-muted">
               {latestMessage.data.last_message_body}
@@ -413,19 +437,19 @@ export default function DashboardScreen({ navigation }) {
       <Card title="Excuse letters" icon="fa-envelope-open-text" onOpen={() => navigation.navigate('/parent/excuse-letters')} loading={letter.loading} error={letter.error} onRetry={letter.reload}>
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
-        ) : letter.data ? (
-          <View className="gap-2">
-            <StatusBadge status={letter.data.status} />
-            <AbsenceLine date={letter.data.absence_date} className="text-sm text-fg-muted" />
-          </View>
         ) : (
-          <CardEmpty>No excuse letters.</CardEmpty>
+          <View className="gap-2">
+            <Stat value={lLead.value} caption={lLead.caption} />
+            {letter.data ? <AbsenceLine date={letter.data.absence_date} className="text-sm text-fg-muted" /> : null}
+          </View>
         )}
       </Card>
 
       <Card title="Announcements & memos" icon="fa-bullhorn" onOpen={() => navigation.navigate('/parent/announcements')} loading={posts.loading} error={posts.error} onRetry={posts.reload}>
         {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
           <View className="gap-2">
+            <Stat value={pLead.value} caption={pLead.caption} />
+            <View className="mt-1 border-t border-edge" />
             {posts.data.announcements.map((row) => (
               <Text key={`a-${row.id}`} className="text-sm text-fg">
                 {row.title}
@@ -445,9 +469,11 @@ export default function DashboardScreen({ navigation }) {
       </Card>
 
       <Card title="Upcoming events" icon="fa-calendar-days" onOpen={() => navigation.navigate('/parent/events')} loading={events.loading} error={events.error} onRetry={events.reload}>
-        {events.data?.length ? (
+        {eLead ? (
           <View className="gap-2.5">
-            {events.data.map((row) => (
+            <Stat value={eLead.value} caption={eLead.caption} />
+            {events.data.length > 1 ? <View className="border-t border-edge" /> : null}
+            {events.data.slice(1).map((row) => (
               <View key={row.id} className="flex-row items-center gap-3">
                 <DateTile dateStr={row.event_date} />
                 <Text className="min-w-0 flex-1 text-sm text-fg">{row.title}</Text>

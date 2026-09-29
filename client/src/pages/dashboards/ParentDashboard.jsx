@@ -1,5 +1,6 @@
 import api from '../../api/axios';
 import { useAuth } from '../../auth/AuthContext';
+import { useNotifications } from '../../realtime/NotificationProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
 import {
   todayLocalDateString,
@@ -486,6 +487,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
 export default function ParentDashboard() {
   const { user } = useAuth();
   const { unread } = useUnread();
+  const { counts } = useNotifications();
   const studentId = user?.student_id ?? null;
   const linked = Boolean(studentId);
   const today = todayLocalDateString();
@@ -723,12 +725,21 @@ export default function ParentDashboard() {
         letter={letter}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* EVERY CARD LEADS WITH A NUMBER OR THE NEXT ACTION (f2, 2026-09-30),
+          and the two a parent opens this page for — Grades and Attendance —
+          are the LARGE cards: first, two columns wide, the bigger number.
+          Four columns from xl so the two large cards share a row and the
+          four small ones the next; below xl, two columns, the large ones
+          full width. No width leaves a hole in the grid. The mobile
+          dashboard/logic.js builds the same lead words so a proof can hold
+          them. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
       <Card
         title="Grades"
         icon="fa-chart-simple"
         to="/parent/grades"
+        className="sm:col-span-2"
         loading={summary.loading}
         error={summary.error}
         onRetry={summary.reload}
@@ -753,22 +764,26 @@ export default function ParentDashboard() {
         ) : grades?.complete ? (
           <div>
             <Stat
+              large
               // THROUGH GradeValue, not raw (DV4). This printed "87.5" against
               // the report card's "87.50" — one number, two spellings, two
               // screens. Two decimals is the rule for a General Average
               // (GRADING_SPEC §4a), and the split is at the call site because
               // Stat also renders counts and fractions.
               value={<GradeValue value={grades.general_average} mode="numerical" />}
-              caption={`General average, Term ${grades.term}`}
+              caption={`General average · Term ${grades.term}`}
             />
             <SubjectList card={card} mode="numerical" term={currentTerm} />
           </div>
         ) : grades?.term ? (
           <div>
+            {/* The count leads, not a muted "Pending": how far the term has
+                got is the fact a parent can act on. Still no partial
+                average (§12). */}
             <Stat
-              value="Pending"
-              muted
-              caption={`Term ${grades.term} — ${grades.subjects_recorded} of ${grades.subjects_total} subjects recorded`}
+              large
+              value={`${grades.subjects_recorded} of ${grades.subjects_total}`}
+              caption={`subjects recorded · Term ${grades.term}`}
             />
             <SubjectList card={card} mode="numerical" term={currentTerm} />
           </div>
@@ -781,6 +796,7 @@ export default function ParentDashboard() {
         title="Attendance"
         icon="fa-clipboard-user"
         to="/parent/attendance"
+        className="sm:col-span-2"
         loading={month.loading || allTime.loading}
         error={month.error || allTime.error}
         onRetry={() => {
@@ -806,9 +822,19 @@ export default function ParentDashboard() {
                 </div>
               );
             }
+            // Absences lead: the number a parent acts on. The fraction stays
+            // below it, unchanged (§12: the fraction, never a rate).
+            const monthLabel = monthName(Number(today.slice(5, 7)));
             return (
               <div>
-                <Stat value={`${m.present} of ${m.total}`} caption="Present on recorded days, this month" />
+                <Stat
+                  large
+                  value={m.absent}
+                  caption={`${m.absent === 1 ? 'absence' : 'absences'} in ${monthLabel}`}
+                />
+                <div className="mt-3">
+                  <Stat value={`${m.present} of ${m.total}`} caption="Present on recorded days, this month" />
+                </div>
                 <p className="mt-2 text-sm text-fg-muted">
                   {m.absent} absent &middot; {m.late} late
                 </p>
@@ -835,11 +861,11 @@ export default function ParentDashboard() {
         {/* THE COUNT IS STILL THE SERVER'S ANSWER (§10) — `unread` comes from
             UnreadProvider, never from the length of this list. The preview
             below supplies only the sender and the snippet. */}
-        {unread > 0 ? (
+        {unread > 0 || latestMessage.data ? (
           <Stat value={unread} caption={unread === 1 ? 'unread message' : 'unread messages'} />
         ) : null}
         {latestMessage.data ? (
-          <div className={unread > 0 ? 'mt-3 border-t border-edge pt-2' : ''}>
+          <div className="mt-3 border-t border-edge pt-2">
             <p className="text-sm font-medium text-fg">{latestMessage.data.other_user_name}</p>
             <p className="mt-0.5 line-clamp-2 text-sm text-fg-muted">{latestMessage.data.last_message_body}</p>
           </div>
@@ -862,11 +888,12 @@ export default function ParentDashboard() {
           // The card never disappears (spec): a parent who has never sent one
           // still needs to know where they live.
           <div className="space-y-2">
-            <StatusBadge status={letter.data.status} />
+            <Stat value={letter.data.status} caption="Latest letter" />
             <AbsenceLine date={letter.data.absence_date} className="text-sm text-fg-muted" />
           </div>
         ) : (
-          <CardEmpty>No excuse letters.</CardEmpty>
+          // The next action leads when there is nothing to count.
+          <Stat value="Submit a letter" caption="No excuse letters yet." />
         )}
       </Card>
 
@@ -879,7 +906,12 @@ export default function ParentDashboard() {
         onRetry={posts.reload}
       >
         {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
-          <ul className="space-y-2">
+          <>
+          {/* The bell's own count (§10: the server's answer, never a list
+              length) — posts carry no read state of their own. The same two
+              sections the sidebar badge adds. */}
+          <Stat value={counts.announcements + counts.memos} caption="unread" />
+          <ul className="mt-3 space-y-2 border-t border-edge pt-2">
             {posts.data.announcements.map((row) => (
               <li key={`a-${row.id}`} className="text-sm text-fg">
                 {row.title}
@@ -893,6 +925,7 @@ export default function ParentDashboard() {
               </li>
             ))}
           </ul>
+          </>
         ) : (
           <CardEmpty>Nothing posted yet.</CardEmpty>
         )}
@@ -907,14 +940,20 @@ export default function ParentDashboard() {
         onRetry={events.reload}
       >
         {events.data?.length ? (
-          <ul className="space-y-2.5">
-            {events.data.map((row) => (
-              <li key={row.id} className="flex items-center gap-3">
-                <DateTile dateStr={row.event_date} />
-                <span className="min-w-0 text-sm text-fg">{row.title}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            {/* The next one leads; the list below holds the rest. */}
+            <Stat value={events.data[0].title} caption={`Next event · ${longDate(events.data[0].event_date)}`} />
+            {events.data.length > 1 ? (
+              <ul className="mt-3 space-y-2.5 border-t border-edge pt-3">
+                {events.data.slice(1).map((row) => (
+                  <li key={row.id} className="flex items-center gap-3">
+                    <DateTile dateStr={row.event_date} />
+                    <span className="min-w-0 text-sm text-fg">{row.title}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
         ) : (
           <CardEmpty>No upcoming events.</CardEmpty>
         )}

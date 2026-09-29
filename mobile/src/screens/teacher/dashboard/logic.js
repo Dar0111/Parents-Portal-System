@@ -36,3 +36,26 @@ export function bannerFor(section, rows, rosterCount) {
 export function advisedSections(sections, userId) {
   return (sections || []).filter((s) => Number(s.adviser_id) === Number(userId));
 }
+
+// THE LEAD LINES (feat/ui-polish f2, 2026-09-30) — Stat's `{ value, caption }`,
+// the same words the web builds inline. Messages and events lead exactly as
+// on the parent's, so those two are the parent module's, not a second copy.
+export { nextEventLead, unreadLead } from '../../parent/dashboard/logic';
+
+// The EMPHASISED card: the review queue, shown at 0 too.
+export function reviewLead(page) {
+  if (!page) return null;
+  const n = Number(page.total) || 0;
+  return { value: String(n), caption: n === 1 ? 'letter to review' : 'letters to review' };
+}
+
+export function termGradesLead(dashboard) {
+  if (!dashboard || dashboard.classes_total === 0) return null;
+  return { value: `${dashboard.classes_complete} of ${dashboard.classes_total}`, caption: `classes fully recorded · Term ${dashboard.term}` };
+}
+
+export function classesLead(dashboard) {
+  const n = dashboard?.classes?.length ?? 0;
+  if (!n) return null;
+  return { value: String(n), caption: n === 1 ? 'class' : 'classes' };
+}

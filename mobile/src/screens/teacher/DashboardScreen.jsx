@@ -9,7 +9,7 @@ import { useUnread } from '../../realtime/UnreadProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import Card, { CardEmpty, Stat } from '../dashboards/Card';
 import { useCard } from '../dashboards/useCard';
-import { advisedSections, bannerFor } from './dashboard/logic';
+import { advisedSections, bannerFor, classesLead, nextEventLead, reviewLead, termGradesLead, unreadLead } from './dashboard/logic';
 
 // THE TEACHER DASHBOARD (§12) — the web's TeacherDashboard.jsx in one
 // column. One request per card, one failure per card, no Promise.all across
@@ -95,6 +95,13 @@ export default function DashboardScreen({ navigation }) {
 
   const d = summary.data;
   const advisory = sections.data || [];
+  // The lead lines (f2): every card opens on a number, the review queue —
+  // first — on the bigger one.
+  const review = reviewLead(pending.data?.page);
+  const gradesLine = termGradesLead(d);
+  const classesLine = classesLead(d);
+  const messagesLine = unreadLead(unread);
+  const eventLine = nextEventLead(events.data);
 
   // RE-FETCH ON FOCUS (M14, fix/mobile-popto P1, 2026-09-29). A drawer
   // screen is never unmounted, and `popTo` returns to this same instance, so
@@ -140,40 +147,36 @@ export default function DashboardScreen({ navigation }) {
         onRetry={pending.reload}
         tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
       >
-        {pending.data?.page?.total > 0 ? (
-          <Stat value={String(pending.data.page.total)} caption={pending.data.page.total === 1 ? 'letter waiting' : 'letters waiting'} />
-        ) : (
-          <CardEmpty>Nothing waiting.</CardEmpty>
-        )}
+        {review ? <Stat large value={review.value} caption={review.caption} /> : null}
       </Card>
 
       <Card title="Term grades" icon="fa-chart-simple" onOpen={openIfBuilt(navigation, '/teacher/grades')} loading={summary.loading} error={summary.error} onRetry={summary.reload}>
         {d ? (
-          d.classes_total === 0 ? (
-            <CardEmpty>You have no subject assignments.</CardEmpty>
+          gradesLine ? (
+            <Stat value={gradesLine.value} caption={gradesLine.caption} />
           ) : (
-            <Stat value={`${d.classes_complete} of ${d.classes_total}`} caption={`classes fully recorded, Term ${d.term}`} />
+            <CardEmpty>You have no subject assignments.</CardEmpty>
           )
         ) : null}
       </Card>
 
       <Card title="Messages" icon="fa-comments" onOpen={openIfBuilt(navigation, '/teacher/messages')}>
-        {unread > 0 ? <Stat value={String(unread)} caption={unread === 1 ? 'unread message' : 'unread messages'} /> : <CardEmpty>No unread messages.</CardEmpty>}
+        <Stat value={messagesLine.value} caption={messagesLine.caption} />
       </Card>
 
       <Card
         title="My classes"
         icon="fa-users-rectangle"
         onOpen={openIfBuilt(navigation, '/teacher/grades')}
-        linkLabel="Open grades"
         loading={summary.loading}
         error={summary.error}
         onRetry={summary.reload}
       >
-        {d?.classes?.length ? (
+        {classesLine ? (
           <View>
+            <Stat value={classesLine.value} caption={classesLine.caption} />
             {d.classes.map((c, i) => (
-              <View key={c.assignment_id} className={`py-2 ${i > 0 ? 'border-t border-edge' : ''}`}>
+              <View key={c.assignment_id} className={`py-2 ${i > 0 ? 'border-t border-edge' : 'mt-2 border-t border-edge'}`}>
                 <Text className="text-sm text-fg">
                   Grade {c.grade_level} - {c.section}
                   <Text className="text-fg-muted">  {c.subject_name}</Text>
@@ -195,9 +198,11 @@ export default function DashboardScreen({ navigation }) {
       </Card>
 
       <Card title="Upcoming events" icon="fa-calendar-days" onOpen={openIfBuilt(navigation, '/teacher/events')} loading={events.loading} error={events.error} onRetry={events.reload}>
-        {events.data?.length ? (
+        {eventLine ? (
           <View className="gap-2">
-            {events.data.map((row) => (
+            <Stat value={eventLine.value} caption={eventLine.caption} />
+            {events.data.length > 1 ? <View className="border-t border-edge" /> : null}
+            {events.data.slice(1).map((row) => (
               <Text key={row.id} className="text-sm text-fg">
                 {row.title}
                 <Text className="text-xs text-fg-muted">  {longDate(row.event_date)}</Text>

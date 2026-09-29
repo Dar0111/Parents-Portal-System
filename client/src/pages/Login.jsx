@@ -236,13 +236,15 @@ export default function Login() {
               there was no reset endpoint — a link then would have been a
               claim about behaviour the code did not have (§5i) — and
               /forgot-password now exists, so the claim is true.
-              The office line stays, shortened, because it is still the only
-              route for an account with no confirmed email address. */}
+              The office line gave way to the channels (f4, 2026-09-30): since
+              SMS a code goes to a confirmed email OR mobile number, so "no
+              email" no longer meant "ask the office". The sentence names no
+              account's state (§11). */}
           <p className="mt-5 text-sm text-fg-muted">
             <Link to="/forgot-password" className="font-medium text-brand underline-offset-2 hover:underline">
               Forgot your password?
             </Link>{' '}
-            No email on your account? Ask the school office.
+            {"We'll send a code to your confirmed email or mobile number."}
           </p>
         </div>
         {/* The school's details and the DepEd VMV, signed out (pre-Stage-5

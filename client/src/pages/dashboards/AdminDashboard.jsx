@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { useSocket } from '../../realtime/SocketProvider';
 import { calendarDaysAgo, calendarDaysAgoLabel } from '../../format/date';
-import Card, { CardEmpty, Stat } from './Card';
+import Card, { Stat } from './Card';
 import { useCard } from './useCard';
 
 // Admin dashboard (DB2, 2026-09-19). Four cards, and one of them only
@@ -104,7 +104,32 @@ export default function AdminDashboard() {
         </div>
       ) : null}
 
+      {/* THE APPROVAL QUEUE IS THE EMPHASISED CARD (f2, 2026-09-30): first,
+          two columns, the bigger number — the one card that asks the admin
+          to act. The other four are one column each, so no width leaves a
+          hole in the grid; that is why System's details are one column. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card
+          title="Waiting for approval"
+          icon="fa-user-clock"
+          to="/admin/users"
+          className="sm:col-span-2"
+          // Amber ONLY when there is something in the queue. A permanently
+          // amber card is wallpaper, and the next real one is not noticed.
+          tone={pending > 0 ? 'warning' : 'default'}
+          loading={summary.loading}
+          error={summary.error}
+          onRetry={summary.reload}
+        >
+          {d ? (
+            <Stat
+              large
+              value={pending}
+              caption={pending === 1 ? 'parent account waiting' : 'parent accounts waiting'}
+            />
+          ) : null}
+        </Card>
+
         <Card
           title="Students"
           icon="fa-user-graduate"
@@ -139,38 +164,29 @@ export default function AdminDashboard() {
         </Card>
 
         <Card
-          title="Waiting for approval"
-          icon="fa-user-clock"
-          to="/admin/users"
-          linkLabel="Review"
-          // Amber ONLY when there is something in the queue. A permanently
-          // amber card is wallpaper, and the next real one is not noticed.
-          tone={pending > 0 ? 'warning' : 'default'}
-          loading={summary.loading}
-          error={summary.error}
-          onRetry={summary.reload}
-        >
-          {d ? (
-            pending > 0 ? (
-              <Stat value={pending} caption={pending === 1 ? 'parent account' : 'parent accounts'} />
-            ) : (
-              <CardEmpty>Nothing waiting.</CardEmpty>
-            )
-          ) : null}
-        </Card>
-
-        <Card
           title="System"
           icon="fa-server"
           to="/admin/settings"
-          linkLabel="School settings"
-          className="sm:col-span-2"
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
         >
+          {/* The last backup leads: of everything here it is the one that
+              goes stale on its own. Coloured by the same never-red rule as
+              before. */}
+          <p
+            className={`text-2xl font-semibold ${
+              backups.loading
+                ? 'text-fg-muted'
+                : backups.error || age.tone !== 'success'
+                  ? 'text-warning-strong'
+                  : 'text-success-strong'
+            }`}
+          >
+            {backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
+          </p>
           {d ? (
-            <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+            <dl className="mt-3 grid gap-y-2 border-t border-edge pt-3">
               <div className="flex justify-between gap-3">
                 <dt className="text-sm text-fg-muted">School year</dt>
                 <dd className="text-sm font-medium text-fg">{d.school_year}</dd>
@@ -212,24 +228,12 @@ export default function AdminDashboard() {
                   {connected ? 'Connected' : 'Paused'}
                 </dd>
               </div>
-              <div className="flex justify-between gap-3 sm:col-span-2">
-                <dt className="text-sm text-fg-muted">Backup</dt>
-                <dd
-                  className={`text-sm font-medium ${
-                    backups.loading
-                      ? 'text-fg-muted'
-                      : age.tone === 'success'
-                        ? 'text-success-strong'
-                        : 'text-warning-strong'
-                  }`}
-                >
-                  {backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
-                </dd>
-              </div>
             </dl>
           ) : null}
+          {/* `relative z-10` lifts this link above the card's stretched one
+              (Card.jsx), so it opens Backup & restore, not School settings. */}
           <p className="mt-3">
-            <Link to="/admin/backups" className="text-sm font-medium text-brand underline-offset-2 hover:underline">
+            <Link to="/admin/backups" className="relative z-10 text-sm font-medium text-brand underline-offset-2 hover:underline">
               Backup &amp; restore →
             </Link>
           </p>

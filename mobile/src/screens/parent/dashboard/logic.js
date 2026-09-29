@@ -1,4 +1,4 @@
-import { isWeekend, lastNDays, todayLocalDateString } from '../../../format/date';
+import { isWeekend, lastNDays, longDate, monthName, todayLocalDateString } from '../../../format/date';
 
 // THE PURE HALF OF THE WEB'S ParentDashboard.jsx, lifted into a module so
 // scripts/proof-parent-dashboard.mjs can drive it (§17b). Every function is
@@ -80,4 +80,53 @@ export function heroGrades(grades, card, currentTerm) {
     average: card?.term_averages?.[currentTerm] ?? null,
     descriptor,
   };
+}
+
+// THE LEAD LINES (feat/ui-polish f2, 2026-09-30). Every card opens on a
+// number or the next action, as Stat's `{ value, caption }`; the web's
+// dashboards build the same words inline. `null` means the card keeps its own
+// empty copy. Values are STRINGS, so a 0 is printed rather than dropped.
+
+// Grades, the LARGE card. Key Stage 1 has no lead: §12 refuses "N of M" for
+// something with no defined progress. Never a partial average.
+export function gradesLead(grades) {
+  if (!grades || grades.unavailable || grades.descriptive || !grades.term) return null;
+  if (grades.complete) return { average: grades.general_average, caption: `General average · Term ${grades.term}` };
+  return { value: `${grades.subjects_recorded} of ${grades.subjects_total}`, caption: `subjects recorded · Term ${grades.term}` };
+}
+
+// Attendance, the LARGE card: this month's absences, named by month. `days`
+// is recordedDays(); nothing recorded is not "0 absences".
+export function attendanceLead(days, today = todayLocalDateString()) {
+  if (!days) return null;
+  const month = monthName(Number(today.slice(5, 7)));
+  return { value: String(days.absent), caption: `${days.absent === 1 ? 'absence' : 'absences'} in ${month}` };
+}
+
+// Messages: the unread COUNT is UnreadProvider's (§10), never a list length.
+// Shown at 0 once a conversation exists; with none, the empty copy stays.
+export function unreadLead(unread, hasConversation = true) {
+  const n = Number(unread) || 0;
+  if (n === 0 && !hasConversation) return null;
+  return { value: String(n), caption: n === 1 ? 'unread message' : 'unread messages' };
+}
+
+// Excuse letters: the latest letter's status, or the next action.
+export function letterLead(letter) {
+  if (!letter) return { value: 'Submit a letter', caption: 'No excuse letters yet.' };
+  return { value: letter.status, caption: 'Latest letter' };
+}
+
+// Announcements & memos: the bell's own count for the two sections the
+// sidebar badge adds (§10) — posts carry no read state of their own.
+export function postsLead(counts) {
+  const n = (Number(counts?.announcements) || 0) + (Number(counts?.memos) || 0);
+  return { value: String(n), caption: 'unread' };
+}
+
+// Upcoming events: the next one leads; the card lists the rest below it.
+export function nextEventLead(events) {
+  const first = Array.isArray(events) ? events[0] : null;
+  if (!first) return null;
+  return { value: first.title, caption: `Next event · ${longDate(first.event_date)}` };
 }

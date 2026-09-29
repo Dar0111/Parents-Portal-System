@@ -10,7 +10,7 @@ import { register } from 'node:module';
 const HOOK = `export async function resolve(s, c, n) { try { return await n(s, c); } catch (e) { if (e.code === 'ERR_MODULE_NOT_FOUND' && /^\\.{1,2}\\//.test(s) && !/\\.[a-z]+$/.test(s)) return n(s + '.js', c); throw e; } }`;
 register('data:text/javascript,' + encodeURIComponent(HOOK), import.meta.url);
 
-const { backupAge, CARD_LINKS, pendingTone, showLockoutHazard } = await import('../src/screens/admin/dashboard/logic.js');
+const { backupAge, CARD_LINKS, pendingLead, pendingTone, showLockoutHazard } = await import('../src/screens/admin/dashboard/logic.js');
 
 let passed = 0;
 let failed = 0;
@@ -45,6 +45,10 @@ assert(CARD_LINKS.system === '/admin/settings' && CARD_LINKS.pending === '/admin
 console.log('the hazard and the waiting card');
 assert(showLockoutHazard({ hazard: { single_unverified_admin: true } }) && !showLockoutHazard({ hazard: { single_unverified_admin: false } }) && !showLockoutHazard(null), 'the hazard shows only on the server\'s true, never on a missing payload');
 assert(pendingTone(2) === 'warning' && pendingTone(0) === 'default' && pendingTone(undefined) === 'default', 'waiting is amber above zero, plain at zero');
+assert(
+  pendingLead(1).value === '1' && pendingLead(1).caption === 'parent account waiting' && pendingLead(0).value === '0' && pendingLead(2).caption === 'parent accounts waiting',
+  'the lead (f2): "1 parent account waiting", shown at 0 — the emphasised card never goes blank'
+);
 
 console.log(`\nproof-admin-dashboard: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

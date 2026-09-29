@@ -160,7 +160,9 @@ export default function LoginScreen({ navigation }) {
               >
                 Forgot your password?
               </Text>{' '}
-              No email on your account? Ask the school office.
+              {/* The web's sentence (f4): a code goes to a confirmed email OR
+                  mobile number, and it names no account's state (§11). */}
+              {"We'll send a code to your confirmed email or mobile number."}
             </Text>
           </View>
 

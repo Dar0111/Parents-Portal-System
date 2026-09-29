@@ -8,12 +8,17 @@ import { useTheme } from '../../theme/ThemeProvider';
 // empty state INSIDE its frame, and `onRetry` refetches that card alone. No
 // card is red — `danger` is defined and deliberately unused; amber means
 // "there is something to do". `onOpen` replaces the web's `to` link.
-export default function Card({ title, icon, onOpen, linkLabel = 'Open', loading = false, error = null, onRetry = null, tone = 'default', children }) {
+//
+// THE WHOLE CARD IS THE PRESS TARGET (feat/ui-polish f2, 2026-09-30), not an
+// "Open →" row at its foot: a tap anywhere on it opens the screen that owns
+// its data, announced as a link. An ERROR card is not pressable — its one
+// action is Retry, and a stray tap must not leave the failure it reports.
+export default function Card({ title, icon, onOpen, loading = false, error = null, onRetry = null, tone = 'default', children }) {
   const { tokens } = useTheme();
   const toneClass =
     tone === 'warning' ? 'border-warning-edge bg-warning-soft' : tone === 'danger' ? 'border-danger-edge bg-danger-soft' : 'border-edge bg-surface';
-  return (
-    <View className={`rounded-xl border p-5 ${toneClass}`}>
+  const body = (
+    <>
       <View className="mb-3 flex-row items-center gap-2">
         {icon ? <Icon name={icon} size={13} color={tokens['fg-muted']} /> : null}
         <Text className="text-sm font-semibold text-fg">{title}</Text>
@@ -29,21 +34,30 @@ export default function Card({ title, icon, onOpen, linkLabel = 'Open', loading 
           children
         )}
       </View>
-      {onOpen ? (
-        <Pressable onPress={onOpen} accessibilityRole="link" className="mt-4 self-start">
-          <Text className="text-sm font-medium text-brand">{linkLabel} →</Text>
-        </Pressable>
-      ) : null}
-    </View>
+    </>
   );
+  if (onOpen && !error) {
+    return (
+      // Press feedback is a plain RN style function on a Pressable with NO
+      // className; the frame's classes sit on the View inside, so NativeWind
+      // never has to merge its styles with a function. (`active:` is used on
+      // no other screen, so it is unproven here.)
+      <Pressable onPress={onOpen} accessibilityRole="link" style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        <View className={`rounded-xl border p-5 ${toneClass}`}>{body}</View>
+      </Pressable>
+    );
+  }
+  return <View className={`rounded-xl border p-5 ${toneClass}`}>{body}</View>;
 }
 
 // `Stat` must not format (§15d): a grade-bearing value arrives already
-// rendered by GradeValue; a count arrives as a number.
-export function Stat({ value, caption, muted = false }) {
+// rendered by GradeValue; a count arrives as a number. `large` is the
+// emphasised card's lead (f2): on one column, emphasis is first position plus
+// the bigger number.
+export function Stat({ value, caption, muted = false, large = false }) {
   return (
     <View>
-      <Text className={`text-2xl font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</Text>
+      <Text className={`${large ? 'text-3xl' : 'text-2xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</Text>
       {caption ? <Text className="mt-1 text-sm text-fg-muted">{caption}</Text> : null}
     </View>
   );

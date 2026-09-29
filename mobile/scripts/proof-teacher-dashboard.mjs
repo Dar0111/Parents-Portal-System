@@ -12,7 +12,7 @@ import { register } from 'node:module';
 const HOOK = `export async function resolve(s, c, n) { try { return await n(s, c); } catch (e) { if (e.code === 'ERR_MODULE_NOT_FOUND' && /^\\.{1,2}\\//.test(s) && !/\\.[a-z]+$/.test(s)) return n(s + '.js', c); throw e; } }`;
 register('data:text/javascript,' + encodeURIComponent(HOOK), import.meta.url);
 
-const { advisedSections, bannerFor } = await import('../src/screens/teacher/dashboard/logic.js');
+const { advisedSections, bannerFor, classesLead, nextEventLead, reviewLead, termGradesLead, unreadLead } = await import('../src/screens/teacher/dashboard/logic.js');
 const { sectionOptions, showSectionFilter } = await import('../src/screens/teacher/students/sectionOptions.js');
 const { isDirty } = await import('../src/components/filterState.js');
 const { staffAudienceLabel } = await import('../src/format/audience.js');
@@ -96,6 +96,18 @@ const ann = teacherAnnouncementCard({ title: 'T', content: 'C', target_grade: 6,
 assert(ann.actions === actions && ann.onSelect === undefined && ann.meta === 'Grade 6 - Malikhain · 25 Sep 2026', 'announcement: actions carried, static card, a 07:00 PH post dated in Manila');
 const ev = teacherEventCard({ title: 'E', description: null, event_date: '2026-10-05', target_grade: 6 }, { actions: undefined });
 assert(ev.subtitle === undefined && ev.meta === '5 October 2026 · Grade 6' && ev.actions === undefined, 'event: null description → no subtitle, date leads, no actions for a non-author');
+
+console.log('lead lines (feat/ui-polish f2)');
+assert(
+  reviewLead({ total: 1 }).value === '1' && reviewLead({ total: 1 }).caption === 'letter to review' && reviewLead({ total: 0 }).caption === 'letters to review' && reviewLead(undefined) === null,
+  'review queue: "1 letter to review", shown at 0, no lead before the page arrives'
+);
+assert(
+  termGradesLead({ classes_total: 3, classes_complete: 2, term: 1 }).caption === 'classes fully recorded · Term 1' && termGradesLead({ classes_total: 0 }) === null,
+  'term grades: "2 of 3 classes fully recorded · Term 1"; no assignments → the empty copy'
+);
+assert(classesLead({ classes: [{}, {}, {}] }).value === '3' && classesLead({ classes: [{}] }).caption === 'class' && classesLead({ classes: [] }) === null, 'my classes: the count, singular at 1, none → the TCH-002 copy');
+assert(unreadLead(0).value === '0' && typeof nextEventLead === 'function', 'messages and events: the parent module\'s helpers, re-exported rather than copied');
 
 console.log(`\nproof-teacher-dashboard: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

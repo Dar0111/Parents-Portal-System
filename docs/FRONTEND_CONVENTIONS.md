@@ -1336,7 +1336,9 @@ over, unchanged. Do not add a second scroll container to `<main>`.
   rail's own scroll box cannot clip it, dismissed by Escape. z-35, between
   the header and the drawer. A badge becomes a count on the icon's corner.
 - **Width:** `<main>` is `flex-1 min-w-0`, so every page gets the window
-  minus 240 or 64px; nothing else sets a width for it.
+  minus 240 or 64px — **capped at 80rem and centred on every page** (f3,
+  2026-09-30; `mx-auto w-full max-w-[80rem]`, padding inside the cap). The
+  header stays full width, and a wider table keeps its own scroller (§5a-i).
 
 **The seal** (`client/src/assets/school-seal.png`, 192 px, 24-bit, under 50
 KB — rendered from the school's 447 px JPG, which has a white field and no
@@ -1841,6 +1843,35 @@ So a caller with a grade-bearing value passes the renderer in:
 The dashboard printed `87.5` against the report card's `87.50` until DV4 — one
 number, two spellings, two screens. **Split at the call site**, exactly as the
 2026-09-22 rounding fix split `GradeValue`'s `whole`.
+
+### 15e. The whole card is the link, and every card leads (`feat/ui-polish` f2, 2026-09-30)
+
+All three roles, web and phone. **No "Open →" row.**
+
+- **Web: the TITLE is the link, its `::after` stretched over the card**
+  (`after:absolute after:inset-0`), so a click anywhere opens it and the
+  keyboard meets ONE tab stop, named by the title, ringed on the whole card.
+  **The card is never an `<a>`**: Retry, and the System card's backups link,
+  would be interactive content inside a link. Anything interactive inside a
+  card is `relative z-10`. **An error card does not link** — its one action
+  is Retry.
+- **Phone: the card is a `Pressable`, `accessibilityRole="link"`**, press
+  feedback a plain style function on a Pressable with no `className` (the
+  frame sits on the View inside). Not pressable in error, as on the web.
+- **Every card opens on a number or the next action, as `Stat`.** A count is
+  printed at 0 once there is anything to count; none keeps the card's empty
+  copy. Key Stage 1 still has no count (§12), and there is still no partial
+  average.
+- **Emphasis:** parent Grades and Attendance, teacher "Excuse letters to
+  review", admin "Waiting for approval". On the web that means first, two
+  columns and `Stat large` (`text-3xl`); on the phone it means first plus
+  `large`. **No width leaves a hole in the grid**: parent is `sm:2 / xl:4`
+  with the two large cards `sm:col-span-2`; teacher and admin are `sm:2 / lg:3`
+  with the one emphasised card `sm:col-span-2` and every other card one column.
+- **The phone's lead words are pure helpers in each role's
+  `dashboard/logic.js`**, asserted by its proof; the web builds the same words
+  inline. The announcements & memos count is the bell's `announcements + memos`
+  (§10), because posts carry no read state of their own.
 
 ---
 

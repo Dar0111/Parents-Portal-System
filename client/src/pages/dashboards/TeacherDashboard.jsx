@@ -168,24 +168,29 @@ export default function TeacherDashboard() {
         ? advisory.map((section) => <AttendanceBanner key={section.id} section={section} today={today} />)
         : null}
 
+      {/* EVERY CARD LEADS WITH A NUMBER (f2, 2026-09-30). The review queue is
+          the EMPHASISED card — first, two columns, the bigger number, amber
+          only while something waits — because it is the one card that asks
+          the teacher to act. The other four are one column each, so no
+          width leaves a hole in the grid. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card
           title="Excuse letters to review"
           icon="fa-envelope-open-text"
           to="/teacher/excuse-letters"
+          className="sm:col-span-2"
           loading={pending.loading}
           error={pending.error}
           onRetry={pending.reload}
           tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
         >
-          {pending.data?.page?.total > 0 ? (
+          {pending.data ? (
             <Stat
+              large
               value={pending.data.page.total}
-              caption={pending.data.page.total === 1 ? 'letter waiting' : 'letters waiting'}
+              caption={pending.data.page.total === 1 ? 'letter to review' : 'letters to review'}
             />
-          ) : (
-            <CardEmpty>Nothing waiting.</CardEmpty>
-          )}
+          ) : null}
         </Card>
 
         <Card
@@ -202,32 +207,28 @@ export default function TeacherDashboard() {
             ) : (
               <Stat
                 value={`${d.classes_complete} of ${d.classes_total}`}
-                caption={`classes fully recorded, Term ${d.term}`}
+                caption={`classes fully recorded · Term ${d.term}`}
               />
             )
           ) : null}
         </Card>
 
         <Card title="Messages" icon="fa-comments" to="/teacher/messages">
-          {unread > 0 ? (
-            <Stat value={unread} caption={unread === 1 ? 'unread message' : 'unread messages'} />
-          ) : (
-            <CardEmpty>No unread messages.</CardEmpty>
-          )}
+          <Stat value={unread} caption={unread === 1 ? 'unread message' : 'unread messages'} />
         </Card>
 
         <Card
           title="My classes"
           icon="fa-users-rectangle"
           to="/teacher/grades"
-          linkLabel="Open grades"
-          className="sm:col-span-2"
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
         >
           {d?.classes?.length ? (
-            <ul className="divide-y divide-edge">
+            <>
+            <Stat value={d.classes.length} caption={d.classes.length === 1 ? 'class' : 'classes'} />
+            <ul className="mt-2 divide-y divide-edge border-t border-edge">
               {d.classes.map((c) => (
                 <li key={c.assignment_id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
                   <span className="text-sm text-fg">
@@ -241,6 +242,7 @@ export default function TeacherDashboard() {
                 </li>
               ))}
             </ul>
+            </>
           ) : (
             // TCH-002 is exactly this account: adviser of a section, no
             // subject assignments at all. Naming the state beats an empty box.
@@ -260,11 +262,16 @@ export default function TeacherDashboard() {
           onRetry={events.reload}
         >
           {events.data?.length ? (
-            <ul className="space-y-2">
-              {events.data.map((row) => (
-                <EventLine key={row.id} title={row.title} date={row.event_date} />
-              ))}
-            </ul>
+            <>
+              <Stat value={events.data[0].title} caption={`Next event · ${longDate(events.data[0].event_date)}`} />
+              {events.data.length > 1 ? (
+                <ul className="mt-3 space-y-2 border-t border-edge pt-3">
+                  {events.data.slice(1).map((row) => (
+                    <EventLine key={row.id} title={row.title} date={row.event_date} />
+                  ))}
+                </ul>
+              ) : null}
+            </>
           ) : (
             <CardEmpty>No upcoming events.</CardEmpty>
           )}

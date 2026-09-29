@@ -22,14 +22,20 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // `onRetry` refetches THAT CARD ONLY. A page-level reload to recover one
 // failed card would re-request six that already succeeded.
 //
-// The footer link is not decoration: every card is a doorway to the page that
-// owns its data, and a number with nowhere to go is a dead end on the one
-// screen a user lands on first.
+// THE WHOLE CARD IS THE LINK (feat/ui-polish f2, 2026-09-30). Every card is a
+// doorway to the page that owns its data; the "Open →" footer made the
+// doorway one short word. The TITLE is the link, and its ::after is stretched
+// over the card, so a click anywhere opens it while the keyboard still meets
+// ONE tab stop named by the title. The card itself is not an <a>: Retry, and
+// the System card's backups link, would then be interactive content inside a
+// link, which HTML forbids. Anything interactive inside a card sits
+// `relative z-10`, above the stretched link. An ERROR card does not link at
+// all — its one action is Retry, and a stray click must not navigate away
+// from the failure it reports.
 export default function Card({
   title,
   icon,
   to,
-  linkLabel = 'Open',
   loading = false,
   error = null,
   onRetry = null,
@@ -52,8 +58,10 @@ export default function Card({
         ? 'border-danger-edge bg-danger-soft'
         : 'border-edge bg-surface';
 
+  const linked = Boolean(to) && !error;
+
   return (
-    <section className={`flex flex-col rounded-xl border ${toneClass} p-5 ${className}`}>
+    <section className={`group relative flex flex-col rounded-xl border ${toneClass} p-5 ${className}`}>
       <div className="mb-3 flex items-center gap-2">
         {icon ? (
           // The wrapper carries the flex, never the element with `fa-solid`:
@@ -64,7 +72,18 @@ export default function Card({
             <i className={`fa-solid ${icon} text-sm`} aria-hidden="true" />
           </span>
         ) : null}
-        <h2 className="text-sm font-semibold text-fg">{title}</h2>
+        <h2 className="text-sm font-semibold text-fg">
+          {linked ? (
+            <Link
+              to={to}
+              className="underline-offset-2 after:absolute after:inset-0 after:rounded-xl group-hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-focus-ring"
+            >
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -78,18 +97,6 @@ export default function Card({
           children
         )}
       </div>
-
-      {to ? (
-        <div className="mt-4">
-          <Link
-            to={to}
-            className="text-sm font-medium text-brand underline-offset-2 hover:underline"
-          >
-            {linkLabel}
-            <span aria-hidden="true"> →</span>
-          </Link>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -111,10 +118,13 @@ export default function Card({
 // split GradeValue's `whole`: a caller with a grade-bearing value passes
 // <GradeValue …/> as the value and gets the one renderer the whole system
 // uses; a caller with a count passes the count. One component, one job.
-export function Stat({ value, caption, muted = false }) {
+//
+// `large` is the emphasised card's lead (f2): the first number on the screen
+// a user lands on is the one bigger number there.
+export function Stat({ value, caption, muted = false, large = false }) {
   return (
     <div>
-      <p className={`text-2xl font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</p>
+      <p className={`${large ? 'text-3xl' : 'text-2xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</p>
       {caption ? <p className="mt-1 text-sm text-fg-muted">{caption}</p> : null}
     </div>
   );

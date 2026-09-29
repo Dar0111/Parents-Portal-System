@@ -5,9 +5,9 @@ import api from '../../api/client';
 import { isBuilt } from '../../navigation/routes';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useTheme } from '../../theme/ThemeProvider';
-import Card, { CardEmpty, Stat } from '../dashboards/Card';
+import Card, { Stat } from '../dashboards/Card';
 import { useCard } from '../dashboards/useCard';
-import { backupAge, CARD_LINKS, pendingTone, showLockoutHazard } from './dashboard/logic';
+import { backupAge, CARD_LINKS, pendingLead, pendingTone, showLockoutHazard } from './dashboard/logic';
 
 // THE ADMIN DASHBOARD (§12) — the web's AdminDashboard.jsx in one column. One
 // request per card; every count is the server's (`GET /dashboard`) and each
@@ -79,6 +79,19 @@ export default function DashboardScreen({ navigation }) {
         </View>
       ) : null}
 
+      {/* The approval queue is the EMPHASISED card (f2): FIRST, and the
+          bigger number — on one column, that is what emphasis can be. */}
+      <Card
+        title="Waiting for approval"
+        icon="fa-user-clock"
+        onOpen={open('pending')}
+        tone={pendingTone(pending)}
+        loading={summary.loading}
+        error={summary.error}
+        onRetry={summary.reload}
+      >
+        {d ? <Stat large value={pendingLead(pending).value} caption={pendingLead(pending).caption} /> : null}
+      </Card>
       <Card title="Students" icon="fa-user-graduate" onOpen={open('students')} loading={summary.loading} error={summary.error} onRetry={summary.reload}>
         {d ? <Stat value={String(d.totals.students)} caption="on the roll" /> : null}
       </Card>
@@ -88,30 +101,23 @@ export default function DashboardScreen({ navigation }) {
       <Card title="Parents" icon="fa-users" onOpen={open('parents')} loading={summary.loading} error={summary.error} onRetry={summary.reload}>
         {d ? <Stat value={String(d.totals.active_parents)} caption="active parent accounts" /> : null}
       </Card>
-      <Card
-        title="Waiting for approval"
-        icon="fa-user-clock"
-        onOpen={open('pending')}
-        linkLabel="Review"
-        tone={pendingTone(pending)}
-        loading={summary.loading}
-        error={summary.error}
-        onRetry={summary.reload}
-      >
-        {d ? pending > 0 ? <Stat value={String(pending)} caption={pending === 1 ? 'parent account' : 'parent accounts'} /> : <CardEmpty>Nothing waiting.</CardEmpty> : null}
-      </Card>
-      <Card title="System" icon="fa-server" onOpen={open('system')} linkLabel="School settings" loading={summary.loading} error={summary.error} onRetry={summary.reload}>
+      <Card title="System" icon="fa-server" onOpen={open('system')} loading={summary.loading} error={summary.error} onRetry={summary.reload}>
+        {/* The last backup leads, in the same never-red colours (the web's
+            System card since f2): it is the one fact here that goes stale on
+            its own. */}
+        <Text
+          className={`text-2xl font-semibold ${
+            backups.loading ? 'text-fg-muted' : backups.error || age.tone !== 'success' ? 'text-warning-strong' : 'text-success-strong'
+          }`}
+        >
+          {backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
+        </Text>
         {d ? (
-          <View>
+          <View className="mt-3 border-t border-edge pt-2">
             <Row label="School year" value={d.school_year} />
             <Row label="Current term" value={`Term ${d.term}`} />
             <Row label={`Grade records locked (Term ${d.term})`} value={`${d.grade_locks.locked} of ${d.grade_locks.total}`} />
             <Row label="Live connection" value={connected ? 'Connected' : 'Paused'} tone={connected ? 'success' : 'warning'} />
-            <Row
-              label="Backup"
-              value={backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
-              tone={backups.loading || backups.error ? undefined : age.tone}
-            />
             {/* Web only (Darryl): the phone names the fact and where to act. */}
             <Text className="mt-2 text-xs text-fg-muted">Backup & Restore is on the web version only.</Text>
           </View>
