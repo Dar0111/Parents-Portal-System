@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import Avatar from '../components/Avatar';
+import RailTooltip from '../components/RailTooltip';
 import { navForRole, navTitleForPath } from './nav';
+import { groupNav } from './navGroups';
+import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
@@ -16,9 +20,9 @@ import seal from '../assets/school-seal.png';
 // its blue ring vanish on a dark surface otherwise; rounded-full clips the
 // square image to the disc. 40px inside a 44px disc; the 192px asset is 2x
 // the largest render (Login's 96px).
-function Brand() {
+function Brand({ collapsed = false }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-4">
+    <div className={`flex items-center gap-3 py-4 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-seal-bg">
         <img
           src={seal}
@@ -28,10 +32,64 @@ function Brand() {
           className="h-10 w-10 rounded-full"
         />
       </div>
-      <div className="min-w-0 leading-tight">
-        <div className="truncate text-sm font-semibold text-fg">Parent&rsquo;s Portal</div>
-        <div className="truncate text-xs text-fg-muted">Capt. H. Francisco ES</div>
+      {collapsed ? null : (
+        <div className="min-w-0 leading-tight">
+          <div className="truncate text-sm font-semibold text-fg">Parent&rsquo;s Portal</div>
+          <div className="truncate text-xs text-fg-muted">Capt. H. Francisco ES</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const ROLE_LABEL = { admin: 'Admin', teacher: 'Teacher', parent: 'Parent' };
+
+// THE USER CARD, pinned at the bottom of the sidebar and the drawer
+// (feat/ui-polish, 2026-09-30). It replaced the header's name block and
+// Logout, so there is exactly ONE Logout on screen.
+//
+// A PARENT'S CARD NEVER SHOWS THE LOGIN ID. A parent's login_id IS the
+// child's LRN (§5c), and this card is on every page — Settings is the one
+// screen allowed to show it. Staff login ids (TCH-001, ADMIN001) are not
+// credentials of anyone else and are shown.
+function UserCard({ user, collapsed = false, onLogout }) {
+  const role = ROLE_LABEL[user?.role] || user?.role || '';
+  const detail = user?.role === 'parent' ? role : [role, user?.login_id].filter(Boolean).join(' · ');
+  const name = user?.name || user?.login_id || '';
+
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2 border-t border-edge px-2 py-3">
+        <Avatar name={name} />
+        <RailTooltip label="Logout">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-body transition hover:bg-surface-subtle hover:text-fg"
+          >
+            <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+            <span className="sr-only">Logout</span>
+          </button>
+        </RailTooltip>
       </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 border-t border-edge px-3 py-3">
+      <Avatar name={name} />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="truncate text-sm font-medium text-fg">{name}</div>
+        <div className="truncate text-xs text-fg-muted">{detail}</div>
+      </div>
+      <button
+        type="button"
+        onClick={onLogout}
+        className="flex items-center gap-1.5 rounded-lg border border-edge-strong px-2.5 py-1.5 text-xs text-fg-body transition hover:bg-surface-muted"
+      >
+        <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+        Logout
+      </button>
     </div>
   );
 }
@@ -41,7 +99,42 @@ function Brand() {
 // blocked one cannot be designed until a school question is answered, and its
 // tooltip carries that reason. Exported so the dev gallery can show all three
 // side by side without logging in as three different roles.
-export function NavItem({ item, onNavigate, badge = 0 }) {
+//
+// `collapsed` (feat/ui-polish): the 64px rail. The icon alone, its label kept
+// for screen readers (`sr-only`) and shown beside it by RailTooltip on hover
+// and on focus, and a badge becomes a small count on the icon's corner.
+export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
+  if (collapsed && item.built && !item.blocked) {
+    return (
+      <RailTooltip label={item.label}>
+        <NavLink
+          to={item.to}
+          end={item.to.split('/').length === 2}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `relative flex h-10 items-center justify-center rounded-lg transition ${
+              isActive ? 'bg-brand-soft text-brand' : 'text-fg-body hover:bg-surface-subtle hover:text-fg'
+            }`
+          }
+        >
+          <i className={`fa-solid ${item.icon} w-4 text-center`} aria-hidden="true" />
+          <span className="sr-only">
+            {item.label}
+            {badge > 0 ? ` (${badge})` : ''}
+          </span>
+          {badge > 0 ? (
+            <span
+              aria-hidden="true"
+              className="absolute right-1 top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[0.625rem] font-medium leading-4 text-primary-fg"
+            >
+              {badge > 9 ? '9+' : badge}
+            </span>
+          ) : null}
+        </NavLink>
+      </RailTooltip>
+    );
+  }
+
   const base = 'flex items-center gap-3 rounded-lg px-3 py-2 transition';
 
   // The badge renders ONLY on a built item. A count on a dimmed, unclickable
@@ -180,6 +273,15 @@ function ShellChrome() {
   const titleContext = useMemo(() => ({ setTitle: setCustomTitle }), []);
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // The desktop sidebar's width, remembered per browser (`pp.sidebar`). The
+  // drawer below `md` is never collapsed — it is opened for the words.
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      saveSidebarCollapsed(!c);
+      return !c;
+    });
+  }
 
   const items = navForRole(user?.role);
   // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the
@@ -195,17 +297,40 @@ function ShellChrome() {
     navigate('/login', { replace: true });
   }
 
-  const nav = (
-    <nav className="space-y-0.5 px-2 pb-4 text-sm">
-      {items.map((item) => (
-        <NavItem
-          key={item.to}
-          item={item}
-          onNavigate={() => setMobileNavOpen(false)}
-          badge={badgeFor(item, user?.role, counts, unread)}
-        />
+  // GROUPED (feat/ui-polish, 2026-09-30): Dashboard on top, the role's groups
+  // with a small label each (a thin divider in the rail), and Settings /
+  // About pinned at the bottom above the user card. Which item sits where is
+  // layout/navGroups.js; which items EXIST is still nav.js alone.
+  const sections = groupNav(user?.role, items);
+  const renderItems = (list, rail) =>
+    list.map((item) => (
+      <NavItem
+        key={item.to}
+        item={item}
+        collapsed={rail}
+        onNavigate={() => setMobileNavOpen(false)}
+        badge={badgeFor(item, user?.role, counts, unread)}
+      />
+    ));
+  const navBody = (rail) => (
+    <nav aria-label="Main" className="space-y-0.5 px-2 pb-4 text-sm">
+      {renderItems(sections.top, rail)}
+      {sections.groups.map((group, i) => (
+        <div key={group.label || `rest-${i}`} className="pt-3">
+          {rail ? (
+            <div aria-hidden="true" className="mx-2 mb-2 border-t border-edge" />
+          ) : group.label ? (
+            <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">{group.label}</div>
+          ) : null}
+          {renderItems(group.items, rail)}
+        </div>
       ))}
     </nav>
+  );
+  const pinned = (rail) => (
+    <div className="space-y-0.5 border-t border-edge px-2 py-2 text-sm">
+      {renderItems(sections.bottom, rail)}
+    </div>
   );
 
   return (
@@ -214,14 +339,39 @@ function ShellChrome() {
           top-0, h-screen, self-start so it keeps its own height in the flex
           row) and its nav scrolls INSIDE itself only when taller than the
           viewport (min-h-0 + overflow-y-auto on the nav box). The document
-          stays the only scroller: one scrollbar, no layout shift. */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col self-start border-r border-edge bg-surface sm:flex">
-        <Brand />
-        <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
+          stays the only scroller: one scrollbar, no layout shift.
+
+          `md`, NOT `sm`, SINCE feat/ui-polish (2026-09-30): at 640–767px a
+          240px sidebar left a page about 350px wide, so below 768px the menu
+          button opens the drawer instead. Expanded is 240px (w-60), the rail
+          is 64px (w-16); <main> is flex-1 min-w-0, so every page simply gets
+          the rest of the window — nothing below this sets a width for it. */}
+      <aside
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start border-r border-edge bg-surface md:flex ${
+          collapsed ? 'w-16' : 'w-60'
+        }`}
+      >
+        <div className={`flex items-center ${collapsed ? 'flex-col' : 'justify-between pr-2'}`}>
+          <Brand collapsed={collapsed} />
+          <RailTooltip label="Expand sidebar" enabled={collapsed}>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-subtle hover:text-fg"
+            >
+              <i className={`fa-solid ${collapsed ? 'fa-angles-right' : 'fa-angles-left'}`} aria-hidden="true" />
+            </button>
+          </RailTooltip>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{navBody(collapsed)}</div>
+        {pinned(collapsed)}
+        <UserCard user={user} collapsed={collapsed} onLogout={handleLogout} />
       </aside>
 
       {mobileNavOpen ? (
-        <div className="fixed inset-0 z-40 sm:hidden">
+        <div className="fixed inset-0 z-40 md:hidden">
           <div
             className="absolute inset-0 bg-backdrop"
             onClick={() => setMobileNavOpen(false)}
@@ -238,7 +388,9 @@ function ShellChrome() {
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{navBody(false)}</div>
+            {pinned(false)}
+            <UserCard user={user} onLogout={handleLogout} />
           </aside>
         </div>
       ) : null}
@@ -246,9 +398,7 @@ function ShellChrome() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Header
           title={title}
-          user={user}
           onOpenMenu={() => setMobileNavOpen(true)}
-          onLogout={handleLogout}
           drawerOpen={mobileNavOpen}
         />
 

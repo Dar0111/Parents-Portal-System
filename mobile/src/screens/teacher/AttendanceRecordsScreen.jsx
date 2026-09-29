@@ -170,9 +170,13 @@ export default function AttendanceRecordsScreen({ navigation }) {
           onChange={setSectionId}
           options={[...sections.map((s) => ({ key: s.id, label: `Grade ${s.grade_level} - ${s.name}` })), { key: MINE, label: 'Everything I recorded' }]}
         />
-        <View className="flex-row gap-2">
-          <DateField label="From" value={from} onChange={setFrom} clearable className="flex-1" />
-          <DateField label="To" value={to} onChange={setTo} clearable className="flex-1" />
+        {/* STACKED, not side by side (feat/ui-polish, 2026-09-30): once a
+            date is set each field adds its 44-unit × button, and at half a
+            phone's width "30 September 2026" wrapped. Full width keeps the
+            long date on one line; DateField itself is unchanged. */}
+        <View className="gap-3">
+          <DateField label="From" value={from} onChange={setFrom} clearable />
+          <DateField label="To" value={to} onChange={setTo} clearable />
         </View>
         <FilterActions dirty={dirty} canReset={hasDateRange} onApply={applyFilters} onReset={resetFilters} />
       </View>

@@ -45,6 +45,11 @@ const blank = { login_id: '', password: '', name: '', email: '', contact_number:
 assert(L.createTeacherProblem(blank).message === 'login_id, password, and name are required.', 'the required fields first');
 assert(L.createTeacherProblem({ ...blank, login_id: 'TCH-TMP-01', name: 'Test', password: 'short' }).field === 'password', 'a weak password lands on the password field');
 assert(L.createTeacherProblem({ ...blank, login_id: 'TCH-TMP-01', name: 'Test', password: 'Teacher2026', contact_number: '12' }).field === 'contact_number', 'a bad contact number lands on its field');
+assert(
+  L.teacherCreatedNotice({ login_id: 'TCH-UIP02', role: 'teacher' }) === 'Teacher account created and activated. Login ID: TCH-UIP02.' &&
+    L.teacherCreatedNotice(null) === 'Teacher account created and activated.',
+  'the create-teacher notice names the SERVER-returned login id, and still reads without one'
+);
 const body = L.createTeacherBody({ login_id: ' TCH-TMP-01 ', name: ' Test ', password: 'Teacher2026', email: ' ', contact_number: '' });
 assert(body.login_id === 'TCH-TMP-01' && body.name === 'Test' && body.email === undefined && body.contact_number === undefined, 'trimmed, and blank optionals are left out, never sent empty');
 

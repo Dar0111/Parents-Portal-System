@@ -7,7 +7,7 @@ import FormField from '../../components/FormField';
 import PasswordChecklist from '../../components/PasswordChecklist';
 import PasswordField from '../../components/PasswordField';
 import { contactRuleHint } from '../../format/contactRule';
-import { createTeacherBody, createTeacherProblem } from './users/logic';
+import { createTeacherBody, createTeacherProblem, teacherCreatedNotice } from './users/logic';
 
 // CREATE TEACHER — the web's dialog as a modal screen. POST /users/teachers
 // hardcodes role 'teacher' and the account is ACTIVE at once (LOCKED
@@ -41,9 +41,9 @@ export default function CreateTeacherScreen({ navigation }) {
     }
     setSaving(true);
     try {
-      await api.post('/users/teachers', createTeacherBody(form), { unwrap: 'user' });
+      const created = await api.post('/users/teachers', createTeacherBody(form), { unwrap: 'user' });
       // popTo, not navigate: navigate pushes a second drawer (A1, M16).
-      navigation.popTo('Main', { screen: '/admin/users', params: { notice: 'Teacher account created and activated.', noticeKey: 'directory' } });
+      navigation.popTo('Main', { screen: '/admin/users', params: { notice: teacherCreatedNotice(created), noticeKey: 'directory' } });
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'password' || field === 'contact_number' || field === 'email') setFieldErrors({ [field]: extractError(err) });

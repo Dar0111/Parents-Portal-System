@@ -630,6 +630,12 @@ Crossing `sm` **upward cuts the card from 607px to 351px**, so the table
 switched on at the one width where its container was narrowest it would ever
 be. Raising the breakpoint moves that cliff; it does not remove it.
 
+**Since feat/ui-polish (2026-09-30) the sidebar appears at `md` (768px), not
+`sm`**, and above that it is 240px or a 64px rail by the user's choice
+(§9). The table above is a dated measurement; the cliff moved to 768px and
+now depends on the rail too — which is exactly why this card measures its
+CONTAINER and not the window.
+
 **36rem = 576px, against a recounted minimum of ~558px** for the widest
 realistic row: the four `nowrap` headers (~144 for "LEARNING AREA" + 80×3 +
 120 for "FINAL GRADE", `px-4` either side) against body cells of
@@ -1306,6 +1312,31 @@ scroller**: one scrollbar, no layout shift, content scrolls under the header.
 z-order: header 30, mobile drawer 40, Modal backdrop 50 — the drawer and any
 modal cover the header. Below `sm` the sidebar is hidden and the drawer takes
 over, unchanged. Do not add a second scroll container to `<main>`.
+
+**The sidebar since feat/ui-polish (2026-09-30).**
+- **Below `md` (768px) it is hidden and the menu button opens the drawer**,
+  as the phone does (the breakpoint moved from `sm`; §5a-vi says why).
+- **At `md` and up it is expanded (240px, `w-60`) or a 64px rail
+  (`w-16`)**, toggled at its top and remembered per browser under
+  **`pp.sidebar`** (`layout/sidebarPref.js`, read in the `useState`
+  initializer — no flash, no `index.html` script). Default: expanded.
+- **Grouped** (`layout/navGroups.js`, a web-only file because `nav.js` is a
+  mirrored copy): Dashboard on top; the role's groups with small labels
+  (admin Manage / Communicate / System, teacher My class / Communicate,
+  parent My child / School) — a thin divider in the rail; **Settings and
+  About pinned at the bottom**, then the **user card** with the ONE Logout.
+  An item no group names still shows, in an unlabelled group.
+- **The header lost its user block and Logout**; the bell is its rightmost
+  control.
+- **The user card never shows a parent's login id** — it is the child's
+  LRN (§5c), and the card is on every page. Staff cards show role · login id.
+- **The rail's labels:** each icon keeps an `sr-only` label, and
+  `components/RailTooltip.jsx` shows it on hover AND keyboard focus (never
+  the browser's `title`, which focus never triggers), fixed-positioned so the
+  rail's own scroll box cannot clip it, dismissed by Escape. z-35, between
+  the header and the drawer. A badge becomes a count on the icon's corner.
+- **Width:** `<main>` is `flex-1 min-w-0`, so every page gets the window
+  minus 240 or 64px; nothing else sets a width for it.
 
 **The seal** (`client/src/assets/school-seal.png`, 192 px, 24-bit, under 50
 KB — rendered from the school's 447 px JPG, which has a white field and no

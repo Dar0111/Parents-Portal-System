@@ -704,3 +704,25 @@ truncated-dump row).
   is a native Alert with the web's sentence.
 Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
 notifications; Marwin 0 grade rows before and after.
+
+## M19. The phone's size scale is 14/16 of the web's — found, DEFERRED
+
+**feat/ui-polish, 2026-09-30 (Darryl: not before the defense).**
+
+- **The difference, measured in the code, not by eye:** NativeWind 4.2.7's
+  `withNativeWind` defaults **`inlineRem = 14`**
+  (`node_modules/nativewind/dist/metro/index.js:14`), and
+  `mobile/metro.config.js` does not override it. The web's root is the
+  browser's 16px (18px under Large, `client/src/index.css`). So every
+  rem-based class — text, spacing, radii, heights — renders at **14/16 on the
+  phone**: `text-sm` 12.25 vs 14, `p-4` 14 vs 16.
+- **The part that matters most: `h-11`, the "44px touch target" §17c and
+  M14 speak of, is 38.5 units on the phone** — under the 44 (iOS) / 48
+  (Android) guidance.
+- **Colours are NOT different** (generated from the web's tokens; `lint:tokens`
+  proves 71 × 2 equal), and the font is the same on the same phone (the web's
+  system stack is Roboto in Android Chrome; React Native's default is Roboto).
+- **Why deferred:** `inlineRem: 16` resizes every phone screen by ~14% and
+  needs a full phone sweep; that is not a change to make days before the
+  demo. The fix, when it comes, is that one option in `metro.config.js` plus
+  the sweep. `docs/KNOWN_ISSUES.md` has the row.

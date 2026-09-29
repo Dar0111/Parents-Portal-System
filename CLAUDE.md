@@ -472,8 +472,9 @@ concludes.** Adding one requires the school to have said otherwise first.
   of the number reaches the markup, with a control that prints it. §5a-v.
 - **That card's crossover is measured on the CONTAINER (`@min-[36rem]`), every
   DataTable page on `sm:` viewport width — deliberately inconsistent**, because
-  `Shell` reveals its 240px sidebar at that same `sm` and **crossing 640px cuts
-  a page body from 607px to 351px**. **A browser check must measure the CARD,
+  `Shell` revealed its 240px sidebar at that same `sm` and **crossing 640px cut
+  a page body from 607px to 351px** (since 2026-09-30 it appears at `md`, 240px
+  or a 64px rail — §9). **A browser check must measure the CARD,
   not the window**, and a container variant that generates no CSS fails
   silently — **grep the built stylesheet** (the `h-9.5` lesson). Detail: §5a-vi.
 
@@ -697,7 +698,11 @@ sidebar is `sticky top-0 h-screen self-start` with its nav box
 `min-h-0 flex-1 overflow-y-auto`. **The document is the only scroller** —
 one scrollbar, no layout shift. **Do not add a second scroll container to
 `<main>`.** z-order: header 30, mobile drawer 40, the notification panel 40
-(closed when the drawer opens), Modal backdrop 50.
+(closed when the drawer opens), Modal backdrop 50. **Since 2026-09-30:**
+below `md` the drawer; above it 240px or a 64px rail (`pp.sidebar`); grouped
+by `layout/navGroups.js` (`nav.js` is a mirror); Settings, About and the user
+card with the ONE Logout pinned at the bottom — **never a parent's login id**
+(§5c); rail labels by `RailTooltip` on hover AND focus.
 
 **The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
 image** — the source is a JPG with a white field and no alpha, so the disc
@@ -1718,9 +1723,8 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
       role's screens are built.** **NEXT, in order (2026-09-29):**
       `fix/mobile-popto` (merged) → SMS transport (merged) → server
-      reliability (`fix/server-reliability`, check passed, merge-ready) (backup
-      first-call reset, orphan notifications + A2, web Attendance leave
-      prompt) → UI polish → `docs/stage5` → full phone test / smoke gate →
+      reliability (merged) → UI polish (`feat/ui-polish`, a–e built, f
+      planned) → `docs/stage5` → full phone test / smoke gate →
       manuscript delta list. SMS moved before server reliability by
       Darryl's decision.
 - [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
@@ -2150,7 +2154,8 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-30 | **`fix/server-reliability`** (merge-ready): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`feat/ui-polish`** (a–e built, not merged): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`fix/server-reliability`** (merged): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`feat/sms-transport`** (merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |

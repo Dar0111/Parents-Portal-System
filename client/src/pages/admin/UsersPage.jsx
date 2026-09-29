@@ -319,7 +319,7 @@ export default function UsersPage() {
     }
     setCreateSaving(true);
     try {
-      await api.post(
+      const created = await api.post(
         '/users/teachers',
         {
           login_id: teacherForm.login_id.trim(),
@@ -332,7 +332,16 @@ export default function UsersPage() {
       );
       setCreating(false);
       setTeacherForm(EMPTY_TEACHER);
-      setFormStatus({ directory: ok('Teacher account created and activated.') });
+      // The login id the admin must hand over, from the SERVER's row — a
+      // teacher id is not an LRN, so it is shown whole (feat/ui-polish; the
+      // phone's admin/users/logic.js teacherCreatedNotice says the same).
+      setFormStatus({
+        directory: ok(
+          created?.login_id
+            ? `Teacher account created and activated. Login ID: ${created.login_id}.`
+            : 'Teacher account created and activated.'
+        ),
+      });
       await load();
     } catch (err) {
       const field = err?.response?.data?.field;

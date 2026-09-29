@@ -16,6 +16,15 @@ export function maskLoginId(user) {
   return `••••${value.slice(-4)}`;
 }
 
+// The create-teacher success line names the login id the admin must hand
+// over (feat/ui-polish, 2026-09-30) — the SERVER's stored value, from the
+// user the POST returned, never the typed field. A teacher id is not an LRN,
+// so it is shown whole. The web's admin/UsersPage.jsx says the same sentence.
+export function teacherCreatedNotice(user) {
+  const id = typeof user?.login_id === 'string' && user.login_id ? user.login_id : null;
+  return id ? `Teacher account created and activated. Login ID: ${id}.` : 'Teacher account created and activated.';
+}
+
 // Display casing only (§5d): `users.role` and `users.status` are stored
 // lowercase and stay so everywhere else.
 export function displayRole(role) {

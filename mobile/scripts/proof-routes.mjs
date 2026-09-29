@@ -171,8 +171,10 @@ const dashboards = ['parent', 'teacher', 'admin'].map((role) => {
   const text = fs.readFileSync(path.join(SRC, 'screens', role, 'DashboardScreen.jsx'), 'utf8');
   return { role, focus: /useFocusEffect\(/.test(text), skipsFirst: /firstFocus\.current/.test(text) };
 });
-const notRefetching = dashboards.filter((x) => !x.focus || (x.role !== 'admin' && !x.skipsFirst)).map((x) => x.role);
-assert(notRefetching.length === 0, `parent, teacher and admin dashboards re-fetch on focus; parent and teacher skip the mount's focus${notRefetching.length ? ` — not: ${notRefetching.join(', ')}` : ''}`);
+// Admin skips it too since feat/ui-polish (2026-09-30) — it fetched twice on
+// a cold open until then.
+const notRefetching = dashboards.filter((x) => !x.focus || !x.skipsFirst).map((x) => x.role);
+assert(notRefetching.length === 0, `parent, teacher and admin dashboards re-fetch on focus and all three skip the mount's focus${notRefetching.length ? ` — not: ${notRefetching.join(', ')}` : ''}`);
 
 console.log(`\nproof-routes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

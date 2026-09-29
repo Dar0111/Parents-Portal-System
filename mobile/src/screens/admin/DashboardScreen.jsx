@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import api from '../../api/client';
@@ -39,7 +39,20 @@ export default function DashboardScreen({ navigation }) {
     // `reload` is a new function each render; the cards' own deps decide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useFocusEffect(reloadAll);
+  // THE FIRST FOCUS IS THE MOUNT, which useCard has already fetched — so it
+  // is skipped, and a cold open fetches each card ONCE (feat/ui-polish,
+  // 2026-09-30; the parent and teacher dashboards' pattern since P1). Every
+  // later focus re-fetches (M14).
+  const firstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      reloadAll();
+    }, [reloadAll])
+  );
 
   const d = summary.data;
   const pending = d?.pending_parents ?? 0;
