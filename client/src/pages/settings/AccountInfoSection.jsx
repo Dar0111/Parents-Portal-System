@@ -443,10 +443,14 @@ export default function AccountInfoSection() {
               {/* True for both, and worth the distinction: the temporary-password
                   fallback is admin-only AND refuses your own id, so an admin's
                   way back in is a DIFFERENT admin — not themselves, and not a
-                  queue they can join (§5i). */}
-              {isAdmin
-                ? 'only another admin can get you back in.'
-                : 'only the school office can get you back in.'}
+                  queue they can join (§5i). F2 (feat/sms-transport): with a
+                  confirmed mobile number neither is the only way back in any
+                  more, so that case says what IS true. */}
+              {contactVerifiedAt
+                ? 'reset codes can still come to your confirmed mobile number.'
+                : isAdmin
+                  ? 'only another admin can get you back in.'
+                  : 'only the school office can get you back in.'}
             </p>
             {emailStep === 'code' ? (
               <form onSubmit={confirmEmailCode} className="space-y-3">

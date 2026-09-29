@@ -333,7 +333,12 @@ export default function AccountInfoScreen() {
               <Text className="text-sm text-fg-muted">
                 This address is not confirmed yet. Confirming it is what lets you reset your own password from the
                 sign-in page. Until then,{' '}
-                {isAdmin ? 'only another admin can get you back in.' : 'only the school office can get you back in.'}
+                {/* F2: the web's three endings, keyed on the stored confirmation. */}
+                {contactVerifiedAt
+                  ? 'reset codes can still come to your confirmed mobile number.'
+                  : isAdmin
+                    ? 'only another admin can get you back in.'
+                    : 'only the school office can get you back in.'}
               </Text>
               {emailStep === 'code' ? (
                 <View className="gap-3">
