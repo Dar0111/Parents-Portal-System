@@ -1330,6 +1330,11 @@ over, unchanged. Do not add a second scroll container to `<main>`.
   control.
 - **The user card never shows a parent's login id** — it is the child's
   LRN (§5c), and the card is on every page. Staff cards show role · login id.
+  **Its Logout is an icon button** (UI-2): an `sr-only` "Logout" and a
+  `RailTooltip`, so the name gets the width a worded button took.
+- **The nav box shows no scrollbar** (UI-1): `[scrollbar-width:none]` plus
+  `[&::-webkit-scrollbar]:hidden`. It still scrolls by wheel, trackpad and
+  touch, and Tab scrolls a focused link into view.
 - **The rail's labels:** each icon keeps an `sr-only` label, and
   `components/RailTooltip.jsx` shows it on hover AND keyboard focus (never
   the browser's `title`, which focus never triggers), fixed-positioned so the

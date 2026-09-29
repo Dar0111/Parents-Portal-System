@@ -82,14 +82,20 @@ function UserCard({ user, collapsed = false, onLogout }) {
         <div className="truncate text-sm font-medium text-fg">{name}</div>
         <div className="truncate text-xs text-fg-muted">{detail}</div>
       </div>
-      <button
-        type="button"
-        onClick={onLogout}
-        className="flex items-center gap-1.5 rounded-lg border border-edge-strong px-2.5 py-1.5 text-xs text-fg-body transition hover:bg-surface-muted"
-      >
-        <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
-        Logout
-      </button>
+      {/* AN ICON, NOT A LABELLED BUTTON (UI-2): the word "Logout" took the
+          room the name needed ("Ashley G…"). Named for screen readers by its
+          sr-only label and shown by RailTooltip on hover and focus — the
+          rail's own Logout, one width up. */}
+      <RailTooltip label="Logout">
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-fg-body transition hover:bg-surface-subtle hover:text-fg"
+        >
+          <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+          <span className="sr-only">Logout</span>
+        </button>
+      </RailTooltip>
     </div>
   );
 }
@@ -365,7 +371,11 @@ function ShellChrome() {
             </button>
           </RailTooltip>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{navBody(collapsed)}</div>
+        {/* NO VISIBLE SCROLLBAR (UI-1): the box still scrolls by wheel,
+            trackpad and touch, and Tab scrolls a focused link into view;
+            only the bar is hidden — Firefox by scrollbar-width, Chromium
+            and Safari by the ::-webkit-scrollbar pseudo-element. */}
+        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{navBody(collapsed)}</div>
         {pinned(collapsed)}
         <UserCard user={user} collapsed={collapsed} onLogout={handleLogout} />
       </aside>
@@ -388,7 +398,7 @@ function ShellChrome() {
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">{navBody(false)}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{navBody(false)}</div>
             {pinned(false)}
             <UserCard user={user} onLogout={handleLogout} />
           </aside>
