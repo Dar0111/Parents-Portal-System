@@ -3,73 +3,72 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)**
 P. Rosales St., Sta. Ana, Pateros, Metro Manila
 
-Web + mobile portal para sa parents, teachers, at admin (principal).
+A web + mobile portal for parents, teachers, and the admin (principal).
 Capstone project — Pateros Technological College, Institute of Information and Computing Technology.
 
-**Sept 7, 2026** — tapos na ang panel checkpoint (system proposal); hindi iyon ang defense.
+**Sept 7, 2026** — the panel checkpoint (system proposal) is done; it was not the defense.
 **Final defense** — expected around **November 2026**.
 
 ---
 
-## Saan nakatira ang totoong dokumentasyon
+## Where the real documentation lives
 
-Ang README na ito ay **run guide** — kung paano i-setup at patakbuhin. Ang
-buong detalye ay nasa ibang files:
+This README is a **run guide** — how to set up and run the system. The full
+detail is in other files:
 
-| File | Para saan |
+| File | What it is for |
 |------|-----------|
-| **`CLAUDE.md`** | **Ang authoritative project doc.** Current state, locked decisions, build order, open questions. Kung mag-disagree ito at ang code, **tama ang code** at kailangang ayusin ang file. |
-| `docs/CHANGELOG.md` | Ang totoong changelog — bawat dispatch, may petsa, newest first. |
-| `docs/API_REFERENCE.md` | Lahat ng endpoints — body fields, exact response wrapper key, role scoping, 404-vs-403 convention. Ito ang basahin bago gumawa ng screen. |
-| `docs/TESTING.md` | Bawat suite, proof at lint baseline, at ang smoke run. **Ang tanging lugar ng mga bilang.** |
-| `docs/KNOWN_ISSUES.md` | Bawat known issue, bukas at sarado. |
-| `docs/FRONTEND_CONVENTIONS.md` | Ang buong teksto ng web conventions at ang dahilan ng bawat isa. |
-| `docs/MOBILE_CONVENTIONS.md` | Kung saan IBA ang telepono sa web, at bakit — Stage 5 (Expo). |
+| **`CLAUDE.md`** | **The authoritative project doc.** Current state, locked decisions, build order, open questions. If it and the code disagree, **the code is right** and the file must be fixed. |
+| `docs/CHANGELOG.md` | The real changelog — every dispatch, dated, newest first. |
+| `docs/API_REFERENCE.md` | Every endpoint — body fields, the exact response wrapper key, role scoping, the 404-vs-403 convention. Read it before building a screen. |
+| `docs/TESTING.md` | Every suite, proof and lint baseline, and the smoke run. **The only place the numbers live.** |
+| `docs/KNOWN_ISSUES.md` | Every known issue, open and closed. |
+| `docs/FRONTEND_CONVENTIONS.md` | The full text of the web conventions and the reason behind each one. |
+| `docs/MOBILE_CONVENTIONS.md` | Where the phone DIFFERS from the web, and why — Stage 5 (Expo). |
 | `docs/GRADING_SPEC.md` | DepEd DO 015 & DO 009 s. 2026 grading policy — transmutation table, weights, descriptive grading. |
-| `docs/RESTORE.md` | Ang design record ng Backup & Restore. |
-| `docs/ARCHIVE.md` | Lumang teksto na inalis sa CLAUDE.md at PROJECT_PROGRESS, verbatim. History lang. |
-| `docs/PROJECT_PROGRESS.md` | Maikling snapshot ng CLAUDE.md, para sa tool-switching. Walang history. |
-| `docs/SETUP_NOTES.md` | Extra setup notes (Taglish), kasama ang oras ng server at bagong school year. |
+| `docs/RESTORE.md` | The design record of Backup & Restore. |
+| `docs/ARCHIVE.md` | Old text removed from CLAUDE.md and PROJECT_PROGRESS, verbatim. History only. |
+| `docs/PROJECT_PROGRESS.md` | A short snapshot of CLAUDE.md, for tool-switching. No history. |
+| `docs/SETUP_NOTES.md` | Extra setup notes (Taglish), including the server's clock and a new school year. |
 
-> **Walang changelog dito, at walang bilang ng tests o endpoints.** Dati
-> meron, at parehong na-stale habang tumatakbo ang code. Mas masama ang
-> lumang bilang kaysa wala, kasi mukhang totoo. Isang lugar lang ang bawat
-> bilang.
+> **No changelog here, and no counts of tests or endpoints.** There used to
+> be, and both went stale while the code kept moving. An old number is worse
+> than none, because it looks true. Every number lives in exactly one place.
 
 ---
 
-## Ano na ang tapos?
+## What is done?
 
-| Bahagi | Status |
+| Part | Status |
 |--------|--------|
 | Database schema (23 tables) | ✅ Done |
 | Seed data | ✅ Done |
-| **Backend API** | ✅ Lahat ng module, pati Socket.io. Bilang ng endpoints: front matter ng `CLAUDE.md` |
-| Web — lahat ng tatlong role (Teacher, Parent, Admin) | ✅ Stage 4 sarado 2026-09-14; ang mga dagdag pagkatapos nito ay nasa BUILD ORDER ng `CLAUDE.md` |
-| Mobile (Expo) | ✅ Lahat ng screen ng tatlong role sa `mobile/` (ang Backup & Restore ay web lang). Ang susunod — phone test, smoke gate — ay nasa BUILD ORDER ng `CLAUDE.md` |
+| **Backend API** | ✅ Every module, Socket.io included. Endpoint counts: the front matter of `CLAUDE.md` |
+| Web — all three roles (Teacher, Parent, Admin) | ✅ Stage 4 closed 2026-09-14; the additions after it are in `CLAUDE.md`'s BUILD ORDER |
+| Mobile (Expo) | ✅ Every screen of all three roles in `mobile/` (Backup & Restore is web only). What comes next — the phone test, the smoke gate — is in `CLAUDE.md`'s BUILD ORDER |
 
-Siyam na feature ang ship. Ang Feature 7 (Contributions/Fees) ay ginawa at
-**tinanggal noong 2026-09-13** — hindi puwedeng mangolekta ng contributions
-ang paaralan (`CLAUDE.md` → SCOPE DECISION).
+Nine features ship. Feature 7 (Contributions/Fees) was built and
+**removed on 2026-09-13** — the school may not collect contributions
+(`CLAUDE.md` → SCOPE DECISION).
 
 ---
 
-## Kailangan mo bago mag-run
+## What you need before running
 
 1. **Node.js** — [https://nodejs.org](https://nodejs.org) (LTS version)
-2. **MySQL Workbench** — para sa database (`parents_portal`)
-3. **CMD** o **PowerShell** — para i-run ang servers at tests
-4. **Oras ng machine: Asia/Manila.** Ang current term ay kinukuha sa petsa
-   ngayon ng server — tingnan ang `docs/SETUP_NOTES.md`
+2. **MySQL Workbench** — for the database (`parents_portal`)
+3. **CMD** or **PowerShell** — to run the servers and tests
+4. **The machine's clock: Asia/Manila.** The current term is taken from the
+   server's date today — see `docs/SETUP_NOTES.md`
 
 ---
 
-## First-time setup (gawin once lang)
+## First-time setup (do this once)
 
-### Step 1 — I-connect ang MySQL Workbench
+### Step 1 — Connect MySQL Workbench
 
-- Buksan ang MySQL Workbench → connect sa **localhost** (user: `root`)
-- Dapat naka-on ang MySQL server mo bago mag-run ng `npm run db:setup`
+- Open MySQL Workbench → connect to **localhost** (user: `root`)
+- Your MySQL server must be running before you run `npm run db:setup`
 
 ### Step 2 — Backend environment file
 
@@ -78,16 +77,16 @@ cd "C:\Users\Win10 User\Parents_Portal\server"
 copy .env.example .env
 ```
 
-Buksan ang `server\.env` at punan. **Ang lahat ng key ay nasa
-`server/.env.example`** — kopyahin iyon, huwag itong README. Ang
-kailangang tama agad: `DB_PASSWORD` (blank kung wala), `JWT_SECRET`
-(mahabang random na string), at `CORS_ORIGIN=http://localhost:3000` — dapat
-tugma sa port ng client, at dito rin naka-base ang Socket.io CORS. Ang
-`SMTP_*` ay para sa forgot-password email, at ang `SMS_*` para sa reset code
-sa text (tingnan ang **SMS** sa ibaba); ang `MAIL_TRANSPORT=file` at
-`SMS_TRANSPORT=file` ay para lang sa `test:recovery` (tingnan ang Tests).
+Open `server\.env` and fill it in. **Every key is in
+`server/.env.example`** — copy that, not this README. The ones that must be
+right straight away: `DB_PASSWORD` (blank if none), `JWT_SECRET` (a long
+random string), and `CORS_ORIGIN=http://localhost:3000` — it must match the
+client's port, and the Socket.io CORS is based on it too. `SMTP_*` is for the
+forgot-password email, and `SMS_*` for the reset code by text (see **SMS**
+below); `MAIL_TRANSPORT=file` and `SMS_TRANSPORT=file` are only for
+`test:recovery` (see Tests).
 
-### Step 3 — Backend install at database
+### Step 3 — Backend install and database
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
@@ -95,15 +94,15 @@ npm install
 npm run db:setup
 ```
 
-Pag successful, makikita mo sa Workbench ang database na **`parents_portal`**
-kasama ang **23 tables**.
+When it succeeds, Workbench shows the database **`parents_portal`** with
+**23 tables**.
 
-> **`db:setup` ay para sa bagong machine lang.** Binubura nito ang
-> `activity_logs` at ang `backups` rows. Sa database na may laman na, ang
-> bagong seed row ay dumarating sa `npm run db:migrate:*` (idempotent, safe
-> ulitin) — tingnan ang `docs/SETUP_NOTES.md`.
+> **`db:setup` is for a new machine only.** It wipes `activity_logs` and the
+> `backups` rows. On a database that already has data, a new seed row arrives
+> through `npm run db:migrate:*` (idempotent, safe to repeat) — see
+> `docs/SETUP_NOTES.md`.
 
-### Step 4 — Client environment at install
+### Step 4 — Client environment and install
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\client"
@@ -111,7 +110,7 @@ copy .env.example .env
 npm install
 ```
 
-Ang `client\.env`:
+The `client\.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000/api
@@ -119,7 +118,7 @@ VITE_API_BASE_URL=http://localhost:5000/api
 
 ---
 
-## Paano patakbuhin (dalawang terminal — kailangan pareho)
+## How to run (two terminals — both are needed)
 
 **Terminal 1 — backend (port 5000):**
 
@@ -135,26 +134,26 @@ cd "C:\Users\Win10 User\Parents_Portal\client"
 npm run dev
 ```
 
-Buksan ang **http://localhost:3000**.
+Open **http://localhost:3000**.
 
-> **Kailangang tumakbo pareho.** Kung backend lang, blangko ang pages —
-> lahat ng data ay galing sa API. Kung client lang, hindi ka makaka-login.
-> Quick check kung buhay ang backend: `curl http://localhost:5000/api/health`
-> — `"db":"ok"` kapag buhay ang MySQL, `503` kapag hindi.
+> **Both must be running.** With only the backend, the pages are blank — all
+> the data comes from the API. With only the client, you cannot log in.
+> Quick check that the backend is alive: `curl http://localhost:5000/api/health`
+> — `"db":"ok"` when MySQL is up, `503` when it is not.
 
-Sa dev, may lalabas na `LiveStatus` strip ("Live updates paused") sa taas ng
-bawat page kapag patay ang Socket.io connection — sinasadya iyon, para hindi
-tahimik na mamatay ang real-time updates.
+In dev, a `LiveStatus` strip ("Live updates paused") appears at the top of
+every page when the Socket.io connection is down — that is deliberate, so
+real-time updates never die silently.
 
 ---
 
-## Mobile (Expo) — Stage 5, sa telepono sa pamamagitan ng Expo Go
+## Mobile (Expo) — Stage 5, on the phone through Expo Go
 
-**Expo SDK 57**, Expo Go mula sa Play Store (auto-update OFF sa telepono —
-lilipat sa SDK 58 ang store build sa Oktubre). Sariling folder at
-`package.json` ang `mobile/`; hindi ito shared sa `client/`.
+**Expo SDK 57**, Expo Go from the Play Store (auto-update OFF on the phone —
+the store build moves to SDK 58 in October). `mobile/` has its own folder and
+`package.json`; it is not shared with `client/`.
 
-**Setup (once lang, sa home Wi-Fi):**
+**Setup (once only, on home Wi-Fi):**
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\mobile"
@@ -162,86 +161,85 @@ npm install
 copy .env.example .env
 ```
 
-**Bawat session — ang telepono ang hotspot, ang laptop ang sumasali:**
+**Every session — the phone is the hotspot, the laptop joins it:**
 
-1. Buksan ang hotspot ng telepono; i-connect ang laptop.
-2. `ipconfig` → "Wireless LAN adapter Wi-Fi" → IPv4 Address. Ilagay sa
-   `mobile\.env`: `EXPO_PUBLIC_API_URL=http://<ip>:5000/api`. **Binabasa ito
-   sa bundle time** — i-restart ang `npx expo start` kapag binago.
-3. Terminal 1: `cd server` → `npm run dev` (kailangang tumatakbo).
-4. **Patunay muna sa Chrome ng telepono:** `http://<ip>:5000/api/health` →
-   dapat `"db":"ok"`. Kung umiikot lang — firewall; kung "refused" — maling IP.
-5. Terminal 3: `cd mobile` → `npx expo start`, i-scan ang QR sa Expo Go.
-   Kung maling interface ang napili ng Expo (may apat na 169.254.x.x adapter
-   ang laptop), sa **PowerShell**:
-   `$env:REACT_NATIVE_PACKAGER_HOSTNAME="<ip>"` tapos
-   `npx expo start --clear`. (Ang `set …=<ip>` ay para lang sa CMD.)
+1. Turn on the phone's hotspot; connect the laptop.
+2. `ipconfig` → "Wireless LAN adapter Wi-Fi" → IPv4 Address. Put it in
+   `mobile\.env`: `EXPO_PUBLIC_API_URL=http://<ip>:5000/api`. **It is read at
+   bundle time** — restart `npx expo start` when you change it.
+3. Terminal 1: `cd server` → `npm run dev` (it must be running).
+4. **Prove it first in the phone's Chrome:** `http://<ip>:5000/api/health` →
+   it must say `"db":"ok"`. If it only spins — the firewall; if "refused" — the wrong IP.
+5. Terminal 3: `cd mobile` → `npx expo start`, scan the QR code in Expo Go.
+   If Expo picked the wrong interface (the laptop has four 169.254.x.x
+   adapters), in **PowerShell**:
+   `$env:REACT_NATIVE_PACKAGER_HOSTNAME="<ip>"` then
+   `npx expo start --clear`. (`set …=<ip>` is for CMD only.)
 
-**Firewall:** ang nagbukas ng port 5000 at 8081 (Metro) ay ang program rule
-na "Node.js JavaScript Runtime" para sa `D:\node.js\node.exe` sa Public at
-Private profiles — hindi port rule. Public profile ang hotspot.
+**Firewall:** what opened ports 5000 and 8081 (Metro) is the program rule
+"Node.js JavaScript Runtime" for `D:\node.js\node.exe` on the Public and
+Private profiles — not a port rule. The hotspot is a Public profile.
 
-**Lint at proofs:** ang listahan, ang run-book at ang mga bilang ay nasa
-`docs/TESTING.md` lang; ang mga command ay nasa NPM scripts → `mobile/` sa
-ibaba. Ang mga rule: `docs/MOBILE_CONVENTIONS.md`.
+**Lint and proofs:** the list, the run-book and the numbers are in
+`docs/TESTING.md` only; the commands are under NPM scripts → `mobile/`
+below. The rules: `docs/MOBILE_CONVENTIONS.md`.
 
 ---
 
-## SMS — reset code sa text (opsyonal)
+## SMS — reset codes by text (optional)
 
-Ang forgot-password ay puwedeng magpadala ng code sa **email at sa text**.
-Ang text ay dumadaan sa **SMSGate** ("SMS Gateway for Android") na app sa
-telepono:
+Forgot-password can send its code by **email and by text**. The text goes
+through the **SMSGate** ("SMS Gateway for Android") app on a phone:
 
-- Sa app: **Local Server** mode, port **8080**. Ipinapakita ng app ang
-  username at password ng Local Server.
-- Sa `server\.env`: `SMS_TRANSPORT=gateway`,
-  `SMS_GATEWAY_URL=http://<ip ng telepono>:8080`, at `SMS_GATEWAY_USER` /
-  `SMS_GATEWAY_PASS` mula sa app. **Huwag i-commit ang mga value.**
-- **Naka-off ito maliban kung may test:** blangkong `SMS_TRANSPORT` = SMS
-  off, email lang. `npm run sms:probe` (sa `server/`) ang tsek kung
-  naaabot ang gateway. Ang detalye: `docs/KNOWN_ISSUES.md` (SMS rows) at
+- In the app: **Local Server** mode, port **8080**. The app shows the Local
+  Server's username and password.
+- In `server\.env`: `SMS_TRANSPORT=gateway`,
+  `SMS_GATEWAY_URL=http://<the phone's ip>:8080`, and `SMS_GATEWAY_USER` /
+  `SMS_GATEWAY_PASS` from the app. **Never commit the values.**
+- **It stays off except during a test:** a blank `SMS_TRANSPORT` = SMS off,
+  email only. `npm run sms:probe` (in `server/`) checks that the gateway is
+  reachable. The detail: `docs/KNOWN_ISSUES.md` (the SMS rows) and
   `server/.env.example`.
 
 ---
 
 ## Test accounts (seed data)
 
-**Walang password dito, sinasadya.** Ang mga default ay nasa
-`server/scripts/setup-db.js` (doon sila hina-hash at isinusulat; ang
-`database/seed.sql` ay may placeholder lang). Ang login ID ng parent ay ang
-**LRN mismo ng bata**, kaya ang login ID at password na magkasama sa iisang
-doc ay isang buong credential — kaya walang parent login ID sa table sa
-ibaba; nasa `seed.sql` sila.
+**No passwords here, on purpose.** The defaults are in
+`server/scripts/setup-db.js` (that is where they are hashed and written;
+`database/seed.sql` holds only a placeholder). A parent's login ID is **the
+child's own LRN**, so a login ID and a password together in one doc make a
+full credential — which is why the table below has no parent login ID; they
+are in `seed.sql`.
 
 | Role | Login ID | Status | Notes |
 |------|----------|--------|-------|
 | Admin | `ADMIN001` | active | Principal |
-| Teacher | `TCH-001` | active | Maria Santos — adviser **at** assigned teacher ng Grade 6 - Malikhain |
-| Teacher | `TCH-002` | active | Ana Reyes — adviser ng Grade 5 - Masigasig, **walang `teacher_assignments`** |
-| Teacher | `TCH-003` | active | Lito Bautista — adviser ng Grade 1 - Mabait **at** assigned sa lahat ng limang Grade 1 subject |
-| Parent | LRN ni Marwin (nasa `seed.sql`) | active | Marwin Conde (Grade 6 - Malikhain) |
-| Parent | LRN ni Jea (nasa `seed.sql`) | **pending** | Jea Mae Bargaso (Grade 5 - Masigasig) |
-| Parent | LRN ni Nino (nasa `seed.sql`) | active | Rosa Alcantara, parent ni Nino Alcantara (Grade 1 - Mabait) |
-| Parent | LRN ni Tala (nasa `seed.sql`) | active | Ligaya Halimbawa, parent ni **Tala Halimbawa** (Grade 6 - Malikhain) — ang browser-fixture learner |
+| Teacher | `TCH-001` | active | Maria Santos — adviser **and** assigned teacher of Grade 6 - Malikhain |
+| Teacher | `TCH-002` | active | Ana Reyes — adviser of Grade 5 - Masigasig, **no `teacher_assignments`** |
+| Teacher | `TCH-003` | active | Lito Bautista — adviser of Grade 1 - Mabait **and** assigned to all five Grade 1 subjects |
+| Parent | Marwin's LRN (in `seed.sql`) | active | Marwin Conde (Grade 6 - Malikhain) |
+| Parent | Jea's LRN (in `seed.sql`) | **pending** | Jea Mae Bargaso (Grade 5 - Masigasig) |
+| Parent | Nino's LRN (in `seed.sql`) | active | Rosa Alcantara, parent of Nino Alcantara (Grade 1 - Mabait) |
+| Parent | Tala's LRN (in `seed.sql`) | active | Ligaya Halimbawa, parent of **Tala Halimbawa** (Grade 6 - Malikhain) — the browser-fixture learner |
 
-> ⚠️ **Bago may totoong parent: palitan ang lahat ng default password**
-> (`CLAUDE.md` → BEFORE THE PARENT DEMO). Ganito rin ang dahilan kung bakit
-> walang LRN sa anumang URL o error message sa buong app (convention §5c).
+> ⚠️ **Before any real parent: change every default password**
+> (`CLAUDE.md` → BEFORE THE PARENT DEMO). The same reason is why there is no
+> LRN in any URL or error message anywhere in the app (convention §5c).
 
-**Huwag "ayusin" ang mga ito — may dahilan sila:**
+**Do not "fix" these — they are there for a reason:**
 
-- **`TCH-002`** — ito lang ang account na kayang paghiwalayin ang dalawang
-  scoping authorities ng sistema. Ang ibang teacher fixtures ay adviser **at**
-  assigned nang sabay, kaya hindi masasabi ng test kung alin ang gumana. Kapag
-  binigyan mo ito ng `teacher_assignments` row, mawawala ang tanging account na
-  kayang mag-fail kapag may bug sa scoping.
-- **Ang parent account ni Jea** — sinasadyang **pending**. Umaasa dito ang `npm run test:auth`,
-  at minsan nang na-corrupt ang exact row na ito sa isang crashed test run.
-  Huwag i-approve para lang makapag-login.
-- **Tala Halimbawa** — para sa browser checks lang; walang suite na gumagamit
-  sa kanya, at lahat ng suite ay nasa Marwin. Sa database na may laman na,
-  dumarating siya sa `npm run db:migrate:fixture-learner`.
+- **`TCH-002`** — the only account that can tell the system's two scoping
+  authorities apart. The other teacher fixtures are adviser **and** assigned
+  at once, so a test cannot tell which one worked. Give it a
+  `teacher_assignments` row and you lose the only account that can fail when
+  scoping has a bug.
+- **Jea's parent account** — **pending** on purpose. `npm run test:auth` relies on it,
+  and this exact row was once corrupted by a crashed test run.
+  Do not approve it just to log in.
+- **Tala Halimbawa** — for browser checks only; no suite uses her, and every
+  suite stays on Marwin. On a database that already has data, she arrives
+  through `npm run db:migrate:fixture-learner`.
 
 ---
 
@@ -251,9 +249,9 @@ ibaba; nasa `seed.sql` sila.
 parents_portal
 ```
 
-Makikita sa MySQL Workbench under **SCHEMAS** → `parents_portal`. **23 tables.**
+Shown in MySQL Workbench under **SCHEMAS** → `parents_portal`. **23 tables.**
 
-Quick check sa Query tab:
+Quick check in the Query tab:
 
 ```sql
 USE parents_portal;
@@ -265,12 +263,12 @@ SELECT lrn, first_name, last_name, grade_level, section FROM students;
 
 ## API endpoints
 
-**Walang table o bilang dito, sinasadya.** Ang buo at tama ay nasa
-**`docs/API_REFERENCE.md` §8**: bawat body field, exact response wrapper key
-(mag-iba-iba sila — walang consistent rule), role scoping, at ang 404-vs-403
-convention. Ang dalawang total — handlers sa `server/routes/` at lahat ng
-reachable endpoints kasama ang `GET /api/health` — ay nasa front matter ng
-`CLAUDE.md`.
+**No table or count here, on purpose.** The full and correct record is in
+**`docs/API_REFERENCE.md` §8**: every body field, the exact response wrapper
+key (they vary — there is no consistent rule), role scoping, and the
+404-vs-403 convention. The two totals — the handlers in `server/routes/` and
+every reachable endpoint including `GET /api/health` — are in the front
+matter of `CLAUDE.md`.
 
 Base URL: `http://localhost:5000`
 
@@ -278,41 +276,41 @@ Base URL: `http://localhost:5000`
 
 ## Tests
 
-**Ang mga baseline ay nasa `docs/TESTING.md` — doon lang, hindi dito.**
-Idempotent ang mga suite — hindi kailangan ng `npm run db:setup` sa pagitan
-ng runs; binubura ng bawat suite ang rows na ginawa nito.
+**The baselines are in `docs/TESTING.md` — there only, not here.**
+The suites are idempotent — no `npm run db:setup` is needed between runs;
+every suite deletes the rows it created.
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
 npm run test:auth
 ```
 
-- **Isa-isa lang ang suite**, at hintayin ang `/api/health` pagkatapos
-  mag-edit ng server file (`npm run dev` ay `--watch`, nagre-restart ito).
-- **Hindi HTTP suite** ang `test:sanitize`, `test:grade-computation`,
-  `test:school-calendar`, `test:auth-middleware` at `test:sms-transport` —
-  direct-call unit tests: **walang server, walang database**. Pumapasa sila
-  kahit patay ang backend.
-- **`test:recovery`** — kailangan ng server na sinimulan na may
-  `MAIL_TRANSPORT=file SMS_TRANSPORT=file` **sa server mismo**, hindi sa test
-  command, at ng `db:migrate:auth-codes` at `db:migrate:contact-verification`
+- **One suite at a time**, and wait for `/api/health` after editing a server
+  file (`npm run dev` is `--watch`; it restarts).
+- **Not HTTP suites:** `test:sanitize`, `test:grade-computation`,
+  `test:school-calendar`, `test:auth-middleware` and `test:sms-transport` are
+  direct-call unit tests: **no server, no database**. They pass even with the
+  backend down.
+- **`test:recovery`** — needs a server started with
+  `MAIL_TRANSPORT=file SMS_TRANSPORT=file` **on the server itself**, not on the
+  test command, plus `db:migrate:auth-codes` and `db:migrate:contact-verification`
   (run-book: `docs/TESTING.md`).
-- **`test:restore`** — sinasadyang **hindi** nag-t-trigger ng totoong restore
-  (`DROP DATABASE` iyon sa shared dev DB). Basahin ang RESTORE section ng
-  `CLAUDE.md` bago galawin.
-- **`npm run verify:grading-seed`** — verification ng grading seed data,
-  patakbuhin **after** ng `npm run db:setup`.
+- **`test:restore`** — deliberately does **not** trigger a real restore
+  (that is `DROP DATABASE` on the shared dev DB). Read the RESTORE section of
+  `CLAUDE.md` before touching it.
+- **`npm run verify:grading-seed`** — verifies the grading seed data; run it
+  **after** `npm run db:setup`.
 
-**Client proofs at smoke** (mula sa `client/`):
+**Client proofs and smoke** (from `client/`):
 
-- Ang render proofs ay `client/scripts/ssr-*.jsx` — walang npm script; bawat
-  isa ay may run-book sa `docs/TESTING.md` (may dalawang dapat patakbuhin sa
-  dalawang timezone, at isa sa `NODE_ENV=development`).
-- **`npm run smoke:isolated`** — ang verification smoke: sariling API (5001,
-  walang `--watch`) at sariling Vite (3001), kaya hindi nito ginagalaw ang
-  5000/3000. Kailangan ng `client/e2e/.env.e2e` (kopya ng
-  `.env.e2e.example`) at, isang beses, `npx playwright install chromium`.
-  **Huwag patakbuhin habang may suite.**
+- The render proofs are `client/scripts/ssr-*.jsx` — no npm script; each has
+  a run-book in `docs/TESTING.md` (two must be run in two time zones, and one
+  under `NODE_ENV=development`).
+- **`npm run smoke:isolated`** — the verification smoke: its own API (5001,
+  no `--watch`) and its own Vite (3001), so it never touches 5000/3000. It
+  needs `client/e2e/.env.e2e` (a copy of `.env.e2e.example`) and, once,
+  `npx playwright install chromium`.
+  **Never run it while a suite is running.**
 
 ---
 
@@ -321,29 +319,29 @@ npm run test:auth
 ```
 Parents_Portal/
 ├── README.md, CLAUDE.md, .cursorrules
-├── docs/            ← ang mga dokumento sa itaas; docs/agents/ para sa skills
+├── docs/            ← the documents above; docs/agents/ for the skills
 ├── database/        ← schema.sql (23 tables), seed.sql
-├── scripts/         ← create-backup-zip.js: SOURCE-CODE archiver, hindi DB backup
+├── scripts/         ← create-backup-zip.js: a SOURCE-CODE archiver, not a DB backup
 ├── server/          ← Express + Socket.io API
-│   ├── routes/      ← isang file bawat module
+│   ├── routes/      ← one file per module
 │   ├── utils/       ← shared helpers (scoping, rules, calendar, mailer, …)
 │   ├── middleware/  ← authenticate + authorize
-│   ├── config/      ← MySQL pool (may resetPool para sa restore)
-│   ├── scripts/     ← setup-db, db:migrate:*, verify-grading-seed, probe-sms-gateway, proof-backup-loop, lahat ng test:*
-│   ├── tmp/         ← mail/SMS codes ng test transport (gitignored)
-│   └── backups/     ← .sql dumps (gitignored) — ito ang DB backup
+│   ├── config/      ← MySQL pool (with resetPool for restore)
+│   ├── scripts/     ← setup-db, db:migrate:*, verify-grading-seed, probe-sms-gateway, proof-backup-loop, every test:*
+│   ├── tmp/         ← the test transport's mail/SMS codes (gitignored)
+│   └── backups/     ← .sql dumps (gitignored) — this is the DB backup
 ├── client/          ← React + Vite + Tailwind (port 3000)
 │   ├── src/         ← api, auth, components, format, layout, realtime, pages
 │   ├── scripts/     ← render proofs (ssr-*), lint:tokens, lint:contrast, smoke:isolated
 │   └── e2e/         ← Playwright smoke run
-└── mobile/          ← Expo (SDK 57) app — sariling package.json
+└── mobile/          ← Expo (SDK 57) app — its own package.json
     ├── src/         ← api, auth, navigation, screens, components, format, theme
-    └── scripts/     ← lint checks (mirrors, tokens, colors) at proofs (proof-*)
+    └── scripts/     ← lint checks (mirrors, tokens, colors) and proofs (proof-*)
 ```
 
-Ang detalye ay nasa code mismo. (Ang `docs/ARCHIVE.md` → CURRENT STATE →
-Files that exist ay snapshot noong 2026-09-18 — bago ang `mobile/` at ang
-SMS — kaya history na lang iyon.)
+The detail is in the code itself. (`docs/ARCHIVE.md` → CURRENT STATE →
+Files that exist is a snapshot from 2026-09-18 — before `mobile/` and SMS —
+so it is history only.)
 
 ---
 
@@ -351,62 +349,62 @@ SMS — kaya history na lang iyon.)
 
 ### `server/`
 
-| Command | Ano ginagawa |
+| Command | What it does |
 |---------|--------------|
 | `npm install` | Install dependencies (once) |
-| `npm run db:setup` | Gumawa ng database, tables at seed data — **bagong machine lang** |
-| `npm run db:migrate:<name>` | Idempotent na migration para sa database na may laman na (ang listahan ay nasa `package.json`) |
-| `npm run dev` | Backend na may auto-restart (`node --watch`) |
-| `npm start` | Backend na walang watch |
-| `npm run test:<suite>` | Isa sa mga test suite (`docs/TESTING.md`) |
-| `npm run verify:grading-seed` | Tsek ng grading seed data |
-| `npm run sms:probe` | Tsek kung naaabot ang SMS gateway (tingnan ang SMS sa itaas) |
-| `npm run proof:backups` | Ang loop para sa backup first-call reset — **gumagawa ng totoong backups, sariling API sa 5001, isa-isang arm**; hindi suite (`docs/TESTING.md`) |
+| `npm run db:setup` | Create the database, tables and seed data — **new machine only** |
+| `npm run db:migrate:<name>` | An idempotent migration for a database that already has data (the list is in `package.json`) |
+| `npm run dev` | Backend with auto-restart (`node --watch`) |
+| `npm start` | Backend without watch |
+| `npm run test:<suite>` | One of the test suites (`docs/TESTING.md`) |
+| `npm run verify:grading-seed` | Check the grading seed data |
+| `npm run sms:probe` | Check that the SMS gateway is reachable (see SMS above) |
+| `npm run proof:backups` | The loop for the backup first-call reset — **makes real backups, its own API on 5001, one arm at a time**; not a suite (`docs/TESTING.md`) |
 
 ### `client/`
 
-| Command | Ano ginagawa |
+| Command | What it does |
 |---------|--------------|
 | `npm install` | Install dependencies (once) |
-| `npm run dev` | Vite dev server sa port 3000 |
+| `npm run dev` | Vite dev server on port 3000 |
 | `npm run build` | Production build |
-| `npm run preview` | Silipin ang production build |
+| `npm run preview` | Preview the production build |
 | `npm run lint` | oxlint |
-| `npm run lint:tokens` | Walang raw color sa labas ng `index.css` |
-| `npm run lint:contrast` | Contrast ng bawat color pair, sa dalawang theme |
-| `npm run smoke` | Playwright smoke laban sa 5000/3000 |
-| `npm run smoke:isolated` | Ang smoke sa sariling 5001/3001 — gamitin ito para sa verification |
+| `npm run lint:tokens` | No raw colour outside `index.css` |
+| `npm run lint:contrast` | Contrast of every colour pair, in both themes |
+| `npm run smoke` | Playwright smoke against 5000/3000 |
+| `npm run smoke:isolated` | The smoke on its own 5001/3001 — use this one for verification |
 
 ### `mobile/`
 
-| Command | Ano ginagawa |
+| Command | What it does |
 |---------|--------------|
 | `npm install` | Install dependencies (once) |
-| `npx expo start` | Metro + QR code para sa Expo Go (`--clear` kapag binago ang `.env`) |
-| `npm run android` | Expo start na diretso sa Android |
+| `npx expo start` | Metro + a QR code for Expo Go (`--clear` after changing `.env`) |
+| `npm run android` | Expo start straight to Android |
 | `npm run lint` | oxlint |
-| `npm run lint:mirrors` | Pareho ba byte-for-byte ang mga kinopyang file mula sa `client/` |
-| `npm run lint:tokens` | Tugma ba ang generated tokens sa `client/src/index.css` |
-| `npm run lint:colors` | Walang raw color sa labas ng `src/theme/tokens.js` |
-| `npm run tokens:write` | I-regenerate ang tokens mula sa `client/src/index.css` |
-| `npm run proof:<name>` | Isa sa mga proof (ang listahan: `docs/TESTING.md`) |
+| `npm run lint:mirrors` | Are the files copied from `client/` identical byte for byte |
+| `npm run lint:tokens` | Do the generated tokens match `client/src/index.css` |
+| `npm run lint:colors` | No raw colour outside `src/theme/tokens.js` |
+| `npm run tokens:write` | Regenerate the tokens from `client/src/index.css` |
+| `npm run proof:<name>` | One of the proofs (the list: `docs/TESTING.md`) |
 
-> **Tandaan:** ang `npm run build` at `npm run lint` ay nagpapatunay lang na
-> nag-c-compile ang code — **hindi** nila pinapatunayan na nagre-render ang
-> page. Buksan mo talaga ang page. (`CLAUDE.md` convention §5h.)
+> **Remember:** `npm run build` and `npm run lint` only prove the code
+> compiles — they do **not** prove the page renders. Actually open the page.
+> (`CLAUDE.md` convention §5h.)
 
 ---
 
-## Kung may mali
+## If something is wrong
 
-| Problema | Ano gawin |
+| Problem | What to do |
 |----------|-----------|
-| `ECONNREFUSED` sa client | Hindi tumatakbo ang backend. Terminal 1 → `npm run dev` |
-| `Access denied for user 'root'` | Mali ang `DB_PASSWORD` sa `server\.env` |
-| "Can't reach the school server" + `Database unreachable.` | Patay ang MySQL. **Hindi ka na-logout** — buhayin ang MySQL, tapos Try again |
-| Blangko ang page, may error sa console | Buksan ang browser console — doon lumalabas ang ganitong bug, hindi sa build |
-| Failing test na parang account/status issue | Tingnan muna ang Seeded baseline sa `CLAUDE.md` at linisin ang natira ayon sa cleanup protocol (health → backup → delete sa API). **Huwag `db:setup`** sa database na may totoong data |
-| Unang test ng `npm run smoke` ay `ERR_CONNECTION_REFUSED` | Nagre-restart ang `--watch` API. Gamitin ang `npm run smoke:isolated` |
-| Maling term sa screen | Hindi Asia/Manila ang oras ng server (`docs/SETUP_NOTES.md`) |
-| `ERR_NETWORK` / "Can't reach the school server" sa telepono | Buksan sa Chrome ng telepono ang `http://<ip>:5000/api/health`. Kung "refused" — maling IP sa `mobile\.env`. **Kung umiikot hanggang mag-time out** — gawing **Private** ang network profile ng Wi-Fi sa Windows (Settings → Network & internet → Wi-Fi → ang network → Private), tapos subukan ulit |
-| `WebSocket ... closed before the connection is established` sa console | **Normal sa dev.** React StrictMode ito — dev-only, kumokonekta naman ang socket. Tingnan ang `CLAUDE.md` §5h |
+| `ECONNREFUSED` in the client | The backend is not running. Terminal 1 → `npm run dev` |
+| `Access denied for user 'root'` | `DB_PASSWORD` in `server\.env` is wrong |
+| "Can't reach the school server" + `Database unreachable.` | MySQL is down. **You were not logged out** — start MySQL, then Try again |
+| Blank page, an error in the console | Open the browser console — that is where this kind of bug shows, not in the build |
+| A failing test that looks like an account/status issue | First check the Seeded baseline in `CLAUDE.md` and clean up what was left behind following the cleanup protocol (health → backup → delete through the API). **Never `db:setup`** on a database with real data |
+| The first test of `npm run smoke` is `ERR_CONNECTION_REFUSED` | The `--watch` API is restarting. Use `npm run smoke:isolated` |
+| The wrong term on screen | The server's clock is not Asia/Manila (`docs/SETUP_NOTES.md`) |
+| `ERR_NETWORK` / "Can't reach the school server" on the phone | Open `http://<ip>:5000/api/health` in the phone's Chrome. If "refused" — the wrong IP in `mobile\.env`. **If it spins until it times out** — set the Wi-Fi network profile to **Private** in Windows (Settings → Network & internet → Wi-Fi → the network → Private), then try again |
+| `WebSocket ... closed before the connection is established` in the console | **Normal in dev.** It is React StrictMode — dev-only, and the socket does connect. See `CLAUDE.md` §5h |
