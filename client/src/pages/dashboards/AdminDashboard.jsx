@@ -194,16 +194,23 @@ export default function AdminDashboard() {
             {backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
           </p>
           {d ? (
-            <dl className="mt-3 grid gap-x-6 gap-y-2 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="flex justify-between gap-3">
+            // FOUR LABEL-ABOVE-VALUE FACTS, one per column (owner finding,
+            // 2026-09-30). Each pair was `flex justify-between`, pushing its
+            // value to the far right of the column — next to the NEXT label,
+            // so "2026-2027" read as the Current term's. Now each value sits
+            // directly under its own label, left-aligned, as the parent
+            // hero's facts do: four columns from lg, 2 × 2 from sm, one
+            // column below. Sizes, weights and colours unchanged.
+            <dl className="mt-3 grid gap-x-6 gap-y-3 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="min-w-0">
                 <dt className="text-sm text-fg-muted">School year</dt>
                 <dd className="text-sm font-medium text-fg">{d.school_year}</dd>
               </div>
-              <div className="flex justify-between gap-3">
+              <div className="min-w-0">
                 <dt className="text-sm text-fg-muted">Current term</dt>
                 <dd className="text-sm font-medium text-fg">Term {d.term}</dd>
               </div>
-              <div className="flex justify-between gap-3">
+              <div className="min-w-0">
                 {/* The term is NAMED because the denominator is scoped to it
                     and the bare label did not say so: the count is every
                     grade row for the current school year AND current term,
@@ -228,7 +235,7 @@ export default function AdminDashboard() {
                   {d.grade_locks.locked} of {d.grade_locks.total}
                 </dd>
               </div>
-              <div className="flex justify-between gap-3">
+              <div className="min-w-0">
                 <dt className="text-sm text-fg-muted">Live connection</dt>
                 <dd
                   className={`text-sm font-medium ${connected ? 'text-success-strong' : 'text-warning-strong'}`}
