@@ -46,10 +46,13 @@ import { isBuilt } from './routes';
 // NativeWind's inlineRem is 14 here, so `h-12` is 42dp, under Android's 48.
 const TARGET = 48;
 
-// Pressed feedback is the one pattern already on the phone (dashboards/Card):
-// a style FUNCTION with no className beside it on the same Pressable, so the
-// layout classes sit on an inner View.
-const pressedStyle = ({ pressed }) => ({ opacity: pressed ? 0.7 : 1 });
+// NO STYLE FUNCTION ON A PRESSABLE — NativeWind's css-interop wraps every
+// Pressable and merges a non-array `style` as `{ ...style }`, so a function
+// arrives as `{}` (measured in proof-drawer against the real runtime). The
+// fix-round cause: 6980e06 gave the user card its width that way, the card
+// shrank to its avatar, and the name column got no width at all. Layout sits
+// in className on an inner View, or in a plain style OBJECT; there is no
+// pressed feedback, as before this branch.
 
 const BADGE_BY_PATH = {
   '/excuse-letters': 'excuse_letters',
@@ -89,7 +92,6 @@ function NavRow({ item, active, badge, onPress, tokens }) {
       accessibilityRole="button"
       accessibilityState={{ selected: on, disabled: !built }}
       accessibilityLabel={built ? item.label : `${item.label}, not on the phone yet`}
-      style={pressedStyle}
     >
       <View
         style={{ minHeight: TARGET }}
@@ -197,7 +199,6 @@ export default function DrawerContent({ navigation, state, items }) {
                     accessibilityState={{ expanded: open }}
                     accessibilityLabel={group.label}
                     accessibilityHint={locked ? 'Holds the page you are on, so it stays open' : undefined}
-                    style={pressedStyle}
                   >
                     <View style={{ minHeight: TARGET }} className="flex-row items-center justify-between px-3">
                       <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
@@ -231,7 +232,7 @@ export default function DrawerContent({ navigation, state, items }) {
           onPress={openAccount}
           accessibilityRole="button"
           accessibilityLabel={`${name ? `${name}, ` : ''}Account information`}
-          style={({ pressed }) => ({ flex: 1, minWidth: 0, opacity: pressed ? 0.7 : 1 })}
+          style={{ flex: 1, minWidth: 0 }}
         >
           <View style={{ minHeight: 56 }} className="flex-row items-center gap-3 px-2">
             <Avatar name={name} />
@@ -245,7 +246,7 @@ export default function DrawerContent({ navigation, state, items }) {
             </View>
           </View>
         </Pressable>
-        <Pressable onPress={logout} accessibilityRole="button" accessibilityLabel="Logout" style={pressedStyle}>
+        <Pressable onPress={logout} accessibilityRole="button" accessibilityLabel="Logout">
           <View style={{ width: TARGET, height: TARGET }} className="items-center justify-center">
             <Icon name="fa-right-from-bracket" size={16} color={tokens['fg-body']} />
           </View>

@@ -789,18 +789,32 @@ because M19 was already the size scale.
 - **Touch targets are 48dp, set in dp** (`minHeight: 48`; the card 56, the
   Logout 48 × 48). `min-h-12` would be 42dp at this rem (M19). The rest of
   the phone's 38.5dp targets stay the open KNOWN_ISSUES row.
-- **Pressed feedback is the one pattern already on the phone**
-  (`dashboards/Card.jsx`): a style FUNCTION alone on the `Pressable`, the
-  layout classes on an inner `View` — `className` and a style function were
-  never combined on one Pressable here, so this branch did not start.
+- **NO STYLE FUNCTION ON A `Pressable` — NativeWind drops it (fix round,
+  2026-09-30).** css-interop wraps every Pressable
+  (`cssInterop(Pressable, { className: 'style' })`, whether or not a
+  `className` is passed) and merges a non-array `style` as `{ ...style }`,
+  so a function arrives as `{}`. 6980e06 gave the user card its width that
+  way (`({ pressed }) => ({ flex: 1, minWidth: 0, … })`): the card shrank to
+  its avatar, the name column (`flex-1 min-w-0`) got no width, and the
+  phone showed only the avatar and the Logout icon for every role while the
+  data was right. Layout goes in `className` or a plain style OBJECT; the
+  drawer has no pressed feedback, as before this branch. **`dashboards/Card.jsx`
+  already has one** (pressed opacity only): no layout lost, but its dimming
+  never reached the phone either — pre-existing, left as is.
 - **Not on the phone:** the web's icon-only rail and its tooltips. No new
   colour; no new icon (the chevron is `fa-chevron-right`, rotated).
-- **Proved by `proof-drawer`** (45): every phone item placed exactly once in
+- **Proved by `proof-drawer`** (60; 45 before the fix round): every phone item placed exactly once in
   the web's groups and order, per role; System and `/admin/backups` absent
   on the phone with a control that the same file still groups them for the
   web; the fold parse, toggle, per-role independence, the active-group rule
   and that deciding "open" writes nothing; the card lines — **with two
   negative controls**: a grouping that drops the unlabelled group, and a card
-  that fell back to the login id, each caught by the same check. What it
-  cannot prove — the look, the tap, the fold surviving a cold boot — is the
-  phone check.
+  that fell back to the login id, each caught by the same check. **Since the
+  fix round** it also feeds the real 22-key `/auth/me` user for all three
+  roles and asserts both card lines, and runs the card's own `style`
+  expression — read out of `DrawerContent.jsx` — through the REAL css-interop
+  runtime (a `react-native` stub and a minimal React hook dispatcher), which
+  must deliver `flex: 1`; 6980e06's card, kept verbatim in the proof, must
+  fail both checks. It went 58/60 on the unfixed drawer. What it cannot
+  prove — the look, the tap, the fold surviving a cold boot — is the phone
+  check.
