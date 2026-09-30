@@ -77,6 +77,20 @@ exact. `color-mix(… N%, transparent)` becomes `rgba(…, N/100)`;
 `rgb(R G B / A)` becomes `rgba(R,G,B,A)`. 71 tokens × 2 themes as of
 2026-09-27.
 
+**The seal palette (`feat/ui-palette`, 2026-10-01) reached the phone through
+this script and nothing else**: most non-status values in `index.css` are now
+hex (lower-cased on the way through), the backdrop is
+`color-mix(in oklab, #hex N%, transparent)` (the hex branch of the same
+rule), and the three gold decoration tokens are `rgb(200 150 20 / α)`.
+`npm run tokens:write` changed 36 light and 38 dark values in both derived
+files; no screen, `tailwind.config.js` or mirror changed. The phone has no
+separate palette and no per-screen override — Login and Forgot password use
+the app's tokens like every other screen. **A parsing trap worth knowing:**
+the script takes the FIRST `:root` in `index.css`, which is the word inside
+the file's header comment, and then the first `{` after it — which today is
+the real `:root {` block. A `{` written into that header comment would make
+the script read the wrong text.
+
 **`tailwind.config.js` REPLACES the palette (`theme.colors`, not
 `extend.colors`)**: `bg-slate-500` does not exist in this project, so the
 compiler enforces §8 before the lint does. Every colour class is a token name

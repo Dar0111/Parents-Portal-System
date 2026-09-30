@@ -11,86 +11,99 @@
    an edit to fifty pages.
 
    Two layers, on purpose:
-     :root            the raw values (light). Each line names the Tailwind
-                      palette color it equals — scripts compare the two.
+     :root            the raw values (light). Each line says what the value
+                      is: a Tailwind palette color by name, or a hand-picked
+                      value of the seal palette (feat/ui-palette, 2026-10-01).
      @theme inline    the Tailwind names, each `var(--…)`. `inline` is what
                       makes `bg-surface` compile to `var(--color-surface)` and
                       resolve at RUNTIME, so a `[data-theme]` block can swap
                       the value; a plain @theme would bake the light value in.
 
-   Same-shade splits are deliberate, not duplicates: `page` and
-   `surface-subtle` are both slate-50 in light (the page background vs. a
-   band inside a white card) and `primary` and `bubble-mine` are both
-   slate-900, so a dark theme can give each pair different depths.
+   THE SEAL PALETTE (feat/ui-palette, 2026-10-01, the owner's option B). Every
+   neutral is a navy-tinted grey, the brand is the seal's navy lightened from
+   #08027C to #283593, and the seal's GOLD appears in exactly three
+   decorative alpha tokens (brand-panel-dot, brand-panel-ring, page-dot) —
+   never as text, a fill or a status (§8 amendment). The seal's green and red
+   are still never tokens: they would collide with success and danger. The
+   status tones below are unchanged.
+
+   Same-value splits are deliberate, not duplicates: `primary` and
+   `bubble-mine` are the same navy, and in light `brand-soft` and
+   `brand-panel` are the same navy tint (the active nav item vs. the Login
+   panel), so each pair can be moved apart later without touching a page.
    ----------------------------------------------------------------------------- */
 
 :root {
-  /* surfaces */
-  --page: oklch(98.4% 0.003 247.858);            /* slate-50 */
+  /* surfaces — navy-tinted near-whites (seal palette) */
+  --page: #F8F9FC;                                /* seal palette — page background */
   --surface: #fff;                                /* white */
-  --surface-muted: oklch(96.8% 0.007 247.896);    /* slate-100 */
-  --surface-subtle: oklch(98.4% 0.003 247.858);   /* slate-50 */
-  --backdrop: color-mix(in oklab, oklch(20.8% 0.042 265.755) 40%, transparent); /* slate-900/40 */
+  --surface-muted: #EEF0F7;                       /* seal palette — hovered row, active settings tab */
+  --surface-subtle: #F6F7FB;                      /* seal palette — sidebar, table header band */
+  --backdrop: color-mix(in oklab, #161A3A 40%, transparent); /* the light fg at 40% */
 
   /* edges */
-  --edge: oklch(92.9% 0.013 255.508);             /* slate-200 */
-  --edge-soft: oklch(96.8% 0.007 247.896);        /* slate-100 */
-  --edge-strong: oklch(86.9% 0.022 252.894);      /* slate-300 */
-  --focus-edge: oklch(70.4% 0.04 256.788);        /* slate-400 */
-  --focus-ring: oklch(92.9% 0.013 255.508);       /* slate-200 */
-  --focus-accent: oklch(68.5% 0.169 237.323);     /* sky-500 */
+  --edge: #E1E4EF;                                /* seal palette */
+  --edge-soft: #EEF0F7;                           /* seal palette — same as surface-muted */
+  --edge-strong: #C5CAE0;                         /* seal palette */
+  --focus-edge: #8E95C2;                          /* seal palette */
+  --focus-ring: #E1E4EF;                          /* seal palette — same as edge */
+  --focus-accent: #283593;                        /* the seal navy — was sky-500 (2.71, waived); now 10.39 */
 
-  /* text */
-  --fg: oklch(20.8% 0.042 265.755);               /* slate-900 */
-  --fg-secondary: oklch(37.2% 0.044 257.287);     /* slate-700 */
-  --fg-body: oklch(44.6% 0.043 257.281);          /* slate-600 */
-  --fg-muted: oklch(55.4% 0.046 257.417);         /* slate-500 */
-  --fg-faint: oklch(70.4% 0.04 256.788);          /* slate-400 */
-  --fg-ghost: oklch(86.9% 0.022 252.894);         /* slate-300 */
+  /* text — navy-tinted greys */
+  --fg: #161A3A;                                  /* seal palette — near-black navy */
+  --fg-secondary: #2E3452;                        /* seal palette */
+  --fg-body: #454B69;                             /* seal palette */
+  --fg-muted: #5F6584;                            /* seal palette — 5.01 on surface-muted (was 4.35, waived) */
+  --fg-faint: #9095B0;                            /* seal palette */
+  --fg-ghost: #C9CCDD;                            /* seal palette */
 
-  /* primary action — the school's brand navy (the seal's blue), D3 2026-09-19 */
-  --primary: #08027C;                             /* brand navy — was slate-900 (D3, named light change) */
-  --primary-hover: #1C15A3;                       /* brand navy, lighter — was slate-700 */
+  /* primary action — the seal's navy, lightened (feat/ui-palette, 2026-10-01;
+     was #08027C since D3 2026-09-19) */
+  --primary: #283593;                             /* seal navy */
+  --primary-hover: #3949AB;                       /* seal navy, lighter */
   --primary-fg: #fff;                             /* white */
-  --primary-disabled: #B5B3E6;                    /* brand navy tint — was slate-300 */
+  --primary-disabled: #BFC4E4;                    /* seal navy tint */
   --solid-fg: #fff;                               /* white — text on a danger/success solid button */
 
   /* brand — text and icons in the school color, the active-nav tint, the seal's disc */
-  --brand: #08027C;                               /* brand navy (same value as primary, different role) */
-  --brand-soft: #ECEBFC;                          /* brand navy tint — active nav item background */
+  --brand: #283593;                               /* seal navy (same value as primary, different role) */
+  --brand-soft: #E8EAF6;                          /* seal navy tint — active nav item background */
   --seal-bg: #fff;                                /* white in BOTH themes: the seal's disc is artwork, not a surface */
 
-  /* brand panel — the Login split panel only. NOT primary and NOT brand-soft,
-     and the reason is the dark values: `primary` is #ABA8F7 in dark (a LIGHT
-     indigo, so the panel would be a bright slab) and `brand-soft` is #ECEBFC in
-     light (1.18:1 on surface — no brand presence at all). A panel that is a
-     solid brand field in BOTH themes needs its own pair. The dark value is the
-     same #23204F the dark sidebar uses for brand-soft, so the panel belongs to
-     the same family as the active nav item rather than being a second navy. */
-  --brand-panel: #08027C;                         /* brand navy — same value as primary, different role */
-  --brand-panel-fg: #fff;                         /* white — 16.03 on the light panel, 15.10 on the dark */
-  --brand-panel-muted: #C9C7EE;                   /* navy tint — the district and Est. lines; 9.84 / 9.27 */
-  /* Decoration on the panel. Alpha values, so they sit on --brand-panel in
+  /* brand panel — the Login split panel, the parent dashboard hero and the
+     About header. Its own tokens rather than primary or brand-soft, because
+     the two themes want different things from it: since feat/ui-palette the
+     LIGHT panel is a light navy tint with navy text (the owner found the solid
+     navy slab too dark), which happens to equal brand-soft's value, while the
+     DARK panel is a deep navy field with white text. A panel sharing either
+     token could not do both. */
+  --brand-panel: #E8EAF6;                         /* seal navy tint — same value as brand-soft, different role */
+  --brand-panel-fg: #283593;                      /* seal navy — 8.68 on the light panel; white on the dark */
+  --brand-panel-muted: #545A7A;                   /* seal palette — the district and Est. lines; 5.62 */
+  /* Decoration on the panel. Alpha values, so they sit on the panel in
      either theme without a second set. They are NEVER text or a meaningful
      UI part — check-contrast cannot read rgba() and does not need to; what
-     it checks instead is --brand-panel-lit below. */
+     it checks instead is brand-panel-lit below. The dots and the rings are
+     the seal's GOLD, rgb(200 150 20) — the one place gold is a token, and
+     only as decoration (§8 amendment, 2026-10-01). */
   --brand-panel-glow: rgb(255 255 255 / 0.14);    /* the radial wash from the top-left corner */
-  --brand-panel-dot: rgb(255 255 255 / 0.07);     /* the dot pattern over the panel */
-  --brand-panel-ring: rgb(255 255 255 / 0.10);    /* the corner rings and the seal halo */
+  --brand-panel-dot: rgb(200 150 20 / 0.16);      /* seal gold — the dot pattern over the panel */
+  --brand-panel-ring: rgb(200 150 20 / 0.28);     /* seal gold — the corner rings and the seal halo */
   /* THE CONTRAST PROBE, not a paint. The glow lightens the panel, so the
-     honest background for the panel text is not --brand-panel but the panel
+     honest background for the panel text is not the flat panel but the panel
      WITH the glow at its strongest point. This is that composite, computed
      once (white at 0.14 over the panel) and pinned here so lint:contrast can
-     actually check the worst case: #08027C -> #2B258E, #23204F -> #423F68.
-     If the glow alpha changes, recompute this in the same edit. */
-  --brand-panel-lit: #2B258E;
-  /* The dot grid behind the card, on --page. Dark in light, light in dark. */
-  --page-dot: rgb(8 2 124 / 0.055);
+     actually check the worst case: #E8EAF6 -> #EBEDF7, #1A1F4A -> #3A3E63.
+     If the glow alpha or the panel changes, recompute this in the same edit. */
+  --brand-panel-lit: #EBEDF7;
+  /* The dot grid behind the Login card, on the page. Seal gold in both themes. */
+  --page-dot: rgb(200 150 20 / 0.10);
 
-  /* tones */
-  --neutral-soft: oklch(96.8% 0.007 247.896);     /* slate-100 */
-  --neutral-edge: oklch(92.9% 0.013 255.508);     /* slate-200 */
-  --neutral-fg: oklch(37.2% 0.044 257.287);       /* slate-700 */
+  /* tones — neutral follows the seal palette's greys; the four status tones
+     (success, warning, danger, info) are unchanged by feat/ui-palette */
+  --neutral-soft: #EEF0F7;                        /* seal palette */
+  --neutral-edge: #E1E4EF;                        /* seal palette */
+  --neutral-fg: #2E3452;                          /* seal palette */
 
   --success-soft: oklch(97.9% 0.021 166.113);     /* emerald-50 */
   --success-edge: oklch(90.5% 0.093 164.15);      /* emerald-200 */
@@ -125,13 +138,13 @@
   --info-fg: oklch(50% 0.134 242.749);            /* sky-700 */
   --info-strong: oklch(39.1% 0.09 240.876);       /* sky-900 */
 
-  /* message bubbles */
-  --bubble-mine: oklch(20.8% 0.042 265.755);      /* slate-900 */
+  /* message bubbles — your own in the seal navy (was slate-900) */
+  --bubble-mine: #283593;                         /* seal navy — same value as primary */
   --bubble-mine-fg: #fff;                         /* white */
-  --bubble-mine-meta: oklch(86.9% 0.022 252.894); /* slate-300 */
-  --bubble-theirs: oklch(96.8% 0.007 247.896);    /* slate-100 */
-  --bubble-theirs-fg: oklch(20.8% 0.042 265.755); /* slate-900 */
-  --bubble-theirs-meta: oklch(55.4% 0.046 257.417); /* slate-500 */
+  --bubble-mine-meta: #C5CAE9;                    /* seal navy tint */
+  --bubble-theirs: #EEF0F7;                       /* seal palette — same as surface-muted */
+  --bubble-theirs-fg: #161A3A;                    /* seal palette — same as fg */
+  --bubble-theirs-meta: #5F6584;                  /* seal palette — 5.01 (was 4.35, waived) */
 }
 
 @theme inline {
@@ -218,13 +231,15 @@
    Dark theme (2026-09-19, feat/dark-mode). The SAME variables, second values;
    set by data-theme="dark" on <html> (pages/settings/theme.js and the inline
    script in index.html). Any element with data-theme="dark" re-scopes its
-   subtree — /dev/ui uses that for a side-by-side strip. Each line names the
-   palette color; the one non-palette value is surface-subtle (between
-   slate-900 and slate-800, so a table band and a hovered row stay
-   distinguishable from surface-muted — amendment A1). Contrast of every
-   occurring pair: scripts/check-contrast.mjs (`npm run lint:contrast`).
-   Two dark-only collapses, accepted: fg-faint = fg-muted (slate-400, because
-   fg-faint is used as text), fg-ghost = slate-500 (icons need 3.0).
+   subtree — /dev/ui uses that for a side-by-side strip. Since feat/ui-palette
+   (2026-10-01) the neutrals are the seal palette's deep navies instead of
+   slate, and surface-subtle still sits between surface and surface-muted so
+   a table band and a hovered row stay distinguishable (amendment A1). The
+   page value is also painted on <html> by index.html and theme.js — keep the
+   three in step by hand. Contrast of every occurring pair:
+   scripts/check-contrast.mjs (`npm run lint:contrast`). Two dark-only
+   collapses, accepted: fg-faint = fg-muted (because fg-faint is used as
+   text), and fg-ghost = the light fg-muted value (icons need 3.0; 3.11).
    ----------------------------------------------------------------------------- */
 
 :root {
@@ -234,63 +249,60 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* surfaces */
-  --page: oklch(12.9% 0.042 264.695);            /* slate-950 */
-  --surface: oklch(20.8% 0.042 265.755);          /* slate-900 */
-  --surface-muted: oklch(27.9% 0.041 260.031);    /* slate-800 */
-  --surface-subtle: oklch(24.3% 0.041 262);       /* between slate-900 and slate-800 (A1) */
-  --backdrop: color-mix(in oklab, oklch(12.9% 0.042 264.695) 60%, transparent); /* slate-950/60 */
+  /* surfaces — the seal palette's deep navies (were slate-950/900/800) */
+  --page: #0A0C1F;                                /* seal palette — also on <html>, see above */
+  --surface: #13162E;                             /* seal palette */
+  --surface-muted: #1F2340;                       /* seal palette */
+  --surface-subtle: #191C37;                      /* between surface and surface-muted (A1) */
+  --backdrop: color-mix(in oklab, #0A0C1F 60%, transparent); /* the dark page at 60% */
 
   /* edges */
-  --edge: oklch(27.9% 0.041 260.031);             /* slate-800 */
-  --edge-soft: oklch(27.9% 0.041 260.031);        /* slate-800 */
-  --edge-strong: oklch(37.2% 0.044 257.287);      /* slate-700 */
-  --focus-edge: oklch(55.4% 0.046 257.417);       /* slate-500 */
-  --focus-ring: oklch(37.2% 0.044 257.287);       /* slate-700 */
-  --focus-accent: oklch(74.6% 0.16 232.661);      /* sky-400 */
+  --edge: #1F2340;                                /* seal palette — same as surface-muted */
+  --edge-soft: #1F2340;                           /* seal palette */
+  --edge-strong: #343A5C;                         /* seal palette */
+  --focus-edge: #5F6584;                          /* seal palette */
+  --focus-ring: #343A5C;                          /* seal palette */
+  --focus-accent: #9FA8DA;                        /* seal navy, light — was sky-400 */
 
   /* text */
-  --fg: oklch(96.8% 0.007 247.896);               /* slate-100 */
-  --fg-secondary: oklch(92.9% 0.013 255.508);     /* slate-200 */
-  --fg-body: oklch(86.9% 0.022 252.894);          /* slate-300 */
-  --fg-muted: oklch(70.4% 0.04 256.788);          /* slate-400 */
-  --fg-faint: oklch(70.4% 0.04 256.788);          /* slate-400 — collapses with fg-muted in dark */
-  --fg-ghost: oklch(55.4% 0.046 257.417);         /* slate-500 */
+  --fg: #EEF0F7;                                  /* seal palette */
+  --fg-secondary: #DDE0EE;                        /* seal palette */
+  --fg-body: #C5C9DE;                             /* seal palette */
+  --fg-muted: #9095B0;                            /* seal palette */
+  --fg-faint: #9095B0;                            /* collapses with fg-muted in dark */
+  --fg-ghost: #5F6584;                            /* seal palette — 3.11 on surface */
 
-  /* primary action — the brand navy lightened for dark (D3): a light indigo
-     fill with near-black text, so the button still reads as the brand */
-  --primary: #ABA8F7;                             /* brand, dark */
-  --primary-hover: #C4C2FA;                       /* brand, dark, lighter */
-  --primary-fg: oklch(12.9% 0.042 264.695);       /* slate-950 */
-  --primary-disabled: #4B4890;                    /* brand, dark, dimmed */
+  /* primary action — the seal navy lightened for dark: a light navy fill
+     with near-black text, so the button still reads as the brand */
+  --primary: #9FA8DA;                             /* seal navy, dark theme */
+  --primary-hover: #C5CAE9;                       /* seal navy, dark theme, lighter */
+  --primary-fg: #0A0C1F;                          /* same as the dark page */
+  --primary-disabled: #3A4170;                    /* seal navy, dark theme, dimmed */
   --solid-fg: #fff;                               /* white */
 
   /* brand */
-  --brand: #ABA8F7;                               /* brand, dark */
-  --brand-soft: #23204F;                          /* brand tint on the dark sidebar */
+  --brand: #9FA8DA;                               /* seal navy, dark theme */
+  --brand-soft: #252A52;                          /* seal navy tint on the dark sidebar */
   --seal-bg: #fff;                                /* white in BOTH themes — the seal's disc */
 
-  /* brand panel — see the light block for why this is not primary/brand-soft.
-     fg and muted keep their light values: both are already high-contrast on
-     this background (15.10 and 9.27), and a panel that reads the same in both
-     themes is the point. */
-  --brand-panel: #23204F;                         /* brand tint, dark — matches the dark sidebar */
+  /* brand panel — see the light block for why this is its own pair. In dark
+     it stays a deep navy field with white text. */
+  --brand-panel: #1A1F4A;                         /* seal navy, deep */
   --brand-panel-fg: #fff;
-  --brand-panel-muted: #C9C7EE;
-  /* The three decoration alphas are white in both themes — the dark panel is
-     still a dark field, so the same wash reads the same way. Repeated here
-     rather than inherited so the dark block stays a complete theme, which is
-     how every other token in this file is written. */
+  --brand-panel-muted: #C5CAE9;                   /* seal navy tint */
+  /* The glow is white and the dots and rings are seal gold, as in light.
+     Repeated here rather than inherited so the dark block stays a complete
+     theme, which is how every other token in this file is written. */
   --brand-panel-glow: rgb(255 255 255 / 0.14);
-  --brand-panel-dot: rgb(255 255 255 / 0.07);
-  --brand-panel-ring: rgb(255 255 255 / 0.10);
-  --brand-panel-lit: #423F68;    /* the same composite over the dark panel */
-  --page-dot: rgb(171 168 247 / 0.07);
+  --brand-panel-dot: rgb(200 150 20 / 0.16);
+  --brand-panel-ring: rgb(200 150 20 / 0.28);
+  --brand-panel-lit: #3A3E63;    /* the same composite over the dark panel */
+  --page-dot: rgb(200 150 20 / 0.08);
 
-  /* tones */
-  --neutral-soft: oklch(27.9% 0.041 260.031);     /* slate-800 */
-  --neutral-edge: oklch(37.2% 0.044 257.287);     /* slate-700 */
-  --neutral-fg: oklch(92.9% 0.013 255.508);       /* slate-200 */
+  /* tones — neutral follows the seal palette; the status tones are unchanged */
+  --neutral-soft: #1F2340;                        /* seal palette */
+  --neutral-edge: #343A5C;                        /* seal palette */
+  --neutral-fg: #DDE0EE;                          /* seal palette */
 
   --success-soft: oklch(26.2% 0.051 172.552);     /* emerald-950 */
   --success-edge: oklch(43.2% 0.095 166.913);     /* emerald-800 */
@@ -313,10 +325,10 @@
      its hover. The other three are. Light mode is UNTOUCHED — its pairs
      cannot regress, and they were re-measured anyway.
 
-     Measured against the five pairs check-contrast.mjs asserts (dark
-     --surface is #0F172B): fg/soft 14.17:1, strong/soft 12.67:1,
-     strong/surface 14.32:1, strong/soft-hover 10.47:1, icon/surface
-     10.35:1. Text needs 4.5, UI 3.0.
+     Measured against the five pairs check-contrast.mjs asserts, re-measured
+     on feat/ui-palette's dark surface #13162E (it was #0F172B at DV4):
+     fg/soft 14.17:1, strong/soft 12.67:1, strong/surface 14.27:1,
+     strong/soft-hover 10.47:1, icon/surface 10.35:1. Text needs 4.5, UI 3.0.
 
      warning-edge is NOT one of the asserted pairs — a card's edge is
      decorative, not a control boundary — and at #854D0E on #2A2208 it is
@@ -346,13 +358,13 @@
   --info-fg: oklch(82.8% 0.111 230.318);          /* sky-300 */
   --info-strong: oklch(90.1% 0.058 230.902);      /* sky-200 */
 
-  /* message bubbles — own bubble lighter than the card, theirs one step up */
-  --bubble-mine: oklch(37.2% 0.044 257.287);      /* slate-700 */
-  --bubble-mine-fg: oklch(96.8% 0.007 247.896);   /* slate-100 */
-  --bubble-mine-meta: oklch(86.9% 0.022 252.894); /* slate-300 */
-  --bubble-theirs: oklch(27.9% 0.041 260.031);    /* slate-800 */
-  --bubble-theirs-fg: oklch(96.8% 0.007 247.896); /* slate-100 */
-  --bubble-theirs-meta: oklch(70.4% 0.04 256.788); /* slate-400 */
+  /* message bubbles — own bubble in the seal navy, theirs one step up from the card */
+  --bubble-mine: #303F9F;                         /* seal navy, mid */
+  --bubble-mine-fg: #EEF0F7;                      /* same as fg */
+  --bubble-mine-meta: #C5CAE9;                    /* seal navy tint */
+  --bubble-theirs: #1F2340;                       /* same as surface-muted */
+  --bubble-theirs-fg: #EEF0F7;                    /* same as fg */
+  --bubble-theirs-meta: #9FA3C0;                  /* seal palette */
 }
 
 /* Chrome paints an autofilled field pale blue with near-black text whatever
@@ -488,7 +500,7 @@ body {
    in the canvas colour — white in light, where `html` is otherwise
    transparent. `[data-app-shell]` is on Shell's root. The page colour paints
    the gutter so it reads as the page; dark already paints `html` inline with
-   the same slate-950 (index.html, theme.js), which wins. */
+   the same dark page value (index.html, theme.js), which wins. */
 html:has([data-app-shell]) {
   scrollbar-gutter: stable;
   background-color: var(--color-page);

@@ -39,9 +39,16 @@ const DEPED_MANDATE = [
 ];
 const EYEBROW = 'Pateros District · Metro Manila · Est. 1961';
 
+// THE PILL IS `bg-surface`, NOT `bg-brand-panel-lit` (feat/ui-palette,
+// 2026-10-01). brand-panel-lit is the contrast PROBE (the panel with its glow
+// composited), not a paint; on the light panel it is 1.03:1 against the
+// panel, so the chip vanished. `surface` is a paint token, reads as a chip in
+// both themes (white on the light navy tint, a darker navy on the dark panel)
+// and keeps brand-panel-fg legible on it: in light that is the brand navy on
+// white (10.39, the checked brand/surface pair), in dark white on #13162E.
 function Pill({ children }) {
   return (
-    <View className="rounded-full bg-brand-panel-lit px-3 py-1">
+    <View className="rounded-full bg-surface px-3 py-1">
       <Text className="text-xs font-medium text-brand-panel-fg">{children}</Text>
     </View>
   );

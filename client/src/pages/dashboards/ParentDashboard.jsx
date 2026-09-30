@@ -292,14 +292,17 @@ function DateTile({ dateStr }) {
 export function ChildHero({ linked, user, section, grades, letterTerm, monthDays, letter, term }) {
   return (
     // `brand-panel`, NOT `primary` (UI-D-3). `--primary` is designed as a
-    // BUTTON fill, and its dark value is `#ABA8F7` — a light indigo, which
-    // turned this full-width panel into the brightest thing on a dark screen,
-    // directly against the Dark option's own "easier on the eyes at night".
-    // `--brand-panel` exists for exactly this and was already in use by the
-    // Login split panel: a solid brand field in BOTH themes (`#08027C` light,
-    // `#23204F` dark) with `--brand-panel-fg` white on each. Reusing it means
-    // no new token and no new contrast pair — both foregrounds were already
-    // asserted; only the badge-on-panel boundaries are new.
+    // BUTTON fill, and its dark value is a light navy (`#9FA8DA` since
+    // feat/ui-palette), which would turn this full-width panel into the
+    // brightest thing on a dark screen, directly against the Dark option's
+    // own "easier on the eyes at night". `--brand-panel` exists for exactly
+    // this and is shared with the Login split panel: since feat/ui-palette
+    // (2026-10-01) a light navy tint with navy text in light (`#E8EAF6` /
+    // `#283593`) and a deep navy field with white text in dark (`#1A1F4A`).
+    // Reusing it means no new token and no new contrast pair — both
+    // foregrounds are asserted; only the badge-on-panel boundaries are new,
+    // and on the light panel those are now about 1.1:1, so each badge's own
+    // edge is what separates it.
     <section className="rounded-xl bg-brand-panel p-5 text-brand-panel-fg">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-brand-panel-muted">Your child</h2>
       {!linked ? (
