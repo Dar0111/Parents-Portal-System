@@ -1723,7 +1723,7 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
       role's screens are built.** **NEXT, in order (2026-09-29):**
       `fix/mobile-popto` (merged) → SMS transport (merged) → server
-      reliability (merged) → UI polish (`feat/ui-polish`, a–f built) →
+      reliability (merged) → UI polish (`feat/ui-polish`, merge-ready) →
       `docs/stage5` → full phone test / smoke gate →
       manuscript delta list. SMS moved before server reliability by
       Darryl's decision.
@@ -2154,7 +2154,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-30 | **`feat/ui-polish`** (a–f built, not merged): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once; f: whole-card dashboard links, the login sentence; the parent dashboard back to its 69bae24 layout. Full rows: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`feat/ui-polish`** (merge-ready; checks passed, cleaned up by id): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once; f: whole-card dashboard links, the login sentence; the parent dashboard back to its 69bae24 layout; equal calendar cells; figures one size down (§24). Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-30 | **`fix/server-reliability`** (merged): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`feat/sms-transport`** (merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |

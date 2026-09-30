@@ -258,6 +258,12 @@ opens no dev menu (Expo Go disables it during load), so "no dev menu" is not
 evidence that the JS crashed; and Metro's "(1 module)" on a warm reload is
 the delta count, not a broken bundle.
 
+**Before RECORDING the phone for a demo, hide Expo Go's floating tools
+button and any phone edge-panel overlay** (Darryl, `feat/ui-polish` check,
+2026-09-30). Both float over the app and cover real controls — the From ×
+on Teacher → Attendance records was hidden by one — so a recording shows a
+screen the app does not actually draw.
+
 **The scaffold's phone check (2026-09-27):** Connection check 200 in 76 ms;
 ADMIN001, TCH-001 and Tala's parent each on the role home; Light / Dark /
 System all flipping (System read the phone's night mode); the 401 path on a
