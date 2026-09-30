@@ -214,6 +214,10 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
 - **`scripts/migrate-notifications.js` is THE MIGRATION TEMPLATE** — the
   first this repo ever had. Never drop; be idempotent and PRINT the evidence;
   announce created / already present per object; mirror into `schema.sql`.
+- **`utils/corsOrigins.js` — `CORS_ORIGIN` is a comma-separated LIST, read
+  once for the API and Socket.io; a `*` is never accepted.** The client's
+  API base is `client/src/api/apiBase.js` alone: `VITE_API_BASE_URL` if set,
+  else the page's own host on port 5000.
 - **`seed.sql` — adviser assignments are keyed by a `login_id` subquery,
   never a numeric id.**
 
@@ -1350,6 +1354,7 @@ is still open, needing its own dispatch:**
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
+| **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
 | **Profile photos are NOT in any backup** — a restore can point at a deleted photo (initials show) or orphan a newer one | `server/uploads/avatars/` + restore | Deliberate: the restore stays mysqldump-only. Never auto-delete an orphan photo; never add uploads to the dump without its own plan |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
 | **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
@@ -1742,6 +1747,10 @@ manuscript delta list.
 - [ ] Deployment decision: localhost or Railway + Vercel + Cloudinary. **The
       demo API runs `npm start`, never `--watch`** (decided 2026-09-30)
 - [ ] Demo data and rehearsal
+- [x] **The web in a phone's Chrome** — `feat/lan-web` (2026-10-01): `npm run
+      dev:lan`, `CORS_ORIGIN` as a list, a blank `VITE_API_BASE_URL`. README.
+- [ ] **A standalone APK — READY PLAN, NOT BUILT:** `docs/APK_READY_PLAN.md`
+      (EAS preview, in-app server address, `ph.edu.chfes.parentsportal`).
 
 **Why auth frontend comes before the other backend modules:** finishing all
 ten backend APIs first means reaching roughly 65% of the work with nothing

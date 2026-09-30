@@ -80,6 +80,19 @@ sagot (since 2026-09-25 nagpi-ping na ito ng MySQL; `503` kapag down).
 **Telepono (Expo Go):** ang setup, ang hotspot at ang troubleshooting ay
 nasa **Mobile** section ng [`README.md`](../README.md).
 
+**Web sa Chrome ng telepono (since 2026-10-01, `feat/lan-web`):** walang
+Expo — ang web mismo, sa browser ng telepono, sa parehong hotspot.
+(1) `ipconfig` → IPv4 ng laptop. (2) Sa `server\.env`:
+`CORS_ORIGIN=http://localhost:3000,http://<laptop IP>:3000` — listahan,
+comma ang hati, walang `*` (hindi tatanggapin kahit ilagay), tapos i-restart
+ang API. (3) Sa `client\.env`: `VITE_API_BASE_URL=` — **blangko**; kapag
+blangko, sinusundan ng client ang host ng page (localhost → localhost:5000,
+IP → IP:5000). (4) Sa `client/`: `npm run dev:lan` (hindi `npm run dev`).
+(5) Sa telepono: `http://<laptop IP>:5000/api/health` muna, tapos
+`http://<laptop IP>:3000`. Gumagana pa rin ang `localhost:3000` sa laptop.
+Kapag nagbago ang IP, `CORS_ORIGIN` lang ang babaguhin. Detalye: README →
+*The web in a phone's Chrome*.
+
 **Tests (third terminal, sa `server/`):** isa-isa lang ang suite, hal.
 `npm run test:auth`. Ang `npm run dev` ay `--watch` — nagre-restart ito
 kapag may binago kang server file, kaya hintayin muna ang `/api/health`

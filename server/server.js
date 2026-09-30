@@ -23,11 +23,16 @@ const notificationsRoutes = require('./routes/notifications');
 const dashboardRoutes = require('./routes/dashboard');
 const { initSocket } = require('./socket');
 const { ensureAvatarDir } = require('./utils/profilePhoto');
+const { corsOriginsFromEnv } = require('./utils/corsOrigins');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000', credentials: true }));
+// CORS_ORIGIN is a comma-separated list (utils/corsOrigins.js) — the laptop's
+// localhost and the LAN address a phone's Chrome uses, never a wildcard. The
+// SAME list goes to Socket.io (socket.js), read once here at startup.
+const allowedOrigins = corsOriginsFromEnv();
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // THE UPLOADS MOUNT (hardened, feat/profile-photos, 2026-09-30). Unauthenticated
@@ -103,7 +108,7 @@ app.use((err, _req, res, _next) => {
 // explicitly here so Socket.io can attach to the same underlying HTTP server
 // instead of standing up a second one.
 const httpServer = http.createServer(app);
-const io = initSocket(httpServer);
+const io = initSocket(httpServer, allowedOrigins);
 app.set('io', io);
 
 httpServer.listen(PORT, () => {

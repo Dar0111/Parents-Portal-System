@@ -110,11 +110,17 @@ copy .env.example .env
 npm install
 ```
 
-The `client\.env`:
+The `client\.env` — **leave the value blank** (since 2026-10-01):
 
 ```env
-VITE_API_BASE_URL=http://localhost:5000/api
+VITE_API_BASE_URL=
 ```
+
+Blank means "the page's own host, port 5000": `http://localhost:3000` talks
+to `http://localhost:5000/api`, exactly as before, and a phone's Chrome at
+`http://<laptop IP>:3000` talks to the laptop's API (see *The web in a
+phone's Chrome* below). A value, if set, always wins — so a `localhost` value
+would send a phone's Chrome to the phone itself.
 
 ---
 
@@ -144,6 +150,35 @@ Open **http://localhost:3000**.
 In dev, a `LiveStatus` strip ("Live updates paused") appears at the top of
 every page when the Socket.io connection is down — that is deliberate, so
 real-time updates never die silently.
+
+---
+
+## The web in a phone's Chrome (same Wi-Fi / hotspot as the laptop)
+
+The web app itself, opened in the phone's browser — no Expo. The laptop runs
+the API and the client; the phone only needs to be on the same network.
+
+1. **Find the laptop's IP** — `ipconfig`, the IPv4 address of the Wi-Fi
+   adapter on the hotspot (for example `192.168.x.y`). It can change with
+   every hotspot session.
+2. **`server\.env`** — add the laptop's address to the list, keep localhost:
+   `CORS_ORIGIN=http://localhost:3000,http://<laptop IP>:3000` (comma, no
+   spaces needed, no trailing slash, never `*`). Restart the API (Ctrl+C,
+   then `npm run dev`) — `.env` is read once at startup. A mistyped entry is
+   printed as `CORS_ORIGIN: ignored "…"` when the API starts.
+3. **`client\.env`** — `VITE_API_BASE_URL=` must be **blank** (see Step 4).
+   Restart the client after changing it.
+4. **Terminal 2** — `npm run dev:lan` instead of `npm run dev` (Vite with
+   `--host`, so it listens on the network; `npm run dev` stays
+   localhost-only). Vite prints a `Network:` line with the address.
+5. **On the phone** — Chrome → `http://<laptop IP>:5000/api/health` first
+   (`"db":"ok"`), then `http://<laptop IP>:3000`. `http://localhost:3000`
+   keeps working on the laptop at the same time.
+
+When the IP changes, only step 2 changes (the client follows the page's
+address by itself). If the phone's Chrome cannot load port 3000 but the
+health check on 5000 works, Windows Firewall is blocking `node.exe` on this
+network profile — see Mobile below (M5).
 
 ---
 
@@ -288,9 +323,10 @@ npm run test:auth
 - **One suite at a time**, and wait for `/api/health` after editing a server
   file (`npm run dev` is `--watch`; it restarts).
 - **Not HTTP suites:** `test:sanitize`, `test:grade-computation`,
-  `test:school-calendar`, `test:auth-middleware` and `test:sms-transport` are
-  direct-call unit tests: **no server, no database**. They pass even with the
-  backend down.
+  `test:school-calendar`, `test:auth-middleware`, `test:sms-transport` and
+  `test:cors-origins` are direct-call unit tests: **no running API, no
+  database** (`test:cors-origins` starts its own throwaway servers on a random
+  local port). They pass even with the backend down.
 - **`test:recovery`** — needs a server started with
   `MAIL_TRANSPORT=file SMS_TRANSPORT=file` **on the server itself**, not on the
   test command, plus `db:migrate:auth-codes` and `db:migrate:contact-verification`
@@ -366,7 +402,8 @@ so it is history only.)
 | Command | What it does |
 |---------|--------------|
 | `npm install` | Install dependencies (once) |
-| `npm run dev` | Vite dev server on port 3000 |
+| `npm run dev` | Vite dev server on port 3000 (this laptop only) |
+| `npm run dev:lan` | The same, listening on the network — for the web in a phone's Chrome |
 | `npm run build` | Production build |
 | `npm run preview` | Preview the production build |
 | `npm run lint` | oxlint |

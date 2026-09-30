@@ -42,6 +42,7 @@
     "test:class-summary": "node scripts/test-class-summary-flows.js",
     "test:recovery": "node scripts/test-recovery-flows.js",
     "test:profile-photo": "node scripts/test-profile-photo.js",
+    "test:cors-origins": "node scripts/test-cors-origins.js",
     "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {

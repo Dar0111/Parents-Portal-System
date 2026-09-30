@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import api from '../api/axios';
+import { API_BASE_URL } from '../api/apiBase';
 import { photoUrl } from '../format/photoUrl';
 
 // The initials circle on a person row (DV1, 2026-09-20).
@@ -58,7 +58,9 @@ const SIZES = {
   lg: 'h-20 w-20 text-xl',
 };
 
-const API_BASE = api.defaults.baseURL;
+// The one API-base decision (api/apiBase.js), so a photo comes from the same
+// host as every request — a phone's Chrome on the LAN included.
+const API_BASE = API_BASE_URL;
 
 export default function Avatar({ name, photo = null, size = 'md', className = '' }) {
   const initials = initialsOf(name);

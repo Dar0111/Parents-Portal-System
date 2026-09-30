@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { TOKEN_KEY } from '../api/axios';
+import { SOCKET_ORIGIN } from '../api/apiBase';
 import { useAuth } from '../auth/AuthContext';
 
 // The one Socket.io connection for the whole app.
@@ -61,11 +62,10 @@ export default function SocketProvider({ children }) {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return undefined;
 
-    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-    // The socket attaches to the HTTP server root, not the /api mount point.
-    const origin = base.replace(/\/api\/?$/, '');
-
-    const socket = io(origin, { auth: { token }, transports: ['websocket', 'polling'] });
+    // The HTTP server root, not the /api mount — from the one API-base
+    // decision in api/apiBase.js (feat/lan-web), so the socket always talks
+    // to the same host as every request.
+    const socket = io(SOCKET_ORIGIN, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = socket;
 
     socket.on('connect', () => setConnected(true));

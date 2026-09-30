@@ -1,16 +1,22 @@
 const { Server } = require('socket.io');
 const pool = require('./config/db');
 const { verifyToken } = require('./utils/jwt');
+const { corsOriginsFromEnv } = require('./utils/corsOrigins');
 
 // Authenticates the socket connection itself, once, at connect time — not
 // per event. A rejected or later-deactivated user never gets a live socket
 // in the first place; there is no per-event re-check because there is no
 // per-event auth to re-check (matches "reject at connection time, not per
 // event").
-function initSocket(httpServer) {
+//
+// `origins` is the SAME list the HTTP API uses (server.js reads it once from
+// CORS_ORIGIN via utils/corsOrigins.js — a comma-separated list, never a
+// wildcard). Read here too when a caller passes none, so the two cannot
+// disagree.
+function initSocket(httpServer, origins = corsOriginsFromEnv()) {
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin: origins,
       credentials: true,
     },
   });

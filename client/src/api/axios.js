@@ -1,9 +1,12 @@
 import axios from 'axios';
+import { API_BASE_URL } from './apiBase';
 
 const TOKEN_KEY = 'pp_token';
 
+// The base is decided once, in api/apiBase.js: VITE_API_BASE_URL when set,
+// else the page's own host on port 5000 (feat/lan-web).
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
 });
 
 api.interceptors.request.use((config) => {
