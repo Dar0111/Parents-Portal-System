@@ -22,6 +22,7 @@ const excusesRoutes = require('./routes/excuses');
 const notificationsRoutes = require('./routes/notifications');
 const dashboardRoutes = require('./routes/dashboard');
 const { initSocket } = require('./socket');
+const { ensureAvatarDir } = require('./utils/profilePhoto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,7 +30,26 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000', credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// THE UPLOADS MOUNT (hardened, feat/profile-photos, 2026-09-30). Unauthenticated
+// on purpose: an <img> cannot send the bearer token. What is under it is
+// profile photos only — `uploads/avatars/<32 random hex>.jpg`, re-encoded by
+// sharp, named by utils/profilePhoto.js — so a name is the access key and
+// never contains a login id. No index file is served, a dotfile is refused
+// rather than ignored, nothing is sniffed as another type, and a browser may
+// cache a photo privately: a replaced or removed photo gets a new name or
+// none, so a cached copy is never shown for a different picture.
+ensureAvatarDir();
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'), {
+    index: false,
+    dotfiles: 'deny',
+    setHeaders(res) {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, max-age=86400');
+    },
+  })
+);
 
 // A HEALTH CHECK THAT CHECKS SOMETHING (pre-Stage-5 #2, o5). This returned a
 // static 200 with MySQL down, which is the one condition a health probe

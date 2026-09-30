@@ -50,6 +50,8 @@ export const PAIRS = [
   ['src/screens/teacher/classRecord/backGuard.js', 'pages/teacher/classRecord/backGuard.js'],
   // feat/nav-drawer-groups — the drawer groups exactly as the sidebar does.
   ['src/navigation/navGroups.js', 'layout/navGroups.js'],
+  // feat/profile-photos — one way to build a photo's address.
+  ['src/format/photoUrl.js', 'format/photoUrl.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

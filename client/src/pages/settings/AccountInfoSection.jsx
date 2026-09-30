@@ -3,6 +3,9 @@ import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
+import Avatar from '../../components/Avatar';
+import ErrorAlert from '../../components/ErrorAlert';
+import Modal from '../../components/Modal';
 import { useAuth } from '../../auth/AuthContext';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 
@@ -138,6 +141,160 @@ function ContactValue({ value, at }) {
       {spacedNumber(value)}
       <VerifiedMark at={at} />
     </>
+  );
+}
+
+// PROFILE PHOTO (feat/profile-photos, 2026-09-30) — YOUR OWN, every role.
+//   PUT    /auth/photo  multipart, `photo`  -> { user }
+//   DELETE /auth/photo                      -> { user }
+// The server is the authority: it decodes the file, re-encodes it as a
+// 512 × 512 JPEG with no EXIF (a phone photo's GPS position never reaches
+// disk) and names it with 32 random hex characters. The two checks here are
+// only there to save a pointless upload; the server says the same sentences.
+//
+// §5e: choosing a photo uploads it — replacing is undone by choosing another,
+// so no confirmation. REMOVING deletes the file with no undo, so it asks,
+// naming what happens. §5b: the avatar renders from user.profile_pic on the
+// last /auth/me; refresh() after a write is the only thing that changes it.
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const PHOTO_MAX = 5 * 1024 * 1024;
+
+function ProfilePhoto({ user, refresh, status, setStatus }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [removeError, setRemoveError] = useState(null);
+  const hasPhoto = Boolean(user?.profile_pic);
+
+  async function upload(event) {
+    const file = event.target.files?.[0];
+    // Cleared at once, so choosing the same file again still fires `change`.
+    event.target.value = '';
+    if (!file) return;
+    setStatus({});
+    if (!PHOTO_TYPES.includes(file.type)) {
+      setStatus({ photo: fail('Choose a JPEG, PNG or WebP image.') });
+      return;
+    }
+    if (file.size > PHOTO_MAX) {
+      setStatus({ photo: fail('The photo must be 5 MB or smaller.') });
+      return;
+    }
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      await api.put('/auth/photo', form, { unwrap: 'user' });
+      await refresh();
+      setStatus({ photo: ok(hasPhoto ? 'Profile photo changed.' : 'Profile photo added.') });
+    } catch (err) {
+      setStatus({ photo: fail(extractError(err)) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setRemoveError(null);
+    setBusy(true);
+    try {
+      await api.delete('/auth/photo', { unwrap: 'user' });
+      await refresh();
+      setConfirming(false);
+      setStatus({ photo: ok('Profile photo removed.') });
+    } catch (err) {
+      setRemoveError(extractError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="max-w-md space-y-3">
+      <h3 className="text-sm font-semibold text-fg">Profile photo</h3>
+      <div className="flex items-center gap-4">
+        {user?.profile_pic || user?.name ? (
+          <Avatar name={user?.name} photo={user?.profile_pic} size="lg" />
+        ) : null}
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+            >
+              {busy && !confirming ? <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" /> : null}
+              {hasPhoto ? 'Change photo' : 'Upload a photo'}
+            </button>
+            {hasPhoto ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setRemoveError(null);
+                  setConfirming(true);
+                }}
+                disabled={busy}
+                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+              >
+                Remove photo
+              </button>
+            ) : null}
+          </div>
+          <p className="text-xs text-fg-muted">
+            JPEG, PNG or WebP, up to 5 MB — cropped to a square. It shows beside your name in the
+            portal instead of your initials.
+          </p>
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={PHOTO_TYPES.join(',')}
+        onChange={upload}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <FormStatus status={status.photo} />
+
+      <Modal
+        open={confirming}
+        onClose={() => (busy ? null : setConfirming(false))}
+        title="Remove your profile photo?"
+        size="sm"
+        closeOnBackdrop={!busy}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              disabled={busy}
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={remove}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
+            >
+              {busy ? <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" /> : null}
+              Yes, remove it
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {removeError ? <ErrorAlert message={removeError} /> : null}
+          <p className="text-sm text-fg-body">
+            The photo is deleted and cannot be brought back; your initials show instead. You can upload
+            a new one at any time.
+          </p>
+        </div>
+      </Modal>
+    </section>
   );
 }
 
@@ -361,6 +518,8 @@ export default function AccountInfoSection() {
         <h2 className="text-base font-semibold text-fg">Account information</h2>
         <p className="mt-1 text-sm text-fg-muted">{ROLE_COPY[role] || ''}</p>
       </div>
+
+      <ProfilePhoto user={user} refresh={refresh} status={status} setStatus={setStatus} />
 
       <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4 sm:grid-cols-2">
         {role === 'parent' ? (

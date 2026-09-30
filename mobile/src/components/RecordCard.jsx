@@ -5,7 +5,8 @@ import StatusBadge from './StatusBadge';
 // ONE CARD, THE WEB'S `renderCard` DATA CONTRACT (§5a-iii, MOBILE_CONVENTIONS
 // M11). A page's card builder returns DATA, never JSX — which is why the
 // parent's `excuseLetters/card.jsx` is a verbatim copy — and this component
-// is the one renderer: `avatar`, `title`, `subtitle`, `meta`, `status` (+
+// is the one renderer: `avatar` (+ `avatarPhoto`, a USER's stored photo file
+// name, feat/profile-photos), `title`, `subtitle`, `meta`, `status` (+
 // `statusTone`), and EXACTLY ONE interactive element, `onSelect`. The web's
 // `to` becomes `onSelect` on the phone (navigation is a function here, not
 // a URL), and `unread` is a mobile addition for the Notifications rows: a
@@ -44,7 +45,7 @@ export default function RecordCard({ card }) {
       {card.unread !== undefined ? (
         <View className={`mt-2 h-2 w-2 rounded-full ${card.unread ? 'bg-primary' : 'bg-transparent'}`} />
       ) : null}
-      {card.avatar ? <Avatar name={card.avatar} /> : null}
+      {card.avatar ? <Avatar name={card.avatar} photo={card.avatarPhoto} /> : null}
       <View className="min-w-0 flex-1">
         <Text
           numberOfLines={2}

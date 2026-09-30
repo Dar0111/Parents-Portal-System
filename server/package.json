@@ -41,6 +41,7 @@
     "test:class-record": "node scripts/test-class-record-flows.js",
     "test:class-summary": "node scripts/test-class-summary-flows.js",
     "test:recovery": "node scripts/test-recovery-flows.js",
+    "test:profile-photo": "node scripts/test-profile-photo.js",
     "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {
@@ -49,8 +50,10 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0",
     "mysql2": "^3.12.0",
     "nodemailer": "^10.0.10",
+    "sharp": "^0.35.5",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

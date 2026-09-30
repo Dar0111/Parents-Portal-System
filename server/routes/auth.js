@@ -11,6 +11,7 @@ const { isDbUnavailable, sendDbUnavailable } = require('../utils/dbUnavailable')
 const codes = require('../utils/authCodes');
 const mailer = require('../utils/mailer');
 const sms = require('../utils/smsTransport');
+const photos = require('../utils/profilePhoto');
 
 const router = express.Router();
 
@@ -286,6 +287,82 @@ router.put('/contact', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Update contact error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update contact number.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// PROFILE PHOTO — YOUR OWN (feat/profile-photos, 2026-09-30)
+// ---------------------------------------------------------------------------
+//
+// PUT    /api/auth/photo   multipart, one file in `photo`  -> { user }
+// DELETE /api/auth/photo                                   -> { user }
+//
+// OWN ACCOUNT ONLY BY CONSTRUCTION: there is no :id, the row is req.user.id.
+// The rules for the file — re-encoded 512 × 512 JPEG, a random 32-hex name,
+// EXIF stripped — live in utils/profilePhoto.js. Replacing writes the new
+// file, points the row at it, THEN deletes the old one, so a failure in
+// between leaves the old photo showing rather than none. activity_logs gets
+// the action only: never the file name (it is the photo's access key) and
+// never a login id.
+//
+// Both reply with the same `user` as GET /me, so a client can re-read /me or
+// use this directly. Removing when there is no photo is a 200 no-op.
+router.put('/photo', authenticate, async (req, res) => {
+  const received = await photos.receivePhoto(req, res);
+  if (!received.file) {
+    return res.status(received.status).json({ success: false, message: received.message });
+  }
+  const encoded = await photos.reencode(received.file.buffer);
+  if (encoded.error) {
+    return res.status(400).json({ success: false, message: encoded.error });
+  }
+
+  let written = null;
+  try {
+    const [[current]] = await pool.query('SELECT profile_pic FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    written = await photos.writePhoto(encoded.buffer);
+    await pool.query('UPDATE users SET profile_pic = ? WHERE id = ?', [written, req.user.id]);
+    const saved = written;
+    written = null;
+    if (current?.profile_pic && current.profile_pic !== saved) await photos.removePhotoFile(current.profile_pic);
+    await logActivity(req.user.id, 'upload_profile_photo', 'Profile photo uploaded');
+
+    const user = await fetchUserByLoginId(req.user.login_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    return res.json({ success: true, message: 'Profile photo updated.', user: withAccountFlags(sanitizeUser(user), user) });
+  } catch (error) {
+    // A file written but never recorded is removed, not left as an orphan.
+    if (written) await photos.removePhotoFile(written);
+    if (isDbUnavailable(error)) return sendDbUnavailable(res, 'Upload photo', error);
+    console.error('Upload photo error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save the photo.' });
+  }
+});
+
+router.delete('/photo', authenticate, async (req, res) => {
+  try {
+    const [[current]] = await pool.query('SELECT profile_pic FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    if (current?.profile_pic) {
+      await pool.query('UPDATE users SET profile_pic = NULL WHERE id = ?', [req.user.id]);
+      await photos.removePhotoFile(current.profile_pic);
+      await logActivity(req.user.id, 'remove_profile_photo', 'Profile photo removed');
+    }
+
+    const user = await fetchUserByLoginId(req.user.login_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    return res.json({
+      success: true,
+      message: current?.profile_pic ? 'Profile photo removed.' : 'There was no profile photo to remove.',
+      user: withAccountFlags(sanitizeUser(user), user),
+    });
+  } catch (error) {
+    if (isDbUnavailable(error)) return sendDbUnavailable(res, 'Remove photo', error);
+    console.error('Remove photo error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to remove the photo.' });
   }
 });
 

@@ -193,6 +193,7 @@ export default function MessagesPage() {
         renderCard={(row) => ({
           to: `/teacher/messages/${row.other_user_id}`,
           avatar: row.other_user_name,
+          avatarPhoto: row.other_user_profile_pic,
           title: row.other_user_name,
           subtitle: row.last_message_body,
           meta: `${timestampDay(row.last_message_at)}${

@@ -50,8 +50,8 @@ A module with tables and no handlers is not started; there are none.
 
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
-| Auth + account recovery | `users`, `auth_codes`, `auth_security_state` | 10 | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport` | Login, Forgot password, forced password change, Settings (Account, Password, Personalization) for all roles |
-| User management | `users` | 10 | `test:users` | Admin → Users |
+| Auth + account recovery + own profile photo | `users`, `auth_codes`, `auth_security_state` | 12 | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo` | Login, Forgot password, forced password change, Settings (Account — with the profile photo —, Password, Personalization) for all roles |
+| User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
 | Subjects + assignments | `subjects`, `teacher_assignments` | 1 + 3 | `test:assignments` | none by decision; read by pickers |

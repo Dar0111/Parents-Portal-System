@@ -85,12 +85,12 @@ function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
               onClick={onNavigate}
               className="flex rounded-full transition hover:opacity-90"
             >
-              <Avatar name={name} />
+              <Avatar name={name} photo={user?.profile_pic} />
               <span className="sr-only">Account information</span>
             </Link>
           </RailTooltip>
         ) : (
-          <Avatar name={name} />
+          <Avatar name={name} photo={user?.profile_pic} />
         )}
         <RailTooltip label="Logout">
           <button
@@ -115,7 +115,7 @@ function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
           aria-label={`${name ? `${name}, ` : ''}Account information`}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-surface-subtle"
         >
-          <Avatar name={name} />
+          <Avatar name={name} photo={user?.profile_pic} />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-sm font-medium text-fg">{name}</div>
             <div className="truncate text-xs text-fg-muted">{detail}</div>
@@ -123,7 +123,7 @@ function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
         </Link>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-3 px-1 py-1">
-          <Avatar name={name} />
+          <Avatar name={name} photo={user?.profile_pic} />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-sm font-medium text-fg">{name}</div>
             <div className="truncate text-xs text-fg-muted">{detail}</div>

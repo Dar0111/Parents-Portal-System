@@ -71,6 +71,7 @@ export default function MessagesScreen({ navigation }) {
       renderCard={(row) => ({
         onSelect: () => navigation.navigate('MessageThread', { otherId: row.other_user_id, name: row.other_user_name }),
         avatar: row.other_user_name,
+        avatarPhoto: row.other_user_profile_pic,
         title: row.other_user_name,
         subtitle: row.last_message_body,
         meta: `${row.other_user_role} · ${timestampDay(row.last_message_at)}${Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''}`,

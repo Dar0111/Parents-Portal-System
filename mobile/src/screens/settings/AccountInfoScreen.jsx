@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Avatar from '../../components/Avatar';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import { contactError, contactRuleHint } from '../../format/contactRule';
@@ -100,6 +102,111 @@ const ROLE_COPY = {
   parent:
     "Your name, your child's name, LRN, grade and section are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.",
 };
+
+// PROFILE PHOTO (feat/profile-photos, 2026-09-30) — the web's block, on the
+// phone. THE PHOTO LIBRARY ONLY, NEVER THE CAMERA (Darryl's decision 3):
+// `expo-image-picker`'s library call opens Android's own photo picker, which
+// needs no storage permission, and the camera would add a permission prompt.
+// The picker crops to a square at quality 0.8, so what is sent is small; the
+// server still decodes, re-encodes to a 512 × 512 JPEG and strips EXIF — a
+// phone photo's GPS position never reaches disk. The two checks here only
+// save a pointless upload; the server says the same sentences.
+//
+// §5e: choosing a photo uploads it (another choice undoes it). REMOVING
+// deletes the file with no undo, so a native Alert asks first, in the web's
+// words. §5b: the avatar is user.profile_pic from the last /auth/me.
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const PHOTO_MAX = 5 * 1024 * 1024;
+
+function ProfilePhoto({ user, refresh, status, setStatus }) {
+  const [busy, setBusy] = useState(false);
+  const hasPhoto = Boolean(user?.profile_pic);
+
+  async function pick() {
+    setStatus({});
+    let result;
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+    } catch (err) {
+      setStatus({ photo: fail(err?.message || 'The photo library could not be opened.') });
+      return;
+    }
+    if (result.canceled || !result.assets?.length) return;
+    const asset = result.assets[0];
+    const type = asset.mimeType || 'image/jpeg';
+    if (!PHOTO_TYPES.includes(type)) {
+      setStatus({ photo: fail('Choose a JPEG, PNG or WebP image.') });
+      return;
+    }
+    if (asset.fileSize && asset.fileSize > PHOTO_MAX) {
+      setStatus({ photo: fail('The photo must be 5 MB or smaller.') });
+      return;
+    }
+    setBusy(true);
+    try {
+      const form = new FormData();
+      // The file name sent is a fixed word, never anything from the account.
+      form.append('photo', { uri: asset.uri, name: type === 'image/png' ? 'photo.png' : type === 'image/webp' ? 'photo.webp' : 'photo.jpg', type });
+      await api.put('/auth/photo', form, { unwrap: 'user' });
+      await refresh();
+      setStatus({ photo: ok(hasPhoto ? 'Profile photo changed.' : 'Profile photo added.') });
+    } catch (err) {
+      setStatus({ photo: fail(extractError(err)) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setStatus({});
+    setBusy(true);
+    try {
+      await api.delete('/auth/photo', { unwrap: 'user' });
+      await refresh();
+      setStatus({ photo: ok('Profile photo removed.') });
+    } catch (err) {
+      setStatus({ photo: fail(extractError(err)) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmRemove() {
+    Alert.alert(
+      'Remove your profile photo?',
+      'The photo is deleted and cannot be brought back; your initials show instead. You can upload a new one at any time.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Yes, remove it', style: 'destructive', onPress: remove },
+      ]
+    );
+  }
+
+  return (
+    <View className="mt-6 gap-3">
+      <Text className="text-sm font-semibold text-fg">Profile photo</Text>
+      <View className="flex-row items-center gap-4">
+        <Avatar name={user?.name} photo={user?.profile_pic} size={72} />
+        <View className="min-w-0 flex-1 gap-2">
+          <View className="flex-row flex-wrap gap-2">
+            <Button label={busy ? 'Saving…' : hasPhoto ? 'Change photo' : 'Choose a photo'} onPress={pick} disabled={busy} />
+            {hasPhoto ? <Button label="Remove photo" onPress={confirmRemove} disabled={busy} primary={false} /> : null}
+          </View>
+        </View>
+      </View>
+      <Text className="text-xs text-fg-muted">
+        From your photo library — JPEG, PNG or WebP, up to 5 MB, cropped to a square. It shows beside your name in the
+        portal instead of your initials.
+      </Text>
+      <FormStatus status={status.photo} />
+    </View>
+  );
+}
 
 function Button({ label, onPress, disabled, primary = true }) {
   return (
@@ -265,6 +372,8 @@ export default function AccountInfoScreen() {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="p-4 pb-10">
         <Text className="text-base font-semibold text-fg">Account information</Text>
         <Text className="mt-1 text-sm text-fg-muted">{ROLE_COPY[role] || ''}</Text>
+
+        <ProfilePhoto user={user} refresh={refresh} status={status} setStatus={setStatus} />
 
         <View className="mt-4 rounded-lg border border-edge bg-surface-subtle px-4 py-2">
           {role === 'parent' ? (

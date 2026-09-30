@@ -34,7 +34,7 @@ file, never an edit to a mirrored one.** The six pairs as of the scaffold:
 `api/extractError.js`, `auth/authFailure.js`, `auth/roles.js`,
 `layout/nav.js` → `navigation/nav.js`, `format/passwordRule.js`,
 `format/contactRule.js`. The school calendar joined the list on the Parent
-branch as a three-way copy (server → client → mobile). **Now 23 pairs —
+branch as a three-way copy (server → client → mobile). **Now 24 pairs —
 `mobile/scripts/check-mirrors.mjs` is the list**, and it also compares the
 calendar with the server's by value.
 
@@ -818,3 +818,40 @@ because M19 was already the size scale.
   fail both checks. It went 58/60 on the unfixed drawer. What it cannot
   prove — the look, the tap, the fold surviving a cold boot — is the phone
   check.
+
+## M21. Profile photos on the phone — the library only, and the web's rules
+
+**feat/profile-photos, 2026-09-30** (Darryl's decisions 3 and 4). Every rule
+of FRONTEND_CONVENTIONS §25 holds; this is only where the phone differs.
+
+- **`expo-image-picker` (`~57.0.20`, installed with `npx expo install`, so it
+  matches SDK 57 and ships inside Expo Go) — `launchImageLibraryAsync` ONLY,
+  never the camera.** On current Android the library opens the system photo
+  picker, which needs no storage permission, and the camera would add a
+  permission prompt. Images only, `allowsEditing` with a 1:1 crop, quality
+  0.8, so what is sent is small. **No `app.json` change**: Expo Go ignores
+  config plugins; a future release build revisits permissions beside the
+  cleartext row. `proof-photo-url` scans all of `mobile/src` for any camera
+  call, with a control that one IS caught.
+- **The upload is a `FormData` part `{ uri, name, type }` through the one
+  axios client** — no Content-Type set by hand (axios sets
+  `multipart/form-data` for a FormData body off the browser and React
+  Native's networking adds the boundary), inside the 15 s timeout. **The part's
+  name is a fixed word** (`photo.jpg` / `.png` / `.webp`), never the picked
+  file's name or anything from the account — proved by a source check with a
+  control. The server's reply is re-read through `refresh()` (§5b).
+- **Remove asks with a native `Alert`, in the web's words** — for your own
+  photo on Account information and for someone else's on Admin → Users (a
+  card action shown only when the row has a photo). Upload does not ask.
+- **`Avatar` takes `photo`** and draws an `Image` inside the brand-soft
+  circle — the size as a plain style OBJECT on both (M20: never a style
+  function), `onError` → the initials, keyed on the failed address. A card
+  passes `avatarPhoto`. `format/photoUrl.js` is the **24th mirror**, built
+  from `API_BASE_URL` (`EXPO_PUBLIC_API_URL`), so the photo comes from the
+  same host as the API over the hotspot.
+- **Proved by `proof-photo-url` (26)**: the address from the phone's base and
+  every refusal, the camera and file-name scans with their controls, and which
+  avatars carry a photo (the drawer card, `RecordCard`, Account information,
+  both Messages lists, both admin Users lists) — and that the learner cards
+  never do. What it cannot prove — a photo drawing, the picker, the upload
+  over the hotspot, the fallback on a load error — is the phone check.

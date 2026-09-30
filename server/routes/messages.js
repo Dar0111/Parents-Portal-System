@@ -123,6 +123,7 @@ router.get('/conversations', authenticate, async (req, res) => {
        )
        SELECT
          r.other_user_id, u.name AS other_user_name, u.role AS other_user_role,
+         u.profile_pic AS other_user_profile_pic,
          r.id AS last_message_id, r.body AS last_message_body,
          r.sender_id AS last_message_sender_id, r.created_at AS last_message_at,
          r.read_status AS last_message_read_status,

@@ -50,9 +50,10 @@ function childName(user) {
   return name || null;
 }
 
-// The avatar's letters (UI-D-3). INITIALS BECAUSE THERE IS NO PHOTO: the
-// schema has no column for one and no route uploads one, so this is what the
-// data supports rather than a placeholder for something coming later.
+// The avatar's letters (UI-D-3). INITIALS BECAUSE A LEARNER HAS NO PHOTO:
+// `students` has no photo column, and the profile photos of feat/profile-photos
+// (2026-09-30) belong to USER accounts (`users.profile_pic`) — this is the
+// CHILD's avatar, not the parent's, so it stays initials by design.
 //
 // It is `aria-hidden` at the call site, so it never has to be readable as
 // text — the child's full name sits beside it. A learner with only one

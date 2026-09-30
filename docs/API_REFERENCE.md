@@ -2,10 +2,12 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**91 handlers** across 15 route files, documented as **18 endpoint tables
+**94 handlers** across 15 route files, documented as **18 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **92 endpoints** (both +2 on 2026-09-29: `POST /api/auth/verify-contact/request` and `/confirm`, feat/sms-transport; both +1 on 2026-09-26: `GET /api/settings/public`). That 18 counts MARKDOWN TABLES IN THIS
+`server.js` = **95 endpoints** (both +3 on 2026-09-30: `PUT` and
+`DELETE /api/auth/photo`, `DELETE /api/users/:id/photo`, feat/profile-photos;
+both +2 on 2026-09-29: `POST /api/auth/verify-contact/request` and `/confirm`, feat/sms-transport; both +1 on 2026-09-26: `GET /api/settings/public`). That 18 counts MARKDOWN TABLES IN THIS
 FILE — it is not a database-table count, and the database has **23**.
 Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
 retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
@@ -488,9 +490,9 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 91 handlers (92 with `GET /api/health`).
+the bottom must equal 94 handlers (95 with `GET /api/health`).
 
-### Auth (10) — `/api/auth`
+### Auth (12) — `/api/auth`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
@@ -504,6 +506,36 @@ the bottom must equal 91 handlers (92 with `GET /api/health`).
 | POST | `/verify-email/confirm` | any authenticated | `code`* (6 digits) | message only |
 | POST | `/verify-contact/request` | any authenticated | — | message only — `202` "We sent a code to your mobile number."; `200` "This number is already confirmed."; `400` "There is no mobile number on this account. Add one first."; `429` "Too many codes requested. Try again in an hour."; `503` "Could not send the code right now. Try again, or ask the school office." (the text would not send, or SMS is off on this server) |
 | POST | `/verify-contact/confirm` | any authenticated | `code`* (6 digits) | message only — `200` "Mobile number confirmed. You can now get reset codes by text message."; `400` "That code is not valid. Request a new one." for every failure, including a code sent to a number the account no longer holds |
+| PUT | `/photo` | any authenticated — **your own account only** (no `:id`) | **multipart**, one file in field `photo` — JPEG, PNG or WebP, at most 5 MB | `user` (the `/me` shape) + message "Profile photo updated." — `400` "Choose a photo to upload." (no file), `400` "Choose a JPEG, PNG or WebP image." (anything sharp cannot decode as one of those — the name and declared type are ignored), `413` "The photo must be 5 MB or smaller.", `400` "Send one photo at a time." (a second file or another field). See Profile photos below |
+| DELETE | `/photo` | any authenticated — your own account only | — | `user` + message "Profile photo removed.", or "There was no profile photo to remove." (`200`, a no-op) |
+
+#### Profile photos (feat/profile-photos, 2026-09-30)
+
+- **`users.profile_pic` holds the FILE NAME only** — 32 random lowercase hex
+  characters + `.jpg`, a new one on every upload — never a URL (the web and
+  the phone reach the API at different hosts) and **never a login id, a user
+  id or a timestamp**. Clients build the address with `format/photoUrl.js`
+  (mirrored), which refuses any other shape.
+- **Served unauthenticated at `/uploads/avatars/<name>`** by `server.js`'s
+  static mount (`index: false`, `dotfiles: 'deny'`, `nosniff`,
+  `Cache-Control: private, max-age=86400`): an `<img>` cannot send the bearer
+  token, so the random name is the access key. It only appears in replies
+  the viewer is already scoped to. **A copied address works without a login
+  until the photo is replaced or removed** — `docs/KNOWN_ISSUES.md`.
+- **Every upload is re-encoded** by sharp (`server/utils/profilePhoto.js`):
+  EXIF orientation applied, cut to 512 × 512, written as a new JPEG at
+  quality 82 — **no EXIF survives, GPS included**. Nothing touches the disk
+  until that succeeds (multer memory storage).
+- **Replace writes the new file, points the row at it, then deletes the old
+  file**; remove clears the row, then deletes. A file written but not
+  recorded is removed on the error path.
+- **`activity_logs`**: `upload_profile_photo`, `remove_profile_photo`,
+  `admin_remove_profile_photo` — descriptions carry **no file name, no login
+  id and no id**; the admin row names the target by display name and role.
+- **The name also appears on** `GET /users`, `GET /users/:id` (both
+  `SELECT *`), `GET /users/parents/pending` (`profile_pic`) and
+  `GET /messages/conversations` (`other_user_profile_pic`).
+- **Not in any backup** — `docs/KNOWN_ISSUES.md`.
 
 **`PUT /change-password` also returns `token`** since R1 (2026-09-19) — a
 replacement JWT at the account's new `token_version`. It is **not optional**:
@@ -581,7 +613,7 @@ a demo arrangement; `docs/KNOWN_ISSUES.md`).
 - **The texts** are ASCII, one GSM-7 part, and carry no LRN, login id or
   student name.
 
-### Users (10) — `/api/users`
+### Users (11) — `/api/users`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
@@ -594,6 +626,7 @@ a demo arrangement; `docs/KNOWN_ISSUES.md`).
 | GET | `/:id` | `admin` | — | `user` |
 | PUT | `/:id` | `admin` | `name`, `email`, `contact_number` (any subset; `contact_number` follows the contact rule since 2026-09-18 and **`email` the email rule since 2026-09-25** — `400` with `field: "contact_number"` / `field: "email"`, an empty string clears either; a changed email is stored trimmed, un-verifies the address and burns the email codes already sent; a changed number clears `contact_verified_at` and burns pending text codes — the same number in another form is not a change) — `role`/`login_id`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `user` |
+| DELETE | `/:id/photo` | `admin` — **REMOVE ONLY** (moderation; no admin upload for someone else exists), any id including your own | — | message only — `200` "Profile photo removed." / "This account has no profile photo." (a no-op); `400` "Invalid user id."; `404` "User not found." The file is deleted after the row is cleared; `admin_remove_profile_photo` names the target by name and role, never an id |
 | POST | `/:id/temp-password` | `admin` | — | message + **`temporary_password`** | The office fallback for an account that cannot use `/forgot-password` (no email, unverified, or an inbox they cannot reach). Generates a rule-satisfying password with `crypto`, bumps `token_version` (every session of that account dies now) and sets `must_change_password = 1`. **The password is in this response and nowhere else** — never stored in plain form, never logged, not retrievable again. Your own id is `400` "Use Change password for your own account.", a nonexistent id is `404`. |
 
 ### Students (5) — `/api/students`
@@ -1240,8 +1273,8 @@ the same as `router`.
 
 | Table | Endpoints | Route file |
 |---|---|---|
-| Auth | 10 | `auth.js` |
-| Users | 10 | `users.js` |
+| Auth | 12 | `auth.js` |
+| Users | 11 | `users.js` |
 | Students | 5 | `students.js` |
 | Sections | 3 | `sections.js` |
 | Subjects | 1 | `assignments.js` |
@@ -1258,20 +1291,21 @@ the same as `router`.
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
-| **Total** | **91** | |
+| **Total** | **94** | |
 
-10+10+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1 = **91 handlers in `server/routes/`**
-(recounted from the code 2026-09-29; the Total row had said 87 while the sum
-said 89). Plus `GET /api/health`, mounted directly in `server.js` = **92**
-endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+12+11+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1 = **94 handlers in `server/routes/`**
+(recounted from the code 2026-09-30, feat/profile-photos: +2 auth
+`PUT`/`DELETE /photo`, +1 users `DELETE /:id/photo`; 91 on 2026-09-29, when
+the Total row had said 87 while the sum said 89). Plus `GET /api/health`,
+mounted directly in `server.js` = **95** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than
 Contributions' eight — then the class record's `GET` and `PUT` landed, then
 the class summary's `GET`.
 
-**State which number you mean.** 91 is handlers in route files; 92 is every
+**State which number you mean.** 94 is handlers in route files; 95 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11). Re-run the existence diff after a dispatch that adds or removes an endpoint.

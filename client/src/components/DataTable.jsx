@@ -46,8 +46,11 @@ import StatusBadge from './StatusBadge';
 //
 // `renderCard(row)` returns DATA, NEVER JSX:
 //
-//   { to?, onSelect?, avatar?, title, subtitle?, meta?, status?, statusTone?,
-//     actions? }
+//   { to?, onSelect?, avatar?, avatarPhoto?, title, subtitle?, meta?, status?,
+//     statusTone?, actions? }
+//
+// `avatarPhoto` is a USER's stored photo file name (Avatar shows it, or the
+// initials of `avatar` when it is null or fails to load) — data, like the rest.
 //
 // and the reason is the accessibility rule below. A column's `render` returns
 // cell JSX full of buttons — reusing it here would put a button inside a link.
@@ -105,7 +108,7 @@ function CardBody({ card, interactive }) {
   return (
     <>
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        {card.avatar ? <Avatar name={card.avatar} /> : null}
+        {card.avatar ? <Avatar name={card.avatar} photo={card.avatarPhoto} /> : null}
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold text-fg">{card.title}</div>
           {card.subtitle ? <div className="mt-0.5 truncate text-sm text-fg-muted">{card.subtitle}</div> : null}

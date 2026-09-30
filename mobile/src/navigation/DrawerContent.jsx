@@ -235,7 +235,7 @@ export default function DrawerContent({ navigation, state, items }) {
           style={{ flex: 1, minWidth: 0 }}
         >
           <View style={{ minHeight: 56 }} className="flex-row items-center gap-3 px-2">
-            <Avatar name={name} />
+            <Avatar name={name} photo={user?.profile_pic} />
             <View className="min-w-0 flex-1">
               <Text numberOfLines={1} className="text-sm font-medium text-fg">
                 {name}

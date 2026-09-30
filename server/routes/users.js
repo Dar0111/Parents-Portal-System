@@ -12,6 +12,7 @@ const { parseId } = require('../utils/validateId');
 const { activeAdmins, insertNotifications, emitNotifications } = require('../utils/notify');
 const { sanitizeUser } = require('../utils/sanitizeUser');
 const codes = require('../utils/authCodes');
+const { removePhotoFile } = require('../utils/profilePhoto');
 
 const router = express.Router();
 
@@ -252,7 +253,7 @@ router.get('/parents/pending', authenticate, authorize('admin'), async (req, res
        WHERE u.role = 'parent' AND u.status = 'pending'`
     );
     const [rows] = await pool.query(
-      `SELECT u.id, u.login_id, u.name, u.email, u.contact_number, u.status, u.created_at,
+      `SELECT u.id, u.login_id, u.name, u.email, u.contact_number, u.status, u.created_at, u.profile_pic,
               s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name,
               s.grade_level, s.section,
               creator.name AS created_by_name
@@ -618,6 +619,40 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
   } catch (error) {
     console.error('Update user status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update user status.' });
+  }
+});
+
+// DELETE /api/users/:id/photo — admin only, REMOVE ONLY (feat/profile-photos,
+// 2026-09-30; Darryl's decision 4). Moderation: a parent's photo is seen by
+// teachers, and without this nobody could take an unsuitable one down. There
+// is no admin UPLOAD for someone else — a photo is always its owner's choice.
+// Any id, the caller's own included (the same as their DELETE /auth/photo).
+// A row with no photo is a 200 no-op. The file goes after the row stops
+// pointing at it (utils/profilePhoto.js).
+//
+// activity_logs NEVER CARRIES AN ID OR A LOGIN ID HERE (the owner's rule for
+// photos — a parent's login id is the child's LRN): the target is named by
+// display name and role, and the actor is the row's own user_id.
+router.delete('/:id/photo', authenticate, authorize('admin'), async (req, res) => {
+  const id = parseId(req.params.id);
+  if (id === null) {
+    return res.status(400).json({ success: false, message: 'Invalid user id.' });
+  }
+  try {
+    const [[target]] = await pool.query('SELECT id, name, role, profile_pic FROM users WHERE id = ? LIMIT 1', [id]);
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    if (!target.profile_pic) {
+      return res.json({ success: true, message: 'This account has no profile photo.' });
+    }
+    await pool.query('UPDATE users SET profile_pic = NULL WHERE id = ?', [id]);
+    await removePhotoFile(target.profile_pic);
+    await logActivity(req.user.id, 'admin_remove_profile_photo', `Removed the profile photo of ${target.name} (${target.role})`);
+    return res.json({ success: true, message: 'Profile photo removed.' });
+  } catch (error) {
+    console.error('Admin remove photo error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to remove the photo.' });
   }
 });
 

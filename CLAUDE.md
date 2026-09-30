@@ -46,10 +46,11 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 91** handlers defined in
-> `server/routes/`, and the API answers **92 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 94** handlers defined in
+> `server/routes/`, and the API answers **95 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
-> Both +2 on 2026-09-29 (the `verify-contact` pair); +1 on 2026-09-26.
+> Both +3 on 2026-09-30 (the profile-photo three); +2 on 2026-09-29 (the
+> `verify-contact` pair); +1 on 2026-09-26.
 > Both recounted from the code on 2026-09-22, which moved them twice in one
 > day: `PATCH /grades/:id/descriptive` retired (−1) and the class record's
 > `GET` and `PUT` landed (+2). The archived endpoint table's 81 rows are a
@@ -73,7 +74,7 @@ split — if a fact seems missing here, it is in one of these.
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
 | `docs/TESTING.md` | every suite, proof and lint baseline; the one suite whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
-| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§24 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
+| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§25 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
 | `docs/MOBILE_CONVENTIONS.md` | the full text of STAGE 5 MOBILE CONVENTIONS — only where the phone DIFFERS from the web, and why; frozen per section as each Stage 5 branch lands (since 2026-09-27) | frozen rules |
@@ -114,8 +115,8 @@ nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT, and **About is last on every
 role since 2026-09-26** (9 / 13 / 10); **no role has a `built: false`
-item**. **23 tables, 91 handlers + `/api/health`**
-(2026-09-29). 20 of 23 sections have no adviser and
+item**. **23 tables, 94 handlers + `/api/health`**
+(2026-09-30). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
@@ -177,12 +178,12 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-four test files); `database/`
+`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-five test files); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, fifteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, sixteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -852,6 +853,18 @@ is no read endpoint for `activity_logs`, and building one needs a redaction
 rule for free text written by twenty-odd call sites. It belongs to a future
 Admin Activity Log page. Do not fake it from another source.
 
+### 25. Profile photos — the file name is the key, and never a login id
+
+**feat/profile-photos, 2026-09-30.** Your own photo in Settings → Account
+information (web and phone); an admin may only REMOVE someone else's.
+`users.profile_pic` holds **32 random hex + `.jpg`**, a new name per upload —
+**no login id, no user id**, not in `activity_logs` either; clients build the
+address with the mirrored `format/photoUrl.js`, which refuses any other
+shape. Served without a token at `/uploads/avatars/`; every upload is
+**re-encoded by sharp (512 × 512 JPEG, EXIF and GPS gone)**. A photo that
+fails to load shows the initials. **Learners have no photo.** Remove asks
+first; upload does not. Full text: `docs/FRONTEND_CONVENTIONS.md` §25.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, recorded so they cannot be re-derived:
@@ -884,7 +897,7 @@ cleanup, M13 Grades one slot at a time, M14 the roster and where
 `beforeRemove` can fire, M15 the teacher's lists, M16 the admin shell and
 `popTo` back to the drawer, M17 sensitive actions and the shown-once
 password, M18 the admin's lists, M20 the drawer grouped and foldable (`pp.navGroups`, the
-active group always open) — stated only there**). Darryl's decisions of 2026-09-27
+active group always open), M21 the photo picker (library only, no camera) — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -1337,6 +1350,7 @@ is still open, needing its own dispatch:**
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
+| **Profile photos are NOT in any backup** — a restore can point at a deleted photo (initials show) or orphan a newer one | `server/uploads/avatars/` + restore | Deliberate: the restore stays mysqldump-only. Never auto-delete an orphan photo; never add uploads to the dump without its own plan |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
 | **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
 | **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |

@@ -25,7 +25,8 @@
     "proof:admin-users": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-users.mjs",
     "proof:school-settings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-school-settings.mjs",
     "proof:admin-posts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-posts.mjs",
-    "proof:drawer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-drawer.mjs"
+    "proof:drawer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-drawer.mjs",
+    "proof:photo-url": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-photo-url.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
@@ -38,6 +39,7 @@
     "@react-navigation/native-stack": "^7.19.2",
     "axios": "^1.20.0",
     "expo": "~57.0.25",
+    "expo-image-picker": "~57.0.20",
     "expo-screen-capture": "~57.0.3",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.9",

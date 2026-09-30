@@ -192,6 +192,14 @@ export default function UsersPage() {
   const [tempPassword, setTempPassword] = useState(null);
   const [tempCopied, setTempCopied] = useState(false);
 
+  // Remove a profile photo (feat/profile-photos, 2026-09-30) —
+  // DELETE /users/:id/photo, admin REMOVE-ONLY (moderation; there is no
+  // upload for someone else). The file is deleted with no undo, so it is a
+  // confirmation naming the person (§5e). Shown only on a row that HAS one.
+  const [photoRemoving, setPhotoRemoving] = useState(null);
+  const [photoError, setPhotoError] = useState(null);
+  const [photoSaving, setPhotoSaving] = useState(false);
+
   // Two paged tables, two pager states (2026-09-19). Each is one page of a
   // server-sorted list (C1); a filter or sort change resets its offset (C6);
   // a page emptied by an approval steps back on its own (C7, in DataTable).
@@ -477,6 +485,36 @@ export default function UsersPage() {
     }
   }
 
+  function openPhotoRemove(row) {
+    setPhotoRemoving(row);
+    setPhotoError(null);
+  }
+
+  function closePhotoRemove() {
+    if (photoSaving) return;
+    setPhotoRemoving(null);
+    setPhotoError(null);
+  }
+
+  async function submitPhotoRemove() {
+    if (!photoRemoving) return;
+    setPhotoError(null);
+    setPhotoSaving(true);
+    try {
+      await api.delete(`/users/${photoRemoving.id}/photo`, { unwrap: 'message' });
+      setFormStatus({ directory: ok(`Profile photo removed for ${photoRemoving.name}.`) });
+      // Your own row: the sidebar card reads the auth user, so re-read it too.
+      if (photoRemoving.id === me?.id) await refreshMe().catch(() => {});
+      setPhotoRemoving(null);
+      // The avatar is a column on this table, so re-read it (§5b).
+      await load();
+    } catch (err) {
+      setPhotoError(extractError(err));
+    } finally {
+      setPhotoSaving(false);
+    }
+  }
+
   async function copyTempPassword() {
     try {
       await navigator.clipboard.writeText(tempPassword);
@@ -549,7 +587,7 @@ export default function UsersPage() {
         key: 'name',
         header: 'Guardian',
         sortable: true,
-        render: (row) => <PersonCell name={row.name} secondary={row.email || null} />,
+        render: (row) => <PersonCell name={row.name} secondary={row.email || null} photo={row.profile_pic} />,
       },
       {
         key: 'student',
@@ -613,7 +651,9 @@ export default function UsersPage() {
         // The PARENTS table above is deliberately untouched: its columns are
         // Guardian / Student / Class / Login ID / Created by, with no Email,
         // so the address there earns its line.
-        render: (row) => <PersonCell name={row.name} secondary={row.id === me?.id ? 'You' : null} />,
+        render: (row) => (
+          <PersonCell name={row.name} secondary={row.id === me?.id ? 'You' : null} photo={row.profile_pic} />
+        ),
       },
       {
         key: 'login_id',
@@ -680,6 +720,19 @@ export default function UsersPage() {
                   <i aria-hidden="true" className="fa-solid fa-key" />
                 </button>
               )}
+              {/* Only on a row that has a photo — a control that could only
+                  answer "no photo" is not offered (§5i). */}
+              {row.profile_pic ? (
+                <button
+                  type="button"
+                  onClick={() => openPhotoRemove(row)}
+                  aria-label={`Remove the profile photo of ${row.name}`}
+                  title={`Remove the profile photo of ${row.name}`}
+                  className={ICON_BTN}
+                >
+                  <i aria-hidden="true" className="fa-solid fa-image" />
+                </button>
+              ) : null}
               {canToggle && isSelf && row.status === 'active' ? (
                 <span className="text-xs text-fg-muted">You cannot deactivate yourself</span>
               ) : null}
@@ -744,6 +797,7 @@ export default function UsersPage() {
           renderCard={(row) => ({
             onSelect: () => openReview(row),
             avatar: row.name,
+            avatarPhoto: row.profile_pic,
             title: row.name,
             subtitle: `Parent of ${row.student_first_name} ${row.student_last_name}`,
             meta: `Grade ${row.grade_level} - ${row.section}`,
@@ -828,6 +882,7 @@ export default function UsersPage() {
           // secondary when they are not.
           renderCard={(row) => ({
             avatar: row.name,
+            avatarPhoto: row.profile_pic,
             title: row.name,
             subtitle: row.email || null,
             meta: `${displayRole(row.role)} · ${maskLoginId(row)}`,
@@ -1200,6 +1255,48 @@ export default function UsersPage() {
                 ) : null}
               </>
             )}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(photoRemoving)}
+        onClose={closePhotoRemove}
+        title={photoRemoving ? `Remove photo — ${photoRemoving.name}` : ''}
+        size="sm"
+        closeOnBackdrop={!photoSaving}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closePhotoRemove}
+              disabled={photoSaving}
+              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submitPhotoRemove}
+              disabled={photoSaving}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
+            >
+              {photoSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              Yes, remove the photo
+            </button>
+          </>
+        }
+      >
+        {photoRemoving ? (
+          <div className="space-y-3">
+            {photoError ? <ErrorAlert message={photoError} /> : null}
+            <p className="text-sm text-fg-body">
+              Remove the profile photo of <span className="font-medium text-fg">{photoRemoving.name}</span>?
+            </p>
+            <p className="text-sm text-fg-muted">
+              The photo is deleted and cannot be brought back; their initials show instead. They can
+              upload a new one from their own Settings.
+            </p>
           </div>
         ) : null}
       </Modal>

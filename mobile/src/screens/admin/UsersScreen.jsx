@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
@@ -30,13 +30,15 @@ import TempPasswordModal from './users/TempPasswordModal';
 //                     last-active-admin refusal is the server's 400, shown.
 //   Reset password  — the two-phase popup (TempPasswordModal).
 //   Review parent   — a modal screen: decide, confirm naming the decision.
+//   Remove photo    — a card action on a row WITH a photo; a native Alert
+//                     names the person (the file is gone, no undo).
 //
 // RE-READS ON FOCUS (Darryl's A4, M14): a drawer screen is never unmounted,
 // so returning from a review or a create re-fetches both lists, and asks the
 // bell's provider to refetch — the Users badge is the server's count (§10),
 // never decremented here.
 export default function UsersScreen({ navigation, route }) {
-  const { user: me } = useAuth();
+  const { user: me, refresh: refreshMe } = useAuth();
   const { refresh: refreshCounts } = useNotifications();
   const notice = route?.params?.notice || null;
   const noticeKey = route?.params?.noticeKey || 'directory';
@@ -140,6 +142,32 @@ export default function UsersScreen({ navigation, route }) {
     }
   }
 
+  // REMOVE A PROFILE PHOTO (feat/profile-photos, 2026-09-30) — admin
+  // REMOVE-ONLY, DELETE /users/:id/photo. The file is deleted with no undo,
+  // so a native Alert names the person first (§5e; the web's modal words).
+  function confirmPhotoRemove(row) {
+    Alert.alert(
+      `Remove photo — ${row.name}`,
+      'The photo is deleted and cannot be brought back; their initials show instead. They can upload a new one from their own Settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Yes, remove the photo', style: 'destructive', onPress: () => removePhoto(row) },
+      ]
+    );
+  }
+
+  async function removePhoto(row) {
+    setFormStatus({});
+    try {
+      await api.delete(`/users/${row.id}/photo`, { unwrap: 'message' });
+      setFormStatus({ directory: ok(`Profile photo removed for ${row.name}.`) });
+      if (row.id === me?.id) await refreshMe().catch(() => {});
+      await load();
+    } catch (err) {
+      setFormStatus({ directory: fail(extractError(err)) });
+    }
+  }
+
   const onResetClose = useCallback(() => setResetting(null), []);
   const onResetSet = useCallback((target) => setFormStatus({ directory: ok(`Temporary password set for ${target.name}.`) }), []);
 
@@ -175,6 +203,7 @@ export default function UsersScreen({ navigation, route }) {
               card={{
                 onSelect: () => navigation.navigate('ReviewParent', { parent: row }),
                 avatar: row.name,
+                avatarPhoto: row.profile_pic,
                 title: row.name,
                 subtitle: `Parent of ${row.student_first_name} ${row.student_last_name}`,
                 meta: `Grade ${row.grade_level} - ${row.section}`,
@@ -220,8 +249,11 @@ export default function UsersScreen({ navigation, route }) {
           const actions = [{ label: 'Edit', onPress: () => navigation.navigate('EditUser', { target: row }) }];
           if (a.reset) actions.push({ label: 'Reset password', onPress: () => setResetting(row) });
           if (a.toggle) actions.push({ label: busy ? 'Saving…' : a.toggle === 'inactive' ? 'Deactivate' : 'Activate', tone: a.toggle === 'inactive' ? 'danger' : 'neutral', onPress: busy ? () => {} : () => setUserStatus(row, a.toggle) });
+          // Only on a row that has a photo (§5i).
+          if (row.profile_pic) actions.push({ label: 'Remove photo', tone: 'danger', onPress: () => confirmPhotoRemove(row) });
           return {
             avatar: row.name,
+            avatarPhoto: row.profile_pic,
             title: row.name,
             subtitle: row.email || null,
             meta: `${displayRole(row.role)} · ${maskLoginId(row)}${a.selfNote ? ` · ${a.selfNote}` : ''}`,

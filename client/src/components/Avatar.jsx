@@ -1,3 +1,7 @@
+import { useState } from 'react';
+import api from '../api/axios';
+import { photoUrl } from '../format/photoUrl';
+
 // The initials circle on a person row (DV1, 2026-09-20).
 //
 // ONLY WHERE A ROW IS A PERSON. Eleven of the twenty-two DataTable consumers
@@ -6,11 +10,14 @@
 // page decides by passing `avatar` from `renderCard`, or by using this in a
 // column's `render` — DataTable never guesses.
 //
-// NO PHOTOS, AND NOT BECAUSE THEY WOULD BE HARD. `users.profile_pic` exists
-// in the schema and is NULL for every row; there is no upload endpoint and
-// none is planned before the pilot. Initials are the honest end state here,
-// not a placeholder waiting for images — a grey silhouette on every row
-// would suggest a photo is missing rather than never offered.
+// A PHOTO WHEN THE PERSON HAS ONE, INITIALS OTHERWISE (feat/profile-photos,
+// 2026-09-30). `photo` is the stored `users.profile_pic` FILE NAME, turned
+// into an address by format/photoUrl.js. Only USER rows have one — a
+// learner's avatar is always initials, because `students` has no photo.
+// A photo that fails to load — the file gone after a restore of an older
+// backup, say (KNOWN_ISSUES) — falls back to the initials, never a broken
+// image. `alt=""` + aria-hidden, the same as the initials: the name is always
+// beside it as text.
 //
 // brand-on-brand-soft is an ALREADY-CHECKED contrast pair (it is the active
 // nav item), so this adds no row to check-contrast's list and cannot be the
@@ -44,8 +51,34 @@ function initialsOf(name) {
   return (first + last).toUpperCase();
 }
 
-export default function Avatar({ name, className = '' }) {
+// Two sizes, never a className fight over `h-`: `md` everywhere a row or a
+// card shows a person, `lg` on Settings → Account information.
+const SIZES = {
+  md: 'h-[2.375rem] w-[2.375rem] text-xs',
+  lg: 'h-20 w-20 text-xl',
+};
+
+const API_BASE = api.defaults.baseURL;
+
+export default function Avatar({ name, photo = null, size = 'md', className = '' }) {
   const initials = initialsOf(name);
+  const src = photoUrl(photo, API_BASE);
+  // The address that failed, not a boolean: a NEW photo gets its own try.
+  const [failed, setFailed] = useState(null);
+  const box = SIZES[size] || SIZES.md;
+
+  if (src && failed !== src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        aria-hidden="true"
+        decoding="async"
+        onError={() => setFailed(src)}
+        className={`${box} shrink-0 rounded-full bg-brand-soft object-cover ${className}`}
+      />
+    );
+  }
 
   // No name, no circle. An empty disc is a rendering artefact, and a "?"
   // reads as a warning about the person rather than about the data.
@@ -56,7 +89,7 @@ export default function Avatar({ name, className = '' }) {
       // aria-hidden: the name is always rendered as text beside this, so a
       // screen reader announcing "MS" first would just be noise.
       aria-hidden="true"
-      className={`inline-flex h-[2.375rem] w-[2.375rem] shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-semibold text-brand ${className}`}
+      className={`inline-flex ${box} shrink-0 items-center justify-center rounded-full bg-brand-soft font-semibold text-brand ${className}`}
     >
       {initials}
     </span>
@@ -70,11 +103,11 @@ export default function Avatar({ name, className = '' }) {
 // link to the detail page and has to be `text-brand`. A prop rather than a
 // wrapper selector: the caller says what it wants instead of reaching into
 // this component's markup with an arbitrary variant that breaks the moment
-// the markup changes.
-export function PersonCell({ name, secondary, className = '', nameClass = 'text-fg' }) {
+// the markup changes. `photo` only where the row is a USER (Admin → Users).
+export function PersonCell({ name, secondary, photo = null, className = '', nameClass = 'text-fg' }) {
   return (
     <div className={`flex min-w-0 items-center gap-3 ${className}`}>
-      <Avatar name={name} />
+      <Avatar name={name} photo={photo} />
       <div className="min-w-0">
         <div className={`truncate font-semibold ${nameClass}`}>{name}</div>
         {secondary ? <div className="truncate text-xs text-fg-muted">{secondary}</div> : null}

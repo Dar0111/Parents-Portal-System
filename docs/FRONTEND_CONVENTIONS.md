@@ -2941,3 +2941,47 @@ the parent hero's figures 24px.
 - **A new figure uses `Stat`** (or states why not). A size picked at a call
   site is how the scale drifts.
 
+## 25. Profile photos — the file name is the key, and never a login id (`feat/profile-photos`, 2026-09-30)
+
+Owner decision: build now, every role, web and phone. Decisions 3–6 of the
+plan: the photo library only on the phone, admin remove-only on both, no
+migration (`users.profile_pic` has been in `schema.sql` since the initial
+commit), multer ^2 + sharp, and uploads kept out of backups.
+
+- **Your own photo, in Settings → Account information** — Upload / Change
+  and Remove beside a large (`size="lg"`, 5rem) avatar. **Choosing a photo
+  uploads it; removing asks first**, naming what happens (the file is
+  deleted, no undo — §5e). An admin may only **remove** someone else's
+  (Admin → Users, a row action shown only on a row that has a photo, with a
+  confirmation naming the person). There is no upload for someone else.
+- **`users.profile_pic` is 32 random lowercase hex + `.jpg`** — a new name on
+  every upload — and nothing else: **no login id (a parent's is the child's
+  LRN, §5c), no user id, no timestamp**, in the name, the address or
+  `activity_logs`. It is a FILE NAME, never a URL; `format/photoUrl.js`
+  (mirrored to the phone) builds `<origin>/uploads/avatars/<name>` from the
+  API base and **refuses any other shape**, so a stray value never becomes a
+  request.
+- **The name is the access key.** `/uploads` is served without a token (an
+  `<img>` cannot send one; per-image authenticated fetches would be 50 on a
+  50-row list), hardened with `index: false`, `dotfiles: 'deny'`, `nosniff`
+  and a private cache. A copied address works until the photo is replaced or
+  removed — a KNOWN_ISSUES row, accepted.
+- **Every upload is re-encoded by sharp** — decoded (the real type check),
+  turned upright, 512 × 512, a fresh JPEG — so **no EXIF survives, a phone's
+  GPS position included**. The client's own type and size checks only save a
+  pointless upload; the server's sentences are the authority.
+- **Where a photo replaces the initials — USER rows only:** the sidebar /
+  drawer user card, Settings → Account information, Admin → Users (both
+  tables, both card lists), and the Messages conversation cards
+  (`other_user_profile_pic`). **Learner avatars stay initials** — Students,
+  Attendance, Attendance records, Excuse Letters, the parent dashboard's
+  child — because `students` has no photo. `Avatar` takes `photo`, a card
+  takes `avatarPhoto` (data, §5a-iii), `PersonCell` takes `photo`.
+- **A photo that fails to load shows the initials**, keyed on the failed
+  address so a new photo gets its own try — the answer to a restore of an
+  older backup pointing at a deleted file (KNOWN_ISSUES). `alt=""` +
+  `aria-hidden`: the name is always beside it as text.
+- **Proved by** `ssr-avatar` (32; negative control — the name guard loosened
+  → 23/32) and the server's `test:profile-photo` (70). The load-error
+  fallback is an event SSR cannot fire — the browser check.
+
