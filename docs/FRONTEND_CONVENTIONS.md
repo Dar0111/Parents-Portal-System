@@ -1358,9 +1358,8 @@ over, unchanged. Do not add a second scroll container to `<main>`.
   pixel-identical before and after at 1366 wide in both themes, and a global
   rule changed it (the negative control).
 - **Width:** `<main>` is `flex-1 min-w-0`, so every page gets the window
-  minus 240 or 64px — **capped at 80rem and centred on every page** (f3,
-  2026-09-30; `mx-auto w-full max-w-[80rem]`, padding inside the cap). The
-  header stays full width, and a wider table keeps its own scroller (§5a-i).
+  minus 240 or 64px; nothing else sets a width for it. **No width cap** — f3's
+  80rem centred cap (2026-09-30) was removed the same day by Darryl's decision.
 
 **The seal** (`client/src/assets/school-seal.png`, 192 px, 24-bit, under 50
 KB — rendered from the school's 447 px JPG, which has a white field and no
@@ -1884,14 +1883,24 @@ All three roles, web and phone. **No "Open →" row.**
   printed at 0 once there is anything to count; none keeps the card's empty
   copy. Key Stage 1 still has no count (§12), and there is still no partial
   average.
-- **Emphasis:** parent Grades and Attendance, teacher "Excuse letters to
-  review", admin "Waiting for approval". On the web the parent and teacher
-  ones are first, two columns and `Stat large` (`text-3xl`); on the phone
-  every one is first plus `large`. **No width leaves a hole in the grid**:
-  parent is `sm:2 / xl:4` with the two large cards `sm:col-span-2`; teacher
-  is `sm:2 / lg:3` with the review queue `sm:col-span-2`.
-- **A card takes its CONTENT height (UI-3)** — every dashboard grid is
-  `items-start`, so no card stretches to its row's tallest.
+- **Emphasis:** teacher "Excuse letters to review" and admin "Waiting for
+  approval". On the web the teacher one is first, two columns and
+  `Stat large` (`text-3xl`); on the phone every emphasised card is first plus
+  `large` (the phone's parent Grades and Attendance too). Teacher is
+  `sm:2 / lg:3` with the review queue `sm:col-span-2`; no width leaves a hole.
+- **The web PARENT dashboard is the 69bae24 layout** (Darryl, owner decision,
+  2026-09-30 — final): the hero, then six equal cards in `sm:2 / lg:3`, two
+  rows at `lg` — Grades · Attendance · Messages / Excuse letters ·
+  Announcements & memos · Upcoming events — **no emphasised card**, each row
+  as tall as its tallest card. Grades is one normal-size line ("1 of 8
+  subjects recorded · Term 2") then the recorded subjects; Excuse letters is
+  the small `StatusBadge` then "Absence on …", or "No excuse letters.";
+  Attendance keeps its large absences number and everything under it.
+  **So the phone's `gradesLead` and `letterLead` are no longer the web's
+  words** — the phone is unchanged.
+- **Row height:** parent and teacher rows stretch to their tallest card (the
+  grid default); **only the admin grid is `items-start` (UI-3)**, its number
+  tiles taking their content height.
 - **Admin (UI-3, Darryl's Q2): four `compact` number tiles in one row —
   Waiting for approval · Students · Teachers · Parents, the same width —
   and System full width below** (`sm:2 / lg:4`, System
@@ -1904,7 +1913,7 @@ All three roles, web and phone. **No "Open →" row.**
   `focus-ring` ring it replaced was 1.18:1 and 1.95:1.
 - **The phone's lead words are pure helpers in each role's
   `dashboard/logic.js`**, asserted by its proof; the web builds the same words
-  inline. The announcements & memos count is the bell's `announcements + memos`
+  inline, except the parent's Grades and Excuse letters (above). The announcements & memos count is the bell's `announcements + memos`
   (§10), because posts carry no read state of their own.
 
 ---

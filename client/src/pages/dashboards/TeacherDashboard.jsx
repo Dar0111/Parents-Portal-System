@@ -172,9 +172,10 @@ export default function TeacherDashboard() {
           the EMPHASISED card — first, two columns, the bigger number, amber
           only while something waits — because it is the one card that asks
           the teacher to act. The other four are one column each, so no
-          width leaves a hole in the grid. `items-start` (UI-3): a card
-          takes its own height, never its row's tallest. */}
-      <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          width leaves a hole in the grid. Each row stretches to its
+          tallest card — UI-3's `items-start` was undone here by Darryl's
+          decision of 2026-09-30. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card
           title="Excuse letters to review"
           icon="fa-envelope-open-text"

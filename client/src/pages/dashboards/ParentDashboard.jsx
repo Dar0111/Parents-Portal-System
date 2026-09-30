@@ -725,22 +725,21 @@ export default function ParentDashboard() {
         letter={letter}
       />
 
-      {/* EVERY CARD LEADS WITH A NUMBER OR THE NEXT ACTION (f2, 2026-09-30),
-          and the two a parent opens this page for — Grades and Attendance —
-          are the LARGE cards: first, two columns wide, the bigger number.
-          Four columns from xl so the two large cards share a row and the
-          four small ones the next; below xl, two columns, the large ones
-          full width. No width leaves a hole in the grid. The mobile
-          dashboard/logic.js builds the same lead words so a proof can hold
-          them. `items-start` (UI-3): a card takes its own height, never
-          its row's tallest. */}
-      <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* THE LAYOUT OF 69bae24 (Darryl, owner decision, 2026-09-30 — final;
+          it replaces f2's large cards and UI-3's `items-start` HERE ONLY).
+          Six equal cards, three columns, two rows, and each row as tall as
+          its tallest card (the grid's default stretch): Grades · Attendance ·
+          Messages / Excuse letters · Announcements & memos · Upcoming events.
+          No emphasised card. The whole card is still the link (f2) with the
+          brand focus outline (UI-5). The Grades and Excuse letters bodies
+          are normal-size text again, so the phone's lead words for those two
+          (`gradesLead`, `letterLead`) are no longer the web's. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
       <Card
         title="Grades"
         icon="fa-chart-simple"
         to="/parent/grades"
-        className="sm:col-span-2"
         loading={summary.loading}
         error={summary.error}
         onRetry={summary.reload}
@@ -765,7 +764,6 @@ export default function ParentDashboard() {
         ) : grades?.complete ? (
           <div>
             <Stat
-              large
               // THROUGH GradeValue, not raw (DV4). This printed "87.5" against
               // the report card's "87.50" — one number, two spellings, two
               // screens. Two decimals is the rule for a General Average
@@ -778,14 +776,12 @@ export default function ParentDashboard() {
           </div>
         ) : grades?.term ? (
           <div>
-            {/* The count leads, not a muted "Pending": how far the term has
-                got is the fact a parent can act on. Still no partial
-                average (§12). */}
-            <Stat
-              large
-              value={`${grades.subjects_recorded} of ${grades.subjects_total}`}
-              caption={`subjects recorded · Term ${grades.term}`}
-            />
+            {/* How far the term has got, as one normal-size line (Darryl,
+                2026-09-30) — not a muted "Pending", not a large number.
+                Still no partial average (§12). */}
+            <p className="text-sm font-medium text-fg">
+              {grades.subjects_recorded} of {grades.subjects_total} subjects recorded &middot; Term {grades.term}
+            </p>
             <SubjectList card={card} mode="numerical" term={currentTerm} />
           </div>
         ) : (
@@ -797,7 +793,6 @@ export default function ParentDashboard() {
         title="Attendance"
         icon="fa-clipboard-user"
         to="/parent/attendance"
-        className="sm:col-span-2"
         loading={month.loading || allTime.loading}
         error={month.error || allTime.error}
         onRetry={() => {
@@ -888,13 +883,13 @@ export default function ParentDashboard() {
         ) : letter.data ? (
           // The card never disappears (spec): a parent who has never sent one
           // still needs to know where they live.
+          // The status as the small badge, then the date — as at 69bae24.
           <div className="space-y-2">
-            <Stat value={letter.data.status} caption="Latest letter" />
+            <StatusBadge status={letter.data.status} />
             <AbsenceLine date={letter.data.absence_date} className="text-sm text-fg-muted" />
           </div>
         ) : (
-          // The next action leads when there is nothing to count.
-          <Stat value="Submit a letter" caption="No excuse letters yet." />
+          <CardEmpty>No excuse letters.</CardEmpty>
         )}
       </Card>
 

@@ -42,7 +42,9 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // is 15.31:1 (Light) and 9.29:1 (Dark) — asserted by lint:contrast.
 //
 // `compact` (UI-3): the admin's four number tiles — less padding, a tighter
-// header. A card takes its CONTENT height; the grids say `items-start`.
+// header. The admin grid says `items-start`, so there a card takes its
+// CONTENT height; the parent and teacher grids stretch each row (Darryl,
+// 2026-09-30).
 export default function Card({
   title,
   icon,

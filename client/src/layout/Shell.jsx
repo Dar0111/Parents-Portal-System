@@ -364,8 +364,8 @@ function ShellChrome() {
           `md`, NOT `sm`, SINCE feat/ui-polish (2026-09-30): at 640–767px a
           240px sidebar left a page about 350px wide, so below 768px the menu
           button opens the drawer instead. Expanded is 240px (w-60), the rail
-          is 64px (w-16); <main> is flex-1 min-w-0, so every page gets the
-          rest of the window, up to its 80rem cap (f3). */}
+          is 64px (w-16); <main> is flex-1 min-w-0, so every page simply gets
+          the rest of the window — nothing below this sets a width for it. */}
       <aside
         className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start border-r border-edge bg-surface md:flex ${
           collapsed ? 'w-16' : 'w-60'
@@ -430,11 +430,10 @@ function ShellChrome() {
           drawerOpen={mobileNavOpen}
         />
 
-        {/* 80rem, CENTRED, EVERY PAGE (f3, 2026-09-30): on a wide monitor the
-            cards and forms stopped stretching into lines too long to read.
-            The header above stays full width; a table wider than this keeps
-            its own horizontal scroller (§5a-i). */}
-        <main className="mx-auto w-full min-w-0 max-w-[80rem] flex-1 space-y-4 p-4 sm:p-6">
+        {/* NO WIDTH CAP: content fills the window beside the sidebar. f3's
+            80rem centred cap was removed on 2026-09-30 by Darryl's decision
+            (the parent dashboard returns to its 69bae24 layout). */}
+        <main className="min-w-0 flex-1 space-y-4 p-4 sm:p-6">
           {/* CONVENTION 5g, and specifically WHERE the notice belongs: the
               unread badge in the sidebar depends on the live channel and is
               visible on EVERY page, so the notice that the channel is down has
