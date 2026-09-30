@@ -1,11 +1,13 @@
-// How the web sidebar GROUPS each role's nav (feat/ui-polish, 2026-09-30).
+// How the web sidebar AND the phone's drawer GROUP each role's nav
+// (feat/ui-polish, 2026-09-30; the phone since feat/nav-drawer-groups, the
+// same day).
 //
-// A SEPARATE FILE ON PURPOSE: layout/nav.js is copied byte for byte to
-// mobile/src/navigation/nav.js and `lint:mirrors` proves the two equal, so a
-// `group` field there would drag the phone into a web change. The phone's
-// drawer is not grouped (decision Q8). nav.js stays the single source of
-// WHICH items exist and in what order; this file only says where each one
-// sits, keyed by path suffix — the same identity Shell's badges use.
+// A MIRROR: copied byte for byte to mobile/src/navigation/navGroups.js, and
+// `lint:mirrors` proves the two equal — edit it here, then copy it. It stays
+// a separate file from layout/nav.js, the single source of WHICH items exist
+// and in what order; this file only says where each one sits, keyed by path
+// suffix — the same identity the badges use. On the phone, Backup & Restore
+// is web only, so admin's System group is empty there and is dropped below.
 //
 //   top     Dashboard, above every group
 //   bottom  Settings and About, pinned under the groups, above the user card

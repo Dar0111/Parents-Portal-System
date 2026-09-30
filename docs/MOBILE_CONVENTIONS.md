@@ -34,7 +34,7 @@ file, never an edit to a mirrored one.** The six pairs as of the scaffold:
 `api/extractError.js`, `auth/authFailure.js`, `auth/roles.js`,
 `layout/nav.js` → `navigation/nav.js`, `format/passwordRule.js`,
 `format/contactRule.js`. The school calendar joined the list on the Parent
-branch as a three-way copy (server → client → mobile). **Now 22 pairs —
+branch as a three-way copy (server → client → mobile). **Now 23 pairs —
 `mobile/scripts/check-mirrors.mjs` is the list**, and it also compares the
 calendar with the server's by value.
 
@@ -746,3 +746,61 @@ The finding, as recorded when it was deferred:
   system stack is Roboto in Android Chrome; React Native's default is Roboto).
 - **Why it was deferred:** `inlineRem: 16` resizes every phone screen by
   ~14% and needs a full phone sweep. (Superseded: the rem stays 14, above.)
+
+## M20. The drawer follows the web sidebar — grouped, foldable, one user card
+
+**feat/nav-drawer-groups, 2026-09-30** (plan approved with Darryl's decisions
+1–2: folding on the phone only; the fold state remembered). Numbered M20
+because M19 was already the size scale.
+
+- **The same groups, labels and order as the web, by construction.**
+  `layout/navGroups.js` became the **23rd mirror**
+  (`mobile/src/navigation/navGroups.js`); the drawer calls the same
+  `groupNav()` the sidebar does. Dashboard on top; parent My child / School,
+  teacher My class / Communicate, admin Manage / Communicate; Settings and
+  About as a separate bottom group under a divider. **Admin's System group
+  does not exist on the phone** — its one item, Backup & Restore, is web only
+  (`routes.js` `WEB_ONLY`), AppShell drops it before the drawer sees the list,
+  and `groupNav()` already drops an empty group. No AppShell change was
+  needed.
+- **The same active style and badges** as before and as the web:
+  `bg-brand-soft` + `text-brand`, the `bg-primary` pill capped at `99+`,
+  `badgeFor()` unchanged.
+- **Folding is the phone's own** (`navigation/drawerFold.js`, pure, no
+  imports): a group label is a button (`accessibilityState.expanded`, a
+  chevron turned 90° when open). **Remembered per role on the device,**
+  AsyncStorage `pp.navGroups` = `{ role: [folded labels] }` — the FOLDED
+  labels, so a group nobody touched, or one added later, is open; anything
+  unreadable is `{}`, every group open, never a hidden page. **The group
+  holding the active page is always open**, decided at render and never
+  written back, so leaving that page restores what the user chose. The
+  unlabelled group (an item navGroups.js does not name) has no header and
+  never folds. The web does not fold: it has the room, and its rail cannot.
+- **The user card is the web's.** Avatar (initials), name, and the second
+  line from `userCardLines()`: **a parent's is "Parent" alone and the name
+  never falls back to the login id** (§5c — the login id is the child's
+  LRN); staff show role · login id, as on the web. Tapping the avatar and
+  name closes the drawer and opens Account information (the `AccountInfo`
+  stack screen, the same one Settings pushes); **Logout is a separate icon
+  button beside it**, never inside it — it replaced the full-width worded
+  button. The web card's avatar and name open Account information too
+  (`/{role}/settings`, admin `/admin/settings/account`, built from nav.js and
+  settings/tabs.js).
+- **Touch targets are 48dp, set in dp** (`minHeight: 48`; the card 56, the
+  Logout 48 × 48). `min-h-12` would be 42dp at this rem (M19). The rest of
+  the phone's 38.5dp targets stay the open KNOWN_ISSUES row.
+- **Pressed feedback is the one pattern already on the phone**
+  (`dashboards/Card.jsx`): a style FUNCTION alone on the `Pressable`, the
+  layout classes on an inner `View` — `className` and a style function were
+  never combined on one Pressable here, so this branch did not start.
+- **Not on the phone:** the web's icon-only rail and its tooltips. No new
+  colour; no new icon (the chevron is `fa-chevron-right`, rotated).
+- **Proved by `proof-drawer`** (45): every phone item placed exactly once in
+  the web's groups and order, per role; System and `/admin/backups` absent
+  on the phone with a control that the same file still groups them for the
+  web; the fold parse, toggle, per-role independence, the active-group rule
+  and that deciding "open" writes nothing; the card lines — **with two
+  negative controls**: a grouping that drops the unlabelled group, and a card
+  that fell back to the login id, each caught by the same check. What it
+  cannot prove — the look, the tap, the fold surviving a cold boot — is the
+  phone check.

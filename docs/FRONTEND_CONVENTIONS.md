@@ -1338,8 +1338,9 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   (`w-16`)**, toggled at its top and remembered per browser under
   **`pp.sidebar`** (`layout/sidebarPref.js`, read in the `useState`
   initializer — no flash, no `index.html` script). Default: expanded.
-- **Grouped** (`layout/navGroups.js`, a web-only file because `nav.js` is a
-  mirrored copy): Dashboard on top; the role's groups with small labels
+- **Grouped** (`layout/navGroups.js`, a separate file from `nav.js`, and a
+  mirror itself since `feat/nav-drawer-groups` — the phone's drawer groups
+  the same way, MOBILE_CONVENTIONS M20): Dashboard on top; the role's groups with small labels
   (admin Manage / Communicate / System, teacher My class / Communicate,
   parent My child / School) — a thin divider in the rail; **Settings and
   About pinned at the bottom**, then the **user card** with the ONE Logout.
@@ -1347,7 +1348,11 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
 - **The header lost its user block and Logout**; the bell is its rightmost
   control.
 - **The user card never shows a parent's login id** — it is the child's
-  LRN (§5c), and the card is on every page. Staff cards show role · login id.
+  LRN (§5c), and the card is on every page — nor does its name fall back to
+  it. Staff cards show role · login id. **The avatar and name are a link to
+  Settings → Account information** (`feat/nav-drawer-groups`), a sibling of
+  the Logout button, never around it; in the rail the avatar is the link,
+  labelled by `RailTooltip`.
   **Its Logout is an icon button** (UI-2): an `sr-only` "Logout" and a
   `RailTooltip`, so the name gets the width a worded button took.
 - **The nav box shows no scrollbar** (UI-1): `[scrollbar-width:none]` plus

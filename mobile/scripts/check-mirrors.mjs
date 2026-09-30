@@ -48,6 +48,8 @@ export const PAIRS = [
   ['src/screens/teacher/attendance/roster.js', 'pages/teacher/attendance/roster.js'],
   ['src/screens/teacher/classRecord/buildPayload.js', 'pages/teacher/classRecord/buildPayload.js'],
   ['src/screens/teacher/classRecord/backGuard.js', 'pages/teacher/classRecord/backGuard.js'],
+  // feat/nav-drawer-groups — the drawer groups exactly as the sidebar does.
+  ['src/navigation/navGroups.js', 'layout/navGroups.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

@@ -24,7 +24,8 @@
     "proof:admin-dashboard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-dashboard.mjs",
     "proof:admin-users": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-users.mjs",
     "proof:school-settings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-school-settings.mjs",
-    "proof:admin-posts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-posts.mjs"
+    "proof:admin-posts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-posts.mjs",
+    "proof:drawer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-drawer.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",

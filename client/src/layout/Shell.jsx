@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
 import RailTooltip from '../components/RailTooltip';
@@ -7,6 +7,7 @@ import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
 import { revealActive } from './navScroll';
 import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
+import { settingsTabsForRole } from '../pages/settings/tabs';
 import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
@@ -52,16 +53,45 @@ const ROLE_LABEL = { admin: 'Admin', teacher: 'Teacher', parent: 'Parent' };
 // A PARENT'S CARD NEVER SHOWS THE LOGIN ID. A parent's login_id IS the
 // child's LRN (§5c), and this card is on every page — Settings is the one
 // screen allowed to show it. Staff login ids (TCH-001, ADMIN001) are not
-// credentials of anyone else and are shown.
-function UserCard({ user, collapsed = false, onLogout }) {
+// credentials of anyone else and are shown. That includes the NAME
+// FALLBACK: a parent with no name shows none, never the login id.
+//
+// THE AVATAR AND NAME OPEN SETTINGS → ACCOUNT INFORMATION
+// (feat/nav-drawer-groups, 2026-09-30), on the phone's drawer card too. A
+// Link beside the Logout button, never around it — two controls side by
+// side, one action each. The path is built from nav.js's Settings item and
+// settings/tabs.js's Account information tab (admin's is `account`, the
+// other roles' is the index), so it cannot drift from either.
+function accountInfoPath(role) {
+  const settings = navForRole(role).find((i) => i.to.endsWith('/settings'));
+  const tab = settingsTabsForRole(role).find((t) => t.label === 'Account information');
+  if (!settings || !tab) return null;
+  return tab.to ? `${settings.to}/${tab.to}` : settings.to;
+}
+
+function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
   const role = ROLE_LABEL[user?.role] || user?.role || '';
   const detail = user?.role === 'parent' ? role : [role, user?.login_id].filter(Boolean).join(' · ');
-  const name = user?.name || user?.login_id || '';
+  const name = user?.name || (user?.role === 'parent' ? '' : user?.login_id) || '';
+  const account = accountInfoPath(user?.role);
 
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-2 border-t border-edge px-2 py-3">
-        <Avatar name={name} />
+        {account ? (
+          <RailTooltip label="Account information">
+            <Link
+              to={account}
+              onClick={onNavigate}
+              className="flex rounded-full transition hover:opacity-90"
+            >
+              <Avatar name={name} />
+              <span className="sr-only">Account information</span>
+            </Link>
+          </RailTooltip>
+        ) : (
+          <Avatar name={name} />
+        )}
         <RailTooltip label="Logout">
           <button
             type="button"
@@ -77,12 +107,29 @@ function UserCard({ user, collapsed = false, onLogout }) {
   }
 
   return (
-    <div className="flex items-center gap-3 border-t border-edge px-3 py-3">
-      <Avatar name={name} />
-      <div className="min-w-0 flex-1 leading-tight">
-        <div className="truncate text-sm font-medium text-fg">{name}</div>
-        <div className="truncate text-xs text-fg-muted">{detail}</div>
-      </div>
+    <div className="flex items-center gap-1 border-t border-edge px-2 py-2">
+      {account ? (
+        <Link
+          to={account}
+          onClick={onNavigate}
+          aria-label={`${name ? `${name}, ` : ''}Account information`}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-surface-subtle"
+        >
+          <Avatar name={name} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-sm font-medium text-fg">{name}</div>
+            <div className="truncate text-xs text-fg-muted">{detail}</div>
+          </div>
+        </Link>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-1 py-1">
+          <Avatar name={name} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-sm font-medium text-fg">{name}</div>
+            <div className="truncate text-xs text-fg-muted">{detail}</div>
+          </div>
+        </div>
+      )}
       {/* AN ICON, NOT A LABELLED BUTTON (UI-2): the word "Logout" took the
           room the name needed ("Ashley G…"). Named for screen readers by its
           sr-only label and shown by RailTooltip on hover and focus — the
@@ -418,7 +465,7 @@ function ShellChrome() {
               {navBody(false)}
             </div>
             {pinned(false)}
-            <UserCard user={user} onLogout={handleLogout} />
+            <UserCard user={user} onLogout={handleLogout} onNavigate={() => setMobileNavOpen(false)} />
           </aside>
         </div>
       ) : null}

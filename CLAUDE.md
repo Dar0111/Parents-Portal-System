@@ -182,7 +182,7 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, fourteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, fifteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -698,9 +698,10 @@ sidebar is `sticky top-0 h-screen self-start` with its nav box
 one scrollbar, no layout shift. **Do not add a second scroll container to
 `<main>`.** z-order: header 30, mobile drawer 40, the notification panel 40
 (closed when the drawer opens), rail tooltip 45 (on `<body>`), Modal backdrop 50. **Since 2026-09-30:** a
-drawer below `md`, above it 240px or a 64px rail, grouped by the web-only
-`layout/navGroups.js`; the user card holds the ONE Logout and **never a
-parent's login id** (§5c); `<main>` has no width cap.
+drawer below `md`, above it 240px or a 64px rail, grouped by
+`layout/navGroups.js` (a mirror: the phone groups the same, M20); the user
+card holds the ONE Logout, its avatar and name open Account information, and
+it **never shows a parent's login id** (§5c); `<main>` has no width cap.
 
 **The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
 image** — the source is a JPG with a white field and no alpha, so the disc
@@ -882,7 +883,8 @@ map, M10 the socket on a phone, M11 lists without DataTable, M12 writes and
 cleanup, M13 Grades one slot at a time, M14 the roster and where
 `beforeRemove` can fire, M15 the teacher's lists, M16 the admin shell and
 `popTo` back to the drawer, M17 sensitive actions and the shown-once
-password, M18 the admin's lists — stated only there**). Darryl's decisions of 2026-09-27
+password, M18 the admin's lists, M20 the drawer grouped and foldable (`pp.navGroups`, the
+active group always open) — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -2094,6 +2096,7 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
+| 2026-09-30 | **`feat/nav-drawer-groups`** (not merged): the phone drawer follows the web sidebar — the same groups (`navGroups.js`, the 23rd mirror), foldable on the phone (`pp.navGroups`), the user card with the one Logout icon; on both, the card opens Account information. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-30 | **`docs/stage5`** (not merged): the docs pass — README, PROGRESS, SETUP_NOTES, TESTING, both conventions docs and KNOWN_ISSUES checked against the code; parent login ids and password values out of the docs; the conservative CLAUDE.md trim. Full row: `docs/CHANGELOG.md`. |
 | 2026-09-30 | **`feat/ui-polish`** (merged, `c610bd8`; checks passed, cleaned up by id): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once; f: whole-card dashboard links, the login sentence; the parent dashboard back to its 69bae24 layout; equal calendar cells; figures one size down (§24). Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-30 | **`fix/server-reliability`** (merged): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
