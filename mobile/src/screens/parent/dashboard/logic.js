@@ -87,12 +87,16 @@ export function heroGrades(grades, card, currentTerm) {
 // dashboards build the same words inline. `null` means the card keeps its own
 // empty copy. Values are STRINGS, so a 0 is printed rather than dropped.
 
-// Grades, the LARGE card. Key Stage 1 has no lead: §12 refuses "N of M" for
-// something with no defined progress. Never a partial average.
+// Grades — THE WEB'S CARD (Darryl, 2026-09-30: the phone follows the web
+// parent dashboard). Until complete, ONE normal-size line — "1 of 8 subjects
+// recorded · Term 2" — not a large count; once complete, the average (raw, for
+// GradeValue) with its caption, as the web's Stat. Key Stage 1 has no lead:
+// §12 refuses "N of M" for something with no defined progress. Never a
+// partial average.
 export function gradesLead(grades) {
   if (!grades || grades.unavailable || grades.descriptive || !grades.term) return null;
   if (grades.complete) return { average: grades.general_average, caption: `General average · Term ${grades.term}` };
-  return { value: `${grades.subjects_recorded} of ${grades.subjects_total}`, caption: `subjects recorded · Term ${grades.term}` };
+  return { line: `${grades.subjects_recorded} of ${grades.subjects_total} subjects recorded · Term ${grades.term}` };
 }
 
 // Attendance, the LARGE card: this month's absences, named by month. `days`
@@ -111,10 +115,12 @@ export function unreadLead(unread, hasConversation = true) {
   return { value: String(n), caption: n === 1 ? 'unread message' : 'unread messages' };
 }
 
-// Excuse letters: the latest letter's status, or the next action.
+// Excuse letters — THE WEB'S CARD: the latest letter's status for the small
+// StatusBadge and its absence date for "Absence on <date>"; none → null, and
+// the card says "No excuse letters." No large status, no "Submit a letter".
 export function letterLead(letter) {
-  if (!letter) return { value: 'Submit a letter', caption: 'No excuse letters yet.' };
-  return { value: letter.status, caption: 'Latest letter' };
+  if (!letter) return null;
+  return { status: letter.status, absenceDate: letter.absence_date };
 }
 
 // Announcements & memos: the bell's own count for the two sections the

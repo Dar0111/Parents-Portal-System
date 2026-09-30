@@ -394,7 +394,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                 )
               ) : grades?.average !== null && grades?.average !== undefined ? (
                 <>
-                  <p className="mt-1 text-2xl font-semibold">
+                  <p className="mt-1 text-xl font-semibold">
                     {/* TWO DECIMALS, through the one renderer the whole system
                         uses — GRADING_SPEC §4a. This card printed "87.5"
                         against the report card's "87.50" until DV4.
@@ -452,7 +452,8 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                   figure above it, which reads as a truncated sentence. */}
               {monthDays ? (
                 <>
-                  <p className="mt-1 text-2xl font-semibold">
+                  {/* The hero's figures are `text-xl`, one step down (§24). */}
+                  <p className="mt-1 text-xl font-semibold">
                     {monthDays.present} <span className="text-base font-normal">of {monthDays.total}</span>
                   </p>
                   <p className="text-xs text-brand-panel-muted">recorded days</p>

@@ -161,7 +161,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm: letters, 
               <Text className="text-lg font-semibold text-brand-panel-fg">{childInitials(user)}</Text>
             </View>
             <View className="min-w-0 flex-1">
-              <Text className="text-xl font-semibold text-brand-panel-fg">{childName(user) || 'Name not recorded'}</Text>
+              <Text className="text-lg font-semibold text-brand-panel-fg">{childName(user) || 'Name not recorded'}</Text>
               <Text className="text-sm text-brand-panel-muted">
                 {classLabel(user) || 'Class not recorded'} · Adviser: {section.loading ? '…' : section.data?.adviser_name || 'not yet assigned'}
               </Text>
@@ -198,7 +198,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm: letters, 
                 )
               ) : grades?.average !== null && grades?.average !== undefined ? (
                 <>
-                  <GradeValue value={grades.average} mode="numerical" className="mt-1 text-2xl font-semibold text-brand-panel-fg" />
+                  <GradeValue value={grades.average} mode="numerical" className="mt-1 text-xl font-semibold text-brand-panel-fg" />
                   <Text className="text-xs text-brand-panel-muted">
                     Term {term}
                     {grades.descriptor ? ` · ${grades.descriptor}` : ''}
@@ -216,7 +216,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm: letters, 
             <HeroFigure label="Present this month">
               {monthDays ? (
                 <>
-                  <Text className="mt-1 text-2xl font-semibold text-brand-panel-fg">
+                  <Text className="mt-1 text-xl font-semibold text-brand-panel-fg">
                     {monthDays.present} <Text className="text-base font-normal">of {monthDays.total}</Text>
                   </Text>
                   <Text className="text-xs text-brand-panel-muted">recorded days</Text>
@@ -304,8 +304,9 @@ export default function DashboardScreen({ navigation }) {
   const letters = letterTerm(card.data?.subjects, currentTerm);
   const hero = heroGrades(grades, card.data, currentTerm);
   const monthDays = recordedDays(month.data);
-  // The lead lines (f2): every card opens on a number or the next action, and
-  // Grades and Attendance — first after the hero — carry the bigger number.
+  // The lead lines. Since 2026-09-30 the phone follows the WEB parent
+  // dashboard: Grades is one normal-size line, Excuse letters the small badge
+  // and the date; Attendance keeps its large absences number.
   const gLead = gradesLead(grades);
   const aLead = attendanceLead(monthDays, today);
   const mLead = unreadLead(unread, Boolean(latestMessage.data));
@@ -369,8 +370,14 @@ export default function DashboardScreen({ navigation }) {
             <SubjectList card={card} mode="descriptive" term={currentTerm} />
           </View>
         ) : gLead ? (
+          // The web's card (2026-09-30): until complete, one normal-size line
+          // and the recorded subjects; complete, the average as a Stat.
           <View>
-            <Stat large value={gLead.average !== undefined ? <GradeValue value={gLead.average} mode="numerical" /> : gLead.value} caption={gLead.caption} />
+            {gLead.line ? (
+              <Text className="text-sm font-medium text-fg">{gLead.line}</Text>
+            ) : (
+              <Stat value={<GradeValue value={gLead.average} mode="numerical" />} caption={gLead.caption} />
+            )}
             <SubjectList card={card} mode="numerical" term={currentTerm} />
           </View>
         ) : (
@@ -437,11 +444,14 @@ export default function DashboardScreen({ navigation }) {
       <Card title="Excuse letters" icon="fa-envelope-open-text" onOpen={() => navigation.navigate('/parent/excuse-letters')} loading={letter.loading} error={letter.error} onRetry={letter.reload}>
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
-        ) : (
-          <View className="gap-2">
-            <Stat value={lLead.value} caption={lLead.caption} />
-            {letter.data ? <AbsenceLine date={letter.data.absence_date} className="text-sm text-fg-muted" /> : null}
+        ) : lLead ? (
+          // The web's card: the small badge, then the absence date.
+          <View className="items-start gap-2">
+            <StatusBadge status={lLead.status} />
+            <AbsenceLine date={lLead.absenceDate} className="text-sm text-fg-muted" />
           </View>
+        ) : (
+          <CardEmpty>No excuse letters.</CardEmpty>
         )}
       </Card>
 

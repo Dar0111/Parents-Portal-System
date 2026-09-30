@@ -57,7 +57,9 @@ export default function Card({ title, icon, onOpen, loading = false, error = nul
 export function Stat({ value, caption, muted = false, large = false }) {
   return (
     <View>
-      <Text className={`${large ? 'text-3xl' : 'text-2xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</Text>
+      {/* One step down, as on the web (§24, M19): `text-xl` / `large`
+          `text-2xl` — 17.5 / 21dp at the phone's 14dp rem. */}
+      <Text className={`${large ? 'text-2xl' : 'text-xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</Text>
       {caption ? <Text className="mt-1 text-sm text-fg-muted">{caption}</Text> : null}
     </View>
   );

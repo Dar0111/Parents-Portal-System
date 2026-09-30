@@ -74,7 +74,7 @@ export default function DashboardScreen({ navigation }) {
             here.
           </Text>
           <Pressable onPress={() => navigation.navigate('AccountInfo')} accessibilityRole="link" className="mt-3 self-start">
-            <Text className="text-sm font-medium text-brand">Confirm your email →</Text>
+            <Text className="text-sm font-medium text-brand">Confirm your email</Text>
           </Pressable>
         </View>
       ) : null}
@@ -104,9 +104,9 @@ export default function DashboardScreen({ navigation }) {
       <Card title="System" icon="fa-server" onOpen={open('system')} loading={summary.loading} error={summary.error} onRetry={summary.reload}>
         {/* The last backup leads, in the same never-red colours (the web's
             System card since f2): it is the one fact here that goes stale on
-            its own. */}
+            its own. One step down to `text-xl`, like every figure (§24). */}
         <Text
-          className={`text-2xl font-semibold ${
+          className={`text-xl font-semibold ${
             backups.loading ? 'text-fg-muted' : backups.error || age.tone !== 'success' ? 'text-warning-strong' : 'text-success-strong'
           }`}
         >

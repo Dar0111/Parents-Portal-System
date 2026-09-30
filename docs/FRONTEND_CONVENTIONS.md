@@ -1885,8 +1885,8 @@ All three roles, web and phone. **No "Open →" row.**
   average.
 - **Emphasis:** teacher "Excuse letters to review" and admin "Waiting for
   approval". On the web the teacher one is first, two columns and
-  `Stat large` (`text-3xl`); on the phone every emphasised card is first plus
-  `large` (the phone's parent Grades and Attendance too). Teacher is
+  `Stat large` (`text-2xl` since §24); on the phone every emphasised card is
+  first plus `large`. Teacher is
   `sm:2 / lg:3` with the review queue `sm:col-span-2`; no width leaves a hole.
 - **The web PARENT dashboard is the 69bae24 layout** (Darryl, owner decision,
   2026-09-30 — final): the hero, then six equal cards in `sm:2 / lg:3`, two
@@ -1896,8 +1896,9 @@ All three roles, web and phone. **No "Open →" row.**
   subjects recorded · Term 2") then the recorded subjects; Excuse letters is
   the small `StatusBadge` then "Absence on …", or "No excuse letters.";
   Attendance keeps its large absences number and everything under it.
-  **So the phone's `gradesLead` and `letterLead` are no longer the web's
-  words** — the phone is unchanged.
+  **The phone follows the web parent dashboard** (Darryl, 2026-09-30): the
+  same cards, order, wording and emphasis, stacked in one column —
+  `gradesLead` is the one line, `letterLead` the badge's status and date.
 - **Row height:** parent and teacher rows stretch to their tallest card (the
   grid default); **only the admin grid is `items-start` (UI-3)**, its number
   tiles taking their content height.
@@ -2890,4 +2891,25 @@ linked below the login card.
   `max-w-md` section inside it left the right third of a desktop empty. Two
   short fields share a row from `sm` (School ID + phone, email + Facebook)
   and stack below it — width and one paired row, not a redesign.
+
+---
+
+## 24. The type scale — figures one step down, nothing else (`feat/ui-polish`, 2026-09-30)
+
+Darryl found the dashboards' text too big on a laptop, a desktop and the
+phone. Measured first (Playwright, 1366×768 and 1920×1080 — identical, no
+text class is responsive): body, card titles and nav are 14px, the page title
+16px; what read as big were the **figures** — `Stat` 24px, `Stat large` 30px,
+the parent hero's figures 24px.
+
+- **A figure is `text-xl`; an emphasised (`large`) figure is `text-2xl`; the
+  parent hero's figures are `text-xl`.** Web: 20 / 24 / 20px. Phone (rem 14,
+  M19): 17.5 / 21 / 17.5dp, and the phone hero's NAME `text-lg` (15.75dp).
+  Proved on the web by computed font-size, Light and Dark, all three
+  dashboards.
+- **Nothing else moves.** No `html` base-size change — body, titles, nav,
+  spacing and the sidebar are as they were — so the parent calendar keeps
+  97.0 / 77.0px (re-measured). The phone's rem stays 14.
+- **A new figure uses `Stat`** (or states why not). A size picked at a call
+  site is how the scale drifts.
 

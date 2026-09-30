@@ -137,10 +137,14 @@ export default function Card({
 //
 // `large` is the emphasised card's lead (f2): the first number on the screen
 // a user lands on is the one bigger number there.
+//
+// ONE STEP DOWN (the type scale, §24, Darryl, 2026-09-30): a figure is
+// `text-xl` (20px) and `large` is `text-2xl` (24px) — they were `text-2xl` /
+// `text-3xl` and read too big on a laptop. Nothing else on the page moved.
 export function Stat({ value, caption, muted = false, large = false }) {
   return (
     <div>
-      <p className={`${large ? 'text-3xl' : 'text-2xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</p>
+      <p className={`${large ? 'text-2xl' : 'text-xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</p>
       {caption ? <p className="mt-1 text-sm text-fg-muted">{caption}</p> : null}
     </div>
   );

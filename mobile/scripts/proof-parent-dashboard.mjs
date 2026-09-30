@@ -94,11 +94,13 @@ assert(childName({ student_first_name: 'Tala', student_last_name: 'Halimbawa' })
 assert(childInitials({ student_first_name: 'tala', student_last_name: 'halimbawa' }) === 'TH', 'childInitials upper-cases');
 
 console.log('lead lines (feat/ui-polish f2) — a number or the next action');
-const partial = gradesLead({ term: 1, subjects_recorded: 3, subjects_total: 8, complete: false });
+// The phone follows the WEB parent dashboard (2026-09-30): Grades is ONE
+// normal-size line until complete, never a large count.
+const partial = gradesLead({ term: 2, subjects_recorded: 1, subjects_total: 8, complete: false });
 const whole = gradesLead({ term: 1, complete: true, general_average: '88.05' });
 assert(
-  partial.value === '3 of 8' && partial.caption === 'subjects recorded · Term 1' && whole.average === '88.05' && whole.caption === 'General average · Term 1' && !('value' in whole),
-  'grades: "3 of 8 subjects recorded · Term 1" until complete, then the average (raw, for GradeValue) — never a partial average'
+  partial.line === '1 of 8 subjects recorded · Term 2' && !('value' in partial) && whole.average === '88.05' && whole.caption === 'General average · Term 1' && !('line' in whole),
+  'grades: one line "1 of 8 subjects recorded · Term 2" (the web\'s words) until complete, then the average (raw, for GradeValue) — never a partial average'
 );
 assert(
   gradesLead({ term: 1, descriptive: true }) === null && gradesLead({ unavailable: true }) === null && gradesLead({ term: null }) === null && gradesLead(null) === null,
@@ -114,9 +116,10 @@ assert(
   unreadLead(1).caption === 'unread message' && unreadLead(0, true).value === '0' && unreadLead(0, false) === null && unreadLead(3, false).caption === 'unread messages',
   'messages: the provider\'s count, shown at 0 once a conversation exists, no lead with none'
 );
+const lead = letterLead({ status: 'Pending', absence_date: '2026-09-30' });
 assert(
-  letterLead({ status: 'Pending' }).value === 'Pending' && letterLead({ status: 'Pending' }).caption === 'Latest letter' && letterLead(null).value === 'Submit a letter',
-  'excuse letters: the latest status, or the next action'
+  lead.status === 'Pending' && lead.absenceDate === '2026-09-30' && !('value' in lead) && letterLead(null) === null,
+  'excuse letters: the status for the small badge and the absence date (the web\'s card); none → null, so the card says "No excuse letters."'
 );
 assert(
   postsLead({ announcements: 2, memos: 1, events: 5, total: 9 }).value === '3' && postsLead(undefined).value === '0',

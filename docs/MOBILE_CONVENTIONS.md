@@ -705,9 +705,23 @@ truncated-dump row).
 Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
 notifications; Marwin 0 grade rows before and after.
 
-## M19. The phone's size scale is 14/16 of the web's — found, DEFERRED
+## M19. The phone's size scale is 14/16 of the web's — RESOLVED: keep 14
 
-**feat/ui-polish, 2026-09-30 (Darryl: not before the defense).**
+**feat/ui-polish, 2026-09-30.** Found and deferred first ("not before the
+defense"); **resolved the same day as "keep 14"** (Darryl, the type-scale
+plan): the owner finds the phone's text too big even with the Tecno's system
+font size on Small, so raising the rem to 16 would go the wrong way. What
+changed instead is the figures, one step down on the web AND the phone
+(FRONTEND_CONVENTIONS §24): `Stat` `text-xl` (17.5dp), `large` `text-2xl`
+(21dp), the parent hero's figures `text-xl`, its name `text-lg` (15.75dp),
+the admin System line `text-xl`. There is no render proof on the phone (M7):
+these are class values times the 14dp rem, confirmed on the device by the
+phone check. **Still open, as `docs/KNOWN_ISSUES.md` rows:** the 38.5dp touch
+targets below, and a `maxFontSizeMultiplier` cap (1.3 recommended) — React
+19 ignores `Text.defaultProps`, so a cap needs a `Text`/`TextInput` wrapper
+across ~80 files.
+
+The finding, as recorded when it was deferred:
 
 - **The difference, measured in the code, not by eye:** NativeWind 4.2.7's
   `withNativeWind` defaults **`inlineRem = 14`**
@@ -722,7 +736,5 @@ notifications; Marwin 0 grade rows before and after.
 - **Colours are NOT different** (generated from the web's tokens; `lint:tokens`
   proves 71 × 2 equal), and the font is the same on the same phone (the web's
   system stack is Roboto in Android Chrome; React Native's default is Roboto).
-- **Why deferred:** `inlineRem: 16` resizes every phone screen by ~14% and
-  needs a full phone sweep; that is not a change to make days before the
-  demo. The fix, when it comes, is that one option in `metro.config.js` plus
-  the sweep. `docs/KNOWN_ISSUES.md` has the row.
+- **Why it was deferred:** `inlineRem: 16` resizes every phone screen by
+  ~14% and needs a full phone sweep. (Superseded: the rem stays 14, above.)
