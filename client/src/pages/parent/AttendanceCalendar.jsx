@@ -35,6 +35,20 @@ import { longDate, monthGrid, weekdayName } from '../../format/date';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
+// EVERY DAY CELL IS ONE FIXED HEIGHT (feat/ui-polish, Darryl, 2026-09-30).
+// Cells were `min-h-16`, so the tallest one (Absent + "Excuse letter ·
+// Pending") grew its own frame and its row, while the other frames in that
+// row stayed short and every other week was shorter again — and a <button>
+// centres its content vertically, so an empty day's number floated in the
+// middle while the full one sat top-left. Now every frame, in the month or
+// not, with data or without, is the height of that TALLEST variant, measured
+// in a browser (Playwright, 2026-09-30): 77px below `xl`, where the letter
+// line is the envelope alone, and 97px from `xl`, where "Excuse letter ·
+// Pending" is spelled out and wraps to two lines. In rem, so Large text
+// scales the frame with its contents. The content is a top-aligned column,
+// so the day number is top-left everywhere and "Today" stays top-right.
+const CELL_HEIGHT = 'h-[4.8125rem] xl:h-[6.0625rem]';
+
 // One letter for the compact pill. The full word is always in the accessible
 // name, so this is an abbreviation for sighted readers, not the only label.
 const LETTER = { Present: 'P', Late: 'L', Absent: 'A', Excused: 'E' };
@@ -57,7 +71,7 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
   if (!cell.inMonth) {
     return (
       <td className="p-1 align-top">
-        <div className="min-h-16 rounded-lg p-2 text-xs text-fg-ghost" aria-hidden="true">
+        <div className={`${CELL_HEIGHT} rounded-lg p-2 text-xs text-fg-ghost`} aria-hidden="true">
           {cell.day}
         </div>
       </td>
@@ -65,7 +79,7 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
   }
 
   const frame = [
-    'min-h-16 w-full rounded-lg p-2 text-left transition',
+    `flex ${CELL_HEIGHT} w-full flex-col justify-start rounded-lg p-2 text-left transition`,
     record ? 'border border-edge bg-surface' : 'border border-dashed border-edge-strong bg-transparent',
     isToday ? 'ring-2 ring-focus-ring' : '',
     selected ? 'bg-surface-muted' : '',
