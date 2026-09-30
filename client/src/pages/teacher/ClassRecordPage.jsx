@@ -597,7 +597,9 @@ export default function ClassRecordPage() {
               }))
             }
             describe={({ hiddenLabels }) =>
-              hiddenLabels.length ? `Swipe for ${listLabels(hiddenLabels)} →` : null
+              // "Scroll", not "Swipe" (UI-7): the web is read with a mouse
+              // too; the phone app keeps "Swipe".
+              hiddenLabels.length ? `Scroll for ${listLabels(hiddenLabels)} →` : null
             }
           >
             <table className="print-sheet-table w-full border-collapse text-sm">
@@ -613,7 +615,7 @@ export default function ClassRecordPage() {
                   {/* `data-group` carries the BARE name for `ScrollCue`'s
                       hint (UI-D-2). The visible label is
                       `groupLabel(name, weight)` — "Performance Tasks · 50%" —
-                      and a sentence reading "Swipe for Performance Tasks ·
+                      and a sentence reading "Scroll for Performance Tasks ·
                       50% and Grade" is not a sentence. The attribute keeps
                       the two apart without a second constant to drift.
 

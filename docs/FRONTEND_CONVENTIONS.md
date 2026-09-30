@@ -1336,10 +1336,27 @@ over, unchanged. Do not add a second scroll container to `<main>`.
   `[&::-webkit-scrollbar]:hidden`. It still scrolls by wheel, trackpad and
   touch, and Tab scrolls a focused link into view.
 - **The rail's labels:** each icon keeps an `sr-only` label, and
-  `components/RailTooltip.jsx` shows it on hover AND keyboard focus (never
-  the browser's `title`, which focus never triggers), fixed-positioned so the
-  rail's own scroll box cannot clip it, dismissed by Escape. z-35, between
-  the header and the drawer. A badge becomes a count on the icon's corner.
+  `components/RailTooltip.jsx` shows it on hover and on **`:focus-visible`**
+  only (never the browser's `title`, which focus never triggers). A
+  pointer-down hides it until the pointer leaves (UI-11 — a mouse click left
+  focus on the toggle and "Expand sidebar" over the page). **Portalled to
+  `<body>` at z-45** (UI-8): as a child of the `sticky` sidebar — its own
+  stacking context — its z-35 was painted over by the cards and the class
+  record's sticky cells. z-45 is above the header (30) and the drawer and
+  bell panel (40), below Modal (50). **Detached from its icon, it is hidden
+  by any scroll or resize (`navScroll.js` `watchDismiss`, capture phase) and
+  by a route change** (Condition B). It measures the wrapped control, not its
+  wrapper. Escape dismisses it. A badge becomes a count on the icon's corner.
+- **The active item is scrolled into view** (UI-10) on load, on each route
+  change, on collapse/expand and when the drawer opens — nearest, no
+  animation, by setting the nav box's `scrollTop` (`revealActive`), never
+  `scrollIntoView`, which may scroll the page too.
+- **A stable scrollbar gutter on the app's pages only** (UI-6):
+  `html:has([data-app-shell])` in `index.css`, so the bell no longer shifts
+  between short and long pages. **Not on every `html`** (Condition A): the
+  Login page would gain a gutter strip — its right edge measured
+  pixel-identical before and after at 1366 wide in both themes, and a global
+  rule changed it (the negative control).
 - **Width:** `<main>` is `flex-1 min-w-0`, so every page gets the window
   minus 240 or 64px — **capped at 80rem and centred on every page** (f3,
   2026-09-30; `mx-auto w-full max-w-[80rem]`, padding inside the cap). The
@@ -1868,11 +1885,23 @@ All three roles, web and phone. **No "Open →" row.**
   copy. Key Stage 1 still has no count (§12), and there is still no partial
   average.
 - **Emphasis:** parent Grades and Attendance, teacher "Excuse letters to
-  review", admin "Waiting for approval". On the web that means first, two
-  columns and `Stat large` (`text-3xl`); on the phone it means first plus
-  `large`. **No width leaves a hole in the grid**: parent is `sm:2 / xl:4`
-  with the two large cards `sm:col-span-2`; teacher and admin are `sm:2 / lg:3`
-  with the one emphasised card `sm:col-span-2` and every other card one column.
+  review", admin "Waiting for approval". On the web the parent and teacher
+  ones are first, two columns and `Stat large` (`text-3xl`); on the phone
+  every one is first plus `large`. **No width leaves a hole in the grid**:
+  parent is `sm:2 / xl:4` with the two large cards `sm:col-span-2`; teacher
+  is `sm:2 / lg:3` with the review queue `sm:col-span-2`.
+- **A card takes its CONTENT height (UI-3)** — every dashboard grid is
+  `items-start`, so no card stretches to its row's tallest.
+- **Admin (UI-3, Darryl's Q2): four `compact` number tiles in one row —
+  Waiting for approval · Students · Teachers · Parents, the same width —
+  and System full width below** (`sm:2 / lg:4`, System
+  `sm:col-span-2 lg:col-span-4`). Waiting is emphasised by position, amber
+  while something waits, and the large number only.
+- **The keyboard focus outline is `brand`, 2px, offset 2px, on the
+  `<section>`** (UI-5), keyed on `.card-link:focus-visible` so an inner link
+  does not light the card. It sits on the page, where `brand` is 15.31:1
+  (Light) and 9.29:1 (Dark) — `lint:contrast` asserts the `ui` pair. The
+  `focus-ring` ring it replaced was 1.18:1 and 1.95:1.
 - **The phone's lead words are pure helpers in each role's
   `dashboard/logic.js`**, asserted by its proof; the web builds the same words
   inline. The announcements & memos count is the bell's `announcements + memos`
@@ -2370,9 +2399,11 @@ say. Measured after the split: Performance Tasks is named while cut by 40, 20,
 
 ### 19c. The hint's wording belongs to the page, not the component
 
-The summary **counts** ("Swipe for 6 more subjects and the Average →"); the
-class record **names its groups** ("Swipe for Performance Tasks, Summative and
-Grade →"). Same module, because `cueState` takes the cells either way and
+The summary **counts** ("Scroll for 6 more subjects and the Average →"); the
+class record **names its groups** ("Scroll for Performance Tasks, Summative and
+Grade →"). **The web says "Scroll" since UI-7 (2026-09-30)** — it is read with
+a mouse too; the quotes above record what it said when measured, and the
+phone app keeps "Swipe". Same module, because `cueState` takes the cells either way and
 whether the caller passes labels is what decides the answer.
 
 **Why they differ:** the summary's columns are learning areas, so a number is
@@ -2467,7 +2498,7 @@ gets a name that is a different WORD, not a different case.**
 
 **Added 2026-09-26 (fix/smoke-gate `e33f7ae`).** Two findings from the
 smoke gate's browser check. **Below `sm` the round arrow is hidden**
-(`hidden sm:flex`): a phone swipes, the "Swipe for …" line (§19a) is the
+(`hidden sm:flex`): a phone swipes, the "Scroll for …" line (§19a) is the
 cue, and the button sat over the last visible header ("MATHEMATICS",
 "FI…"). The edge fade stays at every width. **And a MOUSE CLICK FOCUSED
 IT** — measured: `document.activeElement` was the button after every click,

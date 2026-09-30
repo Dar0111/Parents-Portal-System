@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
 import RailTooltip from '../components/RailTooltip';
 import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
+import { revealActive } from './navScroll';
 import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
@@ -289,6 +290,17 @@ function ShellChrome() {
     });
   }
 
+  // THE ACTIVE ITEM IS SCROLLED INTO VIEW (UI-10) — on load, on every route
+  // change, when the sidebar collapses or expands, and when the drawer opens;
+  // nearest, no animation (`navScroll.js`). A layout effect, so the nav never
+  // paints at the wrong scroll first.
+  const sidebarNavRef = useRef(null);
+  const drawerNavRef = useRef(null);
+  useLayoutEffect(() => {
+    revealActive(sidebarNavRef.current);
+    revealActive(drawerNavRef.current);
+  }, [location.pathname, collapsed, mobileNavOpen]);
+
   const items = navForRole(user?.role);
   // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the
   // LiveStatus strip, and that gate is gone (see the note at its render).
@@ -340,7 +352,9 @@ function ShellChrome() {
   );
 
   return (
-    <div className="flex min-h-screen bg-page">
+    // `data-app-shell` scopes the stable scrollbar gutter to the app's pages
+    // (index.css, UI-6) — the Login page, outside Shell, keeps its edge.
+    <div data-app-shell="" className="flex min-h-screen bg-page">
       {/* STICKY (D3, 2026-09-19): the sidebar pins to the viewport (sticky
           top-0, h-screen, self-start so it keeps its own height in the flex
           row) and its nav scrolls INSIDE itself only when taller than the
@@ -375,7 +389,9 @@ function ShellChrome() {
             trackpad and touch, and Tab scrolls a focused link into view;
             only the bar is hidden — Firefox by scrollbar-width, Chromium
             and Safari by the ::-webkit-scrollbar pseudo-element. */}
-        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{navBody(collapsed)}</div>
+        <div ref={sidebarNavRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {navBody(collapsed)}
+        </div>
         {pinned(collapsed)}
         <UserCard user={user} collapsed={collapsed} onLogout={handleLogout} />
       </aside>
@@ -398,7 +414,9 @@ function ShellChrome() {
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{navBody(false)}</div>
+            <div ref={drawerNavRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {navBody(false)}
+            </div>
             {pinned(false)}
             <UserCard user={user} onLogout={handleLogout} />
           </aside>

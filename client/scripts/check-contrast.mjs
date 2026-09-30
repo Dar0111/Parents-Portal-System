@@ -74,6 +74,10 @@ const PAIRS = [
   // brand (D3): content links, the active nav item, the seal disc
   ['brand', 'surface', 'text', 'content links on cards'], ['brand', 'page', 'text', 'content links on the page'], ['brand', 'surface-subtle', 'text', 'content links in bands'], ['brand', 'surface-muted', 'text', 'content links on a hovered row'], ['brand', 'brand-soft', 'text', 'active nav / settings tab'],
   ['brand-soft', 'surface', 'boundary', 'active-nav tint vs sidebar'], ['seal-bg', 'surface', 'boundary', 'seal disc vs sidebar'],
+  // UI-5: the dashboard card's keyboard focus outline — `brand`, 2px, drawn
+  // 2px OUTSIDE the card, so it sits on the page. WCAG 1.4.11 wants 3:1; the
+  // `focus-ring` token it replaced was 1.18:1 (light) and 1.95:1 (dark).
+  ['brand', 'page', 'ui', 'dashboard card focus outline'],
   // brand panel — the Login split panel / mobile band
   ['brand-panel-fg', 'brand-panel', 'text', 'Login panel headings and name lines'], ['brand-panel-muted', 'brand-panel', 'text', 'Login panel district and Est. lines'],
   // …and the same two over `brand-panel-lit`, the panel composited with the

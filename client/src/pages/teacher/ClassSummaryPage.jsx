@@ -129,11 +129,12 @@ export function ClassSummaryTable({ data }) {
         // "7 more subjects" would be wrong by one and the Average is the
         // column a teacher is most likely to be looking for.
         const subjectsHidden = showGeneralAverage ? hiddenCount - 1 : hiddenCount;
-        if (showGeneralAverage && subjectsHidden < 1) return 'Swipe for the Average →';
+        // "Scroll", not "Swipe" (UI-7): the web is read with a mouse too.
+        if (showGeneralAverage && subjectsHidden < 1) return 'Scroll for the Average →';
         const noun = subjectsHidden === 1 ? 'subject' : 'subjects';
         return showGeneralAverage
-          ? `Swipe for ${subjectsHidden} more ${noun} and the Average →`
-          : `Swipe for ${subjectsHidden} more ${noun} →`;
+          ? `Scroll for ${subjectsHidden} more ${noun} and the Average →`
+          : `Scroll for ${subjectsHidden} more ${noun} →`;
       }}
     >
       {/* NO `min-w-max`, AND THE SUBJECT HEADERS MAY WRAP (fix/polish,

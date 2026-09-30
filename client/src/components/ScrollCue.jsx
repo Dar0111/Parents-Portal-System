@@ -175,7 +175,7 @@ export default function ScrollCue({
                 hidden from the keyboard, because the scroller itself is
                 focusable and arrow keys do the same job. */}
             {/* DESKTOP ONLY, AND IT NEVER TAKES FOCUS (fix/smoke-gate).
-                Below `sm` a phone swipes, and the "Swipe for …" line above is
+                Below `sm` a phone swipes, and the "Scroll for …" line above is
                 the cue — the round button sat over the last visible header
                 ("MATHEMATICS", "FI…"). And a MOUSE CLICK FOCUSED IT: measured,
                 document.activeElement was this button after every click, which

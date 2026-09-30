@@ -104,16 +104,18 @@ export default function AdminDashboard() {
         </div>
       ) : null}
 
-      {/* THE APPROVAL QUEUE IS THE EMPHASISED CARD (f2, 2026-09-30): first,
-          two columns, the bigger number — the one card that asks the admin
-          to act. The other four are one column each, so no width leaves a
-          hole in the grid; that is why System's details are one column. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* FOUR COMPACT NUMBER TILES IN ONE ROW, SYSTEM FULL WIDTH BELOW
+          (UI-3, Darryl's Q2). The approval queue is the EMPHASISED tile —
+          first, amber while something waits, the bigger number — but the
+          same width as the other three. `items-start`: a card takes its own
+          height, never its row's tallest. Two columns below lg, so the
+          tiles pair up and System still spans. */}
+      <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card
           title="Waiting for approval"
           icon="fa-user-clock"
           to="/admin/users"
-          className="sm:col-span-2"
+          compact
           // Amber ONLY when there is something in the queue. A permanently
           // amber card is wallpaper, and the next real one is not noticed.
           tone={pending > 0 ? 'warning' : 'default'}
@@ -134,6 +136,7 @@ export default function AdminDashboard() {
           title="Students"
           icon="fa-user-graduate"
           to="/admin/students"
+          compact
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
@@ -145,6 +148,7 @@ export default function AdminDashboard() {
           title="Teachers"
           icon="fa-chalkboard-user"
           to="/admin/users"
+          compact
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
@@ -156,6 +160,7 @@ export default function AdminDashboard() {
           title="Parents"
           icon="fa-users"
           to="/admin/users"
+          compact
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
@@ -167,6 +172,7 @@ export default function AdminDashboard() {
           title="System"
           icon="fa-server"
           to="/admin/settings"
+          className="sm:col-span-2 lg:col-span-4"
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
@@ -186,7 +192,7 @@ export default function AdminDashboard() {
             {backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
           </p>
           {d ? (
-            <dl className="mt-3 grid gap-y-2 border-t border-edge pt-3">
+            <dl className="mt-3 grid gap-x-6 gap-y-2 border-t border-edge pt-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="flex justify-between gap-3">
                 <dt className="text-sm text-fg-muted">School year</dt>
                 <dd className="text-sm font-medium text-fg">{d.school_year}</dd>

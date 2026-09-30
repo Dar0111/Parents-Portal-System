@@ -732,8 +732,9 @@ export default function ParentDashboard() {
           four small ones the next; below xl, two columns, the large ones
           full width. No width leaves a hole in the grid. The mobile
           dashboard/logic.js builds the same lead words so a proof can hold
-          them. */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          them. `items-start` (UI-3): a card takes its own height, never
+          its row's tallest. */}
+      <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
       <Card
         title="Grades"

@@ -478,6 +478,22 @@ body {
   color: var(--color-fg);
 }
 
+/* A STABLE SCROLLBAR GUTTER, ON THE APP SHELL'S PAGES ONLY (UI-6, 2026-09-30).
+   The document is the only scroller (§9), so a page shorter than the window
+   had no scrollbar and the full-width sticky header — the bell with it —
+   shifted sideways between pages. `stable` reserves the gutter either way.
+
+   SCOPED, NOT on every `html` (Darryl's Condition A): the Login page does not
+   scroll, and a reserved gutter there would be a strip without its dot grid,
+   in the canvas colour — white in light, where `html` is otherwise
+   transparent. `[data-app-shell]` is on Shell's root. The page colour paints
+   the gutter so it reads as the page; dark already paints `html` inline with
+   the same slate-950 (index.html, theme.js), which wins. */
+html:has([data-app-shell]) {
+  scrollbar-gutter: stable;
+  background-color: var(--color-page);
+}
+
 /* Text size "Large" (Settings -> Personalization). The whole type and spacing
    scale is rem-based (Tailwind v4 defaults), so one root font-size scales
    every page, widths included. 112.5% = 18px at the browser's 16px default.

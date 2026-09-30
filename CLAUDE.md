@@ -698,7 +698,7 @@ sidebar is `sticky top-0 h-screen self-start` with its nav box
 `min-h-0 flex-1 overflow-y-auto`. **The document is the only scroller** —
 one scrollbar, no layout shift. **Do not add a second scroll container to
 `<main>`.** z-order: header 30, mobile drawer 40, the notification panel 40
-(closed when the drawer opens), Modal backdrop 50. **Since 2026-09-30:** a
+(closed when the drawer opens), rail tooltip 45 (on `<body>`), Modal backdrop 50. **Since 2026-09-30:** a
 drawer below `md`, above it 240px or a 64px rail, grouped by the web-only
 `layout/navGroups.js`; the user card holds the ONE Logout and **never a
 parent's login id** (§5c); `<main>` is capped at 80rem, centred.

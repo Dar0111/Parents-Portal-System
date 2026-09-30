@@ -32,6 +32,17 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // `relative z-10`, above the stretched link. An ERROR card does not link at
 // all — its one action is Retry, and a stray click must not navigate away
 // from the failure it reports.
+//
+// THE FOCUS OUTLINE IS `brand`, DRAWN 2px OUTSIDE THE CARD (UI-5). It was a
+// `focus-ring` ring on the ::after, which sat on the card's own 1px border
+// and measured 1.18:1 against the page in Light and 1.95:1 in Dark — under
+// WCAG 1.4.11's 3:1. The outline is on the <section>, keyed on the title
+// link's :focus-visible (`.card-link`, so the System card's inner link does
+// not light the whole card), and sits on the page background, where `brand`
+// is 15.31:1 (Light) and 9.29:1 (Dark) — asserted by lint:contrast.
+//
+// `compact` (UI-3): the admin's four number tiles — less padding, a tighter
+// header. A card takes its CONTENT height; the grids say `items-start`.
 export default function Card({
   title,
   icon,
@@ -40,6 +51,7 @@ export default function Card({
   error = null,
   onRetry = null,
   tone = 'default',
+  compact = false,
   className = '',
   children,
 }) {
@@ -61,8 +73,10 @@ export default function Card({
   const linked = Boolean(to) && !error;
 
   return (
-    <section className={`group relative flex flex-col rounded-xl border ${toneClass} p-5 ${className}`}>
-      <div className="mb-3 flex items-center gap-2">
+    <section
+      className={`group relative flex flex-col rounded-xl border ${toneClass} ${compact ? 'p-4' : 'p-5'} has-[.card-link:focus-visible]:outline-2 has-[.card-link:focus-visible]:outline-offset-2 has-[.card-link:focus-visible]:outline-brand ${className}`}
+    >
+      <div className={`${compact ? 'mb-2' : 'mb-3'} flex items-center gap-2`}>
         {icon ? (
           // The wrapper carries the flex, never the element with `fa-solid`:
           // Font Awesome's `.fa-solid { display: inline-block }` is unlayered
@@ -76,7 +90,7 @@ export default function Card({
           {linked ? (
             <Link
               to={to}
-              className="underline-offset-2 after:absolute after:inset-0 after:rounded-xl group-hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-focus-ring"
+              className="card-link underline-offset-2 after:absolute after:inset-0 after:rounded-xl group-hover:underline focus-visible:outline-none"
             >
               {title}
             </Link>
