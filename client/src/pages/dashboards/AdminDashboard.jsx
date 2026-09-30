@@ -98,7 +98,7 @@ export default function AdminDashboard() {
               to="/admin/settings/account"
               className="text-sm font-medium text-brand underline-offset-2 hover:underline"
             >
-              Confirm your email →
+              Confirm your email
             </Link>
           </p>
         </div>
@@ -179,9 +179,11 @@ export default function AdminDashboard() {
         >
           {/* The last backup leads: of everything here it is the one that
               goes stale on its own. Coloured by the same never-red rule as
-              before. */}
+              before. The SAME SIZE as the row's values ("2026-2027"), bold,
+              and no divider under it (A1, Darryl, 2026-09-30) — a large
+              heading over a row of small facts read as a second title. */}
           <p
-            className={`text-2xl font-semibold ${
+            className={`text-sm font-bold ${
               backups.loading
                 ? 'text-fg-muted'
                 : backups.error || age.tone !== 'success'
@@ -192,7 +194,7 @@ export default function AdminDashboard() {
             {backups.loading ? '…' : backups.error ? 'Could not read backups' : age.label}
           </p>
           {d ? (
-            <dl className="mt-3 grid gap-x-6 gap-y-2 border-t border-edge pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            <dl className="mt-3 grid gap-x-6 gap-y-2 pt-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="flex justify-between gap-3">
                 <dt className="text-sm text-fg-muted">School year</dt>
                 <dd className="text-sm font-medium text-fg">{d.school_year}</dd>
@@ -240,7 +242,7 @@ export default function AdminDashboard() {
               (Card.jsx), so it opens Backup & restore, not School settings. */}
           <p className="mt-3">
             <Link to="/admin/backups" className="relative z-10 text-sm font-medium text-brand underline-offset-2 hover:underline">
-              Backup &amp; restore →
+              Backup &amp; restore
             </Link>
           </p>
         </Card>

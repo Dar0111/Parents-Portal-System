@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, monthGrid, weekdayName } from '../../format/date';
 
@@ -47,7 +48,48 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 // Pending" is spelled out and wraps to two lines. In rem, so Large text
 // scales the frame with its contents. The content is a top-aligned column,
 // so the day number is top-left everywhere and "Today" stays top-right.
-const CELL_HEIGHT = 'h-[4.8125rem] xl:h-[6.0625rem]';
+//
+// A MINIMUM, AND THE MONTH GROWS TOGETHER (A0, Darryl, 2026-09-30). As a
+// fixed height it overflowed at Large text from 1280 to ~1300px, where the
+// letter line wraps to THREE lines (116px of content in a 107px frame). So
+// these are minimums, and `useEqualDayHeights` below sets every frame of the
+// month to the tallest one: normal text is exactly as before (every frame
+// already is the tallest), and a taller cell grows the whole month with it
+// rather than spilling or leaving one week taller.
+const CELL_HEIGHT = 'min-h-[4.8125rem] xl:min-h-[6.0625rem]';
+
+// Every day frame (`data-day-frame`) in the table is given the height of the
+// tallest one. Measured with the inline height cleared, so each frame first
+// takes its own natural height (its content, or the minimum above); then all
+// are pinned to the tallest. Re-run when the month's data changes, when the
+// table's size changes (a resize reflows the letter line), and once the
+// fonts have loaded (the icon font arrives after first layout). A table row
+// equalises only itself, which is why this is not left to CSS.
+function useEqualDayHeights(ref, dataKey) {
+  useLayoutEffect(() => {
+    const table = ref.current;
+    if (!table) return undefined;
+    let raf = 0;
+    const apply = () => {
+      const frames = [...table.querySelectorAll('[data-day-frame]')];
+      for (const f of frames) f.style.height = '';
+      const tallest = Math.max(0, ...frames.map((f) => f.getBoundingClientRect().height));
+      if (tallest > 0) for (const f of frames) f.style.height = `${tallest}px`;
+    };
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(apply);
+    };
+    apply();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+    observer?.observe(table);
+    document.fonts?.ready?.then(schedule);
+    return () => {
+      cancelAnimationFrame(raf);
+      observer?.disconnect();
+    };
+  }, [ref, dataKey]);
+}
 
 // One letter for the compact pill. The full word is always in the accessible
 // name, so this is an abbreviation for sighted readers, not the only label.
@@ -71,7 +113,7 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
   if (!cell.inMonth) {
     return (
       <td className="p-1 align-top">
-        <div className={`${CELL_HEIGHT} rounded-lg p-2 text-xs text-fg-ghost`} aria-hidden="true">
+        <div data-day-frame="" className={`${CELL_HEIGHT} rounded-lg p-2 text-xs text-fg-ghost`} aria-hidden="true">
           {cell.day}
         </div>
       </td>
@@ -143,6 +185,7 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
         // `aria-controls` tie it to the detail card the page renders below.
         <button
           type="button"
+          data-day-frame=""
           onClick={() => onSelect(cell.date)}
           aria-label={label}
           aria-expanded={selected}
@@ -153,7 +196,7 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
           {body}
         </button>
       ) : (
-        <div className={frame} aria-label={label} aria-current={isToday ? 'date' : undefined} role="group">
+        <div data-day-frame="" className={frame} aria-label={label} aria-current={isToday ? 'date' : undefined} role="group">
           {body}
         </div>
       )}
@@ -172,6 +215,17 @@ export default function AttendanceCalendar({
   onSelect,
 }) {
   const weeks = monthGrid(year, month);
+  const tableRef = useRef(null);
+  // What the frames' content depends on: the month, and each record's and
+  // letter's date and status. A new key re-measures (A0).
+  const dataKey = [
+    year,
+    month,
+    today,
+    ...(records || []).map((r) => `${r.date}:${r.status}`),
+    ...(letters || []).map((l) => `${l.absence_date}:${l.status}`),
+  ].join('|');
+  useEqualDayHeights(tableRef, dataKey);
 
   // String identity, never a parsed Date — see format/date.js.
   const byDate = new Map();
@@ -196,7 +250,7 @@ export default function AttendanceCalendar({
 
   return (
     <div>
-      <table className="w-full table-fixed border-collapse">
+      <table ref={tableRef} className="w-full table-fixed border-collapse">
         <caption className="sr-only">Attendance for {monthLabel}</caption>
         <thead>
           <tr>
