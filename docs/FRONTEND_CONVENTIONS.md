@@ -1,14 +1,14 @@
 # STAGE 4 FRONTEND CONVENTIONS — frozen 2026-09-06 (full text)
 
-> The complete text of every Stage 4 frontend convention (§1–§7b) and the three retired planning claims, with the reasoning and worked examples. `CLAUDE.md` → STAGE 4 FRONTEND CONVENTIONS carries the rule statements.
+> The complete text of every Stage 4 frontend convention (§1–§10 and §13–§24; §11 and §12 live only in `CLAUDE.md`) and the three retired planning claims, with the reasoning and worked examples. `CLAUDE.md` → STAGE 4 FRONTEND CONVENTIONS carries the rule statements.
 > Moved out of `CLAUDE.md` on 2026-09-18 verbatim so that file fits Claude Code's 150k-char limit. `CLAUDE.md` holds the condensed version and wins on any present-tense claim; if the two disagree, the code is correct and both must be fixed.
 > Dated entries record what was true on their date and are never back-edited. MEASURED BUILD TIME lives in `docs/ARCHIVE.md`.
 
 The frontend counterpart to THE AUTH PATTERN IS THE TEMPLATE below. These
 were settled in the foundation dispatch, against the real API, before any
 feature page existed — which is the point: a convention invented by the
-first page gets bent by the second. **Every Stage 4 page inherits all
-seven. Do not invent a new structure.**
+first page gets bent by the second. **Every Stage 4 page inherits all of
+them. Do not invent a new structure.**
 
 ### 1. Unwrap — every call declares how to read the response
 
@@ -152,7 +152,15 @@ column width in a dense table; a bare dash plus one legend line was
 rejected because it breaks the moment one table holds both reasons, which a
 teacher's cross-grade-level list can.
 
-#### 3a. `GradeValue`'s colour is a DEFAULT — on a coloured surface, pass `className`
+#### 3a. `GradeValue`'s colour — on a coloured surface, pass `className`
+
+**The rule today (checked 2026-09-30, `docs/stage5`):** `GradeValue` sets NO
+colour on a value — it inherits the base colour on `body` (§18g); pass
+`className` on a coloured surface; the NULL branch keeps `text-fg-muted`.
+Everything below is the history of how it got there, written as it happened:
+the `className || 'text-fg'` default it describes as current was UI-A's
+intermediate step, and UI-D removed it (`format/grade.jsx`: the value branch
+is `tabular-nums ${className}`).
 
 **Rewritten 2026-09-23 (UI-A). The rule is unchanged — pass `className` — but
 the reason it works is no longer a coincidence.**
@@ -394,6 +402,8 @@ the only writer of the second. Comments at both declarations say so.
 
 #### 5a-iv. `format/date.js` is the ONLY home for date maths
 
+*(Part of §5a — DataTable's family — though it sits after §5b in this file.)*
+
 **Frozen 2026-09-20 (DV2).** A page may format a date for display; it may
 not compute one. **One sibling since pre-Stage-5 #7 (2026-09-26):
 `format/schoolCalendar.js`**, the term dates of the school year and the
@@ -616,8 +626,9 @@ inside a container of roughly 394px, where it scrolled sideways and the
 Learning area column scrolled out with it, leaving rows unlabelled.
 
 **NO VIEWPORT BREAKPOINT CAN BE CORRECT HERE, because the container is not
-monotonic in the viewport.** `Shell` reveals its 240px sidebar at the **same
-`sm`**, and `<main>` goes from `p-4` to `sm:p-6` there:
+monotonic in the viewport.** `Shell` revealed its 240px sidebar at the **same
+`sm`** (until feat/ui-polish moved it to `md`, 2026-09-30), and `<main>` goes
+from `p-4` to `sm:p-6` there — measured then:
 
 | Viewport | Sidebar | `<main>` padding | **Card width** |
 |---|---|---|---|
@@ -764,8 +775,12 @@ second attempt, or absorb it? That answer decides the UI, and it is worth
 finding in the route file rather than assuming.
 
 **Navigation warnings follow the same family of rule: do not add ceremony
-that trains people to ignore warnings.** Teacher → Grades has no
-unsaved-changes guard. Every score is its own request (Add score writes
+that trains people to ignore warnings.** **Today both bulk pages guard, and
+only while something is unsaved:** Teacher → Grades' class record since CR2
+(§13d) and Teacher → Attendance since fix/server-reliability (§17c), each
+with a dirty-only `beforeunload` — never a blanket one. The rest of this
+paragraph is how it read before either existed. Teacher → Grades had no
+unsaved-changes guard then. Every score is its own request (Add score writes
 immediately; exam scores save on their own button), so there is no
 accumulated draft — only unsubmitted keystrokes, which is seconds. A
 warning that fires on every logout regardless of form state is one a
@@ -909,9 +924,11 @@ does. `UnreadProvider` is gated (`enabled={messagesBuilt}`); `LiveStatus` is
 not. Parent → Messages landing with `built: true` turns the badge request on
 for that role, so the strip now names a channel something on their screen
 consumes. Gating `LiveStatus` was never done — it would have been the
-flip-the-flag-later failure convention 6 forbids. **Admin still has the
-inverse** (pages unbuilt, Messages `built: false`, ungated strip) and that
-belongs to Admin → Messages, the same way this belonged here.
+flip-the-flag-later failure convention 6 forbids. **Admin had the inverse
+then** (pages unbuilt, Messages `built: false`, ungated strip). **Closed
+since 2026-09-19 (N2):** the strip is unconditional for every role because
+every role's bell and badges ride the same socket — `Shell.jsx` carries the
+note at its render; only `UnreadProvider` is gated (`enabled={messagesBuilt}`).
 
 ### 5h. Build and lint prove the code compiles, not that the page renders
 
@@ -1084,12 +1101,13 @@ and that dispatch should not build its own badge. (This paragraph previously
 said admin would get the badge "the day its Messages page lands" — that page
 will not land; see CLAUDE.md → ADMIN SCOPE AUDIT.)
 
-**§5g's inverse is closed, 2026-09-18.** `LiveStatus` is now gated on the
-same "does this role have a built Messages item" test as the badge, so the
-"Live updates paused" strip no longer renders for a role where nothing on
-screen is channel-fed. It had been ungated, and the 2026-09-13 scope decision
-left that ownerless when Admin → Messages was ruled out. `SocketProvider`
-still connects for every role.
+**§5g's inverse was closed on 2026-09-18 and the gate removed on
+2026-09-19.** For one day `LiveStatus` was gated on the same "does this role
+have a built Messages item" test as the badge, so the strip did not render
+for a role where nothing on screen was channel-fed. N1 made every role's
+bell channel-fed, and N2 removed the gate: **`LiveStatus` renders for every
+role** (`Shell.jsx`, the note at its render); only `UnreadProvider` is gated.
+`SocketProvider` still connects for every role.
 
 **NO ROLE HAS A `built: false` ITEM AS OF 2026-09-18** — the last five were
 admin's, removed rather than left dimmed (see the SCOPE DECISION of that
@@ -1139,7 +1157,7 @@ renderer for the outcome of a write. Three rules:
   its action row, for a modal write; **above the list it describes** when the
   message outlives its modal ("Parent approved." after the dialog closes). A
   page with two lists gets two keys. **Never a single slot at the top of the
-  page** — nothing in `Shell` is sticky, so on a long page the confirmation for
+  page** — the page body scrolls and only the header stays (§9), so on a long page the confirmation for
   a button near the bottom renders off-screen and the write looks like it did
   nothing.
 - **One value, not two.** `{ tone, text }`, so a success and a failure cannot
@@ -1274,7 +1292,7 @@ that for a side-by-side token strip next to a page-only preview toggle.
 
 **Contrast is checked, not eyeballed.** `npm run lint:contrast`
 (`client/scripts/check-contrast.mjs`) computes every text / background token
-pair that occurs (55 pairs) in both themes from `index.css` itself: text
+pair that occurs (55 pairs then; 75 since `feat/ui-polish` — the count lives in `docs/TESTING.md`) in both themes from `index.css` itself: text
 must reach 4.5, icons and UI parts 3.0; a failing pair is allowed only by an
 in-script allow-list whose entries must each carry a marker in
 `docs/KNOWN_ISSUES.md` — a pair can only be waived by writing it down. Add a
@@ -1304,14 +1322,14 @@ are the KNOWN ISSUES rows marked `[contrast: …]`.
 ### 9. Shell chrome is sticky, and the seal is always on its white disc
 
 **Frozen 2026-09-19 (D3).** The header (`layout/Header.jsx`, extracted from
-Shell so a later dispatch can put a bell in it — there is no bell slot yet)
+Shell so a later dispatch could put a bell in it — N2 did: `NotificationBell`)
 is `sticky top-0 z-30`; the sidebar is `sticky top-0 h-screen self-start`
 with its nav box `min-h-0 flex-1 overflow-y-auto`, so the nav scrolls inside
 itself only when taller than the viewport. **The document is the only
 scroller**: one scrollbar, no layout shift, content scrolls under the header.
 z-order: header 30, mobile drawer 40, Modal backdrop 50 — the drawer and any
-modal cover the header. Below `sm` the sidebar is hidden and the drawer takes
-over, unchanged. Do not add a second scroll container to `<main>`.
+modal cover the header. Below `md` the sidebar is hidden and the drawer takes
+over (it was `sm` until feat/ui-polish). Do not add a second scroll container to `<main>`.
 
 **The sidebar since feat/ui-polish (2026-09-30).**
 - **Below `md` (768px) it is hidden and the menu button opens the drawer**,
@@ -1559,8 +1577,8 @@ stated rather than left to be discovered:
   negative control; the real Back press is the browser check. **Leaving
   through an in-app link while armed leaves the sentinel behind** (one extra
   Back from the next page) — accepted, `docs/KNOWN_ISSUES.md`.
-- A full page close is covered by nothing here; no blanket `beforeunload` was
-  added (§5e).
+- A reload or tab close is covered by a dirty-only `beforeunload`
+  (`ClassRecordPage.jsx`) — never a blanket one (§5e).
 
 This is a real §5e exception and it is narrow: Teacher → Grades used to need
 no guard because **every score was its own request**. The grid changed that —
@@ -1775,7 +1793,7 @@ though this is a teacher surface — the rule is about what goes in a URL.
 
 ## 15. The parent dashboard — the hero, the term, and the strip (DV4, frozen 2026-09-23)
 
-§12 owns what a dashboard *card* may do. This section owns the parent page,
+§12 (in `CLAUDE.md` only) owns what a dashboard *card* may do. This section owns the parent page,
 which is the only dashboard with a hero panel and the only one that shows a
 learner's own grades.
 
@@ -2098,9 +2116,11 @@ Passing both is not an error, it is a no-op.
 
 **What is actually true on a phone:** every letter card opens the reading
 view, and **Edit is the button inside that modal** — which was already there
-before DV1b-a and is unchanged. The card's `actions` block is dead code, and
-`parent/ExcuseLettersPage.jsx` is the only card in the system that passes
-both (`docs/KNOWN_ISSUES.md` has the row).
+before DV1b-a and is unchanged. The card's `actions` block WAS dead code,
+and `parent/ExcuseLettersPage.jsx` was then the only card in the system that
+passed both. **Removed since (UI-B):** the card is now
+`parent/excuseLetters/card.jsx`, it passes only `onSelect`, and its header
+says Edit is not there; `DataTable` warns in DEV when a card carries both.
 
 **The proof missed it because it asserted the SOURCE TEXT**, not the render:
 `/actions:[\s\S]*status === 'Pending'/` proves the prop was written, never
@@ -2133,7 +2153,8 @@ what a source-text assertion cannot check.
 no read-only view of a letter at **any** width. `details` and
 `teacher_remarks` render only inside the review modal, so an Approved or
 Declined letter cannot be re-read, on a phone or on a desktop.
-`docs/KNOWN_ISSUES.md` has the row; UI-E builds the view.
+`docs/KNOWN_ISSUES.md` has the row; UI-E builds the view. **Built in UI-E
+(2026-09-25): `teacher/excuseLetters/readingView.jsx` — see §20.**
 
 ### 17f. A DEV-only guard is INVISIBLE to a production-mode proof
 
@@ -2843,7 +2864,8 @@ linked below the login card.
 - **Every school value comes from settings, nothing is hardcoded** — name,
   address, DepEd School ID, email, phone, Facebook page — through
   `GET /settings` when signed in and **`GET /settings/public`** when not (the
-  one unauthenticated settings read; exactly the six `school_*` keys). The
+  one unauthenticated settings read; exactly six keys — the five `school_*`
+  keys and `facebook_page`, `PUBLIC_KEYS` in `server/routes/settings.js`). The
   hero's school-year and section-count pills need a signed-in read, so **the
   public view shows the School ID pill alone** rather than guessing. A blank
   Facebook page reads "Not yet recorded"; no "School head" tile — there is no
@@ -2886,8 +2908,9 @@ linked below the login card.
   `.catch` does nothing — the fallback IS the copy, so there is no error
   state and nothing to retry. The class-summary print masthead's fallback
   carries "– Main" for the same reason.
-- **A Settings section is `max-w-2xl`, with short pairs in `sm:grid-cols-2`
-  rows** (fix/polish). `SettingsLayout` gives a tab a 42.5rem panel; a
+- **The School settings section is `max-w-2xl`, with short pairs in
+  `sm:grid-cols-2` rows** (fix/polish; the Account and Password sections
+  stay `max-w-md`). `SettingsLayout` gives a tab a 42.5rem panel; a
   `max-w-md` section inside it left the right third of a desktop empty. Two
   short fields share a row from `sm` (School ID + phone, email + Facebook)
   and stack below it — width and one paired row, not a redesign.

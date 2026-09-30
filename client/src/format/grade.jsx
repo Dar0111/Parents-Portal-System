@@ -74,9 +74,10 @@ function formatGrade(value) {
 // and final grades, and leaving the general averages and Initial Grades
 // untouched is what proves they were not caught by accident.
 //
-// THE VALUE BRANCH'S COLOUR IS A DEFAULT, NOT A HARDCODE (UI-A item 7,
-// 2026-09-23). `className || 'text-fg'` — a caller that names a colour gets
-// ONLY that colour; a caller that names none gets `text-fg` exactly as before.
+// THE VALUE BRANCH'S COLOUR WAS A DEFAULT, NOT A HARDCODE (UI-A item 7,
+// 2026-09-23): `className || 'text-fg'` — a caller that named a colour got
+// ONLY that colour; one that named none got `text-fg`. Since UI-D (below) it
+// sets no colour at all: the code is `tabular-nums ${className}`.
 //
 // WHAT THE DEFECT ACTUALLY WAS: the class was unconditional, so DV4's navy
 // parent hero had to pass `className="text-primary-fg"` and ended up with TWO

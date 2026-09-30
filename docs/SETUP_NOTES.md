@@ -41,9 +41,11 @@ npm run db:setup
 - Walang self-registration, walang grade selection after login
 
 ### Sample accounts
-Walang password dito — nasa `database/seed.sql` sila (hina-hash ng
-`server/scripts/setup-db.js`). Ang login ID ng parent ay LRN ng bata, kaya
-hindi pinagsasama sa iisang doc ang login ID at password.
+Walang password dito — ang mga default ay nasa `server/scripts/setup-db.js`
+(doon hina-hash at isinusulat; ang `database/seed.sql` ay may placeholder
+lang). Ang login ID ng parent ay LRN ng bata, kaya hindi pinagsasama sa
+iisang doc ang login ID at password — at walang parent login ID dito; nasa
+`seed.sql` sila.
 
 | Login ID | Role | Status |
 |----------|------|--------|
@@ -51,9 +53,9 @@ hindi pinagsasama sa iisang doc ang login ID at password.
 | TCH-001 | teacher (Maria Santos, adviser + assigned, G6 - Malikhain) | active |
 | TCH-002 | teacher (Ana Reyes, adviser lang, G5 - Masigasig) | active |
 | TCH-003 | teacher (Lito Bautista, adviser + lahat ng subject, G1 - Mabait) | active |
-| 13567454 | parent (Marwin) | active |
-| 1234567 | parent (Jea) | pending |
-| 1090001 | parent (Rosa, para kay Nino) | active |
+| LRN ni Marwin (nasa `seed.sql`) | parent (Marwin) | active |
+| LRN ni Jea (nasa `seed.sql`) | parent (Jea) | pending |
+| LRN ni Nino (nasa `seed.sql`) | parent (Rosa, para kay Nino) | active |
 | LRN ni Tala (nasa `seed.sql`) | parent (Ligaya, para kay Tala — browser fixture) | active |
 
 ---
@@ -75,6 +77,9 @@ npm run dev
 **Browser:** `http://localhost:5000/api/health` — dapat `"db":"ok"` ang
 sagot (since 2026-09-25 nagpi-ping na ito ng MySQL; `503` kapag down).
 
+**Telepono (Expo Go):** ang setup, ang hotspot at ang troubleshooting ay
+nasa **Mobile** section ng [`README.md`](../README.md).
+
 **Tests (third terminal, sa `server/`):** isa-isa lang ang suite, hal.
 `npm run test:auth`. Ang `npm run dev` ay `--watch` — nagre-restart ito
 kapag may binago kang server file, kaya hintayin muna ang `/api/health`
@@ -86,7 +91,8 @@ migration, hindi rebuild — kasi ang `db:setup` ay nagde-drop ng
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
-npm run db:migrate:fixture-learner   # Tala Halimbawa (G6 - Malikhain) + parent account; browser-fixture learner
+npm run db:migrate:fixture-learner         # Tala Halimbawa (G6 - Malikhain) + parent account; browser-fixture learner
+npm run db:migrate:contact-verification    # SMS reset codes (2026-09-29); kailangan din ng test:recovery
 ```
 
 Ang bawat `db:migrate:*` sa `package.json` ay idempotent at nagpi-print ng
@@ -95,8 +101,10 @@ created / already present. Huwag i-`db:setup` para lang makuha ang seed row.
 **Dalawang run na may sariling kailangan:**
 
 - **`npm run test:recovery`** — kailangan ng server na sinimulan na may
-  `MAIL_TRANSPORT=file`, **sa server**, hindi sa test command (binabasa ng
-  suite ang emailed code mula sa disk). Run-book: `docs/TESTING.md`.
+  `MAIL_TRANSPORT=file SMS_TRANSPORT=file`, **sa server**, hindi sa test
+  command (binabasa ng suite ang code mula sa disk), at ng
+  `db:migrate:auth-codes` at `db:migrate:contact-verification`. Run-book:
+  `docs/TESTING.md`.
 - **`npm run smoke:isolated`** (sa `client/`) — ang verification smoke:
   sariling API sa 5001 (walang `--watch`) at Vite sa 3001, kaya hindi nito
   ginagalaw ang 5000/3000. Kailangan ng `client/e2e/.env.e2e` (kopya ng
@@ -112,10 +120,12 @@ cloud — kung UTC ang server, 8 oras na huli ang "today" niya at mali ang
 term mula 00:00 hanggang 08:00 sa Sep 16 at Jan 4. Sa laptop dito, OK na.
 
 **Bagong school year (SY 2027-2028):** DALAWANG edit, sa ganitong order —
-(1) bagong petsa sa `server/utils/schoolCalendar.js` AT sa kopya nito sa
-`client/src/format/schoolCalendar.js` (`SCHOOL_YEAR`, `CLASSES_START/END`,
+(1) bagong petsa sa `server/utils/schoolCalendar.js` AT sa dalawang kopya
+nito, `client/src/format/schoolCalendar.js` at
+`mobile/src/format/schoolCalendar.js` (`SCHOOL_YEAR`, `CLASSES_START/END`,
 `TERMS`; ang `ssr-school-calendar` proof ang magsasabi kung hindi magkapareho
-ang dalawa), tapos (2) `academic_year` sa Admin → Settings ay `PATCH` lang sa
+ang server at client, at ang `npm run lint:mirrors` sa `mobile/` ang
+magsasabi para sa telepono), tapos (2) `academic_year` sa Admin → Settings ay `PATCH` lang sa
 API (naka-lock sa page). Kapag hindi magkapareho ang dalawa, `500` ang
 `GET /api/dashboard` at pinapangalanan ang dalawang string. Hindi kasama dito
 ang sections, grading configs at transmutation rows ng bagong taon — proseso
@@ -137,25 +147,12 @@ C:\Users\Win10 User\Parents_Portal
 
 ---
 
-## Ano na ang tapos (Phase 1)
+## Ano na ang tapos
 
-> **SNAPSHOT NG PHASE 1, hindi kasalukuyang estado.** Tama ang mga numero sa
-> ibaba noong isinulat sila; matagal nang lumampas ang code. Tapos na ang
-> React web (Stage 4) — ang mga unchecked na kahon sa ibaba ay hindi na bukas
-> na trabaho. Ang buhay na estado ay nasa `CLAUDE.md` (tables, endpoints) at
-> `docs/TESTING.md` (suites); walang bilang dito para hindi ito ma-stale
-> ulit. Hindi ito
-> ina-update nang paisa-isa: ang pag-aayos ng isang linya lang dito ang
-> magpapamukha sa buong seksyon na maintained, na siyang mismong babala sa
-> README.
-
-- [x] `database/schema.sql` — 18 tables
-- [x] `database/seed.sql` — subjects, students, settings
-- [x] `server/` — Auth API (login, users, approve/reject)
-- [x] `npm run test:auth` — 23 tests
-- [ ] Grades, attendance, announcements, etc.
-- [ ] React web
-- [ ] Expo mobile
+Ang kasalukuyang estado ay nasa `CLAUDE.md` (BUILD ORDER) at
+`docs/PROJECT_PROGRESS.md`. Ang lumang "Phase 1" checklist na nakatayo rito
+ay nasa `docs/ARCHIVE.md` → "docs/SETUP_NOTES.md — the Phase 1 checklist, moved
+2026-09-30", verbatim.
 
 ---
 
@@ -261,6 +258,9 @@ Ginawa na ang `.gitignore` sa project root. Auto-ignore ang sensitive files.
 | `node_modules/` | Malaki, i-install via `npm install` |
 | `server/uploads/*` | User-uploaded files |
 | Database backup files | May real data |
+| `server/tmp/` | Ang mail/SMS reset codes ng test transport |
+| `mobile/.env` | Ang IP ng API sa hotspot |
+| `client/e2e/.env.e2e` | Totoong login ng smoke run |
 
 ### ✅ Safe i-push
 
@@ -268,7 +268,7 @@ Ginawa na ang `.gitignore` sa project root. Auto-ignore ang sensitive files.
 |------|-------|
 | `server/.env.example` | Template lang — walang real password |
 | `database/schema.sql` | Structure lang, walang password |
-| `database/seed.sql` | Sample data — test passwords lang |
+| `database/seed.sql` | Sample data — walang password (placeholder lang; ang mga default ay nasa `server/scripts/setup-db.js`) |
 | Lahat ng `.js` code | Walang hardcoded secrets |
 
 ### Bago mag-push sa GitHub
@@ -289,11 +289,15 @@ git check-ignore -v server/.env
 
 ### Seed passwords sa GitHub — OK ba?
 
-OK para sa local dev lang — ang seed passwords ay **test/demo passwords**. Pero nasa public repo sila, at ang login ID ng parent ay LRN ng bata. **Bago may totoong parent: palitan ang lahat** (`CLAUDE.md` → BEFORE THE PARENT DEMO).
+OK para sa local dev lang — ang seed passwords ay **test/demo passwords**, nasa `server/scripts/setup-db.js`. Pero nasa public repo sila, at ang login ID ng parent ay LRN ng bata. **Bago may totoong parent: palitan ang lahat** (`CLAUDE.md` → BEFORE THE PARENT DEMO).
 
 ---
 
 ## Changelog (notes file)
+
+> **Frozen 2026-09-30.** Ang totoong changelog ay `docs/CHANGELOG.md`, bawat
+> dispatch, newest first; walang bagong row dito. Ang mga row sa ibaba ay
+> history na lang.
 
 | Date | Update |
 |------|--------|

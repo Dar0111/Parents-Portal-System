@@ -107,8 +107,9 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-18 (**Stage 4 is COMPLETE.** Admin → Backup &
-Restore was the last page: every Figure 5 admin process has a page. **Admin
+**Last verified:** 2026-09-30, `docs/stage5` (**Stage 4 is COMPLETE, and
+every role has its phone screens.** Admin → Backup & Restore was the last
+web page: every Figure 5 admin process has a page. **Admin
 nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT, and **About is last on every
@@ -127,7 +128,7 @@ After a clean `npm run db:setup`:
 
 | Table / fact | Count |
 |---|---|
-| `users` | 8 — ADMIN001, TCH-001, TCH-002 (adviser-only), TCH-003 (Grade 1 - Mabait, all five subjects), parent 13567454 (active, Marwin), parent 1234567 (pending, Jea), parent 1090001 (active, Nino), and **Ligaya Halimbawa** (active, Tala's parent — since 2026-09-25) |
+| `users` | 8 — ADMIN001, TCH-001, TCH-002 (adviser-only), TCH-003 (Grade 1 - Mabait, all five subjects), Marwin's parent (active), Jea's parent (pending), Nino's parent (active) — each parent's login id is the learner's LRN, in `seed.sql` — and **Ligaya Halimbawa** (active, Tala's parent — since 2026-09-25) |
 | `students` | 4 — Marwin Conde G6 Malikhain, Jea Mae Bargaso G5 Masigasig, Nino Alcantara G1 Mabait, and **Tala Halimbawa G6 Malikhain — the browser-fixture learner, nobody's test target** (pre-Stage-5 #3b, 2026-09-25): every suite stays on Marwin, every browser fixture goes on Tala, so the two protocols no longer exclude each other. On a live database she arrives by `npm run db:migrate:fixture-learner`, not `db:setup` |
 | `teacher_assignments` | 8 — 3 for TCH-001 (G6 Mathematics/English/Filipino in Malikhain) and 5 for TCH-003 (every Grade 1 subject in Mabait). TCH-002 still has zero; that is the point of the account. |
 | `sections` with a real `adviser_id` | 3 of 23 — Malikhain → TCH-001, Masigasig → TCH-002, Mabait → TCH-003. The other 20 stay NULL until an admin assigns them. |
@@ -176,7 +177,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, the twenty-four test files); `database/`
+`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-four test files); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -218,12 +219,10 @@ Stated nowhere else in this file; each costs a dispatch when forgotten.
 Full per-file text: `docs/ARCHIVE.md` → CURRENT STATE → Files that exist,
 and the 2026-09-19 section-trim block.
 
-### Not started — zero handlers
+### Mobile — every role's screens built
 
 **The Expo app has every role's screens** (Backup & Restore stays web
-only). Stage 5 adds no endpoint.
-
-Grades is no longer in this section — see below.
+only). Stage 5 adds no endpoint. No module is "not started".
 
 ### Grades — fully built (write path + viewing), Stage 3's last backend module
 
@@ -612,8 +611,8 @@ page with no unbuilt row is an add, not a flip.
 **removed, not dimmed** (ADMIN SCOPE AUDIT → SCOPE DECISION 2026-09-18), on
 the rule that `built: false` means *unwritten*, never *refused*. **The state
 is not retired and its branch is not dead:** `Shell.jsx` still implements
-unbuilt and blocked, `/dev/ui` still renders both, and Stage 5 will
-reintroduce them. **The `LiveStatus` gate that landed the same day is gone
+unbuilt and blocked, `/dev/ui` still renders both, and Stage 5 was
+expected to reintroduce them. **The `LiveStatus` gate that landed the same day is gone
 again (N2, 2026-09-19)** — every role is channel-fed now, so the strip is
 unconditional; see §5g. `SocketProvider` still connects for every role, and
 an admin socket now feeds something.
@@ -1436,8 +1435,9 @@ ready — do not let that arrive without these done.
   Ashley Geguiera — see `seed.sql`). Replace with obviously-fictional
   demo data before any real parent sees the system, or clear the seed
   entirely if real student records get loaded instead.
-- **Default passwords are public.** `Admin@2026`, `Teacher@2026`,
-  `Parent@2026` are in `seed.sql`, which is in the GitHub repo. A parent
+- **Default passwords are public.** The three defaults (one per role) are
+  hard-coded in `server/scripts/setup-db.js`, which is in the GitHub repo
+  (`seed.sql` holds only a placeholder). A parent
   logs in with their child's LRN as the login id — anyone who knows a
   child's LRN would know that account's password too. Change every
   default password before any real account exists.
@@ -1699,40 +1699,26 @@ FIRST outlived it** and still governs item 5 and UI-D (d).
 
 ### Stage 5 — Mobile (Expo)
 
-**Plan approved 2026-09-27; order Parent → Teacher → Admin, one branch per
-step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
-2026-10-02, a buffer, not a cutoff.**
+**Plan approved 2026-09-27; Parent → Teacher → Admin, one branch per step.**
+Each item's full text is verbatim in `docs/ARCHIVE.md` → "BUILD ORDER →
+Stage 5 as it stood in CLAUDE.md until 2026-09-30"; each phone check is on
+its `docs/CHANGELOG.md` row.
 
-- [x] **Expo project setup + navigation — `feat/mobile-scaffold`,
-      2026-09-27.** SDK 57, NativeWind, the generated tokens, React
-      Navigation, the hotspot path proved phone → `/api/health`. **Darryl's
-      phone check PASSED 2026-09-27, all seven items** (Connection check,
-      each seeded role, Light / Dark / System, the 401 path, the 503 path
-      after one re-check round, the forced change); merged fast-forward.
-- [x] **Login + role routing — same branch.** Login, Forgot password, Forced
-      change, `AuthUnavailable`, the root navigator, three empty role homes.
-- [x] **Parent screens — `feat/mobile-parent`, 2026-09-27** (+ drawer, socket,
-      bell, badges, `LiveStatus`, Settings, About, Notifications). Phone
-      checks passed: the checkpoint (8), the second half (7), three re-check
-      rounds (safe areas, the keyboard). Rules: `docs/MOBILE_CONVENTIONS.md`
-      M9–M12.
-- [x] **Teacher screens — `feat/mobile-teacher`, 2026-09-28.** Phone checks
-      passed: first half (8), second half, one fix round (F1). Rules: M13–M15.
-- [x] **Admin screens — `feat/mobile-admin`, 2026-09-29** (Backup & Restore
-      web only, hidden from the drawer). Phone checks passed: first half
-      (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
-      role's screens are built.** **NEXT, in order (2026-09-29):**
-      `fix/mobile-popto` (merged) → SMS transport (merged) → server
-      reliability (merged) → UI polish (`feat/ui-polish`, merge-ready) →
-      `docs/stage5` → full phone test / smoke gate →
-      manuscript delta list. SMS moved before server reliability by
-      Darryl's decision.
-- [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
-      (Darryl, 2026-09-27).** The bell, badges and `LiveStatus` on the same
-      socket as the web; no `expo-notifications`, no `push_token` column.
-      Remote push is unavailable in Expo Go on Android since SDK 53 and would
-      need a development build, Firebase and a server-side send — a separate
-      decision if ever wanted. Built on the Parent branch.
+- [x] **Setup, navigation, login + role routing** — `feat/mobile-scaffold`, 2026-09-27.
+- [x] **Parent screens** — `feat/mobile-parent`, 2026-09-27. Rules: M9–M12.
+- [x] **Teacher screens** — `feat/mobile-teacher`, 2026-09-28. Rules: M13–M15.
+- [x] **Admin screens** — `feat/mobile-admin`, 2026-09-29 (Backup & Restore
+      web only). Rules: M16–M18. **Every role's screens are built.**
+- [x] **`fix/mobile-popto`, SMS transport, server reliability** — merged
+      2026-09-29 → 30 (SMS before reliability by Darryl's decision).
+- [x] **UI polish — `feat/ui-polish`, merged 2026-09-30 (`c610bd8`).**
+- [ ] **Docs pass + CLAUDE.md trim — `docs/stage5`.**
+- [ ] ~~Push notifications~~ → **in-app notifications only, via Socket.io
+      (Darryl, 2026-09-27)** — no `expo-notifications`, no `push_token`
+      column; remote push would be a separate decision.
+
+**NEXT, in order:** `docs/stage5` → full phone test / smoke gate →
+manuscript delta list.
 
 ### Stage 6 — Integration
 
@@ -1871,42 +1857,19 @@ the same way.**
 ### School questions — answered
 
 None of these is a written policy. **Do not cite them in the manuscript as
-documented school policy, and do not re-ask them.** Full entries:
-`docs/ARCHIVE.md` → OPEN QUESTIONS.
+documented school policy, and do not re-ask them.** One line each; the full
+bullets are verbatim in `docs/ARCHIVE.md` → "OPEN QUESTIONS — answered school
+bullets and closed engineering bullets as they stood in CLAUDE.md until
+2026-09-30" (and the older "… until 2026-09-19").
 
-- **2026-09-26 — "Quiz up to 10" means FIVE written-work slots, confirmed**;
-  `WW_SLOTS = 5` stands as the school's figure, not a client guess.
-- **2026-09-23 — mid-year transfer: the OLD adviser owns pre-transfer
-  attendance, the NEW adviser from the transfer date, the parent sees the
-  whole year.** BUILT 2026-09-26 (#6) as `recorded_by` OR adviser of the
-  current section — the new adviser sees pre-transfer rows too, a superset
-  of the school's "via the card", accepted; handover is outside the system.
-- **2026-09-23 — the printed subject order is CONFIRMED for every grade**;
-  Grades 2 and 3 are a seed change, pre-Stage-5 (k).
-- **2026-09-23 — the school DOES award bonus points** (event participation,
-  added to PT). Over-HPS stays flagged, never blocked.
-- **2026-09-22 — how the Grade 1 A–E letter is produced: it is COMPUTED**, not
-  a hand-picked judgment. WW 30 / PT 50 / Summative 20, Summative split
-  ST1 30 / ST2 30 / TE 40, banded on the **raw** weighted score with no
-  transmutation. The full rule is `docs/GRADING_SPEC.md` §6a. **It is the
-  school's practice, not DO 015** — that order defines no
-  Initial-Grade-to-letter formula — so do not cite it as DepEd policy.
-  **BUILT the same day**; `PATCH /:id/descriptive` is retired and a letter
-  can no longer be set by hand.
-- **2026-09-01 — Principal Bajar, consultation:** no contributions from
-  parents → Feature 7 removed 2026-09-13.
-- **2026-09-13 — the principal, in conversation:** Late counts as present,
-  Excused as absent → "Present on recorded days" on Parent → Attendance; a
-  school decision, not DepEd's (DO 015 prescribes no rate); never attribute
-  it to DepEd. Mid-year transfer ownership was NOT answered.
-- **2026-09-11 — the team, in conversation, seven answers, all built:** three
-  terms; both grading modes; three components; weights by learning area; lock
-  admin-only; parents know the LRN (login design stays); raw WW / PT / Exam
-  scores in the parent modal — approved.
-
-The bullets as they stood here until 2026-09-19 are verbatim in
-`docs/ARCHIVE.md` → "OPEN QUESTIONS — answered bullets as they stood in
-CLAUDE.md until 2026-09-19".
+- **2026-09-26** — "Quiz up to 10" = FIVE written-work slots (`WW_SLOTS = 5`). Do not re-ask.
+- **2026-09-23** — mid-year transfer: old adviser before, new adviser from the transfer date; built as `recorded_by` OR current adviser. Do not re-ask.
+- **2026-09-23** — the printed subject order is confirmed for every grade. Do not re-ask.
+- **2026-09-23** — bonus points are awarded (added to PT); over-HPS is flagged, never blocked. Do not re-ask.
+- **2026-09-22** — the Grade 1 letter is COMPUTED (`docs/GRADING_SPEC.md` §6a) — the school's practice, never cite it as DepEd's. Do not re-ask.
+- **2026-09-01** — no contributions from parents → Feature 7 removed. Do not re-ask.
+- **2026-09-13** — Late counts as present, Excused as absent — a school decision, never DepEd's. Do not re-ask.
+- **2026-09-11** — the team's seven answers (terms, modes, components, weights, lock, LRN login, the parent modal), all built. Do not re-ask.
 
 ### Engineering, manuscript, and logistics
 
@@ -1943,36 +1906,13 @@ questions.
 - **Parent demo — data:** real names and LRNs need the school's answer on
   consent (RA 10173 — see BEFORE THE PARENT DEMO). **Parent demo —
   logistics:** how many parents, when, is there a PTA meeting to join?
-- **ANSWERED 2026-09-30 — yes, built with the phone's words (§17c).** **Should
-  Teacher → Attendance warn before leaving with unsaved marks?**
-  A bulk submit can lose a whole roster in one navigation; Teacher → Grades
-  does not warn because every score is its own request. Decide for Attendance
-  specifically; no blanket `beforeunload`.
-- **The adviser-with-no-subject-assignment case is NOT theoretical** —
-  TCH-002 is that account in the seed. Read scopes were widened to assigned
-  OR adviser in `routes/students.js`, `routes/excuses.js` (including the
-  existence query inside review), `routes/content.js` (the one WRITE gate
-  widened, deliberately — the Class Board is a school requirement) and
-  `routes/messages.js` (`canMessage()`, both directions) — all DONE
-  2026-09-06/07 via `utils/teacherScope.js`. **`routes/grades.js` is
-  deliberately NOT widened** — grade encoding is the subject teacher's
-  authority; widening it would invent school policy.
-- **`Account is not active.` is `401` since 2026-09-18** (`middleware/auth.js`,
-  `feat/authorization`) — it was the one 403 in the API that meant a dead
-  session, and the reason the client once redirected on every 403. A
-  mid-session deactivation now logs the user out on their next request.
-  Login keeps `403` + `status` for the same accounts. Closed; kept here so
-  the old row is not re-derived.
-- **Endpoint audit — run 2026-09-07, three-way diff (this file's table,
-  `docs/API_REFERENCE.md`, the handlers actually mounted), all three buckets
-  empty.** Re-run after any dispatch that adds or removes an endpoint. Its
-  carried items: `GET /api/students`'s `?status=` is now validated
-  (2026-09-15) and `?status=all` is verified (2026-09-14 — the earlier
-  "unverified" entry was itself stale; `test:students` had proved it since
-  the endpoint was built); the contacts empty-cause is a Stage 4 copy
-  question, not a backend fix (KNOWN ISSUES); `docs/API_REFERENCE.md` lists
-  `GET /api/users` under a `user` wrapper row — a doc slip, the endpoint
-  returns `users` only.
+**Closed — one line each, full text in the same ARCHIVE block as the answered
+school questions:**
+
+- **2026-09-30** — Teacher → Attendance DOES warn before leaving with unsaved marks (§17c). Do not re-ask.
+- **2026-09-06/07** — read scopes widened to assigned OR adviser (TCH-002 is that account); **`routes/grades.js` is deliberately NOT widened** — encoding is the subject teacher's. Do not re-ask.
+- **2026-09-18** — `Account is not active.` is `401` (login keeps `403` + `status`). Do not re-derive.
+- **2026-09-07** — endpoint audit, all three buckets empty; **re-run it after any dispatch that adds or removes an endpoint.**
 
 ---
 
@@ -2154,15 +2094,9 @@ Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
 
 | Date | Change |
 |------|--------|
-| 2026-09-30 | **`feat/ui-polish`** (merge-ready; checks passed, cleaned up by id): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once; f: whole-card dashboard links, the login sentence; the parent dashboard back to its 69bae24 layout; equal calendar cells; figures one size down (§24). Full rows: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`docs/stage5`** (not merged): the docs pass — README, PROGRESS, SETUP_NOTES, TESTING, both conventions docs and KNOWN_ISSUES checked against the code; parent login ids and password values out of the docs; the conservative CLAUDE.md trim. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`feat/ui-polish`** (merged, `c610bd8`; checks passed, cleaned up by id): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once; f: whole-card dashboard links, the login sentence; the parent dashboard back to its 69bae24 layout; equal calendar cells; figures one size down (§24). Full rows: `docs/CHANGELOG.md`. |
 | 2026-09-30 | **`fix/server-reliability`** (merged): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
-| 2026-09-29 | **`feat/sms-transport`** (merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
-| 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |
-| 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
-| 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
-| 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (seven commits, merged fast-forward after the checkpoint check, the second-half check and three re-check rounds): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
-| 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
-| 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
 
 **trim-7's own stub was removed from this table on 2026-09-23**, not archived:
 its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
@@ -2171,8 +2105,8 @@ whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
 the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
 is never deleted.
 
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in **eighteen dated
-batches** (2026-09-19 → 2026-09-26), each headed "CHANGELOG stubs moved from
+Older stub lines are verbatim in `docs/ARCHIVE.md`, in **nineteen dated
+batches** (2026-09-19 → 2026-09-30), each headed "CHANGELOG stubs moved from
 CLAUDE.md on <date> (<nth> batch, <the pass that spent it>)" — grep that;
 the per-batch counts once listed here were a third copy of a number the
 headings carry. **Every full row is in `docs/CHANGELOG.md` with one

@@ -33,9 +33,10 @@ names the first differing line. **A deliberate divergence is a new mobile
 file, never an edit to a mirrored one.** The six pairs as of the scaffold:
 `api/extractError.js`, `auth/authFailure.js`, `auth/roles.js`,
 `layout/nav.js` → `navigation/nav.js`, `format/passwordRule.js`,
-`format/contactRule.js`. The school calendar joins the list on the Parent
-branch and becomes a three-way copy (server → client → mobile); the client
-proof already holds the first two equal.
+`format/contactRule.js`. The school calendar joined the list on the Parent
+branch as a three-way copy (server → client → mobile). **Now 22 pairs —
+`mobile/scripts/check-mirrors.mjs` is the list**, and it also compares the
+calendar with the server's by value.
 
 **Renderers are rewritten, never copied.** `grade.jsx` and `TermValue.jsx`
 emit `<span>`; the mobile twins emit `<Text>` over the same copied logic. Same
@@ -320,7 +321,8 @@ accessible name — §6's unbuilt state, reintroduced exactly as CLAUDE.md
 said Stage 5 would — and a notification whose link is unbuilt opens the
 role's home instead (`linkToRoute`). Nothing throws on an unknown path.
 Teacher and admin therefore get the drawer now with Settings and About live
-and the rest dimmed, and `RoleHome` as their placeholder home (decision 3).
+and the rest dimmed, and `RoleHome` as their placeholder home (decision 3;
+until branch 4 — M16: `RoleHome.jsx` is gone).
 
 **The strip is in the navigator's layout, not in each screen.** Both
 navigators wrap every screen with `LiveStatus` through `screenLayout`, which
@@ -347,7 +349,7 @@ on a built item. Nothing sums the two providers.
 **The menu button carries a DOT when any drawer badge is above zero — a
 mobile addition, declared here (phone check, 2026-09-27).** The web's
 narrow-screen header has no badge on its hamburger (`layout/Header.jsx`)
-because its sidebar is on screen from `sm` up; on a phone the drawer is
+because its sidebar is on screen from `md` up; on a phone the drawer is
 closed nearly always, so a Messages badge nobody can see is a count that
 does not exist — a message rang no bell (correct, messages are not in the
 bell) and the phone showed nothing at all. The dot is presence only; the
@@ -423,7 +425,7 @@ Personalization is Theme only (M3).
   (§7c) and re-reads on that focus only, not on every focus.
 - **A bounded filter auto-applies** through `components/Segmented.jsx` — the
   status chips, Upcoming / All, the four term segments (§21). **The page
-  action is on its own row, neutral, out of the filter** (the web's §21b):
+  action is on its own row, neutral, out of the filter** (the web's §21e):
   beside the chips it squeezed them and cut "Declined" off (phone check,
   2026-09-27). `DataList` keeps the list's 16px gutter around its header in
   every branch, the empty one included — "New message" sat flush against
@@ -617,6 +619,8 @@ for every learner only if Summative maxima were saved — `assessment_slots`,
 `grade_components`, possible `grade_available` notifications) **and one
 attendance date**; both are empty before the check, so the cleanup deletes
 everything under them by key, guarded by the ids a read-only survey found.
+Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
+notifications; Marwin 0 grade rows before and after.
 
 ## M16. The admin shell: eight items, one web-only item hidden, one Settings
 
@@ -708,8 +712,6 @@ truncated-dump row).
   stacks them). Edit only your own announcement, delete any; every memo is
   the admin's. Every write sends both target keys, null when absent. Delete
   is a native Alert with the web's sentence.
-Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
-notifications; Marwin 0 grade rows before and after.
 
 ## M19. The phone's size scale is 14/16 of the web's — RESOLVED: keep 14
 

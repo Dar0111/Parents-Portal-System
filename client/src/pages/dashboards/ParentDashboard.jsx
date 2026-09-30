@@ -733,8 +733,8 @@ export default function ParentDashboard() {
           Messages / Excuse letters · Announcements & memos · Upcoming events.
           No emphasised card. The whole card is still the link (f2) with the
           brand focus outline (UI-5). The Grades and Excuse letters bodies
-          are normal-size text again, so the phone's lead words for those two
-          (`gradesLead`, `letterLead`) are no longer the web's. */}
+          are normal-size text again, and since 2026-09-30 the phone follows
+          this card for card (`gradesLead`, `letterLead`, §15e). */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
       <Card

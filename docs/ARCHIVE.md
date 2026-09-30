@@ -6908,3 +6908,161 @@ unread badge.
 
 QR attendance · online payment · enrollment/transcript · schedule grid · college grading
 ````
+
+---
+
+## docs/SETUP_NOTES.md — the Phase 1 checklist, moved 2026-09-30 (docs/stage5)
+
+Verbatim as it stood in `docs/SETUP_NOTES.md` until 2026-09-30. The live
+state is `CLAUDE.md` → BUILD ORDER and `docs/PROJECT_PROGRESS.md`.
+
+## Ano na ang tapos (Phase 1)
+
+> **SNAPSHOT NG PHASE 1, hindi kasalukuyang estado.** Tama ang mga numero sa
+> ibaba noong isinulat sila; matagal nang lumampas ang code. Tapos na ang
+> React web (Stage 4) — ang mga unchecked na kahon sa ibaba ay hindi na bukas
+> na trabaho. Ang buhay na estado ay nasa `CLAUDE.md` (tables, endpoints) at
+> `docs/TESTING.md` (suites); walang bilang dito para hindi ito ma-stale
+> ulit. Hindi ito
+> ina-update nang paisa-isa: ang pag-aayos ng isang linya lang dito ang
+> magpapamukha sa buong seksyon na maintained, na siyang mismong babala sa
+> README.
+
+- [x] `database/schema.sql` — 18 tables
+- [x] `database/seed.sql` — subjects, students, settings
+- [x] `server/` — Auth API (login, users, approve/reject)
+- [x] `npm run test:auth` — 23 tests
+- [ ] Grades, attendance, announcements, etc.
+- [ ] React web
+- [ ] Expo mobile
+
+---
+
+## CHANGELOG stubs moved from CLAUDE.md on 2026-09-30 (nineteenth batch, docs/stage5)
+
+Verbatim, oldest last, as they stood in `CLAUDE.md` → CHANGELOG until
+2026-09-30. Each full row is in `docs/CHANGELOG.md`.
+
+| Date | Change |
+|------|--------|
+| 2026-09-29 | **`feat/sms-transport`** (merged): reset codes by text beside email through a phone-hosted gateway; the `verify-contact` pair; one code to every confirmed channel, one sentence; F1/F2 copy. `test:recovery` 110, `test:users` 73, `test:sms-transport` 62; phone check and re-check passed, cleaned up by id. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-29 | **`fix/mobile-popto`**: every modal returns with `popTo` — no second drawer or Login (M16); B1, the auth stack's `screenLayout` rendered as an element (a layout is CALLED inside the navigator's render, so a hook there broke its hook order; pre-existing since `7c7530c`); P1, the parent and teacher dashboards re-fetch on focus (M14), the mount fetching once. `proof:routes` 33/33; phone re-check passed, cleaned up by id. Full rows: `docs/CHANGELOG.md`. |
+| 2026-09-29 | **Stage 5, branch 4 — `feat/mobile-admin`**: every admin screen; the temporary password shown once, capture-blocked, cleared on background; modal screens return with `popTo`. Proofs 10 / 14 / 6 / 12; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
+| 2026-09-28 | **Stage 5, branch 3 — `feat/mobile-teacher`**: every teacher screen; Grades one slot at a time; the attendance prompt on a date or section change (a drawer screen is never removed). Proofs 20 / 11 / 11 / 13; mirrors 22. Full rows: `docs/CHANGELOG.md`. |
+| 2026-09-27 | **Stage 5, branch 2 — `feat/mobile-parent`** (seven commits, merged fast-forward after the checkpoint check, the second-half check and three re-check rounds): the drawer shell and pure route map, the socket, bell and Notifications screen, Settings, About, and every parent screen. Proofs 15 / 21 / 21 / 15; mirrors 12. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-27 | **Stage 5, branch 1 — `feat/mobile-scaffold`** (five commits, merged fast-forward the same day after Darryl's seven-item phone check passed, one re-check round for the 503 path): `mobile/` on Expo SDK 57, the hotspot proved phone → `/api/health` first, sign-in + session rules + theme + root navigator, tokens generated from the web's stylesheet, dev-only code excluded at Metro's resolver because the Hermes export does not inline `__DEV__`. Proofs 21/21 and 8/8; four lint figures in `docs/TESTING.md`. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-26 | **Smoke gate + fix/smoke-gate** (to `12a3495`, 12 commits): suites, proofs, lint, smoke all green; twelve write flows and a same-backup restore proved in a browser, cleaned by id. Twelve browser-found defects fixed — the full list is the `docs/CHANGELOG.md` row. |
+
+---
+
+## OPEN QUESTIONS — answered school bullets and closed engineering bullets as they stood in CLAUDE.md until 2026-09-30 (docs/stage5)
+
+Verbatim. CLAUDE.md keeps one dated "do not re-ask" line for each.
+
+### School questions — answered
+
+- **2026-09-26 — "Quiz up to 10" means FIVE written-work slots, confirmed**;
+  `WW_SLOTS = 5` stands as the school's figure, not a client guess.
+- **2026-09-23 — mid-year transfer: the OLD adviser owns pre-transfer
+  attendance, the NEW adviser from the transfer date, the parent sees the
+  whole year.** BUILT 2026-09-26 (#6) as `recorded_by` OR adviser of the
+  current section — the new adviser sees pre-transfer rows too, a superset
+  of the school's "via the card", accepted; handover is outside the system.
+- **2026-09-23 — the printed subject order is CONFIRMED for every grade**;
+  Grades 2 and 3 are a seed change, pre-Stage-5 (k).
+- **2026-09-23 — the school DOES award bonus points** (event participation,
+  added to PT). Over-HPS stays flagged, never blocked.
+- **2026-09-22 — how the Grade 1 A–E letter is produced: it is COMPUTED**, not
+  a hand-picked judgment. WW 30 / PT 50 / Summative 20, Summative split
+  ST1 30 / ST2 30 / TE 40, banded on the **raw** weighted score with no
+  transmutation. The full rule is `docs/GRADING_SPEC.md` §6a. **It is the
+  school's practice, not DO 015** — that order defines no
+  Initial-Grade-to-letter formula — so do not cite it as DepEd policy.
+  **BUILT the same day**; `PATCH /:id/descriptive` is retired and a letter
+  can no longer be set by hand.
+- **2026-09-01 — Principal Bajar, consultation:** no contributions from
+  parents → Feature 7 removed 2026-09-13.
+- **2026-09-13 — the principal, in conversation:** Late counts as present,
+  Excused as absent → "Present on recorded days" on Parent → Attendance; a
+  school decision, not DepEd's (DO 015 prescribes no rate); never attribute
+  it to DepEd. Mid-year transfer ownership was NOT answered.
+- **2026-09-11 — the team, in conversation, seven answers, all built:** three
+  terms; both grading modes; three components; weights by learning area; lock
+  admin-only; parents know the LRN (login design stays); raw WW / PT / Exam
+  scores in the parent modal — approved.
+
+### Engineering — closed bullets
+
+- **ANSWERED 2026-09-30 — yes, built with the phone's words (§17c).** **Should
+  Teacher → Attendance warn before leaving with unsaved marks?**
+  A bulk submit can lose a whole roster in one navigation; Teacher → Grades
+  does not warn because every score is its own request. Decide for Attendance
+  specifically; no blanket `beforeunload`.
+- **The adviser-with-no-subject-assignment case is NOT theoretical** —
+  TCH-002 is that account in the seed. Read scopes were widened to assigned
+  OR adviser in `routes/students.js`, `routes/excuses.js` (including the
+  existence query inside review), `routes/content.js` (the one WRITE gate
+  widened, deliberately — the Class Board is a school requirement) and
+  `routes/messages.js` (`canMessage()`, both directions) — all DONE
+  2026-09-06/07 via `utils/teacherScope.js`. **`routes/grades.js` is
+  deliberately NOT widened** — grade encoding is the subject teacher's
+  authority; widening it would invent school policy.
+- **`Account is not active.` is `401` since 2026-09-18** (`middleware/auth.js`,
+  `feat/authorization`) — it was the one 403 in the API that meant a dead
+  session, and the reason the client once redirected on every 403. A
+  mid-session deactivation now logs the user out on their next request.
+  Login keeps `403` + `status` for the same accounts. Closed; kept here so
+  the old row is not re-derived.
+- **Endpoint audit — run 2026-09-07, three-way diff (this file's table,
+  `docs/API_REFERENCE.md`, the handlers actually mounted), all three buckets
+  empty.** Re-run after any dispatch that adds or removes an endpoint. Its
+  carried items: `GET /api/students`'s `?status=` is now validated
+  (2026-09-15) and `?status=all` is verified (2026-09-14 — the earlier
+  "unverified" entry was itself stale; `test:students` had proved it since
+  the endpoint was built); the contacts empty-cause is a Stage 4 copy
+  question, not a backend fix (KNOWN ISSUES); `docs/API_REFERENCE.md` lists
+  `GET /api/users` under a `user` wrapper row — a doc slip, the endpoint
+  returns `users` only.
+
+---
+
+## BUILD ORDER → Stage 5 as it stood in CLAUDE.md until 2026-09-30 (docs/stage5)
+
+Verbatim. CLAUDE.md keeps one line per item.
+
+### Stage 5 — Mobile (Expo)
+
+**Plan approved 2026-09-27; order Parent → Teacher → Admin, one branch per
+step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
+2026-10-02, a buffer, not a cutoff.**
+
+- [x] **Expo project setup + navigation — `feat/mobile-scaffold`,
+      2026-09-27.** SDK 57, NativeWind, the generated tokens, React
+      Navigation, the hotspot path proved phone → `/api/health`. **Darryl's
+      phone check PASSED 2026-09-27, all seven items** (Connection check,
+      each seeded role, Light / Dark / System, the 401 path, the 503 path
+      after one re-check round, the forced change); merged fast-forward.
+- [x] **Login + role routing — same branch.** Login, Forgot password, Forced
+      change, `AuthUnavailable`, the root navigator, three empty role homes.
+- [x] **Parent screens — `feat/mobile-parent`, 2026-09-27** (+ drawer, socket,
+      bell, badges, `LiveStatus`, Settings, About, Notifications). Phone
+      checks passed: the checkpoint (8), the second half (7), three re-check
+      rounds (safe areas, the keyboard). Rules: `docs/MOBILE_CONVENTIONS.md`
+      M9–M12.
+- [x] **Teacher screens — `feat/mobile-teacher`, 2026-09-28.** Phone checks
+      passed: first half (8), second half, one fix round (F1). Rules: M13–M15.
+- [x] **Admin screens — `feat/mobile-admin`, 2026-09-29** (Backup & Restore
+      web only, hidden from the drawer). Phone checks passed: first half
+      (12), second half (8), one fix round (A1). Rules: M16–M18. **Every
+      role's screens are built.** **NEXT, in order (2026-09-29):**
+      `fix/mobile-popto` (merged) → SMS transport (merged) → server
+      reliability (merged) → UI polish (`feat/ui-polish`, merge-ready) →
+      `docs/stage5` → full phone test / smoke gate →
+      manuscript delta list. SMS moved before server reliability by
+      Darryl's decision.
+- [ ] ~~Push notifications~~ → **In-app notifications only, via Socket.io
+      (Darryl, 2026-09-27).** The bell, badges and `LiveStatus` on the same
+      socket as the web; no `expo-notifications`, no `push_token` column.
+      Remote push is unavailable in Expo Go on Android since SDK 53 and would
+      need a development build, Firebase and a server-side send — a separate
+      decision if ever wanted. Built on the Parent branch.

@@ -6,7 +6,7 @@ P. Rosales St., Sta. Ana, Pateros, Metro Manila
 Web + mobile portal para sa parents, teachers, at admin (principal).
 Capstone project — Pateros Technological College, Institute of Information and Computing Technology.
 
-**Sept 7, 2026** — panel checkpoint (system proposal). **Hindi** ito ang defense.
+**Sept 7, 2026** — tapos na ang panel checkpoint (system proposal); hindi iyon ang defense.
 **Final defense** — expected around **November 2026**.
 
 ---
@@ -46,7 +46,7 @@ buong detalye ay nasa ibang files:
 | Seed data | ✅ Done |
 | **Backend API** | ✅ Lahat ng module, pati Socket.io. Bilang ng endpoints: front matter ng `CLAUDE.md` |
 | Web — lahat ng tatlong role (Teacher, Parent, Admin) | ✅ Stage 4 sarado 2026-09-14; ang mga dagdag pagkatapos nito ay nasa BUILD ORDER ng `CLAUDE.md` |
-| Mobile (Expo) | 🔧 Stage 5 sinimulan 2026-09-27 — scaffold, login at session sa `mobile/`; ang mga screen per role ay nasa BUILD ORDER ng `CLAUDE.md` |
+| Mobile (Expo) | ✅ Lahat ng screen ng tatlong role sa `mobile/` (ang Backup & Restore ay web lang). Ang susunod — phone test, smoke gate — ay nasa BUILD ORDER ng `CLAUDE.md` |
 
 Siyam na feature ang ship. Ang Feature 7 (Contributions/Fees) ay ginawa at
 **tinanggal noong 2026-09-13** — hindi puwedeng mangolekta ng contributions
@@ -83,8 +83,9 @@ Buksan ang `server\.env` at punan. **Ang lahat ng key ay nasa
 kailangang tama agad: `DB_PASSWORD` (blank kung wala), `JWT_SECRET`
 (mahabang random na string), at `CORS_ORIGIN=http://localhost:3000` — dapat
 tugma sa port ng client, at dito rin naka-base ang Socket.io CORS. Ang
-`SMTP_*` ay para sa forgot-password email; ang `MAIL_TRANSPORT=file` ay para
-lang sa `test:recovery` (tingnan ang Tests).
+`SMTP_*` ay para sa forgot-password email, at ang `SMS_*` para sa reset code
+sa text (tingnan ang **SMS** sa ibaba); ang `MAIL_TRANSPORT=file` at
+`SMS_TRANSPORT=file` ay para lang sa `test:recovery` (tingnan ang Tests).
 
 ### Step 3 — Backend install at database
 
@@ -172,25 +173,46 @@ copy .env.example .env
    dapat `"db":"ok"`. Kung umiikot lang — firewall; kung "refused" — maling IP.
 5. Terminal 3: `cd mobile` → `npx expo start`, i-scan ang QR sa Expo Go.
    Kung maling interface ang napili ng Expo (may apat na 169.254.x.x adapter
-   ang laptop): `set REACT_NATIVE_PACKAGER_HOSTNAME=<ip>` bago ang `start`.
+   ang laptop), sa **PowerShell**:
+   `$env:REACT_NATIVE_PACKAGER_HOSTNAME="<ip>"` tapos
+   `npx expo start --clear`. (Ang `set …=<ip>` ay para lang sa CMD.)
 
 **Firewall:** ang nagbukas ng port 5000 at 8081 (Metro) ay ang program rule
 na "Node.js JavaScript Runtime" para sa `D:\node.js\node.exe` sa Public at
 Private profiles — hindi port rule. Public profile ang hotspot.
 
-**Lint at proofs (sa `mobile/`):** `npm run lint`, `npm run lint:mirrors`,
-`npm run lint:tokens`, `npm run lint:colors`, `npm run proof:api-unwrap`,
-`npm run proof:auth-failure`. Mga bilang: `docs/TESTING.md`. Ang mga rule:
-`docs/MOBILE_CONVENTIONS.md`.
+**Lint at proofs:** ang listahan, ang run-book at ang mga bilang ay nasa
+`docs/TESTING.md` lang; ang mga command ay nasa NPM scripts → `mobile/` sa
+ibaba. Ang mga rule: `docs/MOBILE_CONVENTIONS.md`.
+
+---
+
+## SMS — reset code sa text (opsyonal)
+
+Ang forgot-password ay puwedeng magpadala ng code sa **email at sa text**.
+Ang text ay dumadaan sa **SMSGate** ("SMS Gateway for Android") na app sa
+telepono:
+
+- Sa app: **Local Server** mode, port **8080**. Ipinapakita ng app ang
+  username at password ng Local Server.
+- Sa `server\.env`: `SMS_TRANSPORT=gateway`,
+  `SMS_GATEWAY_URL=http://<ip ng telepono>:8080`, at `SMS_GATEWAY_USER` /
+  `SMS_GATEWAY_PASS` mula sa app. **Huwag i-commit ang mga value.**
+- **Naka-off ito maliban kung may test:** blangkong `SMS_TRANSPORT` = SMS
+  off, email lang. `npm run sms:probe` (sa `server/`) ang tsek kung
+  naaabot ang gateway. Ang detalye: `docs/KNOWN_ISSUES.md` (SMS rows) at
+  `server/.env.example`.
 
 ---
 
 ## Test accounts (seed data)
 
-**Walang password dito, sinasadya.** Nasa `database/seed.sql` sila (at
-hina-hash ng `server/scripts/setup-db.js`). Ang login ID ng parent ay ang
+**Walang password dito, sinasadya.** Ang mga default ay nasa
+`server/scripts/setup-db.js` (doon sila hina-hash at isinusulat; ang
+`database/seed.sql` ay may placeholder lang). Ang login ID ng parent ay ang
 **LRN mismo ng bata**, kaya ang login ID at password na magkasama sa iisang
-doc ay isang buong credential — at kalahati na nito ang table sa ibaba.
+doc ay isang buong credential — kaya walang parent login ID sa table sa
+ibaba; nasa `seed.sql` sila.
 
 | Role | Login ID | Status | Notes |
 |------|----------|--------|-------|
@@ -198,9 +220,9 @@ doc ay isang buong credential — at kalahati na nito ang table sa ibaba.
 | Teacher | `TCH-001` | active | Maria Santos — adviser **at** assigned teacher ng Grade 6 - Malikhain |
 | Teacher | `TCH-002` | active | Ana Reyes — adviser ng Grade 5 - Masigasig, **walang `teacher_assignments`** |
 | Teacher | `TCH-003` | active | Lito Bautista — adviser ng Grade 1 - Mabait **at** assigned sa lahat ng limang Grade 1 subject |
-| Parent | `13567454` | active | Marwin Conde (Grade 6 - Malikhain) |
-| Parent | `1234567` | **pending** | Jea Mae Bargaso (Grade 5 - Masigasig) |
-| Parent | `1090001` | active | Rosa Alcantara, parent ni Nino Alcantara (Grade 1 - Mabait) |
+| Parent | LRN ni Marwin (nasa `seed.sql`) | active | Marwin Conde (Grade 6 - Malikhain) |
+| Parent | LRN ni Jea (nasa `seed.sql`) | **pending** | Jea Mae Bargaso (Grade 5 - Masigasig) |
+| Parent | LRN ni Nino (nasa `seed.sql`) | active | Rosa Alcantara, parent ni Nino Alcantara (Grade 1 - Mabait) |
 | Parent | LRN ni Tala (nasa `seed.sql`) | active | Ligaya Halimbawa, parent ni **Tala Halimbawa** (Grade 6 - Malikhain) — ang browser-fixture learner |
 
 > ⚠️ **Bago may totoong parent: palitan ang lahat ng default password**
@@ -214,7 +236,7 @@ doc ay isang buong credential — at kalahati na nito ang table sa ibaba.
   assigned nang sabay, kaya hindi masasabi ng test kung alin ang gumana. Kapag
   binigyan mo ito ng `teacher_assignments` row, mawawala ang tanging account na
   kayang mag-fail kapag may bug sa scoping.
-- **`1234567`** — sinasadyang **pending**. Umaasa dito ang `npm run test:auth`,
+- **Ang parent account ni Jea** — sinasadyang **pending**. Umaasa dito ang `npm run test:auth`,
   at minsan nang na-corrupt ang exact row na ito sa isang crashed test run.
   Huwag i-approve para lang makapag-login.
 - **Tala Halimbawa** — para sa browser checks lang; walang suite na gumagamit
@@ -258,8 +280,7 @@ Base URL: `http://localhost:5000`
 
 **Ang mga baseline ay nasa `docs/TESTING.md` — doon lang, hindi dito.**
 Idempotent ang mga suite — hindi kailangan ng `npm run db:setup` sa pagitan
-ng runs — **maliban sa `test:attendance`**, na nagbubura ng lahat ng
-attendance row sa tatlong petsa (`docs/KNOWN_ISSUES.md`).
+ng runs; binubura ng bawat suite ang rows na ginawa nito.
 
 ```bash
 cd "C:\Users\Win10 User\Parents_Portal\server"
@@ -268,11 +289,13 @@ npm run test:auth
 
 - **Isa-isa lang ang suite**, at hintayin ang `/api/health` pagkatapos
   mag-edit ng server file (`npm run dev` ay `--watch`, nagre-restart ito).
-- **Apat ang hindi HTTP suite** — `test:sanitize`, `test:grade-computation`,
-  `test:school-calendar` at `test:auth-middleware` ay direct-call unit tests:
-  **walang server, walang database**. Pumapasa sila kahit patay ang backend.
+- **Hindi HTTP suite** ang `test:sanitize`, `test:grade-computation`,
+  `test:school-calendar`, `test:auth-middleware` at `test:sms-transport` —
+  direct-call unit tests: **walang server, walang database**. Pumapasa sila
+  kahit patay ang backend.
 - **`test:recovery`** — kailangan ng server na sinimulan na may
-  `MAIL_TRANSPORT=file` **sa server mismo**, hindi sa test command
+  `MAIL_TRANSPORT=file SMS_TRANSPORT=file` **sa server mismo**, hindi sa test
+  command, at ng `db:migrate:auth-codes` at `db:migrate:contact-verification`
   (run-book: `docs/TESTING.md`).
 - **`test:restore`** — sinasadyang **hindi** nag-t-trigger ng totoong restore
   (`DROP DATABASE` iyon sa shared dev DB). Basahin ang RESTORE section ng
@@ -306,16 +329,21 @@ Parents_Portal/
 │   ├── utils/       ← shared helpers (scoping, rules, calendar, mailer, …)
 │   ├── middleware/  ← authenticate + authorize
 │   ├── config/      ← MySQL pool (may resetPool para sa restore)
-│   ├── scripts/     ← setup-db, db:migrate:*, verify-grading-seed, lahat ng test:*
+│   ├── scripts/     ← setup-db, db:migrate:*, verify-grading-seed, probe-sms-gateway, proof-backup-loop, lahat ng test:*
+│   ├── tmp/         ← mail/SMS codes ng test transport (gitignored)
 │   └── backups/     ← .sql dumps (gitignored) — ito ang DB backup
-└── client/          ← React + Vite + Tailwind (port 3000)
-    ├── src/         ← api, auth, components, format, layout, realtime, pages
-    ├── scripts/     ← render proofs (ssr-*), lint:tokens, lint:contrast, smoke:isolated
-    └── e2e/         ← Playwright smoke run
+├── client/          ← React + Vite + Tailwind (port 3000)
+│   ├── src/         ← api, auth, components, format, layout, realtime, pages
+│   ├── scripts/     ← render proofs (ssr-*), lint:tokens, lint:contrast, smoke:isolated
+│   └── e2e/         ← Playwright smoke run
+└── mobile/          ← Expo (SDK 57) app — sariling package.json
+    ├── src/         ← api, auth, navigation, screens, components, format, theme
+    └── scripts/     ← lint checks (mirrors, tokens, colors) at proofs (proof-*)
 ```
 
-Ang detalye ng bawat folder ay nasa `docs/ARCHIVE.md` → CURRENT STATE →
-Files that exist, at sa code mismo.
+Ang detalye ay nasa code mismo. (Ang `docs/ARCHIVE.md` → CURRENT STATE →
+Files that exist ay snapshot noong 2026-09-18 — bago ang `mobile/` at ang
+SMS — kaya history na lang iyon.)
 
 ---
 
@@ -327,11 +355,13 @@ Files that exist, at sa code mismo.
 |---------|--------------|
 | `npm install` | Install dependencies (once) |
 | `npm run db:setup` | Gumawa ng database, tables at seed data — **bagong machine lang** |
-| `npm run db:migrate:<name>` | Idempotent na migration para sa database na may laman na (pito; nasa `package.json`) |
+| `npm run db:migrate:<name>` | Idempotent na migration para sa database na may laman na (ang listahan ay nasa `package.json`) |
 | `npm run dev` | Backend na may auto-restart (`node --watch`) |
 | `npm start` | Backend na walang watch |
 | `npm run test:<suite>` | Isa sa mga test suite (`docs/TESTING.md`) |
 | `npm run verify:grading-seed` | Tsek ng grading seed data |
+| `npm run sms:probe` | Tsek kung naaabot ang SMS gateway (tingnan ang SMS sa itaas) |
+| `npm run proof:backups` | Ang loop para sa backup first-call reset — **gumagawa ng totoong backups, sariling API sa 5001, isa-isang arm**; hindi suite (`docs/TESTING.md`) |
 
 ### `client/`
 
@@ -346,6 +376,20 @@ Files that exist, at sa code mismo.
 | `npm run lint:contrast` | Contrast ng bawat color pair, sa dalawang theme |
 | `npm run smoke` | Playwright smoke laban sa 5000/3000 |
 | `npm run smoke:isolated` | Ang smoke sa sariling 5001/3001 — gamitin ito para sa verification |
+
+### `mobile/`
+
+| Command | Ano ginagawa |
+|---------|--------------|
+| `npm install` | Install dependencies (once) |
+| `npx expo start` | Metro + QR code para sa Expo Go (`--clear` kapag binago ang `.env`) |
+| `npm run android` | Expo start na diretso sa Android |
+| `npm run lint` | oxlint |
+| `npm run lint:mirrors` | Pareho ba byte-for-byte ang mga kinopyang file mula sa `client/` |
+| `npm run lint:tokens` | Tugma ba ang generated tokens sa `client/src/index.css` |
+| `npm run lint:colors` | Walang raw color sa labas ng `src/theme/tokens.js` |
+| `npm run tokens:write` | I-regenerate ang tokens mula sa `client/src/index.css` |
+| `npm run proof:<name>` | Isa sa mga proof (ang listahan: `docs/TESTING.md`) |
 
 > **Tandaan:** ang `npm run build` at `npm run lint` ay nagpapatunay lang na
 > nag-c-compile ang code — **hindi** nila pinapatunayan na nagre-render ang
@@ -364,4 +408,5 @@ Files that exist, at sa code mismo.
 | Failing test na parang account/status issue | Tingnan muna ang Seeded baseline sa `CLAUDE.md` at linisin ang natira ayon sa cleanup protocol (health → backup → delete sa API). **Huwag `db:setup`** sa database na may totoong data |
 | Unang test ng `npm run smoke` ay `ERR_CONNECTION_REFUSED` | Nagre-restart ang `--watch` API. Gamitin ang `npm run smoke:isolated` |
 | Maling term sa screen | Hindi Asia/Manila ang oras ng server (`docs/SETUP_NOTES.md`) |
+| `ERR_NETWORK` / "Can't reach the school server" sa telepono | Buksan sa Chrome ng telepono ang `http://<ip>:5000/api/health`. Kung "refused" — maling IP sa `mobile\.env`. **Kung umiikot hanggang mag-time out** — gawing **Private** ang network profile ng Wi-Fi sa Windows (Settings → Network & internet → Wi-Fi → ang network → Private), tapos subukan ulit |
 | `WebSocket ... closed before the connection is established` sa console | **Normal sa dev.** React StrictMode ito — dev-only, kumokonekta naman ang socket. Tingnan ang `CLAUDE.md` §5h |

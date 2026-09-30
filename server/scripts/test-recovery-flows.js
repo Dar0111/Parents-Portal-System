@@ -16,7 +16,8 @@
  * WHAT IT MUST NEVER TOUCH: Nino's five grade rows (ids 1-5) and Jea's
  * pending parent account (user 4). It uses its own throwaway teacher.
  *
- * Usage: MAIL_TRANSPORT=file npm run test:recovery
+ * Usage: start the API with MAIL_TRANSPORT=file SMS_TRANSPORT=file (see the
+ * prerequisite above), then: npm run test:recovery
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const fs = require('fs');

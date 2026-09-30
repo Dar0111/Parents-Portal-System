@@ -70,7 +70,7 @@ import { isBuilt, isWebOnly, routeFor } from './routes';
 // THE MENU BUTTON CARRIES A DOT WHEN ANY DRAWER BADGE IS ABOVE ZERO — a
 // MOBILE ADDITION, declared (MOBILE_CONVENTIONS M9). The web's narrow-screen
 // header has no badge on its hamburger (layout/Header.jsx), because its
-// sidebar is on screen from `sm` up; on a phone the drawer is closed nearly
+// sidebar is on screen from `md` up; on a phone the drawer is closed nearly
 // always, so a Messages badge nobody can see is a count that does not exist.
 // The dot is presence only — the numbers stay on the drawer rows — and it
 // is the SUM OF THE ROWS' OWN BADGES, each the server's (§10): messages are

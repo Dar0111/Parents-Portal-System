@@ -19,14 +19,17 @@
 Moved verbatim from `CLAUDE.md` → CURRENT STATE → Tests on 2026-09-23.
 **No figure below was re-measured in that move; every one was copied.**
 
-**Tests:** twenty-three `test:*` scripts — **nineteen HTTP suites** plus four
+**Tests:** twenty-four `test:*` scripts — **nineteen HTTP suites** plus five
 direct-call unit tests (`sanitize`, `grade-computation`, since #7
-`school-calendar`, and since fix/auth-503 `auth-middleware`). Counted from
-`server/package.json` on 2026-09-26 (docs pass): the "twenty-two … eighteen"
-that stood here was wrong by one HTTP suite, because `test:grade-computation`
-is described in a paragraph below rather than a bullet and the bullets alone
-number twenty-two. **Also in `package.json`:** `verify:grading-seed` and seven
-`db:migrate:*` scripts. **Every count below
+`school-calendar`, since fix/auth-503 `auth-middleware`, and since
+feat/sms-transport `sms-transport`). Recounted from `server/package.json` on
+2026-09-30 (`docs/stage5`); on 2026-09-26 it was twenty-three with four unit
+tests, and the "twenty-two … eighteen" before that was wrong by one HTTP
+suite, because `test:grade-computation` is described in a paragraph below
+rather than a bullet. **Also in `package.json`:** `verify:grading-seed`,
+eight `db:migrate:*` scripts, `sms:probe` and `proof:backups`. Scripts that
+are not tests and have no baseline here — client `build` / `preview`,
+mobile `start` / `android` / `tokens:write` — are in README → NPM scripts. **Every count below
 was re-run on 2026-09-22 and EIGHT were stale** — students, grades,
 attendance, content, users, backups, messages and excuses had all drifted
 upward, most since pagination (2026-09-19) touched every list endpoint and no
@@ -114,12 +117,13 @@ number changes, something really did move.
 
 ---
 
-## Render proofs — the client's twelve, and their baselines
+## Render proofs — the client's thirteen, and their baselines
 
 They are not suites: no server, no database, no `test:*` script. Each is an
 SSR build plus a node run, and each is **kept** rather than thrown away
-after its dispatch. **Twelve** `client/scripts/ssr-*.jsx` files as of
-2026-09-26 (the heading said "four" from the day there were four). All live
+after its dispatch. **Thirteen** `client/scripts/ssr-*.jsx` files as of
+2026-09-30 (`ssr-nav-scroll` joined; twelve on 2026-09-26, and the heading
+said "four" from the day there were four). All live
 in `client/scripts/` because
 `.oxlintrc.json` gives `env.node` only there (§17a).
 
@@ -148,7 +152,7 @@ them before calling either number stale.
 | `ssr-ui-e.jsx` | **23/23** | the teacher's read-only letter view (§20): remarks reachable on an Approved AND a Declined letter, the learner and class named, **the `<dt>` set asserted exactly and in order** rather than by regex (§20f), NULL remarks and NULL details rendering no heading, no Edit, no identifier — and the card's three-way gate rendered through the real `DataTable`, with a negative control proving `canReview` still refuses. **Every fixture is a real `GET /api/excuse-letters` row captured from the running server**, not written from memory (§19f) |
 | `ssr-dates.jsx` | **46/46, and it must be run TWICE** — see below (**48/48 under `NODE_ENV=development`**, where the two DEV-guard assertions replace the one production-silence assertion). Was 25; UI-C1b added the DATE-bearing cards and `calendarDaysAgo` | the date helpers: the 08:00 PH rollover, both day boundaries, a New Year, the DEV guard and its production fallback, a real card rendering a morning timestamp, the three converted DATE cards, and the calendar-day-vs-elapsed-hours boundary at midnight, a month end and a year end |
 | `ssr-ui-c2.jsx` | **39/39** (was 32; UI-C1b added the `{ value, label }` section options. 33 before that — UI-C1a removed the four lines asserting the announcement card still sliced its date; `ssr-dates` owns that claim now, and makes a stronger one) | the one staff audience wording and its `hasSections` split, the Section filter's option logic **and its labels**, and the report card's conditional copy. **It does NOT cover the Remarks hint** — that is behind a click inside a Modal, said in its own header so a green run is not over-read |
-| `ssr-ui-a.jsx` | **38/38** | `GradeValue`'s colour, score pairs, `longDate` at the dashboard spots, the Attendance header. **Its line-51 assertion was INVERTED by UI-D** — it asserted that a caller passing no `className` still got `text-fg`, which was UI-A's whole point; UI-D removed that default once a base colour existed, so the line now asserts that **no** colour is emitted. The four assertions beside it were correct before and after and did not move |
+| `ssr-ui-a.jsx` | **38/38** | `GradeValue`'s colour, score pairs, `longDate` at the dashboard spots, the Attendance header. **Its no-colour assertion (`ssr-ui-a.jsx:58`; it sat at line 51 then) was INVERTED by UI-D** — it asserted that a caller passing no `className` still got `text-fg`, which was UI-A's whole point; UI-D removed that default once a base colour existed, so the line now asserts that **no** colour is emitted. The four assertions beside it were correct before and after and did not move |
 | `ssr-ui-d.jsx` | **86/86** (was 82; pre-Stage-5 #2 (m) added the hero caption — `Term 1 · Benchmarking` from a string `descriptor`, `>Term 1</p>` on null, `Passed` never in the markup, and the server's `{ descriptor, remarks }` object handed through whole **refused** by the render, fixture captured from `test:grades`' complete-term response per §19f) | `ScrollCue`'s arithmetic driven directly — an SSR render has no layout, so `scrollWidth`, `clientWidth` and every cell geometry come back zero and the component renders with none of its logic exercised (§14e) — including **the two slacks asserted as a PAIR** so a later tidy-up cannot merge them: a group cut by 10px on a table 810px over IS named, and the same 10px cut names nothing when the table itself is only 10px over. Plus `ChildHero` for Key Stage 1 and Grade 6, **with a negative control asserting the raw `{descriptor, filipino}` object is refused** — that shape blanked `/parent` while this proof was green at 71/71 (§19f). And the NON-PRINT half of UI-D-1: `GradeValue` emitting no colour, the base colour and every print rule reaching the **built** stylesheet (grepped — a Tailwind variant that generates no CSS fails silently), and the print theme switch restoring light / dark / System including an OS flip mid-print. **It cannot prove the printed layout and says so in its own header** — `@media print` does not apply to an SSR render, so there is no page box, no `@page` and no paper width. **Print is checked on paper** (FRONTEND_CONVENTIONS §18h) |
 | `ssr-dv1b-a.jsx` | **83/83** | the fourteen `renderCard` consumers. **Source-text assertions** — it reads files and regexes them; that is what it is, and §17d is why nothing new should be written this way. Was 87; UI-B dropped the two excuse-letter pages, whose cards are modules now and are covered by `ssr-cards.jsx` |
 | `ssr-dv1b-b.jsx` | **30/30** | the attendance roster's behaviour, driven directly through `attendance/roster.js`. Was 35; UI-B deleted its five source-text letter assertions for the same reason |
@@ -176,7 +180,7 @@ half-proof the block above refuses.
 
 **`NODE_ENV=development` goes on BOTH steps — the build AND the `node` run.**
 The proof picks its branch from `process.env.NODE_ENV` at RUN time
-(`ssr-dates.jsx:110`), so a DEV bundle run without it fires the guard twice
+(`ssr-dates.jsx:111`), so a DEV bundle run without it fires the guard twice
 and then asserts the production branch: **45 passed / 1 failed**, which
 reads like a broken guard and is a broken harness (measured at the
 2026-09-26 smoke gate). `ssr-cards` does not have this trap.
@@ -397,7 +401,10 @@ for one line.
 database. Each is a Node script that drives a pure module and prints a
 count. **There is no render proof on mobile** — React Native does not render
 under Node, so every screen is proved on the phone (docs/MOBILE_CONVENTIONS.md
-M7). Run from `mobile/`:
+M7). Run from `mobile/`. **Paths in the table:** a short path is under
+`mobile/src/screens/` (`attendance/…` and `classRecord/…` under
+`screens/teacher/`); `src/…` is `mobile/src/…` and `format/…` is
+`mobile/src/format/`.
 
 | Proof | Baseline | What it covers |
 |---|---|---|
@@ -421,7 +428,7 @@ a `data:` URL, inside the proof) that appends `.js` to a relative,
 extensionless specifier — Metro resolves `'../format/date'`, Node's ESM
 loader does not. MOBILE_CONVENTIONS M12.
 
-Both run with `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`: the modules
+All fourteen proofs (and `lint:mirrors`) run with `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON`: the modules
 are ESM `.js` in a package with no `"type"` (Metro does not care; the Expo
 config files must stay CommonJS), and Node 24 loads them by syntax
 detection with that one warning.
@@ -443,7 +450,7 @@ build on; the grep with its control is the proof each time.
 
 ### Lint baselines (mobile)
 
-Four figures, one set, run from `mobile/` AFTER the last file is written:
+Five figures, one set, run from `mobile/` AFTER the last file is written:
 
 | Command | Baseline | Note |
 |---|---|---|
