@@ -72,7 +72,7 @@ const EYEBROW = 'Pateros District · Metro Manila · Est. 1961';
 
 function Pill({ children }) {
   return (
-    <span className="inline-flex items-center rounded-full bg-brand-panel-lit px-3 py-1 text-xs font-medium text-brand-panel-fg">
+    <span className="inline-flex items-center rounded-full bg-surface px-3 py-1 text-xs font-medium text-brand-panel-fg">
       {children}
     </span>
   );
