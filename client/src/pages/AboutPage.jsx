@@ -41,8 +41,10 @@ import seal from '../assets/school-seal.png';
 //
 // The seal is the bundled image on its white disc (§9): logo_url is not read.
 // Colours are tokens only; the hero is `brand-panel` with its checked
-// foregrounds, the pills sit on `brand-panel-lit` (the pair the login panel
-// already checks), and every card pair is one DataTable and Settings use.
+// foregrounds, the pills sit on `bg-surface` like the phone chip
+// (feat/ui-palette, 2026-10-01 — `brand-panel-lit` is a contrast probe, never
+// a paint, and on the light panel it vanished; on `surface` the pill text is
+// 17.72 in both themes), and every card pair is one DataTable and Settings use.
 const DEPED_VISION = [
   'We dream of Filipinos who passionately love their country and whose values and competencies enable them to realize their full potential and contribute meaningfully to building the nation.',
   'As a learner-centered public institution, the Department of Education continuously improves itself to better serve its stakeholders.',

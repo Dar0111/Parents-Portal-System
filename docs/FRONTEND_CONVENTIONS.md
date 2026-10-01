@@ -1280,7 +1280,10 @@ lists, scrollbars and radios follow; a dark-only `input:-webkit-autofill`
 rule (inset box-shadow, the only thing Chrome honors) stops autofilled Login
 fields lighting up pale blue. Shadows are kept as they are — cards and
 controls carry a border, the modal and drawer sit on the backdrop — so nothing
-depends on a shadow being visible.
+depends on a shadow being visible. **The slate values above are D2's; since
+`feat/ui-palette` (2026-10-01) the dark neutrals are zinc and the accent blue
+— see the option C paragraph below.** The structure is unchanged: an
+inverting primary, a between-value `surface-subtle`, the same two collapses.
 
 **How the theme is chosen.** Light / Dark / System in Settings →
 Personalization, stored on the device only under `pp.theme` (like text size,
@@ -1304,22 +1307,26 @@ must reach 4.5, icons and UI parts 3.0; a failing pair is allowed only by an
 in-script allow-list whose entries must each carry a marker in
 `docs/KNOWN_ISSUES.md` — a pair can only be waived by writing it down. Add a
 pair to the script when a page puts a token on a background it was not on
-before. **Brand (D3, 2026-09-19, `feat/brand-chrome`).** `primary` IS the
-school's color: the seal's navy `#08027C` in light (hover `#1C15A3`, disabled
-`#B5B3E6`, white text) and a lighter indigo `#ABA8F7` in dark (hover
-`#C4C2FA`, disabled `#4B4890`, slate-950 text) — every primary button, unread
-badge and segmented control took it with no page edit. Three tokens joined
+before. **Brand (D3, 2026-09-19, `feat/brand-chrome`).** `primary` WAS the
+school's color from D3 until `feat/ui-palette` (2026-10-01) replaced it with
+the option C blue (below): the seal's navy `#08027C` in light (hover
+`#1C15A3`, disabled `#B5B3E6`, white text) and a lighter indigo `#ABA8F7` in
+dark (hover `#C4C2FA`, disabled `#4B4890`, slate-950 text) — every primary
+button, unread badge and segmented control took it with no page edit, which
+is also how the blue arrived. Three tokens joined
 (63): `brand` (text and icons in the school color: the seven content links,
 the active nav item and Settings tab), `brand-soft` (the active-nav tint,
 `#ECEBFC` / `#23204F`) and `seal-bg` (white in BOTH themes — the seal's disc
 is artwork, not a surface, and `bg-white` is banned). The seal's green, gold
 and red are never tokens; they would collide with the success, warning and
-danger tones. `focus-accent` stays sky so a focus ring never reads as
-"selected" beside brand links. Which links are brand: the in-content
-link-styled controls (`text-brand … hover:underline`); the "← All …" back
-links stay `fg-muted`, the ErrorAlert retry stays `danger-fg`. Numbers:
-brand on surface 16.03 / 8.22, on `brand-soft` 13.63 / 6.96, button text
-16.03 / 9.29 — all in `lint:contrast`, nothing waived for it. Light-mode AA fixes taken on D2 as named light changes: the table
+danger tones. `focus-accent` stayed sky under D3 so a focus ring never read
+as "selected" beside navy brand links; since `feat/ui-palette` it is the
+accent blue (the sky ring was a waived 2.71 pair). Which links are brand: the
+in-content link-styled controls (`text-brand … hover:underline`); the
+"← All …" back links stay `fg-muted`, the ErrorAlert retry stays
+`danger-fg`. D3's numbers: brand on surface 16.03 / 8.22, on `brand-soft`
+13.63 / 6.96, button text 16.03 / 9.29 — all in `lint:contrast`, nothing
+waived for it (option C's are in the paragraph below). Light-mode AA fixes taken on D2 as named light changes: the table
 header text (`fg-body`, 7.23), placeholders (`fg-muted`, 4.77), the Approve
 buttons (`success-solid` emerald-700, 5.37; hover 800), and the 41 `fg-faint`
 TEXT labels moved to `fg-muted` at their call sites (`fg-faint` is now icons,
@@ -2530,17 +2537,22 @@ contained both. The hint describes the table, so it belongs in the same box.
 
 ### 19e. The parent hero uses `brand-panel`, not `primary`
 
-`--primary` is a **button** fill. Its dark value is `#ABA8F7`, a light indigo,
-which made a full-width panel the brightest thing on a dark screen — against
-the Dark option's own *"easier on the eyes at night"*. **`--brand-panel`
-already existed for exactly this** and the Login split panel already used it:
-a solid brand field in BOTH themes (`#08027C` light, `#23204F` dark) with
-`--brand-panel-fg` white on each, and `--brand-panel-muted` for lower emphasis.
+`--primary` is a **button** fill. Its dark value was `#ABA8F7` then (a light
+indigo; blue-400 `#60A5FA` since `feat/ui-palette`), which made a full-width
+panel the brightest thing on a dark screen — against the Dark option's own
+*"easier on the eyes at night"*. **`--brand-panel` already existed for exactly
+this** and the Login split panel already used it: then a solid navy field in
+BOTH themes (`#08027C` light, `#23204F` dark) with white text. **Since
+`feat/ui-palette` (2026-10-01) it is a plain zinc-100 band `#F4F4F5` with
+zinc-900 text in light and a zinc-800 field `#27272A` with white text in
+dark**, with `--brand-panel-muted` for lower emphasis in both.
 
 Reusing it meant **no new token and no new foreground pair** — both were
 already asserted. Only the badge-on-panel boundaries are new, because the
 hero is the first place a `StatusBadge` sits anywhere but `surface`. **Those
-measure ~1.0 in dark and were ACCEPTED by eye** (Darryl, 2026-09-25): the pill
+measure ~1.0 in dark — and, since `feat/ui-palette`, 1.00–1.06 in light too —
+and were ACCEPTED by eye** (Darryl, 2026-09-25; the light panel re-checked by
+the owner on 2026-10-01): the pill
 keeps its inset ring and reads clearly. `docs/KNOWN_ISSUES.md` carries it as a
 decision, not a defect.
 
