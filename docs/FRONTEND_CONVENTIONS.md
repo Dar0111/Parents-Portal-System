@@ -1363,10 +1363,12 @@ changed for it:
   Excused keep success / warning / danger / info. **The green Approve
   (`success-solid` emerald-700) now sits next to a BLUE primary** — distinct
   hues, both white-text fills.
-- **`brand-panel-lit` is a probe, never a paint.** The phone About chip
-  painted it and vanished on a light panel; it is `bg-surface` now (1.10:1
-  against the light panel, 1.19:1 dark). The web About page's pill still
-  paints it — a known leftover, not yet fixed.
+- **`brand-panel-lit` is a probe, never a paint — no page paints it** (only
+  the dev-only `/dev/ui` token strip shows it, as a swatch). The
+  About pills (the phone chip and, since the fix round of 2026-10-01, the
+  web pill) painted it and vanished on a light panel; both are `bg-surface`
+  now (1.10:1 against the light panel, 1.19:1 dark; their text 17.72 in
+  both themes).
 
 Three waived pairs now pass and their KNOWN ISSUES rows are closed
 (`fg-muted`/`surface-muted` 5.18, `bubble-theirs-meta` 5.18, `focus-accent`
@@ -2945,7 +2947,8 @@ linked below the login card.
   24-character prefix, and prefix keys collided (caught by the smoke, not by
   build or lint — §5h again).
 - **Tokens only, and no new contrast pair**: the hero is `brand-panel` with
-  its two checked foregrounds, the pills sit on `brand-panel-lit`, every card
+  its two checked foregrounds, the pills sit on `bg-surface` (as the phone
+  chip does; `brand-panel-lit` is a contrast probe that no page paints), every card
   pair is one Settings and DataTable already use. The seal is the bundled
   image on its white disc (§9); `logo_url` is read by nothing.
 - **A detail tile must shrink below its longest word (2026-09-26).** The
