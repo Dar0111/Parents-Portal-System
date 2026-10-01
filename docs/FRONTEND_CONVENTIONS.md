@@ -1641,8 +1641,8 @@ router**, and calling it throws *"useBlocker must be used within a data
 router"*. That was caught by the SSR proof before a browser ever saw it.
 
 The guard is a **capture-phase click listener** that intercepts in-app
-navigation while the grid holds unsaved edits. Two things it does NOT cover,
-stated rather than left to be discovered:
+navigation while the grid holds unsaved edits. What it does NOT cover on its
+own, and how each of those paths is covered now:
 
 - **The browser Back button is covered since pre-Stage-5 #5b (2026-09-26)
   by a `pushState` SENTINEL, not a data router.** A history pop is not a

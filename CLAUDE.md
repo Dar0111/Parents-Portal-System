@@ -183,7 +183,7 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, sixteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, seventeen proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
