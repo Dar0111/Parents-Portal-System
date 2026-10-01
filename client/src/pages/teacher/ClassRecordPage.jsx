@@ -18,6 +18,7 @@ import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import useClassRecord, { buildSlotFrame, slotKey, parseCell } from './classRecord/useClassRecord';
 import { INITIAL_GUARD, transition as guardTransition } from './classRecord/backGuard';
+import { setLeaveGuard } from '../../layout/leaveGuard';
 import Cell from './classRecord/Cell';
 import SlotHeader from './classRecord/SlotHeader';
 
@@ -227,14 +228,27 @@ export default function ClassRecordPage() {
   const [status, setStatus] = useState({});
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  // A SUBJECT, CLASS OR TERM CHANGE RELOADS THE RECORD, and the reload clears
+  // every draft (useClassRecord: "a fresh read is a new truth"). With unsaved
+  // scores that was a silent discard (fix/leave-guard, 2026-10-01), so while
+  // dirty it waits on the same leave modal as a link. The select is controlled
+  // by the URL, so until "Leave and discard" it simply keeps showing the old
+  // value.
   function setParam(name, value) {
-    const next = new URLSearchParams(params);
-    next.set(name, value);
-    // Changing the subject invalidates the class: its sections are a
-    // different set. Dropping it lets selectedClass fall back to the first
-    // section of the new subject rather than showing a stale one.
-    if (name === 'subject') next.delete('assignment');
-    setParams(next);
+    const apply = () => {
+      const next = new URLSearchParams(params);
+      next.set(name, value);
+      // Changing the subject invalidates the class: its sections are a
+      // different set. Dropping it lets selectedClass fall back to the first
+      // section of the new subject rather than showing a stale one.
+      if (name === 'subject') next.delete('assignment');
+      setParams(next);
+    };
+    if (record.dirty) {
+      setPendingHref(() => apply);
+      return;
+    }
+    apply();
   }
 
   // ---- the unsaved-changes guard ----
@@ -323,9 +337,20 @@ export default function ClassRecordPage() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // The leave modal's two answers, for both paths (a link or the Back
-  // button). Stay after a Back re-arms the sentinel; Leave after a Back goes
-  // back once more, to the real previous entry. A link leaves as before.
+  // THE EXITS THAT ARE BUTTONS (fix/leave-guard, 2026-10-01): Log out and a
+  // notification row call requestLeave() in layout/leaveGuard.js, which opens
+  // THIS modal while the record is dirty. pendingHref then holds the exit as a
+  // function (set through the updater form, or React would call it), exactly
+  // as a select change does above.
+  useEffect(() => {
+    if (!record.dirty) return undefined;
+    return setLeaveGuard((proceed) => setPendingHref(() => proceed));
+  }, [record.dirty]);
+
+  // The leave modal's two answers, for every path (a link, the Back button, a
+  // select change, or a button exit). Stay after a Back re-arms the sentinel;
+  // Leave after a Back goes back once more, to the real previous entry. A link
+  // leaves as before; a function is the exit itself and runs.
   function dismissLeave() {
     if (pendingHref === 'BACK') {
       const next = guardTransition(guardRef.current, 'stay');
@@ -341,6 +366,8 @@ export default function ClassRecordPage() {
       const next = guardTransition(guardRef.current, 'leave');
       guardRef.current = next.state;
       applyGuardHistory(next.action);
+    } else if (typeof href === 'function') {
+      href();
     } else if (href) {
       navigate(href);
     }
@@ -961,8 +988,8 @@ export default function ClassRecordPage() {
       >
         <div className="space-y-4 text-sm text-fg-body">
           <p>
-            You have unsaved scores in this class record. Leaving now discards them — nothing has been sent to the
-            server yet.
+            You have unsaved scores in this class record. Leaving or changing the subject, class or term now discards
+            them — nothing has been sent to the server yet.
           </p>
           <div className="flex justify-end gap-2">
             <button

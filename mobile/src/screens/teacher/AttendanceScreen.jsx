@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { usePreventRemove } from '@react-navigation/native';
-import { Alert, FlatList, Pressable, Text, View } from 'react-native';
+import { useDrawerStatus } from '@react-navigation/drawer';
+import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
+import { Alert, BackHandler, FlatList, Pressable, Text, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
@@ -13,6 +14,7 @@ import Segmented from '../../components/Segmented';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { markRestPresent, pickStatus, ROW_STATE_LABEL, rosterCounts, rowState, unsavedCount } from './attendance/roster';
 import StatusButtons from './attendance/StatusButtons';
+import { setLeaveGuard } from '../../navigation/leaveGuard';
 
 // TEACHER → ATTENDANCE (encode) — the web's AttendancePage.jsx on the phone,
 // the bespoke card list the web already uses below `sm` (§17c). The ADVISER
@@ -34,7 +36,16 @@ import StatusButtons from './attendance/StatusButtons';
 //      so this screen stays mounted and its marks SURVIVE the trip. The
 //      hook fires only if something ever removes the route; the phone check
 //      proves the marks are still there on return.
-const PROMPT_TITLE = 'Leave without saving attendance?';
+//   3. EVERY OTHER EXIT, while this screen is FOCUSED and has unsaved marks
+//      (fix/leave-guard, 2026-10-01, the owner's decision): a drawer item,
+//      the account card, the bell and Logout ask through
+//      navigation/leaveGuard.js, and the hardware Back button asks here.
+//      Because a drawer screen stays mounted, "Leave and discard" must
+//      really discard: it resets the marks to the last saved state BEFORE
+//      the exit runs, or the word would be a lie (§5i). Logout would lose
+//      them anyway — that is the one exit that took them with no warning.
+// One title on every bulk-entry screen, web and phone (owner decision).
+const PROMPT_TITLE = 'Leave without saving?';
 
 export default function AttendanceScreen({ navigation }) {
   const { user } = useAuth();
@@ -134,6 +145,45 @@ export default function AttendanceScreen({ navigation }) {
       { text: 'Leave and discard', style: 'destructive', onPress: () => navigation.dispatch(data.action) },
     ]);
   });
+
+  // 3. Every other exit, while focused and dirty. The marks go back to what
+  // the database holds (`recorded`) before the exit runs — the screen stays
+  // mounted behind the next one, so without this they would quietly survive.
+  const drawerStatus = useDrawerStatus();
+  useFocusEffect(
+    useCallback(() => {
+      if (unsaved === 0) return undefined;
+      // promptBody('Leaving now'), spelled out so the dependency list below is
+      // complete without listing a function that is new on every render.
+      const body = `You have ${unsaved} unsaved mark${unsaved === 1 ? '' : 's'} for ${className} on ${longDate(date)}. Leaving now discards them — nothing has been sent to the server yet.`;
+      const ask = (proceed) => {
+        Alert.alert(PROMPT_TITLE, body, [
+          { text: 'Stay on this page', style: 'cancel' },
+          {
+            text: 'Leave and discard',
+            style: 'destructive',
+            onPress: () => {
+              setMarks(Object.fromEntries(roster.map((s) => [s.id, recorded.get(s.id) || ''])));
+              proceed();
+            },
+          },
+        ]);
+      };
+      const release = setLeaveGuard(ask);
+      // The hardware Back button: the drawer would jump to its first screen.
+      // An OPEN drawer is left to close itself — Back closing the drawer
+      // leaves nothing behind.
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (drawerStatus === 'open') return false;
+        ask(() => navigation.goBack());
+        return true;
+      });
+      return () => {
+        release();
+        sub.remove();
+      };
+    }, [unsaved, className, date, roster, recorded, drawerStatus, navigation])
+  );
 
   async function handleSubmit() {
     if (!section || saving || entries.length === 0) return;

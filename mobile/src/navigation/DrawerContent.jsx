@@ -19,6 +19,7 @@ import {
   toggleFolded,
   userCardLines,
 } from './drawerFold';
+import { requestLeave } from './leaveGuard';
 import { groupNav } from './navGroups';
 import { isBuilt } from './routes';
 
@@ -148,13 +149,27 @@ export default function DrawerContent({ navigation, state, items }) {
   const activeLabel = activeGroupLabel(sections.groups, activeName);
   const { name, detail } = userCardLines(user);
 
+  // EVERY EXIT HERE ASKS FIRST on a screen with unsaved bulk work
+  // (fix/leave-guard, 2026-10-01): a drawer item, the account card and
+  // Logout all go through requestLeave(), which runs the exit at once when no
+  // screen has registered a dialog (navigation/leaveGuard.js, a mirror).
+  // Tapping the item for the screen you are already on leaves nothing behind
+  // and does not ask.
+  function openItem(item) {
+    if (activeName === item.to) {
+      navigation.navigate(item.to);
+      return;
+    }
+    requestLeave(() => navigation.navigate(item.to));
+  }
+
   const row = (item) => (
     <NavRow
       key={item.to}
       item={item}
       active={activeName === item.to}
       badge={badgeFor(item, role, counts, unread)}
-      onPress={() => navigation.navigate(item.to)}
+      onPress={() => openItem(item)}
       tokens={tokens}
     />
   );
@@ -162,8 +177,10 @@ export default function DrawerContent({ navigation, state, items }) {
   // Close first, so coming Back from Account information lands on the page,
   // not on a drawer still open over it.
   function openAccount() {
-    navigation.closeDrawer();
-    navigation.navigate('AccountInfo');
+    requestLeave(() => {
+      navigation.closeDrawer();
+      navigation.navigate('AccountInfo');
+    });
   }
 
   // THE DRAWER PADS BOTH EDGES ITSELF (re-check finding, 2026-09-27): it is
@@ -246,7 +263,7 @@ export default function DrawerContent({ navigation, state, items }) {
             </View>
           </View>
         </Pressable>
-        <Pressable onPress={logout} accessibilityRole="button" accessibilityLabel="Logout">
+        <Pressable onPress={() => requestLeave(logout)} accessibilityRole="button" accessibilityLabel="Logout">
           <View style={{ width: TARGET, height: TARGET }} className="items-center justify-center">
             <Icon name="fa-right-from-bracket" size={16} color={tokens['fg-body']} />
           </View>

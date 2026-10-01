@@ -530,10 +530,14 @@ it be undone — not by how important it feels. **Check the handler first.**
 | Absorbs a repeat — attendance `POST /bulk` (ON DUPLICATE KEY), student status, settings, memo/announcement edit, contact | no confirmation |
 | Rejects a second attempt or has no undo — excuse review (`403` once reviewed), parent approve/reject, hard DELETE of a post or a manual backup, restore, password change | explicit confirmation **naming the specific decision back** |
 
-A sentence of warning text is not a confirmation step. **The two bulk-submit
-pages guard unsaved work** — Teacher → Grades' class record (§13d) and, since
-2026-09-30, Teacher → Attendance (§17c) — only while something is unsaved;
-never a blanket `beforeunload`.
+A sentence of warning text is not a confirmation step. **The four bulk-entry
+screens guard unsaved work** — web Grades (§13d) and Attendance (§17c), phone
+Attendance and the Grades slot — only while something is unsaved, never a
+blanket `beforeunload`. **Since `fix/leave-guard` (2026-10-01) EVERY
+user-initiated exit asks "Leave without saving?"** (Stay on this page / Leave
+and discard): links, Back, reloading selects, and the BUTTON exits — Log out,
+a bell row, phone drawer items — through `layout/leaveGuard.js` (a mirror).
+Every other form stays unguarded.
 
 ### 5f. Empty-state copy is derived from the filter state, never from a flag
 
@@ -958,6 +962,10 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   dispatch: oxlint, mirrors, tokens, colors. (M7)
 - **Icons are the web's `fa-*` names resolved by `src/icons.js`; an
   unmapped name throws in DEV.** (M8)
+- **Phone Attendance asks on every exit while FOCUSED and dirty** (drawer
+  items, account card, bell, Logout, hardware Back), and because a drawer
+  screen stays mounted, **Leave and discard resets the marks BEFORE the exit
+  runs**. (M14, fix/leave-guard)
 
 ---
 

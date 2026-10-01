@@ -11,6 +11,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { INITIAL_GUARD, transition as guardTransition } from './classRecord/backGuard';
+import { setLeaveGuard } from '../../layout/leaveGuard';
 import { rosterColumns } from './attendance/columns';
 import {
   STATUS_ORDER,
@@ -274,7 +275,7 @@ export default function AttendancePage() {
   // ---- the leave-without-saving prompt (fix/server-reliability, 2026-09-30) ----
   // The phone's prompt, on the web: the same title, the same sentence, the
   // same two buttons (mobile/src/screens/teacher/AttendanceScreen.jsx). This
-  // page is one bulk submit, so unsaved marks are lost by FOUR paths, and each
+  // page is one bulk submit, so unsaved marks are lost by FIVE paths, and each
   // needs its own guard — the pattern Teacher → Grades already proved
   // (ClassRecordPage.jsx, §13d), not a new one:
   //   1. a date or section change reloads the roster and resets the marks;
@@ -285,8 +286,11 @@ export default function AttendancePage() {
   //      reused unchanged (its proof is ssr-back-guard.jsx);
   //   4. a reload or a closed tab — `beforeunload`, and ONLY while there is
   //      something unsaved: a blanket one is what §5e says not to build.
+  //   5. a BUTTON exit — Log out, a notification row (fix/leave-guard,
+  //      2026-10-01): they call requestLeave() in layout/leaveGuard.js, which
+  //      opens this modal while dirty, holding the exit as `run`.
   // `pendingLeave` is one of { kind: 'change', field, value } · { kind:
-  // 'link', href } · { kind: 'back' } · null.
+  // 'link', href } · { kind: 'back' } · { kind: 'exit', run } · null.
   const dirty = unsaved > 0;
   const navigate = useNavigate();
   const [pendingLeave, setPendingLeave] = useState(null);
@@ -349,6 +353,11 @@ export default function AttendancePage() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  useEffect(() => {
+    if (!dirty) return undefined;
+    return setLeaveGuard((run) => setPendingLeave({ kind: 'exit', run }));
+  }, [dirty]);
+
   function dismissLeave() {
     if (pendingLeave?.kind === 'back') {
       const next = guardTransition(guardRef.current, 'stay');
@@ -368,6 +377,8 @@ export default function AttendancePage() {
       applyGuardHistory(next.action);
     } else if (pending.kind === 'link') {
       navigate(pending.href);
+    } else if (pending.kind === 'exit') {
+      pending.run();
     } else if (pending.field === 'section') {
       setSectionId(pending.value);
     } else {
@@ -591,9 +602,10 @@ export default function AttendancePage() {
         </>
       ) : null}
 
-      {/* The phone's words, word for word. Escape or the backdrop counts as
+      {/* The phone's words, word for word, and since fix/leave-guard the one
+          title every bulk-entry screen uses. Escape or the backdrop counts as
           Stay — only the red button discards. */}
-      <Modal open={pendingLeave !== null} onClose={dismissLeave} title="Leave without saving attendance?" size="sm">
+      <Modal open={pendingLeave !== null} onClose={dismissLeave} title="Leave without saving?" size="sm">
         <div className="space-y-4 text-sm text-fg-body">
           <p>
             You have {unsaved} unsaved mark{unsaved === 1 ? '' : 's'} for {classLabel} on {longDate(date)}.{' '}

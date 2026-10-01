@@ -1,6 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { Pressable, Text, View } from 'react-native';
 import Icon from '../icons';
+import { requestLeave } from '../navigation/leaveGuard';
 import { useNotifications } from '../realtime/NotificationProvider';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -9,6 +10,9 @@ import { useTheme } from '../theme/ThemeProvider';
 // count is the server's answer through NotificationProvider (§10) — nothing
 // here computes one — and it is also words for a screen reader, because a
 // bare number beside a bell icon says nothing.
+//
+// OPENING IT IS AN EXIT, so on a screen with unsaved bulk work it asks first
+// (fix/leave-guard, 2026-10-01) through navigation/leaveGuard.js.
 export default function NotificationBell() {
   const navigation = useNavigation();
   const { counts } = useNotifications();
@@ -17,7 +21,7 @@ export default function NotificationBell() {
 
   return (
     <Pressable
-      onPress={() => navigation.navigate('Notifications')}
+      onPress={() => requestLeave(() => navigation.navigate('Notifications'))}
       accessibilityRole="button"
       accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications, none unread'}
       className="mr-2 h-9 w-9 items-center justify-center rounded-lg border border-edge-strong"

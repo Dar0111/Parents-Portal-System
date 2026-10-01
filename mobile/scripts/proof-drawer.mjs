@@ -359,5 +359,34 @@ const buggy = cardWidthStyle(BUGGY_CARD);
 assert(buggy.found && buggy.style.flex === undefined, 'NEGATIVE CONTROL: 6980e06\'s card arrives with no flex — caught');
 assert(styleFunctionTags(BUGGY_CARD).length === 1, 'NEGATIVE CONTROL: 6980e06\'s style function is flagged');
 
+// fix/leave-guard (2026-10-01) — EVERY EXIT IN THE DRAWER ASKS FIRST on a
+// screen with unsaved bulk work. SOURCE TEXT, said plainly: DrawerContent.jsx
+// is read as a file and its wiring checked, because a Pressable cannot be
+// pressed in Node. What the guard itself does is proof-leave-guard.mjs; the
+// press on a real phone is the owner check.
+function exitWiring(src) {
+  return {
+    importsGuard: /import \{ requestLeave \} from '\.\/leaveGuard';/.test(src),
+    items: /onPress=\{\(\) => openItem\(item\)\}/.test(src) && /function openItem\(item\) \{[\s\S]*?requestLeave\(\(\) => navigation\.navigate\(item\.to\)\)/.test(src),
+    account: /function openAccount\(\) \{\s*requestLeave\(/.test(src),
+    logout: /onPress=\{\(\) => requestLeave\(logout\)\}/.test(src),
+    noBareExit: !/onPress=\{logout\}/.test(src) && !/onPress=\{\(\) => navigation\.navigate\(item\.to\)\}/.test(src),
+  };
+}
+const wiring = exitWiring(drawerSrc);
+assert(wiring.importsGuard, 'DrawerContent: imports requestLeave from navigation/leaveGuard (the web mirror)');
+assert(wiring.items, 'DrawerContent: a drawer item goes through openItem → requestLeave');
+assert(wiring.account, 'DrawerContent: the account card goes through requestLeave');
+assert(wiring.logout, 'DrawerContent: Logout goes through requestLeave(logout)');
+assert(wiring.noBareExit, 'DrawerContent: no exit calls logout or navigate directly');
+
+// NEGATIVE CONTROL — the drawer as it was before fix/leave-guard: Logout and
+// the items wired straight to logout / navigate. The checks must go red.
+const UNGUARDED = drawerSrc
+  .replace('onPress={() => requestLeave(logout)}', 'onPress={logout}')
+  .replace('onPress={() => openItem(item)}', 'onPress={() => navigation.navigate(item.to)}');
+const unguarded = exitWiring(UNGUARDED);
+assert(!unguarded.logout && !unguarded.items && !unguarded.noBareExit, 'NEGATIVE CONTROL: the pre-fix wiring (bare logout / navigate) is caught');
+
 console.log(`\nproof-drawer: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

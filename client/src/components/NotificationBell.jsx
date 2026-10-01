@@ -5,6 +5,7 @@ import extractError from '../api/extractError';
 import ErrorAlert from './ErrorAlert';
 import LoadingSpinner from './LoadingSpinner';
 import { useNotifications } from '../realtime/NotificationProvider';
+import { requestLeave } from '../layout/leaveGuard';
 
 // The bell and its dropdown. N2, 2026-09-19.
 //
@@ -129,8 +130,23 @@ export default function NotificationBell({ closeWhen = false }) {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  async function openRow(row) {
+  // A ROW IS A BUTTON THAT NAVIGATES, so on a page with unsaved bulk work it
+  // asks first (fix/leave-guard, 2026-10-01) — before the mark-read, so Stay
+  // changes nothing at all. A row whose link is THIS page leaves nothing
+  // behind and does not ask.
+  function openRow(row) {
     setOpen(false);
+    const target = new URL(row.link, window.location.origin).pathname;
+    if (target === window.location.pathname) {
+      followRow(row);
+      return;
+    }
+    requestLeave(() => {
+      followRow(row);
+    });
+  }
+
+  async function followRow(row) {
     try {
       if (!row.read_at) {
         await api.patch(`/notifications/${row.id}/read`, {}, { unwrap: 'notification' });

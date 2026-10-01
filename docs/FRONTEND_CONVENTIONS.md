@@ -778,7 +778,18 @@ finding in the route file rather than assuming.
 that trains people to ignore warnings.** **Today both bulk pages guard, and
 only while something is unsaved:** Teacher → Grades' class record since CR2
 (§13d) and Teacher → Attendance since fix/server-reliability (§17c), each
-with a dirty-only `beforeunload` — never a blanket one. The rest of this
+with a dirty-only `beforeunload` — never a blanket one. **Since
+`fix/leave-guard` (2026-10-01) ONE RULE covers every user-initiated exit on
+the four bulk-entry screens** (web Grades and Attendance, phone Attendance
+and the phone's Grades slot): a link, Back, a select that reloads, and the
+exits that are BUTTONS — Log out, a notification row, and on the phone every
+drawer item and the account card — all ask **"Leave without saving?"** with
+**Stay on this page / Leave and discard**; the body sentence stays
+page-specific. The buttons ask through `layout/leaveGuard.js` (mirrored to
+the phone): a dirty page registers its dialog, `requestLeave(proceed)` runs
+the exit at once when none is registered. **Every other form stays
+unguarded** — this rule, not a blanket one. Session expiry is not
+user-initiated and gets no prompt of ours. The rest of this
 paragraph is how it read before either existed. Teacher → Grades had no
 unsaved-changes guard then. Every score is its own request (Add score writes
 immediately; exam scores save on their own button), so there is no
@@ -1652,6 +1663,19 @@ stated rather than left to be discovered:
   Back from the next page) — accepted, `docs/KNOWN_ISSUES.md`.
 - A reload or tab close is covered by a dirty-only `beforeunload`
   (`ClassRecordPage.jsx`) — never a blanket one (§5e).
+- **The exits that are BUTTONS are covered since `fix/leave-guard`
+  (2026-10-01).** The interceptor only hears `<a href>`, so Log out on the
+  user card (`Shell.jsx` `handleLogout`) and a notification row
+  (`NotificationBell.jsx` `openRow`) left at once and the drafts went with
+  them (owner check). Both now call `requestLeave()` in
+  `layout/leaveGuard.js`; while dirty the page registers
+  `setLeaveGuard((proceed) => setPendingHref(() => proceed))`, so the SAME
+  modal opens with the exit held as a function (the updater form, or React
+  would call it). **The Subject, Class and Term selects ask too**: a class
+  change reloads the record and `useClassRecord` clears every draft, which
+  was a silent discard. A bell row whose link is this page does not ask.
+  `scripts/ssr-leave-guard.jsx` drives the module; a real click is the
+  owner check.
 
 This is a real §5e exception and it is narrow: Teacher → Grades used to need
 no guard because **every score was its own request**. The grid changed that —
@@ -2164,7 +2188,9 @@ own card list; the table is unchanged above it.**
   the two could disagree on.
 - **Unsaved marks are guarded on every path, with the PHONE's words
   (`fix/server-reliability`, 2026-09-30 — this answers the old OPEN
-  QUESTION).** The Modal "Leave without saving attendance?" says "You have N
+  QUESTION).** The Modal "Leave without saving?" (since `fix/leave-guard`
+  the one title on every bulk screen; it read "Leave without saving
+  attendance?" until then) says "You have N
   unsaved mark(s) for Grade X - Section on <date>. Changing the date or
   section / Leaving now discards them — nothing has been sent to the server
   yet." with **Stay on this page** and **Leave and discard**, exactly as
@@ -2173,7 +2199,10 @@ own card list; the table is unchanged above it.**
   roster reloads), a capture-phase click on an in-app link, the Back button
   through the shared `classRecord/backGuard.js` machine, and `beforeunload`
   **only while something is unsaved** — §5e's "no blanket `beforeunload`"
-  still stands.
+  still stands. **A fifth path since `fix/leave-guard`:** Log out and a
+  notification row ask through `layout/leaveGuard.js`, held as
+  `{ kind: 'exit', run }` on the same modal (§13d says why buttons needed
+  it).
 
 ### 17d. `actions` beside `onSelect` is SILENTLY DROPPED
 

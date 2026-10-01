@@ -583,6 +583,24 @@ about the screen's state; it was not built, because nothing is lost there.
 Accepted by Darryl on 2026-09-28; sign-out and a killed app are a LOW
 `docs/KNOWN_ISSUES.md` row.
 
+**SUPERSEDED IN PART BY `fix/leave-guard` (2026-10-01, the owner's
+decision): every user-initiated exit now asks while the screen is FOCUSED
+and has unsaved marks.** A drawer item, the account card, the bell and
+Logout call `requestLeave()` in `navigation/leaveGuard.js` (the web's
+`layout/leaveGuard.js`, a mirror); the screen registers its Alert through
+`useFocusEffect` + `setLeaveGuard`, and catches the hardware Back button
+with `BackHandler` (an OPEN drawer is left to close itself). The title is
+**"Leave without saving?"** on every bulk screen; the body stays this
+screen's sentence. **Because the screen stays mounted, "Leave and discard"
+resets the marks to the last saved state (`recorded`) BEFORE the exit
+runs** — without that the marks would quietly survive and "discard" would be
+untrue (§5i). **Sign-out now asks**; a killed app and session expiry still
+lose the marks with no prompt — neither is user-initiated. The slot screen
+(M13) needed nothing: a stack screen's only exit is Back, already guarded.
+Proofs: `proof-leave-guard.mjs` (the module, plus the screen's source text:
+focus-only, reset-before-exit, hardware Back) and `proof-drawer.mjs` (every
+drawer exit wired through `requestLeave` — source text).
+
 **THE OTHER SIDE OF "NEVER UNMOUNTED": A READ SCREEN GOES STALE (F1,
 2026-09-28).** The same fact that keeps unsaved marks alive kept Attendance
 records showing its first fetch: a day saved on Attendance afterwards did not

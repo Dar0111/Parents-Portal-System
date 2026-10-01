@@ -52,6 +52,8 @@ export const PAIRS = [
   ['src/navigation/navGroups.js', 'layout/navGroups.js'],
   // feat/profile-photos — one way to build a photo's address.
   ['src/format/photoUrl.js', 'format/photoUrl.js'],
+  // fix/leave-guard — one rule for the exits that are buttons, not links.
+  ['src/navigation/leaveGuard.js', 'layout/leaveGuard.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

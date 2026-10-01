@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
 import RailTooltip from '../components/RailTooltip';
+import { requestLeave } from './leaveGuard';
 import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
 import { revealActive } from './navScroll';
@@ -357,9 +358,15 @@ function ShellChrome() {
   const title =
     customTitle || navTitleForPath(user?.role, location.pathname) || "Parent's Portal";
 
+  // LOG OUT ASKS FIRST on a page with unsaved bulk work (fix/leave-guard,
+  // 2026-10-01). It is a button, so the bulk pages' link listener never heard
+  // it and a teacher's typed scores went with the session. requestLeave runs
+  // the logout at once when no page has registered a dialog.
   function handleLogout() {
-    logout();
-    navigate('/login', { replace: true });
+    requestLeave(() => {
+      logout();
+      navigate('/login', { replace: true });
+    });
   }
 
   // GROUPED (feat/ui-polish, 2026-09-30): Dashboard on top, the role's groups
