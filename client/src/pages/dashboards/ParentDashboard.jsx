@@ -292,13 +292,14 @@ function DateTile({ dateStr }) {
 export function ChildHero({ linked, user, section, grades, letterTerm, monthDays, letter, term }) {
   return (
     // `brand-panel`, NOT `primary` (UI-D-3). `--primary` is designed as a
-    // BUTTON fill, and its dark value is a light navy (`#9FA8DA` since
+    // BUTTON fill, and its dark value is a light blue (`#60A5FA` since
     // feat/ui-palette), which would turn this full-width panel into the
     // brightest thing on a dark screen, directly against the Dark option's
     // own "easier on the eyes at night". `--brand-panel` exists for exactly
     // this and is shared with the Login split panel: since feat/ui-palette
-    // (2026-10-01) a light navy tint with navy text in light (`#E8EAF6` /
-    // `#283593`) and a deep navy field with white text in dark (`#1A1F4A`).
+    // (2026-10-01) a plain zinc band with near-black text in light
+    // (`#F4F4F5` / `#18181B`) and a zinc-800 field with white text in dark
+    // (`#27272A`).
     // Reusing it means no new token and no new contrast pair — both
     // foregrounds are asserted; only the badge-on-panel boundaries are new,
     // and on the light panel those are now about 1.1:1, so each badge's own

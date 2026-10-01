@@ -673,21 +673,20 @@ modal is already correct — do not convert it for uniformity.
 **Frozen 2026-09-19.** Every color a page uses is one of the 71 semantic
 tokens in `client/src/index.css` (`bg-surface`, `text-fg-muted`,
 `border-edge`, `ring-focus-ring`, the `neutral/success/warning/danger/info-*`
-tone sets, the six `bubble-*`, and `primary` = the seal navy `#283593`
+tone sets, the six `bubble-*`, and `primary` = blue-600 `#2563EB`
 plus `brand` / `brand-soft` / `seal-bg`) — never `bg-white`,
-`text-slate-500`, an arbitrary color, or a `dark:` variant. **The seal
-palette (owner's option B, `feat/ui-palette` 2026-10-01) is the ONE palette,
-every screen incl. Login, web and phone**; the status tones are unchanged.
-The seal's green and red are never tokens (they collide with the tones);
-**its gold is a token only as decoration, in `brand-panel-dot`,
-`brand-panel-ring` and `page-dot` (§8 amendment)**. The seal always sits on
-a `bg-seal-bg` disc (§9). `:root` holds the raw values, each line saying
-what it is; `@theme inline` maps them so a
+`text-slate-500`, an arbitrary color, or a `dark:` variant. **One palette,
+every screen incl. Login, web and phone: zinc neutrals + ONE blue accent
+(owner's option C, `feat/ui-palette` 2026-10-01, replacing B before
+merge)**; the status tones are unchanged. The seal's green, gold and red
+are never tokens (they collide with the tones); the seal always sits on a
+`bg-seal-bg` disc (§9). `:root` holds the raw values, each line naming the
+palette color it equals; `@theme inline` maps them so a
 `[data-theme]` block can swap values at runtime. **`npm run lint:tokens`
 (`client/scripts/check-color-tokens.mjs`) must report 0 on every client
-dispatch**, next to oxlint's. `primary`/`bubble-mine` and (light)
-`brand-soft`/`brand-panel` share a value on purpose — do not merge them.
-**`brand-panel-lit` is a contrast probe, never a paint.**
+dispatch**, next to oxlint's. `page`/`surface-subtle`, `brand`/`bubble-mine`
+and (light) `brand-panel`/`surface-muted` share a value on purpose — do not
+merge them. **`brand-panel-lit` is a contrast probe, never a paint.**
 **Dark (2026-09-19):** the same variables under `[data-theme="dark"]` — the
 block is the theme, no page changed for it. Light / Dark / System live in
 Settings → Personalization, stored on the device (`pp.theme`, default Light),

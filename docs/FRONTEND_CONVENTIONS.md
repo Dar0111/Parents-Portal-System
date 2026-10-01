@@ -1220,9 +1220,10 @@ this rule; a theme done with `dark:` would have been 1,029 second guesses
 scattered through pages, each one a place for light and dark to drift. With
 tokens a theme is a second block of values for the SAME variables in one
 file, and a page cannot be half-themed. The two layers in `index.css` matter:
-`:root` holds the raw values (light), each line saying what its value is — a
-Tailwind palette color by name, or, since `feat/ui-palette`, a hand-picked
-value of the seal palette — and `@theme inline` maps the Tailwind names to `var(--…)` —
+`:root` holds the raw values (light), each line naming the Tailwind palette
+color it equals (since `feat/ui-palette`, the v3 hex of zinc and blue; the
+status tones keep v4 oklch) or saying why it is hand-picked — and
+`@theme inline` maps the Tailwind names to `var(--…)` —
 `inline` is what makes `bg-surface` resolve at RUNTIME so a `[data-theme]`
 block can swap the value; a plain `@theme` would bake the light value in.
 
@@ -1236,13 +1237,14 @@ Tailwind palette family across `bg`/`text`/`border`/`ring`/`divide`/
 reported next to oxlint's 42.
 
 **Same-value splits are deliberate.** Since `feat/ui-palette` (2026-10-01):
-`primary` and `bubble-mine` are both the seal navy `#283593` in light (the
-button and the bubble take different values in dark), and `brand-soft` and
-`brand-panel` are both the navy tint `#E8EAF6` in light (the active nav item
-vs. the Login panel and parent hero; dark gives them different depths). Do
+`page` and `surface-subtle` are both zinc-50 `#FAFAFA` in light (the page
+background vs. a band inside a white card); `brand` and `bubble-mine` are
+both blue-700 `#1D4ED8` in light (link text vs. your own message; dark gives
+them different values); and `brand-panel` equals `surface-muted`, zinc-100
+`#F4F4F5`, in light (the Login panel and parent hero vs. a hovered row). Do
 not merge a pair because the light values match. (Until then the pairs were
-`page` / `surface-subtle`, both slate-50, and `primary` / `bubble-mine`;
-`page` and `surface-subtle` now differ.)
+`page` / `surface-subtle`, both slate-50, and `primary` / `bubble-mine`, both
+slate-900; `primary` and `bubble-mine` now differ.)
 
 **How light mode was proven identical after the codemod** — the record for
 the next mechanical change of this size: (1) a token-equality script compared
@@ -1324,43 +1326,51 @@ TEXT labels moved to `fg-muted` at their call sites (`fg-faint` is now icons,
 the spinner, close buttons and `disabled:` states only). The nine waived pairs
 are the KNOWN ISSUES rows marked `[contrast: …]`.
 
-**The seal palette (`feat/ui-palette`, 2026-10-01) — the owner's option B,
-web and phone, Light and Dark, every screen including Login and Forgot
-password.** The owner found the UI too dark; the heavy areas in Light were
-all tokens (the solid navy panel, navy buttons, slate-900 own bubbles,
-near-black text). New values for 39 of the 42 non-status tokens (36 in
-light, 38 in dark; `solid-fg`, `seal-bg` and `brand-panel-glow` are
-unchanged), same 71 names, no page or component changed for it:
-- **Neutrals are navy-tinted**, not slate: light page `#F8F9FC`, surfaces
-  `#FFFFFF` / `#EEF0F7` / `#F6F7FB`, text `#161A3A` → `#9095B0`; dark page
-  `#0A0C1F`, surface `#13162E`, text `#EEF0F7` → `#5F6584`. The dark page is
-  also painted on `<html>` by `index.html` and `theme.js` — keep the three
-  equal by hand.
-- **`primary` / `brand` = the seal navy lightened, `#283593`** (hover
-  `#3949AB`, white text, 10.39), replacing D3's `#08027C` by the owner's
-  decision; dark `#9FA8DA` with `#0A0C1F` text. **`focus-accent` is now the
-  navy too** (`#283593` / `#9FA8DA`), no longer sky — the sky ring was the
-  waived 2.71 pair; the navy is 10.39 / 7.69.
-- **The brand panel is LIGHT in light** — `#E8EAF6` with navy text
-  (`#283593`, 8.68) and `#545A7A` captions (5.62) on Login, the parent hero
-  and the About header; dark keeps a deep navy field `#1A1F4A` with white
-  text. `brand-panel-lit` is recomputed (`#EBEDF7` / `#3A3E63`). A badge on
-  the light panel is ~1.1:1 against it, so its own ring edge separates it.
-- **§8 AMENDMENT — the seal's GOLD is a token in exactly three places, as
-  decoration only:** `brand-panel-dot`, `brand-panel-ring` (the Login rings
-  and the seal halo) and `page-dot`, all `rgb(200 150 20 / α)`. Never text,
-  never a fill, never a status: amber already means "there is something to
-  do" (§12). **The seal's green and red are still never tokens** — they
-  would collide with success and danger.
+**Minimal neutral + one accent (`feat/ui-palette`, 2026-10-01) — the
+owner's option C, web and phone, Light and Dark, every screen including
+Login and Forgot password.** The owner found the UI too dark; the heavy
+areas in Light were all tokens (the solid navy panel, navy buttons,
+slate-900 own bubbles, near-black text). The branch first shipped option B
+(navy-tinted neutrals, the seal navy, gold decoration) and the owner replaced
+it with C before merge. New values for 39 of the 42 non-status tokens
+against `main` (36 in light, 36 in dark; `solid-fg`, `seal-bg` and
+`brand-panel-glow` are unchanged), same 71 names, no page or component
+changed for it:
+- **Neutrals are zinc**, not slate (no blue tint): light page `#FAFAFA`,
+  surfaces `#FFFFFF` / `#F4F4F5` / `#FAFAFA`, text `#18181B` → `#D4D4D8`
+  (`fg-muted` is the hand-picked `#66666E`, because zinc-500 is 4.44 on
+  `surface-muted`); dark page `#09090B`, surface `#18181B`, text `#F4F4F5` →
+  `#71717A`. The dark page is also painted on `<html>` by `index.html` and
+  `theme.js` — keep the three equal by hand.
+- **The ONE accent is blue**: `primary` blue-600 `#2563EB` (hover blue-700,
+  white text 5.17), `brand` (links, the active nav text) blue-700 `#1D4ED8`
+  (6.70 on white), `brand-soft` `#EFF4FF`; dark `primary` / `brand` blue-400
+  `#60A5FA` with `#09090B` text. This replaces D3's school navy `#08027C` as
+  `primary` by the owner's decision. **`focus-accent` is the accent too**
+  (`#2563EB` / `#60A5FA`), no longer sky — the sky ring was the waived 2.71
+  pair; blue is 5.17 / 6.97.
+- **The brand panel is LIGHT in light** — a plain zinc-100 band `#F4F4F5`
+  with zinc-900 text (16.12) and zinc-600 captions (7.03) on Login, the parent
+  hero and the About header; dark is a zinc-800 field `#27272A` with white
+  text (14.89). `brand-panel-lit` is recomputed (`#F6F6F6` / `#454548`). In
+  light the panel's dots and rings are zinc-900 at low alpha (a white wash
+  would vanish on it); in dark they stay white. A badge on the light panel
+  is 1.00–1.06:1 against it, so its own ring edge is what separates it.
+- **No gold, no navy, no green or red as tokens.** The seal's colours appear
+  only in the seal itself; they would collide with the tones. (Option B's
+  gold-as-decoration amendment was withdrawn with B.)
 - **The four status tones are unchanged**, and Present / Late / Absent /
-  Excused keep success / warning / danger / info.
+  Excused keep success / warning / danger / info. **The green Approve
+  (`success-solid` emerald-700) now sits next to a BLUE primary** — distinct
+  hues, both white-text fills.
 - **`brand-panel-lit` is a probe, never a paint.** The phone About chip
-  painted it and vanished on the light panel; it is `bg-surface` now. The
-  web About page's pill still paints it — a known leftover, not yet fixed.
+  painted it and vanished on a light panel; it is `bg-surface` now (1.10:1
+  against the light panel, 1.19:1 dark). The web About page's pill still
+  paints it — a known leftover, not yet fixed.
 
 Three waived pairs now pass and their KNOWN ISSUES rows are closed
-(`fg-muted`/`surface-muted` 5.01, `bubble-theirs-meta` 5.01, `focus-accent`
-10.39); `lint:contrast` is 0 unwaived, 75 pairs × 2 themes.
+(`fg-muted`/`surface-muted` 5.18, `bubble-theirs-meta` 5.18, `focus-accent`
+5.17); `lint:contrast` is 0 unwaived, 75 pairs × 2 themes.
 
 ### 9. Shell chrome is sticky, and the seal is always on its white disc
 
@@ -1434,11 +1444,12 @@ alpha) appears at the top of the sidebar and the drawer (40 px) beside
 (96 px). It always sits on a `bg-seal-bg` disc with `rounded-full` on the
 image: the JPG's white field and the seal's blue ring need the white disc on
 a dark surface, and the disc is white in both themes on purpose. **On the
-light brand panel (since `feat/ui-palette`, 2026-10-01) the white disc is
-only 1.20:1 against the panel**, so there the edge is carried by the seal's
-own blue outer ring and, on Login (web and phone), the gold halo
-(`brand-panel-ring`); the About header (web and phone) has no halo and
-relies on the seal's ring alone — an eye check, not a lint pair. Alt text is
+light brand panel (since `feat/ui-palette`, 2026-10-01: zinc-100 `#F4F4F5`)
+the white disc is only 1.10:1 against the panel**, so there the edge is
+carried by the seal's own blue outer ring and, on Login (web and phone), the
+faint zinc halo (`brand-panel-ring`, zinc-900 at 10%); the About header (web
+and phone) has no halo and relies on the seal's ring alone — an eye check,
+not a lint pair. On the dark panel (`#27272A`) the disc is 14.89:1. Alt text is
 "Captain H. Francisco Elementary School seal" everywhere. The favicon set
 (`public/favicon.ico` with 16/32/48 PNG entries, `favicon-32.png`,
 `apple-touch-icon.png`) is generated from the same JPG on a white disc, by a

@@ -41,11 +41,12 @@ const EYEBROW = 'Pateros District · Metro Manila · Est. 1961';
 
 // THE PILL IS `bg-surface`, NOT `bg-brand-panel-lit` (feat/ui-palette,
 // 2026-10-01). brand-panel-lit is the contrast PROBE (the panel with its glow
-// composited), not a paint; on the light panel it is 1.03:1 against the
-// panel, so the chip vanished. `surface` is a paint token, reads as a chip in
-// both themes (white on the light navy tint, a darker navy on the dark panel)
-// and keeps brand-panel-fg legible on it: in light that is the brand navy on
-// white (10.39, the checked brand/surface pair), in dark white on #13162E.
+// composited), not a paint; on a light panel it is within 1.03:1 of the
+// panel, so the chip vanished. `surface` is a paint token and reads as a chip
+// in both themes: white on the zinc-100 panel (1.10:1, the same step as a
+// received message bubble on a card) and zinc-900 on the zinc-800 dark panel (1.19:1).
+// brand-panel-fg stays legible on it: zinc-900 on white in light (17.72, the
+// checked fg/surface value), white on #18181B in dark (about 17.7).
 function Pill({ children }) {
   return (
     <View className="rounded-full bg-surface px-3 py-1">

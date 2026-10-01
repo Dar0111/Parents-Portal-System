@@ -25,7 +25,7 @@ export const THEMES = ['light', 'dark', 'system'];
 const DEFAULT_THEME = 'light'; // a fresh device is Light (Darryl, 2026-09-19) — not System
 
 // Duplicated in index.html's inline script — keep in step by hand.
-const DARK_HTML_BACKGROUND = '#0A0C1F'; // the dark page (index.css), as in index.html
+const DARK_HTML_BACKGROUND = '#09090B'; // the dark page (index.css), as in index.html
 
 export const THEME_OPTIONS = [
   { value: 'light', label: 'Light', description: 'The default.' },

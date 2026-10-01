@@ -11,99 +11,99 @@
    an edit to fifty pages.
 
    Two layers, on purpose:
-     :root            the raw values (light). Each line says what the value
-                      is: a Tailwind palette color by name, or a hand-picked
-                      value of the seal palette (feat/ui-palette, 2026-10-01).
+     :root            the raw values (light). Each line names the Tailwind
+                      palette color it equals (zinc for the neutrals, blue
+                      for the one accent — the v3 HEX values, not v4's
+                      oklch), or says why it is hand-picked; the status
+                      tones keep their v4 oklch values.
      @theme inline    the Tailwind names, each `var(--…)`. `inline` is what
                       makes `bg-surface` compile to `var(--color-surface)` and
                       resolve at RUNTIME, so a `[data-theme]` block can swap
                       the value; a plain @theme would bake the light value in.
 
-   THE SEAL PALETTE (feat/ui-palette, 2026-10-01, the owner's option B). Every
-   neutral is a navy-tinted grey, the brand is the seal's navy lightened from
-   #08027C to #283593, and the seal's GOLD appears in exactly three
-   decorative alpha tokens (brand-panel-dot, brand-panel-ring, page-dot) —
-   never as text, a fill or a status (§8 amendment). The seal's green and red
-   are still never tokens: they would collide with success and danger. The
+   MINIMAL NEUTRAL + ONE ACCENT (feat/ui-palette, 2026-10-01, the owner's
+   option C). Every neutral is zinc (no blue tint), and the ONE accent is
+   blue: blue-600 for the primary button, blue-700 for links and the active
+   nav text. There is no gold and no navy field any more; the seal's green,
+   gold and red are never tokens (they would collide with the tones). The
    status tones below are unchanged.
 
-   Same-value splits are deliberate, not duplicates: `primary` and
-   `bubble-mine` are the same navy, and in light `brand-soft` and
-   `brand-panel` are the same navy tint (the active nav item vs. the Login
-   panel), so each pair can be moved apart later without touching a page.
+   Same-value splits are deliberate, not duplicates: `page` and
+   `surface-subtle` are both zinc-50 in light (the page vs. a band in a white
+   card), `brand` and `bubble-mine` are both blue-700, and in light
+   `brand-panel` equals `surface-muted` (zinc-100) — so each pair can be moved
+   apart later without touching a page.
    ----------------------------------------------------------------------------- */
 
 :root {
-  /* surfaces — navy-tinted near-whites (seal palette) */
-  --page: #F8F9FC;                                /* seal palette — page background */
+  /* surfaces — zinc */
+  --page: #FAFAFA;                                /* zinc-50 */
   --surface: #fff;                                /* white */
-  --surface-muted: #EEF0F7;                       /* seal palette — hovered row, active settings tab */
-  --surface-subtle: #F6F7FB;                      /* seal palette — sidebar, table header band */
-  --backdrop: color-mix(in oklab, #161A3A 40%, transparent); /* the light fg at 40% */
+  --surface-muted: #F4F4F5;                       /* zinc-100 */
+  --surface-subtle: #FAFAFA;                      /* zinc-50 */
+  --backdrop: color-mix(in oklab, #18181B 40%, transparent); /* zinc-900/40 */
 
   /* edges */
-  --edge: #E1E4EF;                                /* seal palette */
-  --edge-soft: #EEF0F7;                           /* seal palette — same as surface-muted */
-  --edge-strong: #C5CAE0;                         /* seal palette */
-  --focus-edge: #8E95C2;                          /* seal palette */
-  --focus-ring: #E1E4EF;                          /* seal palette — same as edge */
-  --focus-accent: #283593;                        /* the seal navy — was sky-500 (2.71, waived); now 10.39 */
+  --edge: #E4E4E7;                                /* zinc-200 */
+  --edge-soft: #F4F4F5;                           /* zinc-100 */
+  --edge-strong: #D4D4D8;                         /* zinc-300 */
+  --focus-edge: #A1A1AA;                          /* zinc-400 */
+  --focus-ring: #E4E4E7;                          /* zinc-200 */
+  --focus-accent: #2563EB;                        /* blue-600, the accent — was sky-500 (2.71, waived); now 5.17 */
 
-  /* text — navy-tinted greys */
-  --fg: #161A3A;                                  /* seal palette — near-black navy */
-  --fg-secondary: #2E3452;                        /* seal palette */
-  --fg-body: #454B69;                             /* seal palette */
-  --fg-muted: #5F6584;                            /* seal palette — 5.01 on surface-muted (was 4.35, waived) */
-  --fg-faint: #9095B0;                            /* seal palette */
-  --fg-ghost: #C9CCDD;                            /* seal palette */
+  /* text — zinc */
+  --fg: #18181B;                                  /* zinc-900 */
+  --fg-secondary: #3F3F46;                        /* zinc-700 */
+  --fg-body: #52525B;                             /* zinc-600 */
+  --fg-muted: #66666E;                            /* hand-picked, between zinc-500 and 600: zinc-500 is 4.44 on surface-muted */
+  --fg-faint: #A1A1AA;                            /* zinc-400 */
+  --fg-ghost: #D4D4D8;                            /* zinc-300 */
 
-  /* primary action — the seal's navy, lightened (feat/ui-palette, 2026-10-01;
-     was #08027C since D3 2026-09-19) */
-  --primary: #283593;                             /* seal navy */
-  --primary-hover: #3949AB;                       /* seal navy, lighter */
+  /* primary action — the one accent (feat/ui-palette, 2026-10-01; the school
+     navy #08027C from D3 2026-09-19 until then) */
+  --primary: #2563EB;                             /* blue-600 */
+  --primary-hover: #1D4ED8;                       /* blue-700 */
   --primary-fg: #fff;                             /* white */
-  --primary-disabled: #BFC4E4;                    /* seal navy tint */
+  --primary-disabled: #BFDBFE;                    /* blue-200 */
   --solid-fg: #fff;                               /* white — text on a danger/success solid button */
 
-  /* brand — text and icons in the school color, the active-nav tint, the seal's disc */
-  --brand: #283593;                               /* seal navy (same value as primary, different role) */
-  --brand-soft: #E8EAF6;                          /* seal navy tint — active nav item background */
+  /* brand — links and the active nav text, the active-nav tint, the seal's disc */
+  --brand: #1D4ED8;                               /* blue-700 — one step darker than primary, for text */
+  --brand-soft: #EFF4FF;                          /* hand-picked blue tint, close to blue-50 — active nav item background */
   --seal-bg: #fff;                                /* white in BOTH themes: the seal's disc is artwork, not a surface */
 
   /* brand panel — the Login split panel, the parent dashboard hero and the
      About header. Its own tokens rather than primary or brand-soft, because
      the two themes want different things from it: since feat/ui-palette the
-     LIGHT panel is a light navy tint with navy text (the owner found the solid
-     navy slab too dark), which happens to equal brand-soft's value, while the
-     DARK panel is a deep navy field with white text. A panel sharing either
-     token could not do both. */
-  --brand-panel: #E8EAF6;                         /* seal navy tint — same value as brand-soft, different role */
-  --brand-panel-fg: #283593;                      /* seal navy — 8.68 on the light panel; white on the dark */
-  --brand-panel-muted: #545A7A;                   /* seal palette — the district and Est. lines; 5.62 */
+     LIGHT panel is a plain zinc band with near-black text (the owner found
+     the solid navy slab too dark), which happens to equal surface-muted's
+     value, while the DARK panel is a zinc-800 field with white text. */
+  --brand-panel: #F4F4F5;                         /* zinc-100 — same value as surface-muted, different role */
+  --brand-panel-fg: #18181B;                      /* zinc-900 on the light panel; white on the dark */
+  --brand-panel-muted: #52525B;                   /* zinc-600 — the district and Est. lines */
   /* Decoration on the panel. Alpha values, so they sit on the panel in
      either theme without a second set. They are NEVER text or a meaningful
      UI part — check-contrast cannot read rgba() and does not need to; what
-     it checks instead is brand-panel-lit below. The dots and the rings are
-     the seal's GOLD, rgb(200 150 20) — the one place gold is a token, and
-     only as decoration (§8 amendment, 2026-10-01). */
+     it checks instead is brand-panel-lit below. In light they are zinc-900
+     at low alpha (a white wash would vanish on a light panel). */
   --brand-panel-glow: rgb(255 255 255 / 0.14);    /* the radial wash from the top-left corner */
-  --brand-panel-dot: rgb(200 150 20 / 0.16);      /* seal gold — the dot pattern over the panel */
-  --brand-panel-ring: rgb(200 150 20 / 0.28);     /* seal gold — the corner rings and the seal halo */
+  --brand-panel-dot: rgb(24 24 27 / 0.06);        /* zinc-900 — the dot pattern over the panel */
+  --brand-panel-ring: rgb(24 24 27 / 0.10);       /* zinc-900 — the corner rings and the seal halo */
   /* THE CONTRAST PROBE, not a paint. The glow lightens the panel, so the
      honest background for the panel text is not the flat panel but the panel
      WITH the glow at its strongest point. This is that composite, computed
      once (white at 0.14 over the panel) and pinned here so lint:contrast can
-     actually check the worst case: #E8EAF6 -> #EBEDF7, #1A1F4A -> #3A3E63.
+     actually check the worst case: #F4F4F5 -> #F6F6F6, #27272A -> #454548.
      If the glow alpha or the panel changes, recompute this in the same edit. */
-  --brand-panel-lit: #EBEDF7;
-  /* The dot grid behind the Login card, on the page. Seal gold in both themes. */
-  --page-dot: rgb(200 150 20 / 0.10);
+  --brand-panel-lit: #F6F6F6;
+  /* The dot grid behind the Login card, on the page. Dark in light, light in dark. */
+  --page-dot: rgb(24 24 27 / 0.05);
 
-  /* tones — neutral follows the seal palette's greys; the four status tones
-     (success, warning, danger, info) are unchanged by feat/ui-palette */
-  --neutral-soft: #EEF0F7;                        /* seal palette */
-  --neutral-edge: #E1E4EF;                        /* seal palette */
-  --neutral-fg: #2E3452;                          /* seal palette */
+  /* tones — neutral follows the zinc greys; the four status tones (success,
+     warning, danger, info) are unchanged by feat/ui-palette */
+  --neutral-soft: #F4F4F5;                        /* zinc-100 */
+  --neutral-edge: #E4E4E7;                        /* zinc-200 */
+  --neutral-fg: #3F3F46;                          /* zinc-700 */
 
   --success-soft: oklch(97.9% 0.021 166.113);     /* emerald-50 */
   --success-edge: oklch(90.5% 0.093 164.15);      /* emerald-200 */
@@ -138,13 +138,13 @@
   --info-fg: oklch(50% 0.134 242.749);            /* sky-700 */
   --info-strong: oklch(39.1% 0.09 240.876);       /* sky-900 */
 
-  /* message bubbles — your own in the seal navy (was slate-900) */
-  --bubble-mine: #283593;                         /* seal navy — same value as primary */
+  /* message bubbles — your own in the accent (was slate-900) */
+  --bubble-mine: #1D4ED8;                         /* blue-700 — same value as brand */
   --bubble-mine-fg: #fff;                         /* white */
-  --bubble-mine-meta: #C5CAE9;                    /* seal navy tint */
-  --bubble-theirs: #EEF0F7;                       /* seal palette — same as surface-muted */
-  --bubble-theirs-fg: #161A3A;                    /* seal palette — same as fg */
-  --bubble-theirs-meta: #5F6584;                  /* seal palette — 5.01 (was 4.35, waived) */
+  --bubble-mine-meta: #DBEAFE;                    /* blue-100 */
+  --bubble-theirs: #F4F4F5;                       /* zinc-100 — same as surface-muted */
+  --bubble-theirs-fg: #18181B;                    /* zinc-900 — same as fg */
+  --bubble-theirs-meta: #66666E;                  /* same as fg-muted (was slate-500, 4.35, waived) */
 }
 
 @theme inline {
@@ -232,14 +232,15 @@
    set by data-theme="dark" on <html> (pages/settings/theme.js and the inline
    script in index.html). Any element with data-theme="dark" re-scopes its
    subtree — /dev/ui uses that for a side-by-side strip. Since feat/ui-palette
-   (2026-10-01) the neutrals are the seal palette's deep navies instead of
-   slate, and surface-subtle still sits between surface and surface-muted so
-   a table band and a hovered row stay distinguishable (amendment A1). The
-   page value is also painted on <html> by index.html and theme.js — keep the
-   three in step by hand. Contrast of every occurring pair:
-   scripts/check-contrast.mjs (`npm run lint:contrast`). Two dark-only
-   collapses, accepted: fg-faint = fg-muted (because fg-faint is used as
-   text), and fg-ghost = the light fg-muted value (icons need 3.0; 3.11).
+   (2026-10-01) the neutrals are zinc instead of slate and the accent is
+   blue; the one non-palette value is surface-subtle (between zinc-900 and
+   zinc-800, so a table band and a hovered row stay distinguishable from
+   surface-muted — amendment A1). The page value is also painted on <html>
+   by index.html and theme.js — keep the three in step by hand. Contrast of
+   every occurring pair: scripts/check-contrast.mjs (`npm run lint:contrast`).
+   Two dark-only collapses, accepted: fg-faint = fg-muted = zinc-400
+   (because fg-faint is used as text), and fg-ghost = zinc-500 (icons need
+   3.0).
    ----------------------------------------------------------------------------- */
 
 :root {
@@ -249,60 +250,61 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* surfaces — the seal palette's deep navies (were slate-950/900/800) */
-  --page: #0A0C1F;                                /* seal palette — also on <html>, see above */
-  --surface: #13162E;                             /* seal palette */
-  --surface-muted: #1F2340;                       /* seal palette */
-  --surface-subtle: #191C37;                      /* between surface and surface-muted (A1) */
-  --backdrop: color-mix(in oklab, #0A0C1F 60%, transparent); /* the dark page at 60% */
+  /* surfaces — zinc (were slate-950/900/800) */
+  --page: #09090B;                                /* zinc-950 — also on <html>, see above */
+  --surface: #18181B;                             /* zinc-900 */
+  --surface-muted: #27272A;                       /* zinc-800 */
+  --surface-subtle: #1F1F22;                      /* between zinc-900 and zinc-800 (A1) */
+  --backdrop: color-mix(in oklab, #09090B 60%, transparent); /* zinc-950/60 */
 
   /* edges */
-  --edge: #1F2340;                                /* seal palette — same as surface-muted */
-  --edge-soft: #1F2340;                           /* seal palette */
-  --edge-strong: #343A5C;                         /* seal palette */
-  --focus-edge: #5F6584;                          /* seal palette */
-  --focus-ring: #343A5C;                          /* seal palette */
-  --focus-accent: #9FA8DA;                        /* seal navy, light — was sky-400 */
+  --edge: #27272A;                                /* zinc-800 */
+  --edge-soft: #27272A;                           /* zinc-800 */
+  --edge-strong: #3F3F46;                         /* zinc-700 */
+  --focus-edge: #71717A;                          /* zinc-500 */
+  --focus-ring: #3F3F46;                          /* zinc-700 */
+  --focus-accent: #60A5FA;                        /* blue-400, the accent — was sky-400 */
 
   /* text */
-  --fg: #EEF0F7;                                  /* seal palette */
-  --fg-secondary: #DDE0EE;                        /* seal palette */
-  --fg-body: #C5C9DE;                             /* seal palette */
-  --fg-muted: #9095B0;                            /* seal palette */
-  --fg-faint: #9095B0;                            /* collapses with fg-muted in dark */
-  --fg-ghost: #5F6584;                            /* seal palette — 3.11 on surface */
+  --fg: #F4F4F5;                                  /* zinc-100 */
+  --fg-secondary: #E4E4E7;                        /* zinc-200 */
+  --fg-body: #D4D4D8;                             /* zinc-300 */
+  --fg-muted: #A1A1AA;                            /* zinc-400 */
+  --fg-faint: #A1A1AA;                            /* zinc-400 — collapses with fg-muted in dark */
+  --fg-ghost: #71717A;                            /* zinc-500 */
 
-  /* primary action — the seal navy lightened for dark: a light navy fill
-     with near-black text, so the button still reads as the brand */
-  --primary: #9FA8DA;                             /* seal navy, dark theme */
-  --primary-hover: #C5CAE9;                       /* seal navy, dark theme, lighter */
-  --primary-fg: #0A0C1F;                          /* same as the dark page */
-  --primary-disabled: #3A4170;                    /* seal navy, dark theme, dimmed */
+  /* primary action — the accent lightened for dark: a light blue fill with
+     near-black text */
+  --primary: #60A5FA;                             /* blue-400 */
+  --primary-hover: #93C5FD;                       /* blue-300 */
+  --primary-fg: #09090B;                          /* zinc-950 */
+  --primary-disabled: #1E3A8A;                    /* blue-900 */
   --solid-fg: #fff;                               /* white */
 
   /* brand */
-  --brand: #9FA8DA;                               /* seal navy, dark theme */
-  --brand-soft: #252A52;                          /* seal navy tint on the dark sidebar */
+  --brand: #60A5FA;                               /* blue-400 */
+  --brand-soft: #172554;                          /* blue-950 — the active-nav tint on the dark sidebar */
   --seal-bg: #fff;                                /* white in BOTH themes — the seal's disc */
 
   /* brand panel — see the light block for why this is its own pair. In dark
-     it stays a deep navy field with white text. */
-  --brand-panel: #1A1F4A;                         /* seal navy, deep */
+     it is a zinc-800 field with white text. */
+  --brand-panel: #27272A;                         /* zinc-800 */
   --brand-panel-fg: #fff;
-  --brand-panel-muted: #C5CAE9;                   /* seal navy tint */
-  /* The glow is white and the dots and rings are seal gold, as in light.
-     Repeated here rather than inherited so the dark block stays a complete
-     theme, which is how every other token in this file is written. */
+  --brand-panel-muted: #D4D4D8;                   /* zinc-300 */
+  /* The three decoration alphas are white in dark — the dark panel is a dark
+     field, so a white wash reads on it. Repeated here rather than inherited
+     so the dark block stays a complete theme, which is how every other token
+     in this file is written. */
   --brand-panel-glow: rgb(255 255 255 / 0.14);
-  --brand-panel-dot: rgb(200 150 20 / 0.16);
-  --brand-panel-ring: rgb(200 150 20 / 0.28);
-  --brand-panel-lit: #3A3E63;    /* the same composite over the dark panel */
-  --page-dot: rgb(200 150 20 / 0.08);
+  --brand-panel-dot: rgb(255 255 255 / 0.07);
+  --brand-panel-ring: rgb(255 255 255 / 0.10);
+  --brand-panel-lit: #454548;    /* the same composite over the dark panel */
+  --page-dot: rgb(255 255 255 / 0.05);
 
-  /* tones — neutral follows the seal palette; the status tones are unchanged */
-  --neutral-soft: #1F2340;                        /* seal palette */
-  --neutral-edge: #343A5C;                        /* seal palette */
-  --neutral-fg: #DDE0EE;                          /* seal palette */
+  /* tones — neutral follows zinc; the status tones are unchanged */
+  --neutral-soft: #27272A;                        /* zinc-800 */
+  --neutral-edge: #3F3F46;                        /* zinc-700 */
+  --neutral-fg: #E4E4E7;                          /* zinc-200 */
 
   --success-soft: oklch(26.2% 0.051 172.552);     /* emerald-950 */
   --success-edge: oklch(43.2% 0.095 166.913);     /* emerald-800 */
@@ -326,9 +328,9 @@
      cannot regress, and they were re-measured anyway.
 
      Measured against the five pairs check-contrast.mjs asserts, re-measured
-     on feat/ui-palette's dark surface #13162E (it was #0F172B at DV4):
-     fg/soft 14.17:1, strong/soft 12.67:1, strong/surface 14.27:1,
-     strong/soft-hover 10.47:1, icon/surface 10.35:1. Text needs 4.5, UI 3.0.
+     on feat/ui-palette's dark surface #18181B, zinc-900 (it was #0F172B at
+     DV4): fg/soft 14.17:1, strong/soft 12.67:1, strong/surface 14.23:1,
+     strong/soft-hover 10.47:1, icon/surface 10.32:1. Text needs 4.5, UI 3.0.
 
      warning-edge is NOT one of the asserted pairs — a card's edge is
      decorative, not a control boundary — and at #854D0E on #2A2208 it is
@@ -358,13 +360,13 @@
   --info-fg: oklch(82.8% 0.111 230.318);          /* sky-300 */
   --info-strong: oklch(90.1% 0.058 230.902);      /* sky-200 */
 
-  /* message bubbles — own bubble in the seal navy, theirs one step up from the card */
-  --bubble-mine: #303F9F;                         /* seal navy, mid */
-  --bubble-mine-fg: #EEF0F7;                      /* same as fg */
-  --bubble-mine-meta: #C5CAE9;                    /* seal navy tint */
-  --bubble-theirs: #1F2340;                       /* same as surface-muted */
-  --bubble-theirs-fg: #EEF0F7;                    /* same as fg */
-  --bubble-theirs-meta: #9FA3C0;                  /* seal palette */
+  /* message bubbles — own bubble in the accent, theirs one step up from the card */
+  --bubble-mine: #1E40AF;                         /* blue-800 */
+  --bubble-mine-fg: #F4F4F5;                      /* zinc-100 */
+  --bubble-mine-meta: #BFDBFE;                    /* blue-200 */
+  --bubble-theirs: #27272A;                       /* zinc-800 */
+  --bubble-theirs-fg: #F4F4F5;                    /* zinc-100 */
+  --bubble-theirs-meta: #A1A1AA;                  /* zinc-400 */
 }
 
 /* Chrome paints an autofilled field pale blue with near-black text whatever
