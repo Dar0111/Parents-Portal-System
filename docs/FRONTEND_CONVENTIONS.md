@@ -3127,8 +3127,12 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   hovered or focused**.
 - **A short tone on a toast SHOW or UPDATE — never on a skip, never twice**
   (fix round, 2026-10-02; the owner reversed "no sound"). One definition for
-  both platforms, `TONE` in the mirrored `messageToast.js`: **880 Hz sine,
-  150 ms, 10 ms fade in / out, gain 0.3**. The web generates it with the Web
+  both platforms, `TONE` in the mirrored `messageToast.js`: **"two-tone down"
+  — two sine voices, summed: 1047 Hz from 0 ms for 150 ms and 784 Hz from
+  100 ms for 300 ms, peak 0.22 each, 400 ms in all; per voice a LINEAR rise
+  from 0.0001 to the peak over 3 ms, then an EXPONENTIAL decay to 0.0001 at
+  its end, the oscillator stopped 20 ms later** (it replaced a flat 880 Hz
+  beep the owner rejected, same day). The web generates it with the Web
   Audio API (`realtime/messageTone.js`): no file, no install, no URL, **ONE
   `AudioContext` created lazily and reused**, `resume()` before each tone, and
   silent — never a throw — if the browser refuses (autoplay policy, no Web
@@ -3171,12 +3175,14 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   no default export — the production build failed on exactly that, and
   `ssr-ui-d` (which reads the built stylesheet) dropped with it. A new pair of
   names differing only by case needs the same care.
-- **Proved by** `ssr-message-toast` (38; negative controls with Edit: the
+- **Proved by** `ssr-message-toast` (39; negative controls with Edit: the
   body put into the label → 19/24 and the own-message skip removed → 23/24
-  at 24 checks; a new `AudioContext` on every tone → 37/38) — the words, the
-  row lookup, both "in that conversation" readings, every skip, the server's
-  count, the replacement, no body anywhere, the rendered toast, the tone on
-  show / update / replace only, ONE context, a refused or missing Web Audio
+  at 24 checks; a new `AudioContext` on every tone → 37/38 at 38; voice 2
+  set to 880 Hz in the client `TONE` → 37/39, and `lint:mirrors` red) — the
+  words, the row lookup, both "in that conversation" readings, every skip,
+  the server's count, the replacement, no body anywhere, the rendered toast,
+  the tone on show / update / replace only, both voices' frequencies, ramps
+  and start / stop times, ONE context, a refused or missing Web Audio
   never throwing, and the store after × and expiry; and by
   `ssr-enter-to-send` (15; negative control: the composition check removed
   → 12/15). The socket, the timer, the pausing, the sound itself, a real key

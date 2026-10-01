@@ -117,8 +117,20 @@ assert(
   wav && wav.toString('ascii', 0, 4) === 'RIFF' && wav.toString('ascii', 8, 12) === 'WAVE' && wav.readUInt16LE(20) === 1 && wav.readUInt16LE(22) === 1 && wav.readUInt16LE(34) === 16 && wav.readUInt32LE(24) === SAMPLE_RATE,
   'a PCM WAV: mono, 16-bit, 22 050 Hz'
 );
-assert(wav && wav.length === 6660 && wav.readUInt32LE(40) === 6616, '6 660 bytes: 44 + 2 × 3 308 samples (150 ms at 22 050 Hz)');
-assert(wav && Buffer.compare(wav, buildToneWav(TONE).bytes) === 0 && TONE.freqHz === 880 && TONE.gain === 0.3, 'byte for byte what the script makes from TONE (880 Hz, 150 ms, 10 ms fades, 0.3) — the web\'s numbers');
+const dataBytes = wav ? wav.readUInt32LE(40) : 0;
+assert(
+  wav && wav.length === 17684 && dataBytes === 17640 && (dataBytes / 2 / SAMPLE_RATE) * 1000 === 400,
+  '17 684 bytes: 44 + 2 × 8 820 samples — exactly 400 ms at 22 050 Hz'
+);
+let loudest = 0;
+for (let i = 44; wav && i < wav.length; i += 2) loudest = Math.max(loudest, Math.abs(wav.readInt16LE(i)));
+assert(wav && loudest / 32767 <= 0.44 && loudest < 32767, `the loudest sample is ${(loudest / 32767).toFixed(4)} of full scale — at most 0.44 (two voices of 0.22), no clipping`);
+assert(
+  TONE.totalMs === 400 && TONE.attackMs === 3 && TONE.floor === 0.0001 &&
+    TONE.voices.length === 2 && TONE.voices[0].freqHz === 1047 && TONE.voices[1].freqHz === 784 && TONE.voices.every((v) => v.peak === 0.22),
+  'TONE is "two-tone down" — 1047 Hz 0–150 ms, 784 Hz 100–400 ms, peak 0.22, 3 ms attack — the web\'s numbers'
+);
+assert(wav && Buffer.compare(wav, buildToneWav(TONE).bytes) === 0, 'the WAV is byte for byte what the script makes from TONE (linear attack, exponential decay, voices summed)');
 
 console.log('source text — MessageToast.jsx and app.json (read as files)');
 const toastSrc = fs.readFileSync(path.join(here, '..', 'src', 'realtime', 'MessageToast.jsx'), 'utf8');

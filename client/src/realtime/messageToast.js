@@ -21,12 +21,26 @@
 // or focused; a new message (same sender or another) starts it again.
 export const TOAST_MS = 5000;
 
-// THE MESSAGE TONE — ONE DEFINITION FOR BOTH PLATFORMS (fix round,
-// 2026-10-02; the owner's final values). The web plays it through the Web
-// Audio API (realtime/messageTone.js); the phone plays a WAV generated from
-// these same numbers (mobile/scripts/make-message-tone.mjs reads this mirror).
-// It sounds on a toast SHOW or UPDATE only — `nextToast(...).changed`.
-export const TONE = Object.freeze({ freqHz: 880, durationMs: 150, fadeMs: 10, gain: 0.3 });
+// THE MESSAGE TONE — ONE DEFINITION FOR BOTH PLATFORMS ("two-tone down",
+// the owner's decision, 2026-10-02; it replaced a flat 880 Hz beep). The web
+// plays it through the Web Audio API (realtime/messageTone.js); the phone
+// plays a WAV generated from these same numbers
+// (mobile/scripts/make-message-tone.mjs reads this mirror). It sounds on a
+// toast SHOW or UPDATE only — `nextToast(...).changed`.
+//
+// Two sine voices, SUMMED. Each starts at `floor`, rises LINEARLY to its
+// peak over `attackMs`, then decays EXPONENTIALLY back to `floor` at
+// start + duration. The web stops each oscillator `stopPadMs` after that.
+export const TONE = Object.freeze({
+  totalMs: 400,
+  attackMs: 3,
+  floor: 0.0001,
+  stopPadMs: 20,
+  voices: Object.freeze([
+    Object.freeze({ freqHz: 1047, startMs: 0, durationMs: 150, peak: 0.22 }),
+    Object.freeze({ freqHz: 784, startMs: 100, durationMs: 300, peak: 0.22 }),
+  ]),
+});
 
 // The words, and only these words.
 export function toastLabel(name, count) {

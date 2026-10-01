@@ -108,7 +108,7 @@ assert(/bg-surface/.test(shown) && /border-edge/.test(shown) && /bg-primary/.tes
 
 // A fake AudioContext that records what the tone does with it.
 function fakeAudio({ resumeRejects = false, ctorThrows = false } = {}) {
-  const log = { made: 0, resumes: 0, starts: 0, freqs: [], gains: [] };
+  const log = { made: 0, resumes: 0, starts: 0, freqs: [], gains: [], ramps: [], startAt: [], stopAt: [] };
   class FakeContext {
     constructor() {
       if (ctorThrows) throw new Error('no audio here');
@@ -125,15 +125,20 @@ function fakeAudio({ resumeRejects = false, ctorThrows = false } = {}) {
         type: '',
         frequency: { setValueAtTime: (v) => log.freqs.push(v) },
         connect() {},
-        start: () => {
+        start: (t) => {
           log.starts += 1;
+          log.startAt.push(t);
         },
-        stop() {},
+        stop: (t) => log.stopAt.push(t),
       };
     }
     createGain() {
       return {
-        gain: { setValueAtTime: (v) => log.gains.push(v), linearRampToValueAtTime: (v) => log.gains.push(v) },
+        gain: {
+          setValueAtTime: (v, t) => log.ramps.push(['set', v, t]),
+          linearRampToValueAtTime: (v, t) => log.ramps.push(['linear', v, t]),
+          exponentialRampToValueAtTime: (v, t) => log.ramps.push(['exponential', v, t]),
+        },
         connect() {},
       };
     }
@@ -143,7 +148,15 @@ function fakeAudio({ resumeRejects = false, ctorThrows = false } = {}) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 console.log('The tone (one AudioContext, on a show or an update only)');
-assert(TONE.freqHz === 880 && TONE.durationMs === 150 && TONE.fadeMs === 10 && TONE.gain === 0.3, 'TONE is 880 Hz, 150 ms, 10 ms fades, gain 0.3 (shared with the phone)');
+assert(
+  TONE.totalMs === 400 && TONE.attackMs === 3 && TONE.floor === 0.0001 && TONE.stopPadMs === 20 &&
+    JSON.stringify(TONE.voices) ===
+      JSON.stringify([
+        { freqHz: 1047, startMs: 0, durationMs: 150, peak: 0.22 },
+        { freqHz: 784, startMs: 100, durationMs: 300, peak: 0.22 },
+      ]),
+  'TONE is "two-tone down": 1047 Hz 0–150 ms and 784 Hz 100–400 ms, peak 0.22, 3 ms attack, floor 0.0001 (shared with the phone)'
+);
 {
   const audio = fakeAudio();
   const tone = createTonePlayer(() => audio.Ctor);
@@ -162,10 +175,27 @@ assert(TONE.freqHz === 880 && TONE.durationMs === 150 && TONE.fadeMs === 10 && T
   deliver({ senderId: SELF, row: { ...LIG, other_user_id: SELF } }); // own: skip
   deliver({ senderId: 3, viewingOtherId: 3, row: ANA3 }); // open conversation: skip
   await flush();
-  assert(audio.log.starts === 3, 'a tone on the show, the update and the replace — three, no more', `${audio.log.starts}`);
+  assert(audio.log.starts === 6, 'a tone on the show, the update and the replace — three tones of two voices, no more', `${audio.log.starts}`);
   assert(audio.log.made === 1, 'ONE AudioContext, reused for every tone', `${audio.log.made}`);
   assert(audio.log.resumes === 3, 'resume() before every tone');
-  assert(audio.log.freqs.every((f) => f === 880) && audio.log.gains.includes(0.3) && audio.log.gains.includes(0), 'each tone is 880 Hz, rising to 0.3 and back to 0');
+  const oneTone = audio.log.ramps.slice(0, 6);
+  assert(
+    JSON.stringify(audio.log.freqs.slice(0, 2)) === '[1047,784]' &&
+      JSON.stringify(oneTone) ===
+        JSON.stringify([
+          ['set', 0.0001, 0],
+          ['linear', 0.22, 0.003],
+          ['exponential', 0.0001, 0.15],
+          ['set', 0.0001, 0.1],
+          ['linear', 0.22, 0.10300000000000001],
+          ['exponential', 0.0001, 0.4],
+        ]),
+    'each tone: 1047 Hz then 784 Hz, each from 0.0001 a LINEAR rise to 0.22 in 3 ms, then an EXPONENTIAL decay to 0.0001 at its end'
+  );
+  assert(
+    JSON.stringify(audio.log.startAt.slice(0, 2)) === '[0,0.1]' && Math.abs(audio.log.stopAt[0] - 0.17) < 1e-9 && Math.abs(audio.log.stopAt[1] - 0.42) < 1e-9,
+    'voice 1 starts at 0 and stops at 170 ms, voice 2 starts at 100 ms and stops at 420 ms (end + 20 ms)'
+  );
 }
 {
   const blocked = fakeAudio({ resumeRejects: true });

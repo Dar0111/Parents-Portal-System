@@ -3,9 +3,16 @@
 // tone (FRONTEND_CONVENTIONS §26, MOBILE_CONVENTIONS M22).
 //
 // THE NUMBERS ARE NOT HERE: they are `TONE` in the mirrored
-// src/realtime/messageToast.js (880 Hz sine, 150 ms, 10 ms fade in / out,
-// gain 0.3), the same object the web's Web Audio tone reads — so the two
-// sounds cannot drift apart without lint:mirrors noticing.
+// src/realtime/messageToast.js — "two-tone down": 1047 Hz at 0 ms for
+// 150 ms and 784 Hz at 100 ms for 300 ms, peak 0.22 each, 400 ms in all —
+// the same object the web's Web Audio tone reads, so the two sounds cannot
+// drift apart without lint:mirrors noticing.
+//
+// THE WEB'S ENVELOPE, SAMPLE BY SAMPLE: per voice, from the floor (0.0001)
+// a LINEAR rise to the peak over 3 ms, then an EXPONENTIAL decay back to the
+// floor at start + duration, held at the floor for the 20 ms until the web
+// stops the oscillator; each voice's phase starts at its own start time
+// (an oscillator started then). The voices are SUMMED.
 //
 // 16-bit PCM, mono, 22 050 Hz. Re-running it writes the same bytes.
 // Run from mobile/:  npm run tone:write   (node scripts/make-message-tone.mjs)
@@ -16,14 +23,31 @@ import { TONE } from '../src/realtime/messageToast.js';
 
 export const SAMPLE_RATE = 22050;
 
+// One voice's gain at `u` seconds after the voice started (0 outside it).
+function envelope(u, voice, tone) {
+  const attack = tone.attackMs / 1000;
+  const duration = voice.durationMs / 1000;
+  if (u < 0) return 0;
+  if (u < attack) return tone.floor + (voice.peak - tone.floor) * (u / attack);
+  if (u < duration) return voice.peak * (tone.floor / voice.peak) ** ((u - attack) / (duration - attack));
+  if (u < duration + tone.stopPadMs / 1000) return tone.floor;
+  return 0;
+}
+
 export function buildToneWav(tone = TONE, sampleRate = SAMPLE_RATE) {
-  const samples = Math.round((sampleRate * tone.durationMs) / 1000);
-  const fade = Math.round((sampleRate * tone.fadeMs) / 1000);
+  const samples = Math.round((sampleRate * tone.totalMs) / 1000);
   const data = Buffer.alloc(samples * 2);
+  let peak = 0;
   for (let i = 0; i < samples; i += 1) {
-    const env = Math.max(0, Math.min(1, i / fade, (samples - 1 - i) / fade));
-    const v = Math.sin((2 * Math.PI * tone.freqHz * i) / sampleRate) * tone.gain * env;
-    data.writeInt16LE(Math.round(v * 32767), i * 2);
+    const t = i / sampleRate;
+    let v = 0;
+    for (const voice of tone.voices) {
+      const u = t - voice.startMs / 1000;
+      if (u < 0) continue;
+      v += Math.sin(2 * Math.PI * voice.freqHz * u) * envelope(u, voice, tone);
+    }
+    peak = Math.max(peak, Math.abs(v));
+    data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, v)) * 32767), i * 2);
   }
   const header = Buffer.alloc(44);
   header.write('RIFF', 0, 'ascii');
@@ -39,7 +63,9 @@ export function buildToneWav(tone = TONE, sampleRate = SAMPLE_RATE) {
   header.writeUInt16LE(16, 34); // bits per sample
   header.write('data', 36, 'ascii');
   header.writeUInt32LE(data.length, 40);
-  return { bytes: Buffer.concat([header, data]), samples };
+  // `peak` is the loudest summed sample before 16-bit rounding, as a fraction
+  // of full scale — at most 0.44 (two voices of 0.22), so nothing clips.
+  return { bytes: Buffer.concat([header, data]), samples, peak };
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -47,8 +73,10 @@ export const TONE_PATH = path.join(here, '..', 'assets', 'sounds', 'message-tone
 
 // Only write when run directly, so a proof can import buildToneWav.
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { bytes, samples } = buildToneWav();
+  const { bytes, samples, peak } = buildToneWav();
   fs.mkdirSync(path.dirname(TONE_PATH), { recursive: true });
   fs.writeFileSync(TONE_PATH, bytes);
-  console.log(`make-message-tone: wrote ${path.relative(process.cwd(), TONE_PATH)} — ${bytes.length} bytes, ${samples} samples`);
+  console.log(
+    `make-message-tone: wrote ${path.relative(process.cwd(), TONE_PATH)} — ${bytes.length} bytes, ${samples} samples, peak ${peak.toFixed(4)} of full scale`
+  );
 }

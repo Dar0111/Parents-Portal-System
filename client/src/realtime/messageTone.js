@@ -19,24 +19,31 @@ export function defaultAudioContextCtor() {
   return window.AudioContext || window.webkitAudioContext || null;
 }
 
-// The sound itself on a running context: an 880 Hz sine whose gain rises to
-// 0.3 over 10 ms, holds, and falls back to 0 over the last 10 ms of 150 ms.
+// The sound itself on a running context — "two-tone down": each voice of
+// TONE is its own sine oscillator through its own gain, both into the
+// destination (so they SUM). Per voice: the gain starts at the floor
+// (0.0001 — an exponential ramp cannot start from or reach 0), rises
+// LINEARLY to the peak over 3 ms, then decays EXPONENTIALLY to the floor at
+// start + duration; the oscillator stops 20 ms after that. 1047 Hz at 0 ms
+// for 150 ms, then 784 Hz at 100 ms for 300 ms — 400 ms in all.
 function schedule(ctx) {
   const t0 = ctx.currentTime;
-  const duration = TONE.durationMs / 1000;
-  const fade = TONE.fadeMs / 1000;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(TONE.freqHz, t0);
-  gain.gain.setValueAtTime(0, t0);
-  gain.gain.linearRampToValueAtTime(TONE.gain, t0 + fade);
-  gain.gain.setValueAtTime(TONE.gain, t0 + duration - fade);
-  gain.gain.linearRampToValueAtTime(0, t0 + duration);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(t0);
-  osc.stop(t0 + duration);
+  const attack = TONE.attackMs / 1000;
+  for (const voice of TONE.voices) {
+    const start = t0 + voice.startMs / 1000;
+    const end = start + voice.durationMs / 1000;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(voice.freqHz, start);
+    gain.gain.setValueAtTime(TONE.floor, start);
+    gain.gain.linearRampToValueAtTime(voice.peak, start + attack);
+    gain.gain.exponentialRampToValueAtTime(TONE.floor, end);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(end + TONE.stopPadMs / 1000);
+  }
 }
 
 export function createTonePlayer(getCtor = defaultAudioContextCtor) {
