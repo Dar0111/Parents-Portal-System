@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../api/axios';
 import { useSocket } from './SocketProvider';
 
@@ -20,8 +20,14 @@ import { useSocket } from './SocketProvider';
 //
 // Refetches on: mount, any `new_message` socket event, and an explicit
 // refresh() from a page that has just changed read state.
+//
+// THE ROWS ARE HANDED ON, NOT RE-FETCHED (feat/message-toast, 2026-10-02).
+// The new-message toast needs the sender's name and THE SERVER'S unread
+// count for that person; both are in the rows this provider already reads on
+// every `new_message`. `subscribeConversations(fn)` passes each successful
+// read's rows to `fn` — no second request, and no count made here.
 
-const UnreadContext = createContext({ unread: 0, refresh: () => {} });
+const UnreadContext = createContext({ unread: 0, refresh: () => {}, subscribeConversations: () => () => {} });
 
 export function useUnread() {
   return useContext(UnreadContext);
@@ -30,6 +36,7 @@ export function useUnread() {
 export default function UnreadProvider({ enabled, children }) {
   const { subscribe } = useSocket();
   const [unread, setUnread] = useState(0);
+  const rowListenersRef = useRef(new Set());
 
   const refresh = useCallback(() => {
     // `enabled` is false for a role whose Messages page is not built — no
@@ -41,7 +48,10 @@ export default function UnreadProvider({ enabled, children }) {
     }
     return api
       .get('/messages/conversations', { unwrap: 'conversations' })
-      .then((rows) => setUnread(rows.reduce((sum, r) => sum + Number(r.unread_count || 0), 0)))
+      .then((rows) => {
+        setUnread(rows.reduce((sum, r) => sum + Number(r.unread_count || 0), 0));
+        for (const fn of rowListenersRef.current) fn(rows);
+      })
       .catch(() => {
         // A failed count is not worth a page-level error — the Messages page
         // itself reports properly if the endpoint is unreachable.
@@ -54,7 +64,12 @@ export default function UnreadProvider({ enabled, children }) {
     return subscribe(refresh);
   }, [refresh, subscribe]);
 
-  const value = useMemo(() => ({ unread, refresh }), [unread, refresh]);
+  const subscribeConversations = useCallback((fn) => {
+    rowListenersRef.current.add(fn);
+    return () => rowListenersRef.current.delete(fn);
+  }, []);
+
+  const value = useMemo(() => ({ unread, refresh, subscribeConversations }), [unread, refresh, subscribeConversations]);
 
   return <UnreadContext.Provider value={value}>{children}</UnreadContext.Provider>;
 }

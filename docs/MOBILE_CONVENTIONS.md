@@ -889,3 +889,36 @@ of FRONTEND_CONVENTIONS §25 holds; this is only where the phone differs.
   both Messages lists, both admin Users lists) — and that the learner cards
   never do. What it cannot prove — a photo drawing, the picker, the upload
   over the hotspot, the fallback on a load error — is the phone check.
+
+## M22. The new-message toast on the phone — the web's rules, three differences
+
+**`feat/message-toast`, 2026-10-02.** FRONTEND_CONVENTIONS §26 is the rule
+set; the decisions are the mirrored `realtime/messageToast.js` (the **26th
+mirror**) and `UnreadProvider` hands the conversations rows on through
+`subscribeConversations`, exactly as on the web. Only these differ:
+
+- **Where:** a sibling of AppShell's stack (`navigation/AppShell.jsx` wraps
+  it in a `View`), absolutely placed at the top under the header, over the
+  drawer screens and the pushed ones alike. **No new import:**
+  `@react-navigation/elements` is not a direct dependency, and the app sets
+  no header height of its own, so the toast sits at the top safe-area inset
+  plus React Navigation's default Android header height (56) plus 8.
+  Android is the device; an iOS modal presentation would draw over it.
+- **No hover, so no pause** — 5 s, started again by every new toast.
+- **Announced** by `accessibilityLiveRegion="polite"` on an always-mounted
+  box plus `AccessibilityInfo.announceForAccessibility(label)`.
+- **"In that conversation"** is the FOCUSED route, read with
+  `useNavigationState` from AppShell (the root stack's `Home`) and walked to
+  the leaf: `MessageThread` with `params.otherId`. A thread lower in the
+  stack is not "in" it.
+- **View** goes through `requestLeave` (M14) and navigates
+  `Home → MessageThread { otherId, name }` — AppShell is the root's `Home`
+  screen, so the toast's navigation is the root's.
+- **Admin:** no toast — `isBuilt('/admin/messages')` is false.
+- **Imported as `../realtime/MessageToast.jsx`, extension included** — the
+  web build failed on the case-only clash with `messageToast.js` (§26).
+- **Proved by `proof-message-toast` (11)**: the mirror's decisions plus
+  `otherIdFromRoute` on the real nested shape (root → Home → stack →
+  drawer / thread); **negative control with Edit: the walk stopped at the
+  top-level route → 9/11**, restored. The toast on screen, the timer, the
+  announcement and View are the phone check.

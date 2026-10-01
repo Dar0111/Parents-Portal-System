@@ -54,6 +54,8 @@ export const PAIRS = [
   ['src/format/photoUrl.js', 'format/photoUrl.js'],
   // fix/leave-guard — one rule for the exits that are buttons, not links.
   ['src/navigation/leaveGuard.js', 'layout/leaveGuard.js'],
+  // feat/message-toast — what the new-message toast shows, and when.
+  ['src/realtime/messageToast.js', 'realtime/messageToast.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

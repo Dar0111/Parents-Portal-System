@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../api/client';
 import { useSocket } from './SocketProvider';
 
@@ -7,7 +7,16 @@ import { useSocket } from './SocketProvider';
 // (re)connect, because a phone that was in the background may have missed a
 // `new_message`. THE FIX IS A SIGNAL, NOT A LOCAL DECREMENT (§5b, §10):
 // nothing here subtracts; `refresh()` re-reads the server.
-const UnreadContext = createContext({ unread: 0, refresh: () => Promise.resolve() });
+//
+// THE ROWS ARE HANDED ON, NOT RE-FETCHED (feat/message-toast, 2026-10-02),
+// exactly as on the web: `subscribeConversations(fn)` passes each successful
+// read's rows to the new-message toast, which takes the sender's name and the
+// server's unread count from them (M22).
+const UnreadContext = createContext({
+  unread: 0,
+  refresh: () => Promise.resolve(),
+  subscribeConversations: () => () => {},
+});
 
 export function useUnread() {
   return useContext(UnreadContext);
@@ -16,6 +25,7 @@ export function useUnread() {
 export default function UnreadProvider({ enabled, children }) {
   const { subscribe, subscribeConnect } = useSocket();
   const [unread, setUnread] = useState(0);
+  const rowListenersRef = useRef(new Set());
 
   const refresh = useCallback(() => {
     // `enabled` is false for a role whose Messages screen is not built — no
@@ -26,7 +36,10 @@ export default function UnreadProvider({ enabled, children }) {
     }
     return api
       .get('/messages/conversations', { unwrap: 'conversations' })
-      .then((rows) => setUnread(rows.reduce((sum, r) => sum + Number(r.unread_count || 0), 0)))
+      .then((rows) => {
+        setUnread(rows.reduce((sum, r) => sum + Number(r.unread_count || 0), 0));
+        for (const fn of rowListenersRef.current) fn(rows);
+      })
       .catch(() => {
         setUnread(0);
       });
@@ -42,7 +55,12 @@ export default function UnreadProvider({ enabled, children }) {
     };
   }, [refresh, subscribe, subscribeConnect]);
 
-  const value = useMemo(() => ({ unread, refresh }), [unread, refresh]);
+  const subscribeConversations = useCallback((fn) => {
+    rowListenersRef.current.add(fn);
+    return () => rowListenersRef.current.delete(fn);
+  }, []);
+
+  const value = useMemo(() => ({ unread, refresh, subscribeConversations }), [unread, refresh, subscribeConversations]);
 
   return <UnreadContext.Provider value={value}>{children}</UnreadContext.Provider>;
 }

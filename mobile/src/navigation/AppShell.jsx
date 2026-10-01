@@ -9,6 +9,10 @@ import Icon from '../icons';
 import { useNotifications } from '../realtime/NotificationProvider';
 import { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
+// With its extension: MessageToast.jsx and the pure messageToast.js differ
+// only by case, and an extensionless import on a case-insensitive disk can
+// land on the .js (the web build failed exactly that way; M22).
+import MessageToast from '../realtime/MessageToast.jsx';
 import AboutScreen from '../screens/AboutScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import AnnouncementsScreen from '../screens/parent/AnnouncementsScreen';
@@ -212,9 +216,13 @@ function RoleDrawer() {
   );
 }
 
+// THE NEW-MESSAGE TOAST FLOATS OVER EVERY SCREEN (feat/message-toast, M22):
+// a sibling of the stack, absolutely placed under the header, so one toast
+// serves the drawer screens and the pushed ones alike.
 export default function AppShell() {
   const { tokens } = useTheme();
   return (
+    <View style={{ flex: 1 }}>
     <Stack.Navigator screenLayout={withStrip} screenOptions={headerOptions(tokens)}>
       <Stack.Screen name="Main" component={RoleDrawer} options={{ headerShown: false }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
@@ -283,5 +291,7 @@ export default function AppShell() {
         })}
       />
     </Stack.Navigator>
+    <MessageToast />
+    </View>
   );
 }

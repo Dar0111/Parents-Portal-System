@@ -27,7 +27,8 @@
     "proof:admin-posts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-posts.mjs",
     "proof:drawer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-drawer.mjs",
     "proof:photo-url": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-photo-url.mjs",
-    "proof:leave-guard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-leave-guard.mjs"
+    "proof:leave-guard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-leave-guard.mjs",
+    "proof:message-toast": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-message-toast.mjs"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^7.3.1",

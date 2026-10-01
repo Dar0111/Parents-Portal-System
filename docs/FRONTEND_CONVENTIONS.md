@@ -1499,7 +1499,12 @@ point of rendering one number on one nav item. Messages are deliberately NOT
 in the bell: `messages.read_status` already IS per-item read state, and a
 second store for one fact means two places to mark read and two chances to
 disagree. If the bell should ever mention messages, the fix is to read them
-from the same endpoint — not to add two providers together.
+from the same endpoint — not to add two providers together. **The
+new-message toast (§26, `feat/message-toast`) does not change this:** it
+writes no `notifications` row, never touches the bell, and takes its count
+from the same `GET /api/messages/conversations` rows the Messages badge
+reads (`unread_count` for that sender) — the server's answer, not a tally of
+socket events.
 
 **BELL VS BADGE IS A DECISION, NOT A DEFAULT.** Every unread notification
 rings the bell. Only some badge a nav item:
@@ -3087,4 +3092,63 @@ commit), multer ^2 + sharp, and uploads kept out of backups.
 - **Proved by** `ssr-avatar` (32; negative control — the name guard loosened
   → 23/32) and the server's `test:profile-photo` (70). The load-error
   fallback is an event SSR cannot fire — the browser check.
+
+## 26. The new-message toast — who, never what (`feat/message-toast`, 2026-10-02)
+
+**One toast for a chat message that arrives while you are elsewhere in the
+app**, web and phone, built to the owner's ten rules. The decisions are a
+pure module, `realtime/messageToast.js`, mirrored to the phone (the 26th
+mirror); `realtime/MessageToast.jsx` renders them on each platform.
+
+- **The words, and nothing else:** "New message from <name>", or
+  "<n> new messages from <name>", with **View** and a close (×) button named
+  "Dismiss". **Never any part of the body** — the host passes the module the
+  sender's id only, and the proof feeds rows that carry a body and asserts
+  none of it reaches the toast or the markup.
+- **The name and the count come from the server, not the event.** The live
+  `new_message` event is a bare `messages` row with no name, so the toast
+  remembers who sent it and waits for the Unread provider's re-read of
+  `GET /api/messages/conversations` — which every `new_message` already
+  triggers — then reads that person's row: `other_user_name` and
+  `unread_count`. **n is the server's "unread from this person"** (§10), so it
+  can include one that arrived before the toast. `UnreadProvider` hands the
+  rows on through `subscribeConversations(fn)`: **no second request, no server
+  change, no `notifications` row, the bell untouched.**
+- **One at a time:** the same person again updates the count; a different
+  person **replaces** it — never a stack. **Skipped:** my own message, the
+  conversation I am in, a person with nothing unread (read elsewhere), a row
+  with no name. A skip leaves the toast on screen as it was.
+- **"In that conversation"** is decided on the OTHER person's id: the web's
+  `/teacher|parent/messages/:userId` (the :userId is the other user, not a
+  conversation id) and the phone's focused `MessageThread` with
+  `params.otherId`. The Messages LIST and someone else's thread still show it.
+- **5 seconds**, started again by every new toast; on the web **paused while
+  hovered or focused**. No sound, no vibration.
+- **Where:** web, fixed top-right just under the sticky header (`top-16`,
+  `z-[35]` — under the bell's panel at 40 and the modal at 50); phone, M22.
+- **Accessible:** `role="status"` + `aria-live="polite"` on a box that is
+  **always mounted** and empty without a toast — a region that appears
+  already holding its text is not announced (§21).
+- **View goes through the leave guard** (`requestLeave`, §5e): on Grades or
+  Attendance with unsaved work it asks "Leave without saving?" first.
+- **Admin gets no toast**: the host mounts only where Messages is built
+  (teacher, parent) — a notification must be openable (§10).
+- **Tokens and existing pieces only** — `bg-surface`, `border-edge`,
+  `text-fg`, the primary small button, `Avatar` (with the sender's photo,
+  a USER row, §25) — so a later restyle reaches it with no edit.
+- **If the socket is down there is no toast** — `LiveStatus` already says
+  updates are paused (§5g); nothing polls.
+- **`MessageToast.jsx` is imported WITH ITS EXTENSION** (`Shell.jsx`, and
+  `AppShell.jsx` on the phone). It and the pure `messageToast.js` differ only
+  by case; on a case-insensitive disk (Windows, a default macOS volume) an
+  extensionless import tries `.js` first and got the pure module, which has
+  no default export — the production build failed on exactly that, and
+  `ssr-ui-d` (which reads the built stylesheet) dropped with it. A new pair of
+  names differing only by case needs the same care.
+- **Proved by** `ssr-message-toast` (24; negative controls with Edit: the
+  body put into the label → 19/24, the own-message skip removed → 23/24) —
+  the words, the row lookup, both "in that conversation" readings, every
+  skip, the server's count, the replacement, no body anywhere, and the
+  rendered toast. The socket, the timer, the pausing and View are the owner
+  check with two accounts.
 

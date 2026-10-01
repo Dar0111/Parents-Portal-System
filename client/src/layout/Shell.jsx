@@ -14,6 +14,11 @@ import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
 import NotificationProvider, { useNotifications } from '../realtime/NotificationProvider';
+// WITH ITS EXTENSION, on purpose: MessageToast.jsx and the pure
+// messageToast.js differ only by case, and on a case-insensitive disk
+// (Windows, a default macOS volume) an extensionless import tries `.js` first
+// and gets the pure module, which has no default export — the build failed.
+import MessageToast from '../realtime/MessageToast.jsx';
 import Header from './Header';
 import seal from '../assets/school-seal.png';
 
@@ -275,6 +280,10 @@ export default function Shell() {
             NotificationProvider for why one fact must not have two stores. */}
         <NotificationProvider>
           <ShellChrome />
+          {/* The new-message toast (feat/message-toast, §26): only where
+              Messages is built — admin has no Messages page, and a toast
+              must be openable (§10). Never in the bell. */}
+          {messagesBuilt ? <MessageToast /> : null}
         </NotificationProvider>
       </UnreadProvider>
     </SocketProvider>

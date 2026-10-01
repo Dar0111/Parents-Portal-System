@@ -183,7 +183,7 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, seventeen proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, eighteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -740,7 +740,9 @@ audiences and the accessibility contract are in
 - **Two counts, two sources, never summed.** Messages keep their own
   (`GET /messages/conversations`); the bell counts everything else and
   deliberately excludes messages, because `messages.read_status` already IS
-  per-item read state.
+  per-item read state. **The message toast (§26) keeps it that way**: no
+  `notifications` row, no bell, its count the conversations row's
+  `unread_count`.
 - **Bell vs badge is a decision.** Everything rings the bell. Badged:
   Excuse Letters / Announcements / Memos / Events for teacher and parent,
   Users and Announcements (carrying **announcements + memos**, since admin
@@ -877,6 +879,18 @@ shape. Served without a token at `/uploads/avatars/`; every upload is
 fails to load shows the initials. **Learners have no photo.** Remove asks
 first; upload does not. Full text: `docs/FRONTEND_CONVENTIONS.md` §25.
 
+### 26. The new-message toast — who, never what
+
+**feat/message-toast, 2026-10-02.** "New message from <name>" / "<n> new
+messages from <name>", View + Dismiss, **never the body**; 5 s (web pauses on
+hover/focus); one at a time, the newest sender replaces; never my own, never
+in that conversation (the OTHER user's id: web `:userId`, phone focused
+`MessageThread` `otherId`). **Name and n come from the conversations row the
+Unread provider already re-reads** (`subscribeConversations`) — the server's
+`unread_count`, no server change, no bell. View = `requestLeave`. No admin
+toast. Pure decisions mirrored (`realtime/messageToast.js`). Full text:
+`docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, recorded so they cannot be re-derived:
@@ -966,6 +980,9 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   items, account card, bell, Logout, hardware Back), and because a drawer
   screen stays mounted, **Leave and discard resets the marks BEFORE the exit
   runs**. (M14, fix/leave-guard)
+- **The message toast floats over AppShell's stack** at the top inset + 56
+  (React Navigation's default Android header; no `@react-navigation/elements`
+  import), and "in that conversation" is the FOCUSED route. (M22)
 
 ---
 
