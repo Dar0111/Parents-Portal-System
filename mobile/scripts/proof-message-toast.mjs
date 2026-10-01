@@ -10,7 +10,12 @@
 //
 // Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-message-toast.mjs
-import { nextToast, otherIdFromRoute, rowFor, toastLabel } from '../src/realtime/messageToast.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { TONE, createToastStore, nextToast, otherIdFromRoute, rowFor, toastLabel } from '../src/realtime/messageToast.js';
+import { VIBRATE_MS, alertOnToast } from '../src/realtime/toastAlert.js';
+import { SAMPLE_RATE, TONE_PATH, buildToneWav } from './make-message-tone.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -62,6 +67,70 @@ const c = nextToast(b.toast, { ...base, senderId: 647, row: row(647, 'Ligaya Hal
 assert(c.changed && c.toast.senderId === 647, 'another person replaces it');
 assert(toastLabel('X', 5) === '5 new messages from X', 'the words for several');
 assert([a, b, c].every((r) => !JSON.stringify(r.toast).includes(SECRET)), 'no part of the body, though every row carried one');
+
+// ---- The fix round (2026-10-02): the tone and the vibration ----
+
+console.log('the alert — tone AND vibration, on a show or an update only');
+assert(VIBRATE_MS === 150, 'the vibration is 150 ms');
+{
+  const calls = { play: 0, vibrate: [] };
+  const fakes = { enabled: true, play: () => (calls.play += 1), vibrate: (ms) => calls.vibrate.push(ms) };
+  const store = createToastStore(() => {});
+  const deliver = (ctx) => alertOnToast(store.receive({ ...base, ...ctx }), fakes);
+  deliver({ senderId: 3, row: row(3, 'Ashley Geguiera', 1) });
+  assert(calls.play === 1 && calls.vibrate.length === 1 && calls.vibrate[0] === 150, 'a show: one tone, one 150 ms vibration');
+  deliver({ senderId: 3, row: row(3, 'Ashley Geguiera', 2) });
+  assert(calls.play === 2 && calls.vibrate.length === 2, 'a same-sender update: both again');
+  deliver({ senderId: 647, row: row(647, 'Ligaya Halimbawa', 1) });
+  assert(calls.play === 3 && calls.vibrate.length === 3, 'a replace: both again');
+  deliver({ senderId: SELF, row: row(SELF, 'Me', 1) });
+  deliver({ senderId: 3, viewingOtherId: 3, row: row(3, 'Ashley Geguiera', 3) });
+  assert(calls.play === 3 && calls.vibrate.length === 3, 'my own message, or the open conversation: neither');
+  const admin = alertOnToast(true, { ...fakes, enabled: false });
+  assert(!admin.played && !admin.vibrated && calls.play === 3, 'admin (no Messages screen): neither, even on a change');
+}
+{
+  const vibrated = [];
+  const store = createToastStore(() => {});
+  let threw = false;
+  let result = null;
+  try {
+    result = alertOnToast(store.receive({ ...base, senderId: 3, row: row(3, 'Ashley Geguiera', 1) }), {
+      enabled: true,
+      play: () => {
+        throw new Error('player not loaded');
+      },
+      vibrate: (ms) => vibrated.push(ms),
+    });
+  } catch {
+    threw = true;
+  }
+  assert(!threw && result && !result.played && result.vibrated && vibrated[0] === 150, 'the tone fails: no throw, and the phone still vibrates');
+  assert(store.get()?.label === 'New message from Ashley Geguiera', 'and the toast still shows');
+}
+
+console.log('the tone file — generated from the mirrored TONE');
+const here = path.dirname(fileURLToPath(import.meta.url));
+const wav = fs.existsSync(TONE_PATH) ? fs.readFileSync(TONE_PATH) : null;
+assert(wav !== null && path.relative(path.join(here, '..'), TONE_PATH).split(path.sep).join('/') === 'assets/sounds/message-tone.wav', 'assets/sounds/message-tone.wav exists, bundled with the app');
+assert(
+  wav && wav.toString('ascii', 0, 4) === 'RIFF' && wav.toString('ascii', 8, 12) === 'WAVE' && wav.readUInt16LE(20) === 1 && wav.readUInt16LE(22) === 1 && wav.readUInt16LE(34) === 16 && wav.readUInt32LE(24) === SAMPLE_RATE,
+  'a PCM WAV: mono, 16-bit, 22 050 Hz'
+);
+assert(wav && wav.length === 6660 && wav.readUInt32LE(40) === 6616, '6 660 bytes: 44 + 2 × 3 308 samples (150 ms at 22 050 Hz)');
+assert(wav && Buffer.compare(wav, buildToneWav(TONE).bytes) === 0 && TONE.freqHz === 880 && TONE.gain === 0.3, 'byte for byte what the script makes from TONE (880 Hz, 150 ms, 10 ms fades, 0.3) — the web\'s numbers');
+
+console.log('source text — MessageToast.jsx and app.json (read as files)');
+const toastSrc = fs.readFileSync(path.join(here, '..', 'src', 'realtime', 'MessageToast.jsx'), 'utf8');
+assert(/import \{ setAudioModeAsync, useAudioPlayer \} from 'expo-audio';/.test(toastSrc), 'the player is expo-audio\'s useAudioPlayer');
+assert(/import messageTone from '\.\.\/\.\.\/assets\/sounds\/message-tone\.wav';/.test(toastSrc) && !/https?:\/\//.test(toastSrc), 'the tone is the local asset — no URL anywhere in the file');
+assert(
+  /setAudioModeAsync\(\{ interruptionMode: 'duckOthers', shouldPlayInBackground: false, playsInSilentMode: false \}\)/.test(toastSrc) && !/interruptionModeAndroid/.test(toastSrc),
+  'the audio mode DUCKS other apps, no background playback, no deprecated interruptionModeAndroid'
+);
+const appJson = JSON.parse(fs.readFileSync(path.join(here, '..', 'app.json'), 'utf8'));
+const plugins = appJson?.expo?.plugins || [];
+assert(!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'expo-audio'), 'app.json has NO expo-audio config plugin (deliberately not configured)');
 
 console.log(`\nproof-message-toast: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

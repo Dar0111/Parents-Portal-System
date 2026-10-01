@@ -3080,8 +3080,9 @@ commit), multer ^2 + sharp, and uploads kept out of backups.
   pointless upload; the server's sentences are the authority.
 - **Where a photo replaces the initials — USER rows only:** the sidebar /
   drawer user card, Settings → Account information, Admin → Users (both
-  tables, both card lists), and the Messages conversation cards
-  (`other_user_profile_pic`). **Learner avatars stay initials** — Students,
+  tables, both card lists), the Messages conversation cards
+  (`other_user_profile_pic`), and the new-message toast (the sender, a USER
+  row; §26, web and phone). **Learner avatars stay initials** — Students,
   Attendance, Attendance records, Excuse Letters, the parent dashboard's
   child — because `students` has no photo. `Avatar` takes `photo`, a card
   takes `avatarPhoto` (data, §5a-iii), `PersonCell` takes `photo`.
@@ -3123,7 +3124,32 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   conversation id) and the phone's focused `MessageThread` with
   `params.otherId`. The Messages LIST and someone else's thread still show it.
 - **5 seconds**, started again by every new toast; on the web **paused while
-  hovered or focused**. No sound, no vibration.
+  hovered or focused**.
+- **A short tone on a toast SHOW or UPDATE — never on a skip, never twice**
+  (fix round, 2026-10-02; the owner reversed "no sound"). One definition for
+  both platforms, `TONE` in the mirrored `messageToast.js`: **880 Hz sine,
+  150 ms, 10 ms fade in / out, gain 0.3**. The web generates it with the Web
+  Audio API (`realtime/messageTone.js`): no file, no install, no URL, **ONE
+  `AudioContext` created lazily and reused**, `resume()` before each tone, and
+  silent — never a throw — if the browser refuses (autoplay policy, no Web
+  Audio, a failing constructor). The phone plays the same tone from a
+  bundled WAV and also vibrates (MOBILE M22). The decision runs OUTSIDE a
+  setState updater (React may call an updater twice) and sounds only when
+  `createToastStore().receive()` returns `changed`. No mute setting, no new
+  UI text.
+- **The toast lives in `createToastStore`** (mirrored `messageToast.js`): every
+  change — show, update, replace, ×, the 5 s expiry, View — goes through it,
+  so the toast each decision reads is never stale; the host's state only
+  mirrors it for rendering.
+- **ENTER SENDS, SHIFT+ENTER IS A NEW LINE — web only** (the two Messages
+  thread pages; the phone keeps its Send button). The textarea's `onKeyDown`
+  asks `components/enterToSend.js` and, on yes, calls `form.requestSubmit()`,
+  which fires the SAME `onSubmit={send}` as Send: the same empty / whitespace
+  guard, the same error handling, the same blocked state. It refuses exactly
+  when the Send button is disabled (`sending || !draft.trim()`), during an IME
+  composition (`isComposing`, `keyCode 229`), and for Ctrl / Alt / Meta+Enter;
+  `send()` itself now refuses while a send is in flight, so neither path can
+  send twice.
 - **Where:** web, fixed top-right just under the sticky header (`top-16`,
   `z-[35]` — under the bell's panel at 40 and the modal at 50); phone, M22.
 - **Accessible:** `role="status"` + `aria-live="polite"` on a box that is
@@ -3145,10 +3171,14 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   no default export — the production build failed on exactly that, and
   `ssr-ui-d` (which reads the built stylesheet) dropped with it. A new pair of
   names differing only by case needs the same care.
-- **Proved by** `ssr-message-toast` (24; negative controls with Edit: the
-  body put into the label → 19/24, the own-message skip removed → 23/24) —
-  the words, the row lookup, both "in that conversation" readings, every
-  skip, the server's count, the replacement, no body anywhere, and the
-  rendered toast. The socket, the timer, the pausing and View are the owner
-  check with two accounts.
+- **Proved by** `ssr-message-toast` (38; negative controls with Edit: the
+  body put into the label → 19/24 and the own-message skip removed → 23/24
+  at 24 checks; a new `AudioContext` on every tone → 37/38) — the words, the
+  row lookup, both "in that conversation" readings, every skip, the server's
+  count, the replacement, no body anywhere, the rendered toast, the tone on
+  show / update / replace only, ONE context, a refused or missing Web Audio
+  never throwing, and the store after × and expiry; and by
+  `ssr-enter-to-send` (15; negative control: the composition check removed
+  → 12/15). The socket, the timer, the pausing, the sound itself, a real key
+  press and View are the owner check with two accounts.
 

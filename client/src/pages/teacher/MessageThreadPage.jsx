@@ -5,6 +5,7 @@ import extractError from '../../api/extractError';
 import { dateTime } from '../../format/date';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { shouldSendOnEnter } from '../../components/enterToSend';
 import { useAuth } from '../../auth/AuthContext';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
@@ -218,6 +219,8 @@ export default function MessageThreadPage() {
 
   async function send(event) {
     event.preventDefault();
+    // One send at a time, whichever way it was asked for (Send or Enter).
+    if (sending) return;
     if (!draft.trim()) return;
 
     setSending(true);
@@ -345,6 +348,13 @@ export default function MessageThreadPage() {
                 rows={2}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter sends through the form, exactly as Send does;
+                  // Shift+Enter is a new line (§26).
+                  if (!shouldSendOnEnter(e, { sending, draft })) return;
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }}
                 placeholder="Write a message…"
                 className="block w-full rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-muted focus:border-focus-edge focus:outline-none focus:ring-2 focus:ring-focus-ring"
               />

@@ -17,14 +17,19 @@
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MessageToastView } from '../src/realtime/MessageToast.jsx';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
+  TONE,
   TOAST_MS,
+  createToastStore,
   nextToast,
   otherIdFromPath,
   otherIdFromRoute,
   rowFor,
   toastLabel,
 } from '../src/realtime/messageToast.js';
+import { createTonePlayer } from '../src/realtime/messageTone.js';
 
 let passed = 0;
 let failed = 0;
@@ -98,6 +103,116 @@ assert(/<button[^>]*>View<\/button>/.test(shown), 'View is a button');
 assert(/<span class="sr-only">Dismiss<\/span>/.test(shown) && /fa-xmark/.test(shown), 'the close button is named "Dismiss"');
 assert(!shown.includes(SECRET), 'no body in the markup');
 assert(/bg-surface/.test(shown) && /border-edge/.test(shown) && /bg-primary/.test(shown), 'tokens only — it follows any restyle');
+
+// ---- The fix round (2026-10-02): the tone, and a toast that is never stale ----
+
+// A fake AudioContext that records what the tone does with it.
+function fakeAudio({ resumeRejects = false, ctorThrows = false } = {}) {
+  const log = { made: 0, resumes: 0, starts: 0, freqs: [], gains: [] };
+  class FakeContext {
+    constructor() {
+      if (ctorThrows) throw new Error('no audio here');
+      log.made += 1;
+      this.currentTime = 0;
+      this.destination = {};
+    }
+    resume() {
+      log.resumes += 1;
+      return resumeRejects ? Promise.reject(new Error('autoplay policy')) : Promise.resolve();
+    }
+    createOscillator() {
+      return {
+        type: '',
+        frequency: { setValueAtTime: (v) => log.freqs.push(v) },
+        connect() {},
+        start: () => {
+          log.starts += 1;
+        },
+        stop() {},
+      };
+    }
+    createGain() {
+      return {
+        gain: { setValueAtTime: (v) => log.gains.push(v), linearRampToValueAtTime: (v) => log.gains.push(v) },
+        connect() {},
+      };
+    }
+  }
+  return { log, Ctor: FakeContext };
+}
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+console.log('The tone (one AudioContext, on a show or an update only)');
+assert(TONE.freqHz === 880 && TONE.durationMs === 150 && TONE.fadeMs === 10 && TONE.gain === 0.3, 'TONE is 880 Hz, 150 ms, 10 ms fades, gain 0.3 (shared with the phone)');
+{
+  const audio = fakeAudio();
+  const tone = createTonePlayer(() => audio.Ctor);
+  const shown = [];
+  const store = createToastStore((t) => shown.push(t));
+  // What the host does on every conversations re-read: decide, then sound on a change.
+  const deliver = (ctx) => {
+    const changed = store.receive({ ...base, ...ctx });
+    if (changed) tone.play();
+    return changed;
+  };
+  assert(audio.log.made === 0, 'no AudioContext until the first tone (created lazily)');
+  deliver({ senderId: 3, row: ANA }); // show
+  deliver({ senderId: 3, row: ANA3 }); // same-sender update
+  deliver({ senderId: 647, row: LIG }); // replace
+  deliver({ senderId: SELF, row: { ...LIG, other_user_id: SELF } }); // own: skip
+  deliver({ senderId: 3, viewingOtherId: 3, row: ANA3 }); // open conversation: skip
+  await flush();
+  assert(audio.log.starts === 3, 'a tone on the show, the update and the replace — three, no more', `${audio.log.starts}`);
+  assert(audio.log.made === 1, 'ONE AudioContext, reused for every tone', `${audio.log.made}`);
+  assert(audio.log.resumes === 3, 'resume() before every tone');
+  assert(audio.log.freqs.every((f) => f === 880) && audio.log.gains.includes(0.3) && audio.log.gains.includes(0), 'each tone is 880 Hz, rising to 0.3 and back to 0');
+}
+{
+  const blocked = fakeAudio({ resumeRejects: true });
+  const tone = createTonePlayer(() => blocked.Ctor);
+  let threw = false;
+  try {
+    tone.play();
+  } catch {
+    threw = true;
+  }
+  await flush();
+  assert(!threw && blocked.log.starts === 0, 'autoplay refused (resume rejects): silent, nothing thrown');
+  const broken = fakeAudio({ ctorThrows: true });
+  const none = createTonePlayer(() => broken.Ctor);
+  const noAudio = createTonePlayer(() => null);
+  let thrown = false;
+  let results = [];
+  try {
+    results = [none.play(), noAudio.play()];
+  } catch {
+    thrown = true;
+  }
+  assert(!thrown && results.every((r) => r === false), 'a constructor that throws, or no Web Audio at all: false, never a throw');
+  const store = createToastStore(() => {});
+  const changed = store.receive({ ...base, senderId: 3, row: ANA });
+  if (changed) none.play();
+  assert(changed && store.get().label === 'New message from Ashley Geguiera', 'with the audio broken, the toast still shows');
+}
+
+console.log('The toast is never stale (× close, expiry)');
+{
+  const seen = [];
+  const store = createToastStore((t) => seen.push(t));
+  store.receive({ ...base, senderId: 3, row: ANA3 });
+  assert(store.get()?.count === 3, 'shown: 3 new messages');
+  store.clear(); // ×
+  assert(store.get() === null && seen[seen.length - 1] === null, '× clears the store AND tells the host');
+  const again = store.receive({ ...base, senderId: 3, row: ANA });
+  assert(again && store.get().label === 'New message from Ashley Geguiera', 'after ×, the next message from the same person shows again: "New message from Ashley Geguiera"');
+  store.clear(); // the 5 s expiry calls the same clear()
+  const later = store.receive({ ...base, senderId: 3, row: ANA3 });
+  assert(later && store.get().label === '3 new messages from Ashley Geguiera', 'after the expiry, the server count as before: "3 new messages from Ashley Geguiera"');
+}
+
+console.log('Admin never mounts the toast (source text, Shell.jsx)');
+const shell = fs.readFileSync(path.resolve('src/layout/Shell.jsx'), 'utf8');
+assert(/\{messagesBuilt \? <MessageToast \/> : null\}/.test(shell), 'Shell mounts MessageToast only where Messages is built — no toast, no tone for admin');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

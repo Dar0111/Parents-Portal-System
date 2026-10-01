@@ -21,6 +21,13 @@
 // or focused; a new message (same sender or another) starts it again.
 export const TOAST_MS = 5000;
 
+// THE MESSAGE TONE — ONE DEFINITION FOR BOTH PLATFORMS (fix round,
+// 2026-10-02; the owner's final values). The web plays it through the Web
+// Audio API (realtime/messageTone.js); the phone plays a WAV generated from
+// these same numbers (mobile/scripts/make-message-tone.mjs reads this mirror).
+// It sounds on a toast SHOW or UPDATE only — `nextToast(...).changed`.
+export const TONE = Object.freeze({ freqHz: 880, durationMs: 150, fadeMs: 10, gain: 0.3 });
+
 // The words, and only these words.
 export function toastLabel(name, count) {
   const n = Number(count);
@@ -83,5 +90,31 @@ export function nextToast(current, { senderId, selfId, viewingOtherId, row }) {
       label: toastLabel(name, count),
     },
     changed: true,
+  };
+}
+
+// THE TOAST ON SCREEN, HELD IN ONE PLACE (fix round, 2026-10-02). Both hosts
+// keep their toast here rather than in a ref they update by hand, so the
+// value every decision reads is updated on EVERY change — a show, a
+// same-sender update, a replace, the close button, the 5 s expiry and View —
+// and can never be stale. `onChange(toast | null)` is the host's setState.
+// `receive` returns `changed`: true is exactly a show or an update, which is
+// when the alert (tone, and on the phone vibration) fires — once.
+export function createToastStore(onChange) {
+  let current = null;
+  const set = (value) => {
+    current = value;
+    if (typeof onChange === 'function') onChange(value);
+  };
+  return {
+    get: () => current,
+    receive(ctx) {
+      const next = nextToast(current, ctx);
+      if (next.changed) set(next.toast);
+      return next.changed;
+    },
+    clear() {
+      if (current !== null) set(null);
+    },
   };
 }

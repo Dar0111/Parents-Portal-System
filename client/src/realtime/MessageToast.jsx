@@ -5,7 +5,8 @@ import Avatar from '../components/Avatar';
 import { requestLeave } from '../layout/leaveGuard';
 import { useSocket } from './SocketProvider';
 import { useUnread } from './UnreadProvider';
-import { TOAST_MS, nextToast, otherIdFromPath, rowFor } from './messageToast';
+import { TOAST_MS, createToastStore, otherIdFromPath, rowFor } from './messageToast';
+import { createTonePlayer } from './messageTone';
 
 // THE NEW-MESSAGE TOAST, web (feat/message-toast, 2026-10-02; FRONTEND §26).
 //
@@ -24,6 +25,11 @@ import { TOAST_MS, nextToast, otherIdFromPath, rowFor } from './messageToast';
 //
 // TOKENS AND EXISTING PIECES ONLY (bg-surface, border-edge, text-fg, the
 // primary small button, Avatar), so a restyle reaches it with no edit here.
+//
+// THE TONE (fix round, 2026-10-02): one short tone on a toast SHOW or UPDATE
+// — never for a skip — through realtime/messageTone.js (Web Audio, one
+// lazily created AudioContext, silent if the browser refuses). No mute
+// setting and no new UI.
 
 // The toast itself. Presentational, so the SSR proof can render it.
 // `role="status"` sits on a box that is ALWAYS mounted, empty when there is
@@ -77,6 +83,12 @@ export default function MessageToast() {
 
   const [toast, setToast] = useState(null);
   const [paused, setPaused] = useState(false);
+  // THE TOAST'S ONE HOME (fix round): every change — show, update, replace,
+  // ×, the 5 s expiry, View — goes through this store, so the toast each
+  // decision reads is never stale. `setToast` only mirrors it for rendering.
+  const [store] = useState(() => createToastStore(setToast));
+  // ONE tone player, so ONE AudioContext, created lazily on the first tone.
+  const [tone] = useState(() => createTonePlayer());
 
   // Read inside socket / fetch callbacks, so they are refs, kept current by
   // effects that set no state.
@@ -107,31 +119,31 @@ export default function MessageToast() {
         const senderId = pendingRef.current;
         if (senderId == null) return;
         pendingRef.current = null;
-        setToast((current) => {
-          const next = nextToast(current, {
-            senderId,
-            selfId: selfRef.current,
-            viewingOtherId: otherIdFromPath(pathRef.current),
-            row: rowFor(rows, senderId),
-          });
-          return next.changed ? next.toast : current;
+        // Decided OUTSIDE a setState updater, so the tone sounds once — React
+        // may call an updater twice. `changed` is exactly a show or an update.
+        const changed = store.receive({
+          senderId,
+          selfId: selfRef.current,
+          viewingOtherId: otherIdFromPath(pathRef.current),
+          row: rowFor(rows, senderId),
         });
+        if (changed) tone.play();
       }),
-    [subscribeConversations]
+    [subscribeConversations, store, tone]
   );
 
   // 3. The timer: 5 s, paused while hovered or focused, started again by
   // every new toast object (same sender with a new count, or a new sender).
   useEffect(() => {
     if (!toast || paused) return undefined;
-    const timer = setTimeout(() => setToast(null), TOAST_MS);
+    const timer = setTimeout(() => store.clear(), TOAST_MS);
     return () => clearTimeout(timer);
-  }, [toast, paused]);
+  }, [toast, paused, store]);
 
   const dismiss = useCallback(() => {
-    setToast(null);
+    store.clear();
     setPaused(false);
-  }, []);
+  }, [store]);
 
   // View goes to that conversation THROUGH the unsaved-changes guard
   // (layout/leaveGuard.js): on Grades or Attendance with unsaved work it asks
@@ -140,11 +152,11 @@ export default function MessageToast() {
     if (!toast) return;
     const path = `/${user?.role}/messages/${toast.senderId}`;
     requestLeave(() => {
-      setToast(null);
+      store.clear();
       setPaused(false);
       navigate(path);
     });
-  }, [toast, user?.role, navigate]);
+  }, [toast, user?.role, navigate, store]);
 
   return (
     <MessageToastView
