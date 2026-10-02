@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
+import Text from '../../components/Text';
 import { longDate, todayLocalDateString } from '../../format/date';
 import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 
 // SUBMIT / EDIT AN EXCUSE LETTER — the web's compose modal as a modal
@@ -18,6 +22,14 @@ import { useTheme } from '../../theme/ThemeProvider';
 // mirrored by `maximumDate`). No confirmation step: a submitted letter can
 // still be edited while Pending (§5e). On success the list screen gets
 // `notice` and re-reads its rows.
+//
+// THE LOOK (feat/ui-refresh): the note about what a letter does, then the
+// three fields in one card, then Cancel and the screen's one filled action.
+// The date trigger has the shared date field's shape (components/DateField:
+// FormField's corner and padding, 48dp set in dp — M19 — and Android's ripple
+// for feedback, never a style function — M20). It stays inline here because
+// its accessible name while empty is this screen's own sentence. A write
+// form: nothing is fetched, so there is nothing to reload.
 function dateFromParts(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -67,74 +79,78 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
         {formError ? <ErrorAlert message={formError} /> : null}
-        <View className="rounded-lg border border-info-edge bg-info-soft px-3 py-2">
-          <Text className="text-sm text-info-strong">The adviser records the reason. It does not change the attendance record for that day.</Text>
+        <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
+          <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
+          <Text className="min-w-0 flex-1 text-sm text-info-strong">The adviser records the reason. It does not change the attendance record for that day.</Text>
         </View>
 
-        <FormField
-          label="Absence date"
-          required
-          error={dateError}
-          render={({ invalid }) => (
-            <>
-              <Pressable
-                onPress={() => setShowPicker(true)}
-                accessibilityRole="button"
-                accessibilityLabel={absenceDate ? `Absence date, ${longDate(absenceDate)}` : 'Pick the absence date'}
-                className={`flex-row items-center justify-between rounded-lg border bg-surface px-3 py-2.5 ${invalid ? 'border-danger-edge-strong' : 'border-edge-strong'}`}
-              >
-                <Text className={`text-base ${absenceDate ? 'text-fg' : 'text-fg-muted'}`}>{absenceDate ? longDate(absenceDate) : 'Pick a date'}</Text>
-                <Icon name="fa-calendar-days" size={14} color={tokens['fg-faint']} />
-              </Pressable>
-              {showPicker ? (
-                <DateTimePicker
-                  value={absenceDate ? dateToLocal(absenceDate) : dateToLocal(today)}
-                  mode="date"
-                  display="default"
-                  maximumDate={dateToLocal(today)}
-                  // The 9.x API: `onChange` is deprecated (it raised a LogBox
-                  // warning on the phone check that covered the drawer's
-                  // Logout). `onValueChange` fires on Set with the Date;
-                  // `onDismiss` on Cancel or the back gesture.
-                  onValueChange={(event, picked) => {
-                    setShowPicker(Platform.OS === 'ios');
-                    if (picked) {
-                      setDateError(null);
-                      setAbsenceDate(dateFromParts(picked));
-                    }
-                  }}
-                  onDismiss={() => setShowPicker(false)}
-                />
-              ) : null}
-            </>
-          )}
-        />
+        <Reveal>
+          <View className={`${cardClass} gap-4 p-4`}>
+            <FormField
+              label="Absence date"
+              required
+              error={dateError}
+              render={({ invalid }) => (
+                <>
+                  <Pressable
+                    onPress={() => setShowPicker(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={absenceDate ? `Absence date, ${longDate(absenceDate)}` : 'Pick the absence date'}
+                    android_ripple={{ color: tokens['edge-strong'] }}
+                    className={`flex-row items-center justify-between gap-3 overflow-hidden rounded-xl border bg-surface px-4 py-3.5 ${invalid ? 'border-danger-edge-strong' : 'border-edge-strong'}`}
+                    style={{ minHeight: 48 }}
+                  >
+                    <Text className={`min-w-0 flex-1 text-base ${absenceDate ? 'text-fg' : 'text-fg-muted'}`}>{absenceDate ? longDate(absenceDate) : 'Pick a date'}</Text>
+                    <Icon name="fa-calendar-days" size={15} color={tokens['fg-muted']} />
+                  </Pressable>
+                  {showPicker ? (
+                    <DateTimePicker
+                      value={absenceDate ? dateToLocal(absenceDate) : dateToLocal(today)}
+                      mode="date"
+                      display="default"
+                      maximumDate={dateToLocal(today)}
+                      // The 9.x API: `onChange` is deprecated (it raised a LogBox
+                      // warning on the phone check that covered the drawer's
+                      // Logout). `onValueChange` fires on Set with the Date;
+                      // `onDismiss` on Cancel or the back gesture.
+                      onValueChange={(event, picked) => {
+                        setShowPicker(Platform.OS === 'ios');
+                        if (picked) {
+                          setDateError(null);
+                          setAbsenceDate(dateFromParts(picked));
+                        }
+                      }}
+                      onDismiss={() => setShowPicker(false)}
+                    />
+                  ) : null}
+                </>
+              )}
+            />
 
-        <FormField label="Reason" required value={reason} onChangeText={setReason} placeholder="Short reason for the absence" />
-        <FormField
-          label="Details"
-          value={details}
-          onChangeText={setDetails}
-          placeholder="Optional — anything the adviser should know"
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-          className="min-h-24"
-        />
+            <FormField label="Reason" required value={reason} onChangeText={setReason} placeholder="Short reason for the absence" />
+            <FormField
+              label="Details"
+              value={details}
+              onChangeText={setDetails}
+              placeholder="Optional — anything the adviser should know"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+              className="min-h-24"
+            />
+          </View>
+        </Reveal>
 
-        <View className="flex-row justify-end gap-2">
-          <Pressable onPress={() => navigation.goBack()} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-2">
-            <Text className="text-sm text-fg-body">Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={submit}
-            disabled={saving || !reason.trim()}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving || !reason.trim(), busy: saving }}
-            className={`rounded-lg bg-primary px-4 py-2 ${saving || !reason.trim() ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : editing ? 'Save changes' : 'Submit'}</Text>
-          </Pressable>
+        {/* The label still changes while the write is in flight; `loading`
+            adds the spinner, and the button is disabled exactly when it was
+            before (saving, or no reason typed). */}
+        <View className="flex-row flex-wrap justify-end gap-2">
+          <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onPress={submit} disabled={saving || !reason.trim()} loading={saving}>
+            {saving ? 'Saving…' : editing ? 'Save changes' : 'Submit'}
+          </Button>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

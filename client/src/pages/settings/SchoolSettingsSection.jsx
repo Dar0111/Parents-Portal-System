@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { currentTerm, termDates } from '../../format/schoolCalendar';
 
@@ -48,12 +50,41 @@ import { currentTerm, termDates } from '../../format/schoolCalendar';
 // §5e: no confirmation. Every value is reversible by saving again and is on
 // screen.
 
-function Field({ label, value, empty = 'Not recorded' }) {
+// A sub-section's title: the icon chip and the title face — the same markup
+// Account information's sub-sections use, so the two tabs read alike. The
+// chip is decoration (aria-hidden), and the flex sits on the span, never on
+// the `fa-solid` element.
+function SubHeading({ icon, children }) {
   return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
-      <dd className="mt-1 text-sm text-fg">
-        {value ? value : <span className="text-fg-muted">{empty}</span>}
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden="true"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+      >
+        <i className={`fa-solid ${icon}`} />
+      </span>
+      <h3 className="min-w-0 font-serif text-base font-bold text-fg">{children}</h3>
+    </div>
+  );
+}
+
+// A read-only fact in the band: the label in the eyebrow style, the value
+// under it. `figure` prints the value as a figure (the school year); `locked`
+// puts a small lock beside it — decoration only (aria-hidden), the sentence
+// under the band is what says the value cannot be changed here.
+function Field({ label, value, empty = 'Not recorded', figure = false, locked = false }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{label}</dt>
+      <dd
+        className={`mt-1 flex items-center gap-2 text-fg ${figure ? 'text-xl font-bold tabular-nums' : 'text-sm'}`}
+      >
+        {value ? <span className="min-w-0">{value}</span> : <span className="text-sm font-normal text-fg-muted">{empty}</span>}
+        {locked ? (
+          <span aria-hidden="true" className="flex shrink-0 items-center justify-center text-sm text-fg-faint">
+            <i className="fa-solid fa-lock" />
+          </span>
+        ) : null}
       </dd>
     </div>
   );
@@ -120,6 +151,21 @@ export default function SchoolSettingsSection() {
     setDetailsDraft((prev) => ({ ...(prev ?? storedDetails), [key]: value }));
   }
 
+  // RELOAD (feat/ui-refresh) — the header's button. load() is the same
+  // GET /settings the mount effect, Try again and a successful save call.
+  //
+  // IT DROPS THE DRAFT FIRST, and that loses nothing: the button is disabled
+  // while the form is dirty, so the only draft it can meet is one that
+  // already equals the stored values — a field typed in and put back. Left in
+  // place, that draft would keep the form following ITSELF instead of the
+  // fresh read: the reload would show the old values, and any field somebody
+  // else had changed meanwhile would count as an edit back to its old value,
+  // which the next save would write. Called from the click, never an effect.
+  function reload() {
+    setDetailsDraft(null);
+    load();
+  }
+
   async function saveDetails(event) {
     event.preventDefault();
     setStatus({});
@@ -147,14 +193,27 @@ export default function SchoolSettingsSection() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-base font-semibold text-fg">School settings</h2>
-        <p className="mt-1 text-sm text-fg-muted">
-          These settings belong to the school, not to your account. Your own account is under
-          Account information.
-        </p>
-      </div>
+    <div className="space-y-6">
+      {/* RELOAD (feat/ui-refresh) is reload() above — load() behind it. With
+          the form on screen it shows no spinner in the page: the button's own
+          icon turns while `loading` is true, and a failure lands in the
+          ErrorAlert below, as a failed re-read after a save always has.
+
+          DISABLED WHILE THE FORM HAS UNSAVED EDITS, and while a save is in
+          flight: the draft is a copy of ALL seven fields taken at the first
+          keystroke, so against a newer `stored` every field somebody else
+          changed meanwhile would read as "changed" back to its old value and
+          the next save would undo their edit. The hint is the button's
+          title, so the reason is one hover or long-press away. */}
+      <SectionHeader
+        title="School settings"
+        description="These settings belong to the school, not to your account. Your own account is under Account information."
+        onReload={reload}
+        reloading={loading}
+        reloadDisabled={detailsDirty || saving}
+        reloadHint={detailsDirty ? 'Save or discard your changes before reloading.' : ''}
+        reloadLabel="Reload school settings"
+      />
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
@@ -163,10 +222,10 @@ export default function SchoolSettingsSection() {
           inside it left the right third of the screen empty on a desktop.
           The short pairs below sit side by side from `sm`; below it every
           field stacks as before. */}
-      <section className="max-w-2xl space-y-3">
-        <h3 className="text-sm font-semibold text-fg">School year and term</h3>
-        <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4">
-          <Field label="School year" value={stored.academic_year} />
+      <section className="max-w-2xl space-y-3 border-t border-edge-soft pt-6">
+        <SubHeading icon="fa-calendar-days">School year and term</SubHeading>
+        <dl className="grid gap-4 rounded-xl border border-edge bg-surface-subtle p-4">
+          <Field label="School year" value={stored.academic_year} figure locked />
           <Field
             label="Current term"
             value={`Term ${term} — from the school calendar, ${longDate(termStart)} – ${longDate(termEnd)}`}
@@ -181,8 +240,11 @@ export default function SchoolSettingsSection() {
             has a grade in it (ReportCard.jsx), which is kept by decision. The
             dashboards, the class record and the class summary do follow the
             calendar; the report card's desktop view shows all three terms, so
-            only the phone view "opens on" one. */}
-        <p className="text-sm text-fg-muted">
+            only the phone view "opens on" one.
+
+            `max-w-prose`: five sentences of reading text, kept to a
+            readable line instead of the section's full 42rem. */}
+        <p className="max-w-prose text-sm text-fg-muted">
           The school year cannot be changed here. Sections, grading setup and existing grades are
           all tied to the school year, and changing this value would not move any of them. The
           current term is not a setting either: it follows today&rsquo;s date on the school
@@ -191,9 +253,9 @@ export default function SchoolSettingsSection() {
         </p>
       </section>
 
-      <section className="max-w-2xl space-y-3">
-        <h3 className="text-sm font-semibold text-fg">School details</h3>
-        <form onSubmit={saveDetails} className="space-y-3">
+      <section className="max-w-2xl space-y-3 border-t border-edge-soft pt-6">
+        <SubHeading icon="fa-building-columns">School details</SubHeading>
+        <form onSubmit={saveDetails} className="space-y-4">
           <FormField
             label="School name"
             value={details.school_name}
@@ -211,7 +273,7 @@ export default function SchoolSettingsSection() {
           {/* Two short pairs share a row from `sm` — the ID beside the
               phone, the email beside the Facebook page — so the widened
               section does not read as one long column of narrow facts. */}
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField
               label="DepEd School ID"
               inputMode="numeric"
@@ -228,7 +290,7 @@ export default function SchoolSettingsSection() {
               hint="A landline or a mobile number, 7 to 15 digits. Shown on the About page."
             />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <FormField
               label="School email"
               type="email"
@@ -250,13 +312,9 @@ export default function SchoolSettingsSection() {
             onChange={(e) => editDetail('logo_url', e.target.value)}
             hint="A web address to an image. Leave blank for no logo. This page does not upload files."
           />
-          <button
-            type="submit"
-            disabled={saving || !detailsDirty}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={saving || !detailsDirty}>
             {saving ? 'Saving…' : 'Save school details'}
-          </button>
+          </Button>
           <FormStatus status={status.details} />
         </form>
       </section>

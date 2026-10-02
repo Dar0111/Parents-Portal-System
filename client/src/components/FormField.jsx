@@ -1,7 +1,15 @@
 import { useId } from 'react';
+import { buttonClass } from './buttonClass';
 
 // Shared control styling, exported so a page rendering a control this
 // component does not cover (a date range, a custom picker) can still match.
+//
+// THE CONTROL IS 44px TALL AND 12px-CORNERED (feat/ui-refresh, 2026-10-02):
+// `min-h-11 rounded-xl`, the same height and corner as every button
+// (buttonClass.js), so a filter row's inputs and its Apply line up and a
+// finger has a full target. A MIN-height, so a <textarea> still takes the
+// height its `rows` ask for.
+//
 // THE ERROR BORDER NEVER SHOWED, FOR ANY SHAPE, UNTIL 2026-09-18. The old
 // composition was `${controlClass} ${error ? errorClass : ''}` — BOTH
 // `border-edge-strong` and `border-danger-edge-strong` on the element. Same specificity,
@@ -12,7 +20,7 @@ import { useId } from 'react';
 // different class but NOT emitting the slate state classes when invalid:
 // controlClassFor(invalid) picks one state or the other, never both.
 const controlBaseClass =
-  'block w-full rounded-lg border bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
+  'block min-h-11 w-full rounded-xl border bg-surface px-3 py-2 text-sm text-fg shadow-xs transition placeholder:text-fg-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
 const normalStateClass = 'border-edge-strong focus:border-focus-edge focus:ring-focus-ring';
 
 // Exported for shape-4 callers: the render object tells them `invalid`, and
@@ -52,6 +60,9 @@ export function controlClassFor(invalid) {
 // the native dropdown arrow (~20px) — about 260px needed. w-64 (256px) is
 // under it; w-72 leaves ~28px. Truncating a section name is the exact defect
 // being fixed, so the tie goes to the wider token.
+// (Those figures were taken at the 14px system face. Since feat/ui-refresh the
+// control's text is 15px Source Sans 3 — a narrower face — and the sum has NOT
+// been re-measured; the width itself is unchanged.)
 //
 // Trade-off, accepted: one width for every filter select means "All statuses"
 // is as wide as the longest section name, and a four-control bar wraps sooner
@@ -85,8 +96,20 @@ export const filterFieldClass = 'w-full sm:w-44';
 // to be a matched pair BY CONSTRUCTION — which is only true if both read one
 // constant. The empty-state buttons on the pages are deliberately NOT
 // re-styled here (flagged, out of 5b's scope).
-export const buttonNeutralClass =
-  'rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted';
+//
+// IT IS THE SECONDARY BUTTON NOW (feat/ui-refresh, 2026-10-02) — the same
+// classes `buttonClass({ variant: 'secondary' })` gives every other neutral
+// button, evaluated once into this constant so the export name and every
+// caller stay as they were. WITHOUT THE TWO `disabled:` UTILITIES, on
+// purpose: `FilterActions`' Apply is quiet when clean and never disabled
+// (§21), and its proof reads the markup for that very word.
+//
+// EXPORTED AS A TEMPLATE STRING, NOT AS THE CALL ITSELF. oxlint's
+// react(only-export-components) accepts a string or template literal as a
+// constant export and counts `export const x = someCall()` as a warning — the
+// lint baseline has no room for one. Same value either way.
+const neutralButton = buttonClass({ variant: 'secondary', disabledStyles: false });
+export const buttonNeutralClass = `${neutralButton}`;
 
 // Four supported call shapes, and only four:
 //
@@ -141,7 +164,7 @@ export default function FormField({
   return (
     <div className={className}>
       {label ? (
-        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-medium text-fg-secondary">
+        <label htmlFor={fieldId} className="mb-1.5 block text-sm font-semibold text-fg-secondary">
           {label}
           {required ? <span className="ml-0.5 text-danger-icon">*</span> : null}
         </label>

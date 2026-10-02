@@ -18,10 +18,189 @@ import Card, { CardEmpty, Stat } from '../dashboards/Card';
 import { PersonCell } from '../../components/Avatar';
 import AttendanceCalendar from '../parent/AttendanceCalendar';
 import { NavItem } from '../../layout/Shell';
+import Button from '../../components/Button';
+import ReloadButton from '../../components/ReloadButton';
+import SectionHeader from '../../components/SectionHeader';
+import { buttonClass, cardClass, linkClass } from '../../components/buttonClass';
+import CountUp from '../../motion/CountUp';
+import Reveal from '../../motion/Reveal';
 
 // Dev-only component gallery (routed in App.jsx behind import.meta.env.DEV).
 // Every primitive in every state it can be in, so the shared pattern can be
 // reviewed before any feature page is built against it.
+//
+// feat/ui-refresh (2026-10-02) added the three demos at the top — Buttons,
+// SectionHeader + Reload, and Motion — so the system the refresh introduced
+// can be seen in one place, in both themes, without logging in.
+
+// Every variant at every size, from the one definition (buttonClass.js).
+const BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'danger', 'danger-outline', 'success'];
+const BUTTON_SIZES = [
+  ['md', 'md — 44px, the default: form and page actions'],
+  ['sm', 'sm — 44px under a finger, 36px from sm up: row actions'],
+  ['lg', 'lg — 48px: the full-width auth submits'],
+];
+
+function ButtonsDemo() {
+  return (
+    <div className={`${cardClass} p-5`}>
+      {BUTTON_SIZES.map(([size, label]) => (
+        <Row key={size} label={label}>
+          <div className="flex flex-wrap items-center gap-2">
+            {BUTTON_VARIANTS.map((variant) => (
+              <Button key={variant} variant={variant} size={size}>
+                {variant}
+              </Button>
+            ))}
+          </div>
+        </Row>
+      ))}
+      <Row label="icon — square, icon only, named by aria-label">
+        <div className="flex flex-wrap items-center gap-2">
+          {BUTTON_VARIANTS.map((variant) => (
+            <Button key={variant} variant={variant} size="icon" icon="fa-pen" aria-label={`Edit (${variant})`} />
+          ))}
+        </div>
+      </Row>
+      <Row label="icon-sm — 44px under a finger, 36px from sm up: a dense row">
+        <div className="flex flex-wrap items-center gap-2">
+          {BUTTON_VARIANTS.map((variant) => (
+            <Button key={variant} variant={variant} size="icon-sm" icon="fa-pen" aria-label={`Edit (${variant})`} />
+          ))}
+        </div>
+      </Row>
+      <Row label="a leading icon, loading (disabled, the label stays), disabled">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" icon="fa-plus">
+            Create teacher
+          </Button>
+          <Button variant="primary" loading>
+            Saving…
+          </Button>
+          <Button variant="primary" disabled>
+            Disabled
+          </Button>
+          <Button variant="secondary" disabled>
+            Disabled
+          </Button>
+          <Button variant="danger-outline" icon="fa-trash">
+            Delete
+          </Button>
+        </div>
+      </Row>
+      <Row label="full — the width of its container">
+        <div className="max-w-sm">
+          <Button variant="primary" size="lg" full>
+            Log in
+          </Button>
+        </div>
+      </Row>
+      <Row label="buttonClass() on a link, and linkClass in running text">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-fg-body">
+          <a href="#gallery-buttons" className={buttonClass({ variant: 'secondary' })}>
+            A link that looks like a button
+          </a>
+          <p>
+            Running text with{' '}
+            <a href="#gallery-buttons" className={linkClass}>
+              a text link
+            </a>{' '}
+            in it.
+          </p>
+        </div>
+      </Row>
+    </div>
+  );
+}
+
+// SectionHeader with its Reload. The "request" here is a 1.2 s timer, so the
+// button's busy state (disabled, the icon spinning) and the section's own
+// loading frame can be seen; a real page passes its existing fetch.
+function SectionHeaderDemo() {
+  const [reloading, setReloading] = useState(false);
+  const [times, setTimes] = useState(0);
+  function reload() {
+    setReloading(true);
+    setTimeout(() => {
+      setReloading(false);
+      setTimes((n) => n + 1);
+    }, 1200);
+  }
+  return (
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <SectionHeader
+          title="Announcements"
+          description="The title in the title face, one sentence, Reload, then the section's one primary action."
+          onReload={reload}
+          reloading={reloading}
+          reloadLabel="Reload announcements"
+          actions={
+            <Button variant="primary" icon="fa-plus">
+              New announcement
+            </Button>
+          }
+        />
+        <DataTable columns={COLUMNS} rows={STUDENTS.slice(0, 3)} loading={reloading} />
+        <p className="text-xs tabular-nums text-fg-muted">Reloaded {times} time(s) in this visit.</p>
+      </section>
+      <section className="space-y-3">
+        <SectionHeader
+          as="h3"
+          title="Unsaved work"
+          description="On the bulk-entry screens Reload is disabled while anything is unsaved — hover it for the reason."
+          onReload={() => {}}
+          reloadDisabled
+          reloadHint="Save or discard your changes before reloading."
+          reloadLabel="Reload attendance"
+        />
+      </section>
+      <Row label="ReloadButton compact — icon only at every width, for a card's header">
+        <ReloadButton compact onReload={reload} loading={reloading} label="Reload this card" />
+      </Row>
+    </div>
+  );
+}
+
+// Reveal and CountUp. Both run once on mount, so Replay remounts them by key.
+// Under reduced motion (or with no JavaScript) nothing moves and the figures
+// are simply there — which is the state every proof renders.
+const FIGURES = [
+  ['Letters to review', 7],
+  ['Learners on the roll', 128],
+  ['Unread messages', 42],
+];
+
+function MotionDemo() {
+  const [run, setRun] = useState(0);
+  return (
+    <div className="space-y-4">
+      <Button icon="fa-rotate-right" onClick={() => setRun((n) => n + 1)}>
+        Replay
+      </Button>
+      <Reveal key={`grid-${run}`} stagger className="grid gap-4 sm:grid-cols-3">
+        {FIGURES.map(([label, value]) => (
+          <div key={label} className={`${cardClass} p-5`}>
+            <p className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{label}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-fg">
+              <CountUp value={value} />
+            </p>
+          </div>
+        ))}
+      </Reveal>
+      <Reveal key={`one-${run}`} className={`${cardClass} p-5`}>
+        <p className="text-sm text-fg-body">
+          A single Reveal — a page&rsquo;s one entrance: a fade and a 12px rise, then every inline style is
+          cleared. CountUp leaves anything that is not a whole number from 1 to 9999 untouched:{' '}
+          <span className="font-semibold tabular-nums text-fg">
+            <CountUp value="3 of 5" />
+          </span>
+          .
+        </p>
+      </Reveal>
+    </div>
+  );
+}
 
 // PasswordField + PasswordChecklist, live: type to watch the rules flip and
 // the Confirm field's mismatch error appear; the third field is the error
@@ -33,7 +212,7 @@ function PasswordDemo() {
   const [revealed, setRevealed] = useState({ next: false, confirm: false, current: false });
   const toggle = (key) => setRevealed((r) => ({ ...r, [key]: !r[key] }));
   return (
-    <div className="grid gap-4 rounded-xl border border-edge bg-surface p-6 sm:grid-cols-2">
+    <div className="grid gap-4 rounded-2xl border border-edge bg-surface shadow-xs p-6 sm:grid-cols-2">
       <PasswordField
         label="New password"
         value={next}
@@ -92,11 +271,11 @@ function ThemePreviewToggle() {
           type="button"
           onClick={() => setPreview(value)}
           aria-pressed={preview === value}
-          className={`rounded-lg border px-2.5 py-1 capitalize transition ${
-            preview === value
-              ? 'border-primary bg-primary text-primary-fg'
-              : 'border-edge-strong bg-surface text-fg-body hover:bg-surface-muted'
-          }`}
+          className={buttonClass({
+            variant: preview === value ? 'primary' : 'secondary',
+            size: 'sm',
+            className: 'capitalize',
+          })}
         >
           {value}
         </button>
@@ -181,20 +360,20 @@ function TokenStrip() {
   );
 }
 
-function Section({ title, note, children }) {
+function Section({ title, note, id, children }) {
   return (
-    <section className="mb-10">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">{title}</h2>
-      {note ? <p className="mt-1 text-sm text-fg-muted">{note}</p> : null}
-      <div className="mt-3">{children}</div>
+    <section id={id} className="mb-12 scroll-mt-6">
+      <h2 className="font-serif text-lg font-bold text-fg">{title}</h2>
+      {note ? <p className="mt-1 max-w-prose text-sm text-fg-muted">{note}</p> : null}
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
 
 function Row({ label, children }) {
   return (
-    <div className="mb-4">
-      <p className="mb-2 text-xs font-medium text-fg-muted">{label}</p>
+    <div className="mb-5 last:mb-0">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-muted">{label}</p>
       {children}
     </div>
   );
@@ -240,10 +419,10 @@ export default function UiGallery() {
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-page p-6">
+    <div className="min-h-screen bg-page p-4 sm:p-6">
       <div className="mx-auto max-w-4xl">
-        <header className="mb-8">
-          <h1 className="text-lg font-semibold text-fg">UI primitives</h1>
+        <header className="mb-10">
+          <h1 className="font-serif text-2xl font-bold text-fg">UI primitives</h1>
           <p className="mt-1 text-sm text-fg-muted">
             Dev-only gallery. Not in any nav, not in a production build.
           </p>
@@ -251,15 +430,37 @@ export default function UiGallery() {
         </header>
 
         <Section
+          id="gallery-buttons"
+          title="Buttons"
+          note="One definition (components/buttonClass.js), six variants, five sizes. Exactly one primary per screen or section; a destructive row action is danger-outline and only the confirm in its dialog is danger. Tab through them: every one has the same keyboard outline."
+        >
+          <ButtonsDemo />
+        </Section>
+
+        <Section
+          title="SectionHeader + Reload"
+          note="A section of a page: its title (an h2 — the page's one h1 is the top bar's), a sentence, Reload, and the section's own actions. Reload calls the section's existing fetch and is disabled while that fetch is running."
+        >
+          <SectionHeaderDemo />
+        </Section>
+
+        <Section
+          title="Motion — Reveal and CountUp"
+          note="Entrances only: transform and opacity, 0.25–0.4 s, once on mount. With prefers-reduced-motion nothing moves. Never on Modal, the message toast, the attendance roster or the class-record grid."
+        >
+          <MotionDemo />
+        </Section>
+
+        <Section
           title="Tokens — light and dark side by side"
           note="Every semantic color token (docs/FRONTEND_CONVENTIONS.md §8), rendered twice: once in the page's theme, once inside a data-theme=&quot;dark&quot; subtree. The right column is always dark whatever the toggle above says — that is the point: any element can re-scope the tokens for its subtree."
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-edge bg-page p-4">
+            <div className="rounded-2xl border border-edge bg-page p-4">
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">This page's theme</p>
               <TokenStrip />
             </div>
-            <div data-theme="dark" className="rounded-xl border border-edge bg-page p-4">
+            <div data-theme="dark" className="rounded-2xl border border-edge bg-page p-4">
               <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-muted">data-theme="dark"</p>
               <TokenStrip />
             </div>
@@ -355,7 +556,7 @@ export default function UiGallery() {
         </Section>
 
         <Section title="LoadingSpinner">
-          <div className="flex items-center gap-10 rounded-xl border border-edge bg-surface p-6">
+          <div className="flex items-center gap-10 rounded-2xl border border-edge bg-surface shadow-xs p-6">
             <LoadingSpinner size="sm" label={null} />
             <LoadingSpinner size="md" />
             <LoadingSpinner size="lg" label="Saving…" />
@@ -363,18 +564,15 @@ export default function UiGallery() {
         </Section>
 
         <Section title="EmptyState">
-          <div className="rounded-xl border border-edge bg-surface">
+          <div className="rounded-2xl border border-edge bg-surface shadow-xs">
             <EmptyState
               icon="fa-envelope-open-text"
               title="No excuse letters yet"
               message="Letters submitted by parents in your section will appear here for review."
               action={
-                <button
-                  type="button"
-                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-                >
+                <Button variant="primary" size="sm">
                   Refresh
-                </button>
+                </Button>
               }
             />
           </div>
@@ -408,7 +606,7 @@ export default function UiGallery() {
           title="FormField"
           note="Four shapes: input (default), textarea, select with children as its options, or a custom control via render={({ id, describedBy }) => …}."
         >
-          <div className="grid gap-4 rounded-xl border border-edge bg-surface p-6 sm:grid-cols-2">
+          <div className="grid gap-4 rounded-2xl border border-edge bg-surface shadow-xs p-6 sm:grid-cols-2">
             <FormField label="Student name" placeholder="Juan dela Cruz" required />
             <FormField label="LRN" hint="12 digits, immutable after creation." placeholder="136491230001" />
             <FormField label="Contact number" error="Contact number must be 11 digits." defaultValue="0917" />
@@ -449,7 +647,7 @@ export default function UiGallery() {
           title="GradeValue — four states, two precisions"
           note="NULL is never a bare dash: the reason is inline text, because tooltips do not exist on touch and the report card is a phone screen. `whole` is for Term and Final Grades only — a General Average keeps two decimals, because 721/8 = 90.13 is the figure on the school's own sheet."
         >
-          <div className="rounded-xl border border-edge bg-surface p-6">
+          <div className="rounded-2xl border border-edge bg-surface shadow-xs p-6">
             <div className="grid gap-4 sm:grid-cols-4">
               <div>
                 <p className="mb-1 text-xs font-medium text-fg-muted">a real grade</p>
@@ -529,7 +727,7 @@ export default function UiGallery() {
           title="Nav states"
           note="Three states, not two. Blocked is a stronger claim than unbuilt and takes precedence — hover it for the reason."
         >
-          <div className="max-w-xs rounded-xl border border-edge bg-surface p-2">
+          <div className="max-w-xs rounded-2xl border border-edge bg-surface shadow-xs p-2">
             <NavItem item={{ to: '/dev/ui', label: 'Built (this page)', icon: 'fa-gauge', built: true }} />
             <NavItem item={{ to: '/x', label: 'Not built yet', icon: 'fa-user-graduate', built: false }} />
             <NavItem
@@ -551,22 +749,22 @@ export default function UiGallery() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <p className="mb-2 text-xs font-medium text-fg-muted">empty</p>
-              <div className="rounded-xl border border-edge bg-surface">
-                <div className="border-b border-edge px-4 py-3 text-sm font-semibold text-fg">Notifications</div>
+              <div className="rounded-2xl border border-edge bg-surface shadow-xs">
+                <div className="border-b border-edge px-4 py-3.5 font-serif text-base font-bold text-fg">Notifications</div>
                 <p className="px-4 py-8 text-center text-sm text-fg-muted">No notifications yet.</p>
               </div>
             </div>
             <div>
               <p className="mb-2 text-xs font-medium text-fg-muted">unread</p>
-              <div className="rounded-xl border border-edge bg-surface">
-                <div className="flex items-center justify-between border-b border-edge px-4 py-3">
-                  <span className="text-sm font-semibold text-fg">Notifications</span>
-                  <span className="text-sm font-medium text-brand">Mark all as read</span>
+              <div className="rounded-2xl border border-edge bg-surface shadow-xs">
+                <div className="flex items-center justify-between gap-3 border-b border-edge px-4 py-3.5">
+                  <span className="font-serif text-base font-bold text-fg">Notifications</span>
+                  <span className="text-sm font-semibold text-brand">Mark all as read</span>
                 </div>
-                <div className="flex items-start gap-3 border-b border-edge px-4 py-3">
-                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                <div className="flex items-start gap-3 px-4 py-3.5">
+                  <span aria-hidden="true" className="mt-[0.4375rem] h-2 w-2 shrink-0 rounded-full bg-primary" />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-fg">New announcement</span>
+                    <span className="block text-sm font-semibold text-fg">New announcement</span>
                     <span className="mt-0.5 block text-sm text-fg-muted">
                       Principal Admin posted &ldquo;Classes suspended&rdquo;.
                     </span>
@@ -577,10 +775,10 @@ export default function UiGallery() {
             </div>
             <div>
               <p className="mb-2 text-xs font-medium text-fg-muted">read</p>
-              <div className="rounded-xl border border-edge bg-surface">
-                <div className="border-b border-edge px-4 py-3 text-sm font-semibold text-fg">Notifications</div>
-                <div className="flex items-start gap-3 border-b border-edge px-4 py-3">
-                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-transparent" />
+              <div className="rounded-2xl border border-edge bg-surface shadow-xs">
+                <div className="border-b border-edge px-4 py-3.5 font-serif text-base font-bold text-fg">Notifications</div>
+                <div className="flex items-start gap-3 px-4 py-3.5">
+                  <span aria-hidden="true" className="mt-[0.4375rem] h-2 w-2 shrink-0 rounded-full bg-transparent" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm text-fg-muted">A grade is ready to view</span>
                     <span className="mt-0.5 block text-sm text-fg-muted">
@@ -592,10 +790,10 @@ export default function UiGallery() {
               </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-3 rounded-xl border border-edge bg-surface p-4">
-            <span className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body">
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-edge bg-surface shadow-xs p-4">
+            <span className={buttonClass({ variant: 'secondary', size: 'icon', className: 'relative' })}>
               <i aria-hidden="true" className="fa-solid fa-bell" />
-              <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-medium leading-5 text-primary-fg">
+              <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-semibold tabular-nums leading-5 text-primary-fg ring-2 ring-surface">
                 3
               </span>
             </span>
@@ -607,7 +805,7 @@ export default function UiGallery() {
           title="Attendance calendar (DV2)"
           note="Colour is never the only carrier: a recorded day is a StatusBadge, which is colour AND text. Below sm the badge is a single letter with the full word in the accessible name, and the legend maps them. An unrecorded weekday is dashed and says 'not recorded' — never Absent. A weekend record cannot be a grid cell, so it appears in 'Also recorded' and still counts."
         >
-          <div className="rounded-xl border border-edge bg-surface p-4">
+          <div className="rounded-2xl border border-edge bg-surface shadow-xs p-4">
             <AttendanceCalendar
               year={2026}
               month={9}
@@ -630,7 +828,7 @@ export default function UiGallery() {
           <p className="mt-3 text-sm text-fg-muted">
             A month with nothing recorded — every weekday dashed, no strip, no badges:
           </p>
-          <div className="mt-2 rounded-xl border border-edge bg-surface p-4">
+          <div className="mt-2 rounded-2xl border border-edge bg-surface shadow-xs p-4">
             <AttendanceCalendar
               year={2026}
               month={11}
@@ -646,7 +844,7 @@ export default function UiGallery() {
           title="Avatar + PersonCell (DV1)"
           note="Initials only — users.profile_pic exists in the schema, is NULL on every row, and has no upload endpoint. brand-on-brand-soft is an already-checked contrast pair. Note AC, not AM, for a four-word name, and one letter for a single word."
         >
-          <div className="space-y-3 rounded-xl border border-edge bg-surface p-4">
+          <div className="space-y-3 rounded-2xl border border-edge bg-surface shadow-xs p-4">
             <PersonCell name="Maria Santos" secondary="msantos@chfes.edu.ph" />
             <PersonCell name="Ana Maria Reyes Cruz" secondary="Four words — first and LAST initial" />
             <PersonCell name="Jea-Mae Bargaso" secondary="Hyphen is a separator" />
@@ -684,20 +882,13 @@ export default function UiGallery() {
               status: row.status,
               actions: (
                 <>
-                  <button
-                    type="button"
-                    aria-label={`Edit ${row.name}`}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body"
-                  >
-                    <i aria-hidden="true" className="fa-solid fa-pen" />
-                  </button>
-                  <button
-                    type="button"
+                  <Button size="icon-sm" icon="fa-pen" aria-label={`Edit ${row.name}`} />
+                  <Button
+                    variant="danger-outline"
+                    size="icon-sm"
+                    icon="fa-user-slash"
                     aria-label={`Deactivate ${row.name}`}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body"
-                  >
-                    <i aria-hidden="true" className="fa-solid fa-user-slash" />
-                  </button>
+                  />
                 </>
               ),
             })}
@@ -771,13 +962,9 @@ export default function UiGallery() {
         </Section>
 
         <Section title="Modal" note="Escape closes, backdrop click closes, body scroll locks while open.">
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
+          <Button variant="primary" onClick={() => setModalOpen(true)}>
             Open modal
-          </button>
+          </Button>
 
           <Modal
             open={modalOpen}
@@ -785,20 +972,10 @@ export default function UiGallery() {
             title="Decline excuse letter"
             footer={
               <>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover"
-                >
+                <Button onClick={() => setModalOpen(false)}>Cancel</Button>
+                <Button variant="danger" onClick={() => setModalOpen(false)}>
                   Decline
-                </button>
+                </Button>
               </>
             }
           >

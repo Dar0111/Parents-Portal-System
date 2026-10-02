@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
 import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
+import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
+import Text from '../../components/Text';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
+import { userCardLines } from '../../navigation/drawerFold';
 import { useTheme } from '../../theme/ThemeProvider';
 
 // The web's Account information section, screen-shaped. Every sentence is
@@ -18,13 +25,44 @@ import { useTheme } from '../../theme/ThemeProvider';
 // is its own state and `refresh()` after a save is what updates the shown
 // value. §5c: this is the ONE screen that shows a parent's login_id, masked
 // until Show is tapped; nothing else on the phone displays an LRN.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-02): a profile card (the avatar, the
+// name, the role, and the photo's own controls), the school's record of the
+// account as one card of locked fields, then one card per sub-section, each
+// with ONE clear action. THE SCREEN HAS ONE FILLED BUTTON — Save contact
+// number, its one always-available write; every other action is the bordered
+// button, and Remove photo is drawn as the destructive one.
+//
+// RELOAD (feat/ui-refresh) is the web's, on the phone: the section header's
+// button calls AuthContext's refresh() — GET /auth/me, the call the mount
+// effect and every write here already make. It never touches a number being
+// typed or a typed code, so nothing unsaved is lost; a failure is shown under
+// the header rather than swallowed, because this time somebody asked.
+
+// A locked fact: the label in the eyebrow style, the value under it.
 function Field({ label, value, empty = 'Not recorded', children }) {
   return (
-    <View className="py-2">
-      <Text className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</Text>
+    <View>
+      <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{label}</Text>
       <View className="mt-1">
         {children ?? (value ? <Text className="text-sm text-fg">{value}</Text> : <Text className="text-sm text-fg-muted">{empty}</Text>)}
       </View>
+    </View>
+  );
+}
+
+// A sub-section's title: the icon chip and the title face. The chip is
+// decoration; the heading is the name.
+function SubHeading({ icon, children }) {
+  const { tokens } = useTheme();
+  return (
+    <View className="flex-row items-center gap-3">
+      <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
+        <Icon name={icon} size={15} color={tokens.brand} />
+      </View>
+      <Text accessibilityRole="header" className="min-w-0 flex-1 font-serif text-base text-fg">
+        {children}
+      </Text>
     </View>
   );
 }
@@ -41,11 +79,14 @@ function childClass(user) {
   return `Grade ${user.grade_level} - ${user.section || ''}`.replace(/ - $/, '');
 }
 
+// The Show / Hide control is the small bordered button — 44dp tall, where the
+// old text link was a 16dp target. It wraps under the dots when the row is
+// narrow rather than running out of it.
 function MaskedLoginId({ value }) {
   const [shown, setShown] = useState(false);
   if (!value) return <Text className="text-sm text-fg-muted">—</Text>;
   return (
-    <View className="flex-row items-center gap-3">
+    <View className="flex-row flex-wrap items-center gap-3">
       <Text
         accessibilityLabel={shown ? `Login ID ${value}` : 'Login ID hidden'}
         className="text-sm tracking-widest text-fg"
@@ -53,27 +94,35 @@ function MaskedLoginId({ value }) {
       >
         {shown ? value : '•'.repeat(Math.max(8, value.length))}
       </Text>
-      <Pressable onPress={() => setShown((s) => !s)} accessibilityRole="button" accessibilityState={{ selected: shown }}>
-        <Text className="text-xs font-medium text-brand">{shown ? 'Hide' : 'Show'}</Text>
-      </Pressable>
+      <Button
+        size="sm"
+        icon={shown ? 'fa-eye-slash' : 'fa-eye'}
+        onPress={() => setShown((s) => !s)}
+        accessibilityState={{ selected: shown }}
+      >
+        {shown ? 'Hide' : 'Show'}
+      </Button>
     </View>
   );
 }
 
+// A PILL IN ITS OWN TONE (feat/ui-refresh), as on the web: each state has its
+// own glyph and its own words, never colour alone. It sits UNDER the value it
+// marks, so a long address never has to share its line with it.
 function VerifiedMark({ at }) {
   const { tokens } = useTheme();
   if (!at) {
     return (
-      <View className="mt-1 flex-row items-center gap-1">
+      <View className="mt-1.5 flex-row items-center gap-1 self-start rounded-full bg-warning-soft px-2 py-0.5">
         <Icon name="fa-circle-exclamation" size={11} color={tokens['warning-icon']} />
-        <Text className="text-xs font-medium text-warning-strong">Not confirmed</Text>
+        <Text className="text-xs font-semibold text-warning-strong">Not confirmed</Text>
       </View>
     );
   }
   return (
-    <View className="mt-1 flex-row items-center gap-1">
+    <View className="mt-1.5 flex-row items-center gap-1 self-start rounded-full bg-success-soft px-2 py-0.5">
       <Icon name="fa-circle-check" size={11} color={tokens['success-icon']} />
-      <Text className="text-xs font-medium text-success-strong">Verified · {new Date(at).toLocaleDateString()}</Text>
+      <Text className="text-xs font-semibold text-success-strong">Verified · {new Date(at).toLocaleDateString()}</Text>
     </View>
   );
 }
@@ -115,12 +164,21 @@ const ROLE_COPY = {
 // §5e: choosing a photo uploads it (another choice undoes it). REMOVING
 // deletes the file with no undo, so a native Alert asks first, in the web's
 // words. §5b: the avatar is user.profile_pic from the last /auth/me.
+//
+// THE PROFILE CARD (feat/ui-refresh): the avatar sits beside the name and the
+// role line — the drawer's own two lines (drawerFold.js), so A PARENT'S CARD
+// NEVER SHOWS THE LOGIN ID here either (§5c) — and the photo's controls are
+// under them, in the same card as the picture they change.
+//
+// `busy` IS HELD BY THE SCREEN, not here, as on the web, and nothing else
+// about it changed: the header's Reload has to know a photo write is in
+// flight, because that write ends in the same refresh() the reload makes.
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PHOTO_MAX = 5 * 1024 * 1024;
 
-function ProfilePhoto({ user, refresh, status, setStatus }) {
-  const [busy, setBusy] = useState(false);
+function ProfilePhoto({ user, refresh, status, setStatus, busy, setBusy }) {
   const hasPhoto = Boolean(user?.profile_pic);
+  const { name, detail } = userCardLines(user);
 
   async function pick() {
     setStatus({});
@@ -188,39 +246,36 @@ function ProfilePhoto({ user, refresh, status, setStatus }) {
   }
 
   return (
-    <View className="mt-6 gap-3">
-      <Text className="text-sm font-semibold text-fg">Profile photo</Text>
+    <View className={`${cardClass} gap-4 p-4`}>
       <View className="flex-row items-center gap-4">
         <Avatar name={user?.name} photo={user?.profile_pic} size={72} />
-        <View className="min-w-0 flex-1 gap-2">
-          <View className="flex-row flex-wrap gap-2">
-            <Button label={busy ? 'Saving…' : hasPhoto ? 'Change photo' : 'Choose a photo'} onPress={pick} disabled={busy} />
-            {hasPhoto ? <Button label="Remove photo" onPress={confirmRemove} disabled={busy} primary={false} /> : null}
-          </View>
+        <View className="min-w-0 flex-1">
+          {name ? <Text className="font-serif text-xl text-fg">{name}</Text> : null}
+          {detail ? <Text className="mt-1 text-sm text-fg-muted">{detail}</Text> : null}
         </View>
       </View>
-      <Text className="text-xs text-fg-muted">
-        From your photo library — JPEG, PNG or WebP, up to 5 MB, cropped to a square. It shows beside your name in the
-        portal instead of your initials.
-      </Text>
-      <FormStatus status={status.photo} />
+      <View className="gap-3 border-t border-edge-soft pt-4">
+        <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Profile photo</Text>
+        {/* REMOVE IS THE DESTRUCTIVE ONE and is drawn as such; pressing it
+            still only opens the question above. Both buttons stay disabled
+            while either write is in flight. */}
+        <View className="flex-row flex-wrap gap-2">
+          <Button icon="fa-image" onPress={pick} disabled={busy}>
+            {busy ? 'Saving…' : hasPhoto ? 'Change photo' : 'Choose a photo'}
+          </Button>
+          {hasPhoto ? (
+            <Button variant="danger-outline" icon="fa-trash" onPress={confirmRemove} disabled={busy}>
+              Remove photo
+            </Button>
+          ) : null}
+        </View>
+        <Text className="text-xs text-fg-muted">
+          From your photo library — JPEG, PNG or WebP, up to 5 MB, cropped to a square. It shows beside your name in the
+          portal instead of your initials.
+        </Text>
+        <FormStatus status={status.photo} />
+      </View>
     </View>
-  );
-}
-
-function Button({ label, onPress, disabled, primary = true }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      className={`items-center rounded-lg px-4 py-2.5 ${
-        primary ? 'bg-primary' : 'border border-edge-strong'
-      } ${disabled ? 'opacity-60' : ''}`}
-    >
-      <Text className={`text-sm font-medium ${primary ? 'text-primary-fg' : 'text-fg-body'}`}>{label}</Text>
-    </Pressable>
   );
 }
 
@@ -256,6 +311,38 @@ export default function AccountInfoScreen() {
   useEffect(() => {
     refreshRef.current().catch(() => {});
   }, []);
+
+  // The profile photo's write in flight (ProfilePhoto sets it). Held here so
+  // the header's Reload can be disabled for it, like the three writes below.
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // RELOAD — the header's button. The same refresh() as the mount read, but
+  // asked for by hand, so its failure is said (under the header, with Try
+  // again) instead of swallowed. Set from the press, never from an effect.
+  // It writes only the auth user: a number being typed and a typed code are
+  // left exactly as they are. The one thing it lets go of is a contact draft
+  // that already EQUALS the stored number (typed in and put back) — kept, the
+  // input would go on following that draft, and a number changed elsewhere
+  // would show in the card above while the field still offered the old one
+  // as an edit to save.
+  //
+  // §7c: A FAILED RELOAD IS ONE MORE KEY OF THE SCREEN'S ONE STATUS OBJECT,
+  // not a state of its own — so the next action's message replaces it. A
+  // reload that WORKS leaves every message alone; starting one clears only an
+  // earlier reload's failure.
+  const [reloading, setReloading] = useState(false);
+  async function reload() {
+    setReloading(true);
+    setStatus((prev) => (prev.reload ? {} : prev));
+    if (!contactDirty) setDraft(null);
+    try {
+      await refresh();
+    } catch (err) {
+      setStatus({ reload: fail(extractError(err)) });
+    } finally {
+      setReloading(false);
+    }
+  }
 
   async function saveContact() {
     setStatus({});
@@ -369,13 +456,34 @@ export default function AccountInfoScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="p-4 pb-10">
-        <Text className="text-base font-semibold text-fg">Account information</Text>
-        <Text className="mt-1 text-sm text-fg-muted">{ROLE_COPY[role] || ''}</Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+        {/* Disabled while one of this screen's own writes is in flight: each
+            of them ends in the same refresh(), and two reads racing to
+            setUser would let the older one land last. */}
+        <SectionHeader
+          title="Account information"
+          description={ROLE_COPY[role] || ''}
+          onReload={reload}
+          reloading={reloading}
+          reloadDisabled={saving || emailBusy || contactBusy || photoBusy}
+          reloadLabel="Reload account information"
+        />
 
-        <ProfilePhoto user={user} refresh={refresh} status={status} setStatus={setStatus} />
+        {status.reload ? <ErrorAlert message={status.reload.text} onRetry={reload} /> : null}
 
-        <View className="mt-4 rounded-lg border border-edge bg-surface-subtle px-4 py-2">
+        <Reveal>
+          <ProfilePhoto
+            user={user}
+            refresh={refresh}
+            status={status}
+            setStatus={setStatus}
+            busy={photoBusy}
+            setBusy={setPhotoBusy}
+          />
+        </Reveal>
+
+        {/* The school's record of this account, locked. */}
+        <View className={`${cardClass} gap-4 p-4`}>
           {role === 'parent' ? (
             <>
               <Field label="Parent name" value={user?.name} />
@@ -419,8 +527,8 @@ export default function AccountInfoScreen() {
           )}
         </View>
 
-        <View className="mt-6 gap-3">
-          <Text className="text-sm font-semibold text-fg">Email address</Text>
+        <View className={`${cardClass} gap-3 p-4`}>
+          <SubHeading icon="fa-envelope">Email address</SubHeading>
           {!hasEmail ? (
             <Text className="text-sm text-fg-muted">
               {/* F1: the web's four sentences, keyed on the stored confirmation. */}
@@ -466,26 +574,26 @@ export default function AccountInfoScreen() {
                     error={emailCodeError}
                   />
                   <View className="flex-row flex-wrap gap-2">
-                    <Button
-                      label={emailBusy ? 'Confirming…' : 'Confirm email'}
-                      onPress={confirmEmailCode}
-                      disabled={emailBusy || !/^\d{6}$/.test(emailCode)}
-                    />
-                    <Button label="Send a new code" onPress={requestEmailCode} disabled={emailBusy} primary={false} />
+                    <Button onPress={confirmEmailCode} disabled={emailBusy || !/^\d{6}$/.test(emailCode)}>
+                      {emailBusy ? 'Confirming…' : 'Confirm email'}
+                    </Button>
+                    <Button variant="ghost" onPress={requestEmailCode} disabled={emailBusy}>
+                      Send a new code
+                    </Button>
                   </View>
                 </View>
               ) : (
-                <View className="self-start">
-                  <Button label={emailBusy ? 'Sending…' : 'Verify email'} onPress={requestEmailCode} disabled={emailBusy} />
-                </View>
+                <Button className="self-start" onPress={requestEmailCode} disabled={emailBusy}>
+                  {emailBusy ? 'Sending…' : 'Verify email'}
+                </Button>
               )}
             </>
           )}
           <FormStatus status={status.email} />
         </View>
 
-        <View className="mt-6 gap-3">
-          <Text className="text-sm font-semibold text-fg">Mobile number</Text>
+        <View className={`${cardClass} gap-3 p-4`}>
+          <SubHeading icon="fa-phone">Mobile number</SubHeading>
           {!storedContact ? (
             <Text className="text-sm text-fg-muted">
               There is no mobile number on this account. Add one below — once it is confirmed, reset codes can also come by
@@ -518,26 +626,26 @@ export default function AccountInfoScreen() {
                     error={contactCodeError}
                   />
                   <View className="flex-row flex-wrap gap-2">
-                    <Button
-                      label={contactBusy ? 'Confirming…' : 'Confirm number'}
-                      onPress={confirmContactCode}
-                      disabled={contactBusy || !/^\d{6}$/.test(contactCode)}
-                    />
-                    <Button label="Send a new code" onPress={requestContactCode} disabled={contactBusy} primary={false} />
+                    <Button onPress={confirmContactCode} disabled={contactBusy || !/^\d{6}$/.test(contactCode)}>
+                      {contactBusy ? 'Confirming…' : 'Confirm number'}
+                    </Button>
+                    <Button variant="ghost" onPress={requestContactCode} disabled={contactBusy}>
+                      Send a new code
+                    </Button>
                   </View>
                 </View>
               ) : (
-                <View className="self-start">
-                  <Button label={contactBusy ? 'Sending…' : 'Text me a code'} onPress={requestContactCode} disabled={contactBusy} />
-                </View>
+                <Button className="self-start" onPress={requestContactCode} disabled={contactBusy}>
+                  {contactBusy ? 'Sending…' : 'Text me a code'}
+                </Button>
               )}
             </>
           )}
           <FormStatus status={status.mobile} />
         </View>
 
-        <View className="mt-6 gap-3">
-          <Text className="text-sm font-semibold text-fg">Update contact number</Text>
+        <View className={`${cardClass} gap-3 p-4`}>
+          <SubHeading icon="fa-pen-to-square">Update contact number</SubHeading>
           <Text className="text-sm text-fg-muted">If you change phones, update this so the school can still reach you.</Text>
           <FormField
             label="New contact number"
@@ -552,9 +660,9 @@ export default function AccountInfoScreen() {
             hint={contactRuleHint()}
             error={contactFieldError}
           />
-          <View className="self-start">
-            <Button label={saving ? 'Saving…' : 'Save contact number'} onPress={saveContact} disabled={saving || !contactDirty} />
-          </View>
+          <Button variant="primary" full onPress={saveContact} disabled={saving || !contactDirty}>
+            {saving ? 'Saving…' : 'Save contact number'}
+          </Button>
           <FormStatus status={status.contact} />
         </View>
       </ScrollView>

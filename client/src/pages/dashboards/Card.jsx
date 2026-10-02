@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
 
 // The dashboard card (DB2, 2026-09-19). Local to pages/dashboards/ on
 // purpose (Darryl, Q5): it is used ~17 times by three files and nowhere
@@ -22,16 +23,26 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // `onRetry` refetches THAT CARD ONLY. A page-level reload to recover one
 // failed card would re-request six that already succeeded.
 //
+// `onReload` IS THE SAME IDEA WITHOUT A FAILURE (feat/ui-refresh, 2026-10-02):
+// the card's own existing fetch, asked again from a small button at the top
+// right of its header. The body shows its normal spinner while it runs. Cards
+// fed by ONE request each carry that request's reload, so pressing any of
+// them refreshes them all — the button reloads what feeds its card, it never
+// makes a request of its own. `reloading` is for a card whose body also reads
+// a second, quieter request (the System card's backup line, the parent's
+// subject list): the button stays busy until every read it started is back,
+// so a second press cannot stack on the first. It defaults to `loading`.
+//
 // THE WHOLE CARD IS THE LINK (feat/ui-polish f2, 2026-09-30). Every card is a
 // doorway to the page that owns its data; the "Open →" footer made the
 // doorway one short word. The TITLE is the link, and its ::after is stretched
 // over the card, so a click anywhere opens it while the keyboard still meets
-// ONE tab stop named by the title. The card itself is not an <a>: Retry, and
-// the System card's backups link, would then be interactive content inside a
-// link, which HTML forbids. Anything interactive inside a card sits
-// `relative z-10`, above the stretched link. An ERROR card does not link at
-// all — its one action is Retry, and a stray click must not navigate away
-// from the failure it reports.
+// ONE tab stop named by the title. The card itself is not an <a>: Retry,
+// Reload, and the System card's backups link, would then be interactive
+// content inside a link, which HTML forbids. Anything interactive inside a
+// card sits `relative z-10`, above the stretched link. An ERROR card does not
+// link at all — its one action is Retry, and a stray click must not navigate
+// away from the failure it reports.
 //
 // THE FOCUS OUTLINE IS `brand`, DRAWN 2px OUTSIDE THE CARD (UI-5). It was a
 // `focus-ring` ring on the ::after, which sat on the card's own 1px border
@@ -40,6 +51,17 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // link's :focus-visible (`.card-link`, so the System card's inner link does
 // not light the whole card), and sits on the page background, where `brand`
 // is 15.31:1 (Light) and 9.29:1 (Dark) — asserted by lint:contrast.
+//
+// THE LOOK (feat/ui-refresh): 16px corners and the smallest shadow at rest; a
+// card that links lifts to a larger shadow under the pointer. The header is
+// TWO ROWS — the icon in its chip on the left and Reload on the right, then
+// the title on its own line in the title face — because a 17px serif title
+// beside a chip and a button does not fit a 140px admin tile, and one header
+// shape at every width beats one that changes per card.
+//
+// `transition-shadow`, NOT the bare `transition`: the grid's entrance tweens
+// each card's opacity and transform, and a CSS transition on those same two
+// properties would chase every frame of it.
 //
 // `compact` (UI-3): the admin's four number tiles — less padding, a tighter
 // header. The admin grid says `items-start`, so there a card takes its
@@ -52,6 +74,8 @@ export default function Card({
   loading = false,
   error = null,
   onRetry = null,
+  onReload = null,
+  reloading,
   tone = 'default',
   compact = false,
   className = '',
@@ -72,27 +96,46 @@ export default function Card({
         ? 'border-danger-edge bg-danger-soft'
         : 'border-edge bg-surface';
 
+  // The icon's chip. On a toned card the chip is the plain surface with the
+  // tone's own strong colour, so it reads as a cut-out of the tinted frame
+  // rather than a second tint on top of it. Each is a pair lint:contrast
+  // already checks on `surface`.
+  const chipClass =
+    tone === 'warning'
+      ? 'bg-surface text-warning-strong'
+      : tone === 'danger'
+        ? 'bg-surface text-danger-text'
+        : 'bg-brand-soft text-brand';
+
   const linked = Boolean(to) && !error;
 
   return (
     <section
-      className={`group relative flex flex-col rounded-xl border ${toneClass} ${compact ? 'p-4' : 'p-5'} has-[.card-link:focus-visible]:outline-2 has-[.card-link:focus-visible]:outline-offset-2 has-[.card-link:focus-visible]:outline-brand ${className}`}
+      className={`group relative flex flex-col rounded-2xl border shadow-xs ${toneClass} ${compact ? 'p-4' : 'p-5'} ${
+        linked ? 'transition-shadow hover:shadow-md' : ''
+      } has-[.card-link:focus-visible]:outline-2 has-[.card-link:focus-visible]:outline-offset-2 has-[.card-link:focus-visible]:outline-brand ${className}`}
     >
-      <div className={`${compact ? 'mb-2' : 'mb-3'} flex items-center gap-2`}>
+      {/* DOM ORDER IS chip, title, Reload — a screen reader meets the heading
+          before the button that names it — and `order-*` draws Reload on the
+          first row beside the chip, with the title filling the second. */}
+      <div className={`${compact ? 'mb-2' : 'mb-3'} flex flex-wrap items-center gap-x-3 gap-y-2`}>
         {icon ? (
           // The wrapper carries the flex, never the element with `fa-solid`:
           // Font Awesome's `.fa-solid { display: inline-block }` is unlayered
           // and beats Tailwind's layered `.flex`, so flex on the <i> is
           // silently dropped (found in D3, 2026-09-19).
-          <span className="flex h-5 w-5 items-center justify-center text-fg-muted">
-            <i className={`fa-solid ${icon} text-sm`} aria-hidden="true" />
+          <span
+            aria-hidden="true"
+            className={`order-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${chipClass}`}
+          >
+            <i className={`fa-solid ${icon}`} />
           </span>
         ) : null}
-        <h2 className="text-sm font-semibold text-fg">
+        <h2 className="order-3 min-w-0 basis-full font-serif text-base font-bold text-fg">
           {linked ? (
             <Link
               to={to}
-              className="card-link underline-offset-2 after:absolute after:inset-0 after:rounded-xl group-hover:underline focus-visible:outline-none"
+              className="card-link underline-offset-2 after:absolute after:inset-0 after:rounded-2xl group-hover:underline focus-visible:outline-none"
             >
               {title}
             </Link>
@@ -100,6 +143,18 @@ export default function Card({
             title
           )}
         </h2>
+        {onReload ? (
+          // `relative z-10`: above the title's stretched link, or the click
+          // would open the page instead of reloading the card.
+          <span className="relative z-10 order-2 ml-auto flex shrink-0">
+            <ReloadButton
+              compact
+              onReload={onReload}
+              loading={reloading ?? loading}
+              label={`Reload ${title}`}
+            />
+          </span>
+        ) : null}
       </div>
 
       <div className="min-w-0 flex-1">
@@ -133,18 +188,25 @@ export default function Card({
 // So the split is at the CALL SITE, exactly as the 2026-09-22 rounding fix
 // split GradeValue's `whole`: a caller with a grade-bearing value passes
 // <GradeValue …/> as the value and gets the one renderer the whole system
-// uses; a caller with a count passes the count. One component, one job.
+// uses; a caller with a count passes the count — or, for a whole-number
+// count, <CountUp value={n} />, which renders that same number and only
+// animates its arrival (feat/ui-refresh). One component, one job.
 //
 // `large` is the emphasised card's lead (f2): the first number on the screen
 // a user lands on is the one bigger number there.
 //
 // ONE STEP DOWN (the type scale, §24, Darryl, 2026-09-30): a figure is
-// `text-xl` (20px) and `large` is `text-2xl` (24px) — they were `text-2xl` /
-// `text-3xl` and read too big on a laptop. Nothing else on the page moved.
+// `text-xl` and `large` is `text-2xl` — they were `text-2xl` / `text-3xl` and
+// read too big on a laptop. Bold and tabular since feat/ui-refresh, so a
+// figure that changes does not shift the caption under it.
 export function Stat({ value, caption, muted = false, large = false }) {
   return (
-    <div>
-      <p className={`${large ? 'text-2xl' : 'text-xl'} font-semibold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</p>
+    <div className="min-w-0">
+      <p
+        className={`${large ? 'text-2xl' : 'text-xl'} break-words font-bold tabular-nums ${muted ? 'text-fg-muted' : 'text-fg'}`}
+      >
+        {value}
+      </p>
       {caption ? <p className="mt-1 text-sm text-fg-muted">{caption}</p> : null}
     </div>
   );

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
+import Text from '../../components/Text';
 import { shortDate } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
@@ -15,6 +18,12 @@ import TermValue from '../../format/TermValue';
 // Grade 1 row the payload carries a real `initial_grade` and NOTHING in the
 // descriptive branch may print it — not as a subtitle, not as "out of 100"
 // — nor explain how the letter is produced (NOW POSSIBLE, 2026-09-22).
+//
+// THE LOOK (feat/ui-refresh): the grade the parent tapped is the screen's
+// figure, in a card of its own, and each group of scores is a card under it
+// with its name in the title face. RELOAD is `load` itself — the one request
+// this screen makes — in the section header above the figure; the loading
+// and error frames are the ones the first load shows.
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
 function ScorePair({ score, max }) {
@@ -23,32 +32,47 @@ function ScorePair({ score, max }) {
   if (pair === null) return null;
   if (pair === SCORE_PENDING) return <Text className="text-sm text-fg-muted">Pending</Text>;
   return (
-    <Text className="text-sm text-fg" style={{ fontVariant: ['tabular-nums'] }}>
+    <Text className="text-sm font-semibold text-fg" style={{ fontVariant: ['tabular-nums'] }}>
       {pair}
     </Text>
   );
 }
 
+// One group of scores: a card, its name in the title face.
+function Group({ title, children }) {
+  return (
+    <View className={`${cardClass} p-4`}>
+      <Text accessibilityRole="header" className="font-serif text-base text-fg">
+        {title}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
 function ComponentList({ title, rows, empty }) {
   return (
-    <View>
-      <Text className="text-sm font-semibold text-fg">{title}</Text>
+    <Group title={title}>
       {rows.length === 0 ? (
-        <Text className="mt-1 text-sm text-fg-muted">{empty}</Text>
+        <Text className="mt-1.5 text-sm text-fg-muted">{empty}</Text>
       ) : (
-        <View className="mt-2">
+        <View className="mt-1">
           {rows.map((row, i) => (
-            <View key={row.id} className={`flex-row items-baseline justify-between gap-3 py-1.5 ${i > 0 ? 'border-t border-edge-soft' : ''}`}>
+            <View key={row.id} className={`flex-row items-baseline justify-between gap-3 py-2.5 ${i > 0 ? 'border-t border-edge-soft' : ''}`}>
               <View className="min-w-0 flex-1">
                 <Text className="text-sm text-fg-secondary">{row.label}</Text>
-                {row.date_recorded ? <Text className="text-xs text-fg-muted">{shortDate(row.date_recorded)}</Text> : null}
+                {row.date_recorded ? (
+                  <Text className="text-xs text-fg-muted" style={{ fontVariant: ['tabular-nums'] }}>
+                    {shortDate(row.date_recorded)}
+                  </Text>
+                ) : null}
               </View>
               <ScorePair score={row.score} max={row.max_score} />
             </View>
           ))}
         </View>
       )}
-    </View>
+    </Group>
   );
 }
 
@@ -61,24 +85,24 @@ function ExamList({ grade, mode }) {
   ];
   const anyRecorded = lines.some((line) => line.score != null || line.max != null);
   return (
-    <View>
-      <Text className="text-sm font-semibold text-fg">{summative ? 'Summative' : 'Examinations'}</Text>
+    <Group title={summative ? 'Summative' : 'Examinations'}>
       {!anyRecorded ? (
-        <Text className="mt-1 text-sm text-fg-muted">No {summative ? 'summative' : 'examination'} scores recorded yet</Text>
+        <Text className="mt-1.5 text-sm text-fg-muted">No {summative ? 'summative' : 'examination'} scores recorded yet</Text>
       ) : (
-        <View className="mt-2">
+        <View className="mt-1">
           {lines.map((line, i) => (
-            <View key={line.key} className={`flex-row items-baseline justify-between gap-3 py-1.5 ${i > 0 ? 'border-t border-edge-soft' : ''}`}>
-              <Text className="text-sm text-fg-secondary">{line.label}</Text>
+            <View key={line.key} className={`flex-row items-baseline justify-between gap-3 py-2.5 ${i > 0 ? 'border-t border-edge-soft' : ''}`}>
+              <Text className="min-w-0 flex-1 text-sm text-fg-secondary">{line.label}</Text>
               <ScorePair score={line.score} max={line.max} />
             </View>
           ))}
         </View>
       )}
-    </View>
+    </Group>
   );
 }
 
+// Returns the screen's cards as siblings: the scroll view spaces them.
 function BreakdownBody({ mode, detail }) {
   const grade = detail.grade;
   const components = detail.grade_components || [];
@@ -90,33 +114,40 @@ function BreakdownBody({ mode, detail }) {
 
   if (mode === 'descriptive') {
     return (
-      <View className="gap-3">
-        <TermValue entry={{ descriptive_grade: grade.descriptive_grade, descriptor: detail.descriptor }} mode="descriptive" className="text-base text-fg" />
+      <>
+        {/* The letter the parent tapped, as the screen's figure. */}
+        <View className={`${cardClass} p-5`}>
+          <TermValue entry={{ descriptive_grade: grade.descriptive_grade, descriptor: detail.descriptor }} mode="descriptive" className="text-2xl text-fg" />
+        </View>
         {hasRecordedBreakdown ? (
-          <View className="gap-4 border-t border-edge-soft pt-3">
+          <>
             {ww.length > 0 ? <ComponentList title="Written Works" rows={ww} empty="" /> : null}
             {pt.length > 0 ? <ComponentList title="Performance Tasks" rows={pt} empty="" /> : null}
             {hasExam ? <ExamList grade={grade} mode={mode} /> : null}
-          </View>
+          </>
         ) : (
-          <Text className="border-t border-edge-soft pt-3 text-sm text-fg-muted">
-            This grade was recorded before scores were kept for this learning area, so there is nothing to show behind it.
-          </Text>
+          <View className={`${cardClass} p-4`}>
+            <Text className="text-sm text-fg-muted">
+              This grade was recorded before scores were kept for this learning area, so there is nothing to show behind it.
+            </Text>
+          </View>
         )}
-      </View>
+      </>
     );
   }
 
   return (
-    <View className="gap-4">
-      <View className="flex-row items-baseline gap-2">
-        <GradeValue value={grade.term_grade} mode={mode} whole className="text-base font-semibold text-fg" />
-        {detail.descriptor?.descriptor ? <Text className="text-xs text-fg-muted">{detail.descriptor.descriptor}</Text> : null}
+    <>
+      {/* The term grade, through the same renderer as the cell the parent
+          tapped to open this screen — the two must not disagree. */}
+      <View className={`${cardClass} flex-row flex-wrap items-baseline gap-x-2 gap-y-1 p-5`}>
+        <GradeValue value={grade.term_grade} mode={mode} whole className="text-2xl font-bold text-fg" />
+        {detail.descriptor?.descriptor ? <Text className="text-sm text-fg-muted">{detail.descriptor.descriptor}</Text> : null}
       </View>
       <ComponentList title="Written Works" rows={ww} empty="No written works recorded yet" />
       <ComponentList title="Performance Tasks" rows={pt} empty="No performance tasks recorded yet" />
       <ExamList grade={grade} mode={mode} />
-    </View>
+    </>
   );
 }
 
@@ -144,12 +175,15 @@ export default function GradeBreakdownScreen({ route }) {
   }, [load]);
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4 pb-10">
-      <View className="rounded-xl border border-edge bg-surface p-4">
-        {loading ? <LoadingSpinner size="sm" label="Loading scores…" /> : null}
-        {error ? <ErrorAlert message={error} onRetry={load} /> : null}
-        {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
-      </View>
+    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
+      <SectionHeader title="Scores behind this grade" onReload={load} reloading={loading} reloadLabel="Reload scores" />
+      {loading ? (
+        <View className={`${cardClass} p-5`}>
+          <LoadingSpinner size="sm" label="Loading scores…" />
+        </View>
+      ) : null}
+      {error ? <ErrorAlert message={error} onRetry={load} /> : null}
+      {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
     </ScrollView>
   );
 }

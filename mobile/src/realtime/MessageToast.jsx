@@ -1,11 +1,12 @@
 import { useNavigation, useNavigationState } from '@react-navigation/native';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, Text, Vibration, View } from 'react-native';
+import { AccessibilityInfo, Pressable, Vibration, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import messageTone from '../../assets/sounds/message-tone.wav';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
+import Text from '../components/Text';
 import Icon from '../icons';
 import { requestLeave } from '../navigation/leaveGuard';
 import { isBuilt } from '../navigation/routes';
@@ -46,6 +47,10 @@ import { alertOnToast, createAudioModeGate, createGatedPlay } from './toastAlert
 
 // React Navigation's default Android header height; see above.
 const HEADER_HEIGHT = 56;
+
+// View and Dismiss are 44dp targets, sized in dp on each Pressable's inner
+// View through a plain style object (the phone's rem is 14 — M19).
+const TARGET = 44;
 
 // The bundled tone — a local asset imported like the seal's PNG (Metro
 // bundles it), never a URL.
@@ -179,17 +184,17 @@ export default function MessageToast() {
       style={{ position: 'absolute', top: insets.top + HEADER_HEIGHT + 8, left: 12, right: 12, zIndex: 50 }}
     >
       {toast ? (
-        <View className="flex-row items-center gap-3 rounded-xl border border-edge bg-surface p-3" style={{ elevation: 6 }}>
+        <View className="flex-row items-center gap-2 rounded-2xl border border-edge bg-surface p-3" style={{ elevation: 6 }}>
           <Avatar name={toast.name} photo={toast.photo} />
-          <Text className="min-w-0 flex-1 text-sm font-medium text-fg">{toast.label}</Text>
+          <Text className="min-w-0 flex-1 text-sm font-semibold text-fg">{toast.label}</Text>
           <Pressable onPress={view} accessibilityRole="button" accessibilityLabel={`View, ${toast.label}`}>
-            <View className="rounded-lg bg-primary px-3 py-2">
-              <Text className="text-sm font-medium text-primary-fg">View</Text>
+            <View className="items-center justify-center rounded-xl bg-primary px-3" style={{ minHeight: TARGET }}>
+              <Text className="text-sm font-semibold text-primary-fg">View</Text>
             </View>
           </Pressable>
           <Pressable onPress={dismiss} accessibilityRole="button" accessibilityLabel="Dismiss">
-            <View className="h-9 w-9 items-center justify-center rounded-lg">
-              <Icon name="fa-xmark" size={15} color={tokens['fg-muted']} />
+            <View className="items-center justify-center rounded-xl" style={{ width: TARGET, height: TARGET }}>
+              <Icon name="fa-xmark" size={16} color={tokens['fg-muted']} />
             </View>
           </Pressable>
         </View>

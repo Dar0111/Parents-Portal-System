@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DateField from '../../components/DateField';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
@@ -9,6 +11,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Segmented from '../../components/Segmented';
 import { todayLocalDateString } from '../../format/date';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
+import Reveal from '../../motion/Reveal';
 
 // NEW / EDIT EVENT — the web's compose modal as a modal screen. `event_date`
 // is the picker's STRING built from local parts, never a Date re-serialised
@@ -16,6 +19,10 @@ import useTeacherTargets from '../../hooks/useTeacherTargets';
 // about "not provided". Posting to is a GRADE (the events table has no
 // target_section), auto-selected when this teacher has exactly one; a
 // school-wide event is admin-only and not offered.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-02): the form is one card, then the
+// neutral way out and the ONE filled step forward. No reload: the screen is
+// a write form (its targets are `useTeacherTargets`' one read).
 export default function EventComposeScreen({ navigation, route }) {
   const editing = route?.params?.editing || null;
   const { grades, loading: targetsLoading } = useTeacherTargets();
@@ -65,44 +72,45 @@ export default function EventComposeScreen({ navigation, route }) {
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
         {formError ? <ErrorAlert message={formError} /> : null}
-        <FormField
-          label="Posting to"
-          required
-          hint="Everyone in this grade sees it. School-wide events are admin-only."
-          render={() => (
-            <Segmented
+        <Reveal>
+          <View className={`${cardClass} gap-4 p-4`}>
+            <FormField
               label="Posting to"
-              value={form.target_grade}
-              onChange={(target_grade) => setForm((f) => ({ ...f, target_grade }))}
-              options={grades.map((g) => ({ key: String(g), label: `Grade ${g}` }))}
+              required
+              hint="Everyone in this grade sees it. School-wide events are admin-only."
+              render={() => (
+                <Segmented
+                  label="Posting to"
+                  value={form.target_grade}
+                  onChange={(target_grade) => setForm((f) => ({ ...f, target_grade }))}
+                  options={grades.map((g) => ({ key: String(g), label: `Grade ${g}` }))}
+                />
+              )}
             />
-          )}
-        />
-        <FormField label="Title" required maxLength={200} value={form.title} onChangeText={(title) => setForm((f) => ({ ...f, title }))} />
-        <DateField label="Date" required value={form.event_date} onChange={(event_date) => setForm((f) => ({ ...f, event_date }))} />
-        <FormField
-          label="Description"
-          value={form.description}
-          onChangeText={(description) => setForm((f) => ({ ...f, description }))}
-          multiline
-          numberOfLines={5}
-          textAlignVertical="top"
-          className="min-h-32"
-          hint="Optional."
-        />
-        <View className="flex-row justify-end gap-2">
-          <Pressable onPress={() => navigation.goBack()} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-            <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={submit}
-            disabled={saving || !ready}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving || !ready, busy: saving }}
-            className={`rounded-lg bg-primary px-4 py-2 ${saving || !ready ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : editing ? 'Save changes' : 'Post'}</Text>
-          </Pressable>
+            <FormField label="Title" required maxLength={200} value={form.title} onChangeText={(title) => setForm((f) => ({ ...f, title }))} />
+            <DateField label="Date" required value={form.event_date} onChange={(event_date) => setForm((f) => ({ ...f, event_date }))} />
+            <FormField
+              label="Description"
+              value={form.description}
+              onChangeText={(description) => setForm((f) => ({ ...f, description }))}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              className="min-h-32"
+              hint="Optional."
+            />
+          </View>
+        </Reveal>
+        {/* The label still changes while the write is in flight; `loading`
+            adds the spinner, and the button is disabled exactly when it was
+            before (saving, or a required field empty). */}
+        <View className="flex-row flex-wrap justify-end gap-2">
+          <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onPress={submit} disabled={saving || !ready} loading={saving}>
+            {saving ? 'Saving…' : editing ? 'Save changes' : 'Post'}
+          </Button>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

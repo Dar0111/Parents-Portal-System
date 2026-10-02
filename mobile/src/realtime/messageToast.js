@@ -21,24 +21,40 @@
 // or focused; a new message (same sender or another) starts it again.
 export const TOAST_MS = 5000;
 
-// THE MESSAGE TONE — ONE DEFINITION FOR BOTH PLATFORMS ("two-tone down",
-// the owner's decision, 2026-10-02; it replaced a flat 880 Hz beep). The web
-// plays it through the Web Audio API (realtime/messageTone.js); the phone
-// plays a WAV generated from these same numbers
-// (mobile/scripts/make-message-tone.mjs reads this mirror). It sounds on a
-// toast SHOW or UPDATE only — `nextToast(...).changed`.
+// THE MESSAGE TONE — ONE DEFINITION FOR BOTH PLATFORMS ("two-note rise",
+// feat/ui-refresh, 2026-10-02). The web plays it through the Web Audio API
+// (realtime/messageTone.js); the phone plays a WAV generated from these same
+// numbers (mobile/scripts/make-message-tone.mjs reads this mirror). It
+// sounds on a toast SHOW or UPDATE only — `nextToast(...).changed`.
 //
-// Two sine voices, SUMMED. Each starts at `floor`, rises LINEARLY to its
-// peak over `attackMs`, then decays EXPONENTIALLY back to `floor` at
+// WHY IT CHANGED. "Two-tone down" (1047 Hz falling to 784 Hz, two bare
+// sines) replaced a flat 880 Hz beep the same day, and the owner found it
+// clinical — a falling pair of pure high tones is a ward call chime. This
+// one RISES and sits lower: D5 (587 Hz) then A5 (880 Hz), a fifth up, the
+// second note 80 ms after the first. Each note also sounds its own octave
+// (1174 Hz, 1760 Hz) for a few tens of milliseconds, which is what a struck
+// bar or a plucked string does: a bright start that leaves the warm note
+// ringing. Synthesised from these numbers alone — no sample, no other
+// product's sound.
+//
+// Four sine voices, SUMMED — the two notes first, then their two octaves.
+// Each starts at `floor`, rises LINEARLY to its peak over `attackMs` (6 ms:
+// soft enough not to click), then decays EXPONENTIALLY back to `floor` at
 // start + duration. The web stops each oscillator `stopPadMs` after that.
+// A note and its octave start together, so the sum cannot pass about 0.25
+// (0.125 twice, over the last trace of the first note); the generated WAV
+// measures 0.2156 of full scale — about the old tone's 0.22, and nothing
+// clips. 360 ms in all.
 export const TONE = Object.freeze({
-  totalMs: 400,
-  attackMs: 3,
+  totalMs: 360,
+  attackMs: 6,
   floor: 0.0001,
   stopPadMs: 20,
   voices: Object.freeze([
-    Object.freeze({ freqHz: 1047, startMs: 0, durationMs: 150, peak: 0.22 }),
-    Object.freeze({ freqHz: 784, startMs: 100, durationMs: 300, peak: 0.22 }),
+    Object.freeze({ freqHz: 587, startMs: 0, durationMs: 140, peak: 0.125 }),
+    Object.freeze({ freqHz: 880, startMs: 80, durationMs: 280, peak: 0.125 }),
+    Object.freeze({ freqHz: 1174, startMs: 0, durationMs: 60, peak: 0.125 }),
+    Object.freeze({ freqHz: 1760, startMs: 80, durationMs: 90, peak: 0.125 }),
   ]),
 });
 

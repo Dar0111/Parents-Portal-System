@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { AppState, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { AppState, Modal, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { allowScreenCaptureAsync, preventScreenCaptureAsync } from 'expo-screen-capture';
 import api from '../../../api/client';
 import extractError from '../../../api/extractError';
+import Button from '../../../components/Button';
+import { cardClass } from '../../../components/buttonStyles';
 import ErrorAlert from '../../../components/ErrorAlert';
+import Text from '../../../components/Text';
+import Icon from '../../../icons';
 import { useTheme } from '../../../theme/ThemeProvider';
 
 // RESET PASSWORD — the web's two-phase dialog (MOBILE_CONVENTIONS M17).
@@ -25,6 +29,13 @@ import { useTheme } from '../../../theme/ThemeProvider';
 //     phone's clipboard can keep it in a history the app cannot clear.
 // The server hashes it and returns it in this one response; no endpoint can
 // produce it again, so losing it means setting another.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03): the title in the title face, each
+// phase's words in one card, the shown-once warning as a notice with its
+// glyph, and the shared `Button` — full width for the single way out of phase
+// two. The password line itself is as it was: the fixed-width face, not
+// selectable, one accessible name. NO MOTION on either phase, and still no
+// Copy.
 const CAPTURE_KEY = 'temp-password';
 
 export default function TempPasswordModal({ target, onClose, onSet }) {
@@ -81,51 +92,54 @@ export default function TempPasswordModal({ target, onClose, onSet }) {
     <Modal visible={Boolean(target)} animationType="slide" onRequestClose={close} presentationStyle="pageSheet">
       <View style={{ flex: 1, backgroundColor: tokens.page, paddingTop: insets.top, paddingBottom: insets.bottom }}>
         <ScrollView contentContainerClassName="gap-4 p-4 pb-10">
-          <Text className="text-base font-semibold text-fg">Reset password — {target?.name}</Text>
+          <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+            Reset password — {target?.name}
+          </Text>
           {error ? <ErrorAlert message={error} /> : null}
           {password ? (
             <>
-              <Text className="text-sm text-fg-body">
-                Give this to <Text className="font-medium text-fg">{target?.name}</Text>. They will be asked to choose their own password the next time they
-                sign in.
-              </Text>
-              <View className="rounded-lg border border-edge bg-surface-subtle px-3 py-3">
-                <Text selectable={false} accessibilityLabel="Temporary password" className="text-center font-mono text-lg tracking-wider text-fg">
-                  {password}
+              <View className={`${cardClass} gap-4 p-4`}>
+                <Text className="text-sm text-fg-body">
+                  Give this to <Text className="font-semibold text-fg">{target?.name}</Text>. They will be asked to choose their own password the next time they
+                  sign in.
                 </Text>
+                <View className="rounded-xl border border-edge bg-surface-subtle px-4 py-4">
+                  <Text selectable={false} accessibilityLabel="Temporary password" className="text-center font-mono text-lg tracking-wider text-fg">
+                    {password}
+                  </Text>
+                </View>
               </View>
-              <View accessibilityRole="alert" className="rounded-lg bg-warning-soft px-3 py-2">
-                <Text className="text-sm text-warning-strong">
+              <View accessibilityRole="alert" className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
+                <Icon name="fa-triangle-exclamation" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
+                <Text className="min-w-0 flex-1 text-sm text-warning-strong">
                   This is shown once. It is not stored anywhere in readable form and cannot be looked up again — if you close this without passing it on, set
                   another one. It is also cleared if you leave the app.
                 </Text>
               </View>
-              <Pressable onPress={close} accessibilityRole="button" className="items-center rounded-lg bg-primary px-4 py-2.5">
-                <Text className="text-sm font-medium text-primary-fg">Done — I have given it to them</Text>
-              </Pressable>
+              <Button variant="primary" full onPress={close}>
+                Done — I have given it to them
+              </Button>
             </>
           ) : (
             <>
-              <Text className="text-sm text-fg-body">
-                Set a temporary password for <Text className="font-medium text-fg">{target?.name}</Text>?
-              </Text>
-              <Text className="text-sm text-fg-muted">
-                Their current password stops working immediately and they are signed out everywhere. The new one is shown once, on the next screen, and they
-                must choose their own before they can use the portal again. This cannot be undone.
-              </Text>
-              <View className="flex-row justify-end gap-2">
-                <Pressable onPress={close} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-                  <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-                </Pressable>
-                <Pressable
-                  onPress={submit}
-                  disabled={saving}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: saving, busy: saving }}
-                  className={`rounded-lg bg-primary px-4 py-2 ${saving ? 'opacity-60' : ''}`}
-                >
-                  <Text className="text-sm font-medium text-primary-fg">{saving ? 'Setting…' : 'Yes, set a temporary password'}</Text>
-                </Pressable>
+              <View className={`${cardClass} gap-3 p-4`}>
+                <Text className="text-sm text-fg-body">
+                  Set a temporary password for <Text className="font-semibold text-fg">{target?.name}</Text>?
+                </Text>
+                <Text className="text-sm text-fg-muted">
+                  Their current password stops working immediately and they are signed out everywhere. The new one is shown once, on the next screen, and they
+                  must choose their own before they can use the portal again. This cannot be undone.
+                </Text>
+              </View>
+              {/* The label still changes while the write is in flight; `loading`
+                  is the old `disabled={saving}` plus its spinner. */}
+              <View className="flex-row flex-wrap justify-end gap-2">
+                <Button onPress={close} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button variant="primary" onPress={submit} loading={saving}>
+                  {saving ? 'Setting…' : 'Yes, set a temporary password'}
+                </Button>
               </View>
             </>
           )}

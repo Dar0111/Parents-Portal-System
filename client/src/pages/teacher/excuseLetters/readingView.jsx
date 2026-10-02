@@ -47,40 +47,66 @@ import { longDate } from '../../../format/date';
 // The learner and the class ARE shown, where the parent's view omits them: a
 // parent has one child, a teacher has a list. No LRN reaches this (§5c) —
 // there is none in the payload to leak.
+//
+// THE LAYOUT (feat/ui-refresh, 2026-10-02) — three kinds of row, one <dl>:
+//
+//   the four short facts   — small tiles, two to a row: who, which class,
+//                            which day, and where the letter stands.
+//   the parent's own words — Reason and Details at READING size, in a column
+//                            that stays under ~75 characters.
+//   the adviser's reply    — on the brand tint, so the one part of the letter
+//                            the school wrote is told apart from the parent's
+//                            by more than its heading.
+//
+// THE SEVEN HEADINGS, THEIR ORDER AND THEIR WORDS ARE PINNED by
+// `scripts/ssr-ui-e.jsx`, which reads each <dt> as TEXT ONLY: never put an
+// icon or any other element inside a <dt> here, or the heading it belongs to
+// drops out of the proof's list.
+//
+// NO SCROLLER OF ITS OWN: Modal's body scrolls, and keeps its title bar on
+// screen while it does.
+
+// One eyebrow for every heading: small, uppercase, muted.
+const HEADING = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
+// A short fact's tile.
+const TILE = 'min-w-0 rounded-xl bg-surface-subtle px-4 py-3';
+// The parent's prose.
+const READING = 'mt-1 max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body';
+
 export default function LetterReadingView({ letter }) {
   if (!letter) return null;
 
   return (
-    <div className="max-h-[70vh] space-y-4 overflow-y-auto">
-      <dl className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Learner</dt>
-          <dd className="mt-0.5 text-sm text-fg">
+    <div className="space-y-5">
+      <dl className="grid gap-4 sm:grid-cols-2">
+        <div className={TILE}>
+          <dt className={HEADING}>Learner</dt>
+          <dd className="mt-1 break-words text-sm font-semibold text-fg">
             {letter.last_name}, {letter.first_name}
           </dd>
         </div>
-        <div>
-          <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Class</dt>
-          <dd className="mt-0.5 text-sm text-fg">
+        <div className={TILE}>
+          <dt className={HEADING}>Class</dt>
+          <dd className="mt-1 text-sm text-fg">
             Grade {letter.grade_level} - {letter.section}
           </dd>
         </div>
-        <div>
+        <div className={TILE}>
           {/* A DATE column, so `longDate` is string surgery on the literal
               "2026-09-25" — nothing parsed, nothing shifted (§5a-iv). Long
               form because this is a reading view, not a table (§18). */}
-          <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Absence date</dt>
-          <dd className="mt-0.5 text-sm text-fg">{longDate(letter.absence_date)}</dd>
+          <dt className={HEADING}>Absence date</dt>
+          <dd className="mt-1 text-sm tabular-nums text-fg">{longDate(letter.absence_date)}</dd>
         </div>
-        <div>
-          <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Status</dt>
-          <dd className="mt-0.5">
+        <div className={TILE}>
+          <dt className={HEADING}>Status</dt>
+          <dd className="mt-1">
             <StatusBadge status={letter.status} />
           </dd>
         </div>
-        <div className="sm:col-span-2">
-          <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Reason</dt>
-          <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{letter.reason}</dd>
+        <div className="min-w-0 sm:col-span-2">
+          <dt className={HEADING}>Reason</dt>
+          <dd className={READING}>{letter.reason}</dd>
         </div>
         {/* `details` and `teacher_remarks` are both NULLABLE, and remarks are
             optional at the API layer by decision — a decline with no reason is
@@ -88,15 +114,17 @@ export default function LetterReadingView({ letter }) {
             one is absent rather than an empty label, which would read as a
             failed fetch. */}
         {letter.details ? (
-          <div className="sm:col-span-2">
-            <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Details</dt>
-            <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{letter.details}</dd>
+          <div className="min-w-0 sm:col-span-2">
+            <dt className={HEADING}>Details</dt>
+            <dd className={READING}>{letter.details}</dd>
           </div>
         ) : null}
         {letter.teacher_remarks ? (
-          <div className="sm:col-span-2">
-            <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Adviser remarks</dt>
-            <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{letter.teacher_remarks}</dd>
+          <div className="min-w-0 rounded-xl bg-brand-soft px-4 py-3 sm:col-span-2">
+            <dt className="text-xs font-semibold uppercase tracking-wider text-brand">Adviser remarks</dt>
+            <dd className="mt-1 max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg">
+              {letter.teacher_remarks}
+            </dd>
           </div>
         ) : null}
       </dl>
@@ -106,7 +134,8 @@ export default function LetterReadingView({ letter }) {
           cannot be reviewed again: `PATCH /:id/review` answers 403 once the
           status has moved. §5i: this view makes no offer the API would
           refuse. */}
-      <p className="text-xs text-fg-muted">
+      <p className="flex items-center gap-2 text-xs text-fg-muted">
+        <i aria-hidden="true" className="fa-solid fa-lock text-fg-faint" />
         Reviewed letters cannot be changed. Read-only.
       </p>
     </div>

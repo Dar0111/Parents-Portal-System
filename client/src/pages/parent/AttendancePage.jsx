@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
+import { cardClass } from '../../components/buttonClass';
+import Reveal from '../../motion/Reveal';
 import AttendanceCalendar from './AttendanceCalendar';
 import {
   addMonths,
@@ -63,9 +68,29 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // must never see.
 //
 // §5c: no LRN anywhere, and the route has no :id.
+//
+// ---------------------------------------------------------------------------
+// RELOAD (feat/ui-refresh) — ONE CONTROL, THE SAME FOUR REQUESTS
+// ---------------------------------------------------------------------------
+// The Reload button in the learner's header card asks again for everything
+// on this page that is attendance: the month (`load`, with the month that is
+// on screen — the view and the selected day are not touched), and the two
+// once-only reads, the whole history and the letters, through `refreshKey` in
+// their dependency lists. Those two effects are otherwise exactly as they
+// were: same request, same cancel flag, same silent failure. The adviser's
+// name is reference data and is not re-read.
+//
+// One control and not one per card, because the cards are one answer: a
+// reloaded month beside a school-year table that still shows the old totals
+// would be two versions of the same record on one screen.
 
 const EMPTY_SUMMARY = { Present: 0, Absent: 0, Late: 0, Excused: 0, total: 0 };
 const COUNTS = ['Present', 'Late', 'Absent', 'Excused'];
+
+// A column label in the school-year table: the eyebrow style on the quiet
+// surface, as on every table. Each cell adds its own colour, alignment and
+// horizontal padding (the two edge cells line up with the card's padding).
+const YEAR_TH = 'whitespace-nowrap bg-surface-subtle py-2.5 text-xs font-semibold uppercase tracking-wider';
 
 function countOf(summary, key) {
   const n = Number(summary?.[key] ?? 0);
@@ -130,6 +155,9 @@ export default function ParentAttendancePage() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Bumped by Reload only (see the header note). It re-runs the two
+  // once-only reads below and nothing else.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const monthLabel = `${monthName(view.month)} ${view.year}`;
 
@@ -167,7 +195,8 @@ export default function ParentAttendancePage() {
   }, [load]);
 
   // The whole history, once — it drives the school-year table's range and
-  // nothing else, so it does not reload when the month changes.
+  // nothing else, so it does not reload when the month changes. (And again
+  // on Reload: `refreshKey`.)
   useEffect(() => {
     if (studentId == null) return undefined;
     let cancelled = false;
@@ -183,10 +212,10 @@ export default function ParentAttendancePage() {
     return () => {
       cancelled = true;
     };
-  }, [studentId]);
+  }, [studentId, refreshKey]);
 
   // Letters, once. /excuse-letters/mine has no date range, so the set is
-  // fetched whole and matched by absence_date string.
+  // fetched whole and matched by absence_date string. (And again on Reload.)
   useEffect(() => {
     if (studentId == null) return undefined;
     let cancelled = false;
@@ -200,7 +229,7 @@ export default function ParentAttendancePage() {
     return () => {
       cancelled = true;
     };
-  }, [studentId]);
+  }, [studentId, refreshKey]);
 
   // The adviser's name for the "How this is counted" line. GET /sections is
   // unscoped reference data for every role — the same read the parent
@@ -226,6 +255,13 @@ export default function ParentAttendancePage() {
   function goMonth(delta) {
     setSelected(null);
     setView((current) => addMonths(current, delta));
+  }
+
+  // Reload: the month's own request, plus the two once-only reads. The month
+  // on screen and the selected day stay as they are.
+  function reloadAll() {
+    load();
+    setRefreshKey((key) => key + 1);
   }
 
   const fraction = recordedDays(summary);
@@ -264,8 +300,12 @@ export default function ParentAttendancePage() {
   const selectedRecord = selected ? rows.find((r) => r.date === selected) : null;
   const selectedLetter = selected ? letters.find((l) => l.absence_date === selected) : null;
 
-  const childLine = [
-    `${user?.student_first_name || ''} ${user?.student_last_name || ''}`.trim(),
+  // The learner this page is about: the header card's title, and one line of
+  // context under it. The same three facts the single line above the grid
+  // used to carry, in the same order; any of them may be missing. A learner
+  // has no photo, so the circle is always initials.
+  const childName = `${user?.student_first_name || ''} ${user?.student_last_name || ''}`.trim();
+  const childMeta = [
     user?.grade_level != null ? `Grade ${user.grade_level} - ${user.section || ''}`.replace(/ - $/, '') : '',
     adviser ? `Adviser: ${adviser}` : null,
   ]
@@ -274,18 +314,36 @@ export default function ParentAttendancePage() {
 
   if (!linked) {
     return (
-      <div className="rounded-xl border border-edge bg-surface p-6">
-        <p className="text-sm text-fg-muted">
+      <Reveal className={`${cardClass} flex items-start gap-3 p-5 sm:p-6`}>
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-muted text-fg-muted"
+        >
+          <i className="fa-solid fa-link-slash" />
+        </span>
+        <p className="min-w-0 max-w-prose pt-1.5 text-sm text-fg-muted">
           This account is not linked to a learner yet, so there is no attendance to show. Ask the
           school office.
         </p>
-      </div>
+      </Reveal>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {childLine ? <p className="text-sm text-fg-muted">{childLine}</p> : null}
+    <Reveal className="space-y-6">
+      {/* WHO THIS IS ABOUT, and the page's one Reload. The name is in the
+          title face; "Name not recorded" is the wording the dashboard's hero
+          already uses for a linked learner with no name on the row. */}
+      <div className={`${cardClass} flex items-center gap-3 p-4 sm:p-5`}>
+        <Avatar name={childName} />
+        <div className="min-w-0 flex-1">
+          <h2 className="break-words font-serif text-xl font-bold text-fg">{childName || 'Name not recorded'}</h2>
+          {childMeta ? <p className="mt-0.5 text-sm text-fg-muted">{childMeta}</p> : null}
+        </div>
+        {/* `min-w-11`: below `sm` the button is its icon alone, and the icon
+            plus its padding is narrower than a finger's 44px. */}
+        <ReloadButton onReload={reloadAll} loading={loading} label="Reload attendance" className="min-w-11" />
+      </div>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
@@ -297,25 +355,41 @@ export default function ParentAttendancePage() {
           column; below that they simply stack, summary on top. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="lg:col-start-2 lg:row-start-1 lg:self-start">
-          <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
-            <h2 className="text-sm font-semibold text-fg">{monthLabel}</h2>
+          <section className={`${cardClass} p-4 sm:p-5`}>
+            <h2 className="font-serif text-base font-bold text-fg">{monthLabel}</h2>
             {fraction ? (
               <>
-                <p className="mt-2 text-2xl font-semibold text-fg">
-                  {fraction.present} of {fraction.total}
+                {/* THE FRACTION, and only the fraction (see the header note).
+                    One sentence for a screen reader — "21 of 23" — set as a
+                    figure and its denominator. */}
+                {/* `text-2xl` is the emphasised figure's size everywhere (the
+                    dashboard's `Stat large`); one step up read too big on a
+                    laptop and was taken back down on 2026-09-30. */}
+                <p className="mt-3">
+                  <span className="text-2xl font-bold tabular-nums text-fg">{fraction.present}</span>{' '}
+                  <span className="text-base font-semibold tabular-nums text-fg-muted">of {fraction.total}</span>
                 </p>
                 <p className="text-sm text-fg-muted">Present on recorded days</p>
 
-                <div className="mt-3 flex flex-wrap gap-2">
+                {/* The four counts as tiles: the status is a StatusBadge —
+                    colour AND word — and the count beside it is the server's
+                    own number for the month. Two across at EVERY width: four
+                    across fitted a phone held sideways but not a tablet with
+                    the sidebar open, where a tile is about 76px inside and a
+                    badge plus a two-digit count needs about 95. */}
+                <ul className="mt-4 grid grid-cols-2 gap-2">
                   {COUNTS.map((key) => (
-                    <span key={key} className="inline-flex items-center gap-1.5">
+                    <li
+                      key={key}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-edge-soft bg-surface-subtle px-3 py-2.5"
+                    >
                       <StatusBadge status={key} />
-                      <span className="text-sm text-fg-body">{countOf(summary, key)}</span>
-                    </span>
+                      <span className="text-base font-bold tabular-nums text-fg">{countOf(summary, key)}</span>
+                    </li>
                   ))}
-                </div>
+                </ul>
 
-                <p className="mt-3 text-xs text-fg-muted">
+                <p className="mt-4 text-xs text-fg-muted">
                   Late counts as present · Excused counts as absent
                 </p>
               </>
@@ -326,110 +400,115 @@ export default function ParentAttendancePage() {
               // than about the record (browser review, 2026-09-20).
               <p className="mt-2 text-sm text-fg-muted">Nothing recorded this month.</p>
             )}
+          </section>
+        </div>
+
+        <section className={`${cardClass} p-4 sm:p-5 lg:col-start-1 lg:row-start-1`}>
+          {/* Month navigation: two 44px icon buttons, each named by its
+              aria-label, with the month between them announced politely when
+              it changes. */}
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <Button size="icon" onClick={() => goMonth(-1)} aria-label="Previous month">
+              <i aria-hidden="true" className="fa-solid fa-chevron-left" />
+            </Button>
+            <h2 className="min-w-0 text-center font-serif text-base font-bold text-fg" aria-live="polite">
+              {monthLabel}
+            </h2>
+            <Button size="icon" onClick={() => goMonth(1)} aria-label="Next month">
+              <i aria-hidden="true" className="fa-solid fa-chevron-right" />
+            </Button>
           </div>
-        </div>
 
-        <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6 lg:col-start-1 lg:row-start-1">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => goMonth(-1)}
-            aria-label="Previous month"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body transition hover:bg-surface-muted"
-          >
-            <i aria-hidden="true" className="fa-solid fa-chevron-left" />
-          </button>
-          <h2 className="text-sm font-semibold text-fg" aria-live="polite">
-            {monthLabel}
-          </h2>
-          <button
-            type="button"
-            onClick={() => goMonth(1)}
-            aria-label="Next month"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body transition hover:bg-surface-muted"
-          >
-            <i aria-hidden="true" className="fa-solid fa-chevron-right" />
-          </button>
-        </div>
+          {loading ? (
+            <LoadingSpinner className="py-12" />
+          ) : (
+            <AttendanceCalendar
+              year={view.year}
+              month={view.month}
+              monthLabel={monthLabel}
+              records={rows}
+              letters={letters}
+              today={today}
+              selected={selected}
+              onSelect={(date) => setSelected((current) => (current === date ? null : date))}
+            />
+          )}
 
-        {loading ? (
-          <LoadingSpinner className="py-12" />
-        ) : (
-          <AttendanceCalendar
-            year={view.year}
-            month={view.month}
-            monthLabel={monthLabel}
-            records={rows}
-            letters={letters}
-            today={today}
-            selected={selected}
-            onSelect={(date) => setSelected((current) => (current === date ? null : date))}
-          />
-        )}
-
-        {/* The day detail, below the grid — the target of each day button's
-            aria-controls. Below sm it is the only way to read a day; from sm
-            up the cell already shows everything, so this repeats rather than
-            reveals, which is harmless. */}
-        <div id="attendance-day-detail" className="mt-4">
-          {selected ? (
-            <div className="rounded-lg border border-edge bg-surface-subtle px-4 py-3">
-              <p className="text-sm font-medium text-fg">
-                {weekdayName(selected)} {longDate(selected)}
-              </p>
-              <p className="mt-2">
-                {selectedRecord ? (
-                  <StatusBadge status={selectedRecord.status} />
-                ) : (
-                  <span className="text-sm text-fg-muted">Not recorded</span>
-                )}
-              </p>
-              {selectedLetter ? (
-                <p className="mt-2 text-sm text-fg-muted">
-                  Excuse letter · {selectedLetter.status}
+          {/* The day detail, below the grid — the target of each day button's
+              aria-controls. Below sm it is the only way to read a day; from sm
+              up the cell already shows everything, so this repeats rather than
+              reveals, which is harmless. */}
+          <div id="attendance-day-detail" className="mt-4">
+            {selected ? (
+              <div className="rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+                <p className="text-sm font-semibold tabular-nums text-fg">
+                  {weekdayName(selected)} {longDate(selected)}
                 </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-        </div>
+                <p className="mt-2">
+                  {selectedRecord ? (
+                    <StatusBadge status={selectedRecord.status} />
+                  ) : (
+                    <span className="text-sm text-fg-muted">Not recorded</span>
+                  )}
+                </p>
+                {selectedLetter ? (
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-fg-muted">
+                    <span aria-hidden="true" className="flex items-center justify-center text-xs">
+                      <i className="fa-solid fa-envelope" />
+                    </span>
+                    Excuse letter · {selectedLetter.status}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </section>
       </div>
 
-      <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
-        <h2 className="text-sm font-semibold text-fg">How this is counted</h2>
-        <p className="mt-2 text-sm text-fg-muted">
-          Late counts as present. Excused counts as absent. Only the days{' '}
-          {/* Never "recorded by —": when no adviser is assigned to the section,
-              the sentence has to work without a name (20 of 23 sections are in
-              that state — KNOWN ISSUES). */}
-          {adviser ? `${adviser} recorded` : "your child's adviser recorded"} are counted — a school
-          day with no record is left out, not marked absent.
-        </p>
-      </div>
+      <section className={`${cardClass} flex items-start gap-3 p-4 sm:p-5`}>
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+        >
+          <i className="fa-solid fa-circle-info" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-serif text-base font-bold text-fg">How this is counted</h2>
+          <p className="mt-1 max-w-prose text-sm text-fg-body">
+            Late counts as present. Excused counts as absent. Only the days{' '}
+            {/* Never "recorded by —": when no adviser is assigned to the
+                section, the sentence has to work without a name (20 of 23
+                sections are in that state — KNOWN ISSUES). */}
+            {adviser ? `${adviser} recorded` : "your child's adviser recorded"} are counted — a school
+            day with no record is left out, not marked absent.
+          </p>
+        </div>
+      </section>
 
       {yearRows.length ? (
-        <div className="rounded-xl border border-edge bg-surface p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-fg">School year record</h2>
-          <p className="mt-1 text-xs text-fg-muted">
-            Only months with recorded days are shown. A dash means nothing was recorded that month.
-          </p>
-          <div className="mt-3 overflow-x-auto">
+        // The frame is the card; the table runs edge to edge inside it and is
+        // its own horizontal scroller, so ten months on a phone scroll in the
+        // card and never widen the page.
+        <section className={cardClass}>
+          <div className="px-4 pt-4 sm:px-5 sm:pt-5">
+            <h2 className="font-serif text-base font-bold text-fg">School year record</h2>
+            <p className="mt-1 max-w-prose text-xs text-fg-muted">
+              Only months with recorded days are shown. A dash means nothing was recorded that month.
+            </p>
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-b-2xl">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-edge">
-                  <th scope="col" className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                <tr className="border-y border-edge">
+                  <th scope="col" className={`${YEAR_TH} pl-4 pr-3 text-left text-fg-muted sm:pl-5`}>
                     &nbsp;
                   </th>
                   {yearRows.map((r) => (
-                    <th
-                      key={r.key}
-                      scope="col"
-                      className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-fg-muted"
-                    >
+                    <th key={r.key} scope="col" className={`${YEAR_TH} px-3 text-right text-fg-muted`}>
                       {monthName(r.month).slice(0, 3)}
                     </th>
                   ))}
-                  <th scope="col" className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold uppercase tracking-wider text-fg">
+                  <th scope="col" className={`${YEAR_TH} pl-3 pr-4 text-right text-fg sm:pr-5`}>
                     Total
                   </th>
                 </tr>
@@ -441,15 +520,15 @@ export default function ParentAttendancePage() {
                   ['Absent', 'absent'],
                 ].map(([label, key]) => (
                   <tr key={key} className="border-b border-edge-soft last:border-0">
-                    <th scope="row" className="whitespace-nowrap px-3 py-2 text-left font-medium text-fg">
+                    <th scope="row" className="whitespace-nowrap py-3 pl-4 pr-3 text-left font-semibold text-fg sm:pl-5">
                       {label}
                     </th>
                     {yearRows.map((r) => (
-                      <td key={r.key} className="whitespace-nowrap px-3 py-2 text-right text-fg-secondary">
+                      <td key={r.key} className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-fg-secondary">
                         {r.recorded === undefined ? '—' : r[key]}
                       </td>
                     ))}
-                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-fg">
+                    <td className="whitespace-nowrap py-3 pl-3 pr-4 text-right font-semibold tabular-nums text-fg sm:pr-5">
                       {totals[key]}
                     </td>
                   </tr>
@@ -457,8 +536,8 @@ export default function ParentAttendancePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       ) : null}
-    </div>
+    </Reveal>
   );
 }

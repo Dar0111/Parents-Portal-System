@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import FormField, { filterSelectClass } from '../../components/FormField';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { INITIAL_GUARD, transition as guardTransition } from './classRecord/backGuard';
 import { setLeaveGuard } from '../../layout/leaveGuard';
@@ -59,6 +62,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // This one stays on the page because it IS markup. The logic lives in
 // `attendance/roster.js`, which the proof imports.
+//
+// The same four tones colour the count chips in the toolbar (feat/ui-refresh),
+// so a chip and the button it counts cannot drift apart.
 const STATUS_TONE = {
   Present: 'border-success-edge bg-success-soft text-success-fg',
   Late: 'border-warning-edge bg-warning-soft text-warning-fg',
@@ -66,13 +72,19 @@ const STATUS_TONE = {
   Excused: 'border-info-edge bg-info-soft text-info-fg',
 };
 
+// NOT `<Button>`, ON PURPOSE (feat/ui-refresh): the proof reads this markup —
+// `aria-pressed`, the full word as the button's last child, `border-2` and
+// `font-bold` on the selected one, `h-11` — so it keeps its own classes. What
+// the refresh gave it is the shared 12px corner, the shared keyboard outline,
+// and 8px between the four targets (it was 6). The colour `transition` is the
+// only one here and it is hover feedback: this page has NO motion.
 export function StatusButtons({ student, marks, onPick, size = 'phone' }) {
   const current = marks[student.id] || '';
   return (
     <div
       role="group"
       aria-label={`Attendance status for ${student.first_name} ${student.last_name}`}
-      className={size === 'phone' ? 'grid grid-cols-4 gap-1.5' : 'flex gap-1.5'}
+      className={size === 'phone' ? 'grid grid-cols-4 gap-2' : 'flex gap-2'}
     >
       {STATUS_ORDER.map((s) => {
         const on = current === s;
@@ -84,7 +96,7 @@ export function StatusButtons({ student, marks, onPick, size = 'phone' }) {
             // mark, and an unset radio group cannot express that.
             aria-pressed={on}
             onClick={() => onPick(student.id, s)}
-            className={`h-11 rounded-lg border px-1 text-xs transition ${
+            className={`h-11 rounded-xl border px-1 text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
               size === 'web' ? 'w-[5.5rem]' : ''
             } ${
               on
@@ -101,24 +113,34 @@ export function StatusButtons({ student, marks, onPick, size = 'phone' }) {
 }
 
 // The phone list. Its own markup, not a DataTable card — see the note above.
+// Each learner is one card (`cardClass`); the row state sits beside the name
+// so a teacher scanning the list reads "who" and "saved or not" on one line.
 export function RosterCards({ roster, marks, recorded, onPick }) {
   return (
-    <ul className="space-y-2 sm:hidden">
+    <ul className="space-y-3 sm:hidden">
       {roster.map((s) => {
         const state = rowState(s.id, marks, recorded);
         return (
-          <li key={s.id} className="rounded-xl border border-edge bg-surface p-3">
+          <li key={s.id} className={`${cardClass} p-4`}>
             {/* NO LRN ON THE PHONE CARD. It is half a credential (§5c), it is
                 not what a teacher identifies a learner by while marking a
                 register, and it costs a line on the narrowest screen. The
                 desktop table keeps its column. */}
-            <p className="font-semibold text-fg">
-              {s.last_name}, {s.first_name}
-            </p>
-            <p className={`text-xs ${state === 'changed' ? 'text-warning-fg' : 'text-fg-muted'}`}>
-              {ROW_STATE_LABEL[state]}
-            </p>
-            <div className="mt-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 font-semibold text-fg">
+                {s.last_name}, {s.first_name}
+              </p>
+              {/* The words carry the state; the colour and weight only repeat
+                  it. The name wraps, this label never does. */}
+              <p
+                className={`shrink-0 whitespace-nowrap pt-0.5 text-xs ${
+                  state === 'changed' ? 'font-semibold text-warning-fg' : 'text-fg-muted'
+                }`}
+              >
+                {ROW_STATE_LABEL[state]}
+              </p>
+            </div>
+            <div className="mt-3">
               <StatusButtons student={s} marks={marks} onPick={onPick} />
             </div>
           </li>
@@ -436,45 +458,67 @@ export default function AttendancePage() {
 
   if (!sections.length) {
     return (
-      <EmptyState
-        icon="fa-clipboard-user"
-        title="You are not the adviser of any section"
-        message="Attendance is recorded by the section adviser. An admin can assign you to a section from the Sections page."
-      />
+      <div className={cardClass}>
+        <EmptyState
+          icon="fa-clipboard-user"
+          title="You are not the adviser of any section"
+          message="Attendance is recorded by the section adviser. An admin can assign you to a section from the Sections page."
+        />
+      </div>
     );
   }
 
+  // NO ENTRANCE AND NO TWEEN ON THIS PAGE (feat/ui-refresh, motion/motion.js):
+  // the root is a plain <div>, never <Reveal>. A teacher marks a register here
+  // forty taps in a row, the roster re-renders after every save, and the
+  // "Leave without saving?" dialog renders inline — nothing on this screen may
+  // move, and no ancestor may carry a transform.
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-edge bg-surface p-4">
-        <div>
-          <p className="mb-1.5 text-sm font-medium text-fg-secondary">Section</p>
-          {sections.length === 1 ? (
-            // One advisory section is not a choice — a dropdown with a single
-            // option would be a decision the teacher does not actually have.
-            <p className="py-2 text-sm font-semibold text-fg">
+    <div className="space-y-6">
+      {/* WHICH REGISTER: the class and the day. The header card of the page —
+          everything below it is that one register. */}
+      <div className={`${cardClass} flex flex-wrap items-end gap-x-4 gap-y-3 p-4 sm:p-5`}>
+        <span
+          aria-hidden="true"
+          className="mb-1 hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand sm:flex"
+        >
+          <i className="fa-solid fa-clipboard-user" />
+        </span>
+
+        {sections.length === 1 ? (
+          // One advisory section is not a choice — a dropdown with a single
+          // option would be a decision the teacher does not actually have.
+          // As tall as the date control beside it (44px), so the two sit on
+          // one baseline.
+          <div className="w-full sm:w-auto">
+            <p className="mb-1.5 text-sm font-semibold text-fg-secondary">Section</p>
+            <p className="flex min-h-11 items-center text-sm font-semibold text-fg">
               Grade {section?.grade_level} - {section?.name}
             </p>
-          ) : (
-            <FormField
-              label={null}
-              as="select"
-              className={filterSelectClass}
-              value={sectionId ?? ''}
-              onChange={(e) => requestChange('section', Number(e.target.value))}
-            >
-              {sections.map((s) => (
-                <option key={s.id} value={s.id}>
-                  Grade {s.grade_level} - {s.name}
-                </option>
-              ))}
-            </FormField>
-          )}
-        </div>
+          </div>
+        ) : (
+          // A real <label> since feat/ui-refresh: the word "Section" used to be
+          // a bare paragraph above an unlabelled <select>, so the control had
+          // no accessible name.
+          <FormField
+            label="Section"
+            as="select"
+            className={filterSelectClass}
+            value={sectionId ?? ''}
+            onChange={(e) => requestChange('section', Number(e.target.value))}
+          >
+            {sections.map((s) => (
+              <option key={s.id} value={s.id}>
+                Grade {s.grade_level} - {s.name}
+              </option>
+            ))}
+          </FormField>
+        )}
 
         <FormField
           label="Date"
           type="date"
+          className={filterFieldClass}
           value={date}
           // The input's value is ALREADY a local YYYY-MM-DD string and is sent
           // to the API verbatim — never parsed into a Date. max prevents a
@@ -484,150 +528,192 @@ export default function AttendancePage() {
         />
       </div>
 
-      {roster.length ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-edge bg-surface px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-fg">
-              {counts.marked} of {counts.total} marked
-            </p>
-            {/* COUNTS ONLY — never a rate. A percentage here would be a second
-                implementation of Parent → Attendance's figure, and this page
-                is an encode screen, not a report. */}
-            <p className="text-xs text-fg-muted">
-              Present {counts.Present} · Late {counts.Late} · Absent {counts.Absent} · Excused{' '}
-              {counts.Excused}
-            </p>
-          </div>
+      <section className="space-y-3">
+        {/* RELOAD IS `loadRoster` ITSELF (feat/ui-refresh) — the same two
+            requests, for the class and day chosen above. loadRoster resets
+            the marks from the database, so WHILE ANYTHING IS UNSAVED THE
+            BUTTON IS DISABLED and its hint says why: a reload must never be a
+            silent discard, and the leave dialog's sentence ("Leaving now…")
+            would be wrong for it (§5i). Also disabled while a save is in
+            flight — the save does its own re-read.
 
-          <div className="grow" />
-
-          <button
-            type="button"
-            onClick={() => setMarks((m) => markRestPresent(roster, m))}
-            disabled={counts.marked === counts.total}
-            className="h-11 rounded-lg border border-edge-strong px-3.5 text-sm font-semibold text-fg-body transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {/* The label names what it will actually do. "Mark all Present"
-                once any row is marked would be a claim about behaviour the
-                handler does not have (§5i) — it never overwrites. */}
-            {counts.marked === 0 ? 'Mark all Present' : 'Mark the rest Present'}
-          </button>
-
-          {/* Desktop keeps Save in the toolbar; the phone has its own pinned
-              bar below, because a roster is longer than a screen and a Save
-              that scrolls away is a Save a teacher has to go looking for. */}
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving || entries.length === 0}
-            className="hidden h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled sm:inline-flex"
-          >
-            {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
-            {isUpdate ? 'Update attendance' : 'Save attendance'}
-          </button>
-        </div>
-      ) : null}
-
-      {/* THE TABLE IS DESKTOP-ONLY and the cards are phone-only — the declared
-          exemption. `DataTable` is still the table: it keeps the sorting, the
-          loading, error and empty states, and the LRN column. */}
-      <div className="hidden sm:block">
-        <DataTable
-          columns={columns}
-          rows={roster}
-          loading={rosterLoading}
-          error={rosterError}
-          onRetry={loadRoster}
-          emptyIcon="fa-user-graduate"
-          emptyTitle="No students in this section"
-          emptyMessage="Students appear here once they are enrolled in this section."
+            The description names the register: the class, then the day. A
+            date input can be cleared, and `longDate` hands an empty value
+            straight back — so with no date the class stands alone rather
+            than trailing a separator with nothing after it. */}
+        <SectionHeader
+          title="Roster"
+          description={date ? `${classLabel} · ${longDate(date)}` : classLabel}
+          onReload={loadRoster}
+          reloading={rosterLoading}
+          reloadDisabled={dirty || saving}
+          reloadHint={dirty ? 'Save or discard your changes before reloading.' : ''}
+          reloadLabel="Reload roster"
         />
-      </div>
 
-      {rosterLoading ? (
-        <div className="sm:hidden">
-          <LoadingSpinner className="py-10" label="Loading the roster…" />
-        </div>
-      ) : rosterError ? (
-        <div className="sm:hidden">
-          <ErrorAlert message={rosterError} onRetry={loadRoster} />
-        </div>
-      ) : roster.length === 0 ? (
-        <div className="sm:hidden">
-          <EmptyState
-            icon="fa-user-graduate"
-            title="No students in this section"
-            message="Students appear here once they are enrolled in this section."
+        {roster.length ? (
+          <div className={`${cardClass} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`}>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold tabular-nums text-fg">
+                {counts.marked} of {counts.total} marked
+              </p>
+              {/* COUNTS ONLY — never a rate. A percentage here would be a second
+                  implementation of Parent → Attendance's figure, and this page
+                  is an encode screen, not a report.
+
+                  One chip per status, in the status's own tone (the same map
+                  the buttons use) — and each chip carries its WORD, so the
+                  tone only repeats what the text already says. */}
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {STATUS_ORDER.map((s) => (
+                  <li
+                    key={s}
+                    className={`rounded-lg border px-2 py-0.5 text-xs font-semibold tabular-nums ${STATUS_TONE[s]}`}
+                  >
+                    {s} {counts[s]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="grow" />
+
+            <Button
+              variant="secondary"
+              onClick={() => setMarks((m) => markRestPresent(roster, m))}
+              disabled={counts.marked === counts.total}
+            >
+              {/* The label names what it will actually do. "Mark all Present"
+                  once any row is marked would be a claim about behaviour the
+                  handler does not have (§5i) — it never overwrites. */}
+              {counts.marked === 0 ? 'Mark all Present' : 'Mark the rest Present'}
+            </Button>
+
+            {/* Desktop keeps Save in the toolbar; the phone has its own pinned
+                bar below, because a roster is longer than a screen and a Save
+                that scrolls away is a Save a teacher has to go looking for.
+                The wrapper hides it below `sm` — the button's own class sets
+                a display, and two display utilities on one element is a
+                stylesheet-order coin toss. */}
+            <div className="hidden sm:block">
+              <Button
+                variant="primary"
+                onClick={handleSubmit}
+                loading={saving}
+                disabled={saving || entries.length === 0}
+              >
+                {isUpdate ? 'Update attendance' : 'Save attendance'}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* THE TABLE IS DESKTOP-ONLY and the cards are phone-only — the declared
+            exemption. `DataTable` is still the table: it keeps the sorting, the
+            loading, error and empty states, and the LRN column. */}
+        <div className="hidden sm:block">
+          <DataTable
+            columns={columns}
+            rows={roster}
+            loading={rosterLoading}
+            error={rosterError}
+            onRetry={loadRoster}
+            emptyIcon="fa-user-graduate"
+            emptyTitle="No students in this section"
+            emptyMessage="Students appear here once they are enrolled in this section."
           />
         </div>
-      ) : (
-        <RosterCards roster={roster} marks={marks} recorded={recorded} onPick={pick} />
-      )}
 
-      {roster.length ? (
-        <>
-          {unsetCount > 0 ? (
-            // Unset rows are omitted from the request, never defaulted to
-            // Present — defaulting would invent attendance nobody entered.
-            <p className="text-sm text-fg-muted">
-              {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'}{' '}
-              {unsetCount === 1 ? 'has' : 'have'} no status and will not be submitted.
-            </p>
-          ) : null}
-
-          <FormStatus status={status.roster} />
-
-          {/* PHONE SAVE BAR, pinned. `sticky bottom-0` and not `fixed`: §9
-              makes the document the only scroller, and a fixed bar would sit
-              outside it. It carries the unsaved count so Save is never a
-              guess about whether anything changed. */}
-          <div className="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-edge bg-surface px-4 py-3 sm:hidden">
-            <span
-              className={`grow text-sm ${unsaved ? 'text-warning-fg' : 'text-fg-muted'}`}
-            >
-              {unsaved === 0
-                ? 'No unsaved changes'
-                : `${unsaved} unsaved change${unsaved === 1 ? '' : 's'}`}
-            </span>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={saving || entries.length === 0}
-              className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
-            >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
-              {isUpdate ? 'Update attendance' : 'Save attendance'}
-            </button>
+        {rosterLoading ? (
+          <div className={`${cardClass} sm:hidden`}>
+            <LoadingSpinner className="py-10" label="Loading the roster…" />
           </div>
-        </>
-      ) : null}
+        ) : rosterError ? (
+          <div className="sm:hidden">
+            <ErrorAlert message={rosterError} onRetry={loadRoster} />
+          </div>
+        ) : roster.length === 0 ? (
+          <div className={`${cardClass} sm:hidden`}>
+            <EmptyState
+              icon="fa-user-graduate"
+              title="No students in this section"
+              message="Students appear here once they are enrolled in this section."
+            />
+          </div>
+        ) : (
+          <RosterCards roster={roster} marks={marks} recorded={recorded} onPick={pick} />
+        )}
+
+        {roster.length ? (
+          <>
+            {unsetCount > 0 ? (
+              // Unset rows are omitted from the request, never defaulted to
+              // Present — defaulting would invent attendance nobody entered.
+              <p className="flex items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3 text-sm text-fg-body">
+                <i aria-hidden="true" className="fa-solid fa-circle-info mt-0.5 text-fg-faint" />
+                <span className="min-w-0 flex-1">
+                  {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'}{' '}
+                  {unsetCount === 1 ? 'has' : 'have'} no status and will not be submitted.
+                </span>
+              </p>
+            ) : null}
+
+            <FormStatus status={status.roster} />
+
+            {/* PHONE SAVE BAR, pinned. `sticky bottom-0` and not `fixed`: §9
+                makes the document the only scroller, and a fixed bar would sit
+                outside it. It carries the unsaved count so Save is never a
+                guess about whether anything changed. `-mx-4` reaches the
+                screen's edges through <main>'s 16px phone padding. */}
+            <div className="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-edge bg-surface px-4 py-3 sm:hidden">
+              <span
+                className={`min-w-0 grow text-sm ${unsaved ? 'font-semibold text-warning-fg' : 'text-fg-muted'}`}
+              >
+                {unsaved === 0
+                  ? 'No unsaved changes'
+                  : `${unsaved} unsaved change${unsaved === 1 ? '' : 's'}`}
+              </span>
+              <Button
+                variant="primary"
+                onClick={handleSubmit}
+                loading={saving}
+                disabled={saving || entries.length === 0}
+                className="shrink-0"
+              >
+                {isUpdate ? 'Update attendance' : 'Save attendance'}
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </section>
 
       {/* The phone's words, word for word, and since fix/leave-guard the one
           title every bulk-entry screen uses. Escape or the backdrop counts as
-          Stay — only the red button discards. */}
-      <Modal open={pendingLeave !== null} onClose={dismissLeave} title="Leave without saving?" size="sm">
-        <div className="space-y-4 text-sm text-fg-body">
-          <p>
-            You have {unsaved} unsaved mark{unsaved === 1 ? '' : 's'} for {classLabel} on {longDate(date)}.{' '}
-            {leaveVerb} discards them — nothing has been sent to the server yet.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
-              onClick={dismissLeave}
-            >
+          Stay — only the red button discards. STAY IS THE FILLED BUTTON, as
+          it always was: the safe answer is the prominent one, and the
+          discarding one is outlined in red beside it. The two sit in the
+          dialog's footer, so the sentence above them can scroll and they
+          cannot. */}
+      <Modal
+        open={pendingLeave !== null}
+        onClose={dismissLeave}
+        title="Leave without saving?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="primary" onClick={dismissLeave}>
               Stay on this page
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-danger-edge px-3 py-1.5 text-sm text-danger-fg hover:bg-danger-soft"
-              onClick={confirmLeave}
-            >
+            </Button>
+            <Button variant="danger-outline" onClick={confirmLeave}>
               Leave and discard
-            </button>
-          </div>
-        </div>
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-fg-body">
+          You have {unsaved} unsaved mark{unsaved === 1 ? '' : 's'} for {classLabel} on {longDate(date)}.{' '}
+          {leaveVerb} discards them — nothing has been sent to the server yet.
+        </p>
       </Modal>
     </div>
   );

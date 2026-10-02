@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDrawerStatus } from '@react-navigation/drawer';
 import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
-import { Alert, BackHandler, FlatList, Pressable, Text, View } from 'react-native';
+import { Alert, BackHandler, FlatList, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import { longDate, todayLocalDateString } from '../../format/date';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 import { markRestPresent, pickStatus, ROW_STATE_LABEL, rosterCounts, rowState, unsavedCount } from './attendance/roster';
-import StatusButtons from './attendance/StatusButtons';
+import StatusButtons, { StatusCounts } from './attendance/StatusButtons';
 import { setLeaveGuard } from '../../navigation/leaveGuard';
 
 // TEACHER → ATTENDANCE (encode) — the web's AttendancePage.jsx on the phone,
@@ -44,11 +50,33 @@ import { setLeaveGuard } from '../../navigation/leaveGuard';
 //      really discard: it resets the marks to the last saved state BEFORE
 //      the exit runs, or the word would be a lie (§5i). Logout would lose
 //      them anyway — that is the one exit that took them with no warning.
+//
+// RELOAD IS `loadRoster` ITSELF (feat/ui-refresh, 2026-10-03) — the same two
+// requests, for the class and day chosen above. loadRoster resets the marks
+// from the database, so WHILE ANYTHING IS UNSAVED THE BUTTON IS DISABLED and
+// the line under the header says why: a reload must never be a silent
+// discard, and the leave prompt's sentence ("Leaving now…") would be wrong
+// for it (§5i). Also disabled while a save is in flight — the save does its
+// own re-read. WHILE THE RELOAD IS IN FLIGHT THE ROSTER IS NOT ON SCREEN (the
+// loading state is, as on the first read): a mark tapped during the request
+// would be replaced when its reply lands, with nothing said — and Save waits
+// for the same reason. `reloading` is set and cleared by the reload handler
+// alone, so a save's own re-read and a date or section change look exactly
+// as they did.
+//
+// NOTHING ON THIS SCREEN MOVES (the refresh's motion rule): no entrance, and
+// nothing above the roster changes height while a register is being marked —
+// the reload line keeps its place when it is empty, the four counts are
+// equal tiles, and a row's state sits under the name, not beside it.
+//
 // One title on every bulk-entry screen, web and phone (owner decision).
 const PROMPT_TITLE = 'Leave without saving?';
+const RELOAD_BLOCKED = 'Save or discard your changes before reloading.';
+const TABULAR = { fontVariant: ['tabular-nums'] };
 
 export default function AttendanceScreen({ navigation }) {
   const { user } = useAuth();
+  const { tokens } = useTheme();
   const today = todayLocalDateString();
 
   const [sections, setSections] = useState(null);
@@ -63,6 +91,7 @@ export default function AttendanceScreen({ navigation }) {
   const [recorded, setRecorded] = useState(new Map());
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(null);
+  const [reloading, setReloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +142,17 @@ export default function AttendanceScreen({ navigation }) {
   useEffect(() => {
     loadRoster();
   }, [loadRoster]);
+
+  // The Reload button's handler. loadRoster keeps its own failure in
+  // `rosterError` and never rejects.
+  async function reloadRoster() {
+    setReloading(true);
+    try {
+      await loadRoster();
+    } finally {
+      setReloading(false);
+    }
+  }
 
   const entries = useMemo(() => roster.filter((s) => marks[s.id]).map((s) => ({ student_id: s.id, status: marks[s.id] })), [roster, marks]);
   const counts = useMemo(() => rosterCounts(roster, marks), [roster, marks]);
@@ -214,22 +254,26 @@ export default function AttendanceScreen({ navigation }) {
   if (!sections.length) {
     return (
       <View className="flex-1 bg-page p-4">
-        <EmptyState
-          icon="fa-clipboard-user"
-          title="You are not the adviser of any section"
-          message="Attendance is recorded by the section adviser. An admin can assign you to a section from the Sections page."
-        />
+        <View className={cardClass}>
+          <EmptyState
+            icon="fa-clipboard-user"
+            title="You are not the adviser of any section"
+            message="Attendance is recorded by the section adviser. An admin can assign you to a section from the Sections page."
+          />
+        </View>
       </View>
     );
   }
 
   const header = (
-    <View className="mb-3 gap-3">
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+    <View className="mb-4 gap-4">
+      {/* WHICH REGISTER: the class and the day. Everything below this card is
+          that one register. */}
+      <View className={`${cardClass} gap-3 p-4`}>
         <View>
-          <Text className="mb-1.5 text-sm font-medium text-fg-secondary">Section</Text>
+          <Text className="mb-1.5 text-sm font-semibold text-fg-secondary">Section</Text>
           {sections.length === 1 ? (
-            <Text className="text-sm font-semibold text-fg">{className}</Text>
+            <Text className="text-base font-semibold text-fg">{className}</Text>
           ) : (
             <Segmented
               label="Section"
@@ -244,37 +288,49 @@ export default function AttendanceScreen({ navigation }) {
         <DateField label="Date" value={date} maximumDate={today} onChange={(next) => next !== date && guarded(() => setDate(next))} />
       </View>
 
-      {roster.length ? (
-        <View className="flex-row flex-wrap items-center gap-3 rounded-xl border border-edge bg-surface px-4 py-3">
-          <View className="min-w-0 flex-1">
-            <Text className="text-sm font-semibold text-fg">
+      <View className="gap-1">
+        {/* The description names the register: the class, then the day. */}
+        <SectionHeader
+          title="Roster"
+          description={`${className} · ${longDate(date)}`}
+          onReload={reloadRoster}
+          reloading={rosterLoading}
+          reloadDisabled={unsaved > 0 || saving}
+          reloadLabel="Reload roster"
+        />
+        {/* ALWAYS ONE LINE TALL: empty, it holds a space, so the roster does
+            not drop a line under the teacher's thumb on the first mark. */}
+        <Text className="text-xs text-fg-muted" style={{ minHeight: 16 }}>
+          {unsaved > 0 ? RELOAD_BLOCKED : ' '}
+        </Text>
+      </View>
+
+      {roster.length && !reloading ? (
+        <View className={`${cardClass} gap-3 p-4`}>
+          <View className="flex-row items-center gap-3">
+            <Text className="min-w-0 flex-1 text-sm font-semibold text-fg" style={TABULAR}>
               {counts.marked} of {counts.total} marked
             </Text>
-            <Text className="text-xs text-fg-muted">
-              Present {counts.Present} · Late {counts.Late} · Absent {counts.Absent} · Excused {counts.Excused}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => setMarks((m) => markRestPresent(roster, m))}
-            disabled={counts.marked === counts.total}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: counts.marked === counts.total }}
-            className={`h-11 justify-center rounded-lg border border-edge-strong px-3.5 ${counts.marked === counts.total ? 'opacity-50' : ''}`}
-          >
             {/* The label names what it does: it never overwrites (§5i). */}
-            <Text className="text-sm font-semibold text-fg-body">{counts.marked === 0 ? 'Mark all Present' : 'Mark the rest Present'}</Text>
-          </Pressable>
+            <Button variant="secondary" size="sm" onPress={() => setMarks((m) => markRestPresent(roster, m))} disabled={counts.marked === counts.total}>
+              {counts.marked === 0 ? 'Mark all Present' : 'Mark the rest Present'}
+            </Button>
+          </View>
+          <StatusCounts counts={counts} />
         </View>
       ) : null}
     </View>
   );
 
   const footer = roster.length ? (
-    <View className="mt-3 gap-3">
+    <View className="mt-4 gap-3">
       {unsetCount > 0 ? (
-        <Text className="text-sm text-fg-muted">
-          {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'} {unsetCount === 1 ? 'has' : 'have'} no status and will not be submitted.
-        </Text>
+        <View className="flex-row items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+          <Icon name="fa-circle-info" size={14} color={tokens['fg-faint']} style={{ marginTop: 3 }} />
+          <Text className="min-w-0 flex-1 text-sm text-fg-body">
+            {unsetCount} of {roster.length} student{roster.length === 1 ? '' : 's'} {unsetCount === 1 ? 'has' : 'have'} no status and will not be submitted.
+          </Text>
+        </View>
       ) : null}
       <FormStatus status={status} />
     </View>
@@ -282,7 +338,7 @@ export default function AttendanceScreen({ navigation }) {
 
   return (
     <View className="flex-1 bg-page">
-      {rosterLoading && !roster.length ? (
+      {(rosterLoading && !roster.length) || reloading ? (
         <View className="p-4">
           {header}
           <LoadingSpinner className="py-10" label="Loading the roster…" />
@@ -295,7 +351,9 @@ export default function AttendanceScreen({ navigation }) {
       ) : roster.length === 0 ? (
         <View className="p-4">
           {header}
-          <EmptyState icon="fa-user-graduate" title="No students in this section" message="Students appear here once they are enrolled in this section." />
+          <View className={cardClass}>
+            <EmptyState icon="fa-user-graduate" title="No students in this section" message="Students appear here once they are enrolled in this section." />
+          </View>
         </View>
       ) : (
         <FlatList
@@ -303,18 +361,20 @@ export default function AttendanceScreen({ navigation }) {
           keyExtractor={(s) => String(s.id)}
           ListHeaderComponent={header}
           ListFooterComponent={footer}
-          ItemSeparatorComponent={() => <View className="h-2" />}
+          ItemSeparatorComponent={() => <View className="h-3" />}
           contentContainerStyle={{ padding: 16 }}
           renderItem={({ item: s }) => {
             const state = rowState(s.id, marks, recorded);
             return (
-              <View className="rounded-xl border border-edge bg-surface p-3">
+              // ONE CARD PER LEARNER. The words carry the row's state; the
+              // tone and the weight only repeat it.
+              <View className={`${cardClass} p-4`}>
                 {/* No LRN on the phone card (§5c). */}
-                <Text className="font-semibold text-fg">
+                <Text className="text-base font-semibold text-fg">
                   {s.last_name}, {s.first_name}
                 </Text>
-                <Text className={`text-xs ${state === 'changed' ? 'text-warning-fg' : 'text-fg-muted'}`}>{ROW_STATE_LABEL[state]}</Text>
-                <View className="mt-2.5">
+                <Text className={`mt-0.5 text-xs ${state === 'changed' ? 'font-semibold text-warning-fg' : 'text-fg-muted'}`}>{ROW_STATE_LABEL[state]}</Text>
+                <View className="mt-3">
                   <StatusButtons student={s} marks={marks} onPick={pick} />
                 </View>
               </View>
@@ -325,20 +385,15 @@ export default function AttendanceScreen({ navigation }) {
 
       {roster.length ? (
         // THE PINNED SAVE BAR, outside the list and above the frame's bottom
-        // inset, with the unsaved count so Save is never a guess.
+        // inset, with the unsaved count so Save is never a guess. Save is the
+        // screen's one filled button.
         <View className="flex-row items-center gap-3 border-t border-edge bg-surface px-4 py-3">
-          <Text className={`flex-1 text-sm ${unsaved ? 'text-warning-fg' : 'text-fg-muted'}`}>
+          <Text className={`min-w-0 flex-1 text-sm ${unsaved ? 'font-semibold text-warning-fg' : 'text-fg-muted'}`}>
             {unsaved === 0 ? 'No unsaved changes' : `${unsaved} unsaved change${unsaved === 1 ? '' : 's'}`}
           </Text>
-          <Pressable
-            onPress={handleSubmit}
-            disabled={saving || entries.length === 0}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving || entries.length === 0, busy: saving }}
-            className={`h-11 justify-center rounded-lg bg-primary px-4 ${saving || entries.length === 0 ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : isUpdate ? 'Update attendance' : 'Save attendance'}</Text>
-          </Pressable>
+          <Button variant="primary" onPress={handleSubmit} loading={saving} disabled={saving || reloading || entries.length === 0}>
+            {saving ? 'Saving…' : isUpdate ? 'Update attendance' : 'Save attendance'}
+          </Button>
         </View>
       ) : null}
     </View>

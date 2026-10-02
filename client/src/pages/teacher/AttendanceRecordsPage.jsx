@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass, linkClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import { longDate, shortDate } from '../../format/date';
@@ -9,9 +11,11 @@ import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
+import Reveal from '../../motion/Reveal';
 
 // The picker value for "Everything I recorded" — a string, so it can never
 // collide with a section id and `Number()` is never called on it.
@@ -46,7 +50,15 @@ const MINE = 'mine';
 // object. §5c: LRN is not in this payload and is not invented. recorded_by
 // is a user id and is not rendered (GET /users/:id is admin-only).
 //
-// §5i sentence is always on the page, not gated on a loaded section.
+// §5i sentence is always on the page, not gated on a loaded section — since
+// feat/ui-refresh it is the section header's description, so it sits under
+// the title in all three states (error, loading, the list).
+//
+// RELOAD (feat/ui-refresh) is `load` itself: the same GET with the APPLIED
+// section and dates, the current page and the current sort. It never commits
+// a staged filter — the drafts are separate state and `load` does not read
+// them — and it still never sends `date`. The table's own frame shows the
+// loading and error states, as on the first load.
 
 export default function AttendanceRecordsPage() {
   usePageTitle('Attendance records');
@@ -206,14 +218,22 @@ export default function AttendanceRecordsPage() {
       // A DATE column: the literal "2026-09-25" arrives as a string and
       // `shortDate` rewrites it as one (§5a-iv). DataTable sorts the raw row
       // value, so the column still sorts chronologically.
-      { key: 'date', header: 'Date', sortable: true, render: (row) => shortDate(row.date) },
+      // nowrap + tabular-nums: a date reads as one value and lines up down
+      // the column (§5a-ii).
+      {
+        key: 'date',
+        header: 'Date',
+        sortable: true,
+        nowrap: true,
+        render: (row) => <span className="tabular-nums">{shortDate(row.date)}</span>,
+      },
       {
         key: 'student',
         header: 'Student',
         sortable: true,
         sortValue: (row) => `${row.last_name}, ${row.first_name}`,
         render: (row) => (
-          <span className="font-medium text-fg">
+          <span className="font-semibold text-fg">
             {row.last_name}, {row.first_name}
           </span>
         ),
@@ -245,34 +265,45 @@ export default function AttendanceRecordsPage() {
     [showingMine]
   );
 
+  // The page's standing sentence, as the section header's description. The
+  // link is the shared text link (`linkClass`): brand colour, underlined on
+  // hover, the shared keyboard outline.
   const hint = (
-    <p className="text-sm text-fg-muted">
+    <>
       To change a mark, open{' '}
-      <Link
-        to="/teacher/attendance"
-        className="font-medium text-brand underline decoration-fg-ghost underline-offset-2 hover:decoration-brand"
-      >
+      <Link to="/teacher/attendance" className={linkClass}>
         Attendance
       </Link>{' '}
       and pick that date.
-    </p>
+    </>
   );
 
+  // ONE <Reveal> AT THE ROOT OF ALL THREE RETURNS (feat/ui-refresh): the same
+  // component in the same position, so React keeps the one instance and the
+  // entrance plays once — when the page arrives — not again when the sections
+  // finish loading. The header carries Reload only in the third return, where
+  // there is a list to reload.
   if (sectionsError) {
     return (
-      <div className="space-y-4">
-        {hint}
-        <ErrorAlert message={sectionsError} onRetry={() => window.location.reload()} />
-      </div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader title="Records" description={hint} />
+          <ErrorAlert message={sectionsError} onRetry={() => window.location.reload()} />
+        </section>
+      </Reveal>
     );
   }
 
   if (sections === null) {
     return (
-      <div className="space-y-4">
-        {hint}
-        <LoadingSpinner className="py-16" label="Loading your sections…" />
-      </div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader title="Records" description={hint} />
+          <div className={cardClass}>
+            <LoadingSpinner className="py-16" label="Loading your sections…" />
+          </div>
+        </section>
+      </Reveal>
     );
   }
 
@@ -281,25 +312,34 @@ export default function AttendanceRecordsPage() {
   // says what would appear there. The page's own §5i sentence still holds.
 
   return (
-    <div className="space-y-4">
-      {hint}
+    <Reveal className="space-y-6">
+      <section className="space-y-3">
+        <SectionHeader
+          title="Records"
+          description={hint}
+          onReload={load}
+          reloading={loading}
+          reloadLabel="Reload attendance records"
+        />
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          setOffset(0);
-          setAppliedSectionId(sectionId);
-          setApplied({ from, to });
-        }}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
-      >
-        <div>
-          <p className="mb-1.5 text-sm font-medium text-fg-secondary">Section</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setOffset(0);
+            setAppliedSectionId(sectionId);
+            setApplied({ from, to });
+          }}
+          className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}
+        >
           {/* Always a select since #6 — even one advisory section is two
               choices with "Everything I recorded" beside it. The option's
-              value is the MINE sentinel, never a section id. */}
+              value is the MINE sentinel, never a section id.
+
+              A real <label> since feat/ui-refresh: "Section" used to be a
+              bare paragraph above an unlabelled <select>, so the control had
+              no accessible name. */}
           <FormField
-            label={null}
+            label="Section"
             as="select"
             className={filterSelectClass}
             value={sectionId ?? ''}
@@ -312,64 +352,60 @@ export default function AttendanceRecordsPage() {
             ))}
             <option value={MINE}>Everything I recorded</option>
           </FormField>
-        </div>
 
-        <FormField
-          label="From"
-          type="date"
-          className={filterFieldClass}
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-        />
-        <FormField
-          label="To"
-          type="date"
-          className={filterFieldClass}
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
-        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
-      </form>
+          <FormField
+            label="From"
+            type="date"
+            className={filterFieldClass}
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <FormField
+            label="To"
+            type="date"
+            className={filterFieldClass}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+          <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
+        </form>
 
-      <DataTable
-        // RECORD CARD (DV1b-a). Read-only by design: this is the sibling
-        // route to the encode screen, and the correction path is that screen,
-        // not this one — so no `to`, no `onSelect`, no chevron.
-        //
-        // The learner leads and the date is meta, not the other way round: a
-        // teacher scanning this list is looking for a person. There is no
-        // subtitle, because the only other fact is the status and that is the
-        // badge.
-        renderCard={(row) => ({
-          avatar: `${row.first_name} ${row.last_name}`,
-          title: `${row.last_name}, ${row.first_name}`,
-          meta: longDate(row.date),
-          status: row.status,
-        })}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={emptyState.icon}
-        emptyTitle={emptyState.title}
-        emptyMessage={emptyState.message}
-        emptyAction={
-          emptyState.showReset ? (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              Reset
-            </button>
-          ) : null
-        }
-      />
-    </div>
+        <DataTable
+          // RECORD CARD (DV1b-a). Read-only by design: this is the sibling
+          // route to the encode screen, and the correction path is that screen,
+          // not this one — so no `to`, no `onSelect`, no chevron.
+          //
+          // The learner leads and the date is meta, not the other way round: a
+          // teacher scanning this list is looking for a person. There is no
+          // subtitle, because the only other fact is the status and that is the
+          // badge.
+          renderCard={(row) => ({
+            avatar: `${row.first_name} ${row.last_name}`,
+            title: `${row.last_name}, ${row.first_name}`,
+            meta: longDate(row.date),
+            status: row.status,
+          })}
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          page={page}
+          onPageChange={setOffset}
+          sort={sort}
+          onSortChange={changeSort}
+          emptyIcon={emptyState.icon}
+          emptyTitle={emptyState.title}
+          emptyMessage={emptyState.message}
+          emptyAction={
+            emptyState.showReset ? (
+              <Button variant="secondary" onClick={resetFilters}>
+                Reset
+              </Button>
+            ) : null
+          }
+        />
+      </section>
+    </Reveal>
   );
 }

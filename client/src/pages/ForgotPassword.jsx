@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import extractError from '../api/extractError';
+import Button from '../components/Button';
+import { cardClass, linkClass } from '../components/buttonClass';
 import FormStatus, { ok, fail } from '../components/FormStatus';
 import FormField from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../components/PasswordChecklist';
+import Reveal from '../motion/Reveal';
 import seal from '../assets/school-seal.png';
 
 // Self-service password reset (R2, 2026-09-19). Two steps, ONE CARD, one
@@ -39,6 +42,13 @@ import seal from '../assets/school-seal.png';
 // password does not burn an attempt; that 400 carries field "new_password"
 // and lands under the field. Everything else goes to FormStatus under the
 // button (§7c).
+//
+// THE FRAME IS THE SIGNED-OUT FAMILY'S (feat/ui-refresh, 2026-10-02): the
+// seal and the wordmark in a small row above one centred card on the dot
+// grid, the page's single <h1> as the card's title, and the same 48px
+// controls and submit as Login — the control height is set from each <form>
+// (`[&_input]:…`) because PasswordField takes no class. The wordmark is a
+// <p>, not a heading: this page's h1 is "Reset your password".
 export default function ForgotPassword() {
   const navigate = useNavigate();
 
@@ -109,22 +119,28 @@ export default function ForgotPassword() {
   return (
     <div className="page-dots flex min-h-screen items-center justify-center bg-page px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-seal-bg">
+        {/* The seal always sits on its `seal-bg` disc with `rounded-full` on
+            the image (§9). No halo here: the halo's ring colour is the brand
+            panel's and this row is on the page background. */}
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-seal-bg">
             <img
               src={seal}
               alt="Captain H. Francisco Elementary School seal"
               width="168"
               height="168"
-              className="h-18 w-18 rounded-full"
+              className="h-11 w-11 rounded-full"
             />
           </div>
-          <h1 className="text-lg font-semibold text-fg">Reset your password</h1>
+          <p className="font-serif text-lg font-bold text-fg">Parent&rsquo;s Portal</p>
         </div>
 
-        <div className="rounded-2xl border border-edge bg-surface p-8 shadow-xl">
+        {/* `rounded-3xl` after cardClass's `rounded-2xl`: Tailwind emits the
+            two in name order, so the larger radius is the later rule. */}
+        <Reveal className={`${cardClass} rounded-3xl p-6`}>
+          <h1 className="mb-4 font-serif text-2xl font-bold text-fg">Reset your password</h1>
           {step === 'request' ? (
-            <form onSubmit={requestCode} className="space-y-4">
+            <form onSubmit={requestCode} className="space-y-4 [&_input]:min-h-12 [&_input]:text-base">
               <p className="text-sm text-fg-muted">
                 Enter your Login ID. If the account has a confirmed email address or mobile
                 number, we will send a six-digit code to it.
@@ -137,18 +153,20 @@ export default function ForgotPassword() {
                 onChange={(e) => setLoginId(e.target.value)}
                 autoComplete="username"
               />
-              <button
+              <Button
+                variant="primary"
+                size="lg"
+                full
                 type="submit"
-                disabled={submitting || !loginId.trim()}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                loading={submitting}
+                disabled={!loginId.trim()}
               >
-                {submitting && <i className="fa-solid fa-circle-notch fa-spin" />}
                 {submitting ? 'Sending…' : 'Send code'}
-              </button>
+              </Button>
               <FormStatus status={status} />
             </form>
           ) : (
-            <form onSubmit={submitReset} className="space-y-4">
+            <form onSubmit={submitReset} className="space-y-4 [&_input]:min-h-12 [&_input]:text-base">
               {/* The server's uniform sentence, not a claim that a code is in
                   a particular inbox. */}
               <FormStatus status={ok(sentNotice)} />
@@ -189,33 +207,40 @@ export default function ForgotPassword() {
                 error={mismatch}
                 disabled={submitting}
               />
-              <button
+              <Button
+                variant="primary"
+                size="lg"
+                full
                 type="submit"
-                disabled={submitting || !resetReady}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                loading={submitting}
+                disabled={!resetReady}
               >
-                {submitting && <i className="fa-solid fa-circle-notch fa-spin" />}
                 {submitting ? 'Saving…' : 'Set new password'}
-              </button>
+              </Button>
               <FormStatus status={status} />
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('request');
-                  setCode('');
-                  setStatus(null);
-                  setNewError(null);
-                }}
-                className="text-sm font-medium text-brand underline-offset-2 hover:underline"
-              >
-                Use a different Login ID
-              </button>
+              {/* A text button, centred under the submit and 44px tall — the
+                  quiet way back to step one, never a second filled button. */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('request');
+                    setCode('');
+                    setStatus(null);
+                    setNewError(null);
+                  }}
+                  className={`${linkClass} inline-flex min-h-11 items-center text-sm`}
+                >
+                  Use a different Login ID
+                </button>
+              </div>
             </form>
           )}
-        </div>
+        </Reveal>
 
-        <p className="mt-5 text-center text-sm text-fg-muted">
-          <Link to="/login" className="font-medium text-brand underline-offset-2 hover:underline">
+        <p className="mt-4 text-center text-sm">
+          <Link to="/login" className={`${linkClass} inline-flex min-h-11 items-center gap-2`}>
+            <i aria-hidden="true" className="fa-solid fa-arrow-left text-xs" />
             Back to sign in
           </Link>
         </p>
@@ -225,7 +250,7 @@ export default function ForgotPassword() {
             number cannot be reset from this page, and gets no hint here
             that it is the reason — that would be the oracle again. The
             office is the answer either way. */}
-        <p className="mt-2 text-center text-sm text-fg-muted">
+        <p className="text-center text-sm text-fg-muted">
           No confirmed email or mobile number on your account? Ask your child&rsquo;s adviser or the
           school office.
         </p>

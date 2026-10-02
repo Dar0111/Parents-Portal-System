@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import useTeacherTargets, { keyOf } from '../../hooks/useTeacherTargets';
 import teacherAnnouncementCard from './announcements/card';
@@ -21,6 +24,13 @@ import teacherAnnouncementCard from './announcements/card';
 // native Alert naming the post (§5e). The card is the verbatim
 // `announcements/card.jsx`; the outcome of a write renders above the list
 // (§7c), carried back from the compose screen as `notice`.
+//
+// THE SECTION HEADER (feat/ui-refresh) carries the list's title, its Reload
+// and — for a teacher with no class to post to — the sentence that stops the
+// missing button reading as broken; nothing is said while the target list is
+// loading. Reload is `load(0)`: the request pull-to-refresh and Try again
+// already make, with the applied section, back on the first page. It does
+// not re-read the teacher's targets (`useTeacherTargets` reads them once).
 export default function AnnouncementsScreen({ navigation, route }) {
   const { user } = useAuth();
   const { sections, loading: targetsLoading } = useTeacherTargets();
@@ -106,9 +116,9 @@ export default function AnnouncementsScreen({ navigation, route }) {
         title: 'No announcements for that section',
         message: 'Try another section, or clear the filter to see everything you can read.',
         action: (
-          <Pressable onPress={() => setApplied('')} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Clear filter</Text>
-          </Pressable>
+          <Button size="sm" onPress={() => setApplied('')}>
+            Clear filter
+          </Button>
         ),
       }
     : {
@@ -118,26 +128,27 @@ export default function AnnouncementsScreen({ navigation, route }) {
       };
 
   const header = (
-    <View className="mb-3 gap-3">
-      {targetsLoading ? null : (
-        <View className="flex-row items-center justify-end">
-          {canPost ? (
-            <Pressable
-              onPress={() => {
-                setWriteStatus(null);
-                navigation.navigate('AnnouncementCompose');
-              }}
-              accessibilityRole="button"
-              className="rounded-lg border border-edge-strong bg-surface px-4 py-2"
-            >
-              <Text className="text-sm font-medium text-fg-body">New announcement</Text>
-            </Pressable>
-          ) : (
-            <Text className="flex-1 text-sm text-fg-muted">You can post once you are assigned to a class or made a section adviser.</Text>
-          )}
-        </View>
-      )}
-      <View className="rounded-xl border border-edge bg-surface p-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader
+        title="Posted announcements"
+        description={targetsLoading || canPost ? null : 'You can post once you are assigned to a class or made a section adviser.'}
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadLabel="Reload announcements"
+      />
+      {!targetsLoading && canPost ? (
+        <Button
+          icon="fa-plus"
+          className="self-end"
+          onPress={() => {
+            setWriteStatus(null);
+            navigation.navigate('AnnouncementCompose');
+          }}
+        >
+          New announcement
+        </Button>
+      ) : null}
+      <View className={`${cardClass} p-4`}>
         <Segmented
           label="Section"
           value={applied}

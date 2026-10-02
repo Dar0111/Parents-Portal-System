@@ -3,6 +3,7 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StatusBadge from '../../components/StatusBadge';
+import { cardClass } from '../../components/buttonClass';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
 
@@ -112,7 +113,7 @@ function StatusLine({ statuses }) {
 
   if (!latest) {
     return (
-      <div className="sm:text-right">
+      <div className="@min-[36rem]:text-right">
         <StatusBadge status="pending" tone="neutral" label="No grades recorded yet" />
       </div>
     );
@@ -127,7 +128,7 @@ function StatusLine({ statuses }) {
       : `Term ${latest.term} partly recorded (${latest.recorded} of ${latest.total})`;
 
   return (
-    <div className="sm:text-right">
+    <div className="@min-[36rem]:text-right">
       <StatusBadge status="recorded" tone={latest.state === 'full' ? 'success' : 'neutral'} label={label} />
       {missing.length ? (
         <p className="mt-1 text-xs text-fg-muted">{joinTerms(missing)} not yet recorded</p>
@@ -160,16 +161,27 @@ const DESCRIPTIVE_LEGEND = [
   ['E', 'Emerging'],
 ];
 
+// The band column is as wide as its longest value: "90 - 100" for the
+// numerical scale, one letter for Key Stage 1 — a letter in a column sized
+// for a range left a gap that read as a missing value.
+//
+// ONE, TWO, THEN THREE COLUMNS, on the card's own width — the same steps the
+// viewport breakpoints used to give it. Three at 36rem was too early: a
+// column there is about 165px and "90 - 100" beside "Benchmarking" needs
+// about 175, so the word ran into the gap. Three waits for 44rem.
 function Legend({ mode }) {
-  const rows = mode === 'descriptive' ? DESCRIPTIVE_LEGEND : NUMERICAL_LEGEND;
+  const descriptive = mode === 'descriptive';
+  const rows = descriptive ? DESCRIPTIVE_LEGEND : NUMERICAL_LEGEND;
   return (
     <section>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-body">Performance descriptors</h3>
-      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Performance descriptors</h3>
+      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm @min-[36rem]:grid-cols-2 @min-[44rem]:grid-cols-3">
         {rows.map(([band, word]) => (
           <div key={band} className="flex items-baseline gap-2">
-            <dt className="w-20 shrink-0 tabular-nums text-fg-muted">{band}</dt>
-            <dd className="text-fg-secondary">{word}</dd>
+            <dt className={`${descriptive ? 'w-6' : 'w-20'} shrink-0 font-semibold tabular-nums text-fg-secondary`}>
+              {band}
+            </dt>
+            <dd className="text-fg-body">{word}</dd>
           </div>
         ))}
       </dl>
@@ -266,8 +278,11 @@ function ReadingNote({ mode, canOpen, hasTermGrade }) {
 
   return (
     <section>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-body">Reading this report</h3>
-      <ul className="mt-2 space-y-1 text-sm text-fg-muted">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Reading this report</h3>
+      {/* A bulleted list in a reading-width column: five sentences run
+          together read as one paragraph, and at the card's full width a line
+          passed 120 characters. The markers are decoration. */}
+      <ul className="mt-2 max-w-prose list-disc space-y-1.5 pl-5 text-sm text-fg-muted marker:text-fg-faint">
         {lines.map((line) => (
           <li key={line}>{line}</li>
         ))}
@@ -294,6 +309,12 @@ function ReadingNote({ mode, canOpen, hasTermGrade }) {
 // ---------------------------------------------------------------------------
 // A cell is a button ONLY when the term has a grade_id. A Pending cell is not
 // a button and must not fire a request — there is nothing behind it to open.
+//
+// THE BUTTON IS A 44px TARGET THAT DOES NOT MAKE THE ROW 44px TALLER
+// (feat/ui-refresh): the table can be on a tablet or a phone held sideways,
+// so the grade is a finger's target, and the negative margins give that
+// height back to the row. On paper it is plain text again — a printed sheet
+// has nothing to tap, and 44px per row would cost a second page.
 function TermCell({ entry, mode, onOpen, label }) {
   const inner = <TermValue entry={entry} mode={mode} />;
   if (!entry?.grade_id || !onOpen) return inner;
@@ -302,7 +323,7 @@ function TermCell({ entry, mode, onOpen, label }) {
       type="button"
       onClick={onOpen}
       aria-label={label}
-      className="-mx-1 rounded px-1 hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
+      className="-mx-2 -my-2.5 inline-flex min-h-11 min-w-11 items-center justify-end rounded-lg px-2 transition hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent print:m-0 print:min-h-0 print:min-w-0 print:p-0"
     >
       {inner}
     </button>
@@ -317,12 +338,26 @@ function TermCell({ entry, mode, onOpen, label }) {
 // must never scroll sideways (DV1's 200%-zoom regression). No `wrap-anywhere`
 // anywhere — default wrapping breaks at spaces only, so "Mathematics" and a
 // grade cannot be split.
-// The rounding lives on the cells that paint, not on a frame with
-// `overflow-hidden` — DV1 removed that, and a scrollport frame is what broke
-// the sticky header. `first:`/`last:` are on the shared class so the corner is
-// right whichever column happens to be last (descriptive mode has no Final).
+// The frame still has no `overflow-hidden` — DV1 removed that, and a
+// scrollport frame is what broke the sticky header. The header cells no
+// longer round their own corners (feat/ui-refresh): the table never sits at
+// the frame's top edge — the title band and the info row are above it — so a
+// rounded header cell cut a notch into the middle of the card. The pieces
+// that DO paint at the frame's corners round themselves: the title band
+// (`rounded-t-2xl`, in the card below).
+//
+// THE COLUMN LABEL STYLE, as on every table since feat/ui-refresh: small,
+// uppercase, muted — quieter than the values under it. `px-3` between
+// columns and `pl-4` / `pr-4` at the two edges: the type scale grew one step
+// with the new face, and the 8px a cell gives back is what keeps five columns
+// inside the 36rem crossover (see the note in the card).
 const TH =
-  'whitespace-nowrap bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl';
+  'whitespace-nowrap bg-surface-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wider text-fg-muted first:pl-4 last:pr-4';
+
+// One body cell. `h-12` is a MINIMUM on a table cell, so a row whose grades
+// are buttons and a row of Pending are the same 48px, and a learning area
+// that wraps to two lines still grows. Released on paper.
+const TD = 'h-12 px-3 py-3 first:pl-4 last:pr-4 print:h-auto';
 
 //
 // TWO FLAGS, NOT ONE (2026-09-22). `showFinal` and `showGeneralAverage` used
@@ -369,12 +404,15 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
 
         <tbody>
           {subjects.map((subject) => (
-            <tr key={subject.subject_id} className="border-b border-edge-soft hover:bg-surface-subtle">
-              <th scope="row" className="px-4 py-2.5 text-left font-normal text-fg">
+            <tr
+              key={subject.subject_id}
+              className="border-b border-edge-soft transition-colors hover:bg-surface-subtle"
+            >
+              <th scope="row" className={`${TD} text-left font-normal text-fg`}>
                 {subject.subject_name}
               </th>
               {[1, 2, 3].map((term) => (
-                <td key={term} className="whitespace-nowrap px-4 py-2.5 text-right">
+                <td key={term} className={`${TD} whitespace-nowrap text-right`}>
                   <TermCell
                     entry={subject.terms?.[term]}
                     mode={mode}
@@ -387,7 +425,7 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
                   />
                 </td>
               ))}
-              <td className="whitespace-nowrap px-4 py-2.5 text-right">
+              <td className={`${TD} whitespace-nowrap text-right`}>
                 {/* Two renderers, because the two modes hold two kinds of
                     value in `final_grade`: a NUMBER for Grades 2-6 and a
                     LETTER for Grade 1. GradeValue would print a letter as
@@ -422,15 +460,15 @@ function DesktopTable({ subjects, mode, termAverages, generalAverage, generalAve
               on the mode and never on whether the values happen to be null. */}
           {showGeneralAverage ? (
             <tr className="bg-brand-soft font-semibold text-fg">
-              <th scope="row" className="px-4 py-3 text-left">
+              <th scope="row" className={`${TD} text-left`}>
                 General average
               </th>
               {[1, 2, 3].map((term) => (
-                <td key={term} className="whitespace-nowrap px-4 py-3 text-right">
+                <td key={term} className={`${TD} whitespace-nowrap text-right`}>
                   <GradeValue value={termAverages?.[term] ?? null} mode={mode} />
                 </td>
               ))}
-              <td className="whitespace-nowrap px-4 py-3 text-right">
+              <td className={`${TD} whitespace-nowrap text-right`}>
                 <GradeValue value={generalAverage} mode={mode} />
                 {generalAverageDescriptor ? (
                   <div className="text-xs font-normal text-fg-muted">{generalAverageDescriptor.descriptor}</div>
@@ -469,6 +507,12 @@ const SEGMENTS = [
   { key: 'final', label: 'Final' },
 ];
 
+// THE CHOSEN SEGMENT IS THE CARD'S STATE, NOT THIS COMPONENT'S
+// (feat/ui-refresh). A reload puts the card through its loading frame, which
+// unmounts this view; a `useState` here would come back on the default and a
+// parent reading Term 1 would be moved to Term 3 by pressing Reload. `chosen`
+// is null until a segment is pressed, and until then the view shows the
+// default below — so nothing is stored that the data can contradict.
 function TermView({
   subjects,
   mode,
@@ -477,6 +521,8 @@ function TermView({
   generalAverage,
   generalAverageDescriptor,
   onOpenTerm,
+  chosen,
+  onChoose,
 }) {
   // Opens on the latest term that has anything in it — the most useful
   // default, and derivable at render, so it needs no effect and SSR proves it.
@@ -484,7 +530,7 @@ function TermView({
     const latest = [...statuses].reverse().find((status) => status.recorded > 0);
     return latest ? String(latest.term) : '1';
   }, [statuses]);
-  const [selected, setSelected] = useState(initial);
+  const selected = chosen ?? initial;
 
   // The same two-flags split as DesktopTable: every mode has a Final
   // segment, and only numerical mode has a general average beneath it.
@@ -494,20 +540,24 @@ function TermView({
   const term = isFinal ? null : Number(selected);
 
   return (
-    <div className="p-4">
-      <div role="group" aria-label="Term" className="flex flex-wrap gap-2">
+    <div className="space-y-4 p-4">
+      {/* One track, four equal 44px segments: a finger's target each, 8px
+          apart, and four across fit a 390px phone without wrapping to a
+          second row. The pressed one is the filled accent — colour, weight
+          and `aria-pressed` together, never colour alone. */}
+      <div role="group" aria-label="Term" className="grid grid-cols-4 gap-2 rounded-xl bg-surface-muted p-1">
         {segments.map((segment) => {
           const active = selected === segment.key;
           return (
             <button
               key={segment.key}
               type="button"
-              onClick={() => setSelected(segment.key)}
+              onClick={() => onChoose(segment.key)}
               aria-pressed={active}
-              className={`rounded-lg border px-3 py-1.5 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent ${
+              className={`min-h-11 rounded-lg px-1 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
                 active
-                  ? 'border-primary bg-primary text-primary-fg'
-                  : 'border-edge-strong bg-surface text-fg-body hover:bg-surface-muted'
+                  ? 'bg-primary font-bold text-primary-fg shadow-xs'
+                  : 'font-semibold text-fg-body hover:bg-surface hover:text-fg'
               }`}
             >
               {segment.label}
@@ -516,7 +566,7 @@ function TermView({
         })}
       </div>
 
-      <ul className="mt-4 divide-y divide-edge-soft">
+      <ul className="divide-y divide-edge-soft">
         {subjects.map((subject) => {
           const entry = isFinal ? null : subject.terms?.[term];
           const openable = Boolean(entry?.grade_id) && Boolean(onOpenTerm);
@@ -539,26 +589,36 @@ function TermView({
             <TermValue entry={entry} mode={mode} />
           );
 
+          // The last slot is the same width on every row — a chevron where
+          // the row opens the scores behind the grade, an empty space where
+          // it does not — so the values line up in one column and only the
+          // rows that can be opened say so.
           const body = (
             <>
-              <span className="min-w-0 text-left text-sm text-fg">{subject.subject_name}</span>
-              <span className="shrink-0 text-right">{value}</span>
+              <span className="min-w-0 flex-1 text-left text-sm text-fg">{subject.subject_name}</span>
+              <span className="shrink-0 text-right text-sm font-semibold">{value}</span>
+              <span aria-hidden="true" className="flex w-3 shrink-0 justify-center text-xs text-fg-faint">
+                {openable ? <i className="fa-solid fa-chevron-right" /> : null}
+              </span>
             </>
           );
 
           return (
             <li key={subject.subject_id}>
               {openable ? (
+                // A 44px row; the hover and the keyboard outline reach 8px
+                // past the text on both sides (the negative margin), inside
+                // the card's own padding.
                 <button
                   type="button"
                   onClick={() => onOpenTerm(entry, subject.subject_name, term)}
                   aria-label={`${subject.subject_name}, term ${term} — see the scores behind this grade`}
-                  className="flex w-full items-baseline justify-between gap-3 py-2.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
+                  className="-mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between gap-3 rounded-lg px-2 py-2.5 text-left transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent"
                 >
                   {body}
                 </button>
               ) : (
-                <div className="flex items-baseline justify-between gap-3 py-2.5">{body}</div>
+                <div className="flex min-h-11 items-center justify-between gap-3 py-2.5">{body}</div>
               )}
             </li>
           );
@@ -566,11 +626,11 @@ function TermView({
       </ul>
 
       {showGeneralAverage ? (
-        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl bg-brand-soft px-4 py-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl bg-brand-soft px-4 py-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-fg-body">
             {isFinal ? 'General average' : `General average, term ${term}`}
           </span>
-          <span className="text-base font-semibold text-fg">
+          <span className="text-lg font-bold text-fg">
             <GradeValue value={isFinal ? generalAverage : termAverages?.[term] ?? null} mode={mode} />
           </span>
           {isFinal && generalAverageDescriptor ? (
@@ -638,7 +698,34 @@ export default function ReportCard({
   // minimum, which is what makes a container threshold meaningful for it.
   // A future browser check must MEASURE THE CARD, not the window — a
   // container query does not move with the responsive-mode width readout.
-  const frame = '@container rounded-xl border border-edge bg-surface';
+  //
+  // THE TYPE SCALE GREW ONE STEP WITH feat/ui-refresh (text-sm is 15px), and
+  // the arithmetic above was done at 14px. The threshold is unchanged; the
+  // table's cells give 8px each back instead (`px-3` between columns — see
+  // `TH`), which is the same order as what the larger text adds. That is
+  // arithmetic again, not a measurement, and the same safety net holds:
+  // `overflow-x-auto` turns a wrong guess into a scroller.
+  //
+  // THE TITLE BAND, THE INFO ROW AND THE LEGEND FOLLOW THE SAME CONTAINER
+  // THRESHOLD NOW. They used viewport `sm:` inside a card that measures
+  // itself — harmless while the band was two shrinkable text blocks, but it
+  // now holds an icon chip and a status that does not shrink, and at 200%
+  // zoom (viewport past `sm`, card ~394px) a viewport breakpoint would have
+  // put them side by side in a card too narrow for it. One basis for the
+  // whole document; nothing in this file reads the viewport any more.
+  //
+  // The frame is `cardClass` — the same surface as every card and table
+  // frame — plus the size container. Still no `overflow-hidden`.
+  const frame = `@container ${cardClass} print:shadow-none`;
+
+  // The narrow branch's chosen segment (see TermView). Nothing until a
+  // segment is pressed; it survives the loading frame a reload puts the card
+  // through. Kept WITH the learner it was chosen for, and read back only for
+  // that learner: on the teacher's drill-through this card stays mounted from
+  // one learner to the next, and each must still open on its own latest term,
+  // exactly as it did when the choice lived in TermView. Derived at render —
+  // no effect resets anything.
+  const [chosenSegment, setChosenSegment] = useState({ studentId: null, key: null });
 
   const student = report?.student ?? null;
   const mode = report?.grading_mode ?? 'numerical';
@@ -662,17 +749,30 @@ export default function ReportCard({
     [1, 2, 3].some((term) => subject.terms?.[term]?.term_grade != null)
   );
 
+  // THE TITLE BAND: the document's name in the title face on the quiet
+  // surface, with the school and the year under it and the recording status
+  // opposite. It is the piece that paints at the frame's top corners, so it
+  // carries the frame's rounding. The icon chip is decoration and stays off
+  // the printed sheet.
   const header = (
-    <div className="border-b border-edge px-4 py-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <h2 className="text-base font-semibold text-fg">Learner&rsquo;s Performance Report</h2>
-        {schoolName ? <p className="text-sm text-fg-secondary">{schoolName}</p> : null}
-        {report?.school_year ? (
-          <p className="text-xs text-fg-muted">School year {report.school_year}</p>
-        ) : null}
+    <div className="flex flex-col gap-3 rounded-t-2xl border-b border-edge bg-surface-subtle px-4 py-4 @min-[36rem]:flex-row @min-[36rem]:items-start @min-[36rem]:justify-between @min-[36rem]:gap-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand print:hidden"
+        >
+          <i className="fa-solid fa-file-lines" />
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-serif text-base font-bold text-fg">Learner&rsquo;s Performance Report</h2>
+          {schoolName ? <p className="mt-0.5 text-sm text-fg-secondary">{schoolName}</p> : null}
+          {report?.school_year ? (
+            <p className="text-xs tabular-nums text-fg-muted">School year {report.school_year}</p>
+          ) : null}
+        </div>
       </div>
       {report && subjects.length ? (
-        <div className="mt-3 sm:mt-0">
+        <div className="shrink-0">
           <StatusLine statuses={statuses} />
         </div>
       ) : null}
@@ -683,23 +783,27 @@ export default function ReportCard({
   // exists — including on an all-Pending card, which is the normal state for
   // most of the school year. NO LRN anywhere (§5c): `student` is
   // { id, first_name, last_name, grade_level, section } and has none in it.
+  //
+  // In a narrow card the learner takes the first line alone and the class
+  // and the adviser share the second; from 36rem the three sit in one row.
+  const infoLabel = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
   const info = student ? (
-    <dl className="grid gap-x-6 gap-y-2 border-b border-edge px-4 py-3 text-sm sm:grid-cols-3">
-      <div>
-        <dt className="text-xs uppercase tracking-wider text-fg-muted">Learner</dt>
-        <dd className="text-fg">
+    <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-b border-edge px-4 py-4 text-sm @min-[36rem]:grid-cols-3">
+      <div className="col-span-2 min-w-0 @min-[36rem]:col-span-1">
+        <dt className={infoLabel}>Learner</dt>
+        <dd className="mt-0.5 font-semibold text-fg">
           {student.first_name} {student.last_name}
         </dd>
       </div>
-      <div>
-        <dt className="text-xs uppercase tracking-wider text-fg-muted">Grade &amp; section</dt>
-        <dd className="text-fg">
+      <div className="min-w-0">
+        <dt className={infoLabel}>Grade &amp; section</dt>
+        <dd className="mt-0.5 text-fg">
           Grade {student.grade_level} - {student.section}
         </dd>
       </div>
-      <div>
-        <dt className="text-xs uppercase tracking-wider text-fg-muted">Adviser</dt>
-        <dd className={adviser ? 'text-fg' : 'text-fg-muted'}>{adviser || 'Not yet assigned'}</dd>
+      <div className="min-w-0">
+        <dt className={infoLabel}>Adviser</dt>
+        <dd className={`mt-0.5 ${adviser ? 'text-fg' : 'text-fg-muted'}`}>{adviser || 'Not yet assigned'}</dd>
       </div>
     </dl>
   ) : null;
@@ -772,10 +876,12 @@ export default function ReportCard({
           generalAverage={report.general_average}
           generalAverageDescriptor={report.general_average_descriptor}
           onOpenTerm={onOpenTerm}
+          chosen={chosenSegment.studentId === (student?.id ?? null) ? chosenSegment.key : null}
+          onChoose={(key) => setChosenSegment({ studentId: student?.id ?? null, key })}
         />
       </div>
 
-      <div className="space-y-4 border-t border-edge px-4 py-4">
+      <div className="space-y-5 border-t border-edge px-4 py-5">
         <Legend mode={mode} />
         <ReadingNote mode={mode} canOpen={canOpen} hasTermGrade={hasTermGrade} />
       </div>

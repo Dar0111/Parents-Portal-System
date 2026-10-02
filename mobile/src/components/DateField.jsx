@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import FormField from './FormField';
+import Text from './Text';
 import { longDate } from '../format/date';
 import Icon from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
@@ -21,6 +22,15 @@ import { useTheme } from '../theme/ThemeProvider';
 //
 // `clearable` renders an × for a filter bound (From / To) — an optional
 // field's empty state is "no bound", and a picker cannot say that itself.
+//
+// BOTH TARGETS ARE 48dp, set in dp through a plain style object (the phone's
+// rem is 14, so a height class would fall short — M19; and never a style
+// function — M20). The trigger has FormField's corner and padding, so a date
+// beside a text field is the same height; the clear button STRETCHES to the
+// trigger's height (48dp is its floor), so the pair stays level when the OS
+// font scale makes the trigger taller.
+const TARGET = 48;
+
 export function dateFromParts(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -64,12 +74,16 @@ export default function DateField({
               accessibilityRole="button"
               accessibilityLabel={value ? `${label}, ${longDate(value)}` : `${label}, ${placeholder}`}
               accessibilityState={{ disabled }}
-              className={`min-h-11 flex-1 flex-row items-center justify-between rounded-lg border bg-surface px-3 py-2.5 ${
+              android_ripple={{ color: tokens['edge-strong'] }}
+              className={`flex-1 flex-row items-center justify-between gap-3 overflow-hidden rounded-xl border bg-surface px-4 py-3.5 ${
                 invalid ? 'border-danger-edge-strong' : 'border-edge-strong'
               } ${disabled ? 'opacity-60' : ''}`}
+              style={{ minHeight: TARGET }}
             >
-              <Text className={`text-base ${value ? 'text-fg' : 'text-fg-muted'}`}>{value ? longDate(value) : placeholder}</Text>
-              <Icon name="fa-calendar-days" size={14} color={tokens['fg-faint']} />
+              <Text className={`min-w-0 flex-1 text-base ${value ? 'text-fg' : 'text-fg-muted'}`}>
+                {value ? longDate(value) : placeholder}
+              </Text>
+              <Icon name="fa-calendar-days" size={15} color={tokens['fg-muted']} />
             </Pressable>
             {clearable && value ? (
               <Pressable
@@ -77,9 +91,11 @@ export default function DateField({
                 disabled={disabled}
                 accessibilityRole="button"
                 accessibilityLabel={`Clear ${label}`}
-                className="h-11 w-11 items-center justify-center rounded-lg border border-edge-strong bg-surface"
+                android_ripple={{ color: tokens['edge-strong'] }}
+                className="items-center justify-center self-stretch overflow-hidden rounded-xl border border-edge-strong bg-surface"
+                style={{ width: TARGET, minHeight: TARGET }}
               >
-                <Icon name="fa-xmark" size={14} color={tokens['fg-body']} />
+                <Icon name="fa-xmark" size={15} color={tokens['fg-body']} />
               </Pressable>
             ) : null}
           </View>

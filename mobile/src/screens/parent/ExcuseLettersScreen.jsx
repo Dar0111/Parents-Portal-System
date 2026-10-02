@@ -1,25 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import FormStatus, { ok } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 import parentLetterCard from './excuseLetters/card';
 
 // PARENT → EXCUSE LETTERS: the list (the web's DataTable page as a card list
 // through the verbatim card builder), a bounded status filter that
-// auto-applies (§21), Submit letter in the header row, and the outcome of a
-// write ABOVE THE LIST IT DESCRIBES (§7c) — compose navigates back with
-// `notice`, consumed once here. Every letter card opens the READING view,
-// whatever its status (§17e). Empty copy is derived from the filter state
-// (§5f): unlinked / filtered / none.
+// auto-applies (§21), Submit letter under the section's header, and the
+// outcome of a write ABOVE THE LIST IT DESCRIBES (§7c) — compose navigates
+// back with `notice`, consumed once here. Every letter card opens the READING
+// view, whatever its status (§17e). Empty copy is derived from the filter
+// state (§5f): unlinked / filtered / none.
+//
+// RELOAD (feat/ui-refresh) is `load()` — GET /mine again, the request
+// pull-to-refresh and "Try again" already make. The status filter is
+// client-side state and is not touched, and neither is `notice`: a "Letter
+// submitted." still describes the last write after the list is read again.
 const STATUS_FILTERS = ['All', 'Pending', 'Approved', 'Declined'];
 
 export default function ExcuseLettersScreen({ navigation, route }) {
   const { user } = useAuth();
+  const { tokens } = useTheme();
   const studentId = user?.student_id ?? null;
   const [letters, setLetters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,9 +83,9 @@ export default function ExcuseLettersScreen({ navigation, route }) {
         title: 'No letters match this filter',
         message: 'Try a different status, or show all letters.',
         action: (
-          <Pressable onPress={() => setStatus('All')} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Show all letters</Text>
-          </Pressable>
+          <Button size="sm" onPress={() => setStatus('All')}>
+            Show all letters
+          </Button>
         ),
       };
     }
@@ -84,36 +96,40 @@ export default function ExcuseLettersScreen({ navigation, route }) {
     };
   })();
 
-  // THE PAGE ACTION IS ON ITS OWN ROW, NEUTRAL, OUT OF THE FILTER (phone
-  // check finding, 2026-09-27; the web's §21b rule — "the page action leaves
-  // the filter card, neutral"). Beside the chips it squeezed them and cut
-  // "Declined" off; the chips now have the whole width and scroll.
+  // THE PAGE ACTION IS ON ITS OWN ROW, OUT OF THE FILTER (phone check
+  // finding, 2026-09-27: beside the chips it squeezed them and cut "Declined"
+  // off). Since feat/ui-refresh it is this screen's ONE filled action, as on
+  // the web, and it sits under the section's header rather than in it: beside
+  // the title and Reload, "Submitted letters" would be left too little room
+  // on a 360dp phone. The four status pills have a card to themselves and
+  // scroll sideways if a larger text size needs it.
   const header = (
-    <View className="mb-3 gap-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader title="Submitted letters" onReload={() => load()} reloading={loading || refreshing} reloadLabel="Reload excuse letters" />
       {canSubmit ? (
-        <View className="flex-row justify-end">
-          <Pressable
-            onPress={() => navigation.navigate('ExcuseLetterCompose')}
-            accessibilityRole="button"
-            className="rounded-lg border border-edge-strong bg-surface px-4 py-2"
-          >
-            <Text className="text-sm font-medium text-fg-body">Submit letter</Text>
-          </Pressable>
+        <Button variant="primary" icon="fa-plus" className="self-end" onPress={() => navigation.navigate('ExcuseLetterCompose')}>
+          Submit letter
+        </Button>
+      ) : (
+        <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
+          <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
+          <Text className="min-w-0 flex-1 text-sm text-info-strong">Submitting is unavailable until the school office links this account to a student.</Text>
         </View>
-      ) : null}
-      <Segmented
-        label="Status"
-        value={status}
-        onChange={setStatus}
-        options={STATUS_FILTERS.map((s) => ({ key: s, label: s === 'All' ? 'All statuses' : s }))}
-      />
-      {!canSubmit ? <Text className="text-sm text-fg-muted">Submitting is unavailable until the school office links this account to a student.</Text> : null}
+      )}
+      <View className={`${cardClass} p-4`}>
+        <Segmented
+          label="Status"
+          value={status}
+          onChange={setStatus}
+          options={STATUS_FILTERS.map((s) => ({ key: s, label: s === 'All' ? 'All statuses' : s }))}
+        />
+      </View>
       {notice ? (
-        <View>
+        <View className="gap-1">
           <FormStatus status={ok(notice)} />
-          <Pressable onPress={() => navigation.setParams({ notice: null })} accessibilityRole="button" className="mt-1 self-end">
-            <Text className="text-xs text-fg-muted">Dismiss</Text>
-          </Pressable>
+          <Button variant="ghost" size="sm" className="self-end" onPress={() => navigation.setParams({ notice: null })}>
+            Dismiss
+          </Button>
         </View>
       ) : null}
     </View>

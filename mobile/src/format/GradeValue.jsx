@@ -1,4 +1,4 @@
-import { Text } from 'react-native';
+import Text from '../components/Text';
 import { gradeText } from './gradeText';
 
 // The web's GradeValue over gradeText (§3): a number prints in tabular

@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { useAuth } from '../../auth/AuthContext';
@@ -42,6 +44,10 @@ import { useAuth } from '../../auth/AuthContext';
 //
 // Show/hide is per field. Fields are never pre-filled and never shown as
 // stored.
+//
+// NO RELOAD HERE (feat/ui-refresh): a write-only form shows no server data.
+// One primary button on the screen — Change password — and one in its
+// dialog; FormStatus stays directly under the button that caused it (§7c).
 
 export default function ChangePasswordSection() {
   const { applyToken } = useAuth();
@@ -109,14 +115,12 @@ export default function ChangePasswordSection() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-fg">Change password</h2>
-        <p className="mt-1 text-sm text-fg-muted">
-          You will stay logged in on this device. Use the new password the next time you log in.
-        </p>
-      </div>
+      <SectionHeader
+        title="Change password"
+        description="You will stay logged in on this device. Use the new password the next time you log in."
+      />
 
-      <form onSubmit={requestChange} className="max-w-md space-y-3">
+      <form onSubmit={requestChange} className="max-w-md space-y-4">
         <PasswordField
           label="Current password"
           value={currentPassword}
@@ -155,13 +159,9 @@ export default function ChangePasswordSection() {
           error={mismatch}
           disabled={saving}
         />
-        <button
-          type="submit"
-          disabled={saving || !ready}
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={saving || !ready}>
           Change password
-        </button>
+        </Button>
         <FormStatus status={status} />
       </form>
 
@@ -175,23 +175,14 @@ export default function ChangePasswordSection() {
         closeOnBackdrop={!saving}
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={saving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button variant="secondary" onClick={() => setConfirming(false)} disabled={saving}>
               Go back
-            </button>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            {/* `loading` is the old pair in one prop: disabled while saving,
+                with the spinner in front of the unchanged label. */}
+            <Button variant="primary" onClick={save} loading={saving}>
               Yes, change password
-            </button>
+            </Button>
           </>
         }
       >

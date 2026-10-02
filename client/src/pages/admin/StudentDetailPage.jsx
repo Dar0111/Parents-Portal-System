@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import { longDate } from '../../format/date';
@@ -9,7 +12,9 @@ import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
+import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 
@@ -26,6 +31,16 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 //
 // §5b: `student` renders from load() or from the PUT response. Never from
 // the draft.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): a header card — who the
+// learner is, the class and status, and the record's one action — then the
+// facts in two cards. RELOAD is `load` itself, the same GET for the same id;
+// like the first load it shows the page's spinner, and it leaves the status
+// message alone. ONE entrance wrapper holds every state (spinner, not found,
+// error, record), so a reload swaps what is inside it and never replays the
+// entrance. The Modal sits BESIDE that wrapper, never inside it: Modal
+// renders inline, and a wrapper mid-tween carries a transform
+// (motion/motion.js).
 
 // DISPLAY CASING ONLY — convention 5d. Applied at the value (gender is
 // stored lowercase), not inside Field. Third copy of this helper after
@@ -36,13 +51,32 @@ function titleCase(value) {
   return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-function Field({ label, value, empty = 'Not recorded' }) {
+// `valueClass` is for a value made of digits (the LRN, a phone number):
+// tabular figures. It is on the <dd> only when there IS a value — the empty
+// text is words, and takes the muted colour instead.
+function Field({ label, value, empty = 'Not recorded', valueClass = '' }) {
   return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
-      <dd className="mt-1 text-sm text-fg">
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{label}</dt>
+      <dd className={`mt-1 break-words text-sm text-fg ${value ? valueClass : ''}`}>
         {value || <span className="text-fg-muted">{empty}</span>}
       </dd>
+    </div>
+  );
+}
+
+// The head of one fact card: the icon chip and the card's title. The flex is
+// on the chip, never on the Font Awesome element (Button.jsx says why).
+function CardTitle({ icon, children }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden="true"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+      >
+        <i className={`fa-solid ${icon}`} />
+      </span>
+      <h3 className="font-serif text-base font-bold text-fg">{children}</h3>
     </div>
   );
 }
@@ -84,10 +118,10 @@ export default function StudentDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
-  // Keyed status. `edit` renders INSIDE the modal, under its action row —
-  // that is where the Save button is. `record` is the success that OUTLIVES
-  // the modal ("Student updated."), so it belongs to the record it describes
-  // and renders above the card. See FormStatus.
+  // Keyed status. `edit` renders INSIDE the modal, above the form it
+  // describes. `record` is the success that OUTLIVES the modal ("Student
+  // updated."), so it belongs to the record it describes and renders above
+  // the header card. See FormStatus.
   const [status, setStatus] = useState({});
   const [draft, setDraft] = useState(EMPTY_EDIT);
 
@@ -176,92 +210,137 @@ export default function StudentDetailPage() {
     }
   }
 
+  // A 44px-tall target with the shared keyboard outline; the arrow is
+  // decoration, the words are the name.
   const backLink = (
     <Link
       to="/admin/students"
-      className="inline-flex items-center gap-2 text-sm text-fg-muted transition hover:text-fg"
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
     >
-      <i className="fa-solid fa-arrow-left" />
+      <i aria-hidden="true" className="fa-solid fa-arrow-left" />
       All students
     </Link>
   );
 
-  if (loading) return <LoadingSpinner className="py-16" label="Loading student…" />;
-
-  if (notFound) {
-    return (
-      <div className="space-y-4">
+  // ONE STATE AT A TIME, the same four as before and in the same order:
+  // loading, not found, a failed request, the record.
+  let body = null;
+  if (loading) {
+    body = <LoadingSpinner className="py-16" label="Loading student…" />;
+  } else if (notFound) {
+    body = (
+      <>
         {backLink}
-        <EmptyState
-          icon="fa-user-slash"
-          title="Student not found"
-          message="No student record exists with this id."
-        />
-      </div>
+        <div className={cardClass}>
+          <EmptyState
+            icon="fa-user-slash"
+            title="Student not found"
+            message="No student record exists with this id."
+          />
+        </div>
+      </>
     );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-4">
+  } else if (error) {
+    body = (
+      <>
         {backLink}
         <ErrorAlert message={error} onRetry={load} />
-      </div>
+      </>
     );
-  }
+  } else if (student) {
+    body = (
+      <>
+        {backLink}
 
-  if (!student) return null;
+        <FormStatus status={status.record} />
 
-  return (
-    <div className="space-y-4">
-      {backLink}
+        {/* THE HEADER CARD: the learner, then the class and the status badge,
+            and the record's controls on the right. Initials only — a learner
+            has no photo (§25). Edit is the neutral button: nothing on this
+            page is a filled action, the record is mostly read.
 
-      <FormStatus status={status.record} />
-
-      <div className="rounded-xl border border-edge bg-surface p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-edge pb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-fg">
-              {student.last_name}, {student.first_name}
-            </h2>
-            <p className="mt-0.5 text-sm text-fg-muted">
-              Grade {student.grade_level} - {student.section}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={student.status} />
-            <button
-              type="button"
-              onClick={openEdit}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-fg-secondary transition hover:bg-surface-muted"
-            >
-              Edit
-            </button>
+            `grow basis-64`, NOT `flex-1`: a zero basis never wraps, so on a
+            phone the controls would stay beside the name and squeeze it to a
+            few letters a line. With a 16rem basis the controls drop to their
+            own line when the two do not fit, and the name keeps the width. */}
+        <div className={`${cardClass} p-5 sm:p-6`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 grow basis-64 items-center gap-4">
+              <Avatar name={`${student.first_name} ${student.last_name}`} size="lg" />
+              <div className="min-w-0">
+                <h2 className="break-words font-serif text-xl font-bold text-fg">
+                  {student.last_name}, {student.first_name}
+                </h2>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-fg-muted">
+                  <span>
+                    Grade {student.grade_level} - {student.section}
+                  </span>
+                  <StatusBadge status={student.status} />
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <ReloadButton onReload={load} loading={loading} label="Reload student record" />
+              <Button icon="fa-pen" onClick={openEdit}>
+                Edit
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* Same fields as the teacher view. Omitted: section_id (internal FK),
-            created_by (a raw user id), timestamps (bookkeeping). */}
-        <dl className="mt-5 grid gap-5 sm:grid-cols-2">
-          <Field label="LRN" value={student.lrn} />
-          {/* Read-only field only (UI-C1b) — the sibling of the same line on
-              teacher/StudentDetailPage.jsx. The <input type="date"> in the
-              edit modal keeps the raw YYYY-MM-DD. */}
-          <Field label="Birthday" value={longDate(student.birthday)} />
-          <Field label="Gender" value={titleCase(student.gender)} />
-          <Field label="Contact number" value={student.contact_number} />
-          {/* Which it is, not a button: POST /users/parents is teacher-only.
-              users.status of the linked account; "None" = no account yet. */}
-          <Field
-            label="Parent account"
-            value={parentAccount ? titleCase(parentAccount.status) : null}
-            empty="None"
-          />
-          <div className="sm:col-span-2">
-            <Field label="Address" value={student.address} />
+            created_by (a raw user id), timestamps (bookkeeping).
+
+            TWO CARDS, by what the fact is for: who the learner is — and
+            whether a parent account is linked to them — and how to reach
+            the family. */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className={`${cardClass} space-y-4 p-5`}>
+            <CardTitle icon="fa-id-card">Student details</CardTitle>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <Field label="LRN" value={student.lrn} valueClass="tabular-nums" />
+              {/* Read-only field only (UI-C1b) — the sibling of the same line on
+                  teacher/StudentDetailPage.jsx. The <input type="date"> in the
+                  edit modal keeps the raw YYYY-MM-DD. */}
+              <Field label="Birthday" value={longDate(student.birthday)} />
+              <Field label="Gender" value={titleCase(student.gender)} />
+              {/* Which it is, not a button: POST /users/parents is teacher-only.
+                  users.status of the linked account; "None" = no account yet. */}
+              <Field
+                label="Parent account"
+                value={parentAccount ? titleCase(parentAccount.status) : null}
+                empty="None"
+              />
+            </dl>
           </div>
-        </dl>
+
+          <div className={`${cardClass} space-y-4 p-5`}>
+            <CardTitle icon="fa-address-book">Contact details</CardTitle>
+            <dl className="grid gap-4">
+              <Field label="Contact number" value={student.contact_number} valueClass="tabular-nums" />
+              <Field label="Address" value={student.address} />
+            </dl>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // The Modal reads `student`, so it exists only beside a loaded record —
+  // exactly when it did before.
+  if (loading || !student) {
+    return (
+      <div>
+        <Reveal className="space-y-6">{body}</Reveal>
       </div>
+    );
+  }
+
+  // The same <div> → <Reveal> at the same position as the return above, so
+  // React keeps ONE wrapper across every state and the entrance never replays.
+  return (
+    <div>
+      <Reveal className="space-y-6">{body}</Reveal>
 
       <Modal
         open={editOpen}
@@ -271,32 +350,24 @@ export default function StudentDetailPage() {
         size="lg"
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeEdit}
-              disabled={savingEdit}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closeEdit} disabled={savingEdit}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              form="admin-student-edit-form"
-              disabled={savingEdit}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {savingEdit ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="primary" type="submit" form="admin-student-edit-form" loading={savingEdit}>
               Save
-            </button>
+            </Button>
           </>
         }
       >
-        <div className="max-h-[70vh] overflow-y-auto">
-          <FormStatus status={status.edit} className="mb-3" />
+        {/* No scroller of its own: Modal's body scrolls (and keeps the footer
+            on screen), and a second one inside it clipped the fields' focus
+            rings at its edges. */}
+        <div>
+          <FormStatus status={status.edit} className="mb-4" />
 
-          <form id="admin-student-edit-form" onSubmit={submitEdit} className="space-y-3">
+          <form id="admin-student-edit-form" onSubmit={submitEdit} className="space-y-4">
             <FormField label="LRN" value={student.lrn} disabled />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="First name"
                 value={draft.first_name}
@@ -310,7 +381,7 @@ export default function StudentDetailPage() {
                 required
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="Grade level" value={`Grade ${student.grade_level}`} disabled />
               <FormField label="Section" value={student.section} disabled />
             </div>
@@ -321,7 +392,7 @@ export default function StudentDetailPage() {
               A student's class cannot be changed here. The system does not support moving a
               student between classes.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="Birthday"
                 type="date"

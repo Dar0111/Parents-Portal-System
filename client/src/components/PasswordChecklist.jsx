@@ -38,7 +38,7 @@ export function passwordFormReady(value, confirm) {
 
 export default function PasswordChecklist({ value, id }) {
   return (
-    <ul id={id} aria-live="polite" className="mt-2 space-y-1 text-sm">
+    <ul id={id} aria-live="polite" className="mt-2.5 space-y-1.5 text-sm">
       {PASSWORD_RULES.map((rule) => {
         const passes = rule.test(value);
         return (

@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import DataList from '../../components/DataList';
+import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
-import Icon from '../../icons';
-import { useTheme } from '../../theme/ThemeProvider';
 
 // TEACHER → MEMOS — READ ONLY, and that is the whole design: every memo
 // write is authorize('admin'), so a compose control here would fail every
@@ -13,8 +12,12 @@ import { useTheme } from '../../theme/ThemeProvider';
 // no targeting columns, so there is nothing to filter and one empty branch
 // (§5f). A static card: a teacher does not own a memo and the endpoint has
 // no GET /:id — the row is the whole record, so there is nothing to open.
+//
+// THE SECTION HEADER (feat/ui-refresh) is the web's: the list's title, the
+// page's one explanation as the sentence under it, and Reload — `load(0)`,
+// the request pull-to-refresh and Try again already make, back on the first
+// page.
 export default function MemosScreen() {
-  const { tokens } = useTheme();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -47,11 +50,14 @@ export default function MemosScreen() {
   }, [load]);
 
   const header = (
-    <View className="mb-3 flex-row items-start gap-2 rounded-xl border border-edge bg-surface px-4 py-3">
-      <Icon name="fa-circle-info" size={13} color={tokens['fg-faint']} style={{ marginTop: 3 }} />
-      <Text className="flex-1 text-sm text-fg-body">
-        Memos are posted by the school administration and go to everyone. Teachers read them here; to reach your own class, use Announcements.
-      </Text>
+    <View className="mb-4">
+      <SectionHeader
+        title="Posted memos"
+        description="Memos are posted by the school administration and go to everyone. Teachers read them here; to reach your own class, use Announcements."
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadLabel="Reload memos"
+      />
     </View>
   );
 

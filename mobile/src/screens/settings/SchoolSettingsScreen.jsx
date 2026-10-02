@@ -1,14 +1,20 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
+import Text from '../../components/Text';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { currentTerm, termDates } from '../../format/schoolCalendar';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 import { changedDetails, detailsFrom, detailsProblem } from './schoolSettings';
 
 // SETTINGS → SCHOOL SETTINGS (admin only) — the web's SchoolSettingsSection:
@@ -22,7 +28,30 @@ import { changedDetails, detailsFrom, detailsProblem } from './schoolSettings';
 // ONLY CHANGED KEYS (`schoolSettings.js`); no confirmation (§5e — every value
 // is on screen and reversible by saving again). `stored` is written only by
 // load() (§5b); the draft is separate, null until the admin types.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-02): each section is a card under its
+// own heading; Save is the screen's one primary button, with FormStatus
+// directly under it (§7c).
+
+// A sub-section's title: the icon chip and the title face — the same block
+// Account information's sub-sections use, so the two screens read alike. The
+// chip is decoration; the heading is the name.
+function SubHeading({ icon, children }) {
+  const { tokens } = useTheme();
+  return (
+    <View className="flex-row items-center gap-3">
+      <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
+        <Icon name={icon} size={15} color={tokens.brand} />
+      </View>
+      <Text accessibilityRole="header" className="min-w-0 flex-1 font-serif text-base text-fg">
+        {children}
+      </Text>
+    </View>
+  );
+}
+
 export default function SchoolSettingsScreen() {
+  const { tokens } = useTheme();
   const [stored, setStored] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -54,6 +83,21 @@ export default function SchoolSettingsScreen() {
   const changed = changedDetails(stored, details);
   const dirty = Object.keys(changed).length > 0;
   const edit = (key) => (value) => setDraft((prev) => ({ ...(prev ?? detailsFrom(stored)), [key]: value }));
+
+  // RELOAD (feat/ui-refresh) — the header's button. load() is the same
+  // GET /settings the focus effect, Try again and a successful save call.
+  //
+  // IT DROPS THE DRAFT FIRST, as on the web, and that loses nothing: the
+  // button is disabled while the form is dirty, so the only draft it can meet
+  // is one that already equals the stored values — a field typed in and put
+  // back. Left in place, that draft would keep the form following ITSELF
+  // instead of the fresh read, and any field somebody else had changed
+  // meanwhile would count as an edit back to its old value, which the next
+  // save would write. Called from the press, never from an effect.
+  function reload() {
+    setDraft(null);
+    load();
+  }
 
   async function save() {
     if (saving) return;
@@ -88,18 +132,51 @@ export default function SchoolSettingsScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
-        <Text className="text-sm text-fg-muted">These settings belong to the school, not to your account. Your own account is under Account information.</Text>
+        {/* With the form on screen a reload shows no spinner in the page: the
+            button's own spinner turns while `loading` is true, and a failure
+            lands in the ErrorAlert below, as a failed re-read after a save
+            always has.
+
+            DISABLED WHILE THE FORM HAS UNSAVED EDITS, and while a save is in
+            flight: the draft is a copy of ALL seven fields taken at the first
+            keystroke, so against a newer `stored` every field somebody else
+            changed meanwhile would read as "changed" back to its old value
+            and the next save would undo their edit. A phone has no hover for
+            the web's hint, so the reason is a caption under the header for as
+            long as it applies. */}
+        <View className="gap-2">
+          <SectionHeader
+            title="School settings"
+            description="These settings belong to the school, not to your account. Your own account is under Account information."
+            onReload={reload}
+            reloading={loading}
+            reloadDisabled={dirty || saving}
+            reloadLabel="Reload school settings"
+          />
+          {dirty ? (
+            <Text className="text-xs text-fg-muted">Save or discard your changes before reloading.</Text>
+          ) : null}
+        </View>
         {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
-        <View className="gap-3">
-          <Text className="text-sm font-semibold text-fg">School year and term</Text>
-          <View className="gap-3 rounded-lg border border-edge bg-surface-subtle px-4 py-3">
+        <View className={`${cardClass} gap-3 p-4`}>
+          <SubHeading icon="fa-calendar-days">School year and term</SubHeading>
+          <View className="gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
             <View>
-              <Text className="text-xs font-medium uppercase tracking-wide text-fg-muted">School year</Text>
-              <Text className="mt-1 text-sm text-fg">{stored.academic_year || 'Not recorded'}</Text>
+              <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">School year</Text>
+              {/* The lock is decoration: the sentence under the band is what
+                  says the value cannot be changed here. */}
+              <View className="mt-1 flex-row items-center gap-2">
+                {stored.academic_year ? (
+                  <Text className="text-xl font-bold text-fg">{stored.academic_year}</Text>
+                ) : (
+                  <Text className="text-sm text-fg-muted">Not recorded</Text>
+                )}
+                <Icon name="fa-lock" size={12} color={tokens['fg-faint']} />
+              </View>
             </View>
             <View>
-              <Text className="text-xs font-medium uppercase tracking-wide text-fg-muted">Current term</Text>
+              <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Current term</Text>
               <Text className="mt-1 text-sm text-fg">
                 Term {term} — from the school calendar, {longDate(termStart)} – {longDate(termEnd)}
               </Text>
@@ -112,8 +189,8 @@ export default function SchoolSettingsScreen() {
           </Text>
         </View>
 
-        <View className="gap-3">
-          <Text className="text-sm font-semibold text-fg">School details</Text>
+        <View className={`${cardClass} gap-4 p-4`}>
+          <SubHeading icon="fa-school">School details</SubHeading>
           <FormField label="School name" required value={details.school_name} onChangeText={edit('school_name')} />
           <FormField label="School address" required value={details.school_address} onChangeText={edit('school_address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
           <FormField label="DepEd School ID" value={details.school_id} onChangeText={edit('school_id')} keyboardType="number-pad" maxLength={6} hint="Six digits. Shown on the About page." />
@@ -144,15 +221,11 @@ export default function SchoolSettingsScreen() {
             autoCorrect={false}
             hint="A web address to an image. Leave blank for no logo. This page does not upload files."
           />
-          <Pressable
-            onPress={save}
-            disabled={saving || !dirty}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving || !dirty, busy: saving }}
-            className={`items-center rounded-lg bg-primary px-4 py-2.5 ${saving || !dirty ? 'opacity-50' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : 'Save school details'}</Text>
-          </Pressable>
+          {/* The label still changes while the save is in flight; `loading`
+              adds the spinner and the busy state. */}
+          <Button variant="primary" full onPress={save} disabled={saving || !dirty} loading={saving}>
+            {saving ? 'Saving…' : 'Save school details'}
+          </Button>
           <FormStatus status={status} />
         </View>
       </ScrollView>

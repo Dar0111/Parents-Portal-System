@@ -12,6 +12,13 @@ import { useTheme } from '../theme/ThemeProvider';
 //
 // `secureTextEntry` is RN's password mode. `textContentType`/`autoComplete`
 // are passed through so the phone's password manager can offer to fill.
+//
+// THE REVEAL TOGGLE IS A 48dp-WIDE TARGET, as tall as the field. The width is
+// a plain style object in dp (the phone's rem is 14 — M19; never a style
+// function — M20), and the input's right padding (`pr-14`, 49dp) clears it so
+// a long password never runs under the eye.
+const TOGGLE_WIDTH = 48;
+
 export default function PasswordField({
   label,
   value,
@@ -57,7 +64,7 @@ export default function PasswordField({
               onSubmitEditing={onSubmitEditing}
               returnKeyType={returnKeyType}
               placeholderTextColor={tokens['fg-muted']}
-              className={`${controlClassFor(invalid)} pr-10 ${leadingIcon ? 'pl-10' : ''}`}
+              className={`${controlClassFor(invalid)} pr-14 ${leadingIcon ? 'pl-10' : ''}`}
             />
             <Pressable
               onPress={onToggleReveal}
@@ -65,9 +72,10 @@ export default function PasswordField({
               accessibilityRole="button"
               accessibilityLabel={revealed ? 'Hide password' : 'Show password'}
               accessibilityState={{ selected: Boolean(revealed), disabled }}
-              className="absolute inset-y-0 right-0 w-10 items-center justify-center"
+              className="absolute inset-y-0 right-0 items-center justify-center"
+              style={{ width: TOGGLE_WIDTH }}
             >
-              <Icon name={revealed ? 'fa-eye-slash' : 'fa-eye'} size={15} color={tokens['fg-faint']} />
+              <Icon name={revealed ? 'fa-eye-slash' : 'fa-eye'} size={16} color={tokens['fg-muted']} />
             </Pressable>
           </View>
           {below}

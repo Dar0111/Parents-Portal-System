@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DateField from '../../components/DateField';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import PasswordField from '../../components/PasswordField';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 import { todayLocalDateString } from '../../format/date';
 import { lrnError, lrnRuleHint } from '../../format/lrnRule';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 
 // THE ENROL WIZARD — one modal screen, the web's four phases (Darryl,
 // branch 3 decision 4): enroll → confirm-enroll → parent → confirm-parent.
@@ -31,6 +36,15 @@ import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 // typed here. The LRN and contact pre-checks are the client's copies of the
 // server's rules; the server decides and its 400 names the `field`, which
 // renders under that input (§7c).
+//
+// THE LOOK (feat/ui-refresh, 2026-10-02) is the web's wizard: each form is a
+// card, and every phase ends in the same pair — the neutral way out, then the
+// ONE filled step forward. The two confirmations are warning notices, not
+// body copy: each asks for a write the API cannot take back (§5e). The
+// "is enrolled" sentence is in the success tone, because the enrol has landed
+// by the time it shows; opened from a record nothing has been written yet, so
+// that sentence stays plain. NO ENTRANCE MOTION: a phase swaps in place, and
+// nothing may delay the sentence that names the decision.
 const EMPTY_ENROLL = { lrn: '', first_name: '', last_name: '', classKey: '', birthday: '', gender: '', address: '', contact_number: '' };
 const EMPTY_PARENT = { name: '', password: '', confirmPassword: '', email: '', contact_number: '' };
 
@@ -49,17 +63,15 @@ function parseClassKey(classKey) {
   return { grade_level, section };
 }
 
-function Button({ label, onPress, disabled, primary = false }) {
+// A confirmation: the sentence that names the decision back, in the warning
+// tone. The icon is decoration; the sentence is the message.
+function ConfirmNotice({ children }) {
+  const { tokens } = useTheme();
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      className={`rounded-lg px-4 py-2 ${primary ? 'bg-primary' : 'border border-edge-strong'} ${disabled ? 'opacity-60' : ''}`}
-    >
-      <Text className={`text-sm font-medium ${primary ? 'text-primary-fg' : 'text-fg-body'}`}>{label}</Text>
-    </Pressable>
+    <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
+      <Icon name="fa-triangle-exclamation" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
+      <Text className="min-w-0 flex-1 text-sm text-warning-strong">{children}</Text>
+    </View>
   );
 }
 
@@ -67,6 +79,7 @@ export default function EnrollScreen({ navigation, route }) {
   const classOptions = route?.params?.classOptions || [];
   const fromRecord = route?.params?.student || null;
   const today = todayLocalDateString();
+  const { tokens } = useTheme();
 
   const [phase, setPhase] = useState(fromRecord ? 'parent' : 'enroll');
   const [enroll, setEnroll] = useState({ ...EMPTY_ENROLL, classKey: classOptions.length === 1 ? classOptions[0].key : '' });
@@ -186,124 +199,153 @@ export default function EnrollScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
-        <Text className="text-base font-semibold text-fg">{title}</Text>
+        <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+          {title}
+        </Text>
         {formError ? <ErrorAlert message={formError} /> : null}
 
         {phase === 'enroll' ? (
-          <View className="gap-3">
-            <FormField
-              label="LRN"
-              required
-              value={enroll.lrn}
-              onChangeText={setField(setEnroll, 'lrn')}
-              maxLength={12}
-              keyboardType="number-pad"
-              hint={lrnRuleHint()}
-              error={fieldErrors.lrn}
-            />
-            <FormField label="First name" required value={enroll.first_name} onChangeText={setField(setEnroll, 'first_name')} />
-            <FormField label="Last name" required value={enroll.last_name} onChangeText={setField(setEnroll, 'last_name')} />
-            <FormField
-              label="Class"
-              required
-              render={() => (
-                <Segmented label="Class" value={enroll.classKey} onChange={setField(setEnroll, 'classKey')} options={classOptions.map((opt) => ({ key: opt.key, label: opt.label }))} />
-              )}
-            />
-            <DateField label="Birthday" value={enroll.birthday} onChange={setField(setEnroll, 'birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
-            <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={enroll.gender} onChange={setField(setEnroll, 'gender')} options={GENDERS} />} />
-            <FormField label="Address" value={enroll.address} onChangeText={setField(setEnroll, 'address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
-            <FormField
-              label="Contact number"
-              value={enroll.contact_number}
-              onChangeText={setField(setEnroll, 'contact_number')}
-              maxLength={20}
-              keyboardType="phone-pad"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
-            />
-            <View className="flex-row justify-end gap-2">
-              <Button label="Cancel" onPress={() => navigation.goBack()} disabled={saving} />
-              <Button label="Continue" onPress={requestEnroll} disabled={saving} primary />
+          <>
+            <View className={`${cardClass} gap-4 p-4`}>
+              <FormField
+                label="LRN"
+                required
+                value={enroll.lrn}
+                onChangeText={setField(setEnroll, 'lrn')}
+                maxLength={12}
+                keyboardType="number-pad"
+                hint={lrnRuleHint()}
+                error={fieldErrors.lrn}
+              />
+              <FormField label="First name" required value={enroll.first_name} onChangeText={setField(setEnroll, 'first_name')} />
+              <FormField label="Last name" required value={enroll.last_name} onChangeText={setField(setEnroll, 'last_name')} />
+              <FormField
+                label="Class"
+                required
+                render={() => (
+                  <Segmented label="Class" value={enroll.classKey} onChange={setField(setEnroll, 'classKey')} options={classOptions.map((opt) => ({ key: opt.key, label: opt.label }))} />
+                )}
+              />
+              <DateField label="Birthday" value={enroll.birthday} onChange={setField(setEnroll, 'birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
+              <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={enroll.gender} onChange={setField(setEnroll, 'gender')} options={GENDERS} />} />
+              <FormField label="Address" value={enroll.address} onChangeText={setField(setEnroll, 'address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
+              <FormField
+                label="Contact number"
+                value={enroll.contact_number}
+                onChangeText={setField(setEnroll, 'contact_number')}
+                maxLength={20}
+                keyboardType="phone-pad"
+                hint={contactRuleHint()}
+                error={fieldErrors.contact_number}
+              />
             </View>
-          </View>
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
+                Cancel
+              </Button>
+              <Button variant="primary" onPress={requestEnroll} disabled={saving}>
+                Continue
+              </Button>
+            </View>
+          </>
         ) : null}
 
         {phase === 'confirm-enroll' ? (
-          <View className="gap-4">
-            <Text className="text-sm text-fg-body">
+          <>
+            <ConfirmNotice>
               Enroll {enroll.first_name.trim()} {enroll.last_name.trim()} (LRN {enroll.lrn.trim()}) in {classLabel}? This cannot be undone from here — there is no delete for a
               student record.
-            </Text>
-            <View className="flex-row justify-end gap-2">
-              <Button label="Go back" onPress={() => setPhase('enroll')} disabled={saving} />
-              <Button label={saving ? 'Enrolling…' : 'Yes, enroll this student'} onPress={submitEnroll} disabled={saving} primary />
+            </ConfirmNotice>
+            {/* The label still changes while the write is in flight; `loading`
+                is the old `disabled={saving}` plus its spinner. */}
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => setPhase('enroll')} disabled={saving}>
+                Go back
+              </Button>
+              <Button variant="primary" onPress={submitEnroll} loading={saving}>
+                {saving ? 'Enrolling…' : 'Yes, enroll this student'}
+              </Button>
             </View>
-          </View>
+          </>
         ) : null}
 
         {phase === 'parent' ? (
-          <View className="gap-3">
-            <Text className="text-sm text-fg-body">
-              {fromRecord
-                ? `Create the pending parent account for ${enrolled?.first_name} ${enrolled?.last_name}.`
-                : `${enrolled?.first_name} ${enrolled?.last_name} is enrolled. Create the pending parent account next, or skip and do it later from the student record.`}
-            </Text>
-            {/* The LRN, shown to the adviser acting on this learner (§5c). */}
-            <FormField label="Login ID (child's LRN)" value={enrolled?.lrn || ''} editable={false} />
-            <FormField label="Guardian name" required value={parent.name} onChangeText={setField(setParent, 'name')} />
-            <PasswordField
-              label="Password"
-              required
-              value={parent.password}
-              onChangeText={setField(setParent, 'password')}
-              autoComplete="new-password"
-              revealed={revealed.password}
-              onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
-              error={fieldErrors.password}
-              below={<PasswordChecklist value={parent.password} />}
-            />
-            <PasswordField
-              label="Confirm password"
-              required
-              value={parent.confirmPassword}
-              onChangeText={setField(setParent, 'confirmPassword')}
-              autoComplete="new-password"
-              revealed={revealed.confirm}
-              onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
-              error={confirmError(parent.password, parent.confirmPassword)}
-            />
-            <FormField label="Email" value={parent.email} onChangeText={setField(setParent, 'email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
-            <FormField
-              label="Contact number"
-              value={parent.contact_number}
-              onChangeText={setField(setParent, 'contact_number')}
-              maxLength={20}
-              keyboardType="phone-pad"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
-            />
-            <View className="flex-row justify-end gap-2">
+          <>
+            {fromRecord ? (
+              <Text className="text-sm text-fg-body">{`Create the pending parent account for ${enrolled?.first_name} ${enrolled?.last_name}.`}</Text>
+            ) : (
+              <View className="flex-row items-start gap-3 rounded-xl border border-success-edge bg-success-soft px-4 py-3">
+                <Icon name="fa-circle-check" size={16} color={tokens['success-icon']} style={{ marginTop: 2 }} />
+                <Text className="min-w-0 flex-1 text-sm text-success-strong">
+                  {`${enrolled?.first_name} ${enrolled?.last_name} is enrolled. Create the pending parent account next, or skip and do it later from the student record.`}
+                </Text>
+              </View>
+            )}
+            <View className={`${cardClass} gap-4 p-4`}>
+              {/* The LRN, shown to the adviser acting on this learner (§5c). */}
+              <FormField label="Login ID (child's LRN)" value={enrolled?.lrn || ''} editable={false} />
+              <FormField label="Guardian name" required value={parent.name} onChangeText={setField(setParent, 'name')} />
+              <PasswordField
+                label="Password"
+                required
+                value={parent.password}
+                onChangeText={setField(setParent, 'password')}
+                autoComplete="new-password"
+                revealed={revealed.password}
+                onToggleReveal={() => setRevealed((prev) => ({ ...prev, password: !prev.password }))}
+                error={fieldErrors.password}
+                below={<PasswordChecklist value={parent.password} />}
+              />
+              <PasswordField
+                label="Confirm password"
+                required
+                value={parent.confirmPassword}
+                onChangeText={setField(setParent, 'confirmPassword')}
+                autoComplete="new-password"
+                revealed={revealed.confirm}
+                onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                error={confirmError(parent.password, parent.confirmPassword)}
+              />
+              <FormField label="Email" value={parent.email} onChangeText={setField(setParent, 'email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
+              <FormField
+                label="Contact number"
+                value={parent.contact_number}
+                onChangeText={setField(setParent, 'contact_number')}
+                maxLength={20}
+                keyboardType="phone-pad"
+                hint={contactRuleHint()}
+                error={fieldErrors.contact_number}
+              />
+            </View>
+            <View className="flex-row flex-wrap justify-end gap-2">
               <Button
-                label={fromRecord ? 'Cancel' : 'Skip'}
+                variant="secondary"
                 onPress={() => (fromRecord ? navigation.goBack() : leave(`${enrolled?.first_name} ${enrolled?.last_name} is enrolled.`))}
                 disabled={saving}
-              />
-              <Button label="Continue" onPress={requestParent} disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)} primary />
+              >
+                {fromRecord ? 'Cancel' : 'Skip'}
+              </Button>
+              <Button variant="primary" onPress={requestParent} disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)}>
+                Continue
+              </Button>
             </View>
-          </View>
+          </>
         ) : null}
 
         {phase === 'confirm-parent' ? (
-          <View className="gap-4">
-            <Text className="text-sm text-fg-body">
+          <>
+            <ConfirmNotice>
               Create a pending parent account for {parent.name.trim()} (login ID {enrolled?.lrn})? An admin must approve it before they can log in. You cannot un-create it.
-            </Text>
-            <View className="flex-row justify-end gap-2">
-              <Button label="Go back" onPress={() => setPhase('parent')} disabled={saving} />
-              <Button label={saving ? 'Creating…' : 'Yes, create parent account'} onPress={submitParent} disabled={saving} primary />
+            </ConfirmNotice>
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => setPhase('parent')} disabled={saving}>
+                Go back
+              </Button>
+              <Button variant="primary" onPress={submitParent} loading={saving}>
+                {saving ? 'Creating…' : 'Yes, create parent account'}
+              </Button>
             </View>
-          </View>
+          </>
         ) : null}
       </ScrollView>
     </KeyboardAvoidingView>

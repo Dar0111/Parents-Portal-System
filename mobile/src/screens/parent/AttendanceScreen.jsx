@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Avatar from '../../components/Avatar';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
+import Text from '../../components/Text';
 import Icon from '../../icons';
 import { addMonths, longDate, monthBounds, monthName, todayLocalDateString, weekdayName } from '../../format/date';
 import { clampMonthToSchoolYear } from '../../format/schoolCalendar';
+import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 import AttendanceCalendar from './AttendanceCalendar';
 import { COUNTS, EMPTY_SUMMARY, countOf, recordedDays, yearRows, yearTotals } from './attendance/logic';
@@ -19,6 +24,27 @@ import { COUNTS, EMPTY_SUMMARY, countOf, recordedDays, yearRows, yearTotals } fr
 // Late counts as present, Excused as absent — the school's decision. The
 // month opens on today's, clamped to the school year (#7). The year table
 // scrolls sideways with its row labels fixed.
+//
+// RELOAD (feat/ui-refresh) — ONE CONTROL, THE SAME REQUESTS AS A PULL. The
+// button in the learner's band runs `reloadAll`, which is what
+// pull-to-refresh has always run: the month (`load`, with the month that is
+// on screen — the view and the selected day are not touched) and, through
+// `yearTick`, the whole history and the letters. The adviser's name is
+// reference data and is not re-read. One control and not one per card,
+// because the cards are one answer: a reloaded month beside a school-year
+// table that still shows the old totals would be two versions of one record.
+
+// One cell of the school-year table. The SIZE is named where the cell is
+// used — `text-xs` on the header row, `text-sm` on the body rows — and never
+// twice on one cell, so the fixed label column and the scrolling months have
+// the same line height on every row and stay level.
+const YEAR_CELL = 'w-14 px-2 py-2 text-right';
+const YEAR_HEAD = 'text-xs font-semibold uppercase tracking-wide';
+
+// The two prev / next month buttons: 48dp squares, set in dp (M19).
+const MONTH_BUTTON = 'items-center justify-center overflow-hidden rounded-xl border border-edge-strong bg-surface';
+const MONTH_BUTTON_SIZE = { width: 48, height: 48 };
+
 export default function AttendanceScreen() {
   const { user } = useAuth();
   const { tokens } = useTheme();
@@ -120,14 +146,26 @@ export default function AttendanceScreen() {
     setView((current) => addMonths(current, delta));
   }
 
+  // The month's own request plus the two whole-history reads — what a pull
+  // has always asked for. The Reload button calls it without `pull`, so the
+  // grid shows its own loading frame as on the first load.
+  function reloadAll({ pull = false } = {}) {
+    setYearTick((n) => n + 1);
+    load({ pull });
+  }
+
   const fraction = recordedDays(summary);
   const linked = studentId != null;
   const yRows = useMemo(() => yearRows(allRows), [allRows]);
   const totals = useMemo(() => yearTotals(yRows), [yRows]);
   const selectedRecord = selected ? rows.find((r) => r.date === selected) : null;
   const selectedLetter = selected ? letters.find((l) => l.absence_date === selected) : null;
-  const childLine = [
-    `${user?.student_first_name || ''} ${user?.student_last_name || ''}`.trim(),
+  // The learner this page is about: the band's title, and one line of
+  // context under it — the same three facts the single line above the grid
+  // used to carry, in the same order; any of them may be missing. A learner
+  // has no photo, so the circle is always initials.
+  const childName = `${user?.student_first_name || ''} ${user?.student_last_name || ''}`.trim();
+  const childMeta = [
     user?.grade_level != null ? `Grade ${user.grade_level} - ${user.section || ''}`.replace(/ - $/, '') : '',
     adviser ? `Adviser: ${adviser}` : null,
   ]
@@ -137,14 +175,15 @@ export default function AttendanceScreen() {
   if (!linked) {
     return (
       <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4">
-        <View className="rounded-xl border border-edge bg-surface p-6">
-          <Text className="text-sm text-fg-muted">This account is not linked to a learner yet, so there is no attendance to show. Ask the school office.</Text>
+        <View className={`${cardClass} flex-row items-start gap-3 p-5`}>
+          <View className="h-9 w-9 items-center justify-center rounded-xl bg-surface-muted">
+            <Icon name="fa-link-slash" size={14} color={tokens['fg-muted']} />
+          </View>
+          <Text className="min-w-0 flex-1 text-sm text-fg-muted">This account is not linked to a learner yet, so there is no attendance to show. Ask the school office.</Text>
         </View>
       </ScrollView>
     );
   }
-
-  const cell = 'w-14 px-2 py-2 text-right text-sm';
 
   return (
     <ScrollView
@@ -153,50 +192,95 @@ export default function AttendanceScreen() {
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
-          onRefresh={() => {
-            setYearTick((n) => n + 1);
-            load({ pull: true });
-          }}
+          onRefresh={() => reloadAll({ pull: true })}
           tintColor={tokens['fg-muted']}
           colors={[tokens.brand]}
         />
       }
     >
-      {childLine ? <Text className="text-sm text-fg-muted">{childLine}</Text> : null}
+      {/* WHO THIS IS ABOUT, and the page's one Reload — the same band as the
+          dashboard's "Your child" card. "Name not recorded" is the wording
+          that card already uses for a linked learner with no name on the
+          row. */}
+      <Reveal>
+        <View className="flex-row items-center gap-3 rounded-2xl border border-edge bg-brand-panel p-4">
+          <Avatar name={childName} size={48} />
+          <View className="min-w-0 flex-1">
+            <Text accessibilityRole="header" className="font-serif text-xl text-brand-panel-fg">
+              {childName || 'Name not recorded'}
+            </Text>
+            {childMeta ? <Text className="mt-0.5 text-sm text-brand-panel-muted">{childMeta}</Text> : null}
+          </View>
+          <ReloadButton onReload={reloadAll} loading={loading || refreshing} label="Reload attendance" />
+        </View>
+      </Reveal>
+
       {error ? <ErrorAlert message={error} onRetry={() => load()} /> : null}
 
-      <View className="rounded-xl border border-edge bg-surface p-4">
-        <Text className="text-sm font-semibold text-fg">{monthLabel}</Text>
+      <View className={`${cardClass} p-4`}>
+        <Text className="font-serif text-base text-fg">{monthLabel}</Text>
         {fraction ? (
           <>
-            <Text className="mt-2 text-2xl font-semibold text-fg">
-              {fraction.present} of {fraction.total}
+            {/* THE FRACTION, and only the fraction. One sentence for a screen
+                reader — "21 of 23" — set as a figure and its denominator. */}
+            <Text className="mt-3">
+              <Text className="text-2xl font-bold text-fg" style={{ fontVariant: ['tabular-nums'] }}>
+                {fraction.present}
+              </Text>{' '}
+              <Text className="text-base font-semibold text-fg-muted" style={{ fontVariant: ['tabular-nums'] }}>
+                of {fraction.total}
+              </Text>
             </Text>
             <Text className="text-sm text-fg-muted">Present on recorded days</Text>
-            <View className="mt-3 flex-row flex-wrap gap-2">
-              {COUNTS.map((key) => (
-                <View key={key} className="flex-row items-center gap-1.5">
-                  <StatusBadge status={key} />
-                  <Text className="text-sm text-fg-body">{countOf(summary, key)}</Text>
+            {/* The four counts as tiles, two across: the status is a
+                StatusBadge — colour AND word — and the count beside it is the
+                server's own number for the month. */}
+            <View className="mt-4 gap-2">
+              {[COUNTS.slice(0, 2), COUNTS.slice(2)].map((pair) => (
+                <View key={pair[0]} className="flex-row gap-2">
+                  {pair.map((key) => (
+                    <View key={key} className="flex-1 flex-row items-center justify-between gap-2 rounded-xl border border-edge-soft bg-surface-subtle px-3 py-2.5">
+                      <StatusBadge status={key} />
+                      <Text className="text-base font-bold text-fg" style={{ fontVariant: ['tabular-nums'] }}>
+                        {countOf(summary, key)}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
               ))}
             </View>
-            <Text className="mt-3 text-xs text-fg-muted">Late counts as present · Excused counts as absent</Text>
+            <Text className="mt-4 text-xs text-fg-muted">Late counts as present · Excused counts as absent</Text>
           </>
         ) : (
           <Text className="mt-2 text-sm text-fg-muted">Nothing recorded this month.</Text>
         )}
       </View>
 
-      <View className="rounded-xl border border-edge bg-surface p-4">
-        <View className="mb-4 flex-row items-center justify-between gap-3">
-          <Pressable onPress={() => goMonth(-1)} accessibilityRole="button" accessibilityLabel="Previous month" className="h-9 w-9 items-center justify-center rounded-lg border border-edge-strong">
+      <View className={`${cardClass} p-4`}>
+        {/* Month navigation: two 48dp icon buttons, each named by its label,
+            with the month between them announced politely when it changes. */}
+        <View className="mb-4 flex-row items-center justify-between gap-2">
+          <Pressable
+            onPress={() => goMonth(-1)}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+            android_ripple={{ color: tokens['edge-strong'] }}
+            className={MONTH_BUTTON}
+            style={MONTH_BUTTON_SIZE}
+          >
             <Icon name="fa-chevron-left" size={13} color={tokens['fg-body']} />
           </Pressable>
-          <Text className="text-sm font-semibold text-fg" accessibilityLiveRegion="polite">
+          <Text className="min-w-0 flex-1 text-center font-serif text-base text-fg" accessibilityLiveRegion="polite">
             {monthLabel}
           </Text>
-          <Pressable onPress={() => goMonth(1)} accessibilityRole="button" accessibilityLabel="Next month" className="h-9 w-9 items-center justify-center rounded-lg border border-edge-strong">
+          <Pressable
+            onPress={() => goMonth(1)}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+            android_ripple={{ color: tokens['edge-strong'] }}
+            className={MONTH_BUTTON}
+            style={MONTH_BUTTON_SIZE}
+          >
             <Icon name="fa-chevron-right" size={13} color={tokens['fg-body']} />
           </Pressable>
         </View>
@@ -214,33 +298,45 @@ export default function AttendanceScreen() {
           />
         )}
         {selected ? (
-          <View className="mt-4 rounded-lg border border-edge bg-surface-subtle px-4 py-3">
-            <Text className="text-sm font-medium text-fg">
+          <View className="mt-4 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+            <Text className="text-sm font-semibold text-fg">
               {weekdayName(selected)} {longDate(selected)}
             </Text>
             <View className="mt-2">{selectedRecord ? <StatusBadge status={selectedRecord.status} /> : <Text className="text-sm text-fg-muted">Not recorded</Text>}</View>
-            {selectedLetter ? <Text className="mt-2 text-sm text-fg-muted">Excuse letter · {selectedLetter.status}</Text> : null}
+            {selectedLetter ? (
+              <View className="mt-2 flex-row items-center gap-2">
+                <Icon name="fa-envelope" size={11} color={tokens['fg-muted']} />
+                <Text className="min-w-0 flex-1 text-sm text-fg-muted">Excuse letter · {selectedLetter.status}</Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>
 
-      <View className="rounded-xl border border-edge bg-surface p-4">
-        <Text className="text-sm font-semibold text-fg">How this is counted</Text>
-        <Text className="mt-2 text-sm text-fg-muted">
-          Late counts as present. Excused counts as absent. Only the days {adviser ? `${adviser} recorded` : "your child's adviser recorded"} are counted — a school day with no
-          record is left out, not marked absent.
-        </Text>
+      <View className={`${cardClass} flex-row items-start gap-3 p-4`}>
+        <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
+          <Icon name="fa-circle-info" size={14} color={tokens.brand} />
+        </View>
+        <View className="min-w-0 flex-1">
+          <Text className="font-serif text-base text-fg">How this is counted</Text>
+          {/* Never "recorded by —": when no adviser is assigned to the
+              section, the sentence has to work without a name. */}
+          <Text className="mt-1 text-sm text-fg-body">
+            Late counts as present. Excused counts as absent. Only the days {adviser ? `${adviser} recorded` : "your child's adviser recorded"} are counted — a school day with no
+            record is left out, not marked absent.
+          </Text>
+        </View>
       </View>
 
       {yRows.length ? (
-        <View className="rounded-xl border border-edge bg-surface p-4">
-          <Text className="text-sm font-semibold text-fg">School year record</Text>
+        <View className={`${cardClass} p-4`}>
+          <Text className="font-serif text-base text-fg">School year record</Text>
           <Text className="mt-1 text-xs text-fg-muted">Only months with recorded days are shown. A dash means nothing was recorded that month.</Text>
           <View className="mt-3 flex-row">
             <View className="border-r border-edge">
-              <Text className="px-2 py-2 text-xs font-semibold uppercase tracking-wider text-fg-muted"> </Text>
+              <Text className={`px-2 py-2 ${YEAR_HEAD} text-fg-muted`}> </Text>
               {['Recorded days', 'Present', 'Absent'].map((label) => (
-                <Text key={label} className="px-2 py-2 text-sm font-medium text-fg">
+                <Text key={label} className="px-2 py-2 text-sm font-semibold text-fg">
                   {label}
                 </Text>
               ))}
@@ -249,11 +345,11 @@ export default function AttendanceScreen() {
               <View>
                 <View className="flex-row">
                   {yRows.map((r) => (
-                    <Text key={r.key} className={`${cell} text-xs font-semibold uppercase tracking-wider text-fg-muted`}>
+                    <Text key={r.key} className={`${YEAR_CELL} ${YEAR_HEAD} text-fg-muted`}>
                       {monthName(r.month).slice(0, 3)}
                     </Text>
                   ))}
-                  <Text className={`${cell} text-xs font-semibold uppercase tracking-wider text-fg`}>Total</Text>
+                  <Text className={`${YEAR_CELL} ${YEAR_HEAD} text-fg`}>Total</Text>
                 </View>
                 {[
                   ['recorded'],
@@ -262,11 +358,13 @@ export default function AttendanceScreen() {
                 ].map(([key]) => (
                   <View key={key} className="flex-row">
                     {yRows.map((r) => (
-                      <Text key={r.key} className={`${cell} text-fg-secondary`}>
+                      <Text key={r.key} className={`${YEAR_CELL} text-sm text-fg-secondary`} style={{ fontVariant: ['tabular-nums'] }}>
                         {r.recorded === undefined ? '—' : r[key]}
                       </Text>
                     ))}
-                    <Text className={`${cell} font-medium text-fg`}>{totals[key]}</Text>
+                    <Text className={`${YEAR_CELL} text-sm font-semibold text-fg`} style={{ fontVariant: ['tabular-nums'] }}>
+                      {totals[key]}
+                    </Text>
                   </View>
                 ))}
               </View>

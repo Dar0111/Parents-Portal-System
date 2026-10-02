@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
+import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
+import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
+import Text from '../../components/Text';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 
 // THE CONTACT PICKER — the web's "New message" modal as a screen.
 // GET /messages/contacts is scoped by the inverse of canMessage() (a parent
@@ -11,11 +18,32 @@ import FormField from '../../components/FormField';
 // filters WITHIN that list on the phone and is never an unscoped user
 // search. Choosing a contact REPLACES this screen with the thread, so Back
 // from the thread returns to the list, not to the picker.
+//
+// THE LOOK (feat/ui-refresh) is the web picker's: each group is an eyebrow
+// over ONE card of rows, a hairline between them, and a row is one button —
+// the name, the server's own unread count (§10) and a chevron that says it
+// goes somewhere. A ROW IS 48dp, SET IN dp through a plain style object (the
+// phone's rem is 14 — M19) and never a style function (M20); it is a minimum,
+// so a long "name — subject" line wraps and grows its row instead of being
+// cut. Press feedback is Android's ripple, clipped to the card's corners by
+// `overflow-hidden` on the card. A failed read is the shared alert with the
+// API's own wording (§2), as on the web.
+//
+// RELOAD sits beside Search and repeats the screen's ONE request. The fetch
+// stays inside its effect, exactly as it was; `attempt` is only the effect's
+// key, so Reload and Try again set the loading state in their own handler and
+// the effect itself never sets state synchronously. What was typed in Search
+// is kept. No entrance motion: the rows arrive with the read, and a list's
+// rows never animate.
+const ROW = { minHeight: 48 };
+
 export default function NewMessageScreen({ navigation }) {
+  const { tokens } = useTheme();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -32,7 +60,13 @@ export default function NewMessageScreen({ navigation }) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [attempt]);
+
+  function reload() {
+    setLoading(true);
+    setError(null);
+    setAttempt((n) => n + 1);
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -50,45 +84,55 @@ export default function NewMessageScreen({ navigation }) {
 
   return (
     <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10" keyboardShouldPersistTaps="handled">
-      <FormField label="Search" placeholder="Teacher or admin name" value={search} onChangeText={setSearch} autoCorrect={false} />
+      <View className="flex-row items-end gap-2">
+        <FormField label="Search" placeholder="Teacher or admin name" value={search} onChangeText={setSearch} autoCorrect={false} className="min-w-0 flex-1" />
+        <ReloadButton onReload={reload} loading={loading} label="Reload contacts" />
+      </View>
       {loading ? (
-        <Text className="py-6 text-center text-sm text-fg-muted">Loading contacts…</Text>
+        <LoadingSpinner size="sm" className="py-6" label="Loading contacts…" />
       ) : error ? (
-        <Text className="text-sm text-danger-text">{error}</Text>
+        <ErrorAlert message={error} onRetry={reload} />
       ) : contacts.length === 0 ? (
-        <EmptyState
-          icon="fa-address-book"
-          title="No one to message yet"
-          message="You can message your child's teachers and the school admin once your account is linked to a student."
-        />
+        <View className={cardClass}>
+          <EmptyState
+            icon="fa-address-book"
+            title="No one to message yet"
+            message="You can message your child's teachers and the school admin once your account is linked to a student."
+          />
+        </View>
       ) : (
         groups.map((group) => (
-          <View key={group.role}>
-            <Text className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-muted">{group.label}</Text>
+          <View key={group.role} className="gap-2">
+            <Text accessibilityRole="header" className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+              {group.label}
+            </Text>
             {group.rows.length === 0 ? (
-              <View className="rounded-lg bg-surface-subtle px-3 py-2">
+              <View className="rounded-xl bg-surface-subtle px-4 py-3">
                 <Text className="text-sm text-fg-muted">
                   {search.trim() ? `No ${group.label.toLowerCase()} match that search.` : `No ${group.label.toLowerCase()} to message.`}
                 </Text>
               </View>
             ) : (
-              <View className="rounded-lg border border-edge bg-surface">
+              <View className={`${cardClass} overflow-hidden`}>
                 {group.rows.map((c, i) => (
                   <Pressable
                     key={c.id}
                     onPress={() => navigation.replace('MessageThread', { otherId: c.id, name: c.name })}
                     accessibilityRole="button"
-                    className={`flex-row items-center justify-between gap-3 px-3 py-3 ${i > 0 ? 'border-t border-edge-soft' : ''}`}
+                    android_ripple={{ color: tokens['edge-strong'] }}
+                    className={`flex-row items-center justify-between gap-3 px-4 py-3 ${i > 0 ? 'border-t border-edge-soft' : ''}`}
+                    style={ROW}
                   >
                     <Text className="min-w-0 flex-1 text-sm text-fg">
-                      <Text className="font-medium">{c.name}</Text>
+                      <Text className="font-semibold">{c.name}</Text>
                       {c.subject ? <Text className="text-fg-muted"> — {c.subject}</Text> : null}
                     </Text>
                     {Number(c.unread_count) > 0 ? (
                       <View className="rounded-full bg-primary px-2 py-0.5">
-                        <Text className="text-xs text-primary-fg">{c.unread_count}</Text>
+                        <Text className="text-xs font-semibold text-primary-fg">{c.unread_count}</Text>
                       </View>
                     ) : null}
+                    <Icon name="fa-chevron-right" size={12} color={tokens['fg-faint']} />
                   </Pressable>
                 ))}
               </View>

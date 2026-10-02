@@ -1,13 +1,19 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
-import { isWeekend, longDate, todayLocalDateString } from '../../format/date';
+import Button from '../../components/Button';
+import ReloadButton from '../../components/ReloadButton';
+import Text from '../../components/Text';
+import { isWeekend, longDate, todayLocalDateString, weekdayName } from '../../format/date';
+import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
 import { isBuilt } from '../../navigation/routes';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import Card, { CardEmpty, Stat } from '../dashboards/Card';
+import ProfileHero from '../dashboards/ProfileHero';
 import { useCard } from '../dashboards/useCard';
 import { advisedSections, bannerFor, classesLead, nextEventLead, reviewLead, termGradesLead, unreadLead } from './dashboard/logic';
 
@@ -19,6 +25,20 @@ import { advisedSections, bannerFor, classesLead, nextEventLead, reviewLead, ter
 // never toISOString (§5a-iv), and the weekend test reads the SAME string
 // (`isWeekend`), so the two cannot disagree across midnight.
 //
+// THE PROFILE HERO (feat/ui-refresh, 2026-10-02) follows the greeting: the
+// signed-in teacher, today's date, and facts taken from the SAME two reads
+// the screen already makes — /dashboard (school year, term, the class count
+// My classes shows) and the advisory sections the banners are built from.
+// Each fact appears when its read has answered and not before. No request
+// was added.
+//
+// RELOAD (feat/ui-refresh): a card's Reload is the `reload` of the useCard
+// that feeds it, so Term grades and My classes — one /dashboard read — reload
+// together. Messages has none: its count is UnreadProvider's, kept current by
+// the socket, and the card makes no request of its own to ask again. Each
+// attendance banner reloads its own day. Pull-to-refresh still asks for
+// everything, the advisory sections included.
+//
 // A CARD NEVER LINKS TO A SCREEN THE PHONE DOES NOT HAVE (§12's last rule,
 // one platform over): Grades and Attendance land on the second half of this
 // branch, so their links are gated on `isBuilt` and appear the moment the
@@ -27,9 +47,14 @@ function openIfBuilt(navigation, path) {
   return isBuilt(path) ? () => navigation.navigate(path) : null;
 }
 
+// The banner's frame, shared by its loading, error and loaded states — the
+// notice shape, so a reload swaps the words and the tint, never the outline.
+const BANNER_FRAME = 'rounded-xl border px-4 py-3';
+
 // `tick` is the dashboard's reload count: the banner owns its card, so a
 // focus re-fetch or a pull reaches it by changing this dep, not by a ref.
 function AttendanceBanner({ section, today, tick, navigation }) {
+  const { tokens } = useTheme();
   const day = useCard(
     () =>
       api.get(`/attendance?grade_level=${section.grade_level}&section=${encodeURIComponent(section.name)}&date=${today}&limit=200`, {
@@ -41,19 +66,19 @@ function AttendanceBanner({ section, today, tick, navigation }) {
 
   if (day.loading) {
     return (
-      <View className="rounded-xl border border-edge bg-surface px-4 py-3">
+      <View className={`${BANNER_FRAME} border-edge bg-surface`}>
         <Text className="text-sm text-fg-muted">Checking today’s attendance for {className}…</Text>
       </View>
     );
   }
   if (day.error) {
     return (
-      <View className="rounded-xl border border-edge bg-surface px-4 py-3">
-        <Text className="text-sm text-fg">{className}</Text>
+      <View className={`${BANNER_FRAME} border-edge bg-surface`}>
+        <Text className="text-sm font-semibold text-fg">{className}</Text>
         <Text className="mt-1 text-sm text-fg-muted">{day.error}</Text>
-        <Pressable onPress={day.reload} accessibilityRole="button" className="mt-2 self-start">
-          <Text className="text-sm font-medium text-brand">Try again</Text>
-        </Pressable>
+        <Button size="sm" className="mt-3 self-start" onPress={day.reload}>
+          Try again
+        </Button>
       </View>
     );
   }
@@ -62,16 +87,40 @@ function AttendanceBanner({ section, today, tick, navigation }) {
   const success = state.tone === 'success';
   const open = openIfBuilt(navigation, '/teacher/attendance');
   return (
-    <View className={`rounded-xl border px-4 py-3 ${success ? 'border-success-edge bg-success-soft' : 'border-warning-edge bg-warning-soft'}`}>
-      <Text className={`text-sm font-semibold ${success ? 'text-success-strong' : 'text-warning-strong'}`}>
-        {className} — {state.label}
-      </Text>
-      <Text className="mt-0.5 text-sm text-fg-body">{state.detail}</Text>
-      {open ? (
-        <Pressable onPress={open} accessibilityRole="button" className="mt-3 self-start rounded-lg bg-primary px-3 py-1.5">
-          <Text className="text-sm font-medium text-primary-fg">{success ? 'Open attendance' : 'Record attendance'}</Text>
-        </Pressable>
-      ) : null}
+    <View className={`${BANNER_FRAME} ${success ? 'border-success-edge bg-success-soft' : 'border-warning-edge bg-warning-soft'}`}>
+      <View className="flex-row items-start gap-3">
+        {/* THE GLYPH SAYS WHAT THE COLOUR SAYS: a check once the register is
+            complete, the clipboard while there is still something to mark —
+            the two tints are never the only difference. */}
+        <Icon
+          name={success ? 'fa-circle-check' : 'fa-clipboard-user'}
+          size={15}
+          color={tokens[success ? 'success-strong' : 'warning-strong']}
+          style={{ marginTop: 3 }}
+        />
+        <View className="min-w-0 flex-1">
+          <Text className={`text-sm font-semibold ${success ? 'text-success-strong' : 'text-warning-strong'}`}>
+            {className} — {state.label}
+          </Text>
+          <Text className="mt-0.5 text-sm text-fg-body">{state.detail}</Text>
+        </View>
+      </View>
+      <View className="mt-3 flex-row items-center justify-between gap-2">
+        {/* The filled button while there is something to record; the neutral
+            one once the day is done, when opening the register is no longer
+            the thing this screen asks for. */}
+        {open ? (
+          <Button variant={success ? 'secondary' : 'primary'} size="sm" onPress={open}>
+            {success ? 'Open attendance' : 'Record attendance'}
+          </Button>
+        ) : (
+          <View />
+        )}
+        {/* This banner's own read, asked again — the same `day.reload` its
+            error state retries with. While it runs the banner is its
+            "Checking…" line above, so the button is never on screen busy. */}
+        <ReloadButton onReload={day.reload} label={`Reload attendance for ${className}`} />
+      </View>
     </View>
   );
 }
@@ -103,6 +152,25 @@ export default function DashboardScreen({ navigation }) {
   const messagesLine = unreadLead(unread);
   const eventLine = nextEventLead(events.data);
 
+  // The hero's facts, in the web's words. The date is the phone's own day;
+  // the rest are `d` and `advisory`, so each is simply absent until its read
+  // has answered. The class count is the figure My classes leads with, from
+  // the same array. The year and the term are keyed on THEIR OWN VALUE, not
+  // on `d`: a payload with no school year (the setting unset) must leave the
+  // pill out, never print the word "undefined".
+  const classCount = d?.classes?.length ?? 0;
+  const facts = [
+    { key: 'today', icon: 'fa-calendar-days', label: `${weekdayName(today)}, ${longDate(today)}` },
+    d?.school_year ? { key: 'year', icon: 'fa-school', label: `School year ${d.school_year}` } : null,
+    d?.term ? { key: 'term', icon: 'fa-book', label: `Term ${d.term}` } : null,
+    classCount ? { key: 'classes', icon: 'fa-users-rectangle', label: `${classCount} ${classCount === 1 ? 'class' : 'classes'}` } : null,
+    ...advisory.map((section) => ({
+      key: `advisory-${section.id}`,
+      icon: 'fa-chalkboard-user',
+      label: `Adviser of Grade ${section.grade_level} - ${section.name}`,
+    })),
+  ];
+
   // RE-FETCH ON FOCUS (M14, fix/mobile-popto P1, 2026-09-29). A drawer
   // screen is never unmounted, and `popTo` returns to this same instance, so
   // without this the letter count, the banner and the events stayed as
@@ -132,87 +200,129 @@ export default function DashboardScreen({ navigation }) {
       contentContainerClassName="gap-4 p-4 pb-10"
       refreshControl={<RefreshControl refreshing={false} onRefresh={reloadAll} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
-      <Text className="text-sm text-fg-muted">{user?.name ? `Good day, ${user.name}.` : 'Good day.'}</Text>
+      <Text className="text-sm text-fg-body">{user?.name ? `Good day, ${user.name}.` : 'Good day.'}</Text>
+
+      {/* The hero and the five cards arrive one after another (Reveal), once,
+          on mount; the cards all exist from the first render — each owns its
+          spinner. The banners are not part of it: they appear when the
+          advisory read answers, and a notice does not make an entrance. */}
+      <Reveal>
+        <ProfileHero user={user} facts={facts} />
+      </Reveal>
 
       {!weekend && advisory.length
         ? advisory.map((section) => <AttendanceBanner key={section.id} section={section} today={today} tick={bannerTick} navigation={navigation} />)
         : null}
 
-      <Card
-        title="Excuse letters to review"
-        icon="fa-envelope-open-text"
-        onOpen={openIfBuilt(navigation, '/teacher/excuse-letters')}
-        loading={pending.loading}
-        error={pending.error}
-        onRetry={pending.reload}
-        tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
-      >
-        {review ? <Stat large value={review.value} caption={review.caption} /> : null}
-      </Card>
+      <Reveal index={1}>
+        <Card
+          title="Excuse letters to review"
+          icon="fa-envelope-open-text"
+          onOpen={openIfBuilt(navigation, '/teacher/excuse-letters')}
+          loading={pending.loading}
+          error={pending.error}
+          onRetry={pending.reload}
+          onReload={pending.reload}
+          tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
+        >
+          {review ? <Stat large value={review.value} caption={review.caption} /> : null}
+        </Card>
+      </Reveal>
 
-      <Card title="Term grades" icon="fa-chart-simple" onOpen={openIfBuilt(navigation, '/teacher/grades')} loading={summary.loading} error={summary.error} onRetry={summary.reload}>
-        {d ? (
-          gradesLine ? (
-            <Stat value={gradesLine.value} caption={gradesLine.caption} />
+      <Reveal index={2}>
+        <Card
+          title="Term grades"
+          icon="fa-chart-simple"
+          onOpen={openIfBuilt(navigation, '/teacher/grades')}
+          loading={summary.loading}
+          error={summary.error}
+          onRetry={summary.reload}
+          onReload={summary.reload}
+        >
+          {d ? (
+            gradesLine ? (
+              <Stat value={gradesLine.value} caption={gradesLine.caption} />
+            ) : (
+              <CardEmpty>You have no subject assignments.</CardEmpty>
+            )
+          ) : null}
+        </Card>
+      </Reveal>
+
+      <Reveal index={3}>
+        {/* NO RELOAD HERE: the count is UnreadProvider's — the server's
+            answer, re-read on every `new_message` (§10) — and this card makes
+            no request of its own that a button could ask again. */}
+        <Card title="Messages" icon="fa-comments" onOpen={openIfBuilt(navigation, '/teacher/messages')}>
+          <Stat value={messagesLine.value} caption={messagesLine.caption} />
+        </Card>
+      </Reveal>
+
+      <Reveal index={4}>
+        <Card
+          title="My classes"
+          icon="fa-users-rectangle"
+          onOpen={openIfBuilt(navigation, '/teacher/grades')}
+          loading={summary.loading}
+          error={summary.error}
+          onRetry={summary.reload}
+          onReload={summary.reload}
+        >
+          {classesLine ? (
+            <View>
+              <Stat value={classesLine.value} caption={classesLine.caption} />
+              {d.classes.map((c, i) => (
+                <View key={c.assignment_id} className={`border-t border-edge-soft py-2.5 ${i === 0 ? 'mt-3' : ''}`}>
+                  <Text className="text-sm font-semibold text-fg">
+                    Grade {c.grade_level} - {c.section}
+                    <Text className="font-normal text-fg-muted">  {c.subject_name}</Text>
+                  </Text>
+                  <Text className="mt-0.5 text-sm text-fg-muted">
+                    {c.students} {c.students === 1 ? 'student' : 'students'} · grades recorded {c.recorded} of {c.students}
+                  </Text>
+                </View>
+              ))}
+            </View>
           ) : (
-            <CardEmpty>You have no subject assignments.</CardEmpty>
-          )
-        ) : null}
-      </Card>
+            // TCH-002 is exactly this account: adviser of a section, no
+            // subject assignments at all. Naming the state beats an empty box.
+            <CardEmpty>
+              You have no subject assignments. An admin assigns subjects to teachers
+              {advisory.length ? ', but you can still record attendance for your advisory section.' : '.'}
+            </CardEmpty>
+          )}
+        </Card>
+      </Reveal>
 
-      <Card title="Messages" icon="fa-comments" onOpen={openIfBuilt(navigation, '/teacher/messages')}>
-        <Stat value={messagesLine.value} caption={messagesLine.caption} />
-      </Card>
-
-      <Card
-        title="My classes"
-        icon="fa-users-rectangle"
-        onOpen={openIfBuilt(navigation, '/teacher/grades')}
-        loading={summary.loading}
-        error={summary.error}
-        onRetry={summary.reload}
-      >
-        {classesLine ? (
-          <View>
-            <Stat value={classesLine.value} caption={classesLine.caption} />
-            {d.classes.map((c, i) => (
-              <View key={c.assignment_id} className={`py-2 ${i > 0 ? 'border-t border-edge' : 'mt-2 border-t border-edge'}`}>
-                <Text className="text-sm text-fg">
-                  Grade {c.grade_level} - {c.section}
-                  <Text className="text-fg-muted">  {c.subject_name}</Text>
-                </Text>
-                <Text className="text-sm text-fg-muted">
-                  {c.students} {c.students === 1 ? 'student' : 'students'} · grades recorded {c.recorded} of {c.students}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          // TCH-002 is exactly this account: adviser of a section, no
-          // subject assignments at all. Naming the state beats an empty box.
-          <CardEmpty>
-            You have no subject assignments. An admin assigns subjects to teachers
-            {advisory.length ? ', but you can still record attendance for your advisory section.' : '.'}
-          </CardEmpty>
-        )}
-      </Card>
-
-      <Card title="Upcoming events" icon="fa-calendar-days" onOpen={openIfBuilt(navigation, '/teacher/events')} loading={events.loading} error={events.error} onRetry={events.reload}>
-        {eventLine ? (
-          <View className="gap-2">
-            <Stat value={eventLine.value} caption={eventLine.caption} />
-            {events.data.length > 1 ? <View className="border-t border-edge" /> : null}
-            {events.data.slice(1).map((row) => (
-              <Text key={row.id} className="text-sm text-fg">
-                {row.title}
-                <Text className="text-xs text-fg-muted">  {longDate(row.event_date)}</Text>
-              </Text>
-            ))}
-          </View>
-        ) : (
-          <CardEmpty>No upcoming events.</CardEmpty>
-        )}
-      </Card>
+      <Reveal index={5}>
+        <Card
+          title="Upcoming events"
+          icon="fa-calendar-days"
+          onOpen={openIfBuilt(navigation, '/teacher/events')}
+          loading={events.loading}
+          error={events.error}
+          onRetry={events.reload}
+          onReload={events.reload}
+        >
+          {eventLine ? (
+            <View>
+              <Stat value={eventLine.value} caption={eventLine.caption} />
+              {events.data.length > 1 ? (
+                <View className="mt-3 gap-2 border-t border-edge-soft pt-3">
+                  {events.data.slice(1).map((row) => (
+                    <Text key={row.id} className="text-sm text-fg">
+                      {row.title}
+                      <Text className="text-xs text-fg-muted">  {longDate(row.event_date)}</Text>
+                    </Text>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <CardEmpty>No upcoming events.</CardEmpty>
+          )}
+        </Card>
+      </Reveal>
     </ScrollView>
   );
 }

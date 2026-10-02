@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import DataList from '../../components/DataList';
+import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
-import Icon from '../../icons';
-import { useTheme } from '../../theme/ThemeProvider';
 
 // PARENT → MEMOS. No audience label on a memo row: memos have no targeting
-// columns, so the fact is true of the whole page and is said once above it.
-// One empty branch (§5f).
+// columns, so the fact is true of the whole page and is said once above it —
+// as the section's own description since feat/ui-refresh, where it was a note
+// card before. One empty branch (§5f).
+//
+// RELOAD is `load(0)` — the request pull-to-refresh and "Try again" already
+// make, from the section's header.
 export default function MemosScreen({ navigation }) {
-  const { tokens } = useTheme();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,10 +45,14 @@ export default function MemosScreen({ navigation }) {
   }, [load]);
 
   const header = (
-    <View className="mb-3 flex-row items-start gap-2 rounded-xl border border-edge bg-surface px-4 py-3">
-      <Icon name="fa-circle-info" size={13} color={tokens['fg-faint']} style={{ marginTop: 3 }} />
-      <Text className="flex-1 text-sm text-fg-body">Memos come from the school administration and go to everyone.</Text>
-    </View>
+    <SectionHeader
+      title="Posted memos"
+      description="Memos come from the school administration and go to everyone."
+      onReload={() => load(0)}
+      reloading={loading || refreshing}
+      reloadLabel="Reload memos"
+      className="mb-4"
+    />
   );
 
   return (

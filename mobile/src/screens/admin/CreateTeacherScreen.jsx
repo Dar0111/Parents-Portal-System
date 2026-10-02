@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import PasswordChecklist from '../../components/PasswordChecklist';
@@ -16,6 +18,12 @@ import { createTeacherBody, createTeacherProblem, teacherCreatedNotice } from '.
 // and a refusal lands under its own field — the client's or the server's 400
 // naming `field` (password, contact_number, email). The typed password is
 // never echoed back after the save.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03): the fields in one card, then the
+// neutral way out and the one filled step forward — both the shared `Button`
+// at 48dp. NO RELOAD: a write-only form shows no server data. The label still
+// changes while the write is in flight; `loading` is the old
+// `disabled={saving}` plus its spinner and busy state.
 const EMPTY = { login_id: '', password: '', name: '', email: '', contact_number: '' };
 
 export default function CreateTeacherScreen({ navigation }) {
@@ -55,53 +63,49 @@ export default function CreateTeacherScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-3 p-4 pb-10">
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
         {formError ? <ErrorAlert message={formError} /> : null}
-        <FormField
-          label="Login ID"
-          required
-          value={form.login_id}
-          onChangeText={set('login_id')}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={20}
-          hint="Assigned teacher ID, not an LRN. At most 20 characters."
-        />
-        <PasswordField
-          label="Password"
-          required
-          value={form.password}
-          onChangeText={set('password')}
-          autoComplete="new-password"
-          revealed={revealed}
-          onToggleReveal={() => setRevealed((r) => !r)}
-          error={fieldErrors.password}
-          below={<PasswordChecklist value={form.password} />}
-        />
-        <FormField label="Name" required value={form.name} onChangeText={set('name')} />
-        <FormField label="Email" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
-        <FormField
-          label="Contact number"
-          value={form.contact_number}
-          onChangeText={set('contact_number')}
-          keyboardType="phone-pad"
-          maxLength={20}
-          hint={contactRuleHint()}
-          error={fieldErrors.contact_number}
-        />
-        <View className="flex-row justify-end gap-2">
-          <Pressable onPress={() => navigation.goBack()} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-            <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={submit}
-            disabled={saving}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving, busy: saving }}
-            className={`rounded-lg bg-primary px-4 py-2 ${saving ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Creating…' : 'Create teacher'}</Text>
-          </Pressable>
+        <View className={`${cardClass} gap-4 p-4`}>
+          <FormField
+            label="Login ID"
+            required
+            value={form.login_id}
+            onChangeText={set('login_id')}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={20}
+            hint="Assigned teacher ID, not an LRN. At most 20 characters."
+          />
+          <PasswordField
+            label="Password"
+            required
+            value={form.password}
+            onChangeText={set('password')}
+            autoComplete="new-password"
+            revealed={revealed}
+            onToggleReveal={() => setRevealed((r) => !r)}
+            error={fieldErrors.password}
+            below={<PasswordChecklist value={form.password} />}
+          />
+          <FormField label="Name" required value={form.name} onChangeText={set('name')} />
+          <FormField label="Email" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
+          <FormField
+            label="Contact number"
+            value={form.contact_number}
+            onChangeText={set('contact_number')}
+            keyboardType="phone-pad"
+            maxLength={20}
+            hint={contactRuleHint()}
+            error={fieldErrors.contact_number}
+          />
+        </View>
+        <View className="flex-row flex-wrap justify-end gap-2">
+          <Button onPress={() => navigation.goBack()} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" icon="fa-user-plus" onPress={submit} loading={saving}>
+            {saving ? 'Creating…' : 'Create teacher'}
+          </Button>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

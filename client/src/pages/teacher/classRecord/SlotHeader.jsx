@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Button from '../../../components/Button';
 import Modal from '../../../components/Modal';
 import FormField from '../../../components/FormField';
 
@@ -15,6 +16,14 @@ import FormField from '../../../components/FormField';
 // INPUT, and its whole column is disabled. That is a state, not a verdict
 // (§4): the assessment simply has not happened, and the computation leaves
 // the column out entirely rather than counting it as zero.
+//
+// THE COLUMN HEADER KEEPS ITS MEASURED BOX (feat/ui-refresh): the 4.5rem
+// width, the two-line label, the maximum's width, padding and text size are
+// all as they were — the header row's height is a measured figure the sticky
+// column and the scroll cue were checked against. The refresh gave the two
+// small controls the shared corner and the shared keyboard outline, and
+// restyled the DIALOG behind the label, which has room: field stack, the
+// explanations at body size, Done in the dialog's footer.
 export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncode }) {
   const [open, setOpen] = useState(false);
 
@@ -47,7 +56,7 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
           type="button"
           onClick={() => setOpen(true)}
           disabled={!canEncode}
-          className="line-clamp-2 w-full rounded px-0.5 text-center text-xs font-semibold leading-tight text-fg-body underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent disabled:no-underline"
+          className="line-clamp-2 w-full rounded-md px-0.5 text-center text-xs font-semibold leading-tight text-fg-body underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-accent disabled:cursor-not-allowed disabled:no-underline"
           title={`${slot.display_label} — rename or change its highest possible score`}
         >
           <span className="block">{code}</span>
@@ -65,7 +74,7 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
             name={`hps-${slot.type}-${slot.slot_no}`}
             aria-label={`${slot.display_label} highest possible score`}
             title={`${slot.display_label} highest possible score`}
-            className="w-14 rounded-md border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted disabled:bg-surface-subtle"
+            className="w-14 rounded-lg border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-accent disabled:cursor-not-allowed disabled:bg-surface-subtle"
             value={maxValue}
             disabled={!canEncode}
             onChange={(e) => onDraft({ ...draft, max_score: e.target.value })}
@@ -75,27 +84,45 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
             type="button"
             onClick={() => setOpen(true)}
             disabled={!canEncode}
-            className="w-full rounded border border-dashed border-edge-strong px-0.5 py-0.5 text-[0.65rem] text-fg-muted hover:bg-surface-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
+            className="w-full rounded-lg border border-dashed border-edge-strong px-0.5 py-0.5 text-[0.65rem] text-fg-muted enabled:hover:bg-surface enabled:hover:text-fg-body focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-accent disabled:cursor-not-allowed"
           >
             Set HPS
           </button>
         )}
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)} title={slot.display_label} size="sm">
-        <div className="space-y-4">
-          <FormField
-            label="Name (optional)"
-            value={nameValue}
-            autoComplete="off"
-            name={`slot-name-${slot.type}-${slot.slot_no}`}
-            placeholder={`${slot.type === 'WW' ? 'Written Work' : 'Performance Task'} ${slot.slot_no}`}
-            onChange={(e) => onDraft({ ...draft, name: e.target.value })}
-          />
-          <p className="text-xs text-fg-muted">
-            Left blank, this column is called &ldquo;{slot.type === 'WW' ? 'Written Work' : 'Performance Task'}{' '}
-            {slot.slot_no}&rdquo; here and on the parent&rsquo;s grade breakdown.
-          </p>
+      {/* Done is the neutral button, on purpose: it CLOSES the dialog and
+          writes nothing — what was typed is already a draft in the grid, and
+          the page's one filled button is "Save all". */}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title={slot.display_label}
+        size="sm"
+        footer={
+          <Button variant="secondary" onClick={() => setOpen(false)}>
+            Done
+          </Button>
+        }
+      >
+        {/* `text-left font-normal`: Modal renders inline, so this dialog sits
+            INSIDE the column's <th> and would inherit a header cell's bold,
+            centred text. */}
+        <div className="space-y-4 text-left font-normal">
+          <div className="space-y-1.5">
+            <FormField
+              label="Name (optional)"
+              value={nameValue}
+              autoComplete="off"
+              name={`slot-name-${slot.type}-${slot.slot_no}`}
+              placeholder={`${slot.type === 'WW' ? 'Written Work' : 'Performance Task'} ${slot.slot_no}`}
+              onChange={(e) => onDraft({ ...draft, name: e.target.value })}
+            />
+            <p className="text-sm text-fg-muted">
+              Left blank, this column is called &ldquo;{slot.type === 'WW' ? 'Written Work' : 'Performance Task'}{' '}
+              {slot.slot_no}&rdquo; here and on the parent&rsquo;s grade breakdown.
+            </p>
+          </div>
 
           <FormField
             label="Highest possible score"
@@ -109,28 +136,21 @@ export default function SlotHeader({ slot, draft, onDraft, scoredCount, canEncod
           {/* EXPLAINED BEFORE THE REQUEST, because the client already knows
               the count. The server's 409 is the backstop, not the message a
               teacher should have to trigger to read. */}
-          {scoredCount > 0 ? (
-            <p className="text-xs text-fg-muted">
-              {scoredCount} {scoredCount === 1 ? 'learner has a score' : 'learners have scores'} in this column.
-              Changing the highest possible score recomputes {scoredCount === 1 ? 'their' : 'their'} grades. It cannot be
-              cleared while {scoredCount === 1 ? 'that score is' : 'those scores are'} recorded — remove{' '}
-              {scoredCount === 1 ? 'it' : 'them'} first.
-            </p>
-          ) : (
-            <p className="text-xs text-fg-muted">
-              No scores are recorded in this column yet. Clearing the highest possible score marks it unused, and it is
-              left out of every grade.
-            </p>
-          )}
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body hover:bg-surface-subtle"
-              onClick={() => setOpen(false)}
-            >
-              Done
-            </button>
+          <div className="flex items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3 text-sm text-fg-body">
+            <i aria-hidden="true" className="fa-solid fa-circle-info mt-0.5 text-fg-faint" />
+            {scoredCount > 0 ? (
+              <p className="min-w-0 flex-1">
+                {scoredCount} {scoredCount === 1 ? 'learner has a score' : 'learners have scores'} in this column.
+                Changing the highest possible score recomputes {scoredCount === 1 ? 'their' : 'their'} grades. It cannot be
+                cleared while {scoredCount === 1 ? 'that score is' : 'those scores are'} recorded — remove{' '}
+                {scoredCount === 1 ? 'it' : 'them'} first.
+              </p>
+            ) : (
+              <p className="min-w-0 flex-1">
+                No scores are recorded in this column yet. Clearing the highest possible score marks it unused, and it is
+                left out of every grade.
+              </p>
+            )}
           </div>
         </div>
       </Modal>

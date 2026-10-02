@@ -1,5 +1,6 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import ErrorAlert from './ErrorAlert';
+import Text from './Text';
 import Icon from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -20,9 +21,9 @@ export default function FormStatus({ status, className = '' }) {
   return (
     <View
       accessibilityLiveRegion="polite"
-      className={`flex-row items-start gap-3 rounded-lg border border-success-edge bg-success-soft px-4 py-3 ${className}`}
+      className={`flex-row items-start gap-3 rounded-xl border border-success-edge bg-success-soft px-4 py-3 ${className}`}
     >
-      <Icon name="fa-circle-check" size={15} color={tokens['success-icon']} style={{ marginTop: 2 }} />
+      <Icon name="fa-circle-check" size={16} color={tokens['success-icon']} style={{ marginTop: 2 }} />
       <Text className="flex-1 text-sm text-success-strong">{status.text}</Text>
     </View>
   );

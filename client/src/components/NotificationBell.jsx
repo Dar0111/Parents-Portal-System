@@ -4,6 +4,7 @@ import api from '../api/axios';
 import extractError from '../api/extractError';
 import ErrorAlert from './ErrorAlert';
 import LoadingSpinner from './LoadingSpinner';
+import { buttonClass, linkClass } from './buttonClass';
 import { useNotifications } from '../realtime/NotificationProvider';
 import { requestLeave } from '../layout/leaveGuard';
 
@@ -172,6 +173,11 @@ export default function NotificationBell({ closeWhen = false }) {
 
   return (
     <div className="relative">
+      {/* THE SAME 44px ICON BUTTON AS THE MENU BUTTON BESIDE THE TITLE
+          (feat/ui-refresh): `buttonClass` secondary + `icon`, so the two
+          header controls are a matched pair and the bell has the shared
+          keyboard outline. The flex is the button's own; the glyph and the
+          count pill are decoration, and the sr-only sentence is the name. */}
       <button
         ref={bellRef}
         type="button"
@@ -179,13 +185,15 @@ export default function NotificationBell({ closeWhen = false }) {
         aria-controls={panelId}
         aria-haspopup="menu"
         onClick={toggle}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body transition hover:bg-surface-muted"
+        className={buttonClass({ variant: 'secondary', size: 'icon', className: 'relative' })}
       >
         <i aria-hidden="true" className="fa-solid fa-bell" />
         {unread > 0 ? (
+          // `ring-surface` cuts the pill out of the button's own border, so
+          // the figure reads as sitting ON the bell rather than merged with it.
           <span
             aria-hidden="true"
-            className="absolute -right-1 -top-1 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-medium leading-5 text-primary-fg"
+            className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-primary px-1 text-center text-xs font-semibold tabular-nums leading-5 text-primary-fg ring-2 ring-surface"
           >
             {unread > 99 ? '99+' : unread}
           </span>
@@ -210,16 +218,28 @@ export default function NotificationBell({ closeWhen = false }) {
           /* z-40 puts the panel over the sticky header (z-30). Shell closes it
              when the mobile drawer (also z-40) opens, because two siblings at
              the same level would otherwise be decided by DOM order. Below sm
-             the panel is full-bleed: w-80 overflows a 360px phone. */
-          className="fixed inset-x-2 top-16 z-40 max-h-[26rem] overflow-y-auto rounded-xl border border-edge bg-surface shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80"
+             the panel is full-bleed: a fixed width overflows a 360px phone.
+
+             `top-16` IS THE HEADER'S HEIGHT (exactly 4rem — layout/Header.jsx
+             says so on its side); `mt-2` is the gap under it at every width.
+
+             NEVER TALLER THAN WHAT IS LEFT OF THE SCREEN (feat/ui-refresh):
+             26rem, or the viewport less the header and a margin when that is
+             smaller — a phone held sideways, or the Large text size — so the
+             last row and "Show older" can always be scrolled to. The panel is
+             the scroller, which also clips its rows to the rounded corners. */
+          className="fixed inset-x-2 top-16 z-40 mt-2 max-h-[min(26rem,calc(100dvh_-_5.5rem))] overflow-y-auto rounded-2xl border border-edge bg-surface shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:w-96"
         >
-          <div className="flex items-center justify-between border-b border-edge px-4 py-3">
-            <p className="text-sm font-semibold text-fg">Notifications</p>
+          {/* The title is as tall as the button beside it (`min-h-11`), so the
+              bar keeps one height whether or not "Mark all as read" is shown —
+              reading the last unread row must not shift the list under it. */}
+          <div className="flex items-center justify-between gap-3 border-b border-edge py-1.5 pl-4 pr-2">
+            <p className="flex min-h-11 items-center font-serif text-base font-bold text-fg">Notifications</p>
             {unread > 0 ? (
               <button
                 type="button"
                 onClick={markAllRead}
-                className="text-sm font-medium text-brand underline-offset-2 hover:underline"
+                className={`inline-flex min-h-11 items-center rounded-lg px-2 text-sm ${linkClass}`}
               >
                 Mark all as read
               </button>
@@ -238,25 +258,30 @@ export default function NotificationBell({ closeWhen = false }) {
             <p className="px-4 py-8 text-center text-sm text-fg-muted">No notifications yet.</p>
           ) : null}
 
-          <ul>
+          {/* The divider is the LIST's (`divide-y`), not each row's, so the
+              last row carries none. A row's keyboard outline is drawn INSIDE
+              it (-2px): the panel is a scroller and would clip an outer one. */}
+          <ul className="divide-y divide-edge-soft">
             {rows.map((row) => (
               <li key={row.id}>
                 <button
                   type="button"
                   role="menuitem"
                   onClick={() => openRow(row)}
-                  className="flex w-full items-start gap-3 border-b border-edge px-4 py-3 text-left transition hover:bg-surface-muted"
+                  className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent"
                 >
+                  {/* 0.4375rem down: the dot's centre on the first line's
+                      centre (a `text-sm` line is 1.375rem, the dot 0.5rem). */}
                   <span
                     aria-hidden="true"
-                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${row.read_at ? 'bg-transparent' : 'bg-primary'}`}
+                    className={`mt-[0.4375rem] h-2 w-2 shrink-0 rounded-full ${row.read_at ? 'bg-transparent' : 'bg-primary'}`}
                   />
                   <span className="min-w-0 flex-1">
-                    <span className={`block text-sm ${row.read_at ? 'text-fg-muted' : 'font-medium text-fg'}`}>
+                    <span className={`block text-sm ${row.read_at ? 'text-fg-muted' : 'font-semibold text-fg'}`}>
                       {row.title}
                     </span>
                     <span className="mt-0.5 block text-sm text-fg-muted">{row.body}</span>
-                    <span className="mt-1 block text-xs text-fg-muted">{relativeTime(row.created_at)}</span>
+                    <span className="mt-1 block text-xs tabular-nums text-fg-muted">{relativeTime(row.created_at)}</span>
                   </span>
                   {row.read_at ? null : <span className="sr-only">Unread</span>}
                 </button>
@@ -265,12 +290,12 @@ export default function NotificationBell({ closeWhen = false }) {
           </ul>
 
           {hasMore ? (
-            <div className="p-3">
+            <div className="border-t border-edge-soft p-3">
               <button
                 type="button"
                 onClick={() => load(offset + PAGE_SIZE)}
                 disabled={loading}
-                className="w-full rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-60"
+                className={buttonClass({ variant: 'secondary', size: 'sm', full: true })}
               >
                 {loading ? 'Loading…' : 'Show older'}
               </button>

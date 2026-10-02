@@ -4,6 +4,9 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import { timestampDay } from '../../format/date';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
+import { linkClass } from '../../components/buttonClass';
+import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Parent memos — READ ONLY, like every role's memos page.
@@ -39,6 +42,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // INNER JOINed 2026-09-11 (71d23f9); this page renders it in the modal
 // only (2026-09-12). Only admins POST memos, so the value is always an
 // admin; it is still rendered — same line as the other two pages.
+//
+// RELOAD (feat/ui-refresh) is `load` itself — the same request with the page
+// and sort that are applied now; nothing is reset. The table's own frame
+// shows the loading and error states, as on the first load.
 
 export default function ParentMemosPage() {
   usePageTitle('Memos');
@@ -86,14 +93,10 @@ export default function ParentMemosPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <button
-            type="button"
-            onClick={() => setReading(row)}
-            className="text-left font-medium text-brand underline-offset-2 hover:underline"
-          >
+          <button type="button" onClick={() => setReading(row)} className={`${linkClass} text-left`}>
             {row.title}
           </button>
-          <div className="line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
+          <div className="mt-0.5 line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -103,66 +106,82 @@ export default function ParentMemosPage() {
       sortable: true,
       // A TIMESTAMP → the school's calendar day. Slicing the ISO string
       // showed the previous day before 08:00 PH (format/date.js).
-      render: (row) => timestampDay(row.created_at),
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{timestampDay(row.created_at)}</span>,
     },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* No audience label on a memo row: memos have no targeting columns at
-          all, so the fact is true of the whole page rather than of any row. */}
-      <p className="rounded-xl border border-edge bg-surface px-4 py-3 text-sm text-fg-body">
-        <i className="fa-solid fa-circle-info mr-2 text-fg-faint" />
-        Memos come from the school administration and go to everyone.
-      </p>
+    <>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          {/* No audience label on a memo row: memos have no targeting columns
+              at all, so the fact is true of the whole page rather than of any
+              row — it is the section's own description. */}
+          <SectionHeader
+            title="Posted memos"
+            description="Memos come from the school administration and go to everyone."
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload memos"
+          />
 
-      <DataTable
-        // CONTENT-LIST CARD (DV1b-a). Memos are school-wide, so there is no
-        // audience to show and meta carries only the date. `posted_by_name`
-        // is deliberately NOT on the card: the table does not show it either
-        // on this page, and it belongs to the detail modal — adding it here
-        // would put a fact on the card that the list never carried.
-        renderCard={(row) => ({
-          onSelect: () => setReading(row),
-          title: row.title,
-          subtitle: row.content,
-          meta: timestampDay(row.created_at),
-        })}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon="fa-file-lines"
-        emptyTitle="No memos yet"
-        // This endpoint accepts no filters and needs no student, so there is
-        // exactly one cause of an empty list. Convention 5f applies here by
-        // having one honest branch, not none — and forcing a second would be
-        // the invented flag the convention exists to prevent.
-        emptyMessage="Memos from the school administration will appear here."
-      />
+          <DataTable
+            // CONTENT-LIST CARD (DV1b-a). Memos are school-wide, so there is
+            // no audience to show and meta carries only the date.
+            // `posted_by_name` is deliberately NOT on the card: the table does
+            // not show it either on this page, and it belongs to the detail
+            // modal — adding it here would put a fact on the card that the
+            // list never carried.
+            renderCard={(row) => ({
+              onSelect: () => setReading(row),
+              title: row.title,
+              subtitle: row.content,
+              meta: timestampDay(row.created_at),
+            })}
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon="fa-file-lines"
+            emptyTitle="No memos yet"
+            // This endpoint accepts no filters and needs no student, so there
+            // is exactly one cause of an empty list. Convention 5f applies
+            // here by having one honest branch, not none — and forcing a
+            // second would be the invented flag the convention exists to
+            // prevent.
+            emptyMessage="Memos from the school administration will appear here."
+          />
+        </section>
+      </Reveal>
 
+      {/* OUTSIDE the entrance wrapper: Modal renders inline behind a fixed
+          backdrop, so it must never sit under an element that can carry a
+          transform (motion/motion.js). Its body is the scroller. */}
       <Modal
         open={Boolean(reading)}
         onClose={() => setReading(null)}
         title={reading?.title}
         size="lg"
       >
-        <div className="max-h-[70vh] overflow-y-auto">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-            <span>Posted {timestampDay(reading?.created_at)}</span>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-fg-muted">
+            <span className="tabular-nums">Posted {timestampDay(reading?.created_at)}</span>
             <span aria-hidden="true">·</span>
             <span>Posted by {reading?.posted_by_name}</span>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg-secondary">
+          {/* Reading text: one step larger than the body size, in a column
+              that stays under ~75 characters however wide the dialog is. */}
+          <p className="max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body">
             {reading?.content}
           </p>
         </div>
       </Modal>
-    </div>
+    </>
   );
 }

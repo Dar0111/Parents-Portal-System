@@ -120,6 +120,12 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
     );
   }
 
+  // THREE STATES, TOLD APART BY SHAPE (the frame), GLYPH (the pill's letter)
+  // AND NAME (the aria-label) — never by colour alone: a recorded day is a
+  // solid frame holding a StatusBadge, an unrecorded one a dashed, empty
+  // frame, and a day outside the month has no frame at all. The sizing —
+  // CELL_HEIGHT, `p-2`, the `rounded-lg` chip corner — is the measured set
+  // from feat/ui-polish and is unchanged by feat/ui-refresh.
   const frame = [
     `flex ${CELL_HEIGHT} w-full flex-col justify-start rounded-lg p-2 text-left transition`,
     record ? 'border border-edge bg-surface' : 'border border-dashed border-edge-strong bg-transparent',
@@ -130,8 +136,8 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
   const body = (
     <>
       <span className="flex items-baseline justify-between gap-1">
-        <span className="text-xs font-semibold text-fg">{cell.day}</span>
-        {isToday ? <span className="text-[0.625rem] font-medium text-brand">Today</span> : null}
+        <span className="text-xs font-semibold tabular-nums text-fg">{cell.day}</span>
+        {isToday ? <span className="text-[0.625rem] font-semibold text-brand">Today</span> : null}
       </span>
       <span className="mt-1 block">
         {record ? (
@@ -191,7 +197,10 @@ function DayCell({ cell, record, letter, isToday, onSelect, selected }) {
           aria-expanded={selected}
           aria-controls="attendance-day-detail"
           aria-current={isToday ? 'date' : undefined}
-          className={`${frame} hover:bg-surface-subtle`}
+          // The keyboard outline is the shared one, offset outward: the cell's
+          // 4px gutter has room for it, and it must not be confused with
+          // Today's ring, which sits on the frame itself.
+          className={`${frame} hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent`}
         >
           {body}
         </button>
@@ -288,27 +297,36 @@ export default function AttendanceCalendar({
           up the badge already spells the word out. */}
       {/* The legend follows the pill: visible wherever the cells show
           letters, hidden once they show the word. */}
-      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-fg-muted xl:hidden">
-        <span>P = Present</span>
-        <span>L = Late</span>
-        <span>A = Absent</span>
-        <span>E = Excused</span>
+      {/* The letter is set a step darker than its word, so the key reads as
+          letter → word at a glance; each entry's text is unchanged
+          ("P = Present"). */}
+      <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-edge-soft pt-3 text-xs text-fg-muted xl:hidden">
+        {[
+          ['P', 'Present'],
+          ['L', 'Late'],
+          ['A', 'Absent'],
+          ['E', 'Excused'],
+        ].map(([letter, word]) => (
+          <span key={letter}>
+            <span className="font-semibold text-fg-secondary">{letter}</span> = {word}
+          </span>
+        ))}
         <span className="inline-flex items-center gap-1">
           <i aria-hidden="true" className="fa-solid fa-envelope" /> = excuse letter
         </span>
       </p>
 
       {alsoRecorded.length ? (
-        <div className="mt-4 rounded-lg border border-edge bg-surface-subtle px-4 py-3">
-          <p className="text-xs font-semibold text-fg">Also recorded this month</p>
+        <div className="mt-4 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Also recorded this month</p>
           <p className="mt-1 text-xs text-fg-muted">
             These fall on a weekend, so they are not in the grid above — but they are counted in the
             totals.
           </p>
-          <ul className="mt-2 flex flex-wrap gap-2">
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
             {alsoRecorded.map((row) => (
               <li key={row.date} className="flex items-center gap-2 text-xs text-fg-body">
-                <span>
+                <span className="tabular-nums">
                   {weekdayName(row.date)} {longDate(row.date)}
                 </span>
                 <StatusBadge status={row.status} />

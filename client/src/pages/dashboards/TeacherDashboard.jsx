@@ -2,8 +2,14 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { useAuth } from '../../auth/AuthContext';
 import { useUnread } from '../../realtime/UnreadProvider';
-import { longDate, todayLocalDateString } from '../../format/date';
+import { longDate, todayLocalDateString, weekdayName } from '../../format/date';
+import Button from '../../components/Button';
+import ReloadButton from '../../components/ReloadButton';
+import { buttonClass } from '../../components/buttonClass';
+import CountUp from '../../motion/CountUp';
+import Reveal from '../../motion/Reveal';
 import Card, { CardEmpty, Stat } from './Card';
+import ProfileHero from './ProfileHero';
 import { useCard } from './useCard';
 
 // Teacher dashboard (DB2, 2026-09-19). Same structure as the parent's: one
@@ -24,6 +30,18 @@ import { useCard } from './useCard';
 // no advisory section. A permanent "you have no advisory section" banner is
 // noise for a subject teacher for whom it will never change — My classes
 // carries that explanation instead.
+//
+// THE PROFILE HERO (feat/ui-refresh, 2026-10-02) leads the page: the signed-in
+// teacher, today's date, and facts taken from the SAME two reads the page
+// already makes — /dashboard (school year, term, the class count My classes
+// shows) and the advisory sections the banners are built from. Each fact
+// appears when its read has answered and not before. No request was added.
+//
+// RELOAD (feat/ui-refresh): a card's Reload is the `reload` of the useCard
+// that feeds it, so Term grades and My classes — one /dashboard read — reload
+// together. Messages has none: its count is UnreadProvider's, kept current by
+// the socket, and the card makes no request of its own to ask again. Each
+// attendance banner reloads its own day.
 
 // Amber is not a verdict (§4): partial means "still doing it", not "late" or
 // "bad". Green requires FULL coverage (Darryl, Q4) — the encode screen omits
@@ -50,6 +68,9 @@ function bannerFor(section, rows, rosterCount) {
   };
 }
 
+// The banner's frame, shared by its loading, error and loaded states.
+const BANNER_FRAME = 'rounded-xl border px-4 py-3 sm:px-5';
+
 function AttendanceBanner({ section, today }) {
   const day = useCard(
     () =>
@@ -62,50 +83,63 @@ function AttendanceBanner({ section, today }) {
 
   const className = `Grade ${section.grade_level} - ${section.name}`;
 
+  // ONE SHAPE IN ALL THREE STATES — the notice radius (`rounded-xl`, as the
+  // admin's hazard notice), the same padding — so pressing Reload swaps the
+  // words and the tint, never the outline of the banner.
   if (day.loading) {
     return (
-      <div className="rounded-xl border border-edge bg-surface px-5 py-4 text-sm text-fg-muted">
+      <div className={`${BANNER_FRAME} border-edge bg-surface text-sm text-fg-muted`}>
         Checking today&rsquo;s attendance for {className}…
       </div>
     );
   }
   if (day.error) {
     return (
-      <div className="rounded-xl border border-edge bg-surface px-5 py-4">
-        <p className="text-sm text-fg">{className}</p>
+      <div className={`${BANNER_FRAME} border-edge bg-surface`}>
+        <p className="text-sm font-semibold text-fg">{className}</p>
         <p className="mt-1 text-sm text-fg-muted">{day.error}</p>
-        <button
-          type="button"
-          onClick={day.reload}
-          className="mt-2 text-sm font-medium text-brand underline-offset-2 hover:underline"
-        >
+        <Button size="sm" className="mt-3" onClick={day.reload}>
           Try again
-        </button>
+        </Button>
       </div>
     );
   }
 
   const state = bannerFor(section, day.data || [], Number(section.student_count || 0));
-  const frame =
-    state.tone === 'success'
-      ? 'border-success-edge bg-success-soft'
-      : 'border-warning-edge bg-warning-soft';
-  const text = state.tone === 'success' ? 'text-success-strong' : 'text-warning-strong';
+  const done = state.tone === 'success';
+  const frame = done ? 'border-success-edge bg-success-soft' : 'border-warning-edge bg-warning-soft';
+  const text = done ? 'text-success-strong' : 'text-warning-strong';
 
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border ${frame} px-5 py-4`}>
-      <div className="min-w-0">
-        <p className={`text-sm font-semibold ${text}`}>
-          {className} — {state.label}
-        </p>
-        <p className="mt-0.5 text-sm text-fg-body">{state.detail}</p>
+    // THE TEXT BLOCK HAS A BASIS, so on a phone the two controls drop to their
+    // own row under it instead of squeezing the sentence into a narrow column.
+    <div className={`flex flex-wrap items-center gap-x-4 gap-y-3 ${BANNER_FRAME} ${frame}`}>
+      <div className="flex min-w-0 grow basis-64 items-start gap-3">
+        {/* THE GLYPH SAYS WHAT THE COLOUR SAYS: a check once the register is
+            complete, the clipboard while there is still something to mark —
+            green against amber is never the only difference. */}
+        <span aria-hidden="true" className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center ${text}`}>
+          <i className={`fa-solid ${done ? 'fa-circle-check' : 'fa-clipboard-list'}`} />
+        </span>
+        <div className="min-w-0">
+          <p className={`text-sm font-semibold ${text}`}>
+            {className} — {state.label}
+          </p>
+          <p className="mt-0.5 text-sm text-fg-body">{state.detail}</p>
+        </div>
       </div>
-      <Link
-        to="/teacher/attendance"
-        className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-      >
-        {state.tone === 'success' ? 'Open attendance' : 'Record attendance'}
-      </Link>
+      <div className="flex items-center gap-2">
+        {/* This banner's own read, asked again — the same `day.reload` its
+            error state retries with. While it runs the banner is its
+            "Checking…" line above, so the button is never on screen busy. */}
+        <ReloadButton compact onReload={day.reload} label={`Reload attendance for ${className}`} />
+        {/* The filled button while there is something to record; the neutral
+            one once the day is done, when opening the register is no longer
+            the thing this page asks for. */}
+        <Link to="/teacher/attendance" className={buttonClass({ variant: done ? 'secondary' : 'primary', size: 'sm' })}>
+          {done ? 'Open attendance' : 'Record attendance'}
+        </Link>
+      </div>
     </div>
   );
 }
@@ -161,12 +195,41 @@ export default function TeacherDashboard() {
 
   const d = summary.data;
   const advisory = sections.data || [];
+  const classCount = d?.classes?.length ?? 0;
+
+  // The hero's facts. The date is the device's own day; the rest are `d` and
+  // `advisory`, so each is simply absent until its read has answered. The
+  // class count is the figure My classes leads with, from the same array.
+  // The year and the term are keyed on THEIR OWN VALUE, not on `d`: a payload
+  // with no school year (the setting unset) must leave the pill out, never
+  // print the word "undefined".
+  const facts = [
+    { key: 'today', icon: 'fa-calendar-day', label: `${weekdayName(today)}, ${longDate(today)}` },
+    d?.school_year ? { key: 'year', icon: 'fa-school', label: `School year ${d.school_year}` } : null,
+    d?.term ? { key: 'term', icon: 'fa-book-open', label: `Term ${d.term}` } : null,
+    classCount
+      ? { key: 'classes', icon: 'fa-users-rectangle', label: `${classCount} ${classCount === 1 ? 'class' : 'classes'}` }
+      : null,
+    ...advisory.map((section) => ({
+      key: `advisory-${section.id}`,
+      icon: 'fa-chalkboard-user',
+      label: `Adviser of Grade ${section.grade_level} - ${section.name}`,
+    })),
+  ];
 
   return (
-    <div className="space-y-4">
-      {!weekend && advisory.length
-        ? advisory.map((section) => <AttendanceBanner key={section.id} section={section} today={today} />)
-        : null}
+    <div className="space-y-6">
+      <Reveal>
+        <ProfileHero user={user} facts={facts} />
+      </Reveal>
+
+      {!weekend && advisory.length ? (
+        <div className="space-y-3">
+          {advisory.map((section) => (
+            <AttendanceBanner key={section.id} section={section} today={today} />
+          ))}
+        </div>
+      ) : null}
 
       {/* EVERY CARD LEADS WITH A NUMBER (f2, 2026-09-30). The review queue is
           the EMPHASISED card — first, two columns, the bigger number, amber
@@ -174,8 +237,12 @@ export default function TeacherDashboard() {
           the teacher to act. The other four are one column each, so no
           width leaves a hole in the grid. Each row stretches to its
           tallest card — UI-3's `items-start` was undone here by Darryl's
-          decision of 2026-09-30. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          decision of 2026-09-30.
+
+          The cards arrive one after another (Reveal); all five exist from
+          the first render — each owns its spinner — so the stagger has its
+          children at mount. */}
+      <Reveal stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card
           title="Excuse letters to review"
           icon="fa-envelope-open-text"
@@ -184,12 +251,13 @@ export default function TeacherDashboard() {
           loading={pending.loading}
           error={pending.error}
           onRetry={pending.reload}
+          onReload={pending.reload}
           tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
         >
           {pending.data ? (
             <Stat
               large
-              value={pending.data.page.total}
+              value={<CountUp value={pending.data.page.total} />}
               caption={pending.data.page.total === 1 ? 'letter to review' : 'letters to review'}
             />
           ) : null}
@@ -202,6 +270,7 @@ export default function TeacherDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
+          onReload={summary.reload}
         >
           {d ? (
             d.classes_total === 0 ? (
@@ -215,8 +284,11 @@ export default function TeacherDashboard() {
           ) : null}
         </Card>
 
+        {/* NO RELOAD HERE: the count is UnreadProvider's — the server's answer,
+            re-read on every `new_message` (§10) — and this card makes no
+            request of its own that a button could ask again. */}
         <Card title="Messages" icon="fa-comments" to="/teacher/messages">
-          <Stat value={unread} caption={unread === 1 ? 'unread message' : 'unread messages'} />
+          <Stat value={<CountUp value={unread} />} caption={unread === 1 ? 'unread message' : 'unread messages'} />
         </Card>
 
         <Card
@@ -226,24 +298,25 @@ export default function TeacherDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
+          onReload={summary.reload}
         >
           {d?.classes?.length ? (
             <>
-            <Stat value={d.classes.length} caption={d.classes.length === 1 ? 'class' : 'classes'} />
-            <ul className="mt-2 divide-y divide-edge border-t border-edge">
-              {d.classes.map((c) => (
-                <li key={c.assignment_id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-                  <span className="text-sm text-fg">
-                    Grade {c.grade_level} - {c.section}
-                    <span className="ml-2 text-fg-muted">{c.subject_name}</span>
-                  </span>
-                  <span className="text-sm text-fg-muted">
-                    {c.students} {c.students === 1 ? 'student' : 'students'} &middot; grades recorded{' '}
-                    {c.recorded} of {c.students}
-                  </span>
-                </li>
-              ))}
-            </ul>
+              <Stat value={<CountUp value={d.classes.length} />} caption={d.classes.length === 1 ? 'class' : 'classes'} />
+              <ul className="mt-3 divide-y divide-edge-soft border-t border-edge-soft">
+                {d.classes.map((c) => (
+                  <li key={c.assignment_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-3">
+                    <span className="text-sm font-semibold text-fg">
+                      Grade {c.grade_level} - {c.section}
+                      <span className="ml-2 font-normal text-fg-muted">{c.subject_name}</span>
+                    </span>
+                    <span className="text-sm tabular-nums text-fg-muted">
+                      {c.students} {c.students === 1 ? 'student' : 'students'} &middot; grades recorded{' '}
+                      {c.recorded} of {c.students}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </>
           ) : (
             // TCH-002 is exactly this account: adviser of a section, no
@@ -262,12 +335,13 @@ export default function TeacherDashboard() {
           loading={events.loading}
           error={events.error}
           onRetry={events.reload}
+          onReload={events.reload}
         >
           {events.data?.length ? (
             <>
               <Stat value={events.data[0].title} caption={`Next event · ${longDate(events.data[0].event_date)}`} />
               {events.data.length > 1 ? (
-                <ul className="mt-3 space-y-2 border-t border-edge pt-3">
+                <ul className="mt-3 space-y-2 border-t border-edge-soft pt-3">
                   {events.data.slice(1).map((row) => (
                     <EventLine key={row.id} title={row.title} date={row.event_date} />
                   ))}
@@ -278,7 +352,7 @@ export default function TeacherDashboard() {
             <CardEmpty>No upcoming events.</CardEmpty>
           )}
         </Card>
-      </div>
+      </Reveal>
     </div>
   );
 }

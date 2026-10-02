@@ -14,6 +14,7 @@ import ConnectionScreen from '../screens/dev/ConnectionScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import LoginScreen from '../screens/LoginScreen';
+import { useFontsSettled } from '../theme/fonts';
 import { useTheme } from '../theme/ThemeProvider';
 import AppShell, { ScreenFrame } from './AppShell';
 import { isBuilt } from './routes';
@@ -64,9 +65,18 @@ function frameLayout({ children }) {
 // native overlay. So: theme applied → splash hidden → our spinner on
 // `bg-page` while the session reads → then Login, AuthUnavailable or the
 // home. The 15 s timeout in api/client.js guarantees the spinner ends.
+//
+// THE FONTS ARE THE ONE OTHER THING THE SPLASH WAITS FOR, AND ONLY WITH A
+// CLOCK (feat/ui-refresh, 2026-10-02). `fontsSettled` is true when the four
+// bundled font files have loaded, or failed, or 2.5 s have passed —
+// theme/fonts.js — so this gate cannot stall the way the session read did:
+// the worst case is the app opening in the system font. It is here so the
+// first screen is not drawn in one typeface and redrawn in another.
 export default function RootNavigator() {
   const { user, loading, authError, retry } = useAuth();
-  const { ready, resolved, tokens } = useTheme();
+  const { ready: themeReady, resolved, tokens } = useTheme();
+  const fontsSettled = useFontsSettled();
+  const ready = themeReady && fontsSettled;
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});

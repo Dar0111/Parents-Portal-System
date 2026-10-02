@@ -1,19 +1,26 @@
 import { useCallback, useLayoutEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
 import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
+import Text from '../../components/Text';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 import { longDate, todayLocalDateString } from '../../format/date';
+import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 
 // ONE STUDENT RECORD, ADMIN VIEW — the web's admin/StudentDetailPage.jsx: the
@@ -22,8 +29,20 @@ import { useTheme } from '../../theme/ThemeProvider';
 // "Student not found" (admin sees every id); no Create parent (teacher-only;
 // the pending queue is on Users); no status control (it lives on the list).
 // The LRN is shown — an admin acting on the student (§5c) — and the route
-// keys on students.id. The card reads `student`, written by load() and the
+// keys on students.id. The cards read `student`, written by load() and the
 // edit's success only (§5b).
+//
+// THE LAYOUT (feat/ui-refresh, 2026-10-03) is the web's: a HEADER CARD — the
+// learner in the title face with their initials (a learner has no photo,
+// §25), the class and the status badge, the record's Reload and Edit — and
+// TWO FACT CARDS by what the fact is for: who the learner is, and whether a
+// parent account is linked to them; and how to reach the family. Edit is the
+// neutral button: nothing on this screen is a filled action, the record is
+// mostly read.
+//
+// RELOAD is load() — the same GET every focus already makes. The record stays
+// on screen while it runs (the button shows the spinner), and it waits while
+// the edit sheet is open or saving.
 const EMPTY_EDIT = { first_name: '', last_name: '', birthday: '', gender: '', address: '', contact_number: '' };
 const GENDERS = [
   { key: '', label: 'Not recorded' },
@@ -38,8 +57,23 @@ function titleCase(value) {
 function Field({ label, value, empty = 'Not recorded' }) {
   return (
     <View>
-      <Text className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</Text>
-      {value ? <Text className="mt-0.5 text-sm text-fg">{value}</Text> : <Text className="mt-0.5 text-sm text-fg-muted">{empty}</Text>}
+      <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{label}</Text>
+      {value ? <Text className="mt-1 text-sm text-fg">{value}</Text> : <Text className="mt-1 text-sm text-fg-muted">{empty}</Text>}
+    </View>
+  );
+}
+
+// The head of one fact card: the icon chip and the card's title.
+function CardTitle({ icon, children }) {
+  const { tokens } = useTheme();
+  return (
+    <View className="flex-row items-center gap-3">
+      <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
+        <Icon name={icon} size={15} color={tokens.brand} />
+      </View>
+      <Text accessibilityRole="header" className="min-w-0 flex-1 font-serif text-base text-fg">
+        {children}
+      </Text>
     </View>
   );
 }
@@ -155,7 +189,9 @@ export default function StudentDetailScreen({ navigation, route }) {
   if (notFound) {
     return (
       <View className="flex-1 bg-page p-4">
-        <EmptyState icon="fa-user-slash" title="Student not found" message="No student record exists with this id." />
+        <View className={cardClass}>
+          <EmptyState icon="fa-user-slash" title="Student not found" message="No student record exists with this id." />
+        </View>
       </View>
     );
   }
@@ -171,59 +207,78 @@ export default function StudentDetailScreen({ navigation, route }) {
   return (
     <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
       <FormStatus status={status} />
-      <View className="rounded-xl border border-edge bg-surface p-4">
-        <View className="border-b border-edge pb-4">
-          <Text className="text-lg font-semibold text-fg">
-            {student.last_name}, {student.first_name}
-          </Text>
-          <Text className="mt-0.5 text-sm text-fg-muted">
-            Grade {student.grade_level} - {student.section}
-          </Text>
-          <View className="mt-3 flex-row flex-wrap items-center gap-2">
-            <StatusBadge status={student.status} />
-            <Pressable onPress={openEdit} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-              <Text className="text-sm font-medium text-fg-secondary">Edit</Text>
-            </Pressable>
+
+      <Reveal>
+        <View className={`${cardClass} gap-4 p-5`}>
+          <View className="flex-row items-start gap-3">
+            <Avatar name={`${student.first_name} ${student.last_name}`} size={48} />
+            <View className="min-w-0 flex-1">
+              <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+                {student.last_name}, {student.first_name}
+              </Text>
+              <View className="mt-1.5 flex-row flex-wrap items-center gap-2">
+                <Text className="text-sm text-fg-muted">
+                  Grade {student.grade_level} - {student.section}
+                </Text>
+                <StatusBadge status={student.status} />
+              </View>
+            </View>
+            <ReloadButton onReload={load} loading={loading} disabled={editOpen || saving} label="Reload student record" />
+          </View>
+          <View className="flex-row flex-wrap gap-2">
+            <Button icon="fa-pen" onPress={openEdit}>
+              Edit
+            </Button>
           </View>
         </View>
-        <View className="mt-4 gap-4">
-          <Field label="LRN" value={student.lrn} />
-          <Field label="Birthday" value={student.birthday ? longDate(student.birthday) : null} />
-          <Field label="Gender" value={titleCase(student.gender)} />
-          <Field label="Contact number" value={student.contact_number} />
-          <Field label="Parent account" value={parentAccount ? titleCase(parentAccount.status) : null} empty="None" />
-          <Field label="Address" value={student.address} />
-        </View>
+      </Reveal>
+
+      {/* Same fields as the teacher view, plus the linked parent account —
+          which it is, not a button: POST /users/parents is teacher-only.
+          "None" = no account yet. `birthday` is a DATE column: `longDate` is
+          string surgery on the literal (§5a-iv). */}
+      <View className={`${cardClass} gap-4 p-4`}>
+        <CardTitle icon="fa-id-card">Student details</CardTitle>
+        <Field label="LRN" value={student.lrn} />
+        <Field label="Birthday" value={student.birthday ? longDate(student.birthday) : null} />
+        <Field label="Gender" value={titleCase(student.gender)} />
+        <Field label="Parent account" value={parentAccount ? titleCase(parentAccount.status) : null} empty="None" />
+      </View>
+
+      <View className={`${cardClass} gap-4 p-4`}>
+        <CardTitle icon="fa-address-book">Contact details</CardTitle>
+        <Field label="Contact number" value={student.contact_number} />
+        <Field label="Address" value={student.address} />
       </View>
 
       <Modal visible={editOpen} animationType="slide" onRequestClose={closeEdit} presentationStyle="pageSheet">
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: tokens.page, paddingTop: insets.top, paddingBottom: insets.bottom }}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-3 p-4 pb-10">
-            <Text className="text-base font-semibold text-fg">Edit student</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+            <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+              Edit student
+            </Text>
             <FormStatus status={editStatus} />
-            <FormField label="LRN" value={student.lrn} editable={false} />
-            <FormField label="First name" required value={draft.first_name} onChangeText={set('first_name')} />
-            <FormField label="Last name" required value={draft.last_name} onChangeText={set('last_name')} />
-            <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
-            <FormField label="Section" value={student.section} editable={false} />
-            <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
-            <DateField label="Birthday" value={draft.birthday} onChange={set('birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
-            <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={draft.gender} onChange={set('gender')} options={GENDERS} />} />
-            <FormField label="Address" value={draft.address} onChangeText={set('address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
-            <FormField label="Contact number" value={draft.contact_number} onChangeText={set('contact_number')} maxLength={20} keyboardType="phone-pad" hint={contactRuleHint()} error={fieldErrors.contact_number} />
-            <View className="flex-row justify-end gap-2">
-              <Pressable onPress={closeEdit} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-                <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitEdit}
-                disabled={saving}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: saving, busy: saving }}
-                className={`rounded-lg bg-primary px-4 py-2 ${saving ? 'opacity-60' : ''}`}
-              >
-                <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : 'Save'}</Text>
-              </Pressable>
+            <View className={`${cardClass} gap-4 p-4`}>
+              <FormField label="LRN" value={student.lrn} editable={false} />
+              <FormField label="First name" required value={draft.first_name} onChangeText={set('first_name')} />
+              <FormField label="Last name" required value={draft.last_name} onChangeText={set('last_name')} />
+              <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
+              <FormField label="Section" value={student.section} editable={false} />
+              <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
+              <DateField label="Birthday" value={draft.birthday} onChange={set('birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
+              <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={draft.gender} onChange={set('gender')} options={GENDERS} />} />
+              <FormField label="Address" value={draft.address} onChangeText={set('address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
+              <FormField label="Contact number" value={draft.contact_number} onChangeText={set('contact_number')} maxLength={20} keyboardType="phone-pad" hint={contactRuleHint()} error={fieldErrors.contact_number} />
+            </View>
+            {/* The label still changes while the write is in flight; `loading`
+                is the old `disabled={saving}` plus its spinner. */}
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button onPress={closeEdit} disabled={saving}>
+                Cancel
+              </Button>
+              <Button variant="primary" onPress={submitEdit} loading={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>

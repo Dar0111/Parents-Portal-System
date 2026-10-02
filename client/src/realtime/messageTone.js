@@ -19,13 +19,14 @@ export function defaultAudioContextCtor() {
   return window.AudioContext || window.webkitAudioContext || null;
 }
 
-// The sound itself on a running context — "two-tone down": each voice of
-// TONE is its own sine oscillator through its own gain, both into the
+// The sound itself on a running context — "two-note rise": each voice of
+// TONE is its own sine oscillator through its own gain, all into the
 // destination (so they SUM). Per voice: the gain starts at the floor
 // (0.0001 — an exponential ramp cannot start from or reach 0), rises
-// LINEARLY to the peak over 3 ms, then decays EXPONENTIALLY to the floor at
-// start + duration; the oscillator stops 20 ms after that. 1047 Hz at 0 ms
-// for 150 ms, then 784 Hz at 100 ms for 300 ms — 400 ms in all.
+// LINEARLY to the peak over 6 ms, then decays EXPONENTIALLY to the floor at
+// start + duration; the oscillator stops 20 ms after that. 587 Hz at 0 ms
+// for 140 ms, then 880 Hz at 80 ms for 280 ms, each with its octave for the
+// first few tens of milliseconds — 360 ms in all.
 function schedule(ctx) {
   const t0 = ctx.currentTime;
   const attack = TONE.attackMs / 1000;

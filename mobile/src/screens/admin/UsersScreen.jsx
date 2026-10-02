@@ -1,17 +1,25 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import RecordCard from '../../components/RecordCard';
+import ReloadButton from '../../components/ReloadButton';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import StatusBadge from '../../components/StatusBadge';
+import Text from '../../components/Text';
+import Icon from '../../icons';
 import { useNotifications } from '../../realtime/NotificationProvider';
+import { useTheme } from '../../theme/ThemeProvider';
 import { canResetUsers, directoryEmpty, displayRole, EMPTY_FILTERS, maskLoginId, ROLE_FILTERS, rowActions, STATUS_FILTERS, statusMessage, userListParams } from './users/logic';
 import TempPasswordModal from './users/TempPasswordModal';
 
@@ -37,9 +45,23 @@ import TempPasswordModal from './users/TempPasswordModal';
 // so returning from a review or a create re-fetches both lists, and asks the
 // bell's provider to refetch — the Users badge is the server's count (§10),
 // never decremented here.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: each section under its
+// own SectionHeader, the filters in their own card, and Create teacher — the
+// screen's one filled action — on its own row, never beside Apply (§21b).
+// The figure beside "Waiting for approval" is the SERVER's total for the
+// pending list (`page.total`), never a count of the rows on screen, and only
+// from a settled, successful read: nothing while loading, nothing beside a
+// failed request, nothing at zero.
+//
+// RELOAD: ONE `load()` reads both lists in a Promise.all, so both headers
+// carry the SAME Reload — the request pull-to-refresh already makes, with the
+// applied filters, both lists back on their first page. It waits while a
+// status write is in flight (that write re-reads on its own).
 export default function UsersScreen({ navigation, route }) {
   const { user: me, refresh: refreshMe } = useAuth();
   const { refresh: refreshCounts } = useNotifications();
+  const { tokens } = useTheme();
   const notice = route?.params?.notice || null;
   const noticeKey = route?.params?.noticeKey || 'directory';
 
@@ -183,18 +205,41 @@ export default function UsersScreen({ navigation, route }) {
   }
 
   const empty = directoryEmpty(applied);
+  const reloading = loading || refreshing;
+  const writing = statusSavingId !== null;
+  const waitingCount = !loading && !error && pendingPage?.total > 0 ? pendingPage.total : null;
 
   const header = (
-    <View className="mb-3 gap-4">
-      {/* THE PENDING QUEUE */}
-      <View className="gap-2">
-        <Text className="text-sm font-semibold text-fg">Waiting for approval</Text>
+    <View className="mb-4 gap-4">
+      {/* THE PENDING QUEUE. The count sits before the Reload, in the pending
+          tone's badge; the number is the meaning, the tint is not. The
+          sentence is its own paragraph UNDER the header row: beside the
+          controls a 360dp screen would stack it a few words to a line. */}
+      <View className="gap-3">
+        <SectionHeader
+          title="Waiting for approval"
+          actions={
+            <>
+              {waitingCount !== null ? (
+                <View accessible accessibilityLabel={`${waitingCount} waiting for approval`}>
+                  <StatusBadge status="pending" label={String(waitingCount)} />
+                </View>
+              ) : null}
+              <ReloadButton onReload={load} loading={reloading} disabled={writing} label="Reload accounts" />
+            </>
+          }
+        />
         <Text className="text-sm text-fg-muted">A parent account stays pending until it is approved or rejected. That decision cannot be returned to pending afterward.</Text>
         <FormStatus status={formStatus.pending} />
         {pending.length === 0 && !loading ? (
-          <View className="rounded-xl border border-edge bg-surface px-4 py-3">
-            <Text className="text-sm font-medium text-fg">No parent accounts waiting for approval</Text>
-            <Text className="mt-1 text-sm text-fg-muted">A teacher creates the account. It appears here until you approve or reject it.</Text>
+          <View className={`${cardClass} flex-row items-start gap-3 p-4`}>
+            <View className="h-9 w-9 items-center justify-center rounded-xl bg-surface-muted">
+              <Icon name="fa-envelope-open-text" size={15} color={tokens['fg-muted']} />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text className="text-sm font-semibold text-fg">No parent accounts waiting for approval</Text>
+              <Text className="mt-1 text-sm text-fg-muted">A teacher creates the account. It appears here until you approve or reject it.</Text>
+            </View>
           </View>
         ) : (
           pending.map((row) => (
@@ -213,21 +258,21 @@ export default function UsersScreen({ navigation, route }) {
           ))
         )}
         {pendingPage?.has_more ? (
-          <Pressable onPress={loadMorePending} accessibilityRole="button" className="items-center rounded-lg border border-edge-strong px-3 py-2">
-            <Text className="text-sm text-fg-body">Show more</Text>
-          </Pressable>
+          <Button variant="secondary" full onPress={loadMorePending}>
+            Show more
+          </Button>
         ) : null}
       </View>
 
-      {/* THE DIRECTORY */}
-      <View className="gap-3">
-        <View className="flex-row items-center justify-between gap-3">
-          <Text className="text-sm font-semibold text-fg">All accounts</Text>
-          <Pressable onPress={() => navigation.navigate('CreateTeacher')} accessibilityRole="button" className="rounded-lg bg-primary px-4 py-2">
-            <Text className="text-sm font-medium text-primary-fg">Create teacher</Text>
-          </Pressable>
-        </View>
-        <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+      {/* THE DIRECTORY. The same Reload as the queue's — one `load`, both
+          lists. Create teacher is the screen's one filled action, on its own
+          row; the filter card holds the filters and nothing else. */}
+      <View className="mt-2 gap-3">
+        <SectionHeader title="All accounts" onReload={load} reloading={reloading} reloadDisabled={writing} reloadLabel="Reload accounts" />
+        <Button variant="primary" icon="fa-user-plus" className="self-end" onPress={() => navigation.navigate('CreateTeacher')}>
+          Create teacher
+        </Button>
+        <View className={`${cardClass} gap-4 p-4`}>
           <Segmented label="Role" value={role} onChange={setRole} options={ROLE_FILTERS} />
           <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_FILTERS} />
           {/* Matches users.name and users.login_id only — not the child's name. */}
@@ -275,9 +320,9 @@ export default function UsersScreen({ navigation, route }) {
           title: empty.title,
           message: empty.message,
           action: empty.showReset ? (
-            <Pressable onPress={resetFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-              <Text className="text-sm text-fg-body">Reset filters</Text>
-            </Pressable>
+            <Button size="sm" onPress={resetFilters}>
+              Reset filters
+            </Button>
           ) : null,
         }}
       />

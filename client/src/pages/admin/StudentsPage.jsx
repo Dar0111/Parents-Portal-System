@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
 import { PersonCell } from '../../components/Avatar';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField, { filterSelectClass } from '../../components/FormField';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
+import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Admin student roster — Figure 5 process 1.23 (see CLAUDE.md → ADMIN SCOPE
@@ -37,6 +41,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // §5c: the LRN renders here because this is an admin acting on the student.
 // It never goes in a URL — the detail route keys on students.id.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// (title, what deactivating does, Reload), the filter card, the write's
+// result, the list. RELOAD is `load` itself: the same request with the
+// status, grade, section, search, page and sort that are APPLIED now. It
+// commits no draft filter and resets nothing, and it leaves the status
+// message alone. The section list behind the Section filter is reference
+// data read once on mount, as before; Reload does not re-read it.
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -187,7 +199,10 @@ export default function StudentsPage() {
       sortable: true,
       sortValue: (row) => `${row.last_name}, ${row.first_name}`,
       render: (row) => (
-        <Link to={`/admin/students/${row.id}`} className="inline-flex min-w-0 underline-offset-2 hover:underline">
+        <Link
+          to={`/admin/students/${row.id}`}
+          className="inline-flex min-w-0 rounded-lg underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
+        >
           {/* NO `secondary` (UI-B item 2). The class is already its own
               column two cells to the right, so a line under the name repeats
               it at exactly the width where the column is visible. It earns
@@ -197,13 +212,16 @@ export default function StudentsPage() {
         </Link>
       ),
     },
-    // nowrap: an LRN is an identifier, never text to reflow (§5c).
-    { key: 'lrn', header: 'LRN', nowrap: true },
+    // nowrap: an LRN is an identifier, never text to reflow (§5c). Tabular
+    // figures so twelve digits line up down the column.
+    { key: 'lrn', header: 'LRN', nowrap: true, render: (row) => <span className="tabular-nums">{row.lrn}</span> },
     {
       key: 'class',
       header: 'Grade & section',
       sortable: true,
       sortValue: (row) => `${row.grade_level}-${row.section}`,
+      // A class reads as one value; it does not break at its spaces.
+      nowrap: true,
       render: (row) => `Grade ${row.grade_level} - ${row.section}`,
     },
     {
@@ -216,149 +234,151 @@ export default function StudentsPage() {
       key: 'action',
       header: '',
       align: 'right',
+      // The button keeps one line and the column claims its own width.
+      nowrap: true,
       render: (row) => {
         const busy = statusSavingId === row.id;
         const next = row.status === 'active' ? 'inactive' : 'active';
         return (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setStudentStatus(row, next)}
-            className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-          >
-            {busy ? (
-              <i className="fa-solid fa-circle-notch fa-spin" />
-            ) : next === 'inactive' ? (
-              'Deactivate'
-            ) : (
-              'Activate'
-            )}
-          </button>
+          // `loading` is the old `disabled={busy}` and its spinner — and the
+          // WORD STAYS beside the spinner now. It used to be replaced by it,
+          // which left a button with no name for as long as the request ran
+          // and made the column jump in width.
+          <Button size="sm" loading={busy} onClick={() => setStudentStatus(row, next)}>
+            {next === 'inactive' ? 'Deactivate' : 'Activate'}
+          </Button>
         );
       },
     },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* §5i: every clause here is enforced by a line of server code.
-          Hidden from teachers' lists — GET /students defaults to active-only
-          (students.js), and Teacher → Attendance fetches status=active.
-          No new attendance — attendance.js POST / and POST /bulk refuse an
-          inactive student. No new grade record — grades.js POST / refuses one.
-          Nothing else changes — PATCH /:id/status updates students.status
-          only. Deliberately NOT claimed: that the parent loses access
-          (login checks the parent's own users.status), or that grades are
-          frozen (scores can still be added to an existing grade record). */}
-      <p className="text-sm text-fg-muted">
-        Deactivating a student hides them from teachers' student and attendance lists, and stops
-        new attendance and new grade records from being created for them. Their existing records
-        and their parent's account are not changed. Activate reverses it.
-      </p>
+    <Reveal className="space-y-6">
+      <section className="space-y-3">
+        {/* §5i: every clause here is enforced by a line of server code.
+            Hidden from teachers' lists — GET /students defaults to active-only
+            (students.js), and Teacher → Attendance fetches status=active.
+            No new attendance — attendance.js POST / and POST /bulk refuse an
+            inactive student. No new grade record — grades.js POST / refuses one.
+            Nothing else changes — PATCH /:id/status updates students.status
+            only. Deliberately NOT claimed: that the parent loses access
+            (login checks the parent's own users.status), or that grades are
+            frozen (scores can still be added to an existing grade record).
 
-      <form
-        onSubmit={applyFilters}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
-      >
-        <FormField
-          label="Status"
-          as="select"
-          className={filterSelectClass}
-          value={draft.status}
-          onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="Grade"
-          as="select"
-          className={filterSelectClass}
-          value={draft.grade_level}
-          onChange={(e) => setDraft((prev) => ({ ...prev, grade_level: e.target.value, section: '' }))}
-        >
-          <option value="">All grades</option>
-          {[1, 2, 3, 4, 5, 6].map((g) => (
-            <option key={g} value={String(g)}>
-              Grade {g}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="Section"
-          as="select"
-          className={filterSelectClass}
-          value={draft.section}
-          disabled={!draft.grade_level}
-          onChange={(e) => setDraft((prev) => ({ ...prev, section: e.target.value }))}
-        >
-          <option value="">{draft.grade_level ? 'All sections' : 'Pick a grade first'}</option>
-          {sectionOptions.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="Search"
-          placeholder="Name or LRN"
-          value={draft.search}
-          onChange={(e) => setDraft((prev) => ({ ...prev, search: e.target.value }))}
-          className="min-w-56 flex-1"
+            The sentence is the header's description, held to a reading
+            measure. There is no header action: nothing is created here. */}
+        <SectionHeader
+          title="All students"
+          description={
+            <span className="block max-w-prose">
+              Deactivating a student hides them from teachers' student and attendance lists, and
+              stops new attendance and new grade records from being created for them. Their
+              existing records and their parent's account are not changed. Activate reverses it.
+            </span>
+          }
+          onReload={load}
+          reloading={loading}
+          reloadLabel="Reload students"
         />
-        {/* Search keeps `min-w-56 flex-1` — like `teacher/StudentsPage`, it
-            is this page's widest control by choice, not by omission, so
-            `filterFieldClass` is deliberately not applied to it (item 5). */}
-        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
-      </form>
 
-      {/* §5f: two causes, two branches. canReset decides both the copy and
-          whether Reset is offered — offering it on "nothing exists" would be
-          a dead end. */}
-      <FormStatus status={status.list} />
+        {/* The filter bar is its own card. */}
+        <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+          <FormField
+            label="Status"
+            as="select"
+            className={filterSelectClass}
+            value={draft.status}
+            onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Grade"
+            as="select"
+            className={filterSelectClass}
+            value={draft.grade_level}
+            onChange={(e) => setDraft((prev) => ({ ...prev, grade_level: e.target.value, section: '' }))}
+          >
+            <option value="">All grades</option>
+            {[1, 2, 3, 4, 5, 6].map((g) => (
+              <option key={g} value={String(g)}>
+                Grade {g}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Section"
+            as="select"
+            className={filterSelectClass}
+            value={draft.section}
+            disabled={!draft.grade_level}
+            onChange={(e) => setDraft((prev) => ({ ...prev, section: e.target.value }))}
+          >
+            <option value="">{draft.grade_level ? 'All sections' : 'Pick a grade first'}</option>
+            {sectionOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Search"
+            placeholder="Name or LRN"
+            value={draft.search}
+            onChange={(e) => setDraft((prev) => ({ ...prev, search: e.target.value }))}
+            className="min-w-56 flex-1"
+          />
+          {/* Search keeps `min-w-56 flex-1` — like `teacher/StudentsPage`, it
+              is this page's widest control by choice, not by omission, so
+              `filterFieldClass` is deliberately not applied to it (item 5). */}
+          <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
+        </form>
 
-      <DataTable
-        // Same primary action as the teacher roster, same reason the LRN is
-        // not on the card (§5c) even though the table column keeps it — the
-        // table is a desk screen, the card is a phone.
-        renderCard={(row) => ({
-          to: `/admin/students/${row.id}`,
-          avatar: `${row.first_name} ${row.last_name}`,
-          title: `${row.last_name}, ${row.first_name}`,
-          subtitle: `Grade ${row.grade_level} - ${row.section}`,
-          status: row.status,
-        })}
-        columns={columns}
-        rows={students}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={canReset ? 'fa-magnifying-glass' : 'fa-user-graduate'}
-        emptyTitle={canReset ? 'No students match these filters' : 'No students yet'}
-        emptyMessage={
-          canReset
-            ? 'Try a different status, grade, section, or search, or reset to see every student.'
-            : 'Students enrolled by teachers appear here.'
-        }
-        emptyAction={
-          canReset ? (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              Reset filters
-            </button>
-          ) : null
-        }
-      />
-    </div>
+        {/* §5f: two causes, two branches. canReset decides both the copy and
+            whether Reset is offered — offering it on "nothing exists" would be
+            a dead end. */}
+        <FormStatus status={status.list} />
+
+        <DataTable
+          // Same primary action as the teacher roster, same reason the LRN is
+          // not on the card (§5c) even though the table column keeps it — the
+          // table is a desk screen, the card is a phone.
+          renderCard={(row) => ({
+            to: `/admin/students/${row.id}`,
+            avatar: `${row.first_name} ${row.last_name}`,
+            title: `${row.last_name}, ${row.first_name}`,
+            subtitle: `Grade ${row.grade_level} - ${row.section}`,
+            status: row.status,
+          })}
+          columns={columns}
+          rows={students}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          page={page}
+          onPageChange={setOffset}
+          sort={sort}
+          onSortChange={changeSort}
+          emptyIcon={canReset ? 'fa-magnifying-glass' : 'fa-user-graduate'}
+          emptyTitle={canReset ? 'No students match these filters' : 'No students yet'}
+          emptyMessage={
+            canReset
+              ? 'Try a different status, grade, section, or search, or reset to see every student.'
+              : 'Students enrolled by teachers appear here.'
+          }
+          emptyAction={
+            canReset ? (
+              <Button size="sm" onClick={resetFilters}>
+                Reset filters
+              </Button>
+            ) : null
+          }
+        />
+      </section>
+    </Reveal>
   );
 }

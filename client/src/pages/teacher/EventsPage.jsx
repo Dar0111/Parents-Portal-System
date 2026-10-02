@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
-import FormField, { buttonNeutralClass, filterFieldClass, filterSelectClass } from '../../components/FormField';
+import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import { shortDate, todayLocalDateString } from '../../format/date';
 import { staffAudienceLabel } from '../../format/audience';
+import Reveal from '../../motion/Reveal';
 import teacherEventCard from './events/card';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { useAuth } from '../../auth/AuthContext';
@@ -29,6 +33,15 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // NOTE ON DATES: event_date is sent as the input's own local YYYY-MM-DD string,
 // never parsed into a Date and re-serialised. See client/src/format/date.js for
 // the two UTC bugs this project has already paid for.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// (title, Reload, New event), the filter card, the last write's result, the
+// list. RELOAD is `load` itself: the same request with the grade, dates, page
+// and sort that are APPLIED now. It commits no draft filter, resets nothing,
+// and leaves the result message alone. It re-reads the LIST only — the grades
+// come from useTeacherTargets, which exposes no refetch. Both Modals sit
+// BESIDE the entrance wrapper, never inside it: Modal renders inline, and a
+// wrapper mid-tween carries a transform (motion/motion.js).
 
 const EMPTY_FORM = { title: '', description: '', event_date: '', target_grade: '' };
 
@@ -220,17 +233,24 @@ export default function EventsPage() {
         sortable: true,
         render: (row) => (
           <div>
-            <div className="font-medium text-fg">{row.title}</div>
+            <div className="font-semibold text-fg">{row.title}</div>
             {row.description ? (
-              <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
+              <div className="mt-0.5 line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
             ) : null}
           </div>
         ),
       },
       // A DATE column: the literal "2026-09-25" arrives as a string and
       // `shortDate` rewrites it as one (§5a-iv). DataTable sorts the raw row
-      // value, so the column still sorts chronologically.
-      { key: 'event_date', header: 'Date', sortable: true, render: (row) => shortDate(row.event_date) },
+      // value, so the column still sorts chronologically. One line, tabular
+      // figures: the date is the fact this list is scanned for.
+      {
+        key: 'event_date',
+        header: 'Date',
+        sortable: true,
+        nowrap: true,
+        render: (row) => <span className="font-semibold tabular-nums text-fg">{shortDate(row.event_date)}</span>,
+      },
       {
         key: 'audience',
         header: 'Audience',
@@ -238,8 +258,14 @@ export default function EventsPage() {
         // column, so an event is school-wide or a whole grade and nothing
         // else. Same wording source as Announcements and admin; the shape
         // difference is declared rather than papered over (`format/audience.js`).
+        // The same chip as Announcements: school-wide muted, a grade not.
+        nowrap: true,
         render: (row) => (
-          <span className={row.target_grade === null ? 'text-fg-muted' : 'text-fg-secondary'}>
+          <span
+            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              row.target_grade === null ? 'bg-surface-muted text-fg-muted' : 'bg-brand-soft text-brand'
+            }`}
+          >
             {staffAudienceLabel(row, { hasSections: false })}
           </span>
         ),
@@ -248,23 +274,16 @@ export default function EventsPage() {
         key: 'actions',
         header: '',
         align: 'right',
+        nowrap: true,
         render: (row) =>
           row.posted_by === user?.id ? (
             <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => openEdit(row)}
-                className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
-              >
+              <Button size="sm" onClick={() => openEdit(row)}>
                 Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => openDelete(row)}
-                className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
-              >
+              </Button>
+              <Button size="sm" variant="danger-outline" onClick={() => openDelete(row)}>
                 Delete
-              </button>
+              </Button>
             </div>
           ) : null,
       },
@@ -273,132 +292,130 @@ export default function EventsPage() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* THE PAGE'S ACTION HAS ITS OWN ROW, ABOVE THE FILTER CARD, AND IS
-          NEUTRAL (fix/smoke-gate). It sat inside the card beside Apply, so a
-          staged filter showed two identical filled buttons — and Apply's fill
-          is the "changes not applied" signal (§21b), the one that needs the
-          eye. Worse, the cue's 140px pushed the dirty row to 1009px in a
-          958px card at 1280 and "New event" jumped to a new line the moment a
-          filter was touched. Out of the card, it measured at identical
-          coordinates clean and dirty at 1280 and 390. Teacher → Messages'
-          "New message" row is the precedent; Enroll student is the neutral. */}
-      {targetsLoading ? null : (
-        <div className="flex justify-end">
-          {canPost ? (
-            <button type="button" onClick={openCompose} className={buttonNeutralClass}>
-              New event
-            </button>
-          ) : (
-            <p className="max-w-sm text-sm text-fg-muted">
-              You can post once you are assigned to a class or made a section adviser.
-            </p>
-          )}
-        </div>
-      )}
+    <div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          {/* THE PAGE'S ACTION SITS IN THE SECTION HEADER, ABOVE AND OUTSIDE
+              THE FILTER CARD, AND IS NEUTRAL (fix/smoke-gate). It sat inside
+              the card beside Apply, so a staged filter showed two identical
+              filled buttons — and Apply's fill is the "changes not applied"
+              signal (§21b), the one that needs the eye. Worse, the cue's
+              width pushed the dirty row past the card at 1280 and "New event"
+              jumped to a new line the moment a filter was touched. Out of the
+              card, nothing a filter does can move it. Enroll student is the
+              same neutral, for the same reason.
 
-      <div className="rounded-xl border border-edge bg-surface p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setOffset(0);
-            setApplied(draftFilters);
-          }}
-          className="flex flex-wrap items-end gap-3"
-        >
-          <FormField
-            label="Grade"
-            as="select"
-            className={filterSelectClass}
-            value={gradeFilter}
-            onChange={(e) => setGradeFilter(e.target.value)}
+              Nothing is said while the target list is loading; a teacher
+              with no grade to post to reads why there is no button. */}
+          <SectionHeader
+            title="Posted events"
+            description={
+              targetsLoading || canPost
+                ? null
+                : 'You can post once you are assigned to a class or made a section adviser.'
+            }
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload events"
+            actions={
+              !targetsLoading && canPost ? (
+                <Button icon="fa-plus" onClick={openCompose}>
+                  New event
+                </Button>
+              ) : null
+            }
+          />
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setOffset(0);
+              setApplied(draftFilters);
+            }}
+            className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}
           >
-            {/* "All my grade levels", not "All I can read" — the filter is a
-                GRADE filter, and the page's own empty state already says
-                "events for your grades". A label should use the words the
-                rest of the page uses. */}
-            <option value="">All my grade levels</option>
-            {grades.map((g) => (
-              <option key={g} value={g}>
-                Grade {g}
-              </option>
-            ))}
-          </FormField>
-          <FormField
-            label="From"
-            type="date"
-            className={filterFieldClass}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <FormField
-            label="To"
-            type="date"
-            className={filterFieldClass}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-          <FilterActions dirty={dirty} canReset={hasFilter} onReset={resetFilters} />
-        </form>
-      </div>
-
-      <FormStatus status={writeStatus.events} />
-
-      <DataTable
-        // CONTENT-LIST CARD (DV1b-a). The DATE LEADS the meta line here, not
-        // the posting date: an event is defined by when it happens, and that
-        // is the one fact a parent or teacher scans for. Audience follows it.
-        //
-        // Static card with its actions underneath — Edit and Delete are two
-        // peers, not one primary action (§5a-iii), and only the author gets
-        // them, matching the table and the API's own 403.
-        renderCard={(row) =>
-          teacherEventCard(row, {
-            actions:
-              row.posted_by === user?.id ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => openEdit(row)}
-                  className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDelete(row)}
-                  className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft"
-                >
-                  Delete
-                </button>
-              </>
-              ) : null,
-          })
-        }
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={emptyState.icon}
-        emptyTitle={emptyState.title}
-        emptyMessage={emptyState.message}
-        emptyAction={
-          emptyState.reset ? (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+            <FormField
+              label="Grade"
+              as="select"
+              className={filterSelectClass}
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value)}
             >
-              Clear filters
-            </button>
-          ) : null
-        }
-      />
+              {/* "All my grade levels", not "All I can read" — the filter is a
+                  GRADE filter, and the page's own empty state already says
+                  "events for your grades". A label should use the words the
+                  rest of the page uses. */}
+              <option value="">All my grade levels</option>
+              {grades.map((g) => (
+                <option key={g} value={g}>
+                  Grade {g}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              label="From"
+              type="date"
+              className={filterFieldClass}
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+            <FormField
+              label="To"
+              type="date"
+              className={filterFieldClass}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+            <FilterActions dirty={dirty} canReset={hasFilter} onReset={resetFilters} />
+          </form>
+
+          <FormStatus status={writeStatus.events} />
+
+          <DataTable
+            // CONTENT-LIST CARD (DV1b-a). The DATE LEADS the meta line here, not
+            // the posting date: an event is defined by when it happens, and that
+            // is the one fact a parent or teacher scans for. Audience follows it.
+            //
+            // Static card with its actions underneath — Edit and Delete are two
+            // peers, not one primary action (§5a-iii), and only the author gets
+            // them, matching the table and the API's own 403.
+            renderCard={(row) =>
+              teacherEventCard(row, {
+                actions:
+                  row.posted_by === user?.id ? (
+                    <>
+                      <Button size="sm" onClick={() => openEdit(row)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="danger-outline" onClick={() => openDelete(row)}>
+                        Delete
+                      </Button>
+                    </>
+                  ) : null,
+              })
+            }
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon={emptyState.icon}
+            emptyTitle={emptyState.title}
+            emptyMessage={emptyState.message}
+            emptyAction={
+              emptyState.reset ? (
+                <Button size="sm" onClick={resetFilters}>
+                  Clear filters
+                </Button>
+              ) : null
+            }
+          />
+        </section>
+      </Reveal>
 
       <Modal
         open={composing}
@@ -408,23 +425,20 @@ export default function EventsPage() {
         size="lg"
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => setComposing(false)}
-              disabled={saving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={() => setComposing(false)} disabled={saving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            {/* `loading` adds the spinner; the button is disabled exactly
+                when it was before (saving, or a required field empty). */}
+            <Button
+              variant="primary"
               type="submit"
               form="event-form"
               disabled={saving || !form.title.trim() || !form.event_date || !form.target_grade}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
+              loading={saving}
             >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {editing ? 'Save changes' : 'Post'}
-            </button>
+            </Button>
           </>
         }
       >
@@ -482,29 +496,18 @@ export default function EventsPage() {
         size="sm"
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => setDeleting(null)}
-              disabled={saving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={() => setDeleting(null)} disabled={saving}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDelete}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
-            >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="danger" onClick={confirmDelete} loading={saving}>
               Delete
-            </button>
+            </Button>
           </>
         }
       >
-        {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
-        <p className="text-sm text-fg-secondary">
-          Delete <strong>&ldquo;{deleting?.title}&rdquo;</strong>? This cannot be undone.
+        {deleteError ? <ErrorAlert message={deleteError} className="mb-4" /> : null}
+        <p className="break-words text-sm text-fg-body">
+          Delete <strong className="text-fg">&ldquo;{deleting?.title}&rdquo;</strong>? This cannot be undone.
         </p>
       </Modal>
     </div>

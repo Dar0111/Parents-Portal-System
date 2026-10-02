@@ -30,7 +30,7 @@ export function rosterColumns({ recorded, marks, onPick }) {
       sortable: true,
       sortValue: (row) => `${row.last_name}, ${row.first_name}`,
       render: (row) => (
-        <span className="font-medium text-fg">
+        <span className="font-semibold text-fg">
           {row.last_name}, {row.first_name}
         </span>
       ),
@@ -40,7 +40,16 @@ export function rosterColumns({ recorded, marks, onPick }) {
     // cannot break it — the annotation is belt-and-braces, and it closes the
     // last of the queued nowrap items. Teacher → Grades, which the queue also
     // named, no longer exists.
-    { key: 'lrn', header: 'LRN', nowrap: true },
+    //
+    // `tabular-nums` (feat/ui-refresh): twelve digits a row, read down a
+    // column, line up digit under digit. The value is still `row.lrn`,
+    // unformatted.
+    {
+      key: 'lrn',
+      header: 'LRN',
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{row.lrn}</span>,
+    },
     {
       key: 'recorded',
       // "Saved as", not "Recorded" (UI-A, 2026-09-23). The Row column's first
@@ -76,10 +85,14 @@ export function rosterColumns({ recorded, marks, onPick }) {
       // `recorded`; "Changed · not saved" is the two disagreeing. This is the
       // same distinction the old stored-status column made on its own, now
       // saying which of the two the teacher is looking at.
+      //
+      // The WORDS are the state; the unsaved one is also heavier, so it is
+      // never colour alone. The span holds the label and nothing else — a
+      // proof reads the row value straight out of the markup.
       render: (row) => {
         const state = rowState(row.id, marks, recorded);
         return (
-          <span className={`text-sm ${state === 'changed' ? 'text-warning-fg' : 'text-fg-muted'}`}>
+          <span className={`text-sm ${state === 'changed' ? 'font-semibold text-warning-fg' : 'text-fg-muted'}`}>
             {ROW_STATE_LABEL[state]}
           </span>
         );

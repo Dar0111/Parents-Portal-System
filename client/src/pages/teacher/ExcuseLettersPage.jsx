@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
@@ -8,8 +10,10 @@ import { isDirty } from '../../components/filterState';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate } from '../../format/date';
+import Reveal from '../../motion/Reveal';
 import teacherLetterCard from './excuseLetters/card';
 import LetterReadingView from './excuseLetters/readingView';
 import { useAuth } from '../../auth/AuthContext';
@@ -38,6 +42,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // reason and details, and there is no upload endpoint anywhere. Rendering a
 // download link for a column that is always NULL would promise a feature that
 // does not exist.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// with Reload, the filter card, the last review's result, the list. RELOAD is
+// `load` itself: the same request with the status, dates, page and sort that
+// are APPLIED now. It commits no draft filter, resets nothing, and leaves the
+// review's result message alone. Both Modals sit BESIDE the entrance wrapper,
+// never inside it: Modal renders inline, and a wrapper mid-tween carries a
+// transform (motion/motion.js).
 
 const STATUS_FILTERS = ['Pending', 'Approved', 'Declined', 'All'];
 
@@ -291,10 +303,10 @@ export default function ExcuseLettersPage() {
         sortValue: (row) => `${row.last_name}, ${row.first_name}`,
         render: (row) => (
           <div>
-            <div className="font-medium text-fg">
+            <div className="font-semibold text-fg">
               {row.last_name}, {row.first_name}
             </div>
-            <div className="text-xs text-fg-muted">
+            <div className="mt-0.5 whitespace-nowrap text-xs text-fg-muted">
               Grade {row.grade_level} - {row.section}
             </div>
           </div>
@@ -302,12 +314,14 @@ export default function ExcuseLettersPage() {
       },
       // A DATE column: the literal "2026-09-25" arrives as a string and
       // `shortDate` rewrites it as one (§5a-iv). DataTable sorts the raw row
-      // value, so the column still sorts chronologically.
+      // value, so the column still sorts chronologically. One line, tabular
+      // figures: a date is a value, never text to reflow.
       {
         key: 'absence_date',
         header: 'Absence date',
         sortable: true,
-        render: (row) => shortDate(row.absence_date),
+        nowrap: true,
+        render: (row) => <span className="tabular-nums">{shortDate(row.absence_date)}</span>,
       },
       {
         key: 'reason',
@@ -327,15 +341,14 @@ export default function ExcuseLettersPage() {
         key: 'action',
         header: '',
         align: 'right',
+        // One line: the button claims its width instead of wrapping under
+        // the reason beside it.
+        nowrap: true,
         render: (row) =>
           canReview(row) ? (
-            <button
-              type="button"
-              onClick={() => openReview(row)}
-              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-            >
+            <Button variant="primary" size="sm" onClick={() => openReview(row)}>
               Review
-            </button>
+            </Button>
           ) : row.status === 'Pending' ? (
             // Seen but not actionable. Named rather than left blank, and never
             // rendered as a button that would only produce a 403 — the same
@@ -348,13 +361,9 @@ export default function ExcuseLettersPage() {
             // not the primary fill: reviewing is an action, reading is not,
             // and two identical-looking buttons in one column would make the
             // difference invisible at a glance.
-            <button
-              type="button"
-              onClick={() => setReadingLetter(row)}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-fg-body transition hover:bg-surface-muted"
-            >
+            <Button size="sm" onClick={() => setReadingLetter(row)}>
               View
-            </button>
+            </Button>
           ),
       },
     ],
@@ -362,77 +371,84 @@ export default function ExcuseLettersPage() {
   );
 
   return (
-    <div className="space-y-4">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          setOffset(0);
-          setApplied(draftFilters);
-        }}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
-      >
-        <FormField
-          label="Status"
-          as="select"
-          className={filterSelectClass}
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          {STATUS_FILTERS.map((s) => (
-            <option key={s} value={s}>
-              {s === 'All' ? 'All statuses' : s}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="From"
-          type="date"
-          className={filterFieldClass}
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-        />
-        <FormField
-          label="To"
-          type="date"
-          className={filterFieldClass}
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
-        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
-      </form>
+    <div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader
+            title="Letters from my classes"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload excuse letters"
+          />
 
-      <FormStatus status={writeStatus.letters} />
-
-      <DataTable
-        // The card is `excuseLetters/card.jsx` — a module, so the proof can
-        // render it both ways instead of regexing this file (§17b, §17d).
-        // Moved in UI-B with no behaviour change; its header carries why the
-        // `canReview` gate is correct here and was not on the parent's card.
-        renderCard={(row) => teacherLetterCard(row, { canReview, onOpen: openLetter })}
-        columns={columns}
-        rows={letters}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={emptyState.icon}
-        emptyTitle={emptyState.title}
-        emptyMessage={emptyState.message}
-        emptyAction={
-          emptyState.showReset ? (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setOffset(0);
+              setApplied(draftFilters);
+            }}
+            className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}
+          >
+            <FormField
+              label="Status"
+              as="select"
+              className={filterSelectClass}
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
             >
-              Reset filters
-            </button>
-          ) : null
-        }
-      />
+              {STATUS_FILTERS.map((s) => (
+                <option key={s} value={s}>
+                  {s === 'All' ? 'All statuses' : s}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              label="From"
+              type="date"
+              className={filterFieldClass}
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+            <FormField
+              label="To"
+              type="date"
+              className={filterFieldClass}
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+            />
+            <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
+          </form>
+
+          <FormStatus status={writeStatus.letters} />
+
+          <DataTable
+            // The card is `excuseLetters/card.jsx` — a module, so the proof can
+            // render it both ways instead of regexing this file (§17b, §17d).
+            // Moved in UI-B with no behaviour change; its header carries why the
+            // `canReview` gate is correct here and was not on the parent's card.
+            renderCard={(row) => teacherLetterCard(row, { canReview, onOpen: openLetter })}
+            columns={columns}
+            rows={letters}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon={emptyState.icon}
+            emptyTitle={emptyState.title}
+            emptyMessage={emptyState.message}
+            emptyAction={
+              emptyState.showReset ? (
+                <Button size="sm" onClick={resetFilters}>
+                  Reset filters
+                </Button>
+              ) : null
+            }
+          />
+        </section>
+      </Reveal>
 
       <Modal
         open={Boolean(reviewing)}
@@ -442,45 +458,26 @@ export default function ExcuseLettersPage() {
         footer={
           confirming ? (
             <>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={() => setConfirming(false)} disabled={saving}>
                 Go back
-              </button>
-              <button
-                type="button"
+              </Button>
+              {/* The confirm takes the decision's own colour: the approving
+                  green or the destructive red. `loading` is the old
+                  `disabled={saving}` plus its spinner. */}
+              <Button
+                variant={decision === 'Approved' ? 'success' : 'danger'}
                 onClick={submitReview}
-                disabled={saving}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-solid-fg transition disabled:opacity-60 ${
-                  decision === 'Approved'
-                    ? 'bg-success-solid hover:bg-success-solid-hover'
-                    : 'bg-danger-solid hover:bg-danger-solid-hover'
-                }`}
+                loading={saving}
               >
-                {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Yes, {decision === 'Approved' ? 'approve' : 'decline'}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={closeReview}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!decision}
-                onClick={() => setConfirming(true)}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
-              >
+              <Button onClick={closeReview}>Cancel</Button>
+              <Button variant="primary" disabled={!decision} onClick={() => setConfirming(true)}>
                 Continue
-              </button>
+              </Button>
             </>
           )
         }
@@ -489,25 +486,32 @@ export default function ExcuseLettersPage() {
           <div className="space-y-4">
             {reviewError ? <ErrorAlert message={reviewError} /> : null}
 
-            <dl className="grid gap-3 sm:grid-cols-2">
+            {/* The letter, as the reading view lays it out: the short facts
+                in a grid, then the parent's own words at reading size in a
+                column that stays under ~75 characters. */}
+            <dl className="grid gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Absence date</dt>
-                <dd className="mt-0.5 text-sm text-fg">{longDate(reviewing.absence_date)}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Absence date</dt>
+                <dd className="mt-1 text-sm tabular-nums text-fg">{longDate(reviewing.absence_date)}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Class</dt>
-                <dd className="mt-0.5 text-sm text-fg">
+                <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Class</dt>
+                <dd className="mt-1 text-sm text-fg">
                   Grade {reviewing.grade_level} - {reviewing.section}
                 </dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Reason</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reviewing.reason}</dd>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Reason</dt>
+                <dd className="mt-1 max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body">
+                  {reviewing.reason}
+                </dd>
               </div>
               {reviewing.details ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Details</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reviewing.details}</dd>
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">Details</dt>
+                  <dd className="mt-1 max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body">
+                    {reviewing.details}
+                  </dd>
                 </div>
               ) : null}
             </dl>
@@ -527,40 +531,50 @@ export default function ExcuseLettersPage() {
                 all. The rule it carried is the first half: the record does not
                 change. A letter states a reason; it does not establish that
                 the day was an absence (§5i). */}
-            <p className="rounded-lg border border-info-edge bg-info-soft px-3 py-2 text-sm text-info-strong">
-              Approving records the reason given in this letter. It does not change the attendance
-              record for that day.
-            </p>
+            <div className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
+              <i aria-hidden="true" className="fa-solid fa-circle-info mt-0.5" />
+              <p className="min-w-0 flex-1">
+                Approving records the reason given in this letter. It does not change the attendance
+                record for that day.
+              </p>
+            </div>
 
             {confirming ? (
               // Explicit confirmation because the API refuses correction: once a
               // letter leaves Pending, PATCH /:id/review answers 403 and there is
               // no un-review endpoint. Names the specific decision back rather
               // than asking a generic "are you sure".
-              <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
-                <strong>
-                  {decision === 'Approved' ? 'Approve this letter?' : 'Decline this letter?'}
-                </strong>{' '}
-                This cannot be changed afterward.
-              </p>
+              <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+                <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+                <p className="min-w-0 flex-1">
+                  <strong>
+                    {decision === 'Approved' ? 'Approve this letter?' : 'Decline this letter?'}
+                  </strong>{' '}
+                  This cannot be changed afterward.
+                </p>
+              </div>
             ) : (
               <>
-                <div>
-                  <p className="mb-1.5 text-sm font-medium text-fg-secondary">Decision</p>
+                {/* TWO TOGGLES OF EQUAL WIDTH. The chosen one is filled, says
+                    so to assistive tech (`aria-pressed`), and carries a check
+                    — so the choice is never colour alone. Equal `flex-1`
+                    widths mean the check arriving moves nothing. */}
+                <div role="group" aria-labelledby="review-decision-label">
+                  <p id="review-decision-label" className="mb-1.5 text-sm font-semibold text-fg-secondary">
+                    Decision
+                  </p>
                   <div className="flex gap-2">
                     {['Approved', 'Declined'].map((value) => (
-                      <button
+                      <Button
                         key={value}
-                        type="button"
+                        variant={decision === value ? 'primary' : 'secondary'}
+                        icon={decision === value ? 'fa-check' : null}
+                        aria-pressed={decision === value}
                         onClick={() => setDecision(value)}
-                        className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                          decision === value
-                            ? 'border-primary bg-primary font-medium text-primary-fg'
-                            : 'border-edge-strong text-fg-body hover:bg-surface-muted'
-                        }`}
+                        className="flex-1"
                       >
                         {value === 'Approved' ? 'Approve' : 'Decline'}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>

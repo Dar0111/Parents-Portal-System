@@ -6,12 +6,16 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
-import FormField, { buttonNeutralClass, filterSelectClass } from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
+import Button from '../../components/Button';
+import SectionHeader from '../../components/SectionHeader';
+import { buttonClass, cardClass } from '../../components/buttonClass';
 import { staffAudienceLabel } from '../../format/audience';
 import { timestampDay } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
+import Reveal from '../../motion/Reveal';
 
 // Admin announcements AND memos — Figure 5 process 1.18, manuscript Feature 4
 // ("Announcements & Memo Dissemination"). Darryl decided 2026-09-14 that
@@ -50,10 +54,36 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // No attachment field: attachment_url exists on both tables and nothing
 // uploads. No category filter: category is free text with no allow-list.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): the one-line note, then the
+// two sections, each with its own header (title, Reload, its "New …"
+// action), its write's result and its list. EACH RELOAD IS THAT LIST'S OWN
+// load(): announcements with the grade/class filter, page and sort that are
+// APPLIED now, memos with their page and sort. Neither commits a draft
+// filter, resets anything, or touches the other list or a status message.
+// The three dialogs sit BESIDE the entrance wrapper, never inside it: Modal
+// renders inline, and a wrapper mid-tween carries a transform
+// (motion/motion.js).
 
 const EMPTY_ANN = { audience: 'school', grade: '', section: '', title: '', content: '', category: '' };
 const EMPTY_MEMO = { title: '', content: '' };
 const EMPTY_FILTER = { grade: '', section: '' };
+
+// The compose form's three audiences, in the order the server's admin branch
+// resolves them. The labels describe the action about to be taken (see the
+// note on `audienceLabel` below).
+const AUDIENCE_OPTIONS = [
+  { value: 'school', label: 'Everyone at the school' },
+  { value: 'grade', label: 'One whole grade' },
+  { value: 'class', label: 'One class' },
+];
+
+// The two row actions, table and card alike: the row-action size (44px under
+// a finger, 36px under a pointer). Delete is the outlined danger — it opens
+// the confirmation that names the post; the filled danger is that dialog's
+// confirm, and nothing else.
+const buttonNeutral = buttonClass({ size: 'sm' });
+const buttonDanger = buttonClass({ variant: 'danger-outline', size: 'sm' });
 
 // ONE staff label, shared with both teacher pages (`format/audience.js`).
 // This page's own wording — "Everyone at the school" / "All of Grade 6" —
@@ -387,11 +417,6 @@ export default function AdminAnnouncementsPage() {
   const canReset = Boolean(filter.grade || filter.section);
   const filterLabel = filter.section ? `Grade ${filter.grade} - ${filter.section}` : `Grade ${filter.grade}`;
 
-  const buttonNeutral =
-    'rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted';
-  const buttonDanger =
-    'rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft';
-
   const announcementColumns = [
     {
       key: 'title',
@@ -399,8 +424,8 @@ export default function AdminAnnouncementsPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <div className="font-medium text-fg">{row.title}</div>
-          <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
+          <div className="font-semibold text-fg">{row.title}</div>
+          <div className="mt-0.5 line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -416,11 +441,21 @@ export default function AdminAnnouncementsPage() {
     // reaches the client as a UTC instant, so slicing it showed the PREVIOUS
     // day for anything posted before 08:00 PH (format/date.js). Sorting is
     // unaffected: DataTable sorts on the row value, never the render.
-    { key: 'created_at', header: 'Posted', sortable: true, render: (row) => timestampDay(row.created_at) },
+    // A date reads as one value (nowrap), in tabular figures.
+    {
+      key: 'created_at',
+      header: 'Posted',
+      sortable: true,
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{timestampDay(row.created_at)}</span>,
+    },
     {
       key: 'actions',
       header: '',
       align: 'right',
+      // The pair keeps one row and claims its width, rather than stacking
+      // under the text beside it.
+      nowrap: true,
       render: (row) => (
         <div className="flex justify-end gap-2">
           {row.posted_by === me?.id ? (
@@ -443,8 +478,8 @@ export default function AdminAnnouncementsPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <div className="font-medium text-fg">{row.title}</div>
-          <div className="line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
+          <div className="font-semibold text-fg">{row.title}</div>
+          <div className="mt-0.5 line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -453,11 +488,18 @@ export default function AdminAnnouncementsPage() {
     // reaches the client as a UTC instant, so slicing it showed the PREVIOUS
     // day for anything posted before 08:00 PH (format/date.js). Sorting is
     // unaffected: DataTable sorts on the row value, never the render.
-    { key: 'created_at', header: 'Posted', sortable: true, render: (row) => timestampDay(row.created_at) },
+    {
+      key: 'created_at',
+      header: 'Posted',
+      sortable: true,
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{timestampDay(row.created_at)}</span>,
+    },
     {
       key: 'actions',
       header: '',
       align: 'right',
+      nowrap: true,
       render: (row) => (
         <div className="flex justify-end gap-2">
           <button type="button" onClick={() => openEditMemo(row)} className={buttonNeutral}>
@@ -474,28 +516,54 @@ export default function AdminAnnouncementsPage() {
   const deletingOwn = deleting?.kind === 'announcement' && deleting.row.posted_by === me?.id;
 
   return (
-    <div className="space-y-8">
-      <p className="text-sm text-fg-muted">
-        Memos have no page of their own — they are posted here, below announcements, and go to
-        everyone.
-      </p>
+    <div>
+      <Reveal className="space-y-6">
+        {/* The page's one note, as a note: memos are on this page and nowhere
+            else, and a reader looking for a Memos page needs to be told before
+            the first list, not after it. */}
+        <p className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
+          <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+            <i className="fa-solid fa-circle-info" />
+          </span>
+          <span className="min-w-0">
+            Memos have no page of their own — they are posted here, below announcements, and go to
+            everyone.
+          </span>
+        </p>
 
-      <section className="space-y-3">
-        {/* THE ACTION SITS ON THE HEADING ROW, NEUTRAL — the Memos section's
-            shape below (fix/smoke-gate). Inside the filter card, a staged
-            filter showed two identical filled buttons (Apply's fill is the
-            §21b signal), and the "changes not applied" cue pushed the row to
-            993px in a 958px card at 1280, so "New announcement" jumped to a
-            new line the moment a filter was touched. On the heading row it
-            measured at identical coordinates clean and dirty, 1280 and 390. */}
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-sm font-semibold text-fg">Announcements</h2>
-          <button type="button" onClick={openNewAnnouncement} className={buttonNeutralClass}>
-            New announcement
-          </button>
-        </div>
-        <div className="rounded-xl border border-edge bg-surface p-4">
-          <form onSubmit={applyFilter} className="flex flex-wrap items-end gap-3">
+        <section className="space-y-3">
+          {/* THE ACTION SITS ON THE HEADING ROW, NEUTRAL — the Memos section's
+              shape below (fix/smoke-gate). Inside the filter card, a staged
+              filter showed two identical filled buttons (Apply's fill is the
+              §21b signal), and the "changes not applied" cue pushed the row to
+              993px in a 958px card at 1280, so "New announcement" jumped to a
+              new line the moment a filter was touched. On the heading row it
+              measured at identical coordinates clean and dirty, 1280 and 390.
+              (Those figures are from before feat/ui-refresh and have not been
+              re-measured; the placement and the reason stand.)
+
+              THE `className` KEEPS THE TITLE WHOLE ON A PHONE. SectionHeader's
+              title column has no minimum width, so beside Reload and "New
+              announcement" a 390px screen leaves it about 7rem — less than the
+              one unbreakable word "Announcements" needs, which would then run
+              under the buttons. `min-w-fit` on that column makes the controls
+              wrap to their own line instead. By arithmetic, not yet seen in a
+              browser; from `sm` up everything fits on one row and nothing
+              changes. */}
+          <SectionHeader
+            title="Announcements"
+            className="[&>div:first-child]:min-w-fit"
+            onReload={loadAnnouncements}
+            reloading={annLoading}
+            reloadLabel="Reload announcements"
+            actions={
+              <Button icon="fa-plus" onClick={openNewAnnouncement}>
+                New announcement
+              </Button>
+            }
+          />
+          {/* THE FILTER BAR IS ITS OWN CARD, and only the filter lives in it. */}
+          <form onSubmit={applyFilter} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
             <FormField
               label="Grade"
               as="select"
@@ -532,117 +600,122 @@ export default function AdminAnnouncementsPage() {
                 be wrong in. `FilterActions` now owns both states. */}
             <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilter} />
           </form>
-        </div>
-        {/* §5f: two causes, two branches. A grade filter is an exact match on
-            target_grade, so school-wide posts (NULL) are never in it — said. */}
-        <FormStatus status={status.announcements} />
+          {/* §5f: two causes, two branches. A grade filter is an exact match on
+              target_grade, so school-wide posts (NULL) are never in it — said. */}
+          <FormStatus status={status.announcements} />
 
-        <DataTable
-          // CONTENT-LIST CARD (DV1b-a). TWO LABELLED GROUPS, NEVER
-          // INTERLEAVED (Darryl, 2026-09-23): this page renders two tables —
-          // announcements, then memos — and each keeps its own heading and
-          // its own card list below `sm`. Merging them into one stream would
-          // lose the distinction the page exists to make, since a memo has no
-          // audience and an announcement always does.
-          //
-          // Static card with actions underneath: Edit (author only, matching
-          // the API's 403) and Delete (any admin) are two peers, not one
-          // primary action.
-          renderCard={(row) => ({
-            title: row.title,
-            subtitle: row.content,
-            meta: `${audienceLabel(row)} · ${row.posted_by_name} · ${timestampDay(row.created_at)}`,
-            actions: (
-              <>
-                {row.posted_by === me?.id ? (
-                  <button type="button" onClick={() => openEditAnnouncement(row)} className={buttonNeutral}>
-                    Edit
+          <DataTable
+            // CONTENT-LIST CARD (DV1b-a). TWO LABELLED GROUPS, NEVER
+            // INTERLEAVED (Darryl, 2026-09-23): this page renders two tables —
+            // announcements, then memos — and each keeps its own heading and
+            // its own card list below `sm`. Merging them into one stream would
+            // lose the distinction the page exists to make, since a memo has no
+            // audience and an announcement always does.
+            //
+            // Static card with actions underneath: Edit (author only, matching
+            // the API's 403) and Delete (any admin) are two peers, not one
+            // primary action.
+            renderCard={(row) => ({
+              title: row.title,
+              subtitle: row.content,
+              meta: `${audienceLabel(row)} · ${row.posted_by_name} · ${timestampDay(row.created_at)}`,
+              actions: (
+                <>
+                  {row.posted_by === me?.id ? (
+                    <button type="button" onClick={() => openEditAnnouncement(row)} className={buttonNeutral}>
+                      Edit
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={() => openDelete('announcement', row)} className={buttonDanger}>
+                    Delete
                   </button>
-                ) : null}
-                <button type="button" onClick={() => openDelete('announcement', row)} className={buttonDanger}>
-                  Delete
-                </button>
-              </>
-            ),
-          })}
-          columns={announcementColumns}
-          rows={announcements}
-          loading={annLoading}
-          error={annError}
-          onRetry={loadAnnouncements}
-          page={annPage}
-          onPageChange={setAnnOffset}
-          sort={annSort}
-          onSortChange={changeAnnSort}
-          emptyIcon={canReset ? 'fa-filter' : 'fa-bullhorn'}
-          emptyTitle={canReset ? `No announcements addressed to ${filterLabel}` : 'No announcements yet'}
-          emptyMessage={
-            canReset
-              ? 'School-wide posts are not included in this filter.'
-              : 'Posts you make here and posts teachers make for their classes appear here.'
-          }
-          emptyAction={
-            canReset ? (
-              <button type="button" onClick={resetFilter} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted">
-                Clear filter
-              </button>
-            ) : null
-          }
-        />
-      </section>
+                </>
+              ),
+            })}
+            columns={announcementColumns}
+            rows={announcements}
+            loading={annLoading}
+            error={annError}
+            onRetry={loadAnnouncements}
+            page={annPage}
+            onPageChange={setAnnOffset}
+            sort={annSort}
+            onSortChange={changeAnnSort}
+            emptyIcon={canReset ? 'fa-filter' : 'fa-bullhorn'}
+            emptyTitle={canReset ? `No announcements addressed to ${filterLabel}` : 'No announcements yet'}
+            emptyMessage={
+              canReset
+                ? 'School-wide posts are not included in this filter.'
+                : 'Posts you make here and posts teachers make for their classes appear here.'
+            }
+            emptyAction={
+              canReset ? (
+                <Button size="sm" onClick={resetFilter}>
+                  Clear filter
+                </Button>
+              ) : null
+            }
+          />
+        </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-sm font-semibold text-fg">Memos</h2>
+        <section className="space-y-3">
           {/* Neutral too, so the page's two "New …" actions match (Darryl,
               2026-09-26) — there is no Apply beside this one, but a filled
               "New memo" under a neutral "New announcement" would read as a
               difference in weight that does not exist. */}
-          <button type="button" onClick={openNewMemo} className={buttonNeutralClass}>
-            New memo
-          </button>
-        </div>
-        {/* §5f: GET /memos takes no parameters — one cause of empty, one branch. */}
-        <FormStatus status={status.memos} />
+          <SectionHeader
+            title="Memos"
+            onReload={loadMemos}
+            reloading={memoLoading}
+            reloadLabel="Reload memos"
+            actions={
+              <Button icon="fa-plus" onClick={openNewMemo}>
+                New memo
+              </Button>
+            }
+          />
+          {/* §5f: GET /memos takes no parameters — one cause of empty, one branch. */}
+          <FormStatus status={status.memos} />
 
-        <DataTable
-          // The second of the two labelled groups. A memo is school-wide by
-          // definition, so meta carries who posted it and when and there is
-          // no audience — which is exactly the distinction that keeps these
-          // two lists apart rather than interleaved.
-          //
-          // Edit is unconditional here, unlike the announcement card: Admin →
-          // Announcements is the only place a memo can be written, so every
-          // memo is editable from it.
-          renderCard={(row) => ({
-            title: row.title,
-            subtitle: row.content,
-            meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}`,
-            actions: (
-              <>
-                <button type="button" onClick={() => openEditMemo(row)} className={buttonNeutral}>
-                  Edit
-                </button>
-                <button type="button" onClick={() => openDelete('memo', row)} className={buttonDanger}>
-                  Delete
-                </button>
-              </>
-            ),
-          })}
-          columns={memoColumns}
-          rows={memos}
-          loading={memoLoading}
-          error={memoError}
-          onRetry={loadMemos}
-          page={memoPage}
-          onPageChange={setMemoOffset}
-          sort={memoSort}
-          onSortChange={changeMemoSort}
-          emptyIcon="fa-file-lines"
-          emptyTitle="No memos yet"
-          emptyMessage="A memo posted here reaches every teacher and parent."
-        />
-      </section>
+          <DataTable
+            // The second of the two labelled groups. A memo is school-wide by
+            // definition, so meta carries who posted it and when and there is
+            // no audience — which is exactly the distinction that keeps these
+            // two lists apart rather than interleaved.
+            //
+            // Edit is unconditional here, unlike the announcement card: Admin →
+            // Announcements is the only place a memo can be written, so every
+            // memo is editable from it.
+            renderCard={(row) => ({
+              title: row.title,
+              subtitle: row.content,
+              meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}`,
+              actions: (
+                <>
+                  <button type="button" onClick={() => openEditMemo(row)} className={buttonNeutral}>
+                    Edit
+                  </button>
+                  <button type="button" onClick={() => openDelete('memo', row)} className={buttonDanger}>
+                    Delete
+                  </button>
+                </>
+              ),
+            })}
+            columns={memoColumns}
+            rows={memos}
+            loading={memoLoading}
+            error={memoError}
+            onRetry={loadMemos}
+            page={memoPage}
+            onPageChange={setMemoOffset}
+            sort={memoSort}
+            onSortChange={changeMemoSort}
+            emptyIcon="fa-file-lines"
+            emptyTitle="No memos yet"
+            emptyMessage="A memo posted here reaches every teacher and parent."
+          />
+        </section>
+      </Reveal>
 
       <Modal
         open={annEditing !== null}
@@ -651,47 +724,65 @@ export default function AdminAnnouncementsPage() {
         title={annEditing?.id ? 'Edit announcement' : 'New announcement'}
         size="lg"
         footer={
+          // The neutral way out, then the one filled action. `loading` adds
+          // the spinner the old button drew by hand while saving.
           <>
-            <button type="button" onClick={closeAnnouncement} disabled={saving} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50">
+            <Button onClick={closeAnnouncement} disabled={saving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               form="admin-announcement-form"
               disabled={saving || !annForm.title.trim() || !annForm.content.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
+              loading={saving}
             >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {annEditing?.id ? 'Save changes' : 'Post'}
-            </button>
+            </Button>
           </>
         }
       >
-        <form id="admin-announcement-form" onSubmit={submitAnnouncement} className="max-h-[70vh] space-y-4 overflow-y-auto">
+        {/* No scroller of its own: the dialog's body is the scroller now
+            (Modal), so a long form no longer scrolls inside a scrolling box. */}
+        <form id="admin-announcement-form" onSubmit={submitAnnouncement} className="space-y-4">
           {formError ? <ErrorAlert message={formError} /> : null}
 
-          <fieldset className="space-y-2">
-            <legend className="mb-1.5 text-sm font-medium text-fg-secondary">Audience</legend>
-            {[
-              { value: 'school', label: 'Everyone at the school' },
-              { value: 'grade', label: 'One whole grade' },
-              { value: 'class', label: 'One class' },
-            ].map((opt) => (
-              <label key={opt.value} className="flex items-center gap-2 text-sm text-fg-secondary">
-                <input
-                  type="radio"
-                  name="audience"
-                  value={opt.value}
-                  checked={annForm.audience === opt.value}
-                  onChange={() => setAnnForm((f) => ({ ...f, audience: opt.value, section: '' }))}
-                />
-                {opt.label}
-              </label>
-            ))}
+          {/* Each audience is ONE <label> around a NATIVE radio, so the whole
+              44px row is the target and the arrow keys work as a radio
+              group's do. The chosen one is told apart by the radio's own dot,
+              a doubled edge (border plus a ring — a ring, so the row does not
+              change size) and a heavier label, never by colour alone. */}
+          <fieldset>
+            <legend className="mb-1.5 block text-sm font-semibold text-fg-secondary">Audience</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {AUDIENCE_OPTIONS.map((opt) => {
+                const checked = annForm.audience === opt.value;
+                return (
+                  <label
+                    key={opt.value}
+                    className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm text-fg transition has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus-accent ${
+                      checked
+                        ? 'border-primary bg-surface-subtle font-bold ring-1 ring-primary'
+                        : 'border-edge-strong font-semibold hover:bg-surface-subtle'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="audience"
+                      value={opt.value}
+                      checked={checked}
+                      onChange={() => setAnnForm((f) => ({ ...f, audience: opt.value, section: '' }))}
+                      className="h-4 w-4 shrink-0 accent-primary"
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
           </fieldset>
 
           {annForm.audience !== 'school' ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="Grade"
                 as="select"
@@ -726,8 +817,11 @@ export default function AdminAnnouncementsPage() {
 
           <p className="text-sm text-fg-muted">{audienceHint}</p>
           {annForm.audience === 'class' && chosenSection && Number(chosenSection.student_count) === 0 ? (
-            <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
-              This class has no students, so no parent will see this post.
+            <p className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+              <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+                <i className="fa-solid fa-triangle-exclamation" />
+              </span>
+              <span className="min-w-0">This class has no students, so no parent will see this post.</span>
             </p>
           ) : null}
 
@@ -764,18 +858,18 @@ export default function AdminAnnouncementsPage() {
         size="lg"
         footer={
           <>
-            <button type="button" onClick={closeMemo} disabled={saving} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50">
+            <Button onClick={closeMemo} disabled={saving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               form="admin-memo-form"
               disabled={saving || !memoForm.title.trim() || !memoForm.content.trim()}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
+              loading={saving}
             >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               {memoEditing?.id ? 'Save changes' : 'Post memo'}
-            </button>
+            </Button>
           </>
         }
       >
@@ -811,33 +905,32 @@ export default function AdminAnnouncementsPage() {
         title={deleting?.kind === 'memo' ? 'Delete memo' : 'Delete announcement'}
         size="sm"
         footer={
+          // The filled danger is this dialog's confirm and appears nowhere
+          // else on the page (the rows carry the outlined one).
           <>
-            <button type="button" onClick={() => setDeleting(null)} disabled={saving} className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50">
+            <Button onClick={() => setDeleting(null)} disabled={saving}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDelete}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
-            >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="danger" onClick={confirmDelete} loading={saving}>
               Delete
-            </button>
+            </Button>
           </>
         }
       >
-        {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
+        {deleteError ? <ErrorAlert message={deleteError} className="mb-4" /> : null}
+        {/* `break-words`: a title is free text and may be one long unbroken
+            string; in a narrow dialog it must wrap, never push the dialog
+            wider than the screen. */}
         {deleting?.kind === 'memo' ? (
-          <p className="text-sm text-fg-secondary">
-            Delete <strong>&ldquo;{deleting.row.title}&rdquo;</strong>? This cannot be undone. Every
+          <p className="break-words text-sm text-fg-secondary">
+            Delete <strong className="text-fg">&ldquo;{deleting.row.title}&rdquo;</strong>? This cannot be undone. Every
             teacher and parent loses it.
           </p>
         ) : deleting ? (
           // "…is not told" stays: nothing in the system notifies the poster,
           // and this is the only place that fact appears in the product.
-          <p className="text-sm text-fg-secondary">
-            Delete <strong>&ldquo;{deleting.row.title}&rdquo;</strong>, posted by{' '}
+          <p className="break-words text-sm text-fg-secondary">
+            Delete <strong className="text-fg">&ldquo;{deleting.row.title}&rdquo;</strong>, posted by{' '}
             {deletingOwn ? 'you' : deleting.row.posted_by_name} to {audienceLabel(deleting.row)}? This
             cannot be undone. Parents who have not read it will never see it
             {deletingOwn ? '.' : `, and ${deleting.row.posted_by_name} is not told.`}

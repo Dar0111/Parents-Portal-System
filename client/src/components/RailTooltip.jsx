@@ -3,17 +3,24 @@ import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { watchDismiss } from '../layout/navScroll';
 
-// The collapsed sidebar's label, shown beside an icon on HOVER and on
-// KEYBOARD FOCUS (feat/ui-polish, 2026-09-30, decision Q3). Not the browser's
-// `title`: that never appears on focus, only after a hover delay, so a
-// keyboard user tabbing down the rail would see bare icons.
+// The visible label of an ICON-ONLY control in the sidebar, shown beside it
+// on HOVER and on KEYBOARD FOCUS (feat/ui-polish, 2026-09-30, decision Q3).
+// Not the browser's `title`: that never appears on focus, only after a hover
+// delay, so a keyboard user would land on a bare icon.
+//
+// WHAT IT IS FOR NOW (feat/ui-refresh, 2026-10-02): the user card's Logout
+// button, in the sidebar and in the drawer — the one icon-only control left
+// in the shell. It was written for the 64px icon rail, which labelled every
+// nav item this way; the rail was removed by the owner's decision and the
+// sidebar always shows its words. The file keeps its name; nothing else
+// about it changed.
 //
 // KEYBOARD FOCUS MEANS `:focus-visible`, AND A CLICK HIDES IT (UI-11). It
 // showed on any `focus`, and a mouse click leaves focus on the button — so
-// "Expand sidebar" stayed over the page ("Record e…" on Grades) until focus
-// moved. Now: hover shows it, focus shows it only when the element matches
-// `:focus-visible`, and pointer-down hides it and keeps it hidden until the
-// pointer leaves and comes back.
+// the rail toggle's label stayed over the page ("Record e…" on Grades) until
+// focus moved. Now: hover shows it, focus shows it only when the element
+// matches `:focus-visible`, and pointer-down hides it and keeps it hidden
+// until the pointer leaves and comes back.
 //
 // PORTALLED TO document.body AT z-45 (UI-8). It was a fixed-position child
 // of the sidebar, and a `position: sticky` sidebar forms its own stacking
@@ -46,9 +53,9 @@ export default function RailTooltip({ label, enabled = true, children }) {
   if (!enabled) return children;
 
   const place = () => {
-    // The CONTROL's box, not the wrapper's: the collapse toggle carries
-    // `mb-2`, and as a flex item the wrapper does not collapse that margin,
-    // so measuring the wrapper put "Expand sidebar" 4px below its button.
+    // The CONTROL's box, not the wrapper's: a margin on the control is not
+    // collapsed by a flex-item wrapper, so measuring the wrapper once put a
+    // label 4px below its button (the rail toggle, which carried `mb-2`).
     const el = ref.current?.firstElementChild ?? ref.current;
     const r = el?.getBoundingClientRect();
     if (r) setPos({ top: r.top + r.height / 2, left: r.right + 8, path: pathname });
@@ -83,7 +90,7 @@ export default function RailTooltip({ label, enabled = true, children }) {
             <span
               aria-hidden="true"
               style={{ top: pos.top, left: pos.left }}
-              className="pointer-events-none fixed z-[45] -translate-y-1/2 whitespace-nowrap rounded-md border border-edge bg-surface px-2 py-1 text-xs font-medium text-fg shadow-lg"
+              className="pointer-events-none fixed z-[45] -translate-y-1/2 whitespace-nowrap rounded-lg border border-edge bg-surface px-2.5 py-1 text-xs font-semibold text-fg shadow-lg"
             >
               {label}
             </span>,

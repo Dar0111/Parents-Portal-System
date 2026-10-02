@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Avatar from '../../components/Avatar';
 import ErrorAlert from '../../components/ErrorAlert';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import { useAuth } from '../../auth/AuthContext';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 
@@ -59,12 +61,55 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 // §5b again: "Verified" renders from user.email_verified_at on the last
 // /auth/me, and refresh() after a successful confirm is the only thing that
 // changes it. The code input never writes it.
+//
+// RELOAD (feat/ui-refresh, 2026-10-02) is that same read, asked for by hand:
+// the section header's button calls AuthContext's refresh() — GET /auth/me,
+// the call the mount effect and every write here already make. It never
+// touches a number being typed or a typed code, so nothing unsaved is lost; a
+// failure is shown under the header rather than swallowed, because this time
+// somebody asked.
 
+// A sub-section's title: the icon chip and the title face. The chip is
+// decoration (aria-hidden) — the heading is the name — and the flex sits on
+// the span, never on the `fa-solid` element.
+function SubHeading({ icon, children }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden="true"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+      >
+        <i className={`fa-solid ${icon}`} />
+      </span>
+      <h3 className="min-w-0 font-serif text-base font-bold text-fg">{children}</h3>
+    </div>
+  );
+}
+
+// One sub-section of the tab: a hairline across the whole panel, then the
+// section's own column under its heading. The rule is on the full-width
+// <section> and the `max-w-md` column is inside it, so every rule on this tab
+// is as long as the band of locked fields, whatever the column's width.
+function Block({ icon, title, children }) {
+  return (
+    <section className="border-t border-edge-soft pt-6">
+      <div className="max-w-md space-y-3">
+        <SubHeading icon={icon}>{title}</SubHeading>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+// A locked fact in the band: the label in the eyebrow style, the value under
+// it. `min-w-0` and `overflow-wrap: anywhere` because a grid cell is otherwise
+// as wide as its longest word, and an email address is one long word — in a
+// two-column band on a narrow panel it would run out of its cell.
 function Field({ label, value, empty = 'Not recorded', children }) {
   return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
-      <dd className="mt-1 text-sm text-fg">
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-fg [overflow-wrap:anywhere]">
         {children ?? (value ? value : <span className="text-fg-muted">{empty}</span>)}
       </dd>
     </div>
@@ -87,23 +132,26 @@ function childClass(user) {
   return `Grade ${user.grade_level} - ${user.section || ''}`.replace(/ - $/, '');
 }
 
+// The Show / Hide control is the small bordered button — 44px tall on a
+// phone, where the old text link was a 16px target. It wraps under the dots
+// when the cell is narrow rather than running out of it.
 function MaskedLoginId({ value }) {
   const [shown, setShown] = useState(false);
   if (!value) return <span className="text-fg-muted">—</span>;
   return (
-    <span className="inline-flex items-center gap-3">
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="font-mono tracking-wider" aria-live="polite">
         {shown ? value : '•'.repeat(Math.max(8, value.length))}
         <span className="sr-only">{shown ? '' : 'Login ID hidden'}</span>
       </span>
-      <button
-        type="button"
+      <Button
+        size="sm"
+        icon={shown ? 'fa-eye-slash' : 'fa-eye'}
         onClick={() => setShown((s) => !s)}
         aria-pressed={shown}
-        className="text-xs font-medium text-brand underline-offset-2 hover:underline"
       >
         {shown ? 'Hide' : 'Show'}
-      </button>
+      </Button>
     </span>
   );
 }
@@ -111,19 +159,43 @@ function MaskedLoginId({ value }) {
 // Exported so /dev/ui renders the REAL one in both states rather than a
 // copy of its markup — the confirmed state is otherwise only reachable by
 // actually confirming an address.
-export function VerifiedMark({ at }) {
+//
+// A PILL IN ITS OWN TONE (feat/ui-refresh): `warning-strong` on
+// `warning-soft` and `success-strong` on `success-soft` are both checked
+// pairs, where the bare coloured text on the band's `surface-subtle` was
+// neither. Never colour alone — each state has its own glyph and its own
+// words. `className` is the gap before it: `ml-2` after a value in running
+// text (the default, and what /dev/ui gets), nothing inside `Marked` below,
+// where a flex gap does that job.
+export function VerifiedMark({ at, className = 'ml-2' }) {
   if (!at) {
     return (
-      <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-warning-strong">
+      <span
+        className={`${className} inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong`}
+      >
         <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />
         Not confirmed
       </span>
     );
   }
   return (
-    <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-success-strong">
+    <span
+      className={`${className} inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-strong`}
+    >
       <i className="fa-solid fa-circle-check" aria-hidden="true" />
       Verified · {new Date(at).toLocaleDateString()}
+    </span>
+  );
+}
+
+// A value with its confirmation mark beside it — or under it, when the cell
+// is too narrow for both: the row wraps, so the mark never pushes the band
+// wider and never sits indented on a line of its own.
+function Marked({ at, children }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="min-w-0">{children}</span>
+      <VerifiedMark at={at} className="" />
     </span>
   );
 }
@@ -137,10 +209,9 @@ function spacedNumber(value) {
 function ContactValue({ value, at }) {
   if (!value) return <span className="text-fg-muted">Not recorded</span>;
   return (
-    <>
-      {spacedNumber(value)}
-      <VerifiedMark at={at} />
-    </>
+    <Marked at={at}>
+      <span className="tabular-nums">{spacedNumber(value)}</span>
+    </Marked>
   );
 }
 
@@ -159,9 +230,11 @@ function ContactValue({ value, at }) {
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PHOTO_MAX = 5 * 1024 * 1024;
 
-function ProfilePhoto({ user, refresh, status, setStatus }) {
+// `busy` IS HELD BY THE PAGE (feat/ui-refresh), not here, and nothing else
+// about it changed: the header's Reload has to know a photo write is in
+// flight, because that write ends in the same refresh() the reload makes.
+function ProfilePhoto({ user, refresh, status, setStatus, busy, setBusy }) {
   const inputRef = useRef(null);
-  const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [removeError, setRemoveError] = useState(null);
   const hasPhoto = Boolean(user?.profile_pic);
@@ -210,35 +283,38 @@ function ProfilePhoto({ user, refresh, status, setStatus }) {
   }
 
   return (
-    <section className="max-w-md space-y-3">
-      <h3 className="text-sm font-semibold text-fg">Profile photo</h3>
+    <Block icon="fa-circle-user" title="Profile photo">
       <div className="flex items-center gap-4">
         {user?.profile_pic || user?.name ? (
           <Avatar name={user?.name} photo={user?.profile_pic} size="lg" />
         ) : null}
-        <div className="space-y-2">
+        <div className="min-w-0 flex-1 space-y-2">
+          {/* `loading` is the old spinner in one prop: it turns only while an
+              upload is in flight (a removal has its own, in the dialog), and
+              both buttons stay disabled for either. REMOVE IS THE DESTRUCTIVE
+              ONE and is drawn as such; pressing it still only opens the
+              question below. */}
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
+            <Button
+              icon="fa-arrow-up-from-bracket"
               onClick={() => inputRef.current?.click()}
               disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
+              loading={busy && !confirming}
             >
-              {busy && !confirming ? <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" /> : null}
               {hasPhoto ? 'Change photo' : 'Upload a photo'}
-            </button>
+            </Button>
             {hasPhoto ? (
-              <button
-                type="button"
+              <Button
+                variant="danger-outline"
+                icon="fa-trash-can"
                 onClick={() => {
                   setRemoveError(null);
                   setConfirming(true);
                 }}
                 disabled={busy}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Remove photo
-              </button>
+              </Button>
             ) : null}
           </div>
           <p className="text-xs text-fg-muted">
@@ -266,23 +342,12 @@ function ProfilePhoto({ user, refresh, status, setStatus }) {
         closeOnBackdrop={!busy}
         footer={
           <>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              disabled={busy}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={() => setConfirming(false)} disabled={busy}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={remove}
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {busy ? <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true" /> : null}
+            </Button>
+            <Button variant="danger" onClick={remove} loading={busy}>
               Yes, remove it
-            </button>
+            </Button>
           </>
         }
       >
@@ -294,7 +359,7 @@ function ProfilePhoto({ user, refresh, status, setStatus }) {
           </p>
         </div>
       </Modal>
-    </section>
+    </Block>
   );
 }
 
@@ -379,6 +444,39 @@ export default function AccountInfoSection() {
     // dead session is already handled by the 401 interceptor.
     refreshRef.current().catch(() => {});
   }, []);
+
+  // The profile photo's write in flight (ProfilePhoto sets it). Held here so
+  // the header's Reload can be disabled for it, like the three writes below.
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // RELOAD — the header's button. The same refresh() as the mount read, but
+  // asked for by hand, so its failure is said (under the header, with Try
+  // again) instead of swallowed. Set from the click, never from an effect.
+  // It writes only the auth user: a number being typed and a typed code are
+  // left exactly as they are. The one thing it lets go of is a contact draft
+  // that already EQUALS the stored number (typed in and put back) — kept, the
+  // input would go on following that draft, and a number changed elsewhere
+  // would show in the band above while the field still offered the old one
+  // as an edit to save.
+  //
+  // §7c: A FAILED RELOAD IS ONE MORE KEY OF THE PAGE'S ONE STATUS OBJECT, not
+  // a state of its own — so the next action's message replaces it, and a
+  // stale "could not reload" can never sit above a fresh "Contact number
+  // updated.". A reload that WORKS leaves every message alone; starting one
+  // clears only an earlier reload's failure.
+  const [reloading, setReloading] = useState(false);
+  async function reload() {
+    setReloading(true);
+    setStatus((prev) => (prev.reload ? {} : prev));
+    if (!contactDirty) setDraft(null);
+    try {
+      await refresh();
+    } catch (err) {
+      setStatus({ reload: fail(extractError(err)) });
+    } finally {
+      setReloading(false);
+    }
+  }
 
   async function saveContact(event) {
     event.preventDefault();
@@ -514,14 +612,33 @@ export default function AccountInfoSection() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-base font-semibold text-fg">Account information</h2>
-        <p className="mt-1 text-sm text-fg-muted">{ROLE_COPY[role] || ''}</p>
-      </div>
+      {/* Disabled while one of this page's own writes is in flight: each of
+          them ends in the same refresh(), and two reads racing to setUser
+          would let the older one land last. */}
+      <SectionHeader
+        title="Account information"
+        description={ROLE_COPY[role] || ''}
+        onReload={reload}
+        reloading={reloading}
+        reloadDisabled={saving || emailBusy || contactBusy || photoBusy}
+        reloadLabel="Reload account information"
+      />
 
-      <ProfilePhoto user={user} refresh={refresh} status={status} setStatus={setStatus} />
+      {status.reload ? <ErrorAlert message={status.reload.text} onRetry={reload} /> : null}
 
-      <dl className="grid gap-4 rounded-lg border border-edge bg-surface-subtle px-4 py-4 sm:grid-cols-2">
+      <ProfilePhoto
+        user={user}
+        refresh={refresh}
+        status={status}
+        setStatus={setStatus}
+        busy={photoBusy}
+        setBusy={setPhotoBusy}
+      />
+
+      {/* The school's record of this account, locked: a band, two columns
+          from `sm`. Every cell is `min-w-0` (Field), so a long address wraps
+          inside its column instead of widening the band. */}
+      <dl className="grid gap-4 rounded-xl border border-edge bg-surface-subtle p-4 sm:grid-cols-2">
         {role === 'parent' ? (
           <>
             <Field label="Parent name" value={user?.name} />
@@ -533,10 +650,7 @@ export default function AccountInfoSection() {
             <Field label="Class" value={childClass(user)} empty={linked ? 'Not recorded' : 'Not linked'} />
             <Field label="Email">
               {hasEmail ? (
-                <>
-                  {user.email}
-                  <VerifiedMark at={emailVerifiedAt} />
-                </>
+                <Marked at={emailVerifiedAt}>{user.email}</Marked>
               ) : (
                 <span className="text-fg-muted">Not recorded</span>
               )}
@@ -554,10 +668,7 @@ export default function AccountInfoSection() {
             <Field label={role === 'admin' ? 'Admin ID' : 'Teacher ID'} value={user?.login_id} empty="—" />
             <Field label="Email">
               {hasEmail ? (
-                <>
-                  {user.email}
-                  <VerifiedMark at={emailVerifiedAt} />
-                </>
+                <Marked at={emailVerifiedAt}>{user.email}</Marked>
               ) : (
                 <span className="text-fg-muted">Not recorded</span>
               )}
@@ -569,8 +680,7 @@ export default function AccountInfoSection() {
         )}
       </dl>
 
-      <section className="max-w-md space-y-3">
-        <h3 className="text-sm font-semibold text-fg">Email address</h3>
+      <Block icon="fa-envelope" title="Email address">
         {!hasEmail ? (
           <p className="text-sm text-fg-muted">
             {/* F1 (feat/sms-transport, 2026-09-29): "without it you cannot
@@ -612,7 +722,7 @@ export default function AccountInfoSection() {
                   : 'only the school office can get you back in.'}
             </p>
             {emailStep === 'code' ? (
-              <form onSubmit={confirmEmailCode} className="space-y-3">
+              <form onSubmit={confirmEmailCode} className="space-y-4">
                 <FormField
                   label="Six-digit code"
                   value={emailCode}
@@ -627,40 +737,29 @@ export default function AccountInfoSection() {
                   error={emailCodeError}
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
                     disabled={emailBusy || !/^\d{6}$/.test(emailCode)}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {emailBusy ? 'Confirming…' : 'Confirm email'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={requestEmailCode}
-                    disabled={emailBusy}
-                    className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-                  >
+                  </Button>
+                  <Button onClick={requestEmailCode} disabled={emailBusy}>
                     Send a new code
-                  </button>
+                  </Button>
                 </div>
               </form>
             ) : (
-              <button
-                type="button"
-                onClick={requestEmailCode}
-                disabled={emailBusy}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <Button variant="primary" onClick={requestEmailCode} disabled={emailBusy}>
                 {emailBusy ? 'Sending…' : 'Verify email'}
-              </button>
+              </Button>
             )}
           </>
         )}
         <FormStatus status={status.email} />
-      </section>
+      </Block>
 
-      <section className="max-w-md space-y-3">
-        <h3 className="text-sm font-semibold text-fg">Mobile number</h3>
+      <Block icon="fa-mobile-screen" title="Mobile number">
         {!storedContact ? (
           <p className="text-sm text-fg-muted">
             There is no mobile number on this account. Add one below — once it is confirmed, reset
@@ -678,7 +777,7 @@ export default function AccountInfoSection() {
               text message.
             </p>
             {contactStep === 'code' ? (
-              <form onSubmit={confirmContactCode} className="space-y-3">
+              <form onSubmit={confirmContactCode} className="space-y-4">
                 <FormField
                   label="Six-digit code"
                   value={contactCode}
@@ -693,44 +792,33 @@ export default function AccountInfoSection() {
                   error={contactCodeError}
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
                     disabled={contactBusy || !/^\d{6}$/.test(contactCode)}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {contactBusy ? 'Confirming…' : 'Confirm number'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={requestContactCode}
-                    disabled={contactBusy}
-                    className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-                  >
+                  </Button>
+                  <Button onClick={requestContactCode} disabled={contactBusy}>
                     Send a new code
-                  </button>
+                  </Button>
                 </div>
               </form>
             ) : (
-              <button
-                type="button"
-                onClick={requestContactCode}
-                disabled={contactBusy}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <Button variant="primary" onClick={requestContactCode} disabled={contactBusy}>
                 {contactBusy ? 'Sending…' : 'Text me a code'}
-              </button>
+              </Button>
             )}
           </>
         )}
         <FormStatus status={status.mobile} />
-      </section>
+      </Block>
 
-      <section className="max-w-md space-y-3">
-        <h3 className="text-sm font-semibold text-fg">Update contact number</h3>
+      <Block icon="fa-phone" title="Update contact number">
         <p className="text-sm text-fg-muted">
           If you change phones, update this so the school can still reach you.
         </p>
-        <form onSubmit={saveContact} className="space-y-3">
+        <form onSubmit={saveContact} className="space-y-4">
           <FormField
             label="New contact number"
             value={contactValue}
@@ -744,16 +832,12 @@ export default function AccountInfoSection() {
             hint={contactRuleHint()}
             error={contactFieldError}
           />
-          <button
-            type="submit"
-            disabled={saving || !contactDirty}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={saving || !contactDirty}>
             {saving ? 'Saving…' : 'Save contact number'}
-          </button>
+          </Button>
           <FormStatus status={status.contact} />
         </form>
-      </section>
+      </Block>
     </div>
   );
 }

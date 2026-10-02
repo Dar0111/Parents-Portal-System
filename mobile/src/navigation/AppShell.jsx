@@ -66,6 +66,7 @@ import AccountInfoScreen from '../screens/settings/AccountInfoScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
 import PersonalizationScreen from '../screens/settings/PersonalizationScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+import { TITLE_FONT } from '../theme/fonts';
 import { useTheme } from '../theme/ThemeProvider';
 import DrawerContent, { badgeFor } from './DrawerContent';
 import { navForRole } from './nav';
@@ -80,6 +81,20 @@ import { isBuilt, isWebOnly, routeFor } from './routes';
 // is the SUM OF THE ROWS' OWN BADGES, each the server's (§10): messages are
 // not in the bell and grades are never badged, so this dot and the bell's
 // count answer different questions and neither is derived from the other.
+//
+// A 44dp SQUARE, SET IN dp (feat/ui-refresh, 2026-10-02) — the phone's rem
+// is 14, so the old `h-9 w-9` was 31.5dp, well under a finger's target. The
+// size is a plain style OBJECT and the press feedback is Android's ripple, a
+// prop (never a style function on a Pressable — M20).
+//
+// THE DOT IS A SIBLING OF THE BUTTON, NOT ITS CHILD — the bell's rule
+// (components/NotificationBell.jsx), so the two header buttons match: the
+// button clips its ripple to its rounded corner, and a dot hanging off that
+// corner would be clipped with it. As a sibling it stays where it always
+// was, on the top-right corner. It takes no touches and is hidden from the
+// screen reader — the button's own label already says the count in words.
+const MENU_SIZE = 44;
+
 function MenuButton() {
   const navigation = useNavigation();
   const { user } = useAuth();
@@ -89,15 +104,26 @@ function MenuButton() {
   const items = navForRole(user?.role);
   const total = items.reduce((sum, item) => sum + (badgeFor(item, user?.role, counts, unread) || 0), 0);
   return (
-    <Pressable
-      onPress={() => navigation.toggleDrawer()}
-      accessibilityRole="button"
-      accessibilityLabel={total > 0 ? `Open menu, ${total} unread` : 'Open menu'}
-      className="ml-2 h-9 w-9 items-center justify-center rounded-lg border border-edge-strong"
-    >
-      <Icon name="fa-bars" size={15} color={tokens['fg-body']} />
-      {total > 0 ? <View className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-surface bg-primary" /> : null}
-    </Pressable>
+    <View className="ml-2" style={{ width: MENU_SIZE, height: MENU_SIZE }}>
+      <Pressable
+        onPress={() => navigation.toggleDrawer()}
+        accessibilityRole="button"
+        accessibilityLabel={total > 0 ? `Open menu, ${total} unread` : 'Open menu'}
+        android_ripple={{ color: tokens['edge-strong'] }}
+        className="items-center justify-center overflow-hidden rounded-xl border border-edge-strong"
+        style={{ width: MENU_SIZE, height: MENU_SIZE }}
+      >
+        <Icon name="fa-bars" size={16} color={tokens['fg-body']} />
+      </Pressable>
+      {total > 0 ? (
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-surface bg-primary"
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -178,7 +204,11 @@ function headerOptions(tokens) {
   return {
     headerStyle: { backgroundColor: tokens.surface },
     headerTintColor: tokens.fg,
-    headerTitleStyle: { fontSize: 16, fontWeight: '600', color: tokens.fg },
+    // The title face (Merriweather Bold), by family name and with NO
+    // fontWeight: a weight beside a custom family makes Android fake the bold
+    // (tailwind.config.js). The header's HEIGHT is untouched — the message
+    // toast sits a fixed 56dp under the top inset (M22).
+    headerTitleStyle: { fontFamily: TITLE_FONT, fontSize: 16, color: tokens.fg },
     headerShadowVisible: false,
     contentStyle: { backgroundColor: tokens.page },
   };
@@ -200,7 +230,11 @@ function RoleDrawer() {
         ...headerOptions(tokens),
         headerLeft: () => <MenuButton />,
         headerRight: () => <NotificationBell />,
-        drawerStyle: { backgroundColor: tokens.surface, width: 280 },
+        // 296dp since feat/ui-refresh (it was 280): the user card is now a
+        // tile set in from the drawer's edges, and the extra 16dp gives its
+        // name back the width the inset took. On a 360dp phone that leaves a
+        // 64dp strip of the page to tap the drawer shut.
+        drawerStyle: { backgroundColor: tokens.surface, width: 296 },
         sceneStyle: { backgroundColor: tokens.page },
       }}
     >

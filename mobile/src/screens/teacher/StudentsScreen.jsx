@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import { sectionOptions, showSectionFilter } from './students/sectionOptions';
 
@@ -23,7 +26,14 @@ import { sectionOptions, showSectionFilter } from './students/sectionOptions';
 // Section FILTER's union in `students/sectionOptions.js` (a verbatim copy)
 // takes the assignments plus the loaded rows, because a filter narrows what
 // is visible and is not a write scope. Enroll student is NEUTRAL and on its
-// own row (§21b) — beside a filled Apply two primaries would compete.
+// own row (§21b) — beside a filled Apply two primaries would compete. A
+// teacher who advises nothing reads why there is no button, under the
+// section's title, in place of the button.
+//
+// THE SECTION HEADER'S RELOAD (feat/ui-refresh) is `load(0)` — the request
+// pull-to-refresh and Try again already make, with the APPLIED search and
+// section, back on the first page. It does not re-read the two one-shot
+// lists (assignments, advised sections).
 //
 // A card is one <Pressable> into the detail screen, and the LRN does not come
 // along (§5c): the name plus the class identifies the learner on a phone.
@@ -153,9 +163,9 @@ export default function StudentsScreen({ navigation, route }) {
         title: 'No students match that search',
         message: 'Try a different name, LRN, or section.',
         action: (
-          <Pressable onPress={clearFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Clear filters</Text>
-          </Pressable>
+          <Button size="sm" onPress={clearFilters}>
+            Clear filters
+          </Button>
         ),
       }
     : {
@@ -165,21 +175,21 @@ export default function StudentsScreen({ navigation, route }) {
       };
 
   const header = (
-    <View className="mb-3 gap-3">
-      <View className="flex-row items-center justify-end">
-        {canEnroll ? (
-          <Pressable
-            onPress={() => navigation.navigate('Enroll', { classOptions })}
-            accessibilityRole="button"
-            className="rounded-lg border border-edge-strong bg-surface px-4 py-2"
-          >
-            <Text className="text-sm font-medium text-fg-body">Enroll student</Text>
-          </Pressable>
-        ) : (
-          <Text className="flex-1 text-sm text-fg-muted">Enrolling a learner is limited to the section you advise. Teaching a subject in a class is not enough.</Text>
-        )}
-      </View>
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader
+        title="Students in my sections"
+        description={canEnroll ? null : 'Enrolling a learner is limited to the section you advise. Teaching a subject in a class is not enough.'}
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadLabel="Reload students"
+      />
+      {canEnroll ? (
+        <Button icon="fa-user-plus" className="self-end" onPress={() => navigation.navigate('Enroll', { classOptions })}>
+          Enroll student
+        </Button>
+      ) : null}
+      {/* The filter is its own card, and only the filters live in it. */}
+      <View className={`${cardClass} gap-3 p-4`}>
         <FormField label="Search" placeholder="Name or LRN" value={search} onChangeText={setSearch} autoCorrect={false} returnKeyType="search" onSubmitEditing={applyFilters} />
         {showSectionFilter(filterSections) ? (
           <Segmented
@@ -192,11 +202,11 @@ export default function StudentsScreen({ navigation, route }) {
         <FilterActions dirty={dirty} canReset={filtered} onApply={applyFilters} onReset={clearFilters} resetLabel="Clear" />
       </View>
       {notice ? (
-        <View>
+        <View className="gap-1">
           <FormStatus status={ok(notice)} />
-          <Pressable onPress={() => navigation.setParams({ notice: null })} accessibilityRole="button" className="mt-1 self-end">
-            <Text className="text-xs text-fg-muted">Dismiss</Text>
-          </Pressable>
+          <Button variant="ghost" size="sm" className="self-end" onPress={() => navigation.setParams({ notice: null })}>
+            Dismiss
+          </Button>
         </View>
       ) : null}
     </View>

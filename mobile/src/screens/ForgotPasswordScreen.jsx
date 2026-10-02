@@ -1,13 +1,18 @@
 import { useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
 import extractError from '../api/extractError';
+import Button from '../components/Button';
+import { cardClass } from '../components/buttonStyles';
 import FormStatus, { ok, fail } from '../components/FormStatus';
 import FormField from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../components/PasswordChecklist';
 import Seal from '../components/Seal';
+import Text from '../components/Text';
+import Icon from '../icons';
+import Reveal from '../motion/Reveal';
 import { useTheme } from '../theme/ThemeProvider';
 
 // Self-service password reset — the web's ForgotPassword (R2), two steps in
@@ -22,6 +27,22 @@ import { useTheme } from '../theme/ThemeProvider';
 // not undo that: 202 with one sentence for every case, the step advances on
 // it, no branch on whether a code really went out. Step two's failure is
 // equally flat and carries no count of tries. Do not add one.
+//
+// THE FRAME IS THE SIGN-IN FAMILY'S (feat/ui-refresh, 2026-10-02): Login's
+// brand band made compact — the seal on its disc beside the wordmark — and
+// one card overlapping its bottom edge (`-mt-12` against `pb-16`, never
+// absolute positioning: the card's height changes with the step). The
+// screen's title is the card's, in the title face; the submit is the shared
+// `Button` at Login's size. The card stays mounted across the two steps, so
+// its entrance never replays.
+//
+// A screen that is only a write form has no Reload control.
+
+// The card surface with the sign-in family's larger corner (see LoginScreen).
+const AUTH_CARD = cardClass.replace('rounded-2xl', 'rounded-3xl');
+
+const BAND_CORNERS = { borderBottomLeftRadius: 24, borderBottomRightRadius: 24 };
+
 export default function ForgotPasswordScreen({ navigation }) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
@@ -82,127 +103,152 @@ export default function ForgotPasswordScreen({ navigation }) {
     }
   }
 
-  const buttonClass = (disabled) =>
-    `flex-row items-center justify-center gap-2 rounded-lg bg-primary px-3 py-3 ${disabled ? 'opacity-60' : ''}`;
-
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerClassName="flex-grow justify-center px-4 pb-10"
-        contentContainerStyle={{ paddingTop: insets.top + 40 }}
-      >
-        <View className="mb-6 items-center">
-          <View className="mb-4">
-            <Seal size={72} />
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow">
+        {/* The halo's ring colour is the brand panel's, so the seal carries
+            it here, on the band, as it does on Login. */}
+        <View className="bg-brand-panel px-6 pb-16" style={{ paddingTop: insets.top + 24, ...BAND_CORNERS }}>
+          <Reveal>
+            <View className="flex-row items-center justify-center gap-3">
+              <Seal size={44} halo />
+              <Text className="font-serif text-lg text-brand-panel-fg">Parent’s Portal</Text>
+            </View>
+          </Reveal>
+        </View>
+
+        <View className="-mt-12 w-full flex-1 px-4 pb-10">
+          <Reveal index={1}>
+            <View className={`${AUTH_CARD} p-5`}>
+              <Text accessibilityRole="header" className="mb-4 font-serif text-xl text-fg">
+                Reset your password
+              </Text>
+              {step === 'request' ? (
+                <View className="gap-4">
+                  <Text className="text-sm text-fg-muted">
+                    Enter your Login ID. If the account has a confirmed email address or mobile number, we will send a six-digit code to it.
+                  </Text>
+                  <FormField
+                    label="Login ID"
+                    hint="Parents: use your child's LRN. Teachers and staff: your assigned ID."
+                    required
+                    value={loginId}
+                    onChangeText={setLoginId}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="username"
+                    returnKeyType="send"
+                    onSubmitEditing={requestCode}
+                  />
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    full
+                    loading={submitting}
+                    disabled={!loginId.trim()}
+                    onPress={requestCode}
+                  >
+                    {submitting ? 'Sending…' : 'Send code'}
+                  </Button>
+                  <FormStatus status={status} />
+                </View>
+              ) : (
+                <View className="gap-4">
+                  {/* The server's uniform sentence, not a claim that a code
+                      is in a particular inbox. */}
+                  <FormStatus status={ok(sentNotice)} />
+                  <Text className="text-sm text-fg-muted">
+                    The code is good for a short time and can be used once. Enter it with your new password.
+                  </Text>
+                  <FormField
+                    label="Six-digit code"
+                    required
+                    value={code}
+                    onChangeText={(text) => setCode(text.replace(/\D/g, '').slice(0, 6))}
+                    keyboardType="number-pad"
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    maxLength={6}
+                  />
+                  <PasswordField
+                    label="New password"
+                    value={newPassword}
+                    onChangeText={(text) => {
+                      setNewError(null);
+                      setNewPassword(text);
+                    }}
+                    autoComplete="new-password"
+                    revealed={revealed.next}
+                    onToggleReveal={() => toggleRevealed('next')}
+                    error={newError}
+                    disabled={submitting}
+                    below={<PasswordChecklist value={newPassword} />}
+                  />
+                  <PasswordField
+                    label="Confirm new password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    autoComplete="new-password"
+                    revealed={revealed.confirm}
+                    onToggleReveal={() => toggleRevealed('confirm')}
+                    error={mismatch}
+                    disabled={submitting}
+                  />
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    full
+                    loading={submitting}
+                    disabled={!resetReady}
+                    onPress={submitReset}
+                  >
+                    {submitting ? 'Saving…' : 'Set new password'}
+                  </Button>
+                  <FormStatus status={status} />
+                  {/* A text button, centred under the submit and 44dp tall —
+                      the quiet way back to step one, never a second filled
+                      button. */}
+                  <View className="items-center">
+                    <Pressable
+                      onPress={() => {
+                        setStep('request');
+                        setCode('');
+                        setStatus(null);
+                        setNewError(null);
+                      }}
+                      accessibilityRole="button"
+                      className="flex-row items-center"
+                      style={{ minHeight: 44 }}
+                    >
+                      <Text className="text-sm font-semibold text-brand">Use a different Login ID</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+            </View>
+          </Reveal>
+
+          <View className="mt-2 items-center">
+            <Pressable
+              onPress={() => navigation.popTo('Login')}
+              accessibilityRole="link"
+              className="flex-row items-center gap-2"
+              style={{ minHeight: 48 }}
+            >
+              <Icon name="fa-arrow-left" size={11} color={tokens.brand} />
+              <Text className="text-sm font-semibold text-brand">Back to sign in</Text>
+            </Pressable>
           </View>
-          <Text className="text-lg font-semibold text-fg">Reset your password</Text>
+
+          {/* The fallback, and the whole reason the admin temporary password
+              exists: an account with no confirmed email or mobile number
+              cannot be reset here, and gets no hint that it is the reason —
+              that would be the oracle again. The office is the answer either
+              way. */}
+          <Text className="text-center text-sm text-fg-muted">
+            No confirmed email or mobile number on your account? Ask your child’s adviser or the school office.
+          </Text>
         </View>
-
-        <View className="rounded-2xl border border-edge bg-surface p-6">
-          {step === 'request' ? (
-            <View className="gap-4">
-              <Text className="text-sm text-fg-muted">
-                Enter your Login ID. If the account has a confirmed email address or mobile number, we will send a six-digit code to it.
-              </Text>
-              <FormField
-                label="Login ID"
-                hint="Parents: use your child's LRN. Teachers and staff: your assigned ID."
-                required
-                value={loginId}
-                onChangeText={setLoginId}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="username"
-                returnKeyType="send"
-                onSubmitEditing={requestCode}
-              />
-              <Pressable
-                onPress={requestCode}
-                disabled={submitting || !loginId.trim()}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: submitting || !loginId.trim(), busy: submitting }}
-                className={buttonClass(submitting || !loginId.trim())}
-              >
-                {submitting ? <ActivityIndicator size="small" color={tokens['primary-fg']} /> : null}
-                <Text className="text-sm font-medium text-primary-fg">{submitting ? 'Sending…' : 'Send code'}</Text>
-              </Pressable>
-              <FormStatus status={status} />
-            </View>
-          ) : (
-            <View className="gap-4">
-              <FormStatus status={ok(sentNotice)} />
-              <Text className="text-sm text-fg-muted">
-                The code is good for a short time and can be used once. Enter it with your new password.
-              </Text>
-              <FormField
-                label="Six-digit code"
-                required
-                value={code}
-                onChangeText={(text) => setCode(text.replace(/\D/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                autoComplete="one-time-code"
-                textContentType="oneTimeCode"
-                maxLength={6}
-              />
-              <PasswordField
-                label="New password"
-                value={newPassword}
-                onChangeText={(text) => {
-                  setNewError(null);
-                  setNewPassword(text);
-                }}
-                autoComplete="new-password"
-                revealed={revealed.next}
-                onToggleReveal={() => toggleRevealed('next')}
-                error={newError}
-                disabled={submitting}
-                below={<PasswordChecklist value={newPassword} />}
-              />
-              <PasswordField
-                label="Confirm new password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                autoComplete="new-password"
-                revealed={revealed.confirm}
-                onToggleReveal={() => toggleRevealed('confirm')}
-                error={mismatch}
-                disabled={submitting}
-              />
-              <Pressable
-                onPress={submitReset}
-                disabled={submitting || !resetReady}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: submitting || !resetReady, busy: submitting }}
-                className={buttonClass(submitting || !resetReady)}
-              >
-                {submitting ? <ActivityIndicator size="small" color={tokens['primary-fg']} /> : null}
-                <Text className="text-sm font-medium text-primary-fg">{submitting ? 'Saving…' : 'Set new password'}</Text>
-              </Pressable>
-              <FormStatus status={status} />
-              <Pressable
-                onPress={() => {
-                  setStep('request');
-                  setCode('');
-                  setStatus(null);
-                  setNewError(null);
-                }}
-                accessibilityRole="button"
-                className="self-start"
-              >
-                <Text className="text-sm font-medium text-brand">Use a different Login ID</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-
-        <Pressable onPress={() => navigation.popTo('Login')} accessibilityRole="link" className="mt-5 items-center">
-          <Text className="text-sm font-medium text-brand">Back to sign in</Text>
-        </Pressable>
-
-        <Text className="mt-2 text-center text-sm text-fg-muted">
-          No confirmed email or mobile number on your account? Ask your child’s adviser or the school office.
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

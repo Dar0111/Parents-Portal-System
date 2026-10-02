@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
+import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import { todayLocalDateString } from '../../format/date';
 import { currentTerm } from '../../format/schoolCalendar';
 import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 import { buildSlotFrame, slotKey } from './classRecord/buildPayload';
 import useSlotRecord from './classRecord/useSlotRecord';
@@ -26,8 +30,20 @@ import useSlotRecord from './classRecord/useSlotRecord';
 // and class choices come from GET /assignments, and an adviser with no
 // assignment (TCH-002) gets the explaining empty state. THE TERM IS PINNED
 // ONCE from the school calendar (§13g) and the segment overrides it.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03): the section header with Reload, one
+// card that chooses WHICH record (each picker under its own label — the word
+// was only the control's accessible name before), then the three groups, each
+// a heading over its slots, each slot its own card and a 48dp target that
+// answers a press with Android's ripple (a prop, never a style function —
+// M20). RELOAD IS `record.reload`, the request the focus effect and
+// pull-to-refresh already make; nothing is typed on this screen, so there is
+// nothing for it to discard. The entrance is on the header alone: a slot row
+// is the way into grade entry and does not move.
 const TERMS = [1, 2, 3].map((t) => ({ key: t, label: `Term ${t}` }));
 const EXAM_PARTS = ['st1', 'st2', 'te'];
+const TABULAR = { fontVariant: ['tabular-nums'] };
+const LABEL = 'mb-1.5 text-sm font-semibold text-fg-secondary';
 
 function useAssignments() {
   const [rows, setRows] = useState(null);
@@ -64,35 +80,54 @@ function useAssignments() {
   return { rows, subjects, classesFor, error };
 }
 
-function SlotRow({ code, title, hps, scored, total, onPress, first }) {
+// ONE SLOT, ONE CARD. The code sits in a chip that grows with the OS font
+// scale (a minimum width, never a fixed one), the name may wrap, and the
+// highest possible score keeps its place on the right.
+function SlotRow({ code, title, hps, scored, total, onPress }) {
   const { tokens } = useTheme();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${title}, ${hps === null ? 'highest possible score not set' : `out of ${hps}`}, ${scored} of ${total} scored`}
-      className={`flex-row items-center gap-3 px-4 py-3 ${first ? '' : 'border-t border-edge-soft'}`}
+      android_ripple={{ color: tokens['edge-strong'] }}
+      className={`${cardClass} flex-row items-center gap-3 overflow-hidden px-4 py-3`}
+      style={{ minHeight: 48 }}
     >
-      <Text className="w-10 text-sm font-semibold text-fg">{code}</Text>
+      <View className="h-9 items-center justify-center rounded-xl bg-brand-soft px-2" style={{ minWidth: 44 }}>
+        <Text className="text-xs font-bold text-brand">{code}</Text>
+      </View>
       <View className="min-w-0 flex-1">
-        <Text numberOfLines={1} className="text-sm text-fg">
+        <Text numberOfLines={2} className="text-sm font-semibold text-fg">
           {title}
         </Text>
-        <Text className="text-xs text-fg-muted">
+        <Text className="text-xs text-fg-muted" style={TABULAR}>
           {scored} of {total} scored
         </Text>
       </View>
       {hps === null ? (
-        <View className="rounded border border-dashed border-edge-strong px-2 py-0.5">
+        <View className="rounded-lg border border-dashed border-edge-strong px-2 py-0.5">
           <Text className="text-xs text-fg-muted">Set HPS</Text>
         </View>
       ) : (
-        <Text className="text-sm text-fg-body" style={{ fontVariant: ['tabular-nums'] }}>
+        <Text className="text-sm text-fg-body" style={TABULAR}>
           / {hps}
         </Text>
       )}
       <Icon name="fa-chevron-right" size={12} color={tokens['fg-faint']} />
     </Pressable>
+  );
+}
+
+// A group of slots: its name and weight as the heading, its slots under it.
+function SlotGroup({ label, children }) {
+  return (
+    <View className="gap-2">
+      <Text accessibilityRole="header" className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+        {label}
+      </Text>
+      {children}
+    </View>
   );
 }
 
@@ -158,40 +193,41 @@ export default function GradesScreen({ navigation }) {
   else if (assignments === null || settings === null) body = <LoadingSpinner className="py-12" label="Loading your classes…" />;
   else if (assignments.length === 0) {
     body = (
-      <EmptyState icon="fa-chart-simple" title="No classes assigned to you" message="A class record needs a subject you are assigned to teach. Ask an admin to add the assignment." />
+      <View className={cardClass}>
+        <EmptyState icon="fa-chart-simple" title="No classes assigned to you" message="A class record needs a subject you are assigned to teach. Ask an admin to add the assignment." />
+      </View>
     );
   } else if (record.error) body = <ErrorAlert message={record.error} onRetry={reload} />;
   else if (!server) body = <LoadingSpinner className="py-12" label="Loading the class record…" />;
   else {
     const weights = server.weights || {};
     body = (
-      <View className="gap-3">
+      <View className="gap-4">
         {!server.can_encode ? (
-          <View className="rounded-lg border border-edge bg-surface-subtle px-3 py-2">
-            <Text className="text-sm text-fg-muted">
+          <View className="flex-row items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+            <Icon name="fa-eye" size={14} color={tokens['fg-faint']} style={{ marginTop: 3 }} />
+            <Text className="min-w-0 flex-1 text-sm text-fg-body">
               You can see this class record but not change it — you are not the assigned teacher for {server.subject.name} in Grade {server.grade_level} - {server.section}.
             </Text>
           </View>
         ) : null}
         {learners.length === 0 ? (
-          <EmptyState
-            icon="fa-user-graduate"
-            title="No active learners in this class"
-            message={`Grade ${server.grade_level} - ${server.section} has no active learners, so there is nothing to record yet.`}
-          />
+          <View className={cardClass}>
+            <EmptyState
+              icon="fa-user-graduate"
+              title="No active learners in this class"
+              message={`Grade ${server.grade_level} - ${server.section} has no active learners, so there is nothing to record yet.`}
+            />
+          </View>
         ) : null}
         {[
           ['ww', 'Written / Oral Works', frame.filter((s) => s.type === 'WW')],
           ['pt', 'Performance Tasks', frame.filter((s) => s.type === 'PT')],
         ].map(([group, label, slots]) => (
-          <View key={group} className="rounded-xl border border-edge bg-surface">
-            <Text className="border-b border-edge px-4 py-2 text-xs font-semibold uppercase tracking-wider text-fg-body">
-              {label} · {weights[group] ?? '—'}%
-            </Text>
-            {slots.map((slot, i) => (
+          <SlotGroup key={group} label={`${label} · ${weights[group] ?? '—'}%`}>
+            {slots.map((slot) => (
               <SlotRow
                 key={slotKey(slot.type, slot.slot_no)}
-                first={i === 0}
                 code={`${slot.type}${slot.slot_no}`}
                 title={slot.name || slot.display_label}
                 hps={slot.max_score}
@@ -200,16 +236,12 @@ export default function GradesScreen({ navigation }) {
                 onPress={() => open({ kind: 'slot', type: slot.type, slot_no: slot.slot_no }, `${slot.type}${slot.slot_no}`)}
               />
             ))}
-          </View>
+          </SlotGroup>
         ))}
-        <View className="rounded-xl border border-edge bg-surface">
-          <Text className="border-b border-edge px-4 py-2 text-xs font-semibold uppercase tracking-wider text-fg-body">
-            {descriptive ? 'Summative' : 'Summative Tests & Term Exam'} · {weights.ex ?? '—'}%
-          </Text>
-          {EXAM_PARTS.map((part, i) => (
+        <SlotGroup label={`${descriptive ? 'Summative' : 'Summative Tests & Term Exam'} · ${weights.ex ?? '—'}%`}>
+          {EXAM_PARTS.map((part) => (
             <SlotRow
               key={part}
-              first={i === 0}
               code={part.toUpperCase()}
               title={part === 'te' ? 'Term exam' : `Summative test ${part.slice(2)}`}
               hps={server.exam_max?.[part] ?? null}
@@ -218,7 +250,7 @@ export default function GradesScreen({ navigation }) {
               onPress={() => open({ kind: 'exam', part }, part.toUpperCase())}
             />
           ))}
-        </View>
+        </SlotGroup>
       </View>
     );
   }
@@ -226,31 +258,56 @@ export default function GradesScreen({ navigation }) {
   return (
     <ScrollView
       className="flex-1 bg-page"
-      contentContainerClassName="gap-3 p-4 pb-10"
+      contentContainerClassName="gap-4 p-4 pb-10"
       refreshControl={<RefreshControl refreshing={false} onRefresh={reload} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
-      <Text className="text-sm text-fg-muted">Record one assessment at a time for one subject and term. Each save writes that column for the whole class.</Text>
-      {subjects.length ? (
-        <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
-          <Segmented
-            label="Subject"
-            value={subject?.id}
-            onChange={(id) => {
-              setSubjectId(id);
-              setAssignmentId(null);
-            }}
-            options={subjects.map((s) => ({ key: s.id, label: s.name }))}
+      <Reveal>
+        <View className="gap-4">
+          <SectionHeader
+            title="Class record"
+            description="Record one assessment at a time for one subject and term. Each save writes that column for the whole class."
+            onReload={classKey ? reload : null}
+            reloading={record.loading}
+            reloadLabel="Reload class record"
           />
-          {classes.length > 1 ? (
-            <Segmented label="Class" value={selectedClass?.id} onChange={setAssignmentId} options={classes.map((c) => ({ key: c.id, label: `Grade ${c.grade_level} - ${c.section}` }))} />
-          ) : selectedClass ? (
-            <Text className="text-sm font-semibold text-fg">
-              Grade {selectedClass.grade_level} - {selectedClass.section}
-            </Text>
+          {/* WHICH RECORD: subject, then class, then term — the order a
+              teacher thinks in. */}
+          {subjects.length ? (
+            <View className={`${cardClass} gap-3 p-4`}>
+              <View>
+                <Text className={LABEL}>Subject</Text>
+                <Segmented
+                  label="Subject"
+                  value={subject?.id}
+                  onChange={(id) => {
+                    setSubjectId(id);
+                    setAssignmentId(null);
+                  }}
+                  options={subjects.map((s) => ({ key: s.id, label: s.name }))}
+                />
+              </View>
+              {classes.length > 1 ? (
+                <View>
+                  <Text className={LABEL}>Class</Text>
+                  <Segmented label="Class" value={selectedClass?.id} onChange={setAssignmentId} options={classes.map((c) => ({ key: c.id, label: `Grade ${c.grade_level} - ${c.section}` }))} />
+                </View>
+              ) : selectedClass ? (
+                // One class is not a choice, so it is named instead of offered.
+                <View>
+                  <Text className={LABEL}>Class</Text>
+                  <Text className="text-base font-semibold text-fg">
+                    Grade {selectedClass.grade_level} - {selectedClass.section}
+                  </Text>
+                </View>
+              ) : null}
+              <View>
+                <Text className={LABEL}>Term</Text>
+                <Segmented label="Term" value={term} onChange={setTerm} options={TERMS} />
+              </View>
+            </View>
           ) : null}
-          <Segmented label="Term" value={term} onChange={setTerm} options={TERMS} />
         </View>
-      ) : null}
+      </Reveal>
       {body}
     </ScrollView>
   );

@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
@@ -10,6 +12,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
 import ScrollCue from '../../components/ScrollCue';
 import { listLabels } from '../../components/scrollCueState';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/grade';
@@ -514,92 +517,155 @@ export default function ClassRecordPage() {
   const th = 'bg-surface-subtle px-2 py-2 text-xs font-semibold uppercase tracking-wider text-fg-body';
   const totalTh = `${th} whitespace-nowrap text-right`;
 
-  return (
-    <div className="space-y-4">
-      {/* NO <h1> HERE. `Shell`'s header already renders this page's <h1>
-          from `nav.js`, so this one made "Grades" the word twice, stacked,
-          and gave the document TWO top-level headings — a screen reader
-          announces two page titles. Found by the smoke sweep, which fails
-          on an <h1> count other than one. The subtitle stays: it says
-          something the nav label cannot. */}
-      <p className="text-sm text-fg-muted">
-        Record every learner&rsquo;s scores for one subject and term, then save the whole class at once.
-      </p>
+  // RELOAD (feat/ui-refresh) IS `record.reload` — useClassRecord's own load(),
+  // the same GET for the subject, class and term in the URL. A fresh read
+  // clears every draft ("a fresh read is a new truth"), so WHILE ANYTHING IS
+  // UNSAVED THE BUTTON IS DISABLED and its hint says why — it must never be a
+  // silent discard, and the leave dialog's sentence does not describe a reload
+  // (§5i). Also disabled while a save is in flight (the save re-reads itself)
+  // and while a dry run is — a preview that lands after a fresh read would
+  // describe the old one. Not offered at all until there is a class to read.
+  //
+  // It clears the save result first: "Class record saved." describes the
+  // action before this one, and beside a fresh read it would be taken for the
+  // reload's own outcome (§7c).
+  //
+  // WHILE THE RELOAD IS IN FLIGHT THE GRID IS NOT ON SCREEN — the loading card
+  // is, exactly as on the first read. The button being disabled while dirty
+  // covers what was typed BEFORE the click; this covers what would be typed
+  // AFTER it: load() clears every draft when its reply lands, so a score
+  // typed into a grid left live during the request would vanish with nothing
+  // said. `reloading` is set and cleared by this handler alone (never in an
+  // effect), so a save's own re-read and a subject / class / term change
+  // behave exactly as they did.
+  const [reloading, setReloading] = useState(false);
+  const reloadBlocked = record.dirty || record.saving || previewing;
+  async function reloadRecord() {
+    setStatus({});
+    setReloading(true);
+    try {
+      // load() keeps its own failure in `record.error` and never rejects.
+      await record.reload();
+    } finally {
+      setReloading(false);
+    }
+  }
 
+  // NO ENTRANCE AND NO TWEEN ON THIS PAGE (feat/ui-refresh, motion/motion.js):
+  // the root is a plain <div>, never <Reveal>. The grid is typed into cell
+  // after cell, its stale cells dim and return on every debounced keystroke,
+  // and both dialogs render inline — nothing here may move, and no ancestor
+  // may carry a transform.
+  return (
+    <div className="space-y-6">
       {assignmentsError ? <ErrorAlert message={assignmentsError} /> : null}
       {settingsError ? <ErrorAlert message={settingsError} /> : null}
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-3">
-        <FormField
-          label="Subject"
-          as="select"
-          className={filterSelectClass}
-          value={subjectId ?? ''}
-          disabled={assignmentsLoading || !subjects.length}
-          onChange={(e) => setParam('subject', e.target.value)}
-        >
-          {subjects.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </FormField>
+      {/* THE HEADER GROUP: the section's title with Reload, and the card that
+          chooses WHICH record. The record itself is the group below. */}
+      <div className="space-y-3">
+        {/* NO <h1> HERE. `Shell`'s header already renders this page's <h1>
+            from `nav.js`, so this one made "Grades" the word twice, stacked,
+            and gave the document TWO top-level headings — a screen reader
+            announces two page titles. Found by the smoke sweep, which fails
+            on an <h1> count other than one. The subtitle stays, as the
+            section's description: it says something the nav label cannot. */}
+        <SectionHeader
+          title="Class record"
+          description="Record every learner’s scores for one subject and term, then save the whole class at once."
+          onReload={classKey ? reloadRecord : null}
+          reloading={record.loading || reloading}
+          reloadDisabled={reloadBlocked}
+          reloadHint={record.dirty ? 'Save or discard your changes before reloading.' : ''}
+          reloadLabel="Reload class record"
+        />
 
-        <FormField
-          label="Class"
-          as="select"
-          className={filterSelectClass}
-          value={selectedClass ? String(selectedClass.id) : ''}
-          disabled={assignmentsLoading || classes.length <= 1}
-          onChange={(e) => setParam('assignment', e.target.value)}
-        >
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              Grade {c.grade_level} - {c.section}
-            </option>
-          ))}
-        </FormField>
+        {/* Subject, then class, then term. One card, the three selects at the
+            shared filter width. */}
+        <div className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+          <FormField
+            label="Subject"
+            as="select"
+            className={filterSelectClass}
+            value={subjectId ?? ''}
+            disabled={assignmentsLoading || !subjects.length}
+            onChange={(e) => setParam('subject', e.target.value)}
+          >
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </FormField>
 
-        <FormField
-          label="Term"
-          as="select"
-          className={filterSelectClass}
-          value={String(term)}
-          onChange={(e) => setParam('term', e.target.value)}
-        >
-          {TERMS.map((t) => (
-            <option key={t} value={t}>
-              Term {t}
-            </option>
-          ))}
-        </FormField>
+          <FormField
+            label="Class"
+            as="select"
+            className={filterSelectClass}
+            value={selectedClass ? String(selectedClass.id) : ''}
+            disabled={assignmentsLoading || classes.length <= 1}
+            onChange={(e) => setParam('assignment', e.target.value)}
+          >
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                Grade {c.grade_level} - {c.section}
+              </option>
+            ))}
+          </FormField>
+
+          <FormField
+            label="Term"
+            as="select"
+            className={filterSelectClass}
+            value={String(term)}
+            onChange={(e) => setParam('term', e.target.value)}
+          >
+            {TERMS.map((t) => (
+              <option key={t} value={t}>
+                Term {t}
+              </option>
+            ))}
+          </FormField>
+        </div>
       </div>
 
-      {assignmentsLoading || (record.loading && !server) ? (
-        <LoadingSpinner className="py-16" label="Loading the class record…" />
+      {assignmentsLoading || (record.loading && !server) || reloading ? (
+        <div className={cardClass}>
+          <LoadingSpinner className="py-16" label="Loading the class record…" />
+        </div>
       ) : assignments && assignments.length === 0 ? (
-        <EmptyState
-          icon="fa-chalkboard-user"
-          title="No classes assigned to you"
-          message="A class record needs a subject you are assigned to teach. Ask an admin to add the assignment."
-        />
+        <div className={cardClass}>
+          <EmptyState
+            icon="fa-chalkboard-user"
+            title="No classes assigned to you"
+            message="A class record needs a subject you are assigned to teach. Ask an admin to add the assignment."
+          />
+        </div>
       ) : record.error ? (
         <ErrorAlert message={record.error} onRetry={record.reload} />
       ) : !server ? null : (
-        <>
+        // THE RECORD GROUP — notices, the grid, the save bar and its result,
+        // 12px apart. A <div> where a fragment used to be, so the children
+        // keep their place in the file and gain a rhythm of their own.
+        <div className="space-y-3">
           {!canEncode ? (
-            <p className="rounded-lg border border-edge bg-surface-subtle px-3 py-2 text-sm text-fg-muted">
-              You can see this class record but not change it — you are not the assigned teacher for{' '}
-              {server.subject.name} in Grade {server.grade_level} - {server.section}.
+            <p className="flex items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3 text-sm text-fg-body">
+              <i aria-hidden="true" className="fa-solid fa-eye mt-0.5 text-fg-faint" />
+              <span className="min-w-0 flex-1">
+                You can see this class record but not change it — you are not the assigned teacher for{' '}
+                {server.subject.name} in Grade {server.grade_level} - {server.section}.
+              </span>
             </p>
           ) : null}
 
           {/* A FAILED PREVIEW NEVER BLOCKS TYPING OR SAVING. The last good
               values stay, marked stale — a dry run failing usually means the
-              real save will too, and Save surfaces that properly. */}
+              real save will too, and Save surfaces that properly. Amber, not
+              red: nothing has failed that the teacher must stop for. */}
           {previewError ? (
-            <div className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-fg">
-              Live totals are out of date — {previewError}
+            <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+              <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+              <span className="min-w-0 flex-1">Live totals are out of date — {previewError}</span>
             </div>
           ) : null}
 
@@ -616,7 +682,13 @@ export default function ClassRecordPage() {
             // The frame goes on the WHOLE cue, not the scroller, so the hint
             // sits inside the card exactly as it does on the class summary —
             // where the border comes from a wrapper in the page.
-            className="rounded-xl border border-edge"
+            //
+            // `cardClass` (feat/ui-refresh): the same surface as every card
+            // and table frame. NO `overflow-hidden` on it — that would clip
+            // the scroller's keyboard outline, and on paper the columns the
+            // print block releases. The two header cells that sit at the
+            // frame's top corners round themselves instead (below).
+            className={cardClass}
             measureCells={(el) =>
               Array.from(el.querySelectorAll('thead tr:first-child th[data-group]')).map((cell) => ({
                 right: cell.offsetLeft + cell.offsetWidth,
@@ -636,7 +708,13 @@ export default function ClassRecordPage() {
               </caption>
               <thead>
                 <tr className="border-b border-edge">
-                  <th scope="col" className={`sticky left-0 z-10 ${th} text-left`} rowSpan={2}>
+                  {/* `rounded-tl-2xl` here and `rounded-tr-2xl` on the Grade
+                      group are the FRAME's radius (`cardClass`): on a window
+                      wide enough that no hint line sits above the table,
+                      these two cells are the frame's top corners, and a
+                      square background would paint over its curve. A radius
+                      changes no measurement — the cell is the same box. */}
+                  <th scope="col" className={`sticky left-0 z-10 rounded-tl-2xl ${th} text-left`} rowSpan={2}>
                     Learner
                   </th>
                   {/* `data-group` carries the BARE name for `ScrollCue`'s
@@ -689,7 +767,7 @@ export default function ClassRecordPage() {
                     scope="colgroup"
                     colSpan={2}
                     data-group="Grade"
-                    className={`${th} border-l border-edge text-left`}
+                    className={`${th} rounded-tr-2xl border-l border-edge text-left`}
                   >
                     Grade
                   </th>
@@ -762,7 +840,11 @@ export default function ClassRecordPage() {
                           title={`${f.toUpperCase()} highest possible score — applies to every learner`}
                           autoComplete="off"
                           name={`exam-hps-${f}`}
-                          className="w-14 rounded-md border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted disabled:bg-surface-subtle"
+                          // The same box as SlotHeader's maximum beside it:
+                          // same width, padding and text, so the header row
+                          // keeps its measured height. The outline is the
+                          // shared keyboard focus.
+                          className="w-14 rounded-lg border border-edge-strong bg-surface px-1 py-0.5 text-center text-xs tabular-nums text-fg-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-accent disabled:cursor-not-allowed disabled:bg-surface-subtle"
                           value={examMaxValue(f)}
                           disabled={!canEncode}
                           onChange={(e) => setExamMaxDraft((d) => ({ ...d, [f]: e.target.value }))}
@@ -820,7 +902,8 @@ export default function ClassRecordPage() {
                   <td />
                 </tr>
 
-                {server.learners.map((learner) => {
+                {server.learners.map((learner, rowIndex) => {
+                  const lastRow = rowIndex === server.learners.length - 1;
                   const live = preview?.get(learner.student_id);
                   // The preview wins while fresh, the stored read is the
                   // fallback. Both are the server's answers — this is a
@@ -875,16 +958,29 @@ export default function ClassRecordPage() {
                   );
 
                   return (
-                    <tr key={learner.student_id} className="group border-b border-edge-soft hover:bg-surface-subtle">
+                    // `last:border-b-0`: the last learner's row ends at the
+                    // frame's own bottom edge, so its hairline would be a
+                    // second line directly above the frame's (the class
+                    // summary's rows do the same).
+                    <tr
+                      key={learner.student_id}
+                      className="group border-b border-edge-soft last:border-b-0 hover:bg-surface-subtle"
+                    >
                       {/* THE STICKY CELL PAINTS ITS OWN BACKGROUND, hover and
                           locked variants included. Inheriting them from the
                           row would leave it transparent and the scrolled
-                          columns would show through. */}
+                          columns would show through.
+
+                          `rounded-bl-2xl` on the LAST row's is the frame's
+                          radius again (see the Learner header): this opaque
+                          cell is the frame's bottom-left corner, and a square
+                          background would paint over its curve. No
+                          measurement changes — the cell is the same box. */}
                       <th
                         scope="row"
                         className={`sticky left-0 z-10 whitespace-nowrap px-3 py-1.5 text-left font-normal text-fg ${
                           learner.is_locked ? 'bg-surface-muted' : 'bg-surface group-hover:bg-surface-subtle'
-                        }`}
+                        } ${lastRow ? 'rounded-bl-2xl' : ''}`}
                       >
                         <span className="flex items-center gap-2">
                           {learner.name}
@@ -944,78 +1040,100 @@ export default function ClassRecordPage() {
           </ScrollCue>
 
           {server.learners.length === 0 ? (
-            <EmptyState
-              icon="fa-user-group"
-              title="No active learners in this class"
-              message={`Grade ${server.grade_level} - ${server.section} has no active learners, so there is nothing to record yet.`}
-            />
+            <div className={cardClass}>
+              <EmptyState
+                icon="fa-user-group"
+                title="No active learners in this class"
+                message={`Grade ${server.grade_level} - ${server.section} has no active learners, so there is nothing to record yet.`}
+              />
+            </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg hover:opacity-90 disabled:opacity-60"
+          {/* THE SAVE BAR: one card under the grid, the page's one filled
+              button first and what it is waiting on beside it. NOT pinned to
+              the bottom of the window, deliberately: Enter walks down a
+              column, the browser scrolls the focused cell to the window's
+              edge, and a pinned bar would sit on top of the cell being typed
+              into. */}
+          <div className={`${cardClass} flex flex-wrap items-center gap-x-4 gap-y-2 p-4`}>
+            <Button
+              variant="primary"
               disabled={!canEncode || record.saving || !record.dirty}
               onClick={onSaveClick}
             >
               {record.saving ? 'Saving…' : 'Save all'}
-            </button>
+            </Button>
             {previewing ? <span className="text-xs text-fg-muted">calculating…</span> : null}
             {record.dirty && !record.saving ? (
-              <span className="text-xs text-fg-muted">You have unsaved changes.</span>
+              <span className="text-sm text-fg-body">You have unsaved changes.</span>
             ) : null}
             {pending.invalid.length > 0 ? (
-              <span className="text-xs text-danger-fg">
+              <span className="text-sm font-semibold text-danger-text">
                 {pending.invalid.length} cell{pending.invalid.length === 1 ? '' : 's'} need a whole number.
               </span>
             ) : null}
           </div>
 
           <FormStatus status={status.save} />
-        </>
+        </div>
       )}
 
       {/* The in-app half of the unsaved-changes guard — and, since #5b, the
           Back button's too (pendingHref === 'BACK'). A real choice, held
           open while the router transition waits — a notice after the fact
           would arrive with the drafts already gone. Closing the modal any
-          other way (Escape, the backdrop) counts as Stay. */}
+          other way (Escape, the backdrop) counts as Stay.
+
+          STAY IS THE FILLED BUTTON, as it always was: the safe answer is the
+          prominent one and the discarding one is outlined in red beside it.
+          Both sit in the dialog's footer. */}
       <Modal
         open={pendingHref !== null}
         onClose={dismissLeave}
         title="Leave without saving?"
         size="sm"
-      >
-        <div className="space-y-4 text-sm text-fg-body">
-          <p>
-            You have unsaved scores in this class record. Leaving or changing the subject, class or term now discards
-            them — nothing has been sent to the server yet.
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
-              onClick={dismissLeave}
-            >
+        footer={
+          <>
+            <Button variant="primary" onClick={dismissLeave}>
               Stay on this page
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-danger-edge px-3 py-1.5 text-sm text-danger-fg hover:bg-danger-soft"
-              onClick={confirmLeave}
-            >
+            </Button>
+            <Button variant="danger-outline" onClick={confirmLeave}>
               Leave and discard
-            </button>
-          </div>
-        </div>
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-fg-body">
+          You have unsaved scores in this class record. Leaving or changing the subject, class or term now discards
+          them — nothing has been sent to the server yet.
+        </p>
       </Modal>
 
-      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Save the class record?" size="md">
+      {/* ONE confirmation, two possible things to acknowledge — each in its
+          own panel so they read as two facts, not one paragraph. The second
+          is amber: a score above its maximum is allowed, and is something to
+          check, never an error (§4). */}
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title="Save the class record?"
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
+              Go back
+            </Button>
+            <Button variant="primary" onClick={doSave}>
+              Save all
+            </Button>
+          </>
+        }
+      >
         <div className="space-y-4 text-sm text-fg-body">
           {pending.hpsChanges.length > 0 ? (
-            <div>
+            <div className="rounded-xl border border-edge bg-surface-subtle p-4">
               <h3 className="font-semibold text-fg">Highest possible scores change</h3>
-              <ul className="mt-1 space-y-1 text-fg-muted">
+              <ul className="mt-2 space-y-1 tabular-nums text-fg-body">
                 {pending.hpsChanges.map((c) => (
                   <li key={slotKey(c.slot.type, c.slot.slot_no)}>
                     {c.slot.display_label}: {c.from} → {c.to}. This recomputes {c.count}{' '}
@@ -1027,12 +1145,12 @@ export default function ClassRecordPage() {
           ) : null}
 
           {pending.aboveMax.length > 0 ? (
-            <div>
-              <h3 className="font-semibold text-fg">
+            <div className="rounded-xl border border-warning-edge bg-warning-soft p-4">
+              <h3 className="font-semibold text-warning-strong">
                 {pending.aboveMax.length} score{pending.aboveMax.length === 1 ? ' is' : 's are'} above the highest
                 possible score
               </h3>
-              <ul className="mt-1 space-y-1 text-fg-muted">
+              <ul className="mt-2 space-y-1 tabular-nums text-warning-strong">
                 {pending.aboveMax.map((a) => (
                   <li key={`${a.learner.student_id}-${a.label}`}>
                     {a.learner.name} — {a.label}: {a.score}/{a.max}
@@ -1052,29 +1170,12 @@ export default function ClassRecordPage() {
                   matching gradeComputation.js. What changed is that the
                   teacher is now told which of the two readings — a bonus or
                   a typing mistake — the school actually recognises. */}
-              <p className="mt-1 text-xs text-fg-muted">
+              <p className="mt-2 text-sm text-warning-strong">
                 Scores above the highest possible score are saved as typed. Check that each is a
                 bonus, not a typing mistake.
               </p>
             </div>
           ) : null}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body hover:bg-surface-subtle"
-              onClick={() => setConfirmOpen(false)}
-            >
-              Go back
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
-              onClick={doSave}
-            >
-              Save all
-            </button>
-          </div>
         </div>
       </Modal>
     </div>

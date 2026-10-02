@@ -32,6 +32,8 @@
     "tone:write": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-message-tone.mjs"
   },
   "dependencies": {
+    "@expo-google-fonts/merriweather": "^0.4.2",
+    "@expo-google-fonts/source-sans-3": "^0.4.1",
     "@fortawesome/fontawesome-svg-core": "^7.3.1",
     "@fortawesome/free-solid-svg-icons": "^7.3.1",
     "@fortawesome/react-native-fontawesome": "^1.0.0",
@@ -43,6 +45,7 @@
     "axios": "^1.20.0",
     "expo": "~57.0.25",
     "expo-audio": "~57.0.5",
+    "expo-font": "~57.0.4",
     "expo-image-picker": "~57.0.20",
     "expo-screen-capture": "~57.0.3",
     "expo-secure-store": "~57.0.4",

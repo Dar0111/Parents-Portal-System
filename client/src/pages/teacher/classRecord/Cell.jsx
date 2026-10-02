@@ -111,6 +111,12 @@ export default function Cell({ studentId, field, value, onChange, disabled, hint
         ? 'ring-2 ring-info-edge'
         : '';
 
+  // THE BOX IS THE SAME BOX (feat/ui-refresh): width, padding and text size
+  // are untouched, so the grid's measured row height and column widths are
+  // too. What changed is the corner (the small-chip radius) and the keyboard
+  // focus — the shared 2px outline, drawn OUTSIDE the state ring so a focused
+  // cell still shows whether it is unsaved, above its maximum or invalid. No
+  // transition: a cell is typed into, and nothing in this grid moves.
   return (
     <input
       id={cellId(studentId, field)}
@@ -118,7 +124,7 @@ export default function Cell({ studentId, field, value, onChange, disabled, hint
       inputMode="numeric"
       autoComplete="off"
       name={`score-${studentId}-${field}`}
-      className={`w-14 rounded-md border border-edge-strong bg-surface px-1.5 py-1 text-center text-sm tabular-nums text-fg disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted ${ring}`}
+      className={`w-14 rounded-lg border border-edge-strong bg-surface px-1.5 py-1 text-center text-sm tabular-nums text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted ${ring}`}
       value={value ?? ''}
       disabled={disabled}
       title={hint}

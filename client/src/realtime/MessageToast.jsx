@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
+import { buttonClass } from '../components/buttonClass';
 import { requestLeave } from '../layout/leaveGuard';
 import { useSocket } from './SocketProvider';
 import { useUnread } from './UnreadProvider';
@@ -24,12 +25,17 @@ import { createTonePlayer } from './messageTone';
 // message-free.
 //
 // TOKENS AND EXISTING PIECES ONLY (bg-surface, border-edge, text-fg, the
-// primary small button, Avatar), so a restyle reaches it with no edit here.
+// shared button classes from buttonClass.js, Avatar), so a restyle of those
+// reaches it with no edit here.
 //
 // THE TONE (fix round, 2026-10-02): one short tone on a toast SHOW or UPDATE
 // — never for a skip — through realtime/messageTone.js (Web Audio, one
 // lazily created AudioContext, silent if the browser refuses). No mute
 // setting and no new UI.
+
+// The toast's two buttons, from the one button definition (feat/ui-refresh).
+const VIEW_CLASS = buttonClass({ variant: 'primary', size: 'sm', className: 'shrink-0' });
+const DISMISS_CLASS = buttonClass({ variant: 'ghost', size: 'icon-sm' });
 
 // The toast itself. Presentational, so the SSR proof can render it.
 // `role="status"` sits on a box that is ALWAYS mounted, empty when there is
@@ -37,30 +43,29 @@ import { createTonePlayer } from './messageTone';
 // announced (the item 5b lesson, §21).
 export function MessageToastView({ toast, onView, onDismiss, onPause, onResume }) {
   return (
-    <div className="pointer-events-none fixed right-4 top-16 z-[35] w-80 max-w-[calc(100vw-2rem)] sm:right-6">
+    // `top-16` is the header's height (exactly 4rem, layout/Header.jsx);
+    // `mt-2` is the gap under it. NO ENTRANCE: the toast never animates
+    // (motion/motion.js).
+    <div className="pointer-events-none fixed right-4 top-16 z-[35] mt-2 w-80 max-w-[calc(100vw-2rem)] sm:right-6">
       <div role="status" aria-live="polite">
         {toast ? (
           <div
-            className="pointer-events-auto flex items-center gap-3 rounded-xl border border-edge bg-surface p-3 shadow-lg"
+            className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-edge bg-surface p-3 shadow-lg"
             onMouseEnter={onPause}
             onMouseLeave={onResume}
             onFocus={onPause}
             onBlur={onResume}
           >
             <Avatar name={toast.name} photo={toast.photo} />
-            <p className="min-w-0 flex-1 text-sm font-medium text-fg">{toast.label}</p>
-            <button
-              type="button"
-              onClick={onView}
-              className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-            >
+            <p className="min-w-0 flex-1 text-sm font-semibold text-fg">{toast.label}</p>
+            {/* Plain <button>s wearing the shared classes, NOT <Button>: the
+                proof reads this markup — View's only content is the word, and
+                Dismiss is the glyph plus its sr-only name. `sm` / `icon-sm`
+                are 44px under a finger and 36px under a pointer. */}
+            <button type="button" onClick={onView} className={VIEW_CLASS}>
               View
             </button>
-            <button
-              type="button"
-              onClick={onDismiss}
-              className="shrink-0 rounded-lg p-1.5 text-fg-muted transition hover:bg-surface-muted hover:text-fg"
-            >
+            <button type="button" onClick={onDismiss} className={DISMISS_CLASS}>
               <i aria-hidden="true" className="fa-solid fa-xmark" />
               <span className="sr-only">Dismiss</span>
             </button>

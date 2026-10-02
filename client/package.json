@@ -15,8 +15,12 @@
     "smoke:isolated": "node scripts/smoke-isolated.mjs"
   },
   "dependencies": {
+    "@fontsource/merriweather": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
     "@fortawesome/fontawesome-free": "^7.3.1",
+    "@gsap/react": "^2.1.2",
     "axios": "^1.20.0",
+    "gsap": "^3.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.2",

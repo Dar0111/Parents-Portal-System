@@ -11,8 +11,12 @@ import { isDirty } from '../../components/filterState';
 // NOTE: no `filterFieldClass` here. This page's Search keeps `min-w-56
 // flex-1` — it is the primary control and was sized that way deliberately
 // (item 5).
-import FormField, { buttonNeutralClass, filterSelectClass } from '../../components/FormField';
+import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
+import Button from '../../components/Button';
+import SectionHeader from '../../components/SectionHeader';
+import { cardClass } from '../../components/buttonClass';
+import Reveal from '../../motion/Reveal';
 import { sectionOptions, showSectionFilter } from './students/sectionOptions';
 import { useAuth } from '../../auth/AuthContext';
 import PasswordField from '../../components/PasswordField';
@@ -46,6 +50,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // Wizard step 2 runs only after a successful enrol, so the LRN it sends is
 // one this adviser just created in their own section; LRN is locked from
 // the student row.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// (title, Reload, Enroll), the filter card, the write's result, the list.
+// RELOAD is `load` itself: the same request with the search, section, page
+// and sort that are APPLIED now. It commits no draft filter and resets
+// nothing, and it leaves the status message alone. The wizard sits BESIDE
+// the entrance wrapper, never inside it: Modal renders inline, and a
+// wrapper mid-tween carries a transform (motion/motion.js).
 
 const EMPTY_ENROLL = {
   lrn: '',
@@ -413,7 +425,10 @@ export default function StudentsPage() {
       // shape a shared primitive around a single caller. If a second page
       // needs whole-row clicking, that is the trigger to add it.
       render: (row) => (
-        <Link to={`/teacher/students/${row.id}`} className="inline-flex min-w-0 underline-offset-2 hover:underline">
+        <Link
+          to={`/teacher/students/${row.id}`}
+          className="inline-flex min-w-0 rounded-lg underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
+        >
           {/* NO `secondary` (UI-B item 2) — the Grade & section column below
               already says this, and on a card, where there are no columns,
               the subtitle carries it instead. */}
@@ -421,13 +436,16 @@ export default function StudentsPage() {
         </Link>
       ),
     },
-    // nowrap: an LRN is an identifier, never text to reflow (§5c).
-    { key: 'lrn', header: 'LRN', nowrap: true },
+    // nowrap: an LRN is an identifier, never text to reflow (§5c). Tabular
+    // figures so twelve digits line up down the column.
+    { key: 'lrn', header: 'LRN', nowrap: true, render: (row) => <span className="tabular-nums">{row.lrn}</span> },
     {
       key: 'class',
       header: 'Grade & section',
       sortable: true,
       sortValue: (row) => `${row.grade_level}-${row.section}`,
+      // A class reads as one value; it does not break at its spaces.
+      nowrap: true,
       render: (row) => `Grade ${row.grade_level} - ${row.section}`,
     },
     {
@@ -447,127 +465,140 @@ export default function StudentsPage() {
           : 'Create this parent account?';
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border border-edge bg-surface p-4">
-        <form onSubmit={applyFilters} className="flex flex-1 flex-wrap items-end gap-3">
-          <FormField
-            label="Search"
-            placeholder="Name or LRN"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="min-w-56 flex-1"
+    <div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader
+            title="Students in my sections"
+            // A teacher who advises nothing reads why there is no Enroll
+            // button, in the place the button would be explained from —
+            // never a button that 403s (see the header).
+            description={
+              canEnroll
+                ? null
+                : 'Enrolling a learner is limited to the section you advise. Teaching a subject in a class is not enough.'
+            }
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload students"
+            actions={
+              canEnroll ? (
+                // NEUTRAL, NOT PRIMARY (fix/polish, 2026-09-26), AND OUTSIDE
+                // THE FILTER CARD. FilterActions' Apply carries a FILL as its
+                // "changes not applied" signal (§21b) — so while a filter was
+                // dirty this page showed two identical primaries, and one of
+                // them meant "something is waiting". The pending Apply is the
+                // more urgent of the two; Enroll is always available and its
+                // label says what it is.
+                <Button icon="fa-user-plus" onClick={openWizard}>
+                  Enroll student
+                </Button>
+              ) : null
+            }
           />
-          {/* A SELECT, and only when there is something to choose between.
-              It was a free-text box placeholdered "e.g. Malikhain" — a
-              Grade 6 section, shown to whoever was looking, including the
-              Grade 1 adviser. A typo also returned an empty list with no
-              "no such section" to explain it.
 
-              Safe as a select because section NAMES are unique across the
-              school: all 23 are distinct, checked against the database
-              before building this rather than assumed. If that ever stops
-              being true this must KEY on the grade too, or two classes
-              collapse into one option.
-
-              THE LABEL CARRIES THE GRADE, THE VALUE DOES NOT (UI-C1b).
-              Uniqueness makes the bare name a correct key; it never made it
-              a readable label, and a teacher across two grades read
-              "Malikhain" and "Masigasig" beside a Grade & section column
-              that named both in full.
-
-              HIDDEN AT ONE OPTION: a teacher with a single section has
-              nothing to filter, and on the seeded data that is every
-              teacher — so this control is invisible until someone teaches
-              across two sections, which is the only time it means anything. */}
-          {showSectionFilter(filterSections) ? (
+          {/* THE FILTER BAR IS ITS OWN CARD, and only the filters live in it
+              (see the note on Enroll above). */}
+          <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
             <FormField
-              label="Section"
-              as="select"
-              className={`min-w-44 ${filterSelectClass}`}
-              value={section}
-              onChange={(e) => setSection(e.target.value)}
-            >
-              <option value="">All my sections</option>
-              {/* value = the bare section name, which is what the filter
-                  compares and what ?section= takes; label = the full
-                  "Grade 6 - Malikhain" (UI-C1b). */}
-              {filterSections.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </FormField>
-          ) : null}
-          {/* "Clear", not "Reset" — this page's word, kept. */}
-          <FilterActions
-            dirty={dirty}
-            canReset={filtered}
-            onReset={clearFilters}
-            resetLabel="Clear"
+              label="Search"
+              placeholder="Name or LRN"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="min-w-56 flex-1"
+            />
+            {/* A SELECT, and only when there is something to choose between.
+                It was a free-text box placeholdered "e.g. Malikhain" — a
+                Grade 6 section, shown to whoever was looking, including the
+                Grade 1 adviser. A typo also returned an empty list with no
+                "no such section" to explain it.
+
+                Safe as a select because section NAMES are unique across the
+                school: all 23 are distinct, checked against the database
+                before building this rather than assumed. If that ever stops
+                being true this must KEY on the grade too, or two classes
+                collapse into one option.
+
+                THE LABEL CARRIES THE GRADE, THE VALUE DOES NOT (UI-C1b).
+                Uniqueness makes the bare name a correct key; it never made it
+                a readable label, and a teacher across two grades read
+                "Malikhain" and "Masigasig" beside a Grade & section column
+                that named both in full.
+
+                HIDDEN AT ONE OPTION: a teacher with a single section has
+                nothing to filter, and on the seeded data that is every
+                teacher — so this control is invisible until someone teaches
+                across two sections, which is the only time it means anything. */}
+            {showSectionFilter(filterSections) ? (
+              <FormField
+                label="Section"
+                as="select"
+                className={`min-w-44 ${filterSelectClass}`}
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+              >
+                <option value="">All my sections</option>
+                {/* value = the bare section name, which is what the filter
+                    compares and what ?section= takes; label = the full
+                    "Grade 6 - Malikhain" (UI-C1b). */}
+                {filterSections.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </FormField>
+            ) : null}
+            {/* "Clear", not "Reset" — this page's word, kept. */}
+            <FilterActions
+              dirty={dirty}
+              canReset={filtered}
+              onReset={clearFilters}
+              resetLabel="Clear"
+            />
+          </form>
+
+          <FormStatus status={status.list} />
+
+          <DataTable
+            // A real primary action: the detail page. The card is one <Link>,
+            // which is why the LRN column does not come along — a card shows
+            // what identifies the learner, and the name plus the class does
+            // that without putting an LRN on a phone screen (§5c).
+            renderCard={(row) => ({
+              to: `/teacher/students/${row.id}`,
+              avatar: `${row.first_name} ${row.last_name}`,
+              title: `${row.last_name}, ${row.first_name}`,
+              subtitle: `Grade ${row.grade_level} - ${row.section}`,
+              status: row.status,
+            })}
+            columns={columns}
+            rows={students}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon={filtered ? 'fa-magnifying-glass' : 'fa-user-graduate'}
+            // Two genuinely different situations, deliberately not one message:
+            // an empty scope is not the same as a filter that matched nothing.
+            emptyTitle={filtered ? 'No students match that search' : 'No students assigned to you yet'}
+            emptyMessage={
+              filtered
+                ? 'Try a different name, LRN, or section.'
+                : 'You see students in the sections you teach or advise. An admin can assign you to a section.'
+            }
+            emptyAction={
+              filtered ? (
+                <Button size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              ) : null
+            }
           />
-        </form>
-        {canEnroll ? (
-          // NEUTRAL, NOT PRIMARY (fix/polish, 2026-09-26). Beside it sits
-          // FilterActions' Apply, whose FILL is the "changes not applied"
-          // signal (§21b) — so while a filter was dirty this row showed two
-          // identical primaries, and one of them meant "something is
-          // waiting". The pending Apply is the more urgent of the two;
-          // Enroll is always available and its label says what it is.
-          <button type="button" onClick={openWizard} className={buttonNeutralClass}>
-            Enroll student
-          </button>
-        ) : (
-          <p className="max-w-sm text-sm text-fg-muted">
-            Enrolling a learner is limited to the section you advise. Teaching a
-            subject in a class is not enough.
-          </p>
-        )}
-      </div>
-
-      <FormStatus status={status.list} />
-
-      <DataTable
-        // A real primary action: the detail page. The card is one <Link>,
-        // which is why the LRN column does not come along — a card shows
-        // what identifies the learner, and the name plus the class does
-        // that without putting an LRN on a phone screen (§5c).
-        renderCard={(row) => ({
-          to: `/teacher/students/${row.id}`,
-          avatar: `${row.first_name} ${row.last_name}`,
-          title: `${row.last_name}, ${row.first_name}`,
-          subtitle: `Grade ${row.grade_level} - ${row.section}`,
-          status: row.status,
-        })}
-        columns={columns}
-        rows={students}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={filtered ? 'fa-magnifying-glass' : 'fa-user-graduate'}
-        // Two genuinely different situations, deliberately not one message:
-        // an empty scope is not the same as a filter that matched nothing.
-        emptyTitle={filtered ? 'No students match that search' : 'No students assigned to you yet'}
-        emptyMessage={
-          filtered
-            ? 'Try a different name, LRN, or section.'
-            : 'You see students in the sections you teach or advise. An admin can assign you to a section.'
-        }
-        emptyAction={
-          filtered ? (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              Clear filters
-            </button>
-          ) : null
-        }
-      />
+        </section>
+      </Reveal>
 
       <Modal
         open={wizardOpen}
@@ -576,97 +607,69 @@ export default function StudentsPage() {
         title={wizardTitle}
         size="lg"
         footer={
+          // Every footer is the same pair: the neutral way out on the left,
+          // the one filled step forward on the right. `loading` is the old
+          // `disabled={saving}` plus its spinner, in one prop.
           phase === 'enroll' ? (
             <>
-              <button
-                type="button"
-                onClick={closeWizard}
-                disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={closeWizard} disabled={saving}>
                 Cancel
-              </button>
-              <button
-                type="submit"
-                form="enroll-form"
-                disabled={saving}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-              >
+              </Button>
+              <Button variant="primary" type="submit" form="enroll-form" disabled={saving}>
                 Continue
-              </button>
+              </Button>
             </>
           ) : phase === 'confirm-enroll' ? (
             <>
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   if (saving) return;
                   setPhase('enroll');
                 }}
                 disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
-              </button>
-              <button
-                type="button"
-                onClick={submitEnroll}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-              >
-                {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              </Button>
+              <Button variant="primary" onClick={submitEnroll} loading={saving}>
                 Yes, enroll this student
-              </button>
+              </Button>
             </>
           ) : phase === 'parent' ? (
             <>
-              <button
-                type="button"
-                onClick={closeWizard}
-                disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={closeWizard} disabled={saving}>
                 Skip
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 type="submit"
                 form="parent-form"
                 disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 Continue
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   if (saving) return;
                   setPhase('parent');
                 }}
                 disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
-              </button>
-              <button
-                type="button"
-                onClick={submitParent}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-              >
-                {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              </Button>
+              <Button variant="primary" onClick={submitParent} loading={saving}>
                 Yes, create parent account
-              </button>
+              </Button>
             </>
           )
         }
       >
-        {formError ? <ErrorAlert message={formError} /> : null}
+        {formError ? <ErrorAlert message={formError} className="mb-4" /> : null}
 
         {phase === 'enroll' ? (
-          <form id="enroll-form" onSubmit={requestEnroll} className="space-y-3">
+          <form id="enroll-form" onSubmit={requestEnroll} className="space-y-4">
             <FormField
               label="LRN"
               value={enroll.lrn}
@@ -680,7 +683,7 @@ export default function StudentsPage() {
               hint={lrnRuleHint()}
               error={fieldErrors.lrn}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="First name"
                 value={enroll.first_name}
@@ -708,7 +711,7 @@ export default function StudentsPage() {
                 </option>
               ))}
             </FormField>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="Birthday"
                 type="date"
@@ -756,20 +759,32 @@ export default function StudentsPage() {
           </form>
         ) : null}
 
+        {/* The two confirmations are amber notices, not body copy: each asks
+            for a write the API cannot take back (§5e), and amber is this
+            app's "there is something to decide". The sentence is unchanged;
+            the icon is decoration and takes the notice's own colour. */}
         {phase === 'confirm-enroll' ? (
-          <p className="text-sm text-fg-body">
-            Enroll {enroll.first_name.trim()} {enroll.last_name.trim()} (LRN {enroll.lrn.trim()})
-            in {classLabel}? This cannot be undone from here — there is no delete for a
-            student record.
-          </p>
+          <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+            <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+            <p className="min-w-0 flex-1">
+              Enroll {enroll.first_name.trim()} {enroll.last_name.trim()} (LRN {enroll.lrn.trim()})
+              in {classLabel}? This cannot be undone from here — there is no delete for a
+              student record.
+            </p>
+          </div>
         ) : null}
 
         {phase === 'parent' ? (
-          <form id="parent-form" onSubmit={requestParent} className="space-y-3">
-            <p className="text-sm text-fg-body">
-              {enrolled?.first_name} {enrolled?.last_name} is enrolled. Create the pending parent
-              account next, or skip and do it later from the student record.
-            </p>
+          <form id="parent-form" onSubmit={requestParent} className="space-y-4">
+            {/* The enrol has landed by the time this step shows, so it is
+                said in the success tone FormStatus uses. */}
+            <div className="flex items-start gap-3 rounded-xl border border-success-edge bg-success-soft px-4 py-3 text-sm text-success-strong">
+              <i aria-hidden="true" className="fa-solid fa-circle-check mt-0.5 text-success-icon" />
+              <p className="min-w-0 flex-1">
+                {enrolled?.first_name} {enrolled?.last_name} is enrolled. Create the pending parent
+                account next, or skip and do it later from the student record.
+              </p>
+            </div>
             <FormField label="Login ID (child's LRN)" value={enrolled?.lrn || ''} disabled />
             <FormField
               label="Guardian name"
@@ -818,10 +833,13 @@ export default function StudentsPage() {
         ) : null}
 
         {phase === 'confirm-parent' ? (
-          <p className="text-sm text-fg-body">
-            Create a pending parent account for {parent.name.trim()} (login ID {enrolled?.lrn})?
-            An admin must approve it before they can log in. You cannot un-create it.
-          </p>
+          <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+            <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+            <p className="min-w-0 flex-1">
+              Create a pending parent account for {parent.name.trim()} (login ID {enrolled?.lrn})?
+              An admin must approve it before they can log in. You cannot un-create it.
+            </p>
+          </div>
         ) : null}
       </Modal>
     </div>

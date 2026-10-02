@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 
 // ADMIN → STUDENTS — the web's admin/StudentsPage.jsx. Admin is UNSCOPED; the
 // status DEFAULTS TO ALL (an admin roster hiding inactive students is an
@@ -22,6 +26,16 @@ import Segmented from '../../components/Segmented';
 // actions (§5a-iii), not a tappable one; the web's narrow card had no status
 // control at all. A declared difference (M18). The list reloads after a
 // status write rather than patching the row (§5b), and on focus (M14).
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the section's header
+// with its Reload, the sentence that says what deactivating does as its own
+// paragraph under it (beside the Reload a 360dp screen would stack it a few
+// words to a line), and the filters in their own card. There is no header
+// action: nothing is created here.
+//
+// RELOAD is `load(0)` — the request pull-to-refresh and Try again already
+// make, with the applied filters, back on the first page. It waits while a
+// status write is in flight (that write re-reads on its own).
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All statuses' },
   { key: 'active', label: 'Active' },
@@ -130,12 +144,20 @@ export default function StudentsScreen({ navigation }) {
   const canReset = applied.status !== DEFAULT_FILTERS.status || Boolean(applied.grade_level || applied.section || applied.search);
 
   const header = (
-    <View className="mb-3 gap-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader
+        title="All students"
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadDisabled={savingId !== null}
+        reloadLabel="Reload students"
+      />
       <Text className="text-sm text-fg-muted">
         Deactivating a student hides them from teachers' student and attendance lists, and stops new attendance and new grade records from being created for
         them. Their existing records and their parent's account are not changed. Activate reverses it.
       </Text>
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+      {/* The filter bar is its own card. */}
+      <View className={`${cardClass} gap-4 p-4`}>
         <Segmented label="Status" value={draft.status} onChange={(v) => setDraft((p) => ({ ...p, status: v }))} options={STATUS_OPTIONS} />
         <Segmented label="Grade" value={draft.grade_level} onChange={(v) => setDraft((p) => ({ ...p, grade_level: v, section: '' }))} options={GRADES} />
         {draft.grade_level ? (
@@ -194,9 +216,9 @@ export default function StudentsScreen({ navigation }) {
               title: 'No students match these filters',
               message: 'Try a different status, grade, section, or search, or reset to see every student.',
               action: (
-                <Pressable onPress={resetFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-                  <Text className="text-sm text-fg-body">Reset filters</Text>
-                </Pressable>
+                <Button size="sm" onPress={resetFilters}>
+                  Reset filters
+                </Button>
               ),
             }
           : { icon: 'fa-user-graduate', title: 'No students yet', message: 'Students enrolled by teachers appear here.' }

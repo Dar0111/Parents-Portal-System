@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
+import { cardClass } from '../../components/buttonClass';
 import GradeValue, { GradeLegend } from '../../format/grade';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
+import Reveal from '../../motion/Reveal';
 
 // Admin grades — Figure 5 process 1.9 ("show all students grades"). VIEW, plus
 // the LOCK toggle. Darryl decided 2026-09-14.
@@ -58,6 +63,19 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // GradeValue / TermValue, plus the Final Grade descriptor as Parent → Grades
 // shows it. Never `remarks` ("Passed"), never a colour keyed on the band,
 // never a class rank or "at risk". The absence is deliberate.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// (title, Reload), the picker card, the lock's result, then the chosen
+// learner: a header card, the report card, the General Average.
+// RELOAD is `loadReport` itself, so it re-reads the SAME learner's card: the
+// grade, section and student stay picked, and an open cell would stay
+// selected. It is offered only once a student is chosen — before that there
+// is no request to repeat. The two reference reads behind the pickers
+// (sections, the section's students) have no reload: each lives inside its
+// own effect with its own cancel flag, and lifting it out would change when
+// it runs. The lock dialog sits BESIDE the entrance wrapper, never inside
+// it: Modal renders inline, and a wrapper mid-tween carries a transform
+// (motion/motion.js).
 
 const REPORT_UNWRAP = [
   'student',
@@ -221,18 +239,24 @@ export default function AdminGradesPage() {
         const value = (
           <span className="inline-flex items-center gap-1.5">
             <TermValue entry={entry} mode={mode} />
+            {/* The lock is the only sign a grade is locked in this grid, so
+                it takes a text colour, not a decoration's. */}
             {entry?.is_locked ? (
-              <i className="fa-solid fa-lock text-xs text-fg-faint" title="Locked" aria-label="Locked" />
+              <i className="fa-solid fa-lock text-xs text-fg-muted" title="Locked" aria-label="Locked" />
             ) : null}
           </span>
         );
         // No grade row, no id — nothing to lock, so not a button.
         if (!entry?.grade_id) return value;
+        // A 36px target with the shared keyboard outline. The table is shown
+        // from `sm` up only (the card below it has no lock control), so this
+        // is a pointer's target; the negative margins give the height back,
+        // so a row with buttons is no taller than one without.
         return (
           <button
             type="button"
             onClick={() => openCell(row, term)}
-            className="-mx-1 rounded px-1 text-right hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-focus-accent"
+            className="-mx-2 -my-1.5 inline-flex min-h-9 items-center justify-end rounded-lg px-2 text-right transition hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
           >
             {value}
           </button>
@@ -268,184 +292,218 @@ export default function AdminGradesPage() {
   const chosenSection = sectionOptions.find((s) => s.name === sectionName) || null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4">
-        <FormField
-          label="Grade"
-          as="select"
-          className={filterSelectClass}
-          value={grade}
-          onChange={(e) => {
-            setGrade(e.target.value);
-            setSectionName('');
-            setStudentId('');
-            setSelected(null);
-          }}
-        >
-          <option value="">Pick a grade</option>
-          {[1, 2, 3, 4, 5, 6].map((g) => (
-            <option key={g} value={String(g)}>
-              Grade {g}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="Section"
-          as="select"
-          className={filterSelectClass}
-          value={sectionName}
-          disabled={!grade}
-          onChange={(e) => {
-            setSectionName(e.target.value);
-            setStudentId('');
-            setSelected(null);
-          }}
-        >
-          <option value="">{grade ? 'Pick a section' : 'Pick a grade first'}</option>
-          {sectionOptions.map((s) => (
-            <option key={s.id} value={s.name}>
-              {s.name}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="Student"
-          as="select"
-          className={filterSelectClass}
-          value={studentId}
-          disabled={!sectionName || studentsLoading || students.length === 0}
-          onChange={(e) => {
-            setStudentId(e.target.value);
-            setSelected(null);
-            setStatus({});
-          }}
-        >
-          <option value="">
-            {!sectionName ? 'Pick a section first' : studentsLoading ? 'Loading…' : 'Pick a student'}
-          </option>
-          {students.map((s) => (
-            <option key={s.id} value={String(s.id)}>
-              {s.last_name}, {s.first_name}
-              {s.status === 'inactive' ? ' (inactive)' : ''}
-            </option>
-          ))}
-        </FormField>
-      </div>
-
-      <FormStatus status={status.card} />
-
-      {studentsError ? <ErrorAlert message={studentsError} /> : null}
-
-      {!studentId ? (
-        sectionName && !studentsLoading && !studentsError && students.length === 0 ? (
-          <EmptyState
-            icon="fa-user-graduate"
-            title={`Grade ${grade} - ${sectionName} has no students`}
-            message={
-              chosenSection && Number(chosenSection.student_count) === 0
-                ? 'No student is enrolled in this section, so there is no report card to show.'
-                : 'No students were returned for this section.'
-            }
+    <div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          {/* No description: the prompt below already says how to pick, and
+              an empty state never has to be repeated by a header. */}
+          <SectionHeader
+            title="Report card"
+            onReload={studentId ? loadReport : null}
+            reloading={reportLoading}
+            reloadLabel="Reload report card"
           />
-        ) : (
-          <EmptyState
-            icon="fa-magnifying-glass"
-            title="Pick a student to see their report card"
-            message="Choose a grade, then a section, then a student."
-          />
-        )
-      ) : (
-        <>
-          {student ? (
-            <div>
-              <h2 className="text-base font-semibold text-fg">
-                {student.first_name} {student.last_name}
-              </h2>
-              <p className="text-xs text-fg-muted">
-                Grade {student.grade_level} · {student.section} · School year {report.school_year}
-              </p>
-            </div>
-          ) : null}
 
-          {/* An all-Pending card is the normal early state, not an empty
-              state: replacing it would hide the subject list (Parent →
-              Grades' reasoning). A line above it instead. */}
-          {noGradesYet ? (
-            <p className="text-sm text-fg-muted">No grades have been recorded for this student yet.</p>
-          ) : null}
-
-          <p className="text-sm text-fg-muted">
-            Select a term grade to lock or unlock it. A term with nothing recorded has no grade to lock.
-          </p>
-
-          <div>
-            <DataTable
-              // GRADE-ROW CARD (DV1b-a), and THE ONE CARD IN THE SYSTEM THAT
-              // CARRIES JSX — stated here because the contract says a card
-              // returns DATA, never JSX, and this is a deliberate exception
-              // rather than an oversight.
-              //
-              // The reason that rule exists is to make a button-inside-a-link
-              // unrepresentable (§5a-iii). `GradeValue` and `TermValue` are
-              // read-only renderers with no interactive element, so they
-              // cannot create that hazard. The alternative would be to format
-              // a grade by hand here, which breaks the STRONGER rule that one
-              // renderer draws every grade-bearing value in the system (§3) —
-              // and would quietly reintroduce the "87.5 vs 87.50" defect DV4
-              // just fixed one component away.
-              //
-              // Static card: locking is an admin action but it lives in the
-              // row's own control on the table, and this page has no detail
-              // route, so neither `to` nor `onSelect` is passed.
-              renderCard={(row) => ({
-                title: row.subject_name,
-                subtitle: (
-                  <span className="inline-flex flex-wrap items-center gap-x-3">
-                    {[1, 2, 3].map((t) => (
-                      <span key={t}>
-                        T{t} <TermValue entry={row.terms[t]} mode={mode} />
-                      </span>
-                    ))}
-                  </span>
-                ),
-                meta: (
-                  <span>
-                    Final <GradeValue value={row.final_grade} mode={mode} whole />
-                  </span>
-                ),
-              })}
-              columns={columns}
-              rows={subjects}
-              keyField="subject_id"
-              loading={reportLoading}
-              error={reportError}
-              onRetry={loadReport}
-              emptyIcon="fa-book"
-              emptyTitle={
-                student
-                  ? `No subjects are set up for Grade ${student.grade_level} yet`
-                  : 'No subjects are set up for this grade level yet'
-              }
-              emptyMessage="A grade level needs its subject list before a report card can exist."
-            />
-            {subjects.length ? <GradeLegend pending notApplicable={mode === 'descriptive'} /> : null}
+          {/* THE PICKER CARD. Three selects that act on change — there is no
+              Apply here, because each choice narrows the next. */}
+          <div className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+            <FormField
+              label="Grade"
+              as="select"
+              className={filterSelectClass}
+              value={grade}
+              onChange={(e) => {
+                setGrade(e.target.value);
+                setSectionName('');
+                setStudentId('');
+                setSelected(null);
+              }}
+            >
+              <option value="">Pick a grade</option>
+              {[1, 2, 3, 4, 5, 6].map((g) => (
+                <option key={g} value={String(g)}>
+                  Grade {g}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              label="Section"
+              as="select"
+              className={filterSelectClass}
+              value={sectionName}
+              disabled={!grade}
+              onChange={(e) => {
+                setSectionName(e.target.value);
+                setStudentId('');
+                setSelected(null);
+              }}
+            >
+              <option value="">{grade ? 'Pick a section' : 'Pick a grade first'}</option>
+              {sectionOptions.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              label="Student"
+              as="select"
+              className={filterSelectClass}
+              value={studentId}
+              disabled={!sectionName || studentsLoading || students.length === 0}
+              onChange={(e) => {
+                setStudentId(e.target.value);
+                setSelected(null);
+                setStatus({});
+              }}
+            >
+              <option value="">
+                {!sectionName ? 'Pick a section first' : studentsLoading ? 'Loading…' : 'Pick a student'}
+              </option>
+              {students.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.last_name}, {s.first_name}
+                  {s.status === 'inactive' ? ' (inactive)' : ''}
+                </option>
+              ))}
+            </FormField>
           </div>
 
-          {report && subjects.length ? (
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-edge bg-surface px-4 py-3">
-              <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-                General Average
-              </span>
-              <span className="text-base">
-                <GradeValue value={report.general_average} mode={mode} />
-              </span>
-              {report.general_average_descriptor ? (
-                <span className="text-xs text-fg-muted">{report.general_average_descriptor.descriptor}</span>
-              ) : null}
+          <FormStatus status={status.card} />
+
+          {studentsError ? <ErrorAlert message={studentsError} /> : null}
+
+          {!studentId ? (
+            // In the frame the report card will take, so the page keeps its
+            // shape when a student is picked.
+            <div className={cardClass}>
+              {sectionName && !studentsLoading && !studentsError && students.length === 0 ? (
+                <EmptyState
+                  icon="fa-user-graduate"
+                  title={`Grade ${grade} - ${sectionName} has no students`}
+                  message={
+                    chosenSection && Number(chosenSection.student_count) === 0
+                      ? 'No student is enrolled in this section, so there is no report card to show.'
+                      : 'No students were returned for this section.'
+                  }
+                />
+              ) : (
+                <EmptyState
+                  icon="fa-magnifying-glass"
+                  title="Pick a student to see their report card"
+                  message="Choose a grade, then a section, then a student."
+                />
+              )}
             </div>
-          ) : null}
-        </>
-      )}
+          ) : (
+            <>
+              {/* THE LEARNER'S HEADER CARD: whose card this is, before the
+                  card. An <h3> — the section's <h2> is "Report card" above,
+                  and the page's one <h1> is the top bar's. The initials are
+                  the learner's name; a learner has no photo (§25). */}
+              {student ? (
+                <div className={`${cardClass} flex flex-wrap items-center gap-4 p-5`}>
+                  <Avatar name={`${student.first_name} ${student.last_name}`} />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-serif text-xl font-bold text-fg">
+                      {student.first_name} {student.last_name}
+                    </h3>
+                    <p className="mt-0.5 text-sm text-fg-muted">
+                      Grade {student.grade_level} · {student.section} · School year {report.school_year}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="space-y-1">
+                {/* An all-Pending card is the normal early state, not an empty
+                    state: replacing it would hide the subject list (Parent →
+                    Grades' reasoning). A line above it instead. */}
+                {noGradesYet ? (
+                  <p className="text-sm font-semibold text-fg-secondary">
+                    No grades have been recorded for this student yet.
+                  </p>
+                ) : null}
+
+                <p className="text-sm text-fg-muted">
+                  Select a term grade to lock or unlock it. A term with nothing recorded has no grade to lock.
+                </p>
+              </div>
+
+              <div>
+                <DataTable
+                  // GRADE-ROW CARD (DV1b-a), and THE ONE CARD IN THE SYSTEM THAT
+                  // CARRIES JSX — stated here because the contract says a card
+                  // returns DATA, never JSX, and this is a deliberate exception
+                  // rather than an oversight.
+                  //
+                  // The reason that rule exists is to make a button-inside-a-link
+                  // unrepresentable (§5a-iii). `GradeValue` and `TermValue` are
+                  // read-only renderers with no interactive element, so they
+                  // cannot create that hazard. The alternative would be to format
+                  // a grade by hand here, which breaks the STRONGER rule that one
+                  // renderer draws every grade-bearing value in the system (§3) —
+                  // and would quietly reintroduce the "87.5 vs 87.50" defect DV4
+                  // just fixed one component away.
+                  //
+                  // Static card: locking is an admin action but it lives in the
+                  // row's own control on the table, and this page has no detail
+                  // route, so neither `to` nor `onSelect` is passed.
+                  renderCard={(row) => ({
+                    title: row.subject_name,
+                    subtitle: (
+                      <span className="inline-flex flex-wrap items-center gap-x-3">
+                        {[1, 2, 3].map((t) => (
+                          <span key={t}>
+                            T{t} <TermValue entry={row.terms[t]} mode={mode} />
+                          </span>
+                        ))}
+                      </span>
+                    ),
+                    meta: (
+                      <span>
+                        Final <GradeValue value={row.final_grade} mode={mode} whole />
+                      </span>
+                    ),
+                  })}
+                  columns={columns}
+                  rows={subjects}
+                  keyField="subject_id"
+                  loading={reportLoading}
+                  error={reportError}
+                  onRetry={loadReport}
+                  emptyIcon="fa-book"
+                  emptyTitle={
+                    student
+                      ? `No subjects are set up for Grade ${student.grade_level} yet`
+                      : 'No subjects are set up for this grade level yet'
+                  }
+                  emptyMessage="A grade level needs its subject list before a report card can exist."
+                />
+                {subjects.length ? <GradeLegend pending notApplicable={mode === 'descriptive'} /> : null}
+              </div>
+
+              {/* THE GENERAL AVERAGE, as the card's one figure. The SIZE is on
+                  the wrapper, never on GradeValue (§3) — two decimals, the
+                  server's own number, and no word beside it but the server's
+                  descriptor. */}
+              {report && subjects.length ? (
+                <div className={`${cardClass} flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-4`}>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                    General Average
+                  </span>
+                  <span className="text-xl font-bold tabular-nums text-fg">
+                    <GradeValue value={report.general_average} mode={mode} />
+                  </span>
+                  {report.general_average_descriptor ? (
+                    <span className="text-xs text-fg-muted">{report.general_average_descriptor.descriptor}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          )}
+        </section>
+      </Reveal>
 
       <Modal
         open={Boolean(selected)}
@@ -454,34 +512,32 @@ export default function AdminGradesPage() {
         title={selected ? `${selected.subjectName} · Term ${selected.term}` : ''}
         size="sm"
         footer={
+          // The neutral way out, then the one filled action. `loading` is the
+          // old `disabled={lockSaving}` plus its spinner, in one prop.
           <>
-            <button
-              type="button"
-              onClick={closeCell}
-              disabled={lockSaving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closeCell} disabled={lockSaving}>
               Close
-            </button>
+            </Button>
             {selectedEntry?.grade_id ? (
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                icon={selectedEntry.is_locked ? 'fa-lock-open' : 'fa-lock'}
                 onClick={toggleLock}
-                disabled={lockSaving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
+                loading={lockSaving}
               >
-                {lockSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 {selectedEntry.is_locked ? 'Unlock grade' : 'Lock grade'}
-              </button>
+              </Button>
             ) : null}
           </>
         }
       >
-        <FormStatus status={status.lock} className="mb-3" />
+        <FormStatus status={status.lock} className="mb-4" />
         {selectedEntry ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm">
+          <div className="space-y-4">
+            {/* The cell as it is stored: its value and its lock state, in one
+                tile, above the sentence that says what locking does. */}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+              <span className="text-lg font-bold text-fg">
                 <TermValue entry={selectedEntry} mode={mode} />
               </span>
               <StatusBadge status={selectedEntry.is_locked ? 'locked' : 'unlocked'} />

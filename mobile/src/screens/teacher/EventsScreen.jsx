@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import DateField from '../../components/DateField';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import teacherEventCard from './events/card';
@@ -21,6 +24,15 @@ import teacherEventCard from './events/card';
 // Delete are two peers on a static card, author only; Delete confirms with a
 // native Alert naming the event (§5e). The card is the verbatim
 // `events/card.jsx`. One reset serves the filter row and the empty state.
+//
+// THE SECTION HEADER (feat/ui-refresh) carries the list's title, its Reload
+// and — for a teacher with no grade to post to — the sentence that stops the
+// missing button reading as broken; nothing is said while the target list is
+// loading. Reload is `load(0)`: the request pull-to-refresh and Try again
+// already make, with the APPLIED grade and dates, back on the first page. It
+// does not re-read the teacher's targets (`useTeacherTargets` reads them
+// once). From and To sit one under the other, for the reason on Excuse
+// Letters: side by side in this card a chosen date has no room at 360dp.
 const DEFAULT = { grade: '', from: '', to: '' };
 
 export default function EventsScreen({ navigation, route }) {
@@ -124,9 +136,9 @@ export default function EventsScreen({ navigation, route }) {
         title: 'No events match these filters',
         message: 'Try a different grade or date range.',
         action: (
-          <Pressable onPress={resetFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Clear filters</Text>
-          </Pressable>
+          <Button size="sm" onPress={resetFilters}>
+            Clear filters
+          </Button>
         ),
       }
     : {
@@ -136,36 +148,35 @@ export default function EventsScreen({ navigation, route }) {
       };
 
   const header = (
-    <View className="mb-3 gap-3">
-      {targetsLoading ? null : (
-        <View className="flex-row items-center justify-end">
-          {canPost ? (
-            <Pressable
-              onPress={() => {
-                setWriteStatus(null);
-                navigation.navigate('EventCompose');
-              }}
-              accessibilityRole="button"
-              className="rounded-lg border border-edge-strong bg-surface px-4 py-2"
-            >
-              <Text className="text-sm font-medium text-fg-body">New event</Text>
-            </Pressable>
-          ) : (
-            <Text className="flex-1 text-sm text-fg-muted">You can post once you are assigned to a class or made a section adviser.</Text>
-          )}
-        </View>
-      )}
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader
+        title="Posted events"
+        description={targetsLoading || canPost ? null : 'You can post once you are assigned to a class or made a section adviser.'}
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadLabel="Reload events"
+      />
+      {!targetsLoading && canPost ? (
+        <Button
+          icon="fa-plus"
+          className="self-end"
+          onPress={() => {
+            setWriteStatus(null);
+            navigation.navigate('EventCompose');
+          }}
+        >
+          New event
+        </Button>
+      ) : null}
+      <View className={`${cardClass} gap-3 p-4`}>
         <Segmented
           label="Grade"
           value={gradeFilter}
           onChange={setGradeFilter}
           options={[{ key: '', label: 'All my grade levels' }, ...grades.map((g) => ({ key: String(g), label: `Grade ${g}` }))]}
         />
-        <View className="flex-row gap-2">
-          <DateField label="From" value={from} onChange={setFrom} clearable className="flex-1" />
-          <DateField label="To" value={to} onChange={setTo} clearable className="flex-1" />
-        </View>
+        <DateField label="From" value={from} onChange={setFrom} clearable />
+        <DateField label="To" value={to} onChange={setTo} clearable />
         <FilterActions dirty={dirty} canReset={hasFilter} onApply={applyFilters} onReset={resetFilters} />
       </View>
       <FormStatus status={writeStatus} />

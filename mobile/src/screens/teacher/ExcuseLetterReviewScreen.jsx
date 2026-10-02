@@ -1,10 +1,15 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
+import Text from '../../components/Text';
 import { longDate } from '../../format/date';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 
 // REVIEW A LETTER — the web's review modal as a modal screen. Decision
 // (Approve / Decline) → Remarks → Continue → a confirmation NAMING THE
@@ -20,17 +25,28 @@ import { longDate } from '../../format/date';
 // the server still decides: a 403 here is a reason shown in place, never a
 // logout (§2), and the form returns to the decision step so the teacher can
 // re-read.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-02). The letter is one card: the two
+// short facts, then the parent's own words at reading size. THE DECISION IS
+// TWO TOGGLES OF EQUAL WIDTH, each a 48dp target (a plain style object in dp
+// — M19 — and never a style function — M20). The chosen one is tinted, its
+// label is the heavier face AND it carries a check, so the choice is never
+// colour alone; it is deliberately NOT filled, so the one filled button on
+// the screen is the step forward. The confirm takes the decision's own
+// variant: `success` to approve, `danger` to decline. NO ENTRANCE MOTION:
+// nothing may delay the sentence that names the decision.
 function Field({ label, children }) {
   return (
     <View>
-      <Text className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</Text>
-      <View className="mt-0.5">{children}</View>
+      <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{label}</Text>
+      <View className="mt-1">{children}</View>
     </View>
   );
 }
 
 export default function ExcuseLetterReviewScreen({ navigation, route }) {
   const letter = route.params.letter;
+  const { tokens } = useTheme();
   const [decision, setDecision] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [confirming, setConfirming] = useState(false);
@@ -59,12 +75,12 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
-        <Text className="text-base font-semibold text-fg">
+        <Text accessibilityRole="header" className="font-serif text-xl text-fg">
           Review letter — {letter.first_name} {letter.last_name}
         </Text>
         {reviewError ? <ErrorAlert message={reviewError} /> : null}
 
-        <View className="gap-3 rounded-xl border border-edge bg-surface p-4">
+        <View className={`${cardClass} gap-4 p-4`}>
           <Field label="Absence date">
             <Text className="text-sm text-fg">{longDate(letter.absence_date)}</Text>
           </Field>
@@ -74,85 +90,84 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
             </Text>
           </Field>
           <Field label="Reason">
-            <Text className="text-sm text-fg">{letter.reason}</Text>
+            <Text className="text-base leading-relaxed text-fg-body">{letter.reason}</Text>
           </Field>
           {letter.details ? (
             <Field label="Details">
-              <Text className="text-sm text-fg">{letter.details}</Text>
+              <Text className="text-base leading-relaxed text-fg-body">{letter.details}</Text>
             </Field>
           ) : null}
         </View>
 
-        <View className="rounded-lg border border-info-edge bg-info-soft px-3 py-2">
-          <Text className="text-sm text-info-strong">Approving records the reason given in this letter. It does not change the attendance record for that day.</Text>
+        <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
+          <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
+          <Text className="min-w-0 flex-1 text-sm text-info-strong">Approving records the reason given in this letter. It does not change the attendance record for that day.</Text>
         </View>
 
         {confirming ? (
           <>
-            <View className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2">
-              <Text className="text-sm text-warning-strong">
+            <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
+              <Icon name="fa-triangle-exclamation" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
+              <Text className="min-w-0 flex-1 text-sm text-warning-strong">
                 <Text className="font-semibold">{approve ? 'Approve this letter?' : 'Decline this letter?'}</Text> This cannot be changed afterward.
               </Text>
             </View>
-            <View className="flex-row justify-end gap-2">
-              <Pressable onPress={() => setConfirming(false)} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-                <Text className="text-sm font-medium text-fg-body">Go back</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitReview}
-                disabled={saving}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: saving, busy: saving }}
-                className={`rounded-lg px-4 py-2 ${approve ? 'bg-success-solid' : 'bg-danger-solid'} ${saving ? 'opacity-60' : ''}`}
-              >
-                <Text className="text-sm font-medium text-solid-fg">{saving ? 'Saving…' : `Yes, ${approve ? 'approve' : 'decline'}`}</Text>
-              </Pressable>
+            {/* The label still changes while the write is in flight; `loading`
+                is the old `disabled={saving}` plus its spinner. */}
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => setConfirming(false)} disabled={saving}>
+                Go back
+              </Button>
+              <Button variant={approve ? 'success' : 'danger'} onPress={submitReview} loading={saving}>
+                {saving ? 'Saving…' : `Yes, ${approve ? 'approve' : 'decline'}`}
+              </Button>
             </View>
           </>
         ) : (
           <>
-            <View>
-              <Text className="mb-1.5 text-sm font-medium text-fg-secondary">Decision</Text>
-              <View className="flex-row gap-2">
-                {['Approved', 'Declined'].map((value) => {
-                  const active = decision === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => setDecision(value)}
-                      accessibilityRole="radio"
-                      accessibilityState={{ selected: active, checked: active }}
-                      className={`min-h-11 flex-1 items-center justify-center rounded-lg border px-3 py-2 ${active ? 'border-primary bg-primary' : 'border-edge-strong bg-surface'}`}
-                    >
-                      <Text className={`text-sm ${active ? 'font-medium text-primary-fg' : 'text-fg-body'}`}>{value === 'Approved' ? 'Approve' : 'Decline'}</Text>
-                    </Pressable>
-                  );
-                })}
+            <View className={`${cardClass} gap-4 p-4`}>
+              <View>
+                <Text className="mb-1.5 text-sm font-semibold text-fg-secondary">Decision</Text>
+                <View className="flex-row gap-2">
+                  {['Approved', 'Declined'].map((value) => {
+                    const active = decision === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        onPress={() => setDecision(value)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active, checked: active }}
+                        android_ripple={{ color: tokens['edge-strong'] }}
+                        className={`flex-1 flex-row items-center justify-center gap-2 overflow-hidden rounded-xl border px-3 py-2 ${
+                          active ? 'border-primary bg-brand-soft' : 'border-edge-strong bg-surface'
+                        }`}
+                        style={{ minHeight: 48 }}
+                      >
+                        {active ? <Icon name="fa-check" size={14} color={tokens.brand} /> : null}
+                        <Text className={`text-sm ${active ? 'font-semibold text-brand' : 'text-fg-body'}`}>{value === 'Approved' ? 'Approve' : 'Decline'}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
+              <FormField
+                label="Remarks"
+                value={remarks}
+                onChangeText={setRemarks}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                className="min-h-24"
+                hint={decision === 'Declined' ? 'Optional — but a declined letter with no reason sends the parent to Messages to ask why.' : 'Optional.'}
+              />
             </View>
-            <FormField
-              label="Remarks"
-              value={remarks}
-              onChangeText={setRemarks}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-              className="min-h-24"
-              hint={decision === 'Declined' ? 'Optional — but a declined letter with no reason sends the parent to Messages to ask why.' : 'Optional.'}
-            />
-            <View className="flex-row justify-end gap-2">
-              <Pressable onPress={() => navigation.goBack()} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-                <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setConfirming(true)}
-                disabled={!decision}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !decision }}
-                className={`rounded-lg bg-primary px-4 py-2 ${!decision ? 'opacity-60' : ''}`}
-              >
-                <Text className="text-sm font-medium text-primary-fg">Continue</Text>
-              </Pressable>
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
+                Cancel
+              </Button>
+              <Button variant="primary" onPress={() => setConfirming(true)} disabled={!decision}>
+                Continue
+              </Button>
             </View>
           </>
         )}

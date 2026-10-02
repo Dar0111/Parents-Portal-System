@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import StatusBadge from '../../components/StatusBadge';
+import Text from '../../components/Text';
 import { longDate } from '../../format/date';
 
 // ADMIN → ATTENDANCE — the web's admin/AttendancePage.jsx: VIEW ONLY (the API
@@ -19,7 +24,20 @@ import { longDate } from '../../format/date';
 // state is a prompt. Never sends `date` (that branch drops from/to). Counts
 // only over the rows shown, never a rate. The copy names who corrects a mark
 // and sends the admin nowhere (§5i). Re-reads on focus (M14).
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the section's header,
+// the view-only sentence as its own paragraph under it, the filters in their
+// own card, and THE COUNT STRIP — the old count line, the same five facts in
+// the same order, over the rows SHOWN. Each status is its badge, so the strip
+// and the cards name a mark the same way; the word is in the badge, so
+// nothing here is told by colour alone.
+//
+// RELOAD is `load(0)` with the applied filters — the request pull-to-refresh
+// already makes — and it exists only once a grade or a date range is applied:
+// before that there is nothing to ask for again.
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
+// The count strip's order — the old line's: Present · Late · Absent · Excused.
+const COUNT_ORDER = ['Present', 'Late', 'Absent', 'Excused'];
 const EMPTY = { grade_level: '', section: '', from: '', to: '', status: '' };
 const GRADES = [{ key: '', label: 'All grades' }, ...[1, 2, 3, 4, 5, 6].map((g) => ({ key: String(g), label: `Grade ${g}` }))];
 
@@ -113,6 +131,7 @@ export default function AttendanceScreen() {
     return c;
   }, [rows]);
 
+  // One branch per cause, keyed on the APPLIED values (§5f).
   const empty = (() => {
     if (applied.from || applied.to || applied.status) {
       return {
@@ -120,9 +139,9 @@ export default function AttendanceScreen() {
         title: 'No records match these filters',
         message: 'Try different dates or a different status, or reset.',
         action: (
-          <Pressable onPress={resetFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Reset</Text>
-          </Pressable>
+          <Button size="sm" onPress={resetFilters}>
+            Reset
+          </Button>
         ),
       };
     }
@@ -137,9 +156,10 @@ export default function AttendanceScreen() {
   })();
 
   const header = (
-    <View className="mb-3 gap-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader title="Attendance records" onReload={hasScope ? () => load(0) : null} reloading={loading || refreshing} reloadLabel="Reload attendance records" />
       <Text className="text-sm text-fg-muted">View only. Each section's adviser records attendance, and corrects a mark by saving that date again on their own Attendance page.</Text>
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+      <View className={`${cardClass} gap-4 p-4`}>
         <Segmented label="Grade" value={draft.grade_level} onChange={(v) => setDraft((p) => ({ ...p, grade_level: v, section: '' }))} options={GRADES} />
         {draft.grade_level ? (
           <Segmented
@@ -157,9 +177,19 @@ export default function AttendanceScreen() {
         <FilterActions dirty={dirty} canReset={canReset} onApply={applyFilters} onReset={resetFilters} />
       </View>
       {hasScope && !loading && !error && rows.length ? (
-        <Text className="text-sm text-fg-muted">
-          {rows.length} record{rows.length === 1 ? '' : 's'} · Present {counts.Present} · Late {counts.Late} · Absent {counts.Absent} · Excused {counts.Excused}
-        </Text>
+        <View className={`${cardClass} gap-3 p-4`}>
+          <Text className="text-sm font-semibold text-fg">
+            {rows.length} record{rows.length === 1 ? '' : 's'}
+          </Text>
+          <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
+            {COUNT_ORDER.map((name) => (
+              <View key={name} className="flex-row items-center gap-2">
+                <StatusBadge status={name} />
+                <Text className="text-base font-bold text-fg">{counts[name]}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
       ) : null}
     </View>
   );
@@ -168,7 +198,11 @@ export default function AttendanceScreen() {
     return (
       <ScrollView className="flex-1 bg-page" contentContainerClassName="px-4 pb-10 pt-4" keyboardShouldPersistTaps="handled">
         {header}
-        <EmptyState icon="fa-magnifying-glass" title="Choose a grade or a date range to see attendance records" message="Records are not loaded until you narrow them — the whole school at once is not useful." />
+        {/* In the frame the list will take, so the screen does not change
+            shape when the first filter is applied. */}
+        <View className={cardClass}>
+          <EmptyState icon="fa-magnifying-glass" title="Choose a grade or a date range to see attendance records" message="Records are not loaded until you narrow them — the whole school at once is not useful." />
+        </View>
       </ScrollView>
     );
   }

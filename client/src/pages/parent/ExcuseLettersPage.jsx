@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
+import { cardClass, linkClass } from '../../components/buttonClass';
+import Reveal from '../../motion/Reveal';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
 import parentLetterCard from './excuseLetters/card';
 import { useAuth } from '../../auth/AuthContext';
@@ -39,6 +43,17 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // §5b: the table renders last GET /mine only. Compose draft is created on
 // open and discarded on close. Success refetches; the form never writes
 // the list. §5c: no LRN, no login_id, route has no :id.
+//
+// RELOAD (feat/ui-refresh) is `load` itself — GET /mine again. The status
+// filter is client-side state and is not touched, and neither is
+// `writeStatus`: a "Letter submitted." still describes the last write after
+// the list has been read again.
+
+// The label of one field in the reading view: the eyebrow style.
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
+// A parent's own words (and the adviser's reply) are reading text: one step
+// larger than the body size, in a column that stays under ~75 characters.
+const FIELD_PROSE = 'mt-1 max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body';
 
 const STATUS_FILTERS = ['All', 'Pending', 'Approved', 'Declined'];
 const EMPTY_FORM = { absence_date: '', reason: '', details: '' };
@@ -201,7 +216,8 @@ export default function ParentExcuseLettersPage() {
       key: 'absence_date',
       header: 'Absence date',
       sortable: true,
-      render: (row) => shortDate(row.absence_date),
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{shortDate(row.absence_date)}</span>,
     },
     {
       key: 'reason',
@@ -211,7 +227,7 @@ export default function ParentExcuseLettersPage() {
         <button
           type="button"
           onClick={() => setReading(row)}
-          className="line-clamp-2 max-w-md text-left text-brand underline-offset-2 hover:underline"
+          className={`${linkClass} line-clamp-2 max-w-md text-left`}
         >
           {row.reason}
         </button>
@@ -226,145 +242,160 @@ export default function ParentExcuseLettersPage() {
       key: 'action',
       header: '',
       align: 'right',
+      nowrap: true,
       render: (row) =>
         row.status === 'Pending' ? (
-          <button
-            type="button"
-            onClick={() => openEdit(row)}
-            className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
-          >
+          <Button size="sm" onClick={() => openEdit(row)}>
             Edit
-          </button>
+          </Button>
         ) : null,
     },
   ];
 
-  const submitButton = canSubmit ? (
-    <button
-      type="button"
-      onClick={openCompose}
-      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-    >
-      Submit letter
-    </button>
-  ) : null;
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <FormField
-          label="Status"
-          as="select"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className={filterSelectClass}
-        >
-          {STATUS_FILTERS.map((s) => (
-            <option key={s} value={s}>
-              {s === 'All' ? 'All statuses' : s}
-            </option>
-          ))}
-        </FormField>
-        <div className="flex gap-2">
-          {canReset ? (
-            <button
-              type="button"
-              onClick={() => setStatus('All')}
-              className="rounded-lg border border-edge-strong px-4 py-2 text-sm text-fg-body transition hover:bg-surface-muted"
-            >
-              Reset
-            </button>
+    <>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          {/* Submit letter is the page's one primary action, and it is in the
+              header at every state — which is why the empty state below names
+              it instead of repeating it (§5f). */}
+          <SectionHeader
+            title="Submitted letters"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload excuse letters"
+            actions={
+              canSubmit ? (
+                <Button variant="primary" icon="fa-plus" onClick={openCompose}>
+                  Submit letter
+                </Button>
+              ) : null
+            }
+          />
+
+          {!canSubmit ? (
+            <p className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
+              <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+                <i className="fa-solid fa-circle-info" />
+              </span>
+              <span className="min-w-0">
+                Submitting is unavailable until the school office links this account to a student.
+              </span>
+            </p>
           ) : null}
-          {submitButton}
-        </div>
-      </div>
 
-      {!canSubmit ? (
-        <p className="text-sm text-fg-muted">
-          Submitting is unavailable until the school office links this account to a student.
-        </p>
-      ) : null}
-
-      <FormStatus status={writeStatus.letters} />
-
-      <DataTable
-        // RECORD CARD (DV1b-a). The absence DATE is the title here, not a
-        // learner name: a parent has exactly one child, so the name would be
-        // the same on every card and carry no information. **No LRN and no
-        // login_id** (§5c) — there is none in the payload to leak.
-        //
-        // The card itself is `excuseLetters/card.jsx` — a module, so the proof
-        // can render it through the real `Card` instead of regexing this file
-        // (§17b, §17d). Its header carries the reasoning: every card opens the
-        // reading view whatever the status, and Edit is NOT on the card.
-        renderCard={(row) => parentLetterCard(row, { onRead: setReading })}
-        columns={columns}
-        rows={visible}
-        keyField="id"
-        loading={loading}
-        error={error}
-        onRetry={load}
-        emptyIcon={emptyState.icon}
-        emptyTitle={emptyState.title}
-        emptyMessage={emptyState.message}
-        emptyAction={
-          emptyState.showReset ? (
-            <button
-              type="button"
-              onClick={() => setStatus('All')}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+          {/* The filter bar. The select IS the applied value, so there is no
+              Apply; Reset appears only when it would change the list. */}
+          <div className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+            <FormField
+              label="Status"
+              as="select"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className={filterSelectClass}
             >
-              Show all letters
-            </button>
-          ) : null
-        }
-      />
+              {STATUS_FILTERS.map((s) => (
+                <option key={s} value={s}>
+                  {s === 'All' ? 'All statuses' : s}
+                </option>
+              ))}
+            </FormField>
+            {canReset ? <Button onClick={() => setStatus('All')}>Reset</Button> : null}
+          </div>
 
+          <FormStatus status={writeStatus.letters} />
+
+          <DataTable
+            // RECORD CARD (DV1b-a). The absence DATE is the title here, not a
+            // learner name: a parent has exactly one child, so the name would
+            // be the same on every card and carry no information. **No LRN
+            // and no login_id** (§5c) — there is none in the payload to leak.
+            //
+            // The card itself is `excuseLetters/card.jsx` — a module, so the
+            // proof can render it through the real `Card` instead of regexing
+            // this file (§17b, §17d). Its header carries the reasoning: every
+            // card opens the reading view whatever the status, and Edit is
+            // NOT on the card.
+            renderCard={(row) => parentLetterCard(row, { onRead: setReading })}
+            columns={columns}
+            rows={visible}
+            keyField="id"
+            loading={loading}
+            error={error}
+            onRetry={load}
+            emptyIcon={emptyState.icon}
+            emptyTitle={emptyState.title}
+            emptyMessage={emptyState.message}
+            emptyAction={
+              emptyState.showReset ? (
+                <Button size="sm" onClick={() => setStatus('All')}>
+                  Show all letters
+                </Button>
+              ) : null
+            }
+          />
+        </section>
+      </Reveal>
+
+      {/* BOTH DIALOGS ARE OUTSIDE the entrance wrapper: Modal renders inline
+          behind a fixed backdrop, so it must never sit under an element that
+          can carry a transform (motion/motion.js). Each body is Modal's own
+          scroller. */}
       <Modal
         open={Boolean(reading)}
         onClose={() => setReading(null)}
         title="Excuse letter"
         size="lg"
+        // Edit, while the letter is still Pending, is the dialog's one action
+        // and sits in its footer — in reach however long the letter is.
+        footer={
+          reading?.status === 'Pending' ? (
+            <Button icon="fa-pen" onClick={() => openEdit(reading)}>
+              Edit
+            </Button>
+          ) : null
+        }
       >
         {reading ? (
-          <div className="max-h-[70vh] space-y-4 overflow-y-auto">
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Absence date</dt>
-                <dd className="mt-0.5 text-sm text-fg">{longDate(reading.absence_date)}</dd>
+          <div className="space-y-5">
+            {/* The letter's header: the day it is about, in the title face,
+                with where it stands beside it. */}
+            <dl className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-edge-soft pb-4">
+              <div className="min-w-0">
+                <dt className={FIELD_LABEL}>Absence date</dt>
+                <dd className="mt-0.5 font-serif text-xl font-bold text-fg">{longDate(reading.absence_date)}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Status</dt>
-                <dd className="mt-0.5">
+                <dt className={FIELD_LABEL}>Status</dt>
+                <dd className="mt-1.5">
                   <StatusBadge status={reading.status} />
                 </dd>
               </div>
-              <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Reason</dt>
-                <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.reason}</dd>
+            </dl>
+            <dl className="space-y-4">
+              <div>
+                <dt className={FIELD_LABEL}>Reason</dt>
+                <dd className="mt-1 max-w-prose whitespace-pre-wrap break-words text-sm font-semibold text-fg">
+                  {reading.reason}
+                </dd>
               </div>
               {reading.details ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Details</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.details}</dd>
+                <div>
+                  <dt className={FIELD_LABEL}>Details</dt>
+                  <dd className={FIELD_PROSE}>{reading.details}</dd>
                 </div>
               ) : null}
               {reading.teacher_remarks ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Adviser remarks</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{reading.teacher_remarks}</dd>
+                // The adviser's reply, set apart from the parent's own words:
+                // after a decline this is the one thing the parent opened the
+                // letter to read.
+                <div className="rounded-xl border border-edge-soft bg-surface-subtle px-4 py-3">
+                  <dt className={FIELD_LABEL}>Adviser remarks</dt>
+                  <dd className={FIELD_PROSE}>{reading.teacher_remarks}</dd>
                 </div>
               ) : null}
             </dl>
-            {reading.status === 'Pending' ? (
-              <button
-                type="button"
-                onClick={() => openEdit(reading)}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-              >
-                Edit
-              </button>
-            ) : (
+            {reading.status === 'Pending' ? null : (
               <p className="text-sm text-fg-muted">
                 This letter has been reviewed and can no longer be edited.
               </p>
@@ -381,30 +412,24 @@ export default function ParentExcuseLettersPage() {
         closeOnBackdrop={!saving}
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeCompose}
-              disabled={saving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closeCompose} disabled={saving}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              form="parent-excuse-form"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="primary" type="submit" form="parent-excuse-form" loading={saving}>
               {editing ? 'Save changes' : 'Submit'}
-            </button>
+            </Button>
           </>
         }
       >
         <form id="parent-excuse-form" onSubmit={submitForm} className="space-y-4">
           {formError ? <ErrorAlert message={formError} /> : null}
-          <p className="rounded-lg border border-info-edge bg-info-soft px-3 py-2 text-sm text-info-strong">
-            The adviser records the reason. It does not change the attendance record for that day.
+          <p className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
+            <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+              <i className="fa-solid fa-circle-info" />
+            </span>
+            <span className="min-w-0">
+              The adviser records the reason. It does not change the attendance record for that day.
+            </span>
           </p>
           <FormField
             label="Absence date"
@@ -431,6 +456,6 @@ export default function ParentExcuseLettersPage() {
           />
         </form>
       </Modal>
-    </div>
+    </>
   );
 }

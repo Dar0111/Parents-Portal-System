@@ -4,9 +4,12 @@ import api from '../api/axios';
 import extractError from '../api/extractError';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
+import Button from '../components/Button';
+import { cardClass, linkClass } from '../components/buttonClass';
 import FormStatus, { fail } from '../components/FormStatus';
 import PasswordField from '../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../components/PasswordChecklist';
+import Reveal from '../motion/Reveal';
 import seal from '../assets/school-seal.png';
 
 // The forced password change (R2, 2026-09-19). An admin who issues a
@@ -33,6 +36,12 @@ import seal from '../assets/school-seal.png';
 // SERVER — never assumed locally — is what lets the redirect below fire.
 // /me and /change-password are the two routes middleware/auth.js allows
 // while the flag is set, so both calls in that sequence are permitted.
+//
+// THE FRAME IS THE SIGNED-OUT FAMILY'S (feat/ui-refresh, 2026-10-02), the
+// same as ForgotPassword: the seal and the wordmark in a small row above one
+// centred card on the dot grid, the page's single <h1> and its sentence at
+// the top of the card, 48px controls (set from the <form>, `[&_input]:…`,
+// because PasswordField takes no class) and the same submit as Login.
 export default function ForcedPasswordChange() {
   const { user, loading, logout, applyToken } = useAuth();
   const navigate = useNavigate();
@@ -104,25 +113,36 @@ export default function ForcedPasswordChange() {
   return (
     <div className="page-dots flex min-h-screen items-center justify-center bg-page px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-seal-bg">
+        {/* The seal always sits on its `seal-bg` disc with `rounded-full` on
+            the image (§9). No halo here: the halo's ring colour is the brand
+            panel's and this row is on the page background. */}
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-seal-bg">
             <img
               src={seal}
               alt="Captain H. Francisco Elementary School seal"
               width="168"
               height="168"
-              className="h-18 w-18 rounded-full"
+              className="h-11 w-11 rounded-full"
             />
           </div>
-          <h1 className="text-lg font-semibold text-fg">Choose a new password</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            {user.name}, the school gave this account a temporary password. Pick your own before
-            you continue.
-          </p>
+          <p className="font-serif text-lg font-bold text-fg">Parent&rsquo;s Portal</p>
         </div>
 
-        <div className="rounded-2xl border border-edge bg-surface p-8 shadow-xl">
-          <form onSubmit={submit} className="space-y-4">
+        {/* `rounded-3xl` after cardClass's `rounded-2xl`: Tailwind emits the
+            two in name order, so the larger radius is the later rule. */}
+        <Reveal className={`${cardClass} rounded-3xl p-6`}>
+          <div className="mb-5">
+            <h1 className="font-serif text-2xl font-bold text-fg">Choose a new password</h1>
+            {/* A name can be one long unbroken word; it wraps rather than
+                widening the card. */}
+            <p className="mt-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
+              {user.name}, the school gave this account a temporary password. Pick your own before
+              you continue.
+            </p>
+          </div>
+
+          <form onSubmit={submit} className="space-y-4 [&_input]:min-h-12 [&_input]:text-base">
             <PasswordField
               label="Temporary password"
               value={currentPassword}
@@ -164,28 +184,24 @@ export default function ForcedPasswordChange() {
             {/* No confirmation step (§5e): the account cannot do anything
                 else until this is done, so there is nothing to protect the
                 user from changing their mind about. */}
-            <button
-              type="submit"
-              disabled={saving || !ready}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving && <i className="fa-solid fa-circle-notch fa-spin" />}
+            <Button variant="primary" size="lg" full type="submit" loading={saving} disabled={!ready}>
               {saving ? 'Saving…' : 'Save and continue'}
-            </button>
+            </Button>
             <FormStatus status={status} />
           </form>
-        </div>
+        </Reveal>
 
         {/* The one way off this screen, and it changes nothing: logout is
-            client-side only, so the flag is still set at the next sign-in. */}
-        <p className="mt-5 text-center text-sm text-fg-muted">
+            client-side only, so the flag is still set at the next sign-in.
+            A text button, 44px tall. */}
+        <p className="mt-4 text-center text-sm">
           <button
             type="button"
             onClick={() => {
               logout();
               navigate('/login', { replace: true });
             }}
-            className="font-medium text-brand underline-offset-2 hover:underline"
+            className={`${linkClass} inline-flex min-h-11 items-center`}
           >
             Sign out instead
           </button>

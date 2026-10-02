@@ -5,6 +5,7 @@ import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
 import LoadingSpinner from './LoadingSpinner';
 import StatusBadge from './StatusBadge';
+import { buttonClass, cardClass } from './buttonClass';
 
 // Presentational only — it never fetches. The page owns the request and hands
 // down rows/loading/error, so the same table renders a roster, a grade list,
@@ -74,6 +75,14 @@ const ALIGN = {
   center: 'text-center',
 };
 
+// The same three alignments for a sortable header's button, which is a flex
+// row (label + sort icon) and so is placed by `justify-*`, not `text-*`.
+const JUSTIFY = {
+  left: 'justify-start',
+  right: 'justify-end',
+  center: 'justify-center',
+};
+
 function isEmpty(value) {
   return value === null || value === undefined || value === '';
 }
@@ -127,13 +136,31 @@ function CardBody({ card, interactive }) {
   );
 }
 
-// `first:rounded-t-xl` so a hovered first card does not paint a square
+// `first:rounded-t-2xl` so a hovered first card does not paint a square
 // corner over the frame's rounded one — the same job the frame's old
-// `overflow-hidden` used to do.
+// `overflow-hidden` used to do. The radius is the FRAME's (`cardClass`,
+// rounded-2xl since feat/ui-refresh); move the two together.
+//
+// `py-3.5` (feat/ui-refresh): a card is a finger's target on a phone, so it
+// gets a little more air than a table row's cell.
 const CARD_SHELL =
-  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3 text-left first:rounded-t-xl last:border-0';
+  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3.5 text-left first:rounded-t-2xl last:border-0';
 
-function Card({ card }) {
+// THE LAST CARD ROUNDS ITS BOTTOM ONLY WHEN NOTHING SITS UNDER IT. In paged
+// mode the pager is the frame's bottom edge and carries the rounding; without
+// one the last card is, and its hover would paint square over the frame's
+// bottom corners. Decided by the table, so it is a prop, not a guess.
+const CARD_SHELL_END = 'last:rounded-b-2xl';
+
+// One interactive card's hover and keyboard focus. The outline is drawn
+// INSIDE the card (-2px offset): the frame has no overflow to clip an outer
+// one, but the next card's background would cover half of it.
+const CARD_INTERACTIVE =
+  'transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent';
+
+function Card({ card, roundEnd }) {
+  const shell = roundEnd ? `${CARD_SHELL} ${CARD_SHELL_END}` : CARD_SHELL;
+
   // `actions` BESIDE a primary action is a silent no-op, and it shipped once
   // (UI-B, 2026-09-23). Only the static branch below renders `actions` — that
   // is §5a-iii enforced by construction, since a button beside a `<Link>` or
@@ -161,14 +188,14 @@ function Card({ card }) {
   // not and does not.
   if (card.to) {
     return (
-      <Link to={card.to} className={`${CARD_SHELL} transition hover:bg-surface-subtle`}>
+      <Link to={card.to} className={`${shell} ${CARD_INTERACTIVE}`}>
         <CardBody card={card} interactive />
       </Link>
     );
   }
   if (card.onSelect) {
     return (
-      <button type="button" onClick={card.onSelect} className={`${CARD_SHELL} transition hover:bg-surface-subtle`}>
+      <button type="button" onClick={card.onSelect} className={`${shell} ${CARD_INTERACTIVE}`}>
         <CardBody card={card} interactive />
       </button>
     );
@@ -177,7 +204,7 @@ function Card({ card }) {
   // when the page gives any — sit in their own row beneath, where they are
   // siblings rather than children of something clickable.
   return (
-    <div className={CARD_SHELL}>
+    <div className={shell}>
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
           <CardBody card={card} interactive={false} />
@@ -275,9 +302,16 @@ export default function DataTable({
   // review 2026-09-20.
   //
   // The corners are clipped by rounding the pieces that actually paint
-  // instead — the outer header cells and the pager — which costs three
-  // classes and no containing block. Do not put `overflow-hidden` back.
-  const frame = `rounded-xl border border-edge bg-surface ${className}`;
+  // instead — the outer header cells, the pager, the first card, and (when
+  // there is no pager under them) the last row's outer cells and the last
+  // card — which costs a few classes and no containing block. Do not put
+  // `overflow-hidden` back.
+  //
+  // THE FRAME IS `cardClass` (feat/ui-refresh, 2026-10-02): 16px corners, the
+  // hairline edge, the smallest shadow — the same surface as every card and
+  // panel. Every `rounded-*-2xl` below is that radius; if `cardClass` ever
+  // changes its corner, they change with it.
+  const frame = `${cardClass} ${className}`;
 
   if (error) {
     return (
@@ -319,7 +353,7 @@ export default function DataTable({
 
   return (
     <div className={frame}>
-      {cards ? <div className="sm:hidden">{cards.map(({ key, card }) => <Card key={key} card={card} />)}</div> : null}
+      {cards ? <div className="sm:hidden">{cards.map(({ key, card }) => <Card key={key} card={card} roundEnd={!paged} />)}</div> : null}
 
       {/* ---------------------------------------------------------------
           THE HORIZONTAL SCROLLER IS BACK AT EVERY WIDTH, AND THERE IS NO
@@ -374,18 +408,32 @@ export default function DataTable({
                     //
                     // first/last rounding replaces the frame's old
                     // `overflow-hidden`; see the note on `frame`.
-                    className={`whitespace-nowrap bg-surface-subtle px-4 py-3 text-xs font-semibold uppercase tracking-wider text-fg-body first:rounded-tl-xl last:rounded-tr-xl ${
-                      ALIGN[column.align] || ALIGN.left
-                    }`}
+                    //
+                    // The eyebrow style (feat/ui-refresh): small, uppercase,
+                    // muted — a label for the column, quieter than its values.
+                    //
+                    // A SORTABLE header's padding lives on its BUTTON, not on
+                    // the cell (`p-0` here), so the whole header cell is the
+                    // target — 44px tall — instead of the label's own few
+                    // pixels, and the keyboard outline has a box to draw in.
+                    className={`whitespace-nowrap bg-surface-subtle text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-2xl last:rounded-tr-2xl ${
+                      column.sortable ? 'p-0' : 'px-4 py-3'
+                    } ${ALIGN[column.align] || ALIGN.left}`}
                   >
                     {column.sortable ? (
+                      // The outline is drawn INSIDE the button (-2px): it
+                      // fills the cell, and the frame's corner would clip an
+                      // outer one on the first and last columns.
                       <button
                         type="button"
                         onClick={() => toggleSort(column)}
-                        className="inline-flex items-center gap-1.5 uppercase tracking-wide transition hover:text-fg"
+                        className={`flex min-h-11 w-full items-center gap-1.5 rounded-xl px-4 py-3 font-semibold uppercase tracking-wider transition hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent ${
+                          JUSTIFY[column.align] || JUSTIFY.left
+                        }`}
                       >
                         {column.header}
                         <i
+                          aria-hidden="true"
                           className={`fa-solid text-[0.625rem] ${
                             active
                               ? sort.dir === 'asc'
@@ -408,7 +456,7 @@ export default function DataTable({
             {sortedRows.map((row, index) => (
               <tr
                 key={row[keyField] ?? index}
-                className="border-b border-edge-soft last:border-0 hover:bg-surface-subtle"
+                className="border-b border-edge-soft transition-colors last:border-0 hover:bg-surface-subtle"
               >
                 {columns.map((column) => (
                   <td
@@ -425,9 +473,14 @@ export default function DataTable({
                     // ("Grade 6 - Malikhain"), or an action cluster whose
                     // buttons should keep one row and claim their width
                     // rather than wrap under the text beside them.
-                    className={`px-4 py-3 text-fg-secondary ${column.nowrap ? 'whitespace-nowrap' : ''} ${
+                    //
+                    // The LAST row's outer cells round with the frame when
+                    // no pager sits under them — the hovered row's
+                    // background would otherwise paint square over the
+                    // frame's bottom corners (see the note on `frame`).
+                    className={`px-4 py-3.5 text-fg-secondary ${column.nowrap ? 'whitespace-nowrap' : ''} ${
                       ALIGN[column.align] || ALIGN.left
-                    }`}
+                    } ${!paged && index === sortedRows.length - 1 ? 'first:rounded-bl-2xl last:rounded-br-2xl' : ''}`}
                   >
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
@@ -440,30 +493,34 @@ export default function DataTable({
 
       {paged && (
         <div
-          className="flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-edge bg-surface-subtle px-4 py-2 text-xs text-fg-body"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-edge bg-surface-subtle px-4 py-2.5 text-sm text-fg-body"
           data-testid="datatable-pager"
         >
-          <span>
+          <span className="tabular-nums">
             Showing {first}–{last} of {page.total}
           </span>
+          {/* The row-action button (buttonClass `sm`): 44px under a finger,
+              36px under a pointer, the shared focus outline and the shared
+              disabled look. The icons are decoration — the words are the
+              names. */}
           <span className="inline-flex gap-2">
             <button
               type="button"
               disabled={!canPrev}
               onClick={() => onPageChange && onPageChange(Math.max(0, page.offset - page.limit))}
-              className="rounded-lg border border-edge-strong bg-surface px-2.5 py-1 font-medium text-fg-secondary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+              className={buttonClass({ size: 'sm' })}
             >
-              <i className="fa-solid fa-chevron-left mr-1 text-[0.625rem]" />
+              <i aria-hidden="true" className="fa-solid fa-chevron-left text-[0.625rem]" />
               Previous
             </button>
             <button
               type="button"
               disabled={!canNext}
               onClick={() => onPageChange && onPageChange(page.offset + page.limit)}
-              className="rounded-lg border border-edge-strong bg-surface px-2.5 py-1 font-medium text-fg-secondary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+              className={buttonClass({ size: 'sm' })}
             >
               Next
-              <i className="fa-solid fa-chevron-right ml-1 text-[0.625rem]" />
+              <i aria-hidden="true" className="fa-solid fa-chevron-right text-[0.625rem]" />
             </button>
           </span>
         </div>

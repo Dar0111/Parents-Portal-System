@@ -155,7 +155,7 @@ export default function ScrollCue({
           role="region"
           aria-label={ariaLabel}
           data-scrolled={state.scrolled ? 'true' : 'false'}
-          className="print-sheet-scroller overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className="print-sheet-scroller overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
         >
           {children}
         </div>
@@ -190,7 +190,7 @@ export default function ScrollCue({
               onMouseDown={(e) => e.preventDefault()}
               aria-hidden="true"
               tabIndex={-1}
-              className="absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-edge-strong bg-surface text-fg-body shadow-sm transition hover:bg-surface-muted sm:flex print:hidden"
+              className="absolute right-2 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-edge-strong bg-surface text-fg-body shadow-md transition hover:bg-surface-muted hover:text-fg sm:flex print:hidden"
             >
               <i className="fa-solid fa-arrow-right" aria-hidden="true" />
             </button>

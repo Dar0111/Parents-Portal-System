@@ -58,6 +58,13 @@ const SIZES = {
   lg: 'h-20 w-20 text-xl',
 };
 
+// A HAIRLINE RING (feat/ui-refresh, 2026-10-02), the same `edge` every card
+// is framed with: a pale photo keeps its outline on a pale surface. A ring is
+// a box-shadow, so it takes no room — the pinned sizes above are untouched —
+// and it is drawn OUTSIDE the box, because an inset shadow is painted under
+// an <img>'s picture and would not show.
+const RING = 'ring-1 ring-edge';
+
 // The one API-base decision (api/apiBase.js), so a photo comes from the same
 // host as every request — a phone's Chrome on the LAN included.
 const API_BASE = API_BASE_URL;
@@ -77,7 +84,7 @@ export default function Avatar({ name, photo = null, size = 'md', className = ''
         aria-hidden="true"
         decoding="async"
         onError={() => setFailed(src)}
-        className={`${box} shrink-0 rounded-full bg-brand-soft object-cover ${className}`}
+        className={`${box} shrink-0 rounded-full bg-brand-soft object-cover ${RING} ${className}`}
       />
     );
   }
@@ -91,7 +98,7 @@ export default function Avatar({ name, photo = null, size = 'md', className = ''
       // aria-hidden: the name is always rendered as text beside this, so a
       // screen reader announcing "MS" first would just be noise.
       aria-hidden="true"
-      className={`inline-flex ${box} shrink-0 items-center justify-center rounded-full bg-brand-soft font-semibold text-brand ${className}`}
+      className={`inline-flex ${box} shrink-0 items-center justify-center rounded-full bg-brand-soft font-semibold text-brand ${RING} ${className}`}
     >
       {initials}
     </span>

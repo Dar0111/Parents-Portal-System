@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
 import DataList from '../../components/DataList';
+import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
 import { useSocket } from '../../realtime/SocketProvider';
 
 // PARENT → MESSAGES: one card per conversation, the unread count in the
-// meta line (the server's number on the row, §10), New message in the
-// header, the list re-read on every `new_message` and on return from a
-// thread (read-all changed the rows). `last_message_at` is `created_at`
-// renamed — a TIMESTAMP — so it goes through timestampDay (§5a-iv).
+// meta line (the server's number on the row, §10), New message under the
+// section's header, the list re-read on every `new_message` and on return
+// from a thread (read-all changed the rows). `last_message_at` is
+// `created_at` renamed — a TIMESTAMP — so it goes through timestampDay
+// (§5a-iv).
+//
+// THE SECTION HEADER (feat/ui-refresh) carries the list's title and its
+// Reload — `load(0)`, the request pull-to-refresh and "Try again" already
+// make, and the one a socket message triggers, asked for by hand. New message
+// is this screen's one filled action, on its own row under the header: beside
+// the title and Reload it would leave the one word "Conversations" too little
+// room at a larger text size.
 export default function MessagesScreen({ navigation }) {
   const { subscribe } = useSocket();
   const [rows, setRows] = useState([]);
@@ -54,10 +64,11 @@ export default function MessagesScreen({ navigation }) {
   );
 
   const header = (
-    <View className="mb-3 flex-row justify-end">
-      <Pressable onPress={() => navigation.navigate('NewMessage')} accessibilityRole="button" className="rounded-lg bg-primary px-4 py-2">
-        <Text className="text-sm font-medium text-primary-fg">New message</Text>
-      </Pressable>
+    <View className="mb-4 gap-4">
+      <SectionHeader title="Conversations" onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload conversations" />
+      <Button variant="primary" icon="fa-plus" className="self-end" onPress={() => navigation.navigate('NewMessage')}>
+        New message
+      </Button>
     </View>
   );
 

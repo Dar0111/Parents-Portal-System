@@ -80,17 +80,23 @@ export default function PasswordField({
               required={required}
               aria-invalid={invalid || undefined}
               aria-describedby={describedBy}
-              className={`${controlClassFor(invalid)} pr-10 ${leadingIcon ? 'pl-10' : ''}`}
+              className={`${controlClassFor(invalid)} pr-11 ${leadingIcon ? 'pl-10' : ''}`}
             />
+            {/* 44 × 44px (feat/ui-refresh): as wide as the control is tall
+                (`min-h-11`), so the toggle is a full finger's target, and the
+                input's right padding (`pr-11`) keeps typed text out from
+                under it. The keyboard outline is drawn INSIDE the button
+                (-2px) and rounded like the control's right end, so it never
+                spills past the field's own border. */}
             <button
               type="button"
               onClick={onToggleReveal}
               disabled={disabled}
               aria-label={revealed ? 'Hide password' : 'Show password'}
               aria-pressed={revealed}
-              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-fg-faint transition hover:text-fg-body disabled:opacity-50"
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent disabled:opacity-50"
             >
-              <i className={`fa-solid ${revealed ? 'fa-eye-slash' : 'fa-eye'}`} />
+              <i aria-hidden="true" className={`fa-solid ${revealed ? 'fa-eye-slash' : 'fa-eye'}`} />
             </button>
           </div>
           {below}

@@ -3,13 +3,14 @@
 // tone (FRONTEND_CONVENTIONS §26, MOBILE_CONVENTIONS M22).
 //
 // THE NUMBERS ARE NOT HERE: they are `TONE` in the mirrored
-// src/realtime/messageToast.js — "two-tone down": 1047 Hz at 0 ms for
-// 150 ms and 784 Hz at 100 ms for 300 ms, peak 0.22 each, 400 ms in all —
-// the same object the web's Web Audio tone reads, so the two sounds cannot
-// drift apart without lint:mirrors noticing.
+// src/realtime/messageToast.js — "two-note rise": 587 Hz at 0 ms for 140 ms
+// and 880 Hz at 80 ms for 280 ms, each with its octave (1174 Hz for 60 ms,
+// 1760 Hz for 90 ms), peak 0.125 each, 360 ms in all — the same object the
+// web's Web Audio tone reads, so the two sounds cannot drift apart without
+// lint:mirrors noticing.
 //
 // THE WEB'S ENVELOPE, SAMPLE BY SAMPLE: per voice, from the floor (0.0001)
-// a LINEAR rise to the peak over 3 ms, then an EXPONENTIAL decay back to the
+// a LINEAR rise to the peak over 6 ms, then an EXPONENTIAL decay back to the
 // floor at start + duration, held at the floor for the 20 ms until the web
 // stops the oscillator; each voice's phase starts at its own start time
 // (an oscillator started then). The voices are SUMMED.
@@ -64,7 +65,8 @@ export function buildToneWav(tone = TONE, sampleRate = SAMPLE_RATE) {
   header.write('data', 36, 'ascii');
   header.writeUInt32LE(data.length, 40);
   // `peak` is the loudest summed sample before 16-bit rounding, as a fraction
-  // of full scale — at most 0.44 (two voices of 0.22), so nothing clips.
+  // of full scale — about 0.25 at most (a note and its octave, 0.125 each,
+  // are the only voices that peak together), so nothing clips.
   return { bytes: Buffer.concat([header, data]), samples, peak };
 }
 

@@ -4,6 +4,8 @@ import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
+import Reveal from '../../motion/Reveal';
 import { shortDate } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
@@ -92,6 +94,12 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // is_locked is on every term entry and is NOT rendered. A parent cannot act on
 // it, and it reads either as "final" — a promise the system should not make,
 // since an admin can unlock — or as "hidden from you", which is false.
+//
+// RELOAD (feat/ui-refresh) is `load` itself: the report card's own request,
+// through the card's own loading and error frame. The school name and the
+// adviser are not re-read — they are reference data with no state of their
+// own to show (see TWO MORE READS) — and the term a parent picked on a phone
+// is kept, because that choice lives in ReportCard, which stays mounted.
 
 // The value inside a term cell (number, letter, Pending, N/A) is TermValue in
 // format/TermValue.jsx — extracted 2026-09-14 when Admin → Grades became the
@@ -128,21 +136,25 @@ export function ScorePair({ score, max }) {
     return <span className="text-sm text-fg-muted">Pending</span>;
   }
 
-  return <span className="tabular-nums text-sm text-fg">{pair}</span>;
+  return <span className="text-sm font-semibold tabular-nums text-fg">{pair}</span>;
 }
+
+// The heading of one group of scores in the breakdown: the eyebrow style, a
+// label for the list under it rather than a title competing with the dialog's.
+const GROUP_HEADING = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
 
 function ComponentList({ title, rows, empty }) {
   return (
     <section>
-      <h3 className="text-sm font-semibold text-fg">{title}</h3>
+      <h3 className={GROUP_HEADING}>{title}</h3>
       {rows.length === 0 ? (
-        <p className="mt-1 text-sm text-fg-muted">{empty}</p>
+        <p className="mt-1.5 text-sm text-fg-muted">{empty}</p>
       ) : (
-        <ul className="mt-2 divide-y divide-edge-soft">
+        <ul className="mt-1 divide-y divide-edge-soft">
           {rows.map((row) => (
-            <li key={row.id} className="flex items-baseline justify-between gap-3 py-1.5">
+            <li key={row.id} className="flex items-baseline justify-between gap-3 py-2.5">
               <div className="min-w-0">
-                <p className="text-sm text-fg-secondary">{row.label}</p>
+                <p className="break-words text-sm text-fg-secondary">{row.label}</p>
                 {/* SHORT, not long, and the brief did not name this site:
                     it is a per-row secondary line in a dense list of
                     assessments, which is a table row's shape rather than a
@@ -151,7 +163,7 @@ function ComponentList({ title, rows, empty }) {
                     literal "2026-09-25" — nothing parsed, nothing shifted
                     (§5a-iv). */}
                 {row.date_recorded ? (
-                  <p className="text-xs text-fg-muted">{shortDate(row.date_recorded)}</p>
+                  <p className="text-xs tabular-nums text-fg-muted">{shortDate(row.date_recorded)}</p>
                 ) : null}
               </div>
               <ScorePair score={row.score} max={row.max_score} />
@@ -179,15 +191,15 @@ function ExamList({ grade, mode }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-fg">{title}</h3>
+      <h3 className={GROUP_HEADING}>{title}</h3>
       {!anyRecorded ? (
-        <p className="mt-1 text-sm text-fg-muted">
+        <p className="mt-1.5 text-sm text-fg-muted">
           No {summative ? 'summative' : 'examination'} scores recorded yet
         </p>
       ) : (
-        <ul className="mt-2 divide-y divide-edge-soft">
+        <ul className="mt-1 divide-y divide-edge-soft">
           {lines.map((line) => (
-            <li key={line.key} className="flex items-baseline justify-between gap-3 py-1.5">
+            <li key={line.key} className="flex items-baseline justify-between gap-3 py-2.5">
               <p className="text-sm text-fg-secondary">{line.label}</p>
               <ScorePair score={line.score} max={line.max} />
             </li>
@@ -214,8 +226,11 @@ function BreakdownBody({ mode, detail }) {
 
   if (mode === 'descriptive') {
     return (
-      <div className="space-y-3">
-        <div>
+      <div className="space-y-4">
+        {/* The letter the parent tapped, as the dialog's figure. The size is
+            on the wrapper: TermValue and GradeValue take no size of their
+            own. */}
+        <div className="text-xl">
           <TermValue
             entry={{
               descriptive_grade: grade.descriptive_grade,
@@ -244,7 +259,7 @@ function BreakdownBody({ mode, detail }) {
             Since 2026-09-22 a Grade 1 row really has them, so this is the
             normal path rather than the hedge it used to be. */}
         {hasRecordedBreakdown ? (
-          <div className="space-y-4 border-t border-edge-soft pt-3">
+          <div className="space-y-5 border-t border-edge-soft pt-4">
             {ww.length > 0 ? (
               <ComponentList title="Written Works" rows={ww} empty="" />
             ) : null}
@@ -271,7 +286,7 @@ function BreakdownBody({ mode, detail }) {
           // components the dialog showed the letter and its descriptor —
           // exactly what the cell the parent tapped already showed — which
           // degrades without error but reads as broken.
-          <p className="border-t border-edge-soft pt-3 text-sm text-fg-muted">
+          <p className="max-w-prose border-t border-edge-soft pt-4 text-sm text-fg-muted">
             This grade was recorded before scores were kept for this learning area, so there is nothing to show
             behind it.
           </p>
@@ -281,13 +296,17 @@ function BreakdownBody({ mode, detail }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-baseline gap-x-2 border-b border-edge-soft pb-4">
         {/* The modal header. `whole` so it reads "90 Advancing", matching the
-            cell the parent tapped to open it — the two must not disagree. */}
-        <GradeValue value={grade.term_grade} mode={mode} whole />
+            cell the parent tapped to open it — the two must not disagree.
+            The figure's size and weight are on the wrapper; GradeValue takes
+            no size of its own. */}
+        <span className="text-xl font-bold text-fg">
+          <GradeValue value={grade.term_grade} mode={mode} whole />
+        </span>
         {detail.descriptor?.descriptor ? (
-          <span className="ml-1.5 text-xs text-fg-muted">{detail.descriptor.descriptor}</span>
+          <span className="text-sm text-fg-muted">{detail.descriptor.descriptor}</span>
         ) : null}
       </div>
       <ComponentList
@@ -528,43 +547,62 @@ export default function ParentGradesPage() {
   // one. `final_grade_descriptor` went with them (D2): the band word now
   // appears once, on the general average, with the legend carrying the scale.
   return (
-    <div className="space-y-4">
-      {/* Everything on the card comes from the report payload — see the file
-          header on why not from useAuth(). A name is not an identifier; no
-          LRN, no login_id, and the numeric student.id is not shown either. */}
-      <ReportCard
-        report={report}
-        schoolName={schoolName}
-        adviser={adviser}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        onOpenTerm={openTerm}
-        emptyIcon={empty.icon}
-        emptyTitle={empty.title}
-        emptyMessage={empty.message}
-      />
+    <>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          {/* The section's header is screen chrome — Reload, and a name for
+              what it reloads — so it stays off the printed sheet: the
+              document carries its own title. */}
+          <SectionHeader
+            title="Report card"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload report card"
+            className="print:hidden"
+          />
+
+          {/* Everything on the card comes from the report payload — see the
+              file header on why not from useAuth(). A name is not an
+              identifier; no LRN, no login_id, and the numeric student.id is
+              not shown either. */}
+          <ReportCard
+            report={report}
+            schoolName={schoolName}
+            adviser={adviser}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            onOpenTerm={openTerm}
+            emptyIcon={empty.icon}
+            emptyTitle={empty.title}
+            emptyMessage={empty.message}
+          />
+        </section>
+      </Reveal>
 
       {/* PRINTING WITH THE BREAKDOWN OPEN (UI-D). `Modal` renders inline —
           no portal — behind a `fixed inset-0 z-50` backdrop, so a print
           started while it is open would put the dialog over the report card
           and paper has no way to dismiss it. Hidden through a wrapper rather
           than inside the primitive: one page's printing decision does not
-          belong in a component every page shares. */}
+          belong in a component every page shares.
+
+          OUTSIDE the entrance wrapper, for the same inline reason: a fixed
+          backdrop must never sit under an element that can carry a
+          transform (motion/motion.js). The dialog's body is Modal's own
+          scroller. */}
       <div className="print:hidden">
-      <Modal
-        open={Boolean(selected)}
-        onClose={closeBreakdown}
-        title={selected ? `${selected.subjectName} · Term ${selected.term}` : 'Grade'}
-        size="lg"
-      >
-        <div className="max-h-[70vh] overflow-y-auto">
-          {detailLoading ? <LoadingSpinner size="sm" label="Loading scores…" /> : null}
+        <Modal
+          open={Boolean(selected)}
+          onClose={closeBreakdown}
+          title={selected ? `${selected.subjectName} · Term ${selected.term}` : 'Grade'}
+          size="lg"
+        >
+          {detailLoading ? <LoadingSpinner size="sm" label="Loading scores…" className="py-6" /> : null}
           {detailError ? <ErrorAlert message={detailError} onRetry={retryDetail} /> : null}
           {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
-        </div>
-      </Modal>
+        </Modal>
       </div>
-    </div>
+    </>
   );
 }

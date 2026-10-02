@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { API_BASE_URL } from '../api/client';
 import { photoUrl } from '../format/photoUrl';
+import Text from './Text';
 
 // The web's Avatar: a PHOTO when the person has one, INITIALS on a brand-soft
 // disc otherwise (feat/profile-photos, 2026-09-30). `photo` is the stored

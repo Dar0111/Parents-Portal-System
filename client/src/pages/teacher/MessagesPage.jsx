@@ -2,11 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { fetchAll, listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
 import { timestampDay } from '../../format/date';
 import EmptyState from '../../components/EmptyState';
+import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
+import Reveal from '../../motion/Reveal';
 import { useSocket } from '../../realtime/SocketProvider';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -18,6 +24,15 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // no section — a button here would be a second door into the empty compose
 // that already exists on Announcements. The thread carries the unsent draft
 // via location.state; it does not add a composer on Messages.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// (title, Reload, New message) and the list. RELOAD is `load` itself, the
+// request the socket already repeats on every incoming message, with the
+// page and sort that are applied now; it is the way to ask again when the
+// live channel is down (§5g). NOTHING ANIMATES WHEN A MESSAGE ARRIVES: the
+// entrance wrapper plays once, when the page mounts, and a refetch only
+// swaps the table inside it. The picker sits BESIDE that wrapper, never
+// inside it (motion/motion.js).
 
 export default function MessagesPage() {
   usePageTitle('Messages');
@@ -113,13 +128,20 @@ export default function MessagesPage() {
       key: 'other_user_name',
       header: 'Conversation',
       sortable: true,
+      // The person cell, as on the parent's list: the same photo-or-initials
+      // circle the phone card shows (`other_user_profile_pic` is already on
+      // the row), the name, the role as a quiet label (re-cased for display
+      // only, §5d), and one line of the last message.
       render: (row) => (
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-fg">{row.other_user_name}</span>
-            <span className="text-xs text-fg-muted">{row.other_user_role}</span>
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={row.other_user_name} photo={row.other_user_profile_pic} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-semibold text-fg">{row.other_user_name}</span>
+              <span className="text-xs capitalize text-fg-muted">{row.other_user_role}</span>
+            </div>
+            <div className="line-clamp-1 max-w-xl text-xs text-fg-muted">{row.last_message_body}</div>
           </div>
-          <div className="line-clamp-1 max-w-xl text-xs text-fg-muted">{row.last_message_body}</div>
         </div>
       ),
     },
@@ -127,10 +149,11 @@ export default function MessagesPage() {
       key: 'last_message_at',
       header: 'Last message',
       sortable: true,
+      nowrap: true,
       // `last_message_at` is `messages.created_at` aliased — a TIMESTAMP,
       // so slicing it showed the previous day before 08:00 PH. The alias is
       // why a grep for `created_at` did not find this site.
-      render: (row) => timestampDay(row.last_message_at),
+      render: (row) => <span className="tabular-nums">{timestampDay(row.last_message_at)}</span>,
     },
     {
       key: 'unread_count',
@@ -141,7 +164,7 @@ export default function MessagesPage() {
       // number. See convention 5b.
       render: (row) =>
         Number(row.unread_count) > 0 ? (
-          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-fg">
+          <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-fg">
             {row.unread_count}
           </span>
         ) : null,
@@ -150,70 +173,78 @@ export default function MessagesPage() {
       key: 'open',
       header: '',
       align: 'right',
+      nowrap: true,
       render: (row) => (
-        <button
-          type="button"
-          onClick={() => navigate(`/teacher/messages/${row.other_user_id}`)}
-          className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted"
-        >
+        <Button size="sm" onClick={() => navigate(`/teacher/messages/${row.other_user_id}`)}>
           Open
-        </button>
+        </Button>
       ),
     },
   ];
 
-  const newMessageButton = (
-    <button
-      type="button"
-      onClick={openPicker}
-      className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-    >
-      New message
-    </button>
-  );
-
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">{newMessageButton}</div>
+    <div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader
+            title="Conversations"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload conversations"
+            // BELOW `sm` THE CONTROLS GO UNDER THE TITLE. SectionHeader gives
+            // the title whatever the controls leave; beside Reload and "New
+            // message" that is a few pixels more than the one word
+            // "Conversations" needs at the default text size and less than it
+            // needs at Large (measured with the real fonts), where the word
+            // ran under the Reload button. Stacked, nothing is clipped.
+            className="max-sm:flex-col max-sm:items-stretch"
+            actions={
+              <Button variant="primary" icon="fa-plus" onClick={openPicker}>
+                New message
+              </Button>
+            }
+          />
 
-      <DataTable
-        // CONVERSATION CARD (DV1b-a). Opening the thread IS the one action
-        // this page exists for, so the whole card is the link — the table's
-        // separate "Open" button has no place on a card, where the card
-        // itself is the affordance (§5a-iii).
-        //
-        // `to`, not `onSelect`: the thread is a real route, so this must be a
-        // <Link> a parent can open in a new tab, not a button that navigates.
-        // The route keys on `users.id`, never a login id (§5c).
-        //
-        // The unread COUNT is deliberately left in meta rather than passed as
-        // `status`: StatusBadge maps a vocabulary to a tone, and a number is
-        // not one of the four vocabularies (§4). It stays the server's own
-        // count either way — nothing here increments (§10).
-        renderCard={(row) => ({
-          to: `/teacher/messages/${row.other_user_id}`,
-          avatar: row.other_user_name,
-          avatarPhoto: row.other_user_profile_pic,
-          title: row.other_user_name,
-          subtitle: row.last_message_body,
-          meta: `${timestampDay(row.last_message_at)}${
-            Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''
-          }`,
-        })}
-        columns={columns}
-        rows={conversations}
-        keyField="other_user_id"
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon="fa-comments"
-        emptyTitle="No messages yet"
-        emptyMessage="Use New message to start a conversation."
-      />
+          <DataTable
+            // CONVERSATION CARD (DV1b-a). Opening the thread IS the one action
+            // this page exists for, so the whole card is the link — the table's
+            // separate "Open" button has no place on a card, where the card
+            // itself is the affordance (§5a-iii).
+            //
+            // `to`, not `onSelect`: the thread is a real route, so this must be a
+            // <Link> a parent can open in a new tab, not a button that navigates.
+            // The route keys on `users.id`, never a login id (§5c).
+            //
+            // The unread COUNT is deliberately left in meta rather than passed as
+            // `status`: StatusBadge maps a vocabulary to a tone, and a number is
+            // not one of the four vocabularies (§4). It stays the server's own
+            // count either way — nothing here increments (§10).
+            renderCard={(row) => ({
+              to: `/teacher/messages/${row.other_user_id}`,
+              avatar: row.other_user_name,
+              avatarPhoto: row.other_user_profile_pic,
+              title: row.other_user_name,
+              subtitle: row.last_message_body,
+              meta: `${timestampDay(row.last_message_at)}${
+                Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''
+              }`,
+            })}
+            columns={columns}
+            rows={conversations}
+            keyField="other_user_id"
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon="fa-comments"
+            emptyTitle="No messages yet"
+            emptyMessage="Use New message to start a conversation."
+          />
+        </section>
+      </Reveal>
 
       <Modal open={picking} onClose={() => setPicking(false)} title="New message" size="lg">
         <div className="space-y-4">
@@ -225,9 +256,11 @@ export default function MessagesPage() {
           />
 
           {contactsLoading ? (
-            <p className="py-6 text-center text-sm text-fg-muted">Loading contacts…</p>
+            <LoadingSpinner size="sm" className="py-6" label="Loading contacts…" />
           ) : contactsError ? (
-            <p className="text-sm text-danger-text">{contactsError}</p>
+            // The API's own wording, in the shared alert (§2) — it was a bare
+            // red sentence with no role.
+            <ErrorAlert message={contactsError} />
           ) : contacts.length === 0 ? (
             <EmptyState
               icon="fa-address-book"
@@ -237,11 +270,11 @@ export default function MessagesPage() {
           ) : (
             groups.map((group) => (
               <div key={group.role}>
-                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-fg-muted">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-muted">
                   {group.label}
                 </p>
                 {group.rows.length === 0 ? (
-                  <p className="rounded-lg bg-surface-subtle px-3 py-2 text-sm text-fg-muted">
+                  <p className="rounded-xl bg-surface-subtle px-4 py-3 text-sm text-fg-muted">
                     {group.role === 'parent'
                       ? // KNOWN IMPRECISION, recorded in CLAUDE.md rather than
                         // hidden: contacts lists ACTIVE accounts only, and the
@@ -255,7 +288,11 @@ export default function MessagesPage() {
                       : `No ${group.label.toLowerCase()} match that search.`}
                   </p>
                 ) : (
-                  <ul className="divide-y divide-edge-soft rounded-lg border border-edge">
+                  // One contact is one row and one button: 44px tall, the
+                  // keyboard outline drawn INSIDE it (the list clips its own
+                  // rounded corners, so an outer one would be cut), and a
+                  // chevron that says the row goes somewhere.
+                  <ul className="divide-y divide-edge-soft overflow-hidden rounded-xl border border-edge">
                     {group.rows.map((c) => (
                       <li key={c.id}>
                         <button
@@ -264,31 +301,34 @@ export default function MessagesPage() {
                             setPicking(false);
                             navigate(`/teacher/messages/${c.id}`);
                           }}
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-surface-subtle"
+                          className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent"
                         >
-                          <span>
+                          <span className="min-w-0 break-words">
                             {/* Parent rows LEAD with the student: a guardian's
                                 own name may mean nothing to a teacher, who is
                                 looking for "Marwin's parent". */}
                             {c.role === 'parent' && c.student_name ? (
                               <>
-                                <span className="font-medium text-fg">{c.student_name}</span>
+                                <span className="font-semibold text-fg">{c.student_name}</span>
                                 <span className="text-sm text-fg-muted"> — parent: {c.name}</span>
                               </>
                             ) : (
                               <>
-                                <span className="font-medium text-fg">{c.name}</span>
+                                <span className="font-semibold text-fg">{c.name}</span>
                                 {c.subject ? (
                                   <span className="text-sm text-fg-muted"> — {c.subject}</span>
                                 ) : null}
                               </>
                             )}
                           </span>
-                          {Number(c.unread_count) > 0 ? (
-                            <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-fg">
-                              {c.unread_count}
-                            </span>
-                          ) : null}
+                          <span className="flex shrink-0 items-center gap-3">
+                            {Number(c.unread_count) > 0 ? (
+                              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-fg">
+                                {c.unread_count}
+                              </span>
+                            ) : null}
+                            <i aria-hidden="true" className="fa-solid fa-chevron-right text-xs text-fg-faint" />
+                          </span>
                         </button>
                       </li>
                     ))}

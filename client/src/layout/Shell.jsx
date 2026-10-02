@@ -2,12 +2,13 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
+import Button from '../components/Button';
 import RailTooltip from '../components/RailTooltip';
+import { DURATION, EASE, MOTION_OK, gsap, useGSAP } from '../motion/motion';
 import { requestLeave } from './leaveGuard';
 import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
 import { revealActive } from './navScroll';
-import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { settingsTabsForRole } from '../pages/settings/tabs';
 import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
@@ -22,15 +23,28 @@ import MessageToast from '../realtime/MessageToast.jsx';
 import Header from './Header';
 import seal from '../assets/school-seal.png';
 
+// The focus outline every link in the sidebar carries — the same one
+// buttonClass.js gives a button (`focus-accent` on `surface` is a checked
+// pair). Keyboard only.
+const FOCUS =
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent';
+
 // The school's seal beside the product name, at the top of the sidebar and of
 // the mobile drawer (D3, 2026-09-19). The seal always sits on its own white
 // disc — seal-bg is white in BOTH themes, because the JPG's white field and
 // its blue ring vanish on a dark surface otherwise; rounded-full clips the
 // square image to the disc. 40px inside a 44px disc; the 192px asset is 2x
 // the largest render (Login's 96px).
-function Brand({ collapsed = false }) {
+//
+// THE BLOCK IS AS TALL AS THE HEADER (min-h-16) and ends in the same
+// hairline, so the sidebar's rule and the top bar's read as one line across
+// the window (feat/ui-refresh). A minimum, not a fixed height, and neither
+// line truncates: in a narrow drawer at the Large text size the name wraps
+// and the block grows instead of clipping. `children` is the drawer's Close
+// button, inside the same row.
+function Brand({ children = null }) {
   return (
-    <div className={`flex items-center gap-3 py-4 ${collapsed ? 'justify-center px-2' : 'px-4'}`}>
+    <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-edge px-4 py-2">
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-seal-bg">
         <img
           src={seal}
@@ -40,12 +54,11 @@ function Brand({ collapsed = false }) {
           className="h-10 w-10 rounded-full"
         />
       </div>
-      {collapsed ? null : (
-        <div className="min-w-0 leading-tight">
-          <div className="truncate text-sm font-semibold text-fg">Parent&rsquo;s Portal</div>
-          <div className="truncate text-xs text-fg-muted">Capt. H. Francisco ES</div>
-        </div>
-      )}
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="font-serif text-base font-bold text-fg">Parent&rsquo;s Portal</div>
+        <div className="text-xs text-fg-muted">Capt. H. Francisco ES</div>
+      </div>
+      {children}
     </div>
   );
 }
@@ -75,82 +88,70 @@ function accountInfoPath(role) {
   return tab.to ? `${settings.to}/${tab.to}` : settings.to;
 }
 
-function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
+// A CARD IN ITS OWN RIGHT since feat/ui-refresh (2026-10-02): a rounded,
+// bordered tile on `surface-subtle`, set in from the sidebar's edges, rather
+// than a strip under a rule. THE NAME WRAPS TO TWO LINES BEFORE IT CLIPS
+// (`line-clamp-2`): one truncated line cut a full name to "Ashley G…", and
+// the name is the one thing this card is for. The link's aria-label always
+// carries it whole.
+function UserCard({ user, onLogout, onNavigate }) {
   const role = ROLE_LABEL[user?.role] || user?.role || '';
   const detail = user?.role === 'parent' ? role : [role, user?.login_id].filter(Boolean).join(' · ');
   const name = user?.name || (user?.role === 'parent' ? '' : user?.login_id) || '';
   const account = accountInfoPath(user?.role);
 
-  if (collapsed) {
-    return (
-      <div className="flex flex-col items-center gap-2 border-t border-edge px-2 py-3">
-        {account ? (
-          <RailTooltip label="Account information">
-            <Link
-              to={account}
-              onClick={onNavigate}
-              className="flex rounded-full transition hover:opacity-90"
-            >
-              <Avatar name={name} photo={user?.profile_pic} />
-              <span className="sr-only">Account information</span>
-            </Link>
-          </RailTooltip>
-        ) : (
-          <Avatar name={name} photo={user?.profile_pic} />
-        )}
-        <RailTooltip label="Logout">
-          <button
-            type="button"
-            onClick={onLogout}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-fg-body transition hover:bg-surface-subtle hover:text-fg"
-          >
-            <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
-            <span className="sr-only">Logout</span>
-          </button>
-        </RailTooltip>
+  const who = (
+    <>
+      <Avatar name={name} photo={user?.profile_pic} />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="line-clamp-2 break-words text-sm font-semibold text-fg">{name}</div>
+        <div className="truncate text-xs text-fg-muted">{detail}</div>
       </div>
-    );
-  }
+    </>
+  );
 
   return (
-    <div className="flex items-center gap-1 border-t border-edge px-2 py-2">
+    // gap-2, never less: the account link and Logout are two touch targets
+    // side by side, and 8px is the least that keeps a thumb off the wrong one.
+    <div className="m-2 flex shrink-0 items-center gap-2 rounded-2xl border border-edge bg-surface-subtle p-2">
       {account ? (
         <Link
           to={account}
           onClick={onNavigate}
           aria-label={`${name ? `${name}, ` : ''}Account information`}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-surface-subtle"
+          className={`flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-1.5 py-1 transition hover:bg-surface-muted ${FOCUS}`}
         >
-          <Avatar name={name} photo={user?.profile_pic} />
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-medium text-fg">{name}</div>
-            <div className="truncate text-xs text-fg-muted">{detail}</div>
-          </div>
+          {who}
         </Link>
       ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-3 px-1 py-1">
-          <Avatar name={name} photo={user?.profile_pic} />
-          <div className="min-w-0 flex-1 leading-tight">
-            <div className="truncate text-sm font-medium text-fg">{name}</div>
-            <div className="truncate text-xs text-fg-muted">{detail}</div>
-          </div>
-        </div>
+        <div className="flex min-h-11 min-w-0 flex-1 items-center gap-3 px-1.5 py-1">{who}</div>
       )}
       {/* AN ICON, NOT A LABELLED BUTTON (UI-2): the word "Logout" took the
           room the name needed ("Ashley G…"). Named for screen readers by its
-          sr-only label and shown by RailTooltip on hover and focus — the
-          rail's own Logout, one width up. */}
+          sr-only label and shown by RailTooltip on hover and on keyboard
+          focus. 44px square: a finger's target in the drawer. */}
       <RailTooltip label="Logout">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-fg-body transition hover:bg-surface-subtle hover:text-fg"
-        >
-          <i className="fa-solid fa-right-from-bracket" aria-hidden="true" />
+        <Button variant="ghost" size="icon" icon="fa-right-from-bracket" onClick={onLogout}>
           <span className="sr-only">Logout</span>
-        </button>
+        </Button>
       </RailTooltip>
     </div>
+  );
+}
+
+// One row of the sidebar. 44px at least (`min-h-11`), so it is a finger's
+// target in the drawer and a label that wraps at the Large text size grows
+// the row instead of clipping.
+const NAV_ITEM = 'relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm transition';
+
+// The icon's box. The WRAPPER carries the width, never the element with
+// `fa-solid` (Font Awesome's unlayered CSS wins over a layered utility —
+// found in D3), and it is aria-hidden: the label beside it is the name.
+function NavIcon({ icon }) {
+  return (
+    <span aria-hidden="true" className="w-5 shrink-0 text-center">
+      <i className={`fa-solid ${icon}`} />
+    </span>
   );
 }
 
@@ -160,72 +161,22 @@ function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
 // tooltip carries that reason. Exported so the dev gallery can show all three
 // side by side without logging in as three different roles.
 //
-// `collapsed` (feat/ui-polish): the 64px rail. The icon alone, its label kept
-// for screen readers (`sr-only`) and shown beside it by RailTooltip on hover
-// and on focus, and a badge becomes a small count on the icon's corner.
-export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
-  if (collapsed && item.built && !item.blocked) {
-    return (
-      <RailTooltip label={item.label}>
-        <NavLink
-          to={item.to}
-          end={item.to.split('/').length === 2}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            `relative flex h-10 items-center justify-center rounded-lg transition ${
-              isActive ? 'bg-brand-soft text-brand' : 'text-fg-body hover:bg-surface-subtle hover:text-fg'
-            }`
-          }
-        >
-          <i className={`fa-solid ${item.icon} w-4 text-center`} aria-hidden="true" />
-          <span className="sr-only">
-            {item.label}
-            {badge > 0 ? ` (${badge})` : ''}
-          </span>
-          {badge > 0 ? (
-            <span
-              aria-hidden="true"
-              className="absolute right-1 top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[0.625rem] font-medium leading-4 text-primary-fg"
-            >
-              {badge > 9 ? '9+' : badge}
-            </span>
-          ) : null}
-        </NavLink>
-      </RailTooltip>
-    );
-  }
-
-  const base = 'flex items-center gap-3 rounded-lg px-3 py-2 transition';
-
-  // The badge renders ONLY on a built item. A count on a dimmed, unclickable
-  // nav entry would be worse than no count: it announces something the user
-  // cannot go and read. Teacher and Parent Messages are both built, so both
-  // carry a live count; admin has no Messages item at all since 2026-09-18,
-  // so there is nothing to badge and `UnreadProvider` never fetches for that
-  // role. A future role/page that lands built: false inherits this untouched.
-  // See the unread note in Shell below.
-  const withBadge = (label) =>
-    badge > 0 ? (
-      <>
-        <span className="flex-1">{label}</span>
-        <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-primary-fg">
-          {badge > 99 ? '99+' : badge}
-        </span>
-      </>
-    ) : (
-      label
-    );
-
+// THE ACTIVE ITEM IS SAID THREE WAYS (feat/ui-refresh): the brand tint, the
+// heavier label, and a 3px brand bar on its left edge — so it does not rest
+// on colour alone — and NavLink's own `aria-current="page"` says it to a
+// screen reader (navScroll.js finds the item by that attribute; a proof
+// drives it). There is no icon-only form of an item: the rail was removed.
+export function NavItem({ item, onNavigate, badge = 0 }) {
   if (item.blocked) {
     return (
       <span
         title={item.blocked}
         aria-disabled="true"
-        className={`${base} cursor-not-allowed text-fg-ghost`}
+        className={`${NAV_ITEM} cursor-not-allowed text-fg-ghost`}
       >
-        <i className={`fa-solid ${item.icon} w-4 text-center`} />
-        <span className="flex-1">{item.label}</span>
-        <i className="fa-solid fa-circle-exclamation text-xs text-warning-icon" />
+        <NavIcon icon={item.icon} />
+        <span className="min-w-0 flex-1">{item.label}</span>
+        <i className="fa-solid fa-circle-exclamation text-xs text-warning-icon" aria-hidden="true" />
       </span>
     );
   }
@@ -235,30 +186,94 @@ export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
       <span
         title="Not built yet"
         aria-disabled="true"
-        className={`${base} cursor-not-allowed text-fg-ghost`}
+        className={`${NAV_ITEM} cursor-not-allowed text-fg-ghost`}
       >
-        <i className={`fa-solid ${item.icon} w-4 text-center`} />
-        {item.label}
+        <NavIcon icon={item.icon} />
+        <span className="min-w-0 flex-1">{item.label}</span>
       </span>
     );
   }
 
+  // The badge renders ONLY on a built item. A count on a dimmed, unclickable
+  // nav entry would be worse than no count: it announces something the user
+  // cannot go and read. Teacher and Parent Messages are both built, so both
+  // carry a live count; admin has no Messages item at all since 2026-09-18,
+  // so there is nothing to badge and `UnreadProvider` never fetches for that
+  // role. A future role/page that lands built: false inherits this untouched.
+  // See the unread note in Shell below.
   return (
     <NavLink
       to={item.to}
       end={item.to.split('/').length === 2}
       onClick={onNavigate}
       className={({ isActive }) =>
-        `${base} ${
+        `${NAV_ITEM} ${FOCUS} ${
           isActive
-            ? 'bg-brand-soft font-medium text-brand'
-            : 'text-fg-body hover:bg-surface-subtle hover:text-fg'
+            ? 'bg-brand-soft font-semibold text-brand'
+            : 'text-fg-body hover:bg-surface-muted hover:text-fg'
         }`
       }
     >
-      <i className={`fa-solid ${item.icon} w-4 text-center`} />
-      {withBadge(item.label)}
+      {({ isActive }) => (
+        <>
+          {isActive ? (
+            <span
+              aria-hidden="true"
+              className="absolute left-0 top-1/2 h-5 w-[0.1875rem] -translate-y-1/2 rounded-full bg-brand"
+            />
+          ) : null}
+          <NavIcon icon={item.icon} />
+          <span className="min-w-0 flex-1">{item.label}</span>
+          {badge > 0 ? (
+            <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-fg">
+              {badge > 99 ? '99+' : badge}
+            </span>
+          ) : null}
+        </>
+      )}
     </NavLink>
+  );
+}
+
+// THE DRAWER BELOW `md`: the same sidebar content in a panel over the page.
+// Its own component so it MOUNTS when the menu opens — which is what lets
+// the entrance run once per opening, with no state and no effect dependency.
+//
+// MOTION (feat/ui-refresh): the panel slides in from the left edge and the
+// backdrop fades in, 0.25 s. Transform and opacity only, created inside
+// `gsap.matchMedia().add(MOTION_OK, …)`, so under reduced motion nothing is
+// created and the drawer is simply there; `clearProps` leaves no inline style
+// behind. The panel and every control in it are live from the first frame —
+// nothing waits on the tween. CLOSING IS NOT ANIMATED: the drawer unmounts,
+// which is faster than any exit (motion.js).
+//
+// The panel is a bare <aside>, like the sidebar, on purpose — the print rules
+// hide `aside` and `header` by element name.
+function Drawer({ onClose, children }) {
+  const backdropRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useGSAP(() => {
+    const backdrop = backdropRef.current;
+    const panel = panelRef.current;
+    if (!backdrop || !panel) return;
+    const mm = gsap.matchMedia();
+    mm.add(MOTION_OK, () => {
+      gsap.from(backdrop, { opacity: 0, duration: DURATION.base, ease: EASE, clearProps: 'opacity' });
+      gsap.from(panel, { xPercent: -100, duration: DURATION.base, ease: EASE, clearProps: 'transform' });
+    });
+  });
+
+  return (
+    <div className="fixed inset-0 z-40 md:hidden">
+      <div ref={backdropRef} className="absolute inset-0 bg-backdrop" onClick={onClose} />
+      <aside
+        ref={panelRef}
+        className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-surface shadow-xl"
+      >
+        {children}
+      </aside>
+    </div>
   );
 }
 
@@ -336,27 +351,23 @@ function ShellChrome() {
   const [customTitle, setCustomTitle] = useState(null);
   const titleContext = useMemo(() => ({ setTitle: setCustomTitle }), []);
 
+  // NO ICON-ONLY RAIL (the owner's decision, feat/ui-refresh, 2026-10-02):
+  // from `md` up the sidebar is always its full width, with its words. The
+  // collapse toggle, its `pp.sidebar` preference and layout/sidebarPref.js
+  // are gone; a value an older build stored under that key is never read.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  // The desktop sidebar's width, remembered per browser (`pp.sidebar`). The
-  // drawer below `md` is never collapsed — it is opened for the words.
-  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
-  function toggleCollapsed() {
-    setCollapsed((c) => {
-      saveSidebarCollapsed(!c);
-      return !c;
-    });
-  }
+  const closeDrawer = () => setMobileNavOpen(false);
 
   // THE ACTIVE ITEM IS SCROLLED INTO VIEW (UI-10) — on load, on every route
-  // change, when the sidebar collapses or expands, and when the drawer opens;
-  // nearest, no animation (`navScroll.js`). A layout effect, so the nav never
-  // paints at the wrong scroll first.
+  // change, and when the drawer opens; nearest, no animation
+  // (`navScroll.js`). A layout effect, so the nav never paints at the wrong
+  // scroll first.
   const sidebarNavRef = useRef(null);
   const drawerNavRef = useRef(null);
   useLayoutEffect(() => {
     revealActive(sidebarNavRef.current);
     revealActive(drawerNavRef.current);
-  }, [location.pathname, collapsed, mobileNavOpen]);
+  }, [location.pathname, mobileNavOpen]);
 
   const items = navForRole(user?.role);
   // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the
@@ -379,40 +390,43 @@ function ShellChrome() {
   }
 
   // GROUPED (feat/ui-polish, 2026-09-30): Dashboard on top, the role's groups
-  // with a small label each (a thin divider in the rail), and Settings /
-  // About pinned at the bottom above the user card. Which item sits where is
-  // layout/navGroups.js; which items EXIST is still nav.js alone.
+  // with a small label each, and Settings / About pinned at the bottom above
+  // the user card. Which item sits where is layout/navGroups.js; which items
+  // EXIST is still nav.js alone. The groups do not fold on the web. The
+  // sidebar and the drawer render the same two blocks.
   const sections = groupNav(user?.role, items);
-  const renderItems = (list, rail) =>
+  const renderItems = (list) =>
     list.map((item) => (
       <NavItem
         key={item.to}
         item={item}
-        collapsed={rail}
-        onNavigate={() => setMobileNavOpen(false)}
+        onNavigate={closeDrawer}
         badge={badgeFor(item, user?.role, counts, unread)}
       />
     ));
-  const navBody = (rail) => (
-    <nav aria-label="Main" className="space-y-0.5 px-2 pb-4 text-sm">
-      {renderItems(sections.top, rail)}
+  const navBody = (
+    <nav aria-label="Main" className="space-y-1 px-3 pb-4 pt-3">
+      {renderItems(sections.top)}
       {sections.groups.map((group, i) => (
-        <div key={group.label || `rest-${i}`} className="pt-3">
-          {rail ? (
-            <div aria-hidden="true" className="mx-2 mb-2 border-t border-edge" />
-          ) : group.label ? (
-            <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">{group.label}</div>
+        <div key={group.label || `rest-${i}`} className="space-y-1 pt-3">
+          {group.label ? (
+            <div className="px-3 pb-1.5 pt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-muted">
+              {group.label}
+            </div>
           ) : null}
-          {renderItems(group.items, rail)}
+          {renderItems(group.items)}
         </div>
       ))}
     </nav>
   );
-  const pinned = (rail) => (
-    <div className="space-y-0.5 border-t border-edge px-2 py-2 text-sm">
-      {renderItems(sections.bottom, rail)}
-    </div>
+  const pinned = (
+    <div className="shrink-0 space-y-1 border-t border-edge px-3 py-2">{renderItems(sections.bottom)}</div>
   );
+  // NO VISIBLE SCROLLBAR (UI-1): the box still scrolls by wheel, trackpad and
+  // touch, and Tab scrolls a focused link into view; only the bar is hidden —
+  // Firefox by scrollbar-width, Chromium and Safari by the
+  // ::-webkit-scrollbar pseudo-element.
+  const navBox = 'min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
   return (
     // `data-app-shell` scopes the stable scrollbar gutter to the app's pages
@@ -424,66 +438,39 @@ function ShellChrome() {
           viewport (min-h-0 + overflow-y-auto on the nav box). The document
           stays the only scroller: one scrollbar, no layout shift.
 
-          `md`, NOT `sm`, SINCE feat/ui-polish (2026-09-30): at 640–767px a
-          240px sidebar left a page about 350px wide, so below 768px the menu
-          button opens the drawer instead. Expanded is 240px (w-60), the rail
-          is 64px (w-16); <main> is flex-1 min-w-0, so every page simply gets
-          the rest of the window — nothing below this sets a width for it. */}
-      <aside
-        className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start border-r border-edge bg-surface md:flex ${
-          collapsed ? 'w-16' : 'w-60'
-        }`}
-      >
-        <div className={`flex items-center ${collapsed ? 'flex-col' : 'justify-between pr-2'}`}>
-          <Brand collapsed={collapsed} />
-          <RailTooltip label="Expand sidebar" enabled={collapsed}>
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-subtle hover:text-fg"
-            >
-              <i className={`fa-solid ${collapsed ? 'fa-angles-right' : 'fa-angles-left'}`} aria-hidden="true" />
-            </button>
-          </RailTooltip>
+          `md`, NOT `sm`, SINCE feat/ui-polish (2026-09-30): at 640–767px the
+          sidebar (240px then) left a page about 350px wide, so below 768px the
+          menu button opens the drawer instead. ALWAYS 16rem (w-64) since
+          feat/ui-refresh — one width, no rail; <main> is flex-1 min-w-0, so
+          every page simply gets the rest of the window — nothing below this
+          sets a width for it. */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col self-start border-r border-edge bg-surface md:flex">
+        <Brand />
+        <div ref={sidebarNavRef} className={navBox}>
+          {navBody}
         </div>
-        {/* NO VISIBLE SCROLLBAR (UI-1): the box still scrolls by wheel,
-            trackpad and touch, and Tab scrolls a focused link into view;
-            only the bar is hidden — Firefox by scrollbar-width, Chromium
-            and Safari by the ::-webkit-scrollbar pseudo-element. */}
-        <div ref={sidebarNavRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {navBody(collapsed)}
-        </div>
-        {pinned(collapsed)}
-        <UserCard user={user} collapsed={collapsed} onLogout={handleLogout} />
+        {pinned}
+        <UserCard user={user} onLogout={handleLogout} />
       </aside>
 
       {mobileNavOpen ? (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div
-            className="absolute inset-0 bg-backdrop"
-            onClick={() => setMobileNavOpen(false)}
-          />
-          <aside className="absolute inset-y-0 left-0 flex w-60 flex-col bg-surface shadow-xl">
-            <div className="flex items-center justify-between pr-3">
-              <Brand />
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={() => setMobileNavOpen(false)}
-                className="rounded-lg p-1 text-fg-faint hover:bg-surface-muted"
-              >
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-            <div ref={drawerNavRef} className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {navBody(false)}
-            </div>
-            {pinned(false)}
-            <UserCard user={user} onLogout={handleLogout} onNavigate={() => setMobileNavOpen(false)} />
-          </aside>
-        </div>
+        <Drawer onClose={closeDrawer}>
+          <Brand>
+            <Button
+              variant="ghost"
+              size="icon"
+              icon="fa-xmark"
+              aria-label="Close menu"
+              onClick={closeDrawer}
+              className="-mr-2"
+            />
+          </Brand>
+          <div ref={drawerNavRef} className={navBox}>
+            {navBody}
+          </div>
+          {pinned}
+          <UserCard user={user} onLogout={handleLogout} onNavigate={closeDrawer} />
+        </Drawer>
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -495,8 +482,10 @@ function ShellChrome() {
 
         {/* NO WIDTH CAP: content fills the window beside the sidebar. f3's
             80rem centred cap was removed on 2026-09-30 by Darryl's decision
-            (the parent dashboard returns to its 69bae24 layout). */}
-        <main className="min-w-0 flex-1 space-y-4 p-4 sm:p-6">
+            (the parent dashboard returns to its 69bae24 layout). The padding
+            steps up with the window (16 / 24 / 32px) and the page's blocks
+            sit 24px apart. */}
+        <main className="min-w-0 flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
           {/* CONVENTION 5g, and specifically WHERE the notice belongs: the
               unread badge in the sidebar depends on the live channel and is
               visible on EVERY page, so the notice that the channel is down has

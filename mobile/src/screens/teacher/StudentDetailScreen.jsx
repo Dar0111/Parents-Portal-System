@@ -1,20 +1,27 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { KeyboardAvoidingView, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
 import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
+import Text from '../../components/Text';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 import { longDate, todayLocalDateString } from '../../format/date';
+import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 
 // ONE STUDENT RECORD — the web's StudentDetailPage.jsx. It fetches GET
@@ -28,9 +35,20 @@ import { useTheme } from '../../theme/ThemeProvider';
 //
 // Edit is an in-screen Modal (the web's reversible one-phase dialog);
 // Create parent is the Enroll screen opened at its parent phase, because
-// that is the same irreversible two-phase form. The card reads `student`,
+// that is the same irreversible two-phase form. The cards read `student`,
 // whose writers are load() and the edit's success path (§5b) — never the
 // draft. The LRN IS shown here: a teacher acting on this learner (§5c).
+//
+// THE LAYOUT (feat/ui-refresh, 2026-10-02) is the web's: a HEADER CARD — the
+// learner in the title face with their initials (a learner has no photo,
+// §25), the class and the status badge, the record's Reload, then its
+// actions and the notes that say what this teacher may not do here — and
+// TWO FACT CARDS by what the fact is for: who the learner is, and how to
+// reach the family. Create parent account is the screen's one filled action.
+//
+// RELOAD is load() — the same GET the screen opens with. The whole screen
+// shows the spinner while it runs, exactly as on the first load, so the
+// header card's entrance plays again when the record comes back.
 const EMPTY_EDIT = { first_name: '', last_name: '', birthday: '', gender: '', address: '', contact_number: '' };
 const GENDERS = [
   { key: '', label: 'Not recorded' },
@@ -47,8 +65,23 @@ function titleCase(value) {
 function Field({ label, value }) {
   return (
     <View>
-      <Text className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</Text>
-      {value ? <Text className="mt-0.5 text-sm text-fg">{value}</Text> : <Text className="mt-0.5 text-sm text-fg-muted">Not recorded</Text>}
+      <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{label}</Text>
+      {value ? <Text className="mt-1 text-sm text-fg">{value}</Text> : <Text className="mt-1 text-sm text-fg-muted">Not recorded</Text>}
+    </View>
+  );
+}
+
+// The head of one fact card: the icon chip and the card's title.
+function CardTitle({ icon, children }) {
+  const { tokens } = useTheme();
+  return (
+    <View className="flex-row items-center gap-3">
+      <View className="h-9 w-9 items-center justify-center rounded-xl bg-brand-soft">
+        <Icon name={icon} size={15} color={tokens.brand} />
+      </View>
+      <Text accessibilityRole="header" className="min-w-0 flex-1 font-serif text-base text-fg">
+        {children}
+      </Text>
     </View>
   );
 }
@@ -235,7 +268,9 @@ export default function StudentDetailScreen({ navigation, route }) {
   if (notInScope) {
     return (
       <View className="flex-1 bg-page p-4">
-        <EmptyState icon="fa-user-slash" title="This student is not in your classes" message="You can only open students in the sections you teach or advise." />
+        <View className={cardClass}>
+          <EmptyState icon="fa-user-slash" title="This student is not in your classes" message="You can only open students in the sections you teach or advise." />
+        </View>
       </View>
     );
   }
@@ -250,97 +285,120 @@ export default function StudentDetailScreen({ navigation, route }) {
 
   if (!student) return null;
 
+  // The record's notes: whether a parent account exists, and what this
+  // teacher may NOT do here and why. Any of the three may be absent; the
+  // strip under the actions is drawn only when at least one is present.
+  const showCreateParent = !parentAccount && canCreateParent;
+  const showEditNote = !canEdit;
+  const showParentNote = !parentAccount && !canCreateParent;
+  const hasNotes = Boolean(parentAccount) || showEditNote || showParentNote;
+
   return (
     <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
       <FormStatus status={status} />
 
-      <View className="rounded-xl border border-edge bg-surface p-4">
-        <View className="border-b border-edge pb-4">
-          <Text className="text-lg font-semibold text-fg">
-            {student.last_name}, {student.first_name}
-          </Text>
-          <Text className="mt-0.5 text-sm text-fg-muted">
-            Grade {student.grade_level} - {student.section}
-          </Text>
-          <View className="mt-3 flex-row flex-wrap items-center gap-2">
-            <StatusBadge status={student.status} />
-            {canEdit ? (
-              <Pressable onPress={openEdit} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-                <Text className="text-sm font-medium text-fg-secondary">Edit</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          {!canEdit ? <Text className="mt-2 text-sm text-fg-muted">Editing a student is limited to classes you teach or advise.</Text> : null}
-          <View className="mt-3">
-            {parentAccount ? (
-              <View className="flex-row items-center gap-2">
-                <Text className="text-sm text-fg-body">Parent account:</Text>
-                <StatusBadge status={parentAccount.status} />
+      <Reveal>
+        <View className={`${cardClass} gap-4 p-5`}>
+          <View className="flex-row items-start gap-3">
+            <Avatar name={`${student.first_name} ${student.last_name}`} size={48} />
+            <View className="min-w-0 flex-1">
+              <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+                {student.last_name}, {student.first_name}
+              </Text>
+              <View className="mt-1.5 flex-row flex-wrap items-center gap-2">
+                <Text className="text-sm text-fg-muted">
+                  Grade {student.grade_level} - {student.section}
+                </Text>
+                <StatusBadge status={student.status} />
               </View>
-            ) : canCreateParent ? (
-              <Pressable
-                onPress={() => navigation.navigate('Enroll', { student })}
-                accessibilityRole="button"
-                className="self-start rounded-lg bg-primary px-3 py-1.5"
-              >
-                <Text className="text-sm font-medium text-primary-fg">Create parent account</Text>
-              </Pressable>
-            ) : (
-              <Text className="text-sm text-fg-muted">Only the adviser of this section can create the parent account.</Text>
-            )}
+            </View>
+            <ReloadButton onReload={load} loading={loading} disabled={editOpen || savingEdit} label="Reload student record" />
           </View>
-        </View>
 
-        {/* What a teacher needs to identify a learner and contact their
-            guardian; section_id, created_by and the timestamps are omitted
-            as on the web. `birthday` is a DATE column: `longDate` is string
-            surgery on the literal (§5a-iv). */}
-        <View className="mt-4 gap-4">
-          <Field label="LRN" value={student.lrn} />
-          <Field label="Birthday" value={student.birthday ? longDate(student.birthday) : null} />
-          <Field label="Gender" value={titleCase(student.gender)} />
-          <Field label="Contact number" value={student.contact_number} />
-          <Field label="Address" value={student.address} />
+          {canEdit || showCreateParent ? (
+            <View className="flex-row flex-wrap gap-2">
+              {canEdit ? (
+                <Button icon="fa-pen" onPress={openEdit}>
+                  Edit
+                </Button>
+              ) : null}
+              {showCreateParent ? (
+                <Button variant="primary" icon="fa-user-plus" onPress={() => navigation.navigate('Enroll', { student })}>
+                  Create parent account
+                </Button>
+              ) : null}
+            </View>
+          ) : null}
+
+          {hasNotes ? (
+            <View className="gap-2 border-t border-edge-soft pt-4">
+              {parentAccount ? (
+                <View className="flex-row flex-wrap items-center gap-2">
+                  <Text className="text-sm text-fg-body">Parent account:</Text>
+                  <StatusBadge status={parentAccount.status} />
+                </View>
+              ) : null}
+              {showEditNote ? <Text className="text-sm text-fg-muted">Editing a student is limited to classes you teach or advise.</Text> : null}
+              {showParentNote ? <Text className="text-sm text-fg-muted">Only the adviser of this section can create the parent account.</Text> : null}
+            </View>
+          ) : null}
         </View>
+      </Reveal>
+
+      {/* What a teacher needs to identify a learner and contact their
+          guardian; section_id, created_by and the timestamps are omitted
+          as on the web. `birthday` is a DATE column: `longDate` is string
+          surgery on the literal (§5a-iv). */}
+      <View className={`${cardClass} gap-4 p-4`}>
+        <CardTitle icon="fa-id-card">Student details</CardTitle>
+        <Field label="LRN" value={student.lrn} />
+        <Field label="Birthday" value={student.birthday ? longDate(student.birthday) : null} />
+        <Field label="Gender" value={titleCase(student.gender)} />
+      </View>
+
+      <View className={`${cardClass} gap-4 p-4`}>
+        <CardTitle icon="fa-address-book">Contact details</CardTitle>
+        <Field label="Contact number" value={student.contact_number} />
+        <Field label="Address" value={student.address} />
       </View>
 
       <Modal visible={editOpen} animationType="slide" onRequestClose={closeEdit} presentationStyle="pageSheet">
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: tokens.page, paddingTop: insets.top, paddingBottom: insets.bottom }}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-3 p-4 pb-10">
-            <Text className="text-base font-semibold text-fg">Edit student</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+            <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+              Edit student
+            </Text>
             {editError ? <ErrorAlert message={editError} /> : null}
-            <FormField label="LRN" value={student.lrn} editable={false} />
-            <FormField label="First name" required value={draft.first_name} onChangeText={setField('first_name')} />
-            <FormField label="Last name" required value={draft.last_name} onChangeText={setField('last_name')} />
-            <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
-            <FormField label="Section" value={student.section} editable={false} />
-            {/* §5i: the fact plus the reason; no transfer route is named. */}
-            <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
-            <DateField label="Birthday" value={draft.birthday} onChange={setField('birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
-            <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={draft.gender} onChange={setField('gender')} options={GENDERS} />} />
-            <FormField label="Address" value={draft.address} onChangeText={setField('address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
-            <FormField
-              label="Contact number"
-              value={draft.contact_number}
-              onChangeText={setField('contact_number')}
-              maxLength={20}
-              keyboardType="phone-pad"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
-            />
-            <View className="flex-row justify-end gap-2">
-              <Pressable onPress={closeEdit} disabled={savingEdit} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-                <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitEdit}
-                disabled={savingEdit}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: savingEdit, busy: savingEdit }}
-                className={`rounded-lg bg-primary px-4 py-2 ${savingEdit ? 'opacity-60' : ''}`}
-              >
-                <Text className="text-sm font-medium text-primary-fg">{savingEdit ? 'Saving…' : 'Save'}</Text>
-              </Pressable>
+            <View className={`${cardClass} gap-4 p-4`}>
+              <FormField label="LRN" value={student.lrn} editable={false} />
+              <FormField label="First name" required value={draft.first_name} onChangeText={setField('first_name')} />
+              <FormField label="Last name" required value={draft.last_name} onChangeText={setField('last_name')} />
+              <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
+              <FormField label="Section" value={student.section} editable={false} />
+              {/* §5i: the fact plus the reason; no transfer route is named. */}
+              <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
+              <DateField label="Birthday" value={draft.birthday} onChange={setField('birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
+              <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={draft.gender} onChange={setField('gender')} options={GENDERS} />} />
+              <FormField label="Address" value={draft.address} onChangeText={setField('address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
+              <FormField
+                label="Contact number"
+                value={draft.contact_number}
+                onChangeText={setField('contact_number')}
+                maxLength={20}
+                keyboardType="phone-pad"
+                hint={contactRuleHint()}
+                error={fieldErrors.contact_number}
+              />
+            </View>
+            {/* The label still changes while the write is in flight; `loading`
+                adds the spinner and the busy state. */}
+            <View className="flex-row flex-wrap justify-end gap-2">
+              <Button onPress={closeEdit} disabled={savingEdit}>
+                Cancel
+              </Button>
+              <Button variant="primary" onPress={submitEdit} loading={savingEdit}>
+                {savingEdit ? 'Saving…' : 'Save'}
+              </Button>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>

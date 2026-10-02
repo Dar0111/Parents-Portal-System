@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import { staffAudienceLabel } from '../../format/audience';
 import { timestampDay } from '../../format/date';
+import Icon from '../../icons';
+import { useTheme } from '../../theme/ThemeProvider';
 import { announcementFilterParams, canEditAnnouncement, deleteSentence, EMPTY_FILTER } from './posts/logic';
 
 // ADMIN → ANNOUNCEMENTS & MEMOS — the web's admin/AnnouncementsPage.jsx. The
@@ -31,6 +37,15 @@ import { announcementFilterParams, canEditAnnouncement, deleteSentence, EMPTY_FI
 // teacher is not told (§5e). New announcement / New memo are neutral, on
 // their own row (§21b). Each list re-reads on focus (M14) and its write
 // result renders above it (§7c).
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the screen's one note
+// as a note, BEFORE the switch — a reader looking for a Memos screen needs to
+// be told first — then the switch, the chosen list's own SectionHeader, its
+// "New …" action on its own row, and the announcement filter in its own card.
+//
+// RELOAD is `load(0)` for the list the switch is on — the request
+// pull-to-refresh and Try again already make, with the applied filter, back
+// on the first page. The other list is not on screen and is not read.
 const SEGMENTS = [
   { key: 'announcements', label: 'Announcements' },
   { key: 'memos', label: 'Memos' },
@@ -39,6 +54,7 @@ const GRADES = [{ key: '', label: 'All grades' }, ...[1, 2, 3, 4, 5, 6].map((g) 
 
 export default function AnnouncementsScreen({ navigation, route }) {
   const { user: me } = useAuth();
+  const { tokens } = useTheme();
   const notice = route?.params?.notice || null;
   const noticeKind = route?.params?.kind || null;
   const [kind, setKind] = useState('announcements');
@@ -161,32 +177,42 @@ export default function AnnouncementsScreen({ navigation, route }) {
           title: `No announcements addressed to ${filterLabel}`,
           message: 'School-wide posts are not included in this filter.',
           action: (
-            <Pressable onPress={resetFilter} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-              <Text className="text-sm text-fg-body">Clear filter</Text>
-            </Pressable>
+            <Button size="sm" onPress={resetFilter}>
+              Clear filter
+            </Button>
           ),
         }
       : { icon: 'fa-bullhorn', title: 'No announcements yet', message: 'Posts you make here and posts teachers make for their classes appear here.' }
     : { icon: 'fa-file-lines', title: 'No memos yet', message: 'A memo posted here reaches every teacher and parent.' };
 
   const header = (
-    <View className="mb-3 gap-3">
-      <Text className="text-sm text-fg-muted">Memos have no page of their own — they are posted here and go to everyone.</Text>
-      <Segmented label="Show" value={kind} onChange={setKind} options={SEGMENTS} />
-      <View className="flex-row justify-end">
-        <Pressable
-          onPress={() => {
-            setStatus({});
-            navigation.navigate('PostCompose', { kind: isAnn ? 'announcement' : 'memo' });
-          }}
-          accessibilityRole="button"
-          className="rounded-lg border border-edge-strong bg-surface px-4 py-2"
-        >
-          <Text className="text-sm font-medium text-fg-body">{isAnn ? 'New announcement' : 'New memo'}</Text>
-        </Pressable>
+    <View className="mb-4 gap-4">
+      <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
+        <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
+        <Text className="min-w-0 flex-1 text-sm text-info-strong">Memos have no page of their own — they are posted here and go to everyone.</Text>
       </View>
+      <Segmented label="Show" value={kind} onChange={setKind} options={SEGMENTS} />
+      <SectionHeader
+        title={isAnn ? 'Announcements' : 'Memos'}
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadLabel={isAnn ? 'Reload announcements' : 'Reload memos'}
+      />
+      {/* Neutral, on its own row (§21b): Apply's fill is the "changes not
+          applied" signal, so the page action is never a second filled button
+          beside it — and the two "New …" actions match. */}
+      <Button
+        icon="fa-plus"
+        className="self-end"
+        onPress={() => {
+          setStatus({});
+          navigation.navigate('PostCompose', { kind: isAnn ? 'announcement' : 'memo' });
+        }}
+      >
+        {isAnn ? 'New announcement' : 'New memo'}
+      </Button>
       {isAnn ? (
-        <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+        <View className={`${cardClass} gap-4 p-4`}>
           <Segmented label="Grade" value={filterDraft.grade} onChange={(g) => setFilterDraft({ grade: g, section: '' })} options={GRADES} />
           {filterDraft.grade ? (
             <Segmented

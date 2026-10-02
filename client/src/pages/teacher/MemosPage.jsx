@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
+import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher memos — READ ONLY, and that is the whole design.
@@ -24,6 +26,12 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // Memos also have NO targeting columns at all — no target_grade, no
 // target_section — so they are school-wide by schema design and there is
 // nothing to filter by. GET /api/memos accepts no query parameters.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section. The sentence
+// that explains why the list has no controls is the section's description,
+// under its title; RELOAD is `load` itself — the same request with the page
+// and sort that are applied now, nothing reset. Reload is a read: it is not
+// the start of an Actions column either.
 
 export default function MemosPage() {
   usePageTitle('Memos');
@@ -70,8 +78,8 @@ export default function MemosPage() {
       sortable: true,
       render: (row) => (
         <div>
-          <div className="font-medium text-fg">{row.title}</div>
-          <div className="line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
+          <div className="font-semibold text-fg">{row.title}</div>
+          <div className="mt-0.5 line-clamp-2 max-w-2xl text-xs text-fg-muted">{row.content}</div>
         </div>
       ),
     },
@@ -87,49 +95,60 @@ export default function MemosPage() {
       key: 'created_at',
       header: 'Posted',
       sortable: true,
+      nowrap: true,
       // A TIMESTAMP, converted to the school's day. Slicing the ISO string
       // showed the previous day before 08:00 PH (format/date.js).
-      render: (row) => timestampDay(row.created_at),
+      render: (row) => <span className="tabular-nums">{timestampDay(row.created_at)}</span>,
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <p className="rounded-xl border border-edge bg-surface px-4 py-3 text-sm text-fg-body">
-        <i className="fa-solid fa-circle-info mr-2 text-fg-faint" />
-        Memos are posted by the school administration and go to everyone. Teachers read them here;
-        to reach your own class, use Announcements.
-      </p>
+    <Reveal className="space-y-6">
+      <section className="space-y-3">
+        <SectionHeader
+          title="Posted memos"
+          // The page's one explanation, capped to a readable line length.
+          description={
+            <span className="block max-w-prose">
+              Memos are posted by the school administration and go to everyone. Teachers read them
+              here; to reach your own class, use Announcements.
+            </span>
+          }
+          onReload={load}
+          reloading={loading}
+          reloadLabel="Reload memos"
+        />
 
-      <DataTable
-        // CONTENT-LIST CARD (DV1b-a). Memos are school-wide by definition —
-        // the table has no audience column because there is nothing to vary —
-        // so meta carries who posted it and when, and nothing repeats.
-        //
-        // Static card: a teacher does not own a memo and this page offers no
-        // per-row action, so neither `to` nor `onSelect` is passed and no
-        // chevron is drawn.
-        renderCard={(row) => ({
-          title: row.title,
-          subtitle: row.content,
-          meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}`,
-        })}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon="fa-file-lines"
-        emptyTitle="No memos yet"
-        // No filters exist on this endpoint, so there is only one empty case —
-        // nothing to disambiguate, and no filter-state branch to derive
-        // (convention 5f applies by having exactly one branch here, not none).
-        emptyMessage="Memos from the school administration will appear here."
-      />
-    </div>
+        <DataTable
+          // CONTENT-LIST CARD (DV1b-a). Memos are school-wide by definition —
+          // the table has no audience column because there is nothing to vary —
+          // so meta carries who posted it and when, and nothing repeats.
+          //
+          // Static card: a teacher does not own a memo and this page offers no
+          // per-row action, so neither `to` nor `onSelect` is passed and no
+          // chevron is drawn.
+          renderCard={(row) => ({
+            title: row.title,
+            subtitle: row.content,
+            meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}`,
+          })}
+          columns={columns}
+          rows={rows}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          page={page}
+          onPageChange={setOffset}
+          sort={sort}
+          onSortChange={changeSort}
+          emptyIcon="fa-file-lines"
+          emptyTitle="No memos yet"
+          // No filters exist on this endpoint, so there is only one empty case —
+          // nothing to disambiguate, and no filter-state branch to derive
+          // (convention 5f applies by having exactly one branch here, not none).
+          emptyMessage="Memos from the school administration will appear here."
+        />
+      </section>
+    </Reveal>
   );
 }

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
 import Icon from '../../icons';
@@ -25,16 +29,36 @@ import { REPORT_UNWRAP } from '../parent/ReportCardView';
 // deliberately not surfaced (KNOWN ISSUES). No verdicts (§4): numbers,
 // letters, Pending and N/A only. Re-reads on focus, so a lock or unlock shows
 // on return from the sheet (M14).
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the section's header,
+// the picker in its own card, the learner's header card (initials only — a
+// learner has no photo, §25), one card per subject, and the General Average
+// as the card's one figure — its SIZE on the wrapper, never on GradeValue
+// (§3). A term cell that opens the lock sheet is a bordered 48dp button; a
+// term with nothing to lock has no border, so only a button looks like one.
+// The chosen learner's row is tinted, heavier AND carries a check — never
+// colour alone. NO MOTION here: a lock state must read at once.
+//
+// RELOAD is `loadReport` — the request every focus already makes — so it
+// exists only once a learner is picked, and the grade, section and learner
+// stay as chosen. The learner list is read inside its own effect on the
+// grade and section and has no reload of its own.
 const GRADES = [1, 2, 3, 4, 5, 6].map((g) => ({ key: String(g), label: `Grade ${g}` }));
+
+// 48dp, in dp (M19): the cell's height whether or not it is a button, so a
+// row of three stays level.
+const CELL = 48;
 
 function TermCell({ term, entry, mode, onOpen }) {
   const { tokens } = useTheme();
   const body = (
-    <View className="items-center gap-0.5 rounded-lg px-2 py-1.5">
-      <Text className="text-[11px] uppercase text-fg-muted">T{term}</Text>
+    <View className="items-center justify-center gap-0.5 px-2 py-1.5" style={{ minHeight: CELL }}>
+      <Text className="text-xs uppercase text-fg-muted">T{term}</Text>
       <View className="flex-row items-center gap-1">
         <TermValue entry={entry} mode={mode} className="text-sm text-fg" />
-        {entry?.is_locked ? <Icon name="fa-lock" size={10} color={tokens['fg-faint']} /> : null}
+        {/* The lock is the only sign a grade is locked in this grid, so it
+            takes a text colour, not a decoration's. */}
+        {entry?.is_locked ? <Icon name="fa-lock" size={11} color={tokens['fg-muted']} /> : null}
       </View>
     </View>
   );
@@ -44,7 +68,8 @@ function TermCell({ term, entry, mode, onOpen }) {
       onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={`Term ${term}${entry.is_locked ? ', locked' : ''} — lock or unlock`}
-      className="flex-1 rounded-lg border border-edge-strong"
+      android_ripple={{ color: tokens['edge-strong'] }}
+      className="flex-1 overflow-hidden rounded-xl border border-edge-strong bg-surface"
     >
       {body}
     </Pressable>
@@ -52,6 +77,7 @@ function TermCell({ term, entry, mode, onOpen }) {
 }
 
 export default function GradesScreen({ navigation, route }) {
+  const { tokens } = useTheme();
   const notice = route?.params?.notice || null;
   const [sections, setSections] = useState([]);
   const [grade, setGrade] = useState('');
@@ -159,63 +185,89 @@ export default function GradesScreen({ navigation, route }) {
   let body;
   if (studentsError) body = <ErrorAlert message={studentsError} />;
   else if (!studentId) {
-    body =
-      sectionName && !studentsLoading && students.length === 0 ? (
-        <EmptyState
-          icon="fa-user-graduate"
-          title={`Grade ${grade} - ${sectionName} has no students`}
-          message={chosenSection && Number(chosenSection.student_count) === 0 ? 'No student is enrolled in this section, so there is no report card to show.' : 'No students were returned for this section.'}
-        />
-      ) : (
-        <EmptyState icon="fa-magnifying-glass" title="Pick a student to see their report card" message="Choose a grade, then a section, then a student." />
-      );
+    // In the frame the report card will take, so the screen keeps its shape
+    // when a student is picked.
+    body = (
+      <View className={cardClass}>
+        {sectionName && !studentsLoading && students.length === 0 ? (
+          <EmptyState
+            icon="fa-user-graduate"
+            title={`Grade ${grade} - ${sectionName} has no students`}
+            message={chosenSection && Number(chosenSection.student_count) === 0 ? 'No student is enrolled in this section, so there is no report card to show.' : 'No students were returned for this section.'}
+          />
+        ) : (
+          <EmptyState icon="fa-magnifying-glass" title="Pick a student to see their report card" message="Choose a grade, then a section, then a student." />
+        )}
+      </View>
+    );
   } else if (reportError) body = <ErrorAlert message={reportError} onRetry={loadReport} />;
   else if (reportLoading && !report) body = <LoadingSpinner className="py-10" />;
   else if (report && !subjects.length) {
     body = (
-      <EmptyState
-        icon="fa-book"
-        title={student ? `No subjects are set up for Grade ${student.grade_level} yet` : 'No subjects are set up for this grade level yet'}
-        message="A grade level needs its subject list before a report card can exist."
-      />
+      <View className={cardClass}>
+        <EmptyState
+          icon="fa-book"
+          title={student ? `No subjects are set up for Grade ${student.grade_level} yet` : 'No subjects are set up for this grade level yet'}
+          message="A grade level needs its subject list before a report card can exist."
+        />
+      </View>
     );
   } else if (report) {
     body = (
-      <View className="gap-3">
+      <View className="gap-4">
+        {/* THE LEARNER'S HEADER CARD: whose card this is, before the card. */}
         {student ? (
-          <View>
-            <Text className="text-base font-semibold text-fg">
-              {student.first_name} {student.last_name}
-            </Text>
-            <Text className="text-xs text-fg-muted">
-              Grade {student.grade_level} · {student.section} · School year {report.school_year}
-            </Text>
-          </View>
-        ) : null}
-        {noGradesYet ? <Text className="text-sm text-fg-muted">No grades have been recorded for this student yet.</Text> : null}
-        <Text className="text-sm text-fg-muted">Select a term grade to lock or unlock it. A term with nothing recorded has no grade to lock.</Text>
-        {subjects.map((subject) => (
-          <View key={subject.subject_id} className="rounded-xl border border-edge bg-surface p-3">
-            <View className="flex-row items-baseline justify-between gap-3">
-              <Text className="min-w-0 flex-1 text-sm font-semibold text-fg">{subject.subject_name}</Text>
-              <Text className="text-xs text-fg-muted">
-                Final <GradeValue value={subject.final_grade} mode={mode} whole className="text-sm text-fg" />
+          <View className={`${cardClass} flex-row items-center gap-3 p-4`}>
+            <Avatar name={`${student.first_name} ${student.last_name}`} size={48} />
+            <View className="min-w-0 flex-1">
+              <Text accessibilityRole="header" className="font-serif text-xl text-fg">
+                {student.first_name} {student.last_name}
+              </Text>
+              <Text className="mt-0.5 text-sm text-fg-muted">
+                Grade {student.grade_level} · {student.section} · School year {report.school_year}
               </Text>
             </View>
-            {subject.final_grade_descriptor ? <Text className="text-right text-xs text-fg-muted">{subject.final_grade_descriptor.descriptor}</Text> : null}
-            <View className="mt-2 flex-row gap-2">
-              {[1, 2, 3].map((t) => (
-                <TermCell key={t} term={t} entry={subject.terms[t]} mode={mode} onOpen={() => openCell(subject, t)} />
-              ))}
-            </View>
           </View>
-        ))}
+        ) : null}
+
+        <View className="gap-1">
+          {/* An all-Pending card is the normal early state, not an empty
+              state: replacing it would hide the subject list. A line above it
+              instead. */}
+          {noGradesYet ? <Text className="text-sm font-semibold text-fg-secondary">No grades have been recorded for this student yet.</Text> : null}
+          <Text className="text-sm text-fg-muted">Select a term grade to lock or unlock it. A term with nothing recorded has no grade to lock.</Text>
+        </View>
+
+        <View className="gap-3">
+          {subjects.map((subject) => (
+            <View key={subject.subject_id} className={`${cardClass} gap-3 p-4`}>
+              <View className="flex-row items-start justify-between gap-3">
+                <Text className="min-w-0 flex-1 font-serif text-base text-fg">{subject.subject_name}</Text>
+                <View className="items-end">
+                  <Text className="text-xs text-fg-muted">
+                    Final <GradeValue value={subject.final_grade} mode={mode} whole className="text-sm text-fg" />
+                  </Text>
+                  {subject.final_grade_descriptor ? <Text className="text-right text-xs text-fg-muted">{subject.final_grade_descriptor.descriptor}</Text> : null}
+                </View>
+              </View>
+              <View className="flex-row gap-2">
+                {[1, 2, 3].map((t) => (
+                  <TermCell key={t} term={t} entry={subject.terms[t]} mode={mode} onOpen={() => openCell(subject, t)} />
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+
         <Text className="text-xs text-fg-muted">
           “— Pending” means not yet computable{mode === 'descriptive' ? '; “— N/A” means it does not apply to this grade level' : ''}.
         </Text>
-        <View className="flex-row flex-wrap items-baseline gap-x-3 gap-y-1 rounded-xl border border-edge bg-surface px-4 py-3">
+
+        <View className={`${cardClass} flex-row flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-4`}>
           <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">General Average</Text>
-          <GradeValue value={report.general_average} mode={mode} className="text-base text-fg" />
+          <Text className="text-xl font-bold text-fg">
+            <GradeValue value={report.general_average} mode={mode} />
+          </Text>
           {report.general_average_descriptor ? <Text className="text-xs text-fg-muted">{report.general_average_descriptor.descriptor}</Text> : null}
         </View>
       </View>
@@ -223,8 +275,12 @@ export default function GradesScreen({ navigation, route }) {
   }
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-3 p-4 pb-10">
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
+      <SectionHeader title="Report card" onReload={studentId ? loadReport : null} reloading={reportLoading} reloadLabel="Reload report card" />
+
+      {/* THE PICKER CARD. Each choice acts at once and narrows the next —
+          there is no Apply here. */}
+      <View className={`${cardClass} gap-4 p-4`}>
         <Segmented
           label="Grade"
           value={grade}
@@ -254,7 +310,7 @@ export default function GradesScreen({ navigation, route }) {
           studentsLoading ? (
             <Text className="text-sm text-fg-muted">Loading…</Text>
           ) : students.length ? (
-            <View className="rounded-lg border border-edge">
+            <View className="overflow-hidden rounded-xl border border-edge">
               {students.map((s, i) => {
                 const active = s.id === studentId;
                 return (
@@ -266,12 +322,15 @@ export default function GradesScreen({ navigation, route }) {
                     }}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: active, checked: active }}
-                    className={`px-3 py-2.5 ${i > 0 ? 'border-t border-edge-soft' : ''} ${active ? 'bg-brand-soft' : ''}`}
+                    android_ripple={{ color: tokens['edge-strong'] }}
+                    className={`flex-row items-center gap-2 px-4 py-2 ${i > 0 ? 'border-t border-edge-soft' : ''} ${active ? 'bg-brand-soft' : ''}`}
+                    style={{ minHeight: 48 }}
                   >
-                    <Text className={`text-sm ${active ? 'font-medium text-brand' : 'text-fg'}`}>
+                    <Text className={`min-w-0 flex-1 text-sm ${active ? 'font-semibold text-brand' : 'text-fg'}`}>
                       {s.last_name}, {s.first_name}
                       {s.status === 'inactive' ? ' (inactive)' : ''}
                     </Text>
+                    {active ? <Icon name="fa-check" size={14} color={tokens.brand} /> : null}
                   </Pressable>
                 );
               })}

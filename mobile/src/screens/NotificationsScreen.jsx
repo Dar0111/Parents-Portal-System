@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import api from '../api/client';
 import extractError from '../api/extractError';
 import { useAuth } from '../auth/AuthContext';
+import Button from '../components/Button';
 import DataList from '../components/DataList';
+import ErrorAlert from '../components/ErrorAlert';
+import SectionHeader from '../components/SectionHeader';
 import { linkToRoute } from '../navigation/routes';
 import { useNotifications } from '../realtime/NotificationProvider';
 
@@ -12,6 +15,13 @@ import { useNotifications } from '../realtime/NotificationProvider';
 // (a repeat is absorbed, §5e), asks the provider to REFETCH the counts —
 // never subtracts one — and navigates by the row's `link` through
 // routes.js: a built drawer route by its path, else the role's home.
+//
+// THE LIST'S HEADER (feat/ui-refresh, 2026-10-02) is one SectionHeader: the
+// unread line — the provider's count, as before — is its title, and on the
+// right sit Reload and "Mark all as read". RELOAD IS THE EXISTING `load(0)`,
+// the request pull-to-refresh and "Try again" already make: it re-reads the
+// first page, exactly as a pull does. A failed "Mark all as read" says so
+// under the header, beside the control that caused it (§7c).
 const PAGE_SIZE = 8;
 
 // Relative time, kept local as on the web: this is about a TIMESTAMP and
@@ -99,16 +109,22 @@ export default function NotificationsScreen({ navigation }) {
   }
 
   const header = (
-    <View className="mb-3 flex-row items-center justify-between">
-      <Text className="text-sm text-fg-muted">
-        {counts.total > 0 ? `${counts.total} unread` : 'Nothing unread'}
-      </Text>
-      {counts.total > 0 ? (
-        <Pressable onPress={markAllRead} accessibilityRole="button">
-          <Text className="text-sm font-medium text-brand">Mark all as read</Text>
-        </Pressable>
-      ) : null}
-      {actionError ? <Text className="mt-1 text-sm text-danger-text">{actionError}</Text> : null}
+    <View className="mb-4 gap-3">
+      <SectionHeader
+        title={counts.total > 0 ? `${counts.total} unread` : 'Nothing unread'}
+        onReload={() => load(0)}
+        reloading={loading || refreshing}
+        reloadDisabled={loadingMore}
+        reloadLabel="Reload notifications"
+        actions={
+          counts.total > 0 ? (
+            <Button variant="secondary" size="sm" onPress={markAllRead}>
+              Mark all as read
+            </Button>
+          ) : null
+        }
+      />
+      <ErrorAlert message={actionError} />
     </View>
   );
 

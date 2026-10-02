@@ -3,8 +3,13 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import { dateTime } from '../../format/date';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
+import { controlClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
+import { cardClass } from '../../components/buttonClass';
 import { shouldSendOnEnter } from '../../components/enterToSend';
 import { useAuth } from '../../auth/AuthContext';
 import { useSocket } from '../../realtime/SocketProvider';
@@ -22,6 +27,16 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // HISTORY SURVIVES A SCOPE CHANGE, NEW MESSAGES DO NOT. GET /with/:userId
 // is participant-scoped; POST re-checks canMessage(). A 403 disables send
 // and keeps the history. :userId is users.id, never an LRN (§5c).
+//
+// NO ENTRANCE, AND NOTHING MOVES WHEN A MESSAGE ARRIVES (feat/ui-refresh).
+// `load()` runs on every socket message and puts the page through its
+// loading state, so an entrance on this page would replay each time someone
+// writes — motion on arrival, which this app does not have. The root is a
+// plain div.
+//
+// RELOAD is `load` itself, in the conversation's header: the same request a
+// socket message triggers, with the same merge — the earlier pages already
+// on screen, the unsent draft and a blocked composer all survive it.
 
 export default function ParentMessageThreadPage() {
   const { userId } = useParams();
@@ -167,33 +182,39 @@ export default function ParentMessageThreadPage() {
 
   return (
     <div className="space-y-4">
+      {/* A 44px-tall target with the shared keyboard outline; the arrow is
+          decoration. */}
       <Link
         to="/parent/messages"
-        className="inline-flex items-center gap-2 text-sm text-fg-muted transition hover:text-fg"
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
       >
-        <i className="fa-solid fa-arrow-left" />
+        <span aria-hidden="true" className="flex items-center justify-center">
+          <i className="fa-solid fa-arrow-left" />
+        </span>
         All conversations
       </Link>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
-      <div className="rounded-xl border border-edge bg-surface">
-        <div className="border-b border-edge px-5 py-3">
-          <p className="font-semibold text-fg">{other?.name || 'Conversation'}</p>
-          {other?.role ? <p className="text-xs text-fg-muted">{other.role}</p> : null}
+      <div className={cardClass}>
+        {/* Who the conversation is with, and its Reload. The circle is
+            initials — a message row carries the other person's name and role
+            but no photo. */}
+        <div className="flex items-center gap-3 border-b border-edge px-4 py-3 sm:px-5">
+          <Avatar name={other?.name} />
+          <div className="min-w-0 flex-1">
+            <h2 className="break-words font-serif text-base font-bold text-fg">{other?.name || 'Conversation'}</h2>
+            {other?.role ? <p className="text-xs capitalize text-fg-muted">{other.role}</p> : null}
+          </div>
+          <ReloadButton onReload={load} loading={loading} label="Reload conversation" compact />
         </div>
 
-        <div className="max-h-[28rem] space-y-3 overflow-y-auto px-5 py-4">
+        <div className="max-h-[28rem] space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
           {hasMore ? (
             <div className="flex justify-center">
-              <button
-                type="button"
-                onClick={loadEarlier}
-                disabled={loadingEarlier}
-                className="rounded-lg border border-edge-strong bg-surface px-3 py-1 text-xs font-medium text-fg-body transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
-              >
+              <Button size="sm" onClick={loadEarlier} disabled={loadingEarlier}>
                 {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
-              </button>
+              </Button>
             </div>
           ) : null}
           {messages.length === 0 ? (
@@ -205,13 +226,17 @@ export default function ParentMessageThreadPage() {
               const mine = m.sender_id === user?.id;
               return (
                 <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  {/* The bubble keeps its own tokens and its own radius. Up
+                      to 85% of the row on a phone, 75% from `sm`; a long
+                      unbroken string wraps inside it rather than widening the
+                      thread. */}
                   <div
-                    className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
+                    className={`min-w-0 max-w-[85%] rounded-2xl px-3.5 py-2 text-sm sm:max-w-[75%] ${
                       mine ? 'bg-bubble-mine text-bubble-mine-fg' : 'bg-bubble-theirs text-bubble-theirs-fg'
                     }`}
                   >
-                    <p className="whitespace-pre-wrap">{m.body}</p>
-                    <p className={`mt-1 text-[0.6875rem] ${mine ? 'text-bubble-mine-meta' : 'text-bubble-theirs-meta'}`}>
+                    <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                    <p className={`mt-1 text-[0.6875rem] tabular-nums ${mine ? 'text-bubble-mine-meta' : 'text-bubble-theirs-meta'}`}>
                       {/* `dateTime`, the ONE place the time of day is the
                           point. The old slice printed the UTC instant as if
                           it were local: a message sent at 07:00 PH read
@@ -226,17 +251,24 @@ export default function ParentMessageThreadPage() {
           <div ref={bottomRef} />
         </div>
 
-        <form onSubmit={send} className="border-t border-edge px-5 py-3">
+        <form onSubmit={send} className="border-t border-edge px-4 py-3 sm:px-5">
           {sendError ? <ErrorAlert message={sendError} className="mb-3" /> : null}
 
           {blockedReason ? (
-            <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
-              {blockedReason} You can still read this conversation.
+            <p className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+              <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+                <i className="fa-solid fa-circle-info" />
+              </span>
+              <span className="min-w-0">{blockedReason} You can still read this conversation.</span>
             </p>
           ) : (
+            // The composer: the shared control (44px minimum, the shared
+            // focus ring) beside a 44px Send. The field's accessible name is
+            // its aria-label — a placeholder is not a label.
             <div className="flex items-end gap-2">
               <textarea
                 rows={2}
+                aria-label="Write a message"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -247,16 +279,18 @@ export default function ParentMessageThreadPage() {
                   e.currentTarget.form?.requestSubmit();
                 }}
                 placeholder="Write a message…"
-                className="block w-full rounded-lg border border-edge-strong bg-surface px-3 py-2 text-sm text-fg shadow-sm transition placeholder:text-fg-muted focus:border-focus-edge focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                className={`${controlClass} min-w-0 flex-1`}
               />
-              <button
+              <Button
                 type="submit"
+                variant="primary"
+                icon="fa-paper-plane"
+                loading={sending}
                 disabled={sending || !draft.trim()}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
+                className="shrink-0"
               >
-                {sending ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Send
-              </button>
+              </Button>
             </div>
           )}
         </form>

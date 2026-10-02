@@ -14,6 +14,8 @@ import { currentTerm as calendarTerm } from '../../format/schoolCalendar';
 import StatusBadge from '../../components/StatusBadge';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
+import CountUp from '../../motion/CountUp';
+import Reveal from '../../motion/Reveal';
 import Card, { CardEmpty, Stat } from './Card';
 import { useCard } from './useCard';
 
@@ -39,6 +41,15 @@ import { useCard } from './useCard';
 // computed server-side with the same roundTo2 the report card uses. A client
 // mean would be a second implementation of a number parents compare against
 // their child's card.
+//
+// RELOAD (feat/ui-refresh, 2026-10-02): each card's Reload is the `reload` of
+// every useCard that card reads — Grades asks for the summary and the report
+// card, Attendance for the month, the school year and the last week — so the
+// button refreshes exactly what its card shows and makes no request of its
+// own. The hero has no button: its three figures are the same reads, and they
+// move when those cards reload. A count that belongs to a provider (unread
+// messages, unread posts) is not re-read by a card's button; the socket keeps
+// those current (§10).
 
 function classLabel(user) {
   if (user?.grade_level == null && !user?.section) return null;
@@ -173,9 +184,16 @@ function DayCell({ day }) {
 
   return (
     <div className="flex min-w-0 flex-col items-center gap-1" title={label}>
-      <span className="text-[10px] uppercase tracking-wide text-fg-muted">{weekdayName(day.date).slice(0, 2)}</span>
+      {/* rem, not px (feat/ui-refresh): Settings → Personalization's Large
+          text size scales the root, and a px size would stay behind. */}
+      <span className="text-[0.6875rem] font-semibold uppercase tracking-wide text-fg-muted">
+        {weekdayName(day.date).slice(0, 2)}
+      </span>
       <span
-        className={`flex h-7 w-7 items-center justify-center rounded-md border text-xs font-semibold ${tone}`}
+        // `role="img"`: an accessible name on a bare <span> is not announced;
+        // as an image the tile is read as its label — the date and the state.
+        role="img"
+        className={`flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-bold ${tone}`}
         aria-label={label}
       >
         {/* A GLYPH, NEVER COLOUR ALONE. "·" is a weekend; a not-recorded day
@@ -195,8 +213,8 @@ function WeekStrip({ week, today }) {
   if (week.error || !Array.isArray(week.data)) return null;
   const days = weekStrip(week.data, today);
   return (
-    <div className="mt-3 border-t border-edge pt-3">
-      <p className="mb-2 text-xs uppercase tracking-wide text-fg-muted">Last 7 days</p>
+    <div className="mt-3 border-t border-edge-soft pt-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-fg-muted">Last 7 days</p>
       <div className="flex justify-between gap-1">
         {days.map((day) => (
           <DayCell key={day.date} day={day} />
@@ -211,7 +229,7 @@ function WeekStrip({ week, today }) {
           two identical marks where one is the symbol being explained and the
           other is punctuation. A separator may not be one of the things it
           separates. */}
-      <p className="mt-2 text-[11px] leading-snug text-fg-muted">
+      <p className="mt-2 text-[0.6875rem] leading-snug text-fg-muted">
         P present | L late | A absent | E excused | &middot; weekend | dashed = not recorded
       </p>
     </div>
@@ -255,11 +273,11 @@ function SubjectList({ card, mode, term }) {
   const shown = visible.slice(0, 4);
 
   return (
-    <ul className="mt-3 space-y-1 border-t border-edge pt-2">
+    <ul className="mt-3 space-y-1.5 border-t border-edge-soft pt-3">
       {shown.map((r) => (
         <li key={r.name} className="flex items-baseline justify-between gap-3 text-sm">
           <span className="min-w-0 truncate text-fg-muted">{r.name}</span>
-          <span className="shrink-0 font-medium text-fg">
+          <span className="shrink-0 font-semibold tabular-nums text-fg">
             <TermValue entry={r.entry} mode={mode} />
           </span>
         </li>
@@ -278,8 +296,10 @@ function DateTile({ dateStr }) {
   const [, m, d] = String(dateStr).split('-');
   return (
     <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg border border-edge bg-surface-subtle">
-      <span className="text-[10px] uppercase leading-none text-fg-muted">{monthName(Number(m)).slice(0, 3)}</span>
-      <span className="text-base font-semibold leading-tight text-fg">{Number(d)}</span>
+      <span className="text-[0.625rem] font-semibold uppercase leading-none text-fg-muted">
+        {monthName(Number(m)).slice(0, 3)}
+      </span>
+      <span className="text-base font-bold leading-tight tabular-nums text-fg">{Number(d)}</span>
     </div>
   );
 }
@@ -304,8 +324,14 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
     // foregrounds are asserted; only the badge-on-panel boundaries are new,
     // and on the light panel those are now about 1.1:1, so each badge's own
     // edge is what separates it.
-    <section className="rounded-xl bg-brand-panel p-5 text-brand-panel-fg">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-brand-panel-muted">Your child</h2>
+    //
+    // THE SAME BAND AS THE STAFF PROFILE HERO since feat/ui-refresh
+    // (ProfileHero.jsx): 16px corners, the hairline edge, and the panel's own
+    // glow and dot pattern (`brand-panel-art`, whose text pairs over the glow
+    // are the `brand-panel-lit` ones lint:contrast checks). The eyebrow, the
+    // name in the title face and the disc follow that hero too.
+    <section className="brand-panel-art rounded-2xl border border-edge bg-brand-panel p-5 text-brand-panel-fg shadow-xs sm:p-6">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">Your child</h2>
       {!linked ? (
         <p className="mt-2 text-sm text-brand-panel-fg">
           This account is not linked to a learner yet. Ask the school office.
@@ -315,17 +341,21 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
           {/* INITIALS, NOT A PHOTO. There is no photo column anywhere in the
               schema and no upload route for one, so initials are what the
               data can actually support — and they give the panel a fixed
-              anchor on the left that the three figures below line up to. */}
-          <div className="mt-1 flex items-center gap-3">
+              anchor on the left that the three figures below line up to.
+              Drawn as the staff avatar's fallback is (Avatar.jsx, `lg`): the
+              brand tint with the hairline `edge` ring. */}
+          <div className="mt-3 flex items-center gap-4">
             <span
               aria-hidden="true"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-brand-panel-muted text-lg font-semibold"
+              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xl font-semibold text-brand ring-1 ring-edge"
             >
               {childInitials(user)}
             </span>
             <div className="min-w-0">
-              <p className="text-xl font-semibold">{childName(user) || 'Name not recorded'}</p>
-              <p className="text-sm text-brand-panel-muted">
+              <p className="break-words font-serif text-xl font-bold sm:text-2xl">
+                {childName(user) || 'Name not recorded'}
+              </p>
+              <p className="mt-1 text-sm text-brand-panel-muted">
                 {classLabel(user) || 'Class not recorded'}
                 {' · Adviser: '}
                 {section.loading ? '…' : section.data?.adviser_name || 'not yet assigned'}
@@ -340,9 +370,9 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
               stacked, a left border once they are side by side — so it is
               never drawn across the flow. `first:border-0` keeps a rule off
               the leading edge in both directions. */}
-          <div className="mt-4 grid gap-4 sm:grid-cols-3 [&>div]:border-t [&>div]:border-brand-panel-muted/40 [&>div]:pt-4 [&>div]:first:border-t-0 [&>div]:first:pt-0 sm:[&>div]:border-l sm:[&>div]:border-t-0 sm:[&>div]:pl-4 sm:[&>div]:pt-0 sm:[&>div]:first:border-l-0 sm:[&>div]:first:pl-0">
+          <div className="mt-5 grid gap-4 sm:grid-cols-3 [&>div]:min-w-0 [&>div]:border-t [&>div]:border-brand-panel-muted/40 [&>div]:pt-4 [&>div]:first:border-t-0 [&>div]:first:pt-0 sm:[&>div]:border-l sm:[&>div]:border-t-0 sm:[&>div]:pl-4 sm:[&>div]:pt-0 sm:[&>div]:first:border-l-0 sm:[&>div]:first:pl-0">
             <div>
-              <p className="text-xs uppercase tracking-wide text-brand-panel-muted">
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">
                 {grades?.descriptive ? 'Latest letters' : 'General average'}
               </p>
               {grades?.descriptive ? (
@@ -366,7 +396,10 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                     <ul className="mt-1 space-y-1.5">
                       {letterTerm.pills.map((p) => (
                         <li key={p.name} className="flex items-baseline gap-2">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-brand-panel-muted text-sm font-semibold">
+                          {/* The letter on the plain surface, as a pill on
+                              this panel is (feat/ui-refresh) — `fg-secondary`
+                              on `surface` is a checked pair in both themes. */}
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface text-sm font-bold text-fg-secondary">
                             {p.letter}
                           </span>
                           <span className="min-w-0 text-sm">
@@ -399,7 +432,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
                 )
               ) : grades?.average !== null && grades?.average !== undefined ? (
                 <>
-                  <p className="mt-1 text-xl font-semibold">
+                  <p className="mt-1 text-xl font-bold tabular-nums">
                     {/* TWO DECIMALS, through the one renderer the whole system
                         uses — GRADING_SPEC §4a. This card printed "87.5"
                         against the report card's "87.50" until DV4.
@@ -449,7 +482,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-wide text-brand-panel-muted">Present this month</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">Present this month</p>
               {/* "recorded days" BELONGS TO THE FRACTION and goes inside the
                   branch with it (F4). It used to sit outside, so an account
                   with nothing recorded printed "Nothing recorded this month."
@@ -458,7 +491,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
               {monthDays ? (
                 <>
                   {/* The hero's figures are `text-xl`, one step down (§24). */}
-                  <p className="mt-1 text-xl font-semibold">
+                  <p className="mt-1 text-xl font-bold tabular-nums">
                     {monthDays.present} <span className="text-base font-normal">of {monthDays.total}</span>
                   </p>
                   <p className="text-xs text-brand-panel-muted">recorded days</p>
@@ -469,7 +502,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-wide text-brand-panel-muted">Latest excuse letter</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">Latest excuse letter</p>
               {letter.data ? (
                 <div className="mt-1 space-y-1">
                   {/* The badge paints its own tint, so it is unaffected by
@@ -700,11 +733,11 @@ export default function ParentDashboard() {
   const monthDays = recordedDays(month.data);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* The greeting is the only line on this page addressed to the PARENT
           rather than about the learner. `user.name` is the guardian's name —
           not the child's, and not an identifier. */}
-      <p className="text-sm text-fg-muted">
+      <p className="text-sm text-fg-body">
         {user?.name ? `Good day, ${user.name}.` : 'Good day.'} Here is how {childName(user) || 'your child'} is doing.
       </p>
 
@@ -720,16 +753,18 @@ export default function ParentDashboard() {
           a letter is a status — none of them is graded, coloured by
           threshold, or compared to anything.
           --------------------------------------------------------------- */}
-      <ChildHero
-        linked={linked}
-        user={user}
-        section={section}
-        grades={heroGrades}
-        term={currentTerm}
-        letterTerm={letterTerm}
-        monthDays={monthDays}
-        letter={letter}
-      />
+      <Reveal>
+        <ChildHero
+          linked={linked}
+          user={user}
+          section={section}
+          grades={heroGrades}
+          term={currentTerm}
+          letterTerm={letterTerm}
+          monthDays={monthDays}
+          letter={letter}
+        />
+      </Reveal>
 
       {/* THE LAYOUT OF 69bae24 (Darryl, owner decision, 2026-09-30 — final;
           it replaces f2's large cards and UI-3's `items-start` HERE ONLY).
@@ -739,8 +774,12 @@ export default function ParentDashboard() {
           No emphasised card. The whole card is still the link (f2) with the
           brand focus outline (UI-5). The Grades and Excuse letters bodies
           are normal-size text again, and since 2026-09-30 the phone follows
-          this card for card (`gradesLead`, `letterLead`, §15e). */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          this card for card (`gradesLead`, `letterLead`, §15e).
+
+          The cards arrive one after another (Reveal); all six exist from the
+          first render — each owns its spinner — so the stagger has its
+          children at mount. */}
+      <Reveal stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
       <Card
         title="Grades"
@@ -749,6 +788,14 @@ export default function ParentDashboard() {
         loading={summary.loading}
         error={summary.error}
         onRetry={summary.reload}
+        // This card reads TWO things — the summary and the report card behind
+        // the subject list — so its Reload asks for both, and stays busy
+        // until both are back.
+        onReload={() => {
+          summary.reload();
+          card.reload();
+        }}
+        reloading={summary.loading || card.loading}
       >
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -785,7 +832,7 @@ export default function ParentDashboard() {
             {/* How far the term has got, as one normal-size line (Darryl,
                 2026-09-30) — not a muted "Pending", not a large number.
                 Still no partial average (§12). */}
-            <p className="text-sm font-medium text-fg">
+            <p className="text-sm font-semibold tabular-nums text-fg">
               {grades.subjects_recorded} of {grades.subjects_total} subjects recorded &middot; Term {grades.term}
             </p>
             <SubjectList card={card} mode="numerical" term={currentTerm} />
@@ -805,6 +852,20 @@ export default function ParentDashboard() {
           month.reload();
           allTime.reload();
         }}
+        // Reload asks for all THREE reads this card shows — the month, the
+        // school year so far, and the last-week strip (Retry stays the two
+        // whose failure the card reports). An unlinked account makes none of
+        // them (`skip`), so it gets no button that would ask for nothing.
+        onReload={
+          linked
+            ? () => {
+                month.reload();
+                allTime.reload();
+                week.reload();
+              }
+            : null
+        }
+        reloading={month.loading || allTime.loading || week.loading}
       >
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -831,7 +892,7 @@ export default function ParentDashboard() {
               <div>
                 <Stat
                   large
-                  value={m.absent}
+                  value={<CountUp value={m.absent} />}
                   caption={`${m.absent === 1 ? 'absence' : 'absences'} in ${monthLabel}`}
                 />
                 <div className="mt-3">
@@ -859,16 +920,18 @@ export default function ParentDashboard() {
         loading={latestMessage.loading}
         error={latestMessage.error}
         onRetry={latestMessage.reload}
+        onReload={latestMessage.reload}
       >
         {/* THE COUNT IS STILL THE SERVER'S ANSWER (§10) — `unread` comes from
             UnreadProvider, never from the length of this list. The preview
-            below supplies only the sender and the snippet. */}
+            below supplies only the sender and the snippet, and it is the
+            preview that Reload asks for again. */}
         {unread > 0 || latestMessage.data ? (
-          <Stat value={unread} caption={unread === 1 ? 'unread message' : 'unread messages'} />
+          <Stat value={<CountUp value={unread} />} caption={unread === 1 ? 'unread message' : 'unread messages'} />
         ) : null}
         {latestMessage.data ? (
-          <div className="mt-3 border-t border-edge pt-2">
-            <p className="text-sm font-medium text-fg">{latestMessage.data.other_user_name}</p>
+          <div className="mt-3 border-t border-edge-soft pt-3">
+            <p className="text-sm font-semibold text-fg">{latestMessage.data.other_user_name}</p>
             <p className="mt-0.5 line-clamp-2 text-sm text-fg-muted">{latestMessage.data.last_message_body}</p>
           </div>
         ) : unread > 0 ? null : (
@@ -883,6 +946,8 @@ export default function ParentDashboard() {
         loading={letter.loading}
         error={letter.error}
         onRetry={letter.reload}
+        // Skipped for an unlinked account, as the read itself is.
+        onReload={linked ? letter.reload : null}
       >
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -906,27 +971,28 @@ export default function ParentDashboard() {
         loading={posts.loading}
         error={posts.error}
         onRetry={posts.reload}
+        onReload={posts.reload}
       >
         {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
           <>
-          {/* The bell's own count (§10: the server's answer, never a list
-              length) — posts carry no read state of their own. The same two
-              sections the sidebar badge adds. */}
-          <Stat value={counts.announcements + counts.memos} caption="unread" />
-          <ul className="mt-3 space-y-2 border-t border-edge pt-2">
-            {posts.data.announcements.map((row) => (
-              <li key={`a-${row.id}`} className="text-sm text-fg">
-                {row.title}
-                <span className="ml-2 text-xs text-fg-muted">Announcement</span>
-              </li>
-            ))}
-            {posts.data.memos.map((row) => (
-              <li key={`m-${row.id}`} className="text-sm text-fg">
-                {row.title}
-                <span className="ml-2 text-xs text-fg-muted">Memo</span>
-              </li>
-            ))}
-          </ul>
+            {/* The bell's own count (§10: the server's answer, never a list
+                length) — posts carry no read state of their own. The same two
+                sections the sidebar badge adds. */}
+            <Stat value={<CountUp value={counts.announcements + counts.memos} />} caption="unread" />
+            <ul className="mt-3 space-y-2 border-t border-edge-soft pt-3">
+              {posts.data.announcements.map((row) => (
+                <li key={`a-${row.id}`} className="text-sm text-fg">
+                  {row.title}
+                  <span className="ml-2 whitespace-nowrap text-xs text-fg-muted">Announcement</span>
+                </li>
+              ))}
+              {posts.data.memos.map((row) => (
+                <li key={`m-${row.id}`} className="text-sm text-fg">
+                  {row.title}
+                  <span className="ml-2 whitespace-nowrap text-xs text-fg-muted">Memo</span>
+                </li>
+              ))}
+            </ul>
           </>
         ) : (
           <CardEmpty>Nothing posted yet.</CardEmpty>
@@ -940,13 +1006,14 @@ export default function ParentDashboard() {
         loading={events.loading}
         error={events.error}
         onRetry={events.reload}
+        onReload={events.reload}
       >
         {events.data?.length ? (
           <>
             {/* The next one leads; the list below holds the rest. */}
             <Stat value={events.data[0].title} caption={`Next event · ${longDate(events.data[0].event_date)}`} />
             {events.data.length > 1 ? (
-              <ul className="mt-3 space-y-2.5 border-t border-edge pt-3">
+              <ul className="mt-3 space-y-2.5 border-t border-edge-soft pt-3">
                 {events.data.slice(1).map((row) => (
                   <li key={row.id} className="flex items-center gap-3">
                     <DateTile dateStr={row.event_date} />
@@ -960,7 +1027,7 @@ export default function ParentDashboard() {
           <CardEmpty>No upcoming events.</CardEmpty>
         )}
       </Card>
-      </div>
+      </Reveal>
     </div>
   );
 }

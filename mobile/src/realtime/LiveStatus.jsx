@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import Text from '../components/Text';
 import Icon from '../icons';
 import { useTheme } from '../theme/ThemeProvider';
 import { useNotifications } from './NotificationProvider';
@@ -14,6 +15,10 @@ import { useUnread } from './UnreadProvider';
 // rather than reloading a page the phone does not have; each list screen
 // has pull-to-refresh for its own rows. The copy says "new updates", not
 // "new messages" — the channel carries notifications too (N2).
+//
+// A FULL-WIDTH STRIP, edge to edge, never a rounded card: it belongs to the
+// frame, not to the screen under it. Refresh is a 44dp target — the height
+// is a plain style object in dp (M19), never a style function (M20).
 export default function LiveStatus() {
   const { connected, reconnect } = useSocket();
   const { refresh: refreshNotifications } = useNotifications();
@@ -31,10 +36,10 @@ export default function LiveStatus() {
   return (
     <View
       accessibilityLiveRegion="polite"
-      className="flex-row flex-wrap items-center justify-between gap-3 border-b border-warning-edge bg-warning-soft px-4 py-2.5"
+      className="flex-row flex-wrap items-center justify-between gap-3 border-b border-warning-edge bg-warning-soft px-4 py-2"
     >
-      <View className="flex-1 flex-row items-start gap-2">
-        <Icon name="fa-plug-circle-xmark" size={13} color={tokens['warning-icon']} style={{ marginTop: 3 }} />
+      <View className="min-w-0 flex-1 flex-row items-start gap-2">
+        <Icon name="fa-plug-circle-xmark" size={14} color={tokens['warning-icon']} style={{ marginTop: 3 }} />
         <Text className="flex-1 text-sm text-warning-strong">
           Live updates paused — new updates will not appear on their own.
         </Text>
@@ -42,9 +47,11 @@ export default function LiveStatus() {
       <Pressable
         onPress={onRefresh}
         accessibilityRole="button"
-        className="rounded-lg border border-warning-edge-strong bg-surface px-3 py-1"
+        android_ripple={{ color: tokens['warning-edge'] }}
+        className="items-center justify-center overflow-hidden rounded-xl border border-warning-edge-strong bg-surface px-4"
+        style={{ minHeight: 44 }}
       >
-        <Text className="text-sm font-medium text-warning-strong">Refresh</Text>
+        <Text className="text-sm font-semibold text-warning-strong">Refresh</Text>
       </Pressable>
     </View>
   );

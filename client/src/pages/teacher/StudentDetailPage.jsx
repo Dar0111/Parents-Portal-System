@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonClass';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import { longDate } from '../../format/date';
@@ -13,7 +16,9 @@ import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import { contactError, contactRuleHint } from '../../format/contactRule';
+import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
+import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -41,6 +46,16 @@ import { useAuth } from '../../auth/AuthContext';
 // Two Modals, not one with a mode. Create parent is two-phase and
 // irreversible. Edit is one-phase and reversible. Sharing open /
 // confirming / formError is how a page grows a mode enum nobody can read.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): a header card — who the
+// learner is, the class and status, and the record's actions — then the
+// facts in two cards. RELOAD is `load` itself, the same GET for the same id;
+// like the first load it shows the page's spinner, and it leaves the status
+// message alone. ONE entrance wrapper holds every state (spinner, refusal,
+// error, record), so a reload swaps what is inside it and never replays the
+// entrance. Both Modals sit BESIDE that wrapper, never inside it: Modal
+// renders inline, and a wrapper mid-tween carries a transform
+// (motion/motion.js).
 
 // DISPLAY CASING ONLY — see CLAUDE.md convention 5d. Applied at the value, not
 // inside Field: capitalising an address or an LRN would be wrong, so only the
@@ -52,13 +67,35 @@ function titleCase(value) {
   return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }
 
-function Field({ label, value }) {
+// `valueClass` is for a value made of digits (the LRN, a phone number):
+// tabular figures. It is not applied to "Not recorded".
+function Field({ label, value, valueClass = '' }) {
   return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">{label}</dt>
-      <dd className="mt-1 text-sm text-fg">
-        {value || <span className="text-fg-muted">Not recorded</span>}
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold uppercase tracking-wider text-fg-muted">{label}</dt>
+      <dd className="mt-1 break-words text-sm text-fg">
+        {value ? (
+          <span className={valueClass}>{value}</span>
+        ) : (
+          <span className="text-fg-muted">Not recorded</span>
+        )}
       </dd>
+    </div>
+  );
+}
+
+// The head of one fact card: the icon chip and the card's title. The flex is
+// on the chip, never on the Font Awesome element (Button.jsx says why).
+function CardTitle({ icon, children }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        aria-hidden="true"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+      >
+        <i className={`fa-solid ${icon}`} />
+      </span>
+      <h3 className="font-serif text-base font-bold text-fg">{children}</h3>
     </div>
   );
 }
@@ -358,122 +395,174 @@ export default function StudentDetailPage() {
     }
   }
 
+  // A 44px-tall target with the shared keyboard outline; the arrow is
+  // decoration, the words are the name.
   const backLink = (
     <Link
       to="/teacher/students"
-      className="inline-flex items-center gap-2 text-sm text-fg-muted transition hover:text-fg"
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
     >
-      <i className="fa-solid fa-arrow-left" />
+      <i aria-hidden="true" className="fa-solid fa-arrow-left" />
       All students
     </Link>
   );
 
-  if (loading) return <LoadingSpinner className="py-16" label="Loading student…" />;
+  // The record's notes: what this teacher may NOT do here and why, and
+  // whether a parent account exists. Any of the three may be absent; the
+  // strip under the header is drawn only when at least one is present.
+  const showEditNote = !canEdit;
+  const showParentNote = !parentAccount && !canCreateParent;
+  const hasNotes = Boolean(parentAccount) || showEditNote || showParentNote;
 
-  if (notInScope) {
-    return (
-      <div className="space-y-4">
+  // ONE STATE AT A TIME, the same four as before and in the same order:
+  // loading, the anti-enumeration refusal, a failed request, the record.
+  let body = null;
+  if (loading) {
+    body = <LoadingSpinner className="py-16" label="Loading student…" />;
+  } else if (notInScope) {
+    body = (
+      <>
         {backLink}
-        <EmptyState
-          icon="fa-user-slash"
-          title="This student is not in your classes"
-          message="You can only open students in the sections you teach or advise."
-        />
-      </div>
+        <div className={cardClass}>
+          <EmptyState
+            icon="fa-user-slash"
+            title="This student is not in your classes"
+            message="You can only open students in the sections you teach or advise."
+          />
+        </div>
+      </>
     );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-4">
+  } else if (error) {
+    body = (
+      <>
         {backLink}
         <ErrorAlert message={error} onRetry={load} />
-      </div>
+      </>
     );
-  }
+  } else if (student) {
+    body = (
+      <>
+        {backLink}
 
-  if (!student) return null;
+        <FormStatus status={status.record} />
 
-  return (
-    <div className="space-y-4">
-      {backLink}
-
-      <FormStatus status={status.record} />
-
-      <div className="rounded-xl border border-edge bg-surface p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-edge pb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-fg">
-              {student.last_name}, {student.first_name}
-            </h2>
-            <p className="mt-0.5 text-sm text-fg-muted">
-              Grade {student.grade_level} - {student.section}
-            </p>
+        {/* THE HEADER CARD: the learner, then the class and the status badge,
+            and the record's actions on the right. Initials only — a learner
+            has no photo (§25). */}
+        <div className={`${cardClass} p-5 sm:p-6`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            {/* `grow basis-64`, NOT `flex-1`. A zero basis never asks the row
+                to wrap: beside three actions the circle and the name were
+                left a few dozen pixels on a tablet-width window and ran
+                under the buttons. With a real basis the actions drop to
+                their own line whenever the learner cannot keep this much. */}
+            <div className="flex min-w-0 grow basis-64 items-center gap-4">
+              <Avatar name={`${student.first_name} ${student.last_name}`} size="lg" />
+              <div className="min-w-0">
+                <h2 className="break-words font-serif text-xl font-bold text-fg">
+                  {student.last_name}, {student.first_name}
+                </h2>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-fg-muted">
+                  <span>
+                    Grade {student.grade_level} - {student.section}
+                  </span>
+                  <StatusBadge status={student.status} />
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <ReloadButton onReload={load} loading={loading} label="Reload student record" />
+              {canEdit ? (
+                <Button icon="fa-pen" onClick={openEdit}>
+                  Edit
+                </Button>
+              ) : null}
+              {!parentAccount && canCreateParent ? (
+                <Button variant="primary" icon="fa-user-plus" onClick={openCreate}>
+                  Create parent account
+                </Button>
+              ) : null}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge status={student.status} />
-            {canEdit ? (
-              <button
-                type="button"
-                onClick={openEdit}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm font-medium text-fg-secondary transition hover:bg-surface-muted"
-              >
-                Edit
-              </button>
-            ) : (
-              <p className="max-w-sm text-sm text-fg-muted">
-                Editing a student is limited to classes you teach or advise.
-              </p>
-            )}
-            {parentAccount ? (
-              // One account per student (LOCKED). The server refuses a second
-              // with a 409; the page now knows from GET /students/:id and says
-              // so instead of offering a dead end. The status is the account's
-              // own (users.status): pending needs an admin's approval.
-              <p className="text-sm text-fg-body">
-                Parent account: <StatusBadge status={parentAccount.status} />
-              </p>
-            ) : canCreateParent ? (
-              <button
-                type="button"
-                onClick={openCreate}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-              >
-                Create parent account
-              </button>
-            ) : (
-              <p className="max-w-sm text-sm text-fg-muted">
-                Only the adviser of this section can create the parent account.
-              </p>
-            )}
-          </div>
+
+          {hasNotes ? (
+            <div className="mt-5 space-y-2 border-t border-edge-soft pt-4">
+              {parentAccount ? (
+                // One account per student (LOCKED). The server refuses a second
+                // with a 409; the page now knows from GET /students/:id and says
+                // so instead of offering a dead end. The status is the account's
+                // own (users.status): pending needs an admin's approval.
+                <p className="flex flex-wrap items-center gap-2 text-sm text-fg-body">
+                  Parent account: <StatusBadge status={parentAccount.status} />
+                </p>
+              ) : null}
+              {showEditNote ? (
+                <p className="text-sm text-fg-muted">
+                  Editing a student is limited to classes you teach or advise.
+                </p>
+              ) : null}
+              {showParentNote ? (
+                <p className="text-sm text-fg-muted">
+                  Only the adviser of this section can create the parent account.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Shown: what a teacher needs to identify a learner and contact their
             guardian about an absence — the module's actual purpose.
             Deliberately omitted: section_id (an internal FK), created_by (a raw
             user id, and provenance rather than student information), and
-            created_at/updated_at (record bookkeeping, not the student). */}
-        <dl className="mt-5 grid gap-5 sm:grid-cols-2">
-          <Field label="LRN" value={student.lrn} />
-          {/* THE READ-ONLY FIELD ONLY (UI-C1b). `birthday` is a DATE column,
-              so it arrives as the literal "2013-04-07" and `longDate` is
-              string surgery on it (§5a-iv); a null falls through unchanged
-              and `Field` still renders "Not recorded". The EDIT control below
-              is an <input type="date"> and keeps the raw YYYY-MM-DD, which is
-              the only value that element accepts. */}
-          <Field label="Birthday" value={longDate(student.birthday)} />
-          {/* Status is NOT repeated here — the badge in the header above
-              already carries it, is scannable, and matches how status reads on
-              the list. Repeating it in the definition list read as duplication
-              rather than as two facts. */}
-          <Field label="Gender" value={titleCase(student.gender)} />
-          <Field label="Contact number" value={student.contact_number} />
-          <div className="sm:col-span-2">
-            <Field label="Address" value={student.address} />
+            created_at/updated_at (record bookkeeping, not the student).
+
+            TWO CARDS, by what the fact is for: who the learner is, and how
+            to reach the family. */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className={`${cardClass} space-y-4 p-5`}>
+            <CardTitle icon="fa-id-card">Student details</CardTitle>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <Field label="LRN" value={student.lrn} valueClass="tabular-nums" />
+              {/* THE READ-ONLY FIELD ONLY (UI-C1b). `birthday` is a DATE column,
+                  so it arrives as the literal "2013-04-07" and `longDate` is
+                  string surgery on it (§5a-iv); a null falls through unchanged
+                  and `Field` still renders "Not recorded". The EDIT control below
+                  is an <input type="date"> and keeps the raw YYYY-MM-DD, which is
+                  the only value that element accepts. */}
+              <Field label="Birthday" value={longDate(student.birthday)} />
+              {/* Status is NOT repeated here — the badge in the header above
+                  already carries it, is scannable, and matches how status reads on
+                  the list. Repeating it in the definition list read as duplication
+                  rather than as two facts. */}
+              <Field label="Gender" value={titleCase(student.gender)} />
+            </dl>
           </div>
-        </dl>
+
+          <div className={`${cardClass} space-y-4 p-5`}>
+            <CardTitle icon="fa-address-book">Contact details</CardTitle>
+            <dl className="grid gap-4">
+              <Field label="Contact number" value={student.contact_number} valueClass="tabular-nums" />
+              <Field label="Address" value={student.address} />
+            </dl>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // The Modals read `student`, so they exist only beside a loaded record —
+  // exactly when they did before.
+  if (loading || !student) {
+    return (
+      <div>
+        <Reveal className="space-y-6">{body}</Reveal>
       </div>
+    );
+  }
+
+  return (
+    <div>
+      <Reveal className="space-y-6">{body}</Reveal>
 
       <Modal
         open={editOpen}
@@ -483,32 +572,24 @@ export default function StudentDetailPage() {
         size="lg"
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeEdit}
-              disabled={savingEdit}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closeEdit} disabled={savingEdit}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              form="detail-edit-form"
-              disabled={savingEdit}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {savingEdit ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="primary" type="submit" form="detail-edit-form" loading={savingEdit}>
               Save
-            </button>
+            </Button>
           </>
         }
       >
-        <div className="max-h-[70vh] overflow-y-auto">
-          {editError ? <ErrorAlert message={editError} /> : null}
+        {/* No scroller of its own: Modal's body scrolls (and keeps the footer
+            on screen), and a second one inside it clipped the fields' focus
+            rings at its edges. */}
+        <div>
+          {editError ? <ErrorAlert message={editError} className="mb-4" /> : null}
 
-          <form id="detail-edit-form" onSubmit={submitEdit} className="space-y-3">
+          <form id="detail-edit-form" onSubmit={submitEdit} className="space-y-4">
             <FormField label="LRN" value={student.lrn} disabled />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="First name"
                 value={draft.first_name}
@@ -522,7 +603,7 @@ export default function StudentDetailPage() {
                 required
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="Grade level" value={`Grade ${student.grade_level}`} disabled />
               <FormField label="Section" value={student.section} disabled />
             </div>
@@ -533,7 +614,7 @@ export default function StudentDetailPage() {
               A student's class cannot be changed here. The system does not support moving a
               student between classes.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 label="Birthday"
                 type="date"
@@ -591,58 +672,51 @@ export default function StudentDetailPage() {
         footer={
           confirming ? (
             <>
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   if (saving) return;
                   setConfirming(false);
                 }}
                 disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
               >
                 Go back
-              </button>
-              <button
-                type="button"
-                onClick={submitCreate}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-              >
-                {saving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              </Button>
+              <Button variant="primary" onClick={submitCreate} loading={saving}>
                 Yes, create parent account
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={closeCreate}
-                disabled={saving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={closeCreate} disabled={saving}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 type="submit"
                 form="detail-parent-form"
                 disabled={saving || !passwordFormReady(parent.password, parent.confirmPassword)}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
               >
                 Continue
-              </button>
+              </Button>
             </>
           )
         }
       >
-        {formError ? <ErrorAlert message={formError} /> : null}
+        {formError ? <ErrorAlert message={formError} className="mb-4" /> : null}
 
         {confirming ? (
-          <p className="text-sm text-fg-body">
-            Create a pending parent account for {parent.name.trim()} (login ID {student.lrn})?
-            An admin must approve it before they can log in. You cannot un-create it.
-          </p>
+          // An amber notice, not body copy: the write cannot be taken back
+          // (§5e). The sentence is unchanged; the icon is decoration and
+          // takes the notice's own colour.
+          <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+            <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+            <p className="min-w-0 flex-1">
+              Create a pending parent account for {parent.name.trim()} (login ID {student.lrn})?
+              An admin must approve it before they can log in. You cannot un-create it.
+            </p>
+          </div>
         ) : (
-          <form id="detail-parent-form" onSubmit={requestCreate} className="space-y-3">
+          <form id="detail-parent-form" onSubmit={requestCreate} className="space-y-4">
             <FormField label="Login ID (child's LRN)" value={student.lrn} disabled />
             <FormField
               label="Guardian name"

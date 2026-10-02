@@ -149,13 +149,15 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 console.log('The tone (one AudioContext, on a show or an update only)');
 assert(
-  TONE.totalMs === 400 && TONE.attackMs === 3 && TONE.floor === 0.0001 && TONE.stopPadMs === 20 &&
+  TONE.totalMs === 360 && TONE.attackMs === 6 && TONE.floor === 0.0001 && TONE.stopPadMs === 20 &&
     JSON.stringify(TONE.voices) ===
       JSON.stringify([
-        { freqHz: 1047, startMs: 0, durationMs: 150, peak: 0.22 },
-        { freqHz: 784, startMs: 100, durationMs: 300, peak: 0.22 },
+        { freqHz: 587, startMs: 0, durationMs: 140, peak: 0.125 },
+        { freqHz: 880, startMs: 80, durationMs: 280, peak: 0.125 },
+        { freqHz: 1174, startMs: 0, durationMs: 60, peak: 0.125 },
+        { freqHz: 1760, startMs: 80, durationMs: 90, peak: 0.125 },
       ]),
-  'TONE is "two-tone down": 1047 Hz 0–150 ms and 784 Hz 100–400 ms, peak 0.22, 3 ms attack, floor 0.0001 (shared with the phone)'
+  'TONE is "two-note rise": 587 Hz 0–140 ms and 880 Hz 80–360 ms, each with its octave (1174 Hz 0–60 ms, 1760 Hz 80–170 ms), peak 0.125, 6 ms attack, floor 0.0001 (shared with the phone)'
 );
 {
   const audio = fakeAudio();
@@ -175,26 +177,26 @@ assert(
   deliver({ senderId: SELF, row: { ...LIG, other_user_id: SELF } }); // own: skip
   deliver({ senderId: 3, viewingOtherId: 3, row: ANA3 }); // open conversation: skip
   await flush();
-  assert(audio.log.starts === 6, 'a tone on the show, the update and the replace — three tones of two voices, no more', `${audio.log.starts}`);
+  assert(audio.log.starts === 12, 'a tone on the show, the update and the replace — three tones of four voices, no more', `${audio.log.starts}`);
   assert(audio.log.made === 1, 'ONE AudioContext, reused for every tone', `${audio.log.made}`);
   assert(audio.log.resumes === 3, 'resume() before every tone');
   const oneTone = audio.log.ramps.slice(0, 6);
   assert(
-    JSON.stringify(audio.log.freqs.slice(0, 2)) === '[1047,784]' &&
+    JSON.stringify(audio.log.freqs.slice(0, 2)) === '[587,880]' &&
       JSON.stringify(oneTone) ===
         JSON.stringify([
           ['set', 0.0001, 0],
-          ['linear', 0.22, 0.003],
-          ['exponential', 0.0001, 0.15],
-          ['set', 0.0001, 0.1],
-          ['linear', 0.22, 0.10300000000000001],
-          ['exponential', 0.0001, 0.4],
+          ['linear', 0.125, 0.006],
+          ['exponential', 0.0001, 0.14],
+          ['set', 0.0001, 0.08],
+          ['linear', 0.125, 0.08600000000000001],
+          ['exponential', 0.0001, 0.36000000000000004],
         ]),
-    'each tone: 1047 Hz then 784 Hz, each from 0.0001 a LINEAR rise to 0.22 in 3 ms, then an EXPONENTIAL decay to 0.0001 at its end'
+    'each tone: 587 Hz then 880 Hz, each from 0.0001 a LINEAR rise to 0.125 in 6 ms, then an EXPONENTIAL decay to 0.0001 at its end'
   );
   assert(
-    JSON.stringify(audio.log.startAt.slice(0, 2)) === '[0,0.1]' && Math.abs(audio.log.stopAt[0] - 0.17) < 1e-9 && Math.abs(audio.log.stopAt[1] - 0.42) < 1e-9,
-    'voice 1 starts at 0 and stops at 170 ms, voice 2 starts at 100 ms and stops at 420 ms (end + 20 ms)'
+    JSON.stringify(audio.log.startAt.slice(0, 2)) === '[0,0.08]' && Math.abs(audio.log.stopAt[0] - 0.16) < 1e-9 && Math.abs(audio.log.stopAt[1] - 0.38) < 1e-9,
+    'voice 1 starts at 0 and stops at 160 ms, voice 2 starts at 80 ms and stops at 380 ms (end + 20 ms)'
   );
 }
 {

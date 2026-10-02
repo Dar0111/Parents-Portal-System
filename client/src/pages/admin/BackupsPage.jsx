@@ -8,8 +8,11 @@ import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
+import Button from '../../components/Button';
+import SectionHeader from '../../components/SectionHeader';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
+import Reveal from '../../motion/Reveal';
 
 // Admin backup & restore — Figure 5 processes 1.27 (Backup & Restore) and
 // 1.28 (Show Backup Logs: the list is the history). Stage 4's last page.
@@ -45,6 +48,28 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // reload. A successful restore deliberately does not. §5e: delete confirms
 // (the file leaves the disk); restore requires the server's password and
 // typed file name; create does not confirm.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): the Backups section — its
+// header (title, Reload, Create backup), the privacy note, the write's
+// result, the list — and, only when there are any, the files with no record.
+// RELOAD is `load` itself: the same GET with the page and sort that are
+// applied now. That one request returns BOTH lists, so the one Reload on the
+// Backups header refreshes the orphan list too and the second section has no
+// button of its own. It is held while a create, download or delete is
+// running — the page's one-request-at-a-time rule (`busy`) — and it leaves
+// the status message alone. It is also held for as long as the restore
+// dialog is open (`restoring`): Modal has no focus trap, so the Tab key can
+// still reach the page behind it, and a restore that is running or done must
+// not be followed by a request from this page — the result panel's only exit
+// is "Log in again". Both dialogs sit BESIDE the entrance wrapper, never inside it:
+// Modal renders inline, and a wrapper mid-tween carries a transform
+// (motion/motion.js).
+//
+// A FILE NAME INSIDE A SENTENCE MAY BREAK (`break-all`); IN THE LIST IT NEVER
+// DOES (`nowrap`). The list's table has its own sideways scroller; a dialog
+// has none, and a 48-character name in a 24rem dialog would push it wider
+// than a phone. The name stays whole to copy and to read — only the line
+// folds.
 
 const SAFETY_PREFIX = 'pre_restore_';
 
@@ -299,67 +324,86 @@ export default function AdminBackupsPage() {
           <span className="text-fg-secondary">Manual backup</span>
         ),
     },
-    { key: 'created_at', header: 'Created', sortable: true, nowrap: true, render: (row) => formatWhen(row.created_at) },
+    {
+      key: 'created_at',
+      header: 'Created',
+      sortable: true,
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{formatWhen(row.created_at)}</span>,
+    },
     { key: 'created_by_name', header: 'Created by', render: (row) => row.created_by_name || '—' },
-    { key: 'file_size', header: 'Size', align: 'right', nowrap: true, render: (row) => formatSize(row.file_size) },
+    {
+      key: 'file_size',
+      header: 'Size',
+      align: 'right',
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{formatSize(row.file_size)}</span>,
+    },
     {
       key: 'actions',
       header: '',
       align: 'right',
+      // THE ROW ACTIONS: the row-action size (44px under a finger, 36px
+      // under a pointer), 8px apart. Download and Restore are the neutral
+      // pair; Delete is the outlined danger and opens the confirmation that
+      // names the file — the filled danger is a dialog's confirm, nowhere
+      // else.
       render: (row) => {
         const disabled = busy !== null;
         if (!row.file_exists) {
           return (
-            <div className="flex items-center justify-end gap-2">
-              <span className="rounded bg-warning-soft px-2 py-0.5 text-xs text-warning-fg">Missing from disk</span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-warning-soft px-2 py-1 text-xs font-semibold text-warning-fg">
+                <i aria-hidden="true" className="fa-solid fa-triangle-exclamation" />
+                Missing from disk
+              </span>
               {isSafetyCopy(row) ? null : (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="danger-outline"
                   disabled={disabled}
                   onClick={() => {
                     clearStrips();
                     setDeleteError(null);
                     setDeleting(row);
                   }}
-                  className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft disabled:opacity-50"
                 >
                   Delete
-                </button>
+                </Button>
               )}
             </div>
           );
         }
         return (
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
+            {/* WHILE IT DOWNLOADS THE BUTTON KEEPS ITS WORD — the spinner
+                takes the icon's place instead of the label's, so the button
+                neither loses its name nor changes width. */}
+            <Button
+              size="sm"
+              icon="fa-download"
               disabled={disabled}
+              loading={busy === `download-${row.id}`}
               onClick={() => downloadBackup(row)}
-              className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
             >
-              {busy === `download-${row.id}` ? <i className="fa-solid fa-circle-notch fa-spin" /> : 'Download'}
-            </button>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => openRestore(row)}
-              className="rounded-lg border border-edge-strong px-2.5 py-1 text-sm font-medium text-fg-secondary transition hover:bg-surface-muted disabled:opacity-50"
-            >
+              Download
+            </Button>
+            <Button size="sm" disabled={disabled} onClick={() => openRestore(row)}>
               Restore…
-            </button>
+            </Button>
             {isSafetyCopy(row) ? null : (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="danger-outline"
                 disabled={disabled}
                 onClick={() => {
                   clearStrips();
                   setDeleteError(null);
                   setDeleting(row);
                 }}
-                className="rounded-lg border border-danger-edge px-2.5 py-1 text-sm text-danger-text transition hover:bg-danger-soft disabled:opacity-50"
               >
                 Delete
-              </button>
+              </Button>
             )}
           </div>
         );
@@ -375,87 +419,115 @@ export default function AdminBackupsPage() {
       nowrap: true,
       render: (row) => <span className="font-mono text-xs text-fg-secondary">{row.filename}</span>,
     },
-    { key: 'file_size', header: 'Size', align: 'right', nowrap: true, render: (row) => formatSize(row.file_size) },
-    { key: 'mtime', header: 'Modified', nowrap: true, render: (row) => formatWhen(row.mtime) },
+    {
+      key: 'file_size',
+      header: 'Size',
+      align: 'right',
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{formatSize(row.file_size)}</span>,
+    },
+    {
+      key: 'mtime',
+      header: 'Modified',
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{formatWhen(row.mtime)}</span>,
+    },
   ];
 
   const restoreDate = restoring ? formatWhen(restoring.created_at) : '';
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-fg">Backups</h2>
-            {/* §5i: routes/backups.js — the download is the most sensitive
-                action the API permits, and it is logged. */}
-            <p className="text-sm text-fg-muted">
+    <div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          {/* Create backup is the page's ONE filled action. While it runs the
+              label says so and the spinner takes the icon's place; every other
+              action on the page — Reload included — waits (`busy`). */}
+          <SectionHeader
+            title="Backups"
+            onReload={load}
+            reloading={loading}
+            reloadDisabled={busy !== null || restoring !== null}
+            reloadLabel="Reload backups"
+            actions={
+              <Button
+                variant="primary"
+                icon="fa-plus"
+                onClick={createBackup}
+                disabled={busy !== null}
+                loading={busy === 'create'}
+              >
+                {busy === 'create' ? 'Creating backup…' : 'Create backup'}
+              </Button>
+            }
+          />
+
+          {/* §5i: routes/backups.js — the download is the most sensitive
+              action the API permits, and it is logged.
+
+              A NOTE UNDER THE HEADER, NOT THE HEADER'S `description`: beside
+              Reload and Create backup a phone leaves the header's text column
+              about 9rem, and three sentences in it would run a dozen lines.
+              Here they take the full width. */}
+          <p className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
+            <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+              <i className="fa-solid fa-circle-info" />
+            </span>
+            <span className="min-w-0">
               A backup is a full copy of the database. A download is a full copy of every
               student&apos;s records — keep it private. Downloads are recorded in the activity log.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={createBackup}
-            disabled={busy !== null}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {busy === 'create' ? (
-              <>
-                <i className="fa-solid fa-circle-notch fa-spin" />
-                Creating backup…
-              </>
-            ) : (
-              'Create backup'
-            )}
-          </button>
-        </div>
-
-        {/* §5f: two causes of an empty list, two branches. */}
-        <FormStatus status={status.list} />
-
-        <DataTable
-          // THE NON-PERSON CASE, and it is here in DV1 on purpose: a row is
-          // a FILE, so there is no `avatar` — a backup with an initials disc
-          // would read as a member of staff. It also has no primary action:
-          // download, delete and restore are three peers, and restore is
-          // irreversible, so a whole-card tap is exactly the wrong shape.
-          // Static card, no chevron, the same action buttons underneath.
-          renderCard={(row) => ({
-            title: row.filename,
-            subtitle: isSafetyCopy(row) ? 'Safety copy' : 'Manual backup',
-            meta: `${formatWhen(row.created_at)} · ${formatSize(row.file_size)}`,
-            actions: columns[columns.length - 1].render(row),
-          })}
-          columns={columns}
-          rows={backups}
-          loading={loading}
-          error={error}
-          onRetry={load}
-          page={page}
-          onPageChange={setOffset}
-          sort={sort}
-          onSortChange={changeSort}
-          emptyIcon="fa-database"
-          emptyTitle={orphans.length ? 'No backups recorded' : 'No backups yet'}
-          emptyMessage={
-            orphans.length
-              ? 'Files found on the server with no record are listed below. They cannot be used from this page.'
-              : 'Create a backup to have a copy of the database you can restore from.'
-          }
-        />
-      </section>
-
-      {orphans.length ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold text-fg">Files on disk with no record</h2>
-          <p className="text-sm text-fg-muted">
-            The system has no record of these files, so they cannot be downloaded, restored or
-            deleted here.
+            </span>
           </p>
-          <DataTable columns={orphanColumns} rows={orphans} keyField="filename" />
+
+          {/* §5f: two causes of an empty list, two branches. */}
+          <FormStatus status={status.list} />
+
+          <DataTable
+            // THE NON-PERSON CASE, and it is here in DV1 on purpose: a row is
+            // a FILE, so there is no `avatar` — a backup with an initials disc
+            // would read as a member of staff. It also has no primary action:
+            // download, delete and restore are three peers, and restore is
+            // irreversible, so a whole-card tap is exactly the wrong shape.
+            // Static card, no chevron, the same action buttons underneath.
+            renderCard={(row) => ({
+              title: row.filename,
+              subtitle: isSafetyCopy(row) ? 'Safety copy' : 'Manual backup',
+              meta: `${formatWhen(row.created_at)} · ${formatSize(row.file_size)}`,
+              actions: columns[columns.length - 1].render(row),
+            })}
+            columns={columns}
+            rows={backups}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon="fa-database"
+            emptyTitle={orphans.length ? 'No backups recorded' : 'No backups yet'}
+            emptyMessage={
+              orphans.length
+                ? 'Files found on the server with no record are listed below. They cannot be used from this page.'
+                : 'Create a backup to have a copy of the database you can restore from.'
+            }
+          />
         </section>
-      ) : null}
+
+        {/* READ-ONLY, AND IT STAYS THAT WAY: no actions, no adopt control, no
+            card (see the header). No Reload of its own either — this list comes
+            back with the Backups request, so that section's Reload is this
+            one's too. */}
+        {orphans.length ? (
+          <section className="space-y-3">
+            <SectionHeader
+              title="Files on disk with no record"
+              description="The system has no record of these files, so they cannot be downloaded, restored or deleted here."
+            />
+            <DataTable columns={orphanColumns} rows={orphans} keyField="filename" />
+          </section>
+        ) : null}
+      </Reveal>
 
       <Modal
         open={Boolean(deleting)}
@@ -464,31 +536,23 @@ export default function AdminBackupsPage() {
         title="Delete backup"
         size="sm"
         footer={
+          // The neutral way out, then the filled danger — a dialog's confirm
+          // and nothing else. `loading` adds the spinner the old button drew
+          // by hand, and disables it exactly as `disabled` already did.
           <>
-            <button
-              type="button"
-              onClick={() => setDeleting(null)}
-              disabled={Boolean(busy)}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={() => setDeleting(null)} disabled={Boolean(busy)}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={confirmDelete}
-              disabled={Boolean(busy)}
-              className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:opacity-60"
-            >
-              {busy ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="danger" onClick={confirmDelete} disabled={Boolean(busy)} loading={Boolean(busy)}>
               Delete
-            </button>
+            </Button>
           </>
         }
       >
-        {deleteError ? <ErrorAlert message={deleteError} className="mb-3" /> : null}
+        {deleteError ? <ErrorAlert message={deleteError} className="mb-4" /> : null}
         {deleting ? (
           <p className="text-sm text-fg-secondary">
-            Delete <span className="font-mono text-xs">{deleting.filename}</span>, taken{' '}
+            Delete <span className="break-all font-mono text-xs font-semibold text-fg">{deleting.filename}</span>, taken{' '}
             {formatWhen(deleting.created_at)}? The file is removed from the server&apos;s disk and
             cannot be recovered.
           </p>
@@ -503,32 +567,25 @@ export default function AdminBackupsPage() {
         size="lg"
         footer={
           stage === 'done' ? (
-            <button
-              type="button"
-              onClick={logInAgain}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-            >
+            <Button variant="primary" onClick={logInAgain}>
               Log in again
-            </button>
+            </Button>
           ) : (
+            // The confirm of the one irreversible action on the page: the
+            // filled danger, disabled until both fields are filled.
             <>
-              <button
-                type="button"
-                onClick={closeRestore}
-                disabled={stage === 'running'}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={closeRestore} disabled={stage === 'running'}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
                 type="submit"
                 form="restore-form"
                 disabled={stage === 'running' || !password || !confirmName}
-                className="inline-flex items-center gap-2 rounded-lg bg-danger-solid px-3 py-1.5 text-sm font-medium text-solid-fg transition hover:bg-danger-solid-hover disabled:cursor-not-allowed disabled:opacity-60"
+                loading={stage === 'running'}
               >
-                {stage === 'running' ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 {stage === 'running' ? 'Restoring…' : 'Restore database'}
-              </button>
+              </Button>
             </>
           )
         }
@@ -536,44 +593,55 @@ export default function AdminBackupsPage() {
         {restoring && stage === 'done' && outcome ? (
           // Server wording, verbatim. Nothing on this page calls the API
           // again: every session — this one included — is now invalid.
-          <div className="space-y-3">
-            <p className="rounded-lg border border-success-edge bg-success-soft px-3 py-2 text-sm text-success-strong">
-              {outcome.message}
-            </p>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border border-success-edge bg-success-soft px-4 py-3">
+              <i aria-hidden="true" className="fa-solid fa-circle-check mt-0.5 text-success-icon" />
+              <p className="min-w-0 flex-1 text-sm text-success-strong">{outcome.message}</p>
+            </div>
             {outcome.restored_from ? (
               <p className="text-sm text-fg-secondary">
-                Restored from <span className="font-mono text-xs">{outcome.restored_from.filename}</span>.
+                Restored from{' '}
+                <span className="break-all font-mono text-xs">{outcome.restored_from.filename}</span>.
               </p>
             ) : null}
+            {/* The way back, set apart: the one file name on this panel the
+                admin may need again. */}
             {outcome.safety_backup ? (
-              <p className="text-sm text-fg-secondary">
+              <p className="rounded-xl border border-edge bg-surface-subtle px-4 py-3 text-sm text-fg-secondary">
                 Safety copy of the database as it was just before this restore:{' '}
-                <span className="font-mono text-xs font-semibold">{outcome.safety_backup.filename}</span>.
-                If this restore was a mistake, log in and restore that file.
+                <span className="break-all font-mono text-xs font-semibold text-fg">
+                  {outcome.safety_backup.filename}
+                </span>
+                . If this restore was a mistake, log in and restore that file.
               </p>
             ) : null}
             {Number(outcome.activity_logs_wiped) > 0 ? (
               <p className="text-sm text-fg-secondary">
-                {outcome.activity_logs_wiped} activity log{' '}
+                <span className="tabular-nums">{outcome.activity_logs_wiped}</span> activity log{' '}
                 {Number(outcome.activity_logs_wiped) === 1 ? 'entry' : 'entries'} recorded after the
                 backup was taken {Number(outcome.activity_logs_wiped) === 1 ? 'was' : 'were'} lost.
               </p>
             ) : null}
             <p className="text-sm text-fg-muted">
               Log in again with the password that was valid when{' '}
-              <span className="font-mono text-xs">{restoring.filename}</span> was taken.
+              <span className="break-all font-mono text-xs">{restoring.filename}</span> was taken.
             </p>
           </div>
         ) : restoring ? (
-          <form id="restore-form" onSubmit={submitRestore} className="max-h-[70vh] space-y-4 overflow-y-auto">
+          // No scroller of its own: the dialog's body is the scroller now
+          // (Modal), so this long form no longer scrolls inside a scrolling
+          // box and its action row stays in view.
+          <form id="restore-form" onSubmit={submitRestore} className="space-y-4">
             <p className="text-sm text-fg-secondary">
               This replaces the entire database with{' '}
-              <span className="font-mono text-xs font-semibold">{restoring.filename}</span>, taken{' '}
+              <span className="break-all font-mono text-xs font-semibold text-fg">{restoring.filename}</span>, taken{' '}
               {restoreDate}.
             </p>
 
-            {/* §5i: the server's own order and terms (routes/backups.js). */}
-            <ol className="list-decimal space-y-1.5 pl-5 text-sm text-fg-secondary">
+            {/* §5i: the server's own order and terms (routes/backups.js).
+                Every sentence stays; the amber panel only marks them as what
+                they are — consequences to read before the password. */}
+            <ol className="list-decimal space-y-2 rounded-xl border border-warning-edge bg-warning-soft py-3 pl-9 pr-4 text-sm text-warning-strong marker:font-semibold">
               <li>A safety backup of the current database is taken first. If that fails, nothing is changed.</li>
               <li>
                 Everything except the list of backups is replaced with this backup&apos;s contents —
@@ -607,7 +675,7 @@ export default function AdminBackupsPage() {
             <div className="space-y-1.5">
               <p className="text-sm text-fg-secondary">
                 Type the file name to confirm:{' '}
-                <span className="font-mono text-xs font-semibold text-fg">{restoring.filename}</span>
+                <span className="break-all font-mono text-xs font-semibold text-fg">{restoring.filename}</span>
               </p>
               <FormField
                 label="File name"
@@ -629,8 +697,11 @@ export default function AdminBackupsPage() {
             {restoreError ? <ErrorAlert message={restoreError} /> : null}
 
             {stage === 'running' ? (
-              <p className="text-sm font-medium text-fg-secondary">
-                Restoring — do not close or refresh this tab.
+              <p className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm font-semibold text-warning-strong">
+                <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+                  <i className="fa-solid fa-triangle-exclamation" />
+                </span>
+                <span className="min-w-0">Restoring — do not close or refresh this tab.</span>
               </p>
             ) : null}
           </form>

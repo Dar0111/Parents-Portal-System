@@ -4,6 +4,10 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
+import Button from '../../components/Button';
+import SectionHeader from '../../components/SectionHeader';
+import { cardClass, linkClass } from '../../components/buttonClass';
+import Reveal from '../../motion/Reveal';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -60,6 +64,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // user.grade_level, which /auth/me does return. Two cases here rather than
 // announcements' three: the events table has no target_section column, so
 // whole-grade is the only targeted shape that exists.
+//
+// RELOAD (feat/ui-refresh) is `load` itself — the same request with the
+// range, page and sort that are applied now; nothing is reset. The table's
+// own frame shows the loading and error states, as on the first load.
 
 function audienceLabel(row) {
   return row.target_grade === null
@@ -168,17 +176,13 @@ export default function ParentEventsPage() {
         sortable: true,
         render: (row) => (
           <div>
-            <button
-              type="button"
-              onClick={() => setReading(row)}
-              className="text-left font-medium text-brand underline-offset-2 hover:underline"
-            >
+            <button type="button" onClick={() => setReading(row)} className={`${linkClass} text-left`}>
               {row.title}
             </button>
             {row.description ? (
-              <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
+              <div className="mt-0.5 line-clamp-2 max-w-xl text-xs text-fg-muted">{row.description}</div>
             ) : null}
-            <div className="mt-1 text-xs text-fg-muted">{audienceLabel(row)}</div>
+            <div className="mt-1.5 text-xs text-fg-muted">{audienceLabel(row)}</div>
           </div>
         ),
       },
@@ -186,80 +190,105 @@ export default function ParentEventsPage() {
       // over as the literal "2026-09-25" and shortDate is string surgery on
       // it — nothing is parsed, so nothing can shift a day (§5a-iv). The
       // sort is unaffected: DataTable sorts the raw row value, not this.
-      { key: 'event_date', header: 'Date', sortable: true, render: (row) => shortDate(row.event_date) },
+      {
+        key: 'event_date',
+        header: 'Date',
+        sortable: true,
+        nowrap: true,
+        render: (row) => <span className="tabular-nums">{shortDate(row.event_date)}</span>,
+      },
     ],
     []
   );
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-edge bg-surface p-4">
-        <FormField
-          label="Show"
-          as="select"
-          className={filterSelectClass}
-          value={range}
-          onChange={(e) => changeRange(e.target.value)}
-          hint="Upcoming includes anything happening today."
-        >
-          <option value="upcoming">Upcoming events</option>
-          <option value="all">All events, including past</option>
-        </FormField>
-      </div>
+    <>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader
+            title="School events"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload events"
+          />
 
-      <DataTable
-        // CONTENT-LIST CARD (DV1b-a). The event DATE leads meta — an event is
-        // defined by when it happens, which is what a parent scans for.
-        renderCard={(row) => ({
-          onSelect: () => setReading(row),
-          title: row.title,
-          subtitle: row.description || undefined,
-          meta: longDate(row.event_date),
-        })}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={empty.icon}
-        emptyTitle={empty.title}
-        emptyMessage={empty.message}
-        emptyAction={
-          empty.showPast ? (
-            <button
-              type="button"
-              onClick={() => changeRange('all')}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
+          <div className={`${cardClass} p-4`}>
+            <FormField
+              label="Show"
+              as="select"
+              className={filterSelectClass}
+              value={range}
+              onChange={(e) => changeRange(e.target.value)}
+              hint="Upcoming includes anything happening today."
             >
-              Show past events
-            </button>
-          ) : null
-        }
-      />
+              <option value="upcoming">Upcoming events</option>
+              <option value="all">All events, including past</option>
+            </FormField>
+          </div>
 
+          <DataTable
+            // CONTENT-LIST CARD (DV1b-a). The event DATE leads meta — an event
+            // is defined by when it happens, which is what a parent scans for.
+            renderCard={(row) => ({
+              onSelect: () => setReading(row),
+              title: row.title,
+              subtitle: row.description || undefined,
+              meta: longDate(row.event_date),
+            })}
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon={empty.icon}
+            emptyTitle={empty.title}
+            emptyMessage={empty.message}
+            emptyAction={
+              empty.showPast ? (
+                <Button size="sm" onClick={() => changeRange('all')}>
+                  Show past events
+                </Button>
+              ) : null
+            }
+          />
+        </section>
+      </Reveal>
+
+      {/* OUTSIDE the entrance wrapper: Modal renders inline behind a fixed
+          backdrop, so it must never sit under an element that can carry a
+          transform (motion/motion.js). Its body is the scroller. */}
       <Modal
         open={Boolean(reading)}
         onClose={() => setReading(null)}
         title={reading?.title}
         size="lg"
       >
-        <div className="max-h-[70vh] overflow-y-auto">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-            <span>{reading ? longDate(reading.event_date) : null}</span>
-            <span aria-hidden="true">·</span>
-            <span>{reading ? audienceLabel(reading) : null}</span>
-            <span aria-hidden="true">·</span>
-            <span>Posted by {reading?.posted_by_name}</span>
+        <div className="space-y-4">
+          {/* WHEN leads, as on the card: the date is what defines an event.
+              Who it is for and who posted it follow as a caption. */}
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-sm font-semibold tabular-nums text-fg">
+              <span aria-hidden="true" className="flex items-center justify-center text-brand">
+                <i className="fa-solid fa-calendar-days" />
+              </span>
+              {reading ? longDate(reading.event_date) : null}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-fg-muted">
+              <span className="rounded-full bg-brand-soft px-2.5 py-0.5 font-semibold text-brand">
+                {reading ? audienceLabel(reading) : null}
+              </span>
+              <span>Posted by {reading?.posted_by_name}</span>
+            </div>
           </div>
           {/* description is NULLABLE in the schema, so an empty modal body is a
               real possibility and gets said out loud rather than rendering a
               blank panel. */}
           {reading?.description ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg-secondary">
+            <p className="max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body">
               {reading.description}
             </p>
           ) : (
@@ -267,6 +296,6 @@ export default function ParentEventsPage() {
           )}
         </div>
       </Modal>
-    </div>
+    </>
   );
 }

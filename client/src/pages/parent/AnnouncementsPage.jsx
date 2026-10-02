@@ -4,6 +4,9 @@ import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
 import { timestampDay } from '../../format/date';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
+import { linkClass } from '../../components/buttonClass';
+import Reveal from '../../motion/Reveal';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -54,6 +57,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // parent the routing model in exchange for nothing they can act on. Three
 // cases, not two: collapsing whole-grade into "your child's class" would be
 // wrong for an admin's whole-grade post, which the API explicitly permits.
+//
+// RELOAD (feat/ui-refresh) is `load` itself — the same request with the page
+// and sort that are applied now; nothing is reset. The table's own frame
+// shows the loading and error states, as on the first load.
 
 function audienceLabel(row) {
   if (row.target_grade === null) return 'For everyone at the school';
@@ -139,15 +146,11 @@ export default function ParentAnnouncementsPage() {
                 onRowClick, and adding one for the first pages that want it
                 would shape a shared primitive around its callers. Same
                 solution the Students page used for its detail link. */}
-            <button
-              type="button"
-              onClick={() => setReading(row)}
-              className="text-left font-medium text-brand underline-offset-2 hover:underline"
-            >
+            <button type="button" onClick={() => setReading(row)} className={`${linkClass} text-left`}>
               {row.title}
             </button>
-            <div className="line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+            <div className="mt-0.5 line-clamp-2 max-w-xl text-xs text-fg-muted">{row.content}</div>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
               <span>{audienceLabel(row)}</span>
               {row.category ? (
                 <span className="rounded-full bg-surface-muted px-2 py-0.5 text-fg-muted">
@@ -167,57 +170,77 @@ export default function ParentAnnouncementsPage() {
         sortable: true,
         // A TIMESTAMP → the school's calendar day. Slicing the ISO string
         // showed the previous day before 08:00 PH (format/date.js).
-        render: (row) => timestampDay(row.created_at),
+        nowrap: true,
+        render: (row) => <span className="tabular-nums">{timestampDay(row.created_at)}</span>,
       },
     ],
     []
   );
 
   return (
-    <div className="space-y-4">
-      <DataTable
-        // CONTENT-LIST CARD (DV1b-a). Reading the announcement is the one
-        // action this page has, so the whole card is that button — `onSelect`
-        // rather than `to`, because the detail is a modal and not a route.
-        //
-        // `audienceLabel` is the page's own helper, reused rather than
-        // re-derived: the audience label comes from the target columns'
-        // nullness, never from `user.grade_level`, and a second derivation
-        // here would be a second place for that rule to drift.
-        renderCard={(row) => ({
-          onSelect: () => setReading(row),
-          title: row.title,
-          subtitle: row.content,
-          meta: `${audienceLabel(row)} · ${timestampDay(row.created_at)}`,
-        })}
-        columns={columns}
-        rows={rows}
-        loading={loading}
-        error={error}
-        onRetry={load}
-        page={page}
-        onPageChange={setOffset}
-        sort={sort}
-        onSortChange={changeSort}
-        emptyIcon={empty.icon}
-        emptyTitle={empty.title}
-        emptyMessage={empty.message}
-      />
+    <>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <SectionHeader
+            title="Posted announcements"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload announcements"
+          />
 
+          <DataTable
+            // CONTENT-LIST CARD (DV1b-a). Reading the announcement is the one
+            // action this page has, so the whole card is that button —
+            // `onSelect` rather than `to`, because the detail is a modal and
+            // not a route.
+            //
+            // `audienceLabel` is the page's own helper, reused rather than
+            // re-derived: the audience label comes from the target columns'
+            // nullness, never from `user.grade_level`, and a second derivation
+            // here would be a second place for that rule to drift.
+            renderCard={(row) => ({
+              onSelect: () => setReading(row),
+              title: row.title,
+              subtitle: row.content,
+              meta: `${audienceLabel(row)} · ${timestampDay(row.created_at)}`,
+            })}
+            columns={columns}
+            rows={rows}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon={empty.icon}
+            emptyTitle={empty.title}
+            emptyMessage={empty.message}
+          />
+        </section>
+      </Reveal>
+
+      {/* OUTSIDE the entrance wrapper: Modal renders inline behind a fixed
+          backdrop, so it must never sit under an element that can carry a
+          transform (motion/motion.js). */}
       <Modal
         open={Boolean(reading)}
         onClose={() => setReading(null)}
         title={reading?.title}
         size="lg"
       >
-        {/* Scrolling lives here, not behind a new Modal prop: a long
-            announcement would otherwise push the panel past the viewport and
-            take its close button with it. */}
-        <div className="max-h-[70vh] overflow-y-auto">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-            <span>{reading ? audienceLabel(reading) : null}</span>
-            <span aria-hidden="true">·</span>
-            <span>Posted {timestampDay(reading?.created_at)}</span>
+        {/* No scroller of its own: Modal's body is the scroller, so a long
+            announcement scrolls inside the dialog and the close button stays
+            where it is. */}
+        <div className="space-y-4">
+          {/* The meta line: who it is for (a chip — the one fact that decides
+              whether the post concerns this parent), then when and by whom,
+              as a caption. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-fg-muted">
+            <span className="rounded-full bg-brand-soft px-2.5 py-0.5 font-semibold text-brand">
+              {reading ? audienceLabel(reading) : null}
+            </span>
+            <span className="tabular-nums">Posted {timestampDay(reading?.created_at)}</span>
             <span aria-hidden="true">·</span>
             <span>Posted by {reading?.posted_by_name}</span>
             {reading?.category ? (
@@ -227,11 +250,13 @@ export default function ParentAnnouncementsPage() {
               </>
             ) : null}
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-fg-secondary">
+          {/* Reading text: one step larger than the body size, in a column
+              that stays under ~75 characters however wide the dialog is. */}
+          <p className="max-w-prose whitespace-pre-wrap break-words text-base leading-relaxed text-fg-body">
             {reading?.content}
           </p>
         </div>
       </Modal>
-    </div>
+    </>
   );
 }

@@ -20,22 +20,28 @@ export default function LiveStatus({ onRefresh }) {
     // escape hatch §18b's global block already looks for.
     <div
       data-print="hide"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning-edge bg-warning-soft px-4 py-2.5"
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-warning-edge bg-warning-soft px-4 py-2"
     >
       {/* "new updates", not "new messages" (N2, 2026-09-19). The strip is no
           longer only about Messages: since N1 the same channel carries
           notification_counts, and the strip is now shown to admin, who has no
           Messages page at all. Naming messages there would have been a claim
           about the wrong thing (§5i). */}
-      <p className="text-sm text-warning-strong">
-        <i className="fa-solid fa-plug-circle-xmark mr-2" />
+      <p className="min-w-0 flex-1 py-1 text-sm text-warning-strong">
+        <i aria-hidden="true" className="fa-solid fa-plug-circle-xmark mr-2" />
         Live updates paused — new updates will not appear on their own.
       </p>
+      {/* The row-action button's SHAPE (buttonClass `sm`: 44px under a finger,
+          36px under a pointer, the same corner and weight) in the strip's own
+          warning tone — `buttonClass` has no warning variant, and these three
+          pairs are the checked ones (lint:contrast: warning-strong on
+          surface, and on the soft hover). The outline is the strip's strong
+          tone, a checked pair on the strip it is drawn over. */}
       {onRefresh ? (
         <button
           type="button"
           onClick={onRefresh}
-          className="rounded-lg border border-warning-edge-strong bg-surface px-3 py-1 text-sm font-medium text-warning-strong transition hover:bg-warning-soft-hover"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-warning-edge-strong bg-surface px-3 py-1.5 text-sm font-semibold text-warning-strong shadow-xs transition hover:bg-warning-soft-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning-strong sm:min-h-9"
         >
           Refresh
         </button>

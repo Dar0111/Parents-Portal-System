@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import { cardClass } from '../../components/buttonClass';
 import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ScrollCue from '../../components/ScrollCue';
+import SectionHeader from '../../components/SectionHeader';
 import { timestampDay, todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { currentTerm } from '../../format/schoolCalendar';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import { useAuth } from '../../auth/AuthContext';
+import Reveal from '../../motion/Reveal';
 
 // Teacher → Class summary — the adviser's Summary of Grades (CR3).
 //
@@ -67,7 +70,9 @@ function Completeness({ entry }) {
   if (!entry || entry.total === 0) return null;
   const pending = entry.total - entry.recorded;
   return (
-    <div className="mt-0.5 text-[11px] font-normal normal-case tracking-normal text-fg-muted">
+    // A rem size, never px: Settings → Personalization "Large" scales the
+    // root font size, and a px value would stay small beside text that grew.
+    <div className="mt-0.5 text-[0.6875rem] font-normal normal-case tracking-normal text-fg-muted">
       {pending === 0 ? 'Complete' : `${pending} pending`}
     </div>
   );
@@ -97,8 +102,25 @@ export function ClassSummaryTable({ data }) {
   // or the scrolled columns show through them (§13c). That is the cost §5
   // named for a sticky column and it is paid per cell, which is why this is a
   // per-page decision and not a DataTable default.
-  const stickyCell =
-    'sticky left-0 z-10 whitespace-nowrap bg-surface px-3 py-2 text-left font-normal group-hover:bg-surface-subtle';
+  //
+  // THE ROW'S HOVER LIVES ON THE CELLS, NOT ON THE <tr> (feat/ui-refresh):
+  // the frame is `cardClass` with NO `overflow-hidden` (it would clip the
+  // scroller's keyboard outline, and on paper the columns the print block
+  // releases), so the pieces that paint at the frame's corners round
+  // themselves — the two outer header cells, and the last row's two outer
+  // cells. A row background cannot be rounded; a cell's can. `rounded-*-2xl`
+  // is the frame's radius: move the two together.
+  const bodyCell = 'px-3 py-3 group-hover:bg-surface-subtle';
+  const stickyCell = `sticky left-0 z-10 whitespace-nowrap bg-surface text-left font-normal ${bodyCell}`;
+  // The last row's outer cells are the frame's bottom corners.
+  const endCorners = (rowIndex) =>
+    rowIndex === learners.length - 1 ? 'first:rounded-bl-2xl last:rounded-br-2xl' : '';
+
+  // THE COLUMN LABEL STYLE, as on every table since feat/ui-refresh: small,
+  // uppercase, muted — quieter than the values under it. The background is on
+  // each cell (the sticky one always painted its own).
+  const headCell =
+    'bg-surface-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-2xl last:rounded-tr-2xl';
 
   return (
     // `ScrollCue` owns the scroller now (UI-D-2) — it applies
@@ -151,33 +173,42 @@ export function ClassSummaryTable({ data }) {
           cue still speaks; print still releases the scroller (§18c). */}
       <table className="print-sheet-table w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-edge bg-surface-subtle text-xs uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="sticky left-0 z-10 whitespace-nowrap bg-surface-subtle px-3 py-2 text-left">
+          <tr className="border-b border-edge">
+            <th scope="col" className={`sticky left-0 z-10 whitespace-nowrap text-left ${headCell}`}>
               Learner
             </th>
             {subjects.map((subject) => (
-              <th key={subject.id} scope="col" className="px-3 py-2 text-center align-top">
+              <th key={subject.id} scope="col" className={`text-center align-top ${headCell}`}>
                 {subject.name}
                 {!isFinal && <Completeness entry={completenessBySubject.get(subject.id)} />}
               </th>
             ))}
             {showGeneralAverage && (
-              <th scope="col" className="whitespace-nowrap px-3 py-2 text-center align-top">
+              <th scope="col" className={`whitespace-nowrap text-center align-top ${headCell}`}>
                 {isFinal ? 'General Average' : 'Average'}
               </th>
             )}
           </tr>
         </thead>
         <tbody>
-          {learners.map((learner) => (
-            <tr key={learner.student_id} className="group border-b border-edge last:border-0 hover:bg-surface-subtle">
-              <th scope="row" className={stickyCell}>
+          {learners.map((learner, rowIndex) => (
+            <tr key={learner.student_id} className="group border-b border-edge-soft last:border-0">
+              <th scope="row" className={`${stickyCell} ${endCorners(rowIndex)}`}>
                 {/* The internal student id, never the LRN (§5c). A name is not
                     an identifier, and this is a teacher surface, but the rule
-                    is about what goes in the URL. */}
+                    is about what goes in the URL.
+
+                    IT LOOKS LIKE THE LINK IT IS (feat/ui-refresh): the brand
+                    colour and weight of every text link, where it used to be
+                    body text that only underlined on hover — nothing said a
+                    name opened the learner's card. A 44px-tall target that
+                    does not make the row taller (the negative margins give
+                    the height back), with the keyboard outline drawn INSIDE
+                    it: the next row's pinned cell would paint over an outer
+                    one. On paper it is the plain name again. */}
                 <Link
                   to={`/teacher/class-summary/${learner.student_id}`}
-                  className="rounded text-fg underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  className="-mx-2 -my-3 inline-flex min-h-11 items-center rounded-lg px-2 font-semibold text-brand underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent print:m-0 print:min-h-0 print:p-0 print:font-normal print:text-fg"
                 >
                   {learner.last_name}, {learner.first_name}
                 </Link>
@@ -185,7 +216,10 @@ export function ClassSummaryTable({ data }) {
               {subjects.map((subject, index) => {
                 const cell = learner.cells?.[index];
                 return (
-                  <td key={subject.id} className="whitespace-nowrap px-3 py-2 text-center tabular-nums">
+                  <td
+                    key={subject.id}
+                    className={`whitespace-nowrap text-center tabular-nums ${bodyCell} ${endCorners(rowIndex)}`}
+                  >
                     {/* TermValue, NOT GradeValue directly — and the SSR proof
                         is what caught the difference. A descriptive LETTER is
                         not one of GradeValue's four states:
@@ -208,7 +242,9 @@ export function ClassSummaryTable({ data }) {
                 );
               })}
               {showGeneralAverage && (
-                <td className="whitespace-nowrap px-3 py-2 text-center font-semibold tabular-nums">
+                <td
+                  className={`whitespace-nowrap text-center font-semibold tabular-nums ${bodyCell} ${endCorners(rowIndex)}`}
+                >
                   {/* TWO DECIMALS, not `whole`: the General Average is the one
                       figure on this sheet that keeps them (GRADING_SPEC §4a —
                       721/8 prints as 90.13). */}
@@ -388,7 +424,31 @@ export default function ClassSummaryPage() {
     };
   }, [selected, term]);
 
-  useEffect(() => load(), [load]);
+  // RELOAD (feat/ui-refresh) IS `load` ITSELF — the same request, for the
+  // class and term in the URL; nothing is reset and nothing new is asked for.
+  //
+  // `load` hands back a cancel, and a click has no cleanup to run it. So the
+  // button's request keeps its cancel in a ref, and the effect's cleanup runs
+  // BOTH: without that, a reload still in flight when the Term select changes
+  // would answer late and put the OLD term's sheet on screen under the new
+  // term's name. (The button is disabled while `loading`, so it can never
+  // start a second request beside the effect's own.) The ref is read and
+  // written only in the effect and the click handler, never during render.
+  const reloadCancel = useRef(null);
+
+  useEffect(() => {
+    const cancel = load();
+    return () => {
+      if (cancel) cancel();
+      if (reloadCancel.current) reloadCancel.current();
+      reloadCancel.current = null;
+    };
+  }, [load]);
+
+  function reload() {
+    if (reloadCancel.current) reloadCancel.current();
+    reloadCancel.current = load() || null;
+  }
 
   function setParam(name, value) {
     const next = new URLSearchParams(params);
@@ -397,38 +457,52 @@ export default function ClassSummaryPage() {
   }
 
   // ---- the two states that are not the table ----
+  //
+  // ONE <Reveal> AT THE ROOT OF EVERY RETURN: the same component in the same
+  // position, so React keeps the one instance and the entrance plays once —
+  // when the page arrives — not again when the classes finish loading.
 
   if (sectionsError) {
     return (
-      <div className="space-y-4">
-        <Header />
-        <ErrorAlert message={sectionsError} onRetry={() => window.location.reload()} />
-      </div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <Header />
+          <ErrorAlert message={sectionsError} onRetry={() => window.location.reload()} />
+        </section>
+      </Reveal>
     );
   }
 
   if (advised === null) {
     return (
-      <div className="space-y-4">
-        <Header />
-        <LoadingSpinner label="Loading your classes…" />
-      </div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <Header />
+          <div className={`${cardClass} p-6`}>
+            <LoadingSpinner label="Loading your classes…" />
+          </div>
+        </section>
+      </Reveal>
     );
   }
 
   if (advised.length === 0) {
     return (
-      <div className="space-y-4">
-        <Header />
-        <NoAdvisoryState />
-      </div>
+      <Reveal className="space-y-6">
+        <section className="space-y-3">
+          <Header />
+          <div className={cardClass}>
+            <NoAdvisoryState />
+          </div>
+        </section>
+      </Reveal>
     );
   }
 
   const learners = data?.learners ?? [];
 
   return (
-    <div className="space-y-4">
+    <Reveal className="space-y-6">
       {/* LANDSCAPE FOR THIS PAGE ONLY (UI-D). `@page` is a DOCUMENT-level
           rule — it cannot be nested under a class or an ancestor selector —
           so there is no way to scope one from `index.css`. The two options
@@ -471,79 +545,122 @@ export default function ClassSummaryPage() {
         <p className="text-xs">Printed {printedAt}</p>
       </div>
 
-      <Header />
+      <section className="space-y-3">
+        <Header onReload={reload} reloading={loading} reloadLabel="Reload class summary" />
 
-      {/* The filters choose WHICH sheet to print; on the sheet itself they
-          are chrome. Per-page `print:hidden` rather than a blanket rule in
-          `index.css`, because which controls are noise is a per-page
-          judgment — the report card's term links are not. */}
-      <div className="flex flex-wrap items-end gap-3 print:hidden">
-        {advised.length > 1 && (
-          <FormField label="Class" as="select" value={String(selected?.id ?? '')} onChange={(e) => setParam('section', e.target.value)} className={filterSelectClass}>
-            {advised.map((s) => (
-              <option key={s.id} value={s.id}>
-                Grade {s.grade_level} - {s.name}
+        {/* WHICH SHEET: the class and the term, in one card. The filters
+            choose WHICH sheet to print; on the sheet itself they are chrome.
+            Per-page `print:hidden` rather than a blanket rule in `index.css`,
+            because which controls are noise is a per-page judgment — the
+            report card's term links are not. */}
+        <div className={`${cardClass} flex flex-wrap items-end gap-x-4 gap-y-3 p-4 print:hidden`}>
+          {advised.length === 1 && selected && (
+            /* ONE advisory class is not a choice, so it is named instead of
+               offered: the class in the title face, the adviser after it —
+               the same line, the same words, as before the refresh. The card
+               is `print:hidden` — the masthead above already carries the
+               class and the adviser, and printing both would say each twice
+               (UI-D). */
+            <div className="flex min-h-11 min-w-0 flex-1 basis-60 items-center gap-3">
+              <span
+                aria-hidden="true"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand"
+              >
+                <i className="fa-solid fa-table-list" />
+              </span>
+              <p className="min-w-0 text-sm text-fg-muted">
+                <span className="font-serif text-base font-bold text-fg">
+                  Grade {selected.grade_level} - {selected.name}
+                </span>
+                {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
+              </p>
+            </div>
+          )}
+          {advised.length > 1 && (
+            <FormField
+              label="Class"
+              as="select"
+              value={String(selected?.id ?? '')}
+              onChange={(e) => setParam('section', e.target.value)}
+              className={filterSelectClass}
+            >
+              {advised.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Grade {s.grade_level} - {s.name}
+                </option>
+              ))}
+            </FormField>
+          )}
+          <FormField
+            label="Term"
+            as="select"
+            value={String(term)}
+            onChange={(e) => setParam('term', e.target.value)}
+            className={filterSelectClass}
+          >
+            {TERMS.map((t) => (
+              <option key={t} value={t}>
+                Term {t}
               </option>
             ))}
+            <option value="final">Final</option>
           </FormField>
-        )}
-        <FormField label="Term" as="select" value={String(term)} onChange={(e) => setParam('term', e.target.value)} className={filterSelectClass}>
-          {TERMS.map((t) => (
-            <option key={t} value={t}>
-              Term {t}
-            </option>
-          ))}
-          <option value="final">Final</option>
-        </FormField>
-      </div>
+        </div>
 
-      {advised.length === 1 && selected && (
-        /* `print:hidden` — the masthead above already carries the class and
-           the adviser, and printing both would say each twice (UI-D). */
-        <p className="text-sm text-fg-muted print:hidden">
-          Grade {selected.grade_level} - {selected.name}
-          {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
+        {/* THE SHEET'S FRAME: `cardClass`, and NO `overflow-hidden` — it would
+            clip the scroller's keyboard outline, and on paper the columns the
+            print block releases. The table's own outer cells round the
+            corners (see ClassSummaryTable). */}
+        <div className={cardClass}>
+          {error ? (
+            <div className="p-4">
+              <ErrorAlert message={error} onRetry={load} />
+            </div>
+          ) : loading ? (
+            <div className="p-6">
+              <LoadingSpinner label="Loading the class summary…" />
+            </div>
+          ) : learners.length === 0 ? (
+            <EmptyState
+              icon="fa-user-graduate"
+              title="No learners in this class yet"
+              message="Learners appear here once they are enrolled in this section."
+            />
+          ) : (
+            <ClassSummaryTable data={data} />
+          )}
+        </div>
+
+        {/* A statement about who may EDIT this screen. Paper cannot be edited,
+            so it says nothing to a reader holding the sheet (UI-D). */}
+        <p className="flex items-start gap-2 text-xs text-fg-muted print:hidden">
+          <i aria-hidden="true" className="fa-solid fa-lock mt-0.5 text-fg-faint" />
+          <span className="min-w-0 flex-1">
+            Read-only. Grades are encoded by each subject&apos;s teacher under Grades.
+          </span>
         </p>
-      )}
-
-      <div className="rounded-xl border border-edge bg-surface">
-        {error ? (
-          <div className="p-4">
-            <ErrorAlert message={error} onRetry={load} />
-          </div>
-        ) : loading ? (
-          <div className="p-6">
-            <LoadingSpinner label="Loading the class summary…" />
-          </div>
-        ) : learners.length === 0 ? (
-          <EmptyState
-            icon="fa-user-graduate"
-            title="No learners in this class yet"
-            message="Learners appear here once they are enrolled in this section."
-          />
-        ) : (
-          <ClassSummaryTable data={data} />
-        )}
-      </div>
-
-      {/* A statement about who may EDIT this screen. Paper cannot be edited,
-          so it says nothing to a reader holding the sheet (UI-D). */}
-      <p className="text-xs text-fg-muted print:hidden">
-        Read-only. Grades are encoded by each subject&apos;s teacher under Grades.
-      </p>
-    </div>
+      </section>
+    </Reveal>
   );
 }
 
-function Header() {
+// The section's header, on every state of the page: the sheet's own name in
+// the title face and the standing sentence under it. `reload` props arrive
+// only from the return that has a sheet to reload.
+function Header(reloadProps) {
   return (
     // NO <h1>: Shell renders this page's from `nav.js`, and a second one
     // made "Class summary" appear twice and gave the document two top-level
-    // headings. The subtitle stays — it is not in the nav label.
+    // headings. This is the section's <h2> — the sheet's name, the words the
+    // printed masthead already uses — and the subtitle stays as its
+    // description: it is not in the nav label.
     // `print:hidden`: on paper the masthead names the sheet, and a standing
     // description of the screen is chrome (UI-D).
-    <p className="text-sm text-fg-muted print:hidden">
-      Every learner in your advisory section, across every learning area.
-    </p>
+    <SectionHeader
+      title="Summary of Grades"
+      description="Every learner in your advisory section, across every learning area."
+      className="print:hidden"
+      {...reloadProps}
+    />
   );
 }

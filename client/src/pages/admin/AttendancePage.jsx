@@ -7,9 +7,13 @@ import EmptyState from '../../components/EmptyState';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
+import Button from '../../components/Button';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
+import { cardClass, linkClass } from '../../components/buttonClass';
 import { longDate, shortDate } from '../../format/date';
 import { usePageTitle } from '../../layout/usePageTitle';
+import Reveal from '../../motion/Reveal';
 
 // Admin attendance records — Figure 5 process 1.15 ("view all attendance
 // record"). VIEW ONLY. The API lets admin POST /, POST /bulk and PUT /:id
@@ -34,13 +38,23 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // NO RATE. A percentage across different students on different dates
 // measures nothing (Parent → Attendance's rate is one child over that
-// child's recorded days). The count line is facts over the rows shown.
+// child's recorded days). The count strip is facts over the rows shown.
 //
 // §5b: `rows` come from the last successful GET only; load() is the only
 // writer. §5c: no LRN in this payload. The student link keys on student_id.
 // recorded_by (a user id), id and timestamps are not rendered.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
+// (title, the view-only sentence, Reload), the filter card, the list, the
+// count strip. RELOAD is `load` itself: the same request with the filters,
+// page and sort that are APPLIED now. It commits no draft filter and resets
+// nothing. It is offered only once something is applied (`hasScope`): before
+// that load() returns without asking, and a button that does nothing would
+// be a claim the page does not keep (§5i).
 
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
+// The count strip's own order — the one the count line always had.
+const COUNT_ORDER = ['Present', 'Late', 'Absent', 'Excused'];
 const EMPTY = { grade_level: '', section: '', from: '', to: '', status: '' };
 
 export default function AdminAttendancePage() {
@@ -206,17 +220,22 @@ export default function AdminAttendancePage() {
     // A DATE column: `dateStrings: ['DATE']` delivers it as the literal
     // "2026-09-25", so `shortDate` is string surgery and cannot shift a day
     // (§5a-iv). Sorting is untouched — DataTable sorts the row value.
-    { key: 'date', header: 'Date', sortable: true, render: (row) => shortDate(row.date) },
+    // A date reads as one value (nowrap) and lines up down the column
+    // (tabular figures).
+    {
+      key: 'date',
+      header: 'Date',
+      sortable: true,
+      nowrap: true,
+      render: (row) => <span className="tabular-nums">{shortDate(row.date)}</span>,
+    },
     {
       key: 'student',
       header: 'Student',
       sortable: true,
       sortValue: (row) => `${row.last_name}, ${row.first_name}`,
       render: (row) => (
-        <Link
-          to={`/admin/students/${row.student_id}`}
-          className="font-medium text-brand underline-offset-2 hover:underline"
-        >
+        <Link to={`/admin/students/${row.student_id}`} className={linkClass}>
           {row.last_name}, {row.first_name}
         </Link>
       ),
@@ -226,6 +245,8 @@ export default function AdminAttendancePage() {
       header: 'Class',
       sortable: true,
       sortValue: (row) => `${row.grade_level}-${row.section}`,
+      // A class reads as one value; it does not break at its spaces.
+      nowrap: true,
       render: (row) => `Grade ${row.grade_level} - ${row.section}`,
     },
     {
@@ -237,135 +258,154 @@ export default function AdminAttendancePage() {
   ];
 
   return (
-    <div className="space-y-4">
-      {/* §5i: true because POST /attendance/bulk is ON DUPLICATE KEY UPDATE.
-          Does not send the admin to a page they cannot open, does not claim
-          the admin can correct, does not say anyone is notified. */}
-      <p className="text-sm text-fg-muted">
-        View only. Each section&apos;s adviser records attendance, and corrects a mark by saving
-        that date again on their own Attendance page.
-      </p>
+    <Reveal className="space-y-6">
+      <section className="space-y-3">
+        {/* §5i, the description: true because POST /attendance/bulk is ON
+            DUPLICATE KEY UPDATE. Does not send the admin to a page they cannot
+            open, does not claim the admin can correct, does not say anyone is
+            notified. */}
+        <SectionHeader
+          title="Attendance records"
+          description="View only. Each section's adviser records attendance, and corrects a mark by saving that date again on their own Attendance page."
+          onReload={hasScope ? load : null}
+          reloading={loading}
+          reloadLabel="Reload attendance records"
+        />
 
-      <form
-        onSubmit={applyFilters}
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
-      >
-        <FormField
-          label="Grade"
-          as="select"
-          className={filterSelectClass}
-          value={draft.grade_level}
-          onChange={(e) => setDraft((prev) => ({ ...prev, grade_level: e.target.value, section: '' }))}
-        >
-          <option value="">All grades</option>
-          {[1, 2, 3, 4, 5, 6].map((g) => (
-            <option key={g} value={String(g)}>
-              Grade {g}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="Section"
-          as="select"
-          className={filterSelectClass}
-          value={draft.section}
-          disabled={!draft.grade_level}
-          onChange={(e) => setDraft((prev) => ({ ...prev, section: e.target.value }))}
-        >
-          <option value="">{draft.grade_level ? 'All sections' : 'Pick a grade first'}</option>
-          {sectionOptions.map((s) => (
-            <option key={s.id} value={s.name}>
-              {s.name}
-              {s.adviser_id == null ? ' (no adviser)' : ''}
-            </option>
-          ))}
-        </FormField>
-        <FormField
-          label="From"
-          type="date"
-          className={filterFieldClass}
-          value={draft.from}
-          onChange={(e) => setDraft((prev) => ({ ...prev, from: e.target.value }))}
-        />
-        <FormField
-          label="To"
-          type="date"
-          className={filterFieldClass}
-          value={draft.to}
-          onChange={(e) => setDraft((prev) => ({ ...prev, to: e.target.value }))}
-        />
-        <FormField
-          label="Status"
-          as="select"
-          className={filterSelectClass}
-          value={draft.status}
-          onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </FormField>
-        {/* The cue appears here even before anything is fetched: this page
-            deliberately shows a PROMPT until a grade or a date range is
-            applied (`hasScope`), so "Changes not applied" over the prompt is
-            exactly right — something is staged and the list is not it. */}
-        <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
-      </form>
-
-      {!hasScope ? (
-        <EmptyState
-          icon="fa-magnifying-glass"
-          title="Choose a grade or a date range to see attendance records"
-          message="Records are not loaded until you narrow them — the whole school at once is not useful."
-        />
-      ) : (
-        <>
-          <DataTable
-            // RECORD CARD (DV1b-a). Admin's attendance view is read-only —
-            // recording is the adviser's — so no `to`, no `onSelect`, no
-            // chevron. The learner leads, the date and class share meta, and
-            // the status is the badge: each fact once.
-            renderCard={(row) => ({
-              avatar: `${row.first_name} ${row.last_name}`,
-              title: `${row.last_name}, ${row.first_name}`,
-              meta: `${longDate(row.date)} · Grade ${row.grade_level} - ${row.section}`,
-              status: row.status,
-            })}
-            columns={columns}
-            rows={rows}
-            loading={loading}
-            error={error}
-            onRetry={load}
-            page={page}
-            onPageChange={setOffset}
-            sort={sort}
-            onSortChange={changeSort}
-            emptyIcon={emptyState.icon}
-            emptyTitle={emptyState.title}
-            emptyMessage={emptyState.message}
-            emptyAction={
-              emptyState.showReset ? (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-                >
-                  Reset
-                </button>
-              ) : null
-            }
+        <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+          <FormField
+            label="Grade"
+            as="select"
+            className={filterSelectClass}
+            value={draft.grade_level}
+            onChange={(e) => setDraft((prev) => ({ ...prev, grade_level: e.target.value, section: '' }))}
+          >
+            <option value="">All grades</option>
+            {[1, 2, 3, 4, 5, 6].map((g) => (
+              <option key={g} value={String(g)}>
+                Grade {g}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="Section"
+            as="select"
+            className={filterSelectClass}
+            value={draft.section}
+            disabled={!draft.grade_level}
+            onChange={(e) => setDraft((prev) => ({ ...prev, section: e.target.value }))}
+          >
+            <option value="">{draft.grade_level ? 'All sections' : 'Pick a grade first'}</option>
+            {sectionOptions.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
+                {s.adviser_id == null ? ' (no adviser)' : ''}
+              </option>
+            ))}
+          </FormField>
+          <FormField
+            label="From"
+            type="date"
+            className={filterFieldClass}
+            value={draft.from}
+            onChange={(e) => setDraft((prev) => ({ ...prev, from: e.target.value }))}
           />
-          {!loading && !error && rows.length ? (
-            <p className="text-sm text-fg-muted">
-              {rows.length} record{rows.length === 1 ? '' : 's'} · Present {counts.Present} · Late{' '}
-              {counts.Late} · Absent {counts.Absent} · Excused {counts.Excused}
-            </p>
-          ) : null}
-        </>
-      )}
-    </div>
+          <FormField
+            label="To"
+            type="date"
+            className={filterFieldClass}
+            value={draft.to}
+            onChange={(e) => setDraft((prev) => ({ ...prev, to: e.target.value }))}
+          />
+          <FormField
+            label="Status"
+            as="select"
+            className={filterSelectClass}
+            value={draft.status}
+            onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))}
+          >
+            <option value="">All statuses</option>
+            {STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </FormField>
+          {/* The cue appears here even before anything is fetched: this page
+              deliberately shows a PROMPT until a grade or a date range is
+              applied (`hasScope`), so "Changes not applied" over the prompt is
+              exactly right — something is staged and the list is not it. */}
+          <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
+        </form>
+
+        {!hasScope ? (
+          // In the same frame the list will take, so the page does not change
+          // shape when the first filter is applied.
+          <div className={cardClass}>
+            <EmptyState
+              icon="fa-magnifying-glass"
+              title="Choose a grade or a date range to see attendance records"
+              message="Records are not loaded until you narrow them — the whole school at once is not useful."
+            />
+          </div>
+        ) : (
+          <>
+            <DataTable
+              // RECORD CARD (DV1b-a). Admin's attendance view is read-only —
+              // recording is the adviser's — so no `to`, no `onSelect`, no
+              // chevron. The learner leads, the date and class share meta, and
+              // the status is the badge: each fact once.
+              renderCard={(row) => ({
+                avatar: `${row.first_name} ${row.last_name}`,
+                title: `${row.last_name}, ${row.first_name}`,
+                meta: `${longDate(row.date)} · Grade ${row.grade_level} - ${row.section}`,
+                status: row.status,
+              })}
+              columns={columns}
+              rows={rows}
+              loading={loading}
+              error={error}
+              onRetry={load}
+              page={page}
+              onPageChange={setOffset}
+              sort={sort}
+              onSortChange={changeSort}
+              emptyIcon={emptyState.icon}
+              emptyTitle={emptyState.title}
+              emptyMessage={emptyState.message}
+              emptyAction={
+                emptyState.showReset ? (
+                  <Button size="sm" onClick={resetFilters}>
+                    Reset
+                  </Button>
+                ) : null
+              }
+            />
+            {/* THE COUNT STRIP — the old count line, same five facts in the
+                same order, over the rows SHOWN (this page of the list), never
+                a rate. Each status is its badge, so the strip and the Status
+                column name a mark the same way; the word is in the badge, so
+                nothing here is told by colour alone. */}
+            {!loading && !error && rows.length ? (
+              <div className={`${cardClass} flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-4`}>
+                <p className="text-sm font-semibold text-fg">
+                  <span className="tabular-nums">{rows.length}</span> record{rows.length === 1 ? '' : 's'}
+                </p>
+                <dl className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                  {COUNT_ORDER.map((name) => (
+                    <div key={name} className="flex items-center gap-2">
+                      <dt>
+                        <StatusBadge status={name} />
+                      </dt>
+                      <dd className="text-base font-bold tabular-nums text-fg">{counts[name]}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
+          </>
+        )}
+      </section>
+    </Reveal>
   );
 }

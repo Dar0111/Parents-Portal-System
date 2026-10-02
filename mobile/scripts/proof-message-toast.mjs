@@ -228,16 +228,16 @@ assert(
 );
 const dataBytes = wav ? wav.readUInt32LE(40) : 0;
 assert(
-  wav && wav.length === 17684 && dataBytes === 17640 && (dataBytes / 2 / SAMPLE_RATE) * 1000 === 400,
-  '17 684 bytes: 44 + 2 × 8 820 samples — exactly 400 ms at 22 050 Hz'
+  wav && wav.length === 15920 && dataBytes === 15876 && (dataBytes / 2 / SAMPLE_RATE) * 1000 === 360,
+  '15 920 bytes: 44 + 2 × 7 938 samples — exactly 360 ms at 22 050 Hz'
 );
 let loudest = 0;
 for (let i = 44; wav && i < wav.length; i += 2) loudest = Math.max(loudest, Math.abs(wav.readInt16LE(i)));
-assert(wav && loudest / 32767 <= 0.44 && loudest < 32767, `the loudest sample is ${(loudest / 32767).toFixed(4)} of full scale — at most 0.44 (two voices of 0.22), no clipping`);
+assert(wav && loudest / 32767 <= 0.26 && loudest < 32767, `the loudest sample is ${(loudest / 32767).toFixed(4)} of full scale — at most 0.26 (a note and its octave, 0.125 each), no clipping`);
 assert(
-  TONE.totalMs === 400 && TONE.attackMs === 3 && TONE.floor === 0.0001 &&
-    TONE.voices.length === 2 && TONE.voices[0].freqHz === 1047 && TONE.voices[1].freqHz === 784 && TONE.voices.every((v) => v.peak === 0.22),
-  'TONE is "two-tone down" — 1047 Hz 0–150 ms, 784 Hz 100–400 ms, peak 0.22, 3 ms attack — the web\'s numbers'
+  TONE.totalMs === 360 && TONE.attackMs === 6 && TONE.floor === 0.0001 &&
+    TONE.voices.length === 4 && TONE.voices[0].freqHz === 587 && TONE.voices[1].freqHz === 880 && TONE.voices.every((v) => v.peak === 0.125),
+  'TONE is "two-note rise" — 587 Hz 0–140 ms, 880 Hz 80–360 ms, each with its octave, peak 0.125, 6 ms attack — the web\'s numbers'
 );
 assert(wav && Buffer.compare(wav, buildToneWav(TONE).bytes) === 0, 'the WAV is byte for byte what the script makes from TONE (linear attack, exponential decay, voices summed)');
 

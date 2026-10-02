@@ -1,4 +1,11 @@
 import { buttonNeutralClass } from './FormField';
+import { buttonClass } from './buttonClass';
+
+// Apply while something is waiting: the filled accent button. Built from the
+// same `buttonClass()` as every other button (feat/ui-refresh, 2026-10-02)
+// and, like `buttonNeutralClass`, WITHOUT the `disabled:` utilities — Apply is
+// never disabled, and the proof reads this markup for that word.
+const applyDirtyClass = buttonClass({ variant: 'primary', disabledStyles: false });
 
 // Apply, Reset, and the sentence that says the two are out of step.
 //
@@ -62,14 +69,7 @@ export default function FilterActions({
           Clean reuses the RESET class exactly, so the two buttons are a
           matched pair by construction rather than by two strings that have to
           be kept in step. */}
-      <button
-        type="submit"
-        className={
-          dirty
-            ? 'rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover'
-            : buttonNeutralClass
-        }
-      >
+      <button type="submit" className={dirty ? applyDirtyClass : buttonNeutralClass}>
         {applyLabel}
       </button>
 
@@ -100,17 +100,22 @@ export default function FilterActions({
 
           CENTRED ON APPLY BY A TRANSFORM, NOT BY LAYOUT (fix/smoke-gate).
           Every filter row is `items-end` so the button lines up with the
-          inputs under their labels, which left this 1.25rem line sitting on
-          Apply's 2.25rem bottom edge — its centre 8px low, measured on all
-          eight pages at 1280 and 390. `-translate-y-2` (0.5rem, so it scales
-          with the Large text size) lifts it exactly onto Apply's centre, and
-          a transform moves NOTHING ELSE: 0 other controls differed from the
-          untransformed layout on any page. A wrapper around Apply + cue
-          would have centred it too, but it wraps as a unit and moved Apply
-          on the three rows where only the cue wraps today. On those rows
-          (Admin → Users 1280, both Students pages 390) the cue is on its
-          own line and sits 4px under Apply instead of 12px. */}
-      <p role="status" className={dirty ? 'text-sm text-brand -translate-y-2' : 'sr-only'}>
+          inputs under their labels, which left this line sitting on Apply's
+          bottom edge — its centre low, measured on all eight pages at 1280
+          and 390 when the line was 1.25rem and Apply 2.25rem (8px low, so
+          the lift was `-translate-y-2`). A transform moves NOTHING ELSE: 0
+          other controls differed from the untransformed layout on any page.
+          A wrapper around Apply + cue would have centred it too, but it
+          wraps as a unit and moved Apply on the three rows where only the
+          cue wraps today (Admin → Users 1280, both Students pages 390),
+          where the cue is on its own line just under Apply.
+
+          THE LIFT IS RE-DERIVED FOR THE 44px BUTTON (feat/ui-refresh,
+          2026-10-02), by arithmetic and NOT yet re-measured in a browser:
+          Apply is now `min-h-11` (2.75rem) and a `text-sm` line is 1.375rem,
+          so the centres differ by (2.75 − 1.375) / 2 = 0.6875rem. In rem, so
+          it still scales with the Large text size. */}
+      <p role="status" className={dirty ? 'text-sm font-semibold text-brand -translate-y-[0.6875rem]' : 'sr-only'}>
         {dirty ? (
           <>
             <span aria-hidden="true">●</span> Changes not applied

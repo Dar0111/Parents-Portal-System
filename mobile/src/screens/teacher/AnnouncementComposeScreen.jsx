@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import useTeacherTargets, { keyOf } from '../../hooks/useTeacherTargets';
+import Icon from '../../icons';
+import Reveal from '../../motion/Reveal';
+import { useTheme } from '../../theme/ThemeProvider';
 
 // NEW / EDIT ANNOUNCEMENT — the web's compose modal as a modal screen, and
 // THE ONE COMPOSER: "Announce to a class" on a message thread opens THIS
@@ -22,7 +28,12 @@ import useTeacherTargets, { keyOf } from '../../hooks/useTeacherTargets';
 //
 // A teacher cannot post school-wide or whole-grade (admin-only, 403), so
 // those options are not offered. No attachment field: nothing uploads.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-02): the form is one card, then the
+// neutral way out and the ONE filled step forward. No reload: the screen is
+// a write form (its targets are `useTeacherTargets`' one read).
 export default function AnnouncementComposeScreen({ navigation, route }) {
+  const { tokens } = useTheme();
   const editing = route?.params?.editing || null;
   const arrivedContent = typeof route?.params?.content === 'string' ? route.params.content : null;
   const requestedTarget = typeof route?.params?.target === 'string' ? route.params.target : '';
@@ -81,12 +92,15 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
   if (!editing && sections.length === 0) {
     const [grade, name] = requestedTarget.split('|');
     return (
-      <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-3 p-4 pb-10">
-        <View className="gap-2 rounded-lg border border-warning-edge bg-warning-soft px-4 py-3">
-          <Text className="text-sm text-warning-strong">
-            The announcement form could not open: your section list did not load, or you have no sections to post to.
-            {requestedTarget ? ` It was meant for Grade ${grade} - ${name}.` : ''} Nothing was posted.
-          </Text>
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
+        <View className="gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
+          <View className="flex-row items-start gap-3">
+            <Icon name="fa-triangle-exclamation" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
+            <Text className="min-w-0 flex-1 text-sm text-warning-strong">
+              The announcement form could not open: your section list did not load, or you have no sections to post to.
+              {requestedTarget ? ` It was meant for Grade ${grade} - ${name}.` : ''} Nothing was posted.
+            </Text>
+          </View>
           {arrivedContent ? (
             <>
               <Text className="text-sm text-warning-strong">Your message draft is below. Copy it before leaving this screen.</Text>
@@ -94,9 +108,9 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
             </>
           ) : null}
         </View>
-        <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" className="self-end rounded-lg border border-edge-strong px-4 py-2">
-          <Text className="text-sm font-medium text-fg-body">Close</Text>
-        </Pressable>
+        <Button variant="secondary" className="self-end" onPress={() => navigation.goBack()}>
+          Close
+        </Button>
       </ScrollView>
     );
   }
@@ -108,53 +122,55 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
         {formError ? <ErrorAlert message={formError} /> : null}
         {staleTargetNotice ? (
-          <View className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2">
-            <Text className="text-sm text-warning-strong">That class is not in your current list. Pick a section.</Text>
+          <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
+            <Icon name="fa-triangle-exclamation" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
+            <Text className="min-w-0 flex-1 text-sm text-warning-strong">That class is not in your current list. Pick a section.</Text>
           </View>
         ) : null}
 
-        <FormField
-          label="Posting to"
-          required
-          hint="Parents of this section will see this post. A section with no students has no parents to reach. Teachers can only post to their own sections."
-          render={() => (
-            <Segmented
+        <Reveal>
+          <View className={`${cardClass} gap-4 p-4`}>
+            <FormField
               label="Posting to"
-              value={form.target}
-              onChange={(target) => {
-                setForm((f) => ({ ...f, target }));
-                setStaleTargetNotice(false);
-              }}
-              options={sections.map((s) => ({ key: keyOf(s), label: `Grade ${s.grade_level} - ${s.name}` }))}
+              required
+              hint="Parents of this section will see this post. A section with no students has no parents to reach. Teachers can only post to their own sections."
+              render={() => (
+                <Segmented
+                  label="Posting to"
+                  value={form.target}
+                  onChange={(target) => {
+                    setForm((f) => ({ ...f, target }));
+                    setStaleTargetNotice(false);
+                  }}
+                  options={sections.map((s) => ({ key: keyOf(s), label: `Grade ${s.grade_level} - ${s.name}` }))}
+                />
+              )}
             />
-          )}
-        />
-        <FormField label="Title" required maxLength={200} value={form.title} onChangeText={(title) => setForm((f) => ({ ...f, title }))} />
-        <FormField
-          label="Message"
-          required
-          value={form.content}
-          onChangeText={(content) => setForm((f) => ({ ...f, content }))}
-          multiline
-          numberOfLines={6}
-          textAlignVertical="top"
-          className="min-h-36"
-        />
-        <FormField label="Category" maxLength={50} value={form.category} onChangeText={(category) => setForm((f) => ({ ...f, category }))} hint="Optional — e.g. Reminder, Activity." />
+            <FormField label="Title" required maxLength={200} value={form.title} onChangeText={(title) => setForm((f) => ({ ...f, title }))} />
+            <FormField
+              label="Message"
+              required
+              value={form.content}
+              onChangeText={(content) => setForm((f) => ({ ...f, content }))}
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
+              className="min-h-36"
+            />
+            <FormField label="Category" maxLength={50} value={form.category} onChangeText={(category) => setForm((f) => ({ ...f, category }))} hint="Optional — e.g. Reminder, Activity." />
+          </View>
+        </Reveal>
 
-        <View className="flex-row justify-end gap-2">
-          <Pressable onPress={() => navigation.goBack()} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-            <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={submit}
-            disabled={saving || !ready}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving || !ready, busy: saving }}
-            className={`rounded-lg bg-primary px-4 py-2 ${saving || !ready ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : editing ? 'Save changes' : 'Post'}</Text>
-          </Pressable>
+        {/* The label still changes while the write is in flight; `loading`
+            adds the spinner, and the button is disabled exactly when it was
+            before (saving, or a required field empty). */}
+        <View className="flex-row flex-wrap justify-end gap-2">
+          <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onPress={submit} disabled={saving || !ready} loading={saving}>
+            {saving ? 'Saving…' : editing ? 'Save changes' : 'Post'}
+          </Button>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

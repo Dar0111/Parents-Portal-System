@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
+import { buttonClass, cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
@@ -13,7 +15,9 @@ import PasswordChecklist from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import { contactError, contactRuleHint } from '../../format/contactRule';
 import Modal from '../../components/Modal';
+import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
+import Reveal from '../../motion/Reveal';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -49,6 +53,17 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // GET /users ?search= matches users.name and users.login_id only — not
 // the child's name. Searching "Marwin" against Ashley Geguiera's parent
 // row is a genuine empty, not a broken filter. Placeholder says so.
+//
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): two sections, the queue
+// first because it is the one thing waiting on the admin, then the
+// directory with the page's ONE filled action, Create teacher. RELOAD is
+// `load` itself — and `load` is ONE request pair for both lists, so each
+// section header carries the same Reload and either one re-reads BOTH
+// tables, with the filters, search, pages and sorts that are applied now.
+// It commits no draft filter, resets nothing and leaves both status
+// messages alone. The five Modals sit BESIDE the entrance wrapper, never
+// inside it: Modal renders inline, and a wrapper mid-tween carries a
+// transform (motion/motion.js).
 
 const EMPTY_TEACHER = {
   login_id: '',
@@ -60,11 +75,34 @@ const EMPTY_TEACHER = {
 
 const EMPTY_EDIT = { name: '', email: '', contact_number: '' };
 
-// 36px square, rem-based (h-9 = 2.25rem) so "Large text" scales it. One
-// string, because three buttons that drift apart is how a row of actions
-// stops looking like a row of actions.
-const ICON_BTN =
-  'inline-flex h-9 w-9 items-center justify-center rounded-lg border border-edge-strong text-fg-body transition hover:bg-surface-muted';
+// THE PENDING ROW'S "Review", AMBER — the one button on this page that is
+// not a `buttonClass` variant, on purpose. Amber is this system's "there is
+// something to do", the queue is the one place here where something is
+// waiting on the admin, and the page's single filled action is Create
+// teacher. There is no amber variant, and a variant's own colours cannot be
+// overridden by appending classes (two colour utilities on one element are
+// settled by stylesheet order, not by which was written last — FormField
+// says how that was found). So: the row action's geometry and focus outline
+// (`sm` in buttonClass.js — 44px under a finger, 36px from `sm` up), with
+// the warning tone's checked text/background pair.
+const REVIEW_BTN =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-warning-edge bg-warning-soft px-3 py-1.5 text-sm font-semibold text-warning-strong transition hover:bg-warning-soft-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent sm:min-h-9';
+
+// THE DECISION IN THE REVIEW DIALOG IS A CHOICE, NOT AN ACTION, so the
+// chosen one is not the filled accent — that is Continue, in the footer.
+// It is told apart by more than colour: the brand tint, a ring, a check
+// mark, and `aria-pressed`. The unchosen one is the plain secondary button;
+// this is the same geometry (`md`) with the chosen state's colours.
+const DECISION_CHOSEN =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-brand bg-brand-soft px-4 py-2 text-sm font-semibold text-brand ring-1 ring-brand transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent';
+
+// A notice inside a dialog: the write it stands beside cannot be taken back
+// (§5e). The icon is decoration and takes the notice's own colour.
+const NOTICE_WARNING =
+  'flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong';
+
+// One fact in the review dialog's list: the label in the eyebrow style.
+const FACT_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
 
 const ROLE_FILTERS = ['', 'parent', 'teacher', 'admin'];
 const STATUS_FILTERS = ['', 'pending', 'active', 'rejected', 'inactive'];
@@ -601,6 +639,8 @@ export default function UsersPage() {
         header: 'Class',
         sortable: true,
         sortValue: (row) => `${row.grade_level}-${row.section}`,
+        // A class reads as one value; it does not break at its spaces.
+        nowrap: true,
         render: (row) => `Grade ${row.grade_level} - ${row.section}`,
       },
       {
@@ -623,12 +663,12 @@ export default function UsersPage() {
         render: (row) => (
           // The pending row's ONE action, amber rather than primary: it is
           // the only thing to do here, and the queue is the one place on
-          // this page where something is waiting on the admin.
+          // this page where something is waiting on the admin (REVIEW_BTN).
           <button
             type="button"
             onClick={() => openReview(row)}
             aria-label={`Review ${row.name}`}
-            className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-1.5 text-sm font-medium text-warning-strong transition hover:bg-warning-soft-hover"
+            className={REVIEW_BTN}
           >
             Review
           </button>
@@ -696,62 +736,60 @@ export default function UsersPage() {
                   column of buttons all announced as "Edit" is unusable with
                   a screen reader, and the visible label was the only thing
                   disambiguating them before. `title` carries the same text
-                  so a sighted mouse user keeps the wording too. */}
-              <button
-                type="button"
+                  so a sighted mouse user keeps the wording too.
+
+                  ONE SIZE FOR ALL FOUR (`icon-sm` in buttonClass.js: 44px
+                  square under a finger on the card, 36px from `sm` up in the
+                  table, rem so "Large text" scales it) — three buttons that
+                  drift apart is how a row of actions stops looking like a
+                  row of actions. `Button` draws the glyph, aria-hidden. */}
+              <Button
+                size="icon-sm"
+                icon="fa-pen"
                 onClick={() => openEdit(row)}
                 aria-label={`Edit ${row.name}`}
                 title={`Edit ${row.name}`}
-                className={ICON_BTN}
-              >
-                <i aria-hidden="true" className="fa-solid fa-pen" />
-              </button>
+              />
               {/* Hidden on your own row: the handler answers 400 "Use Change
                   password for your own account.", same shape as the
                   self-deactivate guard beside it. */}
               {isSelf ? null : (
-                <button
-                  type="button"
+                <Button
+                  size="icon-sm"
+                  icon="fa-key"
                   onClick={() => openReset(row)}
                   aria-label={`Reset password for ${row.name}`}
                   title={`Reset password for ${row.name}`}
-                  className={ICON_BTN}
-                >
-                  <i aria-hidden="true" className="fa-solid fa-key" />
-                </button>
+                />
               )}
               {/* Only on a row that has a photo — a control that could only
-                  answer "no photo" is not offered (§5i). */}
+                  answer "no photo" is not offered (§5i). The one action in
+                  this row that deletes something, so it is the one drawn in
+                  the destructive outline; its dialog still asks first. */}
               {row.profile_pic ? (
-                <button
-                  type="button"
+                <Button
+                  variant="danger-outline"
+                  size="icon-sm"
+                  icon="fa-image"
                   onClick={() => openPhotoRemove(row)}
                   aria-label={`Remove the profile photo of ${row.name}`}
                   title={`Remove the profile photo of ${row.name}`}
-                  className={ICON_BTN}
-                >
-                  <i aria-hidden="true" className="fa-solid fa-image" />
-                </button>
+                />
               ) : null}
               {canToggle && isSelf && row.status === 'active' ? (
                 <span className="text-xs text-fg-muted">You cannot deactivate yourself</span>
               ) : null}
+              {/* `loading` is the old `disabled={busy}` plus its spinner in
+                  place of the glyph, in one prop. */}
               {canToggle && !(isSelf && row.status === 'active') ? (
-                <button
-                  type="button"
-                  disabled={busy}
+                <Button
+                  size="icon-sm"
+                  icon={row.status === 'active' ? 'fa-user-slash' : 'fa-user-check'}
+                  loading={busy}
                   onClick={() => setUserStatus(row, row.status === 'active' ? 'inactive' : 'active')}
                   aria-label={`${row.status === 'active' ? 'Deactivate' : 'Activate'} ${row.name}`}
                   title={`${row.status === 'active' ? 'Deactivate' : 'Activate'} ${row.name}`}
-                  className={`${ICON_BTN} disabled:opacity-50`}
-                >
-                  <i
-                    aria-hidden="true"
-                    className={`fa-solid ${
-                      busy ? 'fa-circle-notch fa-spin' : row.status === 'active' ? 'fa-user-slash' : 'fa-user-check'
-                    }`}
-                  />
-                </button>
+                />
               ) : null}
             </div>
           );
@@ -763,146 +801,176 @@ export default function UsersPage() {
     ? `${reviewing.student_first_name} ${reviewing.student_last_name}`
     : '';
 
+  // How many are waiting, beside the queue's title — the SERVER's total for
+  // the pending list (the same figure its pager prints as "of N"), never a
+  // count of the rows on screen, and only from a settled, successful read:
+  // nothing while loading, nothing beside a failed request, nothing at zero.
+  const waitingCount = !loading && !error && pendingPage?.total > 0 ? pendingPage.total : null;
+
   return (
-    <div className="space-y-6">
-      {/* The page title lives in Shell's header, so the sentence that says
-          WHO CREATES WHAT goes here. It is the one thing about this screen
-          that is not obvious from it: an admin can create a teacher but not
-          a parent, and not another admin. */}
-      <p className="text-sm text-fg-muted">
-        Teacher accounts are created here. Parent accounts are created by teachers and approved
-        here.
-      </p>
-
-      {error ? <ErrorAlert message={error} onRetry={load} /> : null}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-fg">Waiting for approval</h2>
-        <p className="text-sm text-fg-muted">
-          A parent account stays pending until it is approved or rejected. That decision cannot be
-          returned to pending afterward.
-        </p>
-        <FormStatus status={formStatus.pending} />
-
-        <DataTable
-          columns={pendingColumns}
-          rows={pending}
-          loading={loading}
-          page={pendingPage}
-          onPageChange={setPendingOffset}
-          sort={pendingSort}
-          onSortChange={changePendingSort}
-          emptyIcon="fa-envelope-open-text"
-          emptyTitle="No parent accounts waiting for approval"
-          emptyMessage="A teacher creates the account. It appears here until you approve or reject it."
-          renderCard={(row) => ({
-            onSelect: () => openReview(row),
-            avatar: row.name,
-            avatarPhoto: row.profile_pic,
-            title: row.name,
-            subtitle: `Parent of ${row.student_first_name} ${row.student_last_name}`,
-            meta: `Grade ${row.grade_level} - ${row.section}`,
-            status: 'pending',
-          })}
-        />
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-sm font-semibold text-fg">All accounts</h2>
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-          >
-            Create teacher
-          </button>
-        </div>
-
-        <form
-          onSubmit={applyFilters}
-          className="flex flex-wrap items-end gap-3 rounded-xl border border-edge bg-surface p-4"
-        >
-          <FormField
-            label="Role"
-            as="select"
-            className={filterSelectClass}
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            {ROLE_FILTERS.map((value) => (
-              <option key={value || 'all'} value={value}>
-                {value ? displayRole(value) : 'All roles'}
-              </option>
-            ))}
-          </FormField>
-          <FormField
-            label="Status"
-            as="select"
-            className={filterSelectClass}
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          >
-            {STATUS_FILTERS.map((value) => (
-              <option key={value || 'all'} value={value}>
-                {value ? displayRole(value) : 'All statuses'}
-              </option>
-            ))}
-          </FormField>
-          <FormField
-            label="Search"
-            placeholder="Name or login ID"
-            className={filterFieldClass}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+    <div>
+      <Reveal className="space-y-6">
+        {error ? <ErrorAlert message={error} onRetry={load} /> : null}
+        <section className="space-y-3">
+          <SectionHeader
+            title={
+              <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                Waiting for approval
+                {waitingCount !== null ? (
+                  <span className="inline-flex items-center rounded-full border border-warning-edge bg-warning-soft px-2.5 py-0.5 font-sans text-xs font-semibold tabular-nums text-warning-strong">
+                    {waitingCount}
+                  </span>
+                ) : null}
+              </span>
+            }
+            description={
+              <span className="block max-w-prose">
+                A parent account stays pending until it is approved or rejected. That decision
+                cannot be returned to pending afterward.
+              </span>
+            }
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload accounts"
           />
-          {/* This Apply commits TWO requests, not one — `load()` refetches
-              the pending queue and the directory together in a `Promise.all`
-              — so the cue is guarding a more expensive commit here than
-              anywhere else (item 5). */}
-          <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
-        </form>
+          <FormStatus status={formStatus.pending} />
 
-        <FormStatus status={formStatus.directory} />
+          <DataTable
+            columns={pendingColumns}
+            rows={pending}
+            loading={loading}
+            page={pendingPage}
+            onPageChange={setPendingOffset}
+            sort={pendingSort}
+            onSortChange={changePendingSort}
+            emptyIcon="fa-envelope-open-text"
+            emptyTitle="No parent accounts waiting for approval"
+            emptyMessage="A teacher creates the account. It appears here until you approve or reject it."
+            renderCard={(row) => ({
+              onSelect: () => openReview(row),
+              avatar: row.name,
+              avatarPhoto: row.profile_pic,
+              title: row.name,
+              subtitle: `Parent of ${row.student_first_name} ${row.student_last_name}`,
+              meta: `Grade ${row.grade_level} - ${row.section}`,
+              status: 'pending',
+            })}
+          />
+        </section>
 
-        <DataTable
-          columns={userColumns}
-          rows={users}
-          loading={loading}
-          page={page}
-          onPageChange={setOffset}
-          sort={sort}
-          onSortChange={changeSort}
-          emptyIcon={directoryEmpty.icon}
-          emptyTitle={directoryEmpty.title}
-          emptyMessage={directoryEmpty.message}
-          // NO `to` AND NO `onSelect`: Edit, Reset password and Deactivate
-          // are three peers, so there is no primary action to tap and the
-          // card renders static with its actions underneath. Inventing a
-          // primary here — "tap to edit" — would make the other two feel
-          // secondary when they are not.
-          renderCard={(row) => ({
-            avatar: row.name,
-            avatarPhoto: row.profile_pic,
-            title: row.name,
-            subtitle: row.email || null,
-            meta: `${displayRole(row.role)} · ${maskLoginId(row)}`,
-            status: row.status,
-            actions: userColumns[userColumns.length - 1].render(row),
-          })}
-          emptyAction={
-            directoryEmpty.showReset ? (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-              >
-                Reset filters
-              </button>
-            ) : null
-          }
-        />
-      </section>
+        <section className="space-y-3">
+          {/* The page title lives in Shell's header, so the sentence that
+              says WHO CREATES WHAT goes here, beside the one control it is
+              about. It is the one thing about this screen that is not
+              obvious from it: an admin can create a teacher but not a
+              parent, and not another admin.
 
+              The same Reload as the queue's — one `load`, both tables (see
+              the header). Create teacher is the page's one filled action.
+
+              The sentence is its own paragraph UNDER the header row, not the
+              header's `description`: on a phone the row's two controls leave
+              the title a column a few words wide, and the sentence would be
+              stacked into it. */}
+          <SectionHeader
+            title="All accounts"
+            onReload={load}
+            reloading={loading}
+            reloadLabel="Reload accounts"
+            actions={
+              <Button variant="primary" icon="fa-user-plus" onClick={openCreate}>
+                Create teacher
+              </Button>
+            }
+          />
+          <p className="max-w-prose text-sm text-fg-muted">
+            Teacher accounts are created here. Parent accounts are created by teachers and approved
+            here.
+          </p>
+
+          {/* The filter bar is its own card, and only the filters live in it. */}
+          <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+            <FormField
+              label="Role"
+              as="select"
+              className={filterSelectClass}
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            >
+              {ROLE_FILTERS.map((value) => (
+                <option key={value || 'all'} value={value}>
+                  {value ? displayRole(value) : 'All roles'}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              label="Status"
+              as="select"
+              className={filterSelectClass}
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {STATUS_FILTERS.map((value) => (
+                <option key={value || 'all'} value={value}>
+                  {value ? displayRole(value) : 'All statuses'}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              label="Search"
+              placeholder="Name or login ID"
+              className={filterFieldClass}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {/* This Apply commits TWO requests, not one — `load()` refetches
+                the pending queue and the directory together in a
+                `Promise.all` — so the cue is guarding a more expensive
+                commit here than anywhere else (item 5). */}
+            <FilterActions dirty={dirty} canReset={canReset} onReset={resetFilters} />
+          </form>
+
+          <FormStatus status={formStatus.directory} />
+
+          <DataTable
+            columns={userColumns}
+            rows={users}
+            loading={loading}
+            page={page}
+            onPageChange={setOffset}
+            sort={sort}
+            onSortChange={changeSort}
+            emptyIcon={directoryEmpty.icon}
+            emptyTitle={directoryEmpty.title}
+            emptyMessage={directoryEmpty.message}
+            // NO `to` AND NO `onSelect`: Edit, Reset password and Deactivate
+            // are three peers, so there is no primary action to tap and the
+            // card renders static with its actions underneath. Inventing a
+            // primary here — "tap to edit" — would make the other two feel
+            // secondary when they are not.
+            renderCard={(row) => ({
+              avatar: row.name,
+              avatarPhoto: row.profile_pic,
+              title: row.name,
+              subtitle: row.email || null,
+              meta: `${displayRole(row.role)} · ${maskLoginId(row)}`,
+              status: row.status,
+              actions: userColumns[userColumns.length - 1].render(row),
+            })}
+            emptyAction={
+              directoryEmpty.showReset ? (
+                <Button size="sm" onClick={resetFilters}>
+                  Reset filters
+                </Button>
+              ) : null
+            }
+          />
+        </section>
+      </Reveal>
+
+      {/* A dialog's footer is the neutral way out, then the one filled step
+          forward. `loading` is the old `disabled={saving}` plus its spinner,
+          in one prop. */}
       <Modal
         open={creating}
         onClose={closeCreate}
@@ -910,27 +978,22 @@ export default function UsersPage() {
         closeOnBackdrop={!createSaving}
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeCreate}
-              disabled={createSaving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closeCreate} disabled={createSaving}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               form="create-teacher-form"
-              disabled={createSaving || !passwordIsValid(teacherForm.password)}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
+              disabled={!passwordIsValid(teacherForm.password)}
+              loading={createSaving}
             >
-              {createSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
               Create
-            </button>
+            </Button>
           </>
         }
       >
-        <form id="create-teacher-form" onSubmit={submitCreate} className="space-y-3">
+        <form id="create-teacher-form" onSubmit={submitCreate} className="space-y-4">
           {createError ? <ErrorAlert message={createError} /> : null}
           <FormField
             label="Login ID"
@@ -997,31 +1060,20 @@ export default function UsersPage() {
         closeOnBackdrop={!editSaving}
         footer={
           <>
-            <button
-              type="button"
-              onClick={closeEdit}
-              disabled={editSaving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closeEdit} disabled={editSaving}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              form="edit-user-form"
-              disabled={editSaving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {editSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            <Button variant="primary" type="submit" form="edit-user-form" loading={editSaving}>
               Save
-            </button>
+            </Button>
           </>
         }
       >
         {editing ? (
-          <form id="edit-user-form" onSubmit={submitEdit} className="space-y-3">
+          <form id="edit-user-form" onSubmit={submitEdit} className="space-y-4">
             {editError ? <ErrorAlert message={editError} /> : null}
             <p className="text-sm text-fg-muted">
-              Login ID <span className="font-medium text-fg-secondary">{editing.login_id}</span> and
+              Login ID <span className="font-semibold text-fg-secondary">{editing.login_id}</span> and
               role cannot be changed here.
             </p>
             <FormField
@@ -1064,65 +1116,54 @@ export default function UsersPage() {
         closeOnBackdrop={!resetSaving && !tempPassword}
         footer={
           tempPassword ? (
-            <button
-              type="button"
-              onClick={closeReset}
-              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover"
-            >
+            <Button variant="primary" onClick={closeReset}>
               Done — I have given it to them
-            </button>
+            </Button>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={closeReset}
-                disabled={resetSaving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={closeReset} disabled={resetSaving}>
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submitReset}
-                disabled={resetSaving}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-              >
-                {resetSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+              </Button>
+              <Button variant="primary" onClick={submitReset} loading={resetSaving}>
                 Yes, set a temporary password
-              </button>
+              </Button>
             </>
           )
         }
       >
         {resetting ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {resetError ? <ErrorAlert message={resetError} /> : null}
             {tempPassword ? (
               <>
                 <p className="text-sm text-fg-body">
-                  Give this to <span className="font-medium text-fg">{resetting.name}</span>. They
+                  Give this to <span className="font-semibold text-fg">{resetting.name}</span>. They
                   will be asked to choose their own password the next time they sign in.
                 </p>
-                <div className="flex items-center gap-2 rounded-lg border border-edge bg-surface-subtle px-3 py-2">
-                  <code className="flex-1 break-all font-mono text-sm text-fg">{tempPassword}</code>
-                  <button
-                    type="button"
-                    onClick={copyTempPassword}
-                    className="shrink-0 rounded-lg border border-edge-strong px-2 py-1 text-xs text-fg-body transition hover:bg-surface-muted"
-                  >
+                {/* The password, selectable, in the fixed-width face it has
+                    always been shown in. `break-all`: a long one wraps
+                    inside the box instead of widening the dialog. */}
+                <div className="flex items-center gap-2 rounded-xl border border-edge bg-surface-subtle py-2 pl-4 pr-2">
+                  <code className="min-w-0 flex-1 break-all font-mono text-base font-semibold text-fg">
+                    {tempPassword}
+                  </code>
+                  <Button size="sm" icon={tempCopied ? 'fa-check' : 'fa-copy'} onClick={copyTempPassword} className="shrink-0">
                     {tempCopied ? 'Copied' : 'Copy'}
-                  </button>
+                  </Button>
                 </div>
-                <p role="alert" className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-strong">
-                  This is shown once. It is not stored anywhere in readable form and cannot be
-                  looked up again — if you close this without passing it on, set another one.
-                </p>
+                <div role="alert" className={NOTICE_WARNING}>
+                  <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+                  <p className="min-w-0 flex-1">
+                    This is shown once. It is not stored anywhere in readable form and cannot be
+                    looked up again — if you close this without passing it on, set another one.
+                  </p>
+                </div>
               </>
             ) : (
               <>
                 <p className="text-sm text-fg-body">
                   Set a temporary password for{' '}
-                  <span className="font-medium text-fg">{resetting.name}</span>?
+                  <span className="font-semibold text-fg">{resetting.name}</span>?
                 </p>
                 <p className="text-sm text-fg-muted">
                   Their current password stops working immediately and they are signed out
@@ -1143,45 +1184,25 @@ export default function UsersPage() {
         footer={
           confirming ? (
             <>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                disabled={reviewSaving}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-              >
+              <Button onClick={() => setConfirming(false)} disabled={reviewSaving}>
                 Go back
-              </button>
-              <button
-                type="button"
+              </Button>
+              {/* The confirm takes the decision's own tone — an approving
+                  fill or the destructive one — never the accent. */}
+              <Button
+                variant={decision === 'approve' ? 'success' : 'danger'}
                 onClick={submitReview}
-                disabled={reviewSaving}
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-solid-fg transition disabled:opacity-60 ${
-                  decision === 'approve'
-                    ? 'bg-success-solid hover:bg-success-solid-hover'
-                    : 'bg-danger-solid hover:bg-danger-solid-hover'
-                }`}
+                loading={reviewSaving}
               >
-                {reviewSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
                 Yes, {decision === 'approve' ? 'approve' : 'reject'}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={closeReview}
-                className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!decision}
-                onClick={tryConfirm}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:bg-primary-disabled"
-              >
+              <Button onClick={closeReview}>Cancel</Button>
+              <Button variant="primary" disabled={!decision} onClick={tryConfirm}>
                 Continue
-              </button>
+              </Button>
             </>
           )
         }
@@ -1189,58 +1210,72 @@ export default function UsersPage() {
         {reviewing ? (
           <div className="space-y-4">
             {reviewError ? <ErrorAlert message={reviewError} /> : null}
-            <dl className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Student</dt>
-                <dd className="mt-0.5 text-sm text-fg">{studentLabel}</dd>
+            {/* Who is being decided on, as one quiet panel above the
+                decision. The Login ID is whole in this dialog, as it always
+                was — an admin acting on this one account (§5c) — and in the
+                fixed-width face its table column uses. */}
+            <dl className="grid gap-4 rounded-xl border border-edge-soft bg-surface-subtle p-4 sm:grid-cols-2">
+              <div className="min-w-0">
+                <dt className={FACT_LABEL}>Student</dt>
+                <dd className="mt-1 break-words text-sm text-fg">{studentLabel}</dd>
               </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Class</dt>
-                <dd className="mt-0.5 text-sm text-fg">
+              <div className="min-w-0">
+                <dt className={FACT_LABEL}>Class</dt>
+                <dd className="mt-1 break-words text-sm text-fg">
                   Grade {reviewing.grade_level} - {reviewing.section}
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Login ID</dt>
-                <dd className="mt-0.5 text-sm text-fg">{reviewing.login_id}</dd>
+              <div className="min-w-0">
+                <dt className={FACT_LABEL}>Login ID</dt>
+                <dd className="mt-1 break-words font-mono text-sm text-fg">{reviewing.login_id}</dd>
               </div>
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-fg-muted">Created by</dt>
-                <dd className="mt-0.5 text-sm text-fg">{reviewing.created_by_name || '—'}</dd>
+              <div className="min-w-0">
+                <dt className={FACT_LABEL}>Created by</dt>
+                <dd className="mt-1 break-words text-sm text-fg">{reviewing.created_by_name || '—'}</dd>
               </div>
             </dl>
 
             {confirming ? (
-              <p className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2 text-sm text-warning-strong">
-                <strong>
-                  {decision === 'approve'
-                    ? 'Approve this parent account?'
-                    : 'Reject this parent account?'}
-                </strong>{' '}
-                This cannot be returned to pending afterward.
-              </p>
+              <div className={NOTICE_WARNING}>
+                <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
+                <p className="min-w-0 flex-1">
+                  <strong>
+                    {decision === 'approve'
+                      ? 'Approve this parent account?'
+                      : 'Reject this parent account?'}
+                  </strong>{' '}
+                  This cannot be returned to pending afterward.
+                </p>
+              </div>
             ) : (
               <>
                 <div>
-                  <p className="mb-1.5 text-sm font-medium text-fg-secondary">Decision</p>
-                  <div className="flex gap-2">
+                  <p className="mb-1.5 text-sm font-semibold text-fg-secondary">Decision</p>
+                  <div className="flex flex-wrap gap-2">
                     {[
                       { value: 'approve', label: 'Approve' },
                       { value: 'reject', label: 'Reject' },
-                    ].map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setDecision(option.value)}
-                        className={`rounded-lg border px-3 py-1.5 text-sm transition ${
-                          decision === option.value
-                            ? 'border-primary bg-primary font-medium text-primary-fg'
-                            : 'border-edge-strong text-fg-body hover:bg-surface-muted'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+                    ].map((option) => {
+                      // A choice, not an action (DECISION_CHOSEN): the check
+                      // mark and `aria-pressed` say which, not colour alone.
+                      const chosen = decision === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={chosen}
+                          onClick={() => setDecision(option.value)}
+                          className={chosen ? DECISION_CHOSEN : buttonClass()}
+                        >
+                          {chosen ? (
+                            <span aria-hidden="true" className="flex items-center justify-center">
+                              <i className="fa-solid fa-check" />
+                            </span>
+                          ) : null}
+                          {option.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 {decision === 'reject' ? (
@@ -1267,31 +1302,21 @@ export default function UsersPage() {
         closeOnBackdrop={!photoSaving}
         footer={
           <>
-            <button
-              type="button"
-              onClick={closePhotoRemove}
-              disabled={photoSaving}
-              className="rounded-lg border border-edge-strong px-3 py-1.5 text-sm text-fg-body transition hover:bg-surface-muted disabled:opacity-50"
-            >
+            <Button onClick={closePhotoRemove} disabled={photoSaving}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={submitPhotoRemove}
-              disabled={photoSaving}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg transition hover:bg-primary-hover disabled:opacity-60"
-            >
-              {photoSaving ? <i className="fa-solid fa-circle-notch fa-spin" /> : null}
+            </Button>
+            {/* The destructive fill: the file is deleted, with no undo. */}
+            <Button variant="danger" onClick={submitPhotoRemove} loading={photoSaving}>
               Yes, remove the photo
-            </button>
+            </Button>
           </>
         }
       >
         {photoRemoving ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {photoError ? <ErrorAlert message={photoError} /> : null}
             <p className="text-sm text-fg-body">
-              Remove the profile photo of <span className="font-medium text-fg">{photoRemoving.name}</span>?
+              Remove the profile photo of <span className="font-semibold text-fg">{photoRemoving.name}</span>?
             </p>
             <p className="text-sm text-fg-muted">
               The photo is deleted and cannot be brought back; their initials show instead. They can

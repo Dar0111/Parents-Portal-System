@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, TextInput, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ReloadButton from '../../components/ReloadButton';
+import Text from '../../components/Text';
 import { dateTime } from '../../format/date';
+import Icon from '../../icons';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -28,6 +33,23 @@ import { useTheme } from '../../theme/ThemeProvider';
 // (load() re-runs on every socket message). The client PRESELECTS; the
 // composer re-validates and the server decides. "This conversation will
 // not" is the sentence that stops a teacher believing they replied.
+//
+// THE LOOK (feat/ui-refresh), as the web's thread: a bar that says who the
+// conversation is with and holds its Reload, the bubbles on their own tokens
+// with the message at reading size, and a composer whose field and Send are
+// both 48dp (set in dp — M19; the field through a plain style object, never a
+// style function — M20). The circle is initials: a message row carries the
+// other person's name but no photo.
+//
+// NO ENTRANCE, AND NOTHING MOVES WHEN A MESSAGE ARRIVES. `load()` runs on
+// every socket message, so motion here would be motion on arrival, which
+// this app does not have.
+//
+// RELOAD is `load` itself — the same request a socket message triggers, with
+// the same merge: the earlier pages already on screen, the unsent draft and a
+// blocked composer all survive it. `load` keeps the thread on screen while it
+// re-reads (only the first read shows the full-screen spinner), so the button
+// carries its own busy flag, set in its own handler.
 export default function MessageThreadScreen({ navigation, route }) {
   const otherId = Number(route.params.otherId);
   const { user } = useAuth();
@@ -38,6 +60,7 @@ export default function MessageThreadScreen({ navigation, route }) {
   const { tokens } = useTheme();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reloading, setReloading] = useState(false);
   const [error, setError] = useState(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -132,6 +155,17 @@ export default function MessageThreadScreen({ navigation, route }) {
     return () => clearTimeout(t);
   }, [messages.length]);
 
+  // The Reload button's own handler: `load()` as it is, with a busy flag
+  // around it for the button alone.
+  async function reload() {
+    setReloading(true);
+    try {
+      await load();
+    } finally {
+      setReloading(false);
+    }
+  }
+
   async function loadEarlier() {
     const oldest = messages[0]?.id;
     if (!oldest || loadingEarlier) return;
@@ -173,26 +207,37 @@ export default function MessageThreadScreen({ navigation, route }) {
     // the composer sat behind it. The frame's bottom inset and this padding
     // add up to exactly the keyboard's height (M11).
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      {isTeacher ? (
-        <View className="gap-1 border-b border-edge bg-surface px-4 py-3">
-          <Pressable
-            onPress={() =>
-              navigation.navigate(
-                'AnnouncementCompose',
-                announceClass ? { content: draft.trim(), target: announceClass.key } : { content: draft.trim() }
-              )
-            }
-            accessibilityRole="button"
-            accessibilityHint={announceHint}
-            className="self-end rounded-lg border border-edge-strong px-3 py-1.5"
-          >
-            <Text className="text-sm text-fg-secondary">{announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}</Text>
-          </Pressable>
-          {/* Visible, not a tooltip: touch has no hover, and "This
-              conversation will not" is the sentence that matters. */}
-          <Text className="text-right text-xs text-fg-muted">{announceHint}</Text>
+      {/* WHO THE CONVERSATION IS WITH, and its Reload. The teacher's one
+          extra, "Announce to a class", sits under it in the same bar. */}
+      <View className="gap-2 border-b border-edge bg-surface px-4 py-2">
+        <View className="flex-row items-center gap-3">
+          <Avatar name={other?.name || route.params.name} />
+          <Text accessibilityRole="header" className="min-w-0 flex-1 font-serif text-base text-fg">
+            {other?.name || route.params.name || 'Conversation'}
+          </Text>
+          <ReloadButton onReload={reload} loading={reloading} label="Reload conversation" />
         </View>
-      ) : null}
+        {isTeacher ? (
+          <View className="gap-1">
+            <Button
+              size="sm"
+              className="self-end"
+              accessibilityHint={announceHint}
+              onPress={() =>
+                navigation.navigate(
+                  'AnnouncementCompose',
+                  announceClass ? { content: draft.trim(), target: announceClass.key } : { content: draft.trim() }
+                )
+              }
+            >
+              {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
+            </Button>
+            {/* Visible, not a tooltip: touch has no hover, and "This
+                conversation will not" is the sentence that matters. */}
+            <Text className="text-right text-xs text-fg-muted">{announceHint}</Text>
+          </View>
+        ) : null}
+      </View>
       {error ? (
         <View className="p-4">
           <ErrorAlert message={error} onRetry={load} />
@@ -201,14 +246,9 @@ export default function MessageThreadScreen({ navigation, route }) {
       <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="gap-3 px-4 py-4" keyboardShouldPersistTaps="handled">
         {hasMore ? (
           <View className="items-center">
-            <Pressable
-              onPress={loadEarlier}
-              disabled={loadingEarlier}
-              accessibilityRole="button"
-              className={`rounded-lg border border-edge-strong bg-surface px-3 py-1 ${loadingEarlier ? 'opacity-60' : ''}`}
-            >
-              <Text className="text-xs font-medium text-fg-body">{loadingEarlier ? 'Loading…' : 'Load earlier messages'}</Text>
-            </Pressable>
+            <Button size="sm" onPress={loadEarlier} disabled={loadingEarlier} loading={loadingEarlier}>
+              {loadingEarlier ? 'Loading…' : 'Load earlier messages'}
+            </Button>
           </View>
         ) : null}
         {messages.length === 0 ? (
@@ -218,9 +258,14 @@ export default function MessageThreadScreen({ navigation, route }) {
             const mine = m.sender_id === user?.id;
             return (
               <View key={m.id} className={`flex-row ${mine ? 'justify-end' : 'justify-start'}`}>
+                {/* The bubble keeps its own tokens and its own radius; whose
+                    it is shows by its side of the thread as well as its
+                    colour. */}
                 <View className={`max-w-[80%] rounded-2xl px-3.5 py-2 ${mine ? 'bg-bubble-mine' : 'bg-bubble-theirs'}`}>
-                  <Text className={`text-sm ${mine ? 'text-bubble-mine-fg' : 'text-bubble-theirs-fg'}`}>{m.body}</Text>
-                  <Text className={`mt-1 text-[11px] ${mine ? 'text-bubble-mine-meta' : 'text-bubble-theirs-meta'}`}>{dateTime(m.created_at)}</Text>
+                  <Text className={`text-base ${mine ? 'text-bubble-mine-fg' : 'text-bubble-theirs-fg'}`}>{m.body}</Text>
+                  <Text className={`mt-1 text-xs ${mine ? 'text-bubble-mine-meta' : 'text-bubble-theirs-meta'}`} style={{ fontVariant: ['tabular-nums'] }}>
+                    {dateTime(m.created_at)}
+                  </Text>
                 </View>
               </View>
             );
@@ -230,10 +275,15 @@ export default function MessageThreadScreen({ navigation, route }) {
       <View className="border-t border-edge bg-surface px-4 py-3">
         {sendError ? <ErrorAlert message={sendError} className="mb-3" /> : null}
         {blockedReason ? (
-          <View className="rounded-lg border border-warning-edge bg-warning-soft px-3 py-2">
-            <Text className="text-sm text-warning-strong">{blockedReason} You can still read this conversation.</Text>
+          <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
+            <Icon name="fa-circle-info" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
+            <Text className="min-w-0 flex-1 text-sm text-warning-strong">{blockedReason} You can still read this conversation.</Text>
           </View>
         ) : (
+          // The composer: the field and Send are both 48dp. The field grows
+          // with the draft up to its cap, and Send stays level with its last
+          // line. The field's accessible name is its label, not its
+          // placeholder.
           <View className="flex-row items-end gap-2">
             <TextInput
               value={draft}
@@ -242,18 +292,19 @@ export default function MessageThreadScreen({ navigation, route }) {
               placeholderTextColor={tokens['fg-muted']}
               multiline
               accessibilityLabel="Message"
-              className="max-h-32 min-h-11 flex-1 rounded-lg border border-edge-strong bg-surface px-3 py-2 text-base text-fg"
+              className="max-h-32 min-w-0 flex-1 rounded-xl border border-edge-strong bg-surface px-4 py-3 font-sans text-base text-fg"
+              style={{ minHeight: 48 }}
             />
-            <Pressable
+            <Button
+              variant="primary"
+              icon="fa-paper-plane"
               onPress={send}
               disabled={sending || !draft.trim()}
-              accessibilityRole="button"
+              loading={sending}
               accessibilityLabel="Send"
-              accessibilityState={{ disabled: sending || !draft.trim(), busy: sending }}
-              className={`h-11 items-center justify-center rounded-lg bg-primary px-4 ${sending || !draft.trim() ? 'opacity-60' : ''}`}
             >
-              <Text className="text-sm font-medium text-primary-fg">Send</Text>
-            </Pressable>
+              Send
+            </Button>
           </View>
         )}
       </View>

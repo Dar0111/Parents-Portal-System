@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import DateField from '../../components/DateField';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormStatus, { ok } from '../../components/FormStatus';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import teacherLetterCard from './excuseLetters/card';
 
@@ -27,6 +30,14 @@ import teacherLetterCard from './excuseLetters/card';
 // applied values, three branches (§5f). The outcome of a review renders
 // above the list and NAMES THE LEARNER, because a reviewed letter leaves the
 // default Pending list on the reload.
+//
+// THE SECTION HEADER'S RELOAD (feat/ui-refresh) is `load(0)` — the request
+// pull-to-refresh and Try again already make, with the APPLIED status and
+// dates, back on the first page. It does not re-read the advisory sections.
+// From and To sit one under the other: side by side in this card on a 360dp
+// phone, a chosen date beside its clear button is left about 38dp — less
+// than one word of "September 24, 2026" (worked out from the paddings, not
+// seen on a device).
 const STATUS_FILTERS = ['Pending', 'Approved', 'Declined', 'All'];
 const DEFAULT = { status: 'Pending', from: '', to: '' };
 
@@ -138,9 +149,9 @@ export default function ExcuseLettersScreen({ navigation, route }) {
         title: 'No letters match these filters',
         message: 'Try a different status or date range.',
         action: (
-          <Pressable onPress={resetFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Reset filters</Text>
-          </Pressable>
+          <Button size="sm" onPress={resetFilters}>
+            Reset filters
+          </Button>
         ),
       };
     }
@@ -155,21 +166,20 @@ export default function ExcuseLettersScreen({ navigation, route }) {
   })();
 
   const header = (
-    <View className="mb-3 gap-3">
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader title="Letters from my classes" onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload excuse letters" />
+      <View className={`${cardClass} gap-3 p-4`}>
         <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_FILTERS.map((s) => ({ key: s, label: s === 'All' ? 'All statuses' : s }))} />
-        <View className="flex-row gap-2">
-          <DateField label="From" value={from} onChange={setFrom} clearable className="flex-1" />
-          <DateField label="To" value={to} onChange={setTo} clearable className="flex-1" />
-        </View>
+        <DateField label="From" value={from} onChange={setFrom} clearable />
+        <DateField label="To" value={to} onChange={setTo} clearable />
         <FilterActions dirty={dirty} canReset={canReset} onApply={applyFilters} onReset={resetFilters} />
       </View>
       {notice ? (
-        <View>
+        <View className="gap-1">
           <FormStatus status={ok(notice)} />
-          <Pressable onPress={() => navigation.setParams({ notice: null })} accessibilityRole="button" className="mt-1 self-end">
-            <Text className="text-xs text-fg-muted">Dismiss</Text>
-          </Pressable>
+          <Button variant="ghost" size="sm" className="self-end" onPress={() => navigation.setParams({ notice: null })}>
+            Dismiss
+          </Button>
         </View>
       ) : null}
     </View>

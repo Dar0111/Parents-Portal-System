@@ -1,5 +1,6 @@
-import { Text, TextInput, View } from 'react-native';
+import { TextInput, View } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import Text from './Text';
 
 // THE MOBILE TWIN OF client/src/components/FormField.jsx — two shapes here,
 // not four: RN has no <select> and no <textarea> (a multiline TextInput is
@@ -16,7 +17,13 @@ import { useTheme } from '../theme/ThemeProvider';
 // THE ERROR BORDER RULE IS THE WEB'S: `controlClassFor(invalid)` emits ONE
 // border state, never both, so the red one cannot lose to the grey one by
 // stylesheet order (the 2026-09-18 defect).
-const controlBaseClass = 'w-full rounded-lg border bg-surface px-3 py-2.5 text-base text-fg';
+//
+// THE CONTROL (feat/ui-refresh, 2026-10-02): the 12px corner every button
+// has, and tall enough for a finger — `py-3.5` around one `text-base` line is
+// about 48dp at the phone's 14dp rem (M19). `font-sans` is IN the class
+// because a TextInput is not the shared `Text`: without it the typed text and
+// the placeholder would fall back to the system face.
+const controlBaseClass = 'w-full rounded-xl border bg-surface px-4 py-3.5 font-sans text-base text-fg';
 const normalStateClass = 'border-edge-strong';
 export const errorClass = 'border-danger-edge-strong';
 
@@ -44,7 +51,7 @@ export default function FormField({ label, error, hint, required = false, classN
   return (
     <View className={className}>
       {label ? (
-        <Text className="mb-1.5 text-sm font-medium text-fg-secondary">
+        <Text className="mb-1.5 text-sm font-semibold text-fg-secondary">
           {label}
           {required ? <Text className="text-danger-icon"> *</Text> : null}
         </Text>

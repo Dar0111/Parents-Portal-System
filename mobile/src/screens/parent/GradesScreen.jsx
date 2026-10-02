@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RefreshControl, ScrollView } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import SectionHeader from '../../components/SectionHeader';
+import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 import ReportCardView, { REPORT_UNWRAP } from './ReportCardView';
 
@@ -11,6 +13,12 @@ import ReportCardView, { REPORT_UNWRAP } from './ReportCardView';
 // Class summary's learner screen; this screen owns the fetch, the unlinked
 // empty state and the one thing only a parent does here: a term cell with a
 // grade row opens the breakdown as a modal screen.
+//
+// RELOAD (feat/ui-refresh) is `load` itself: the report card's own request,
+// through the card's own loading and error frame. The school name and the
+// adviser are not re-read (reference data), and the term a parent picked is
+// kept — that choice is ReportCardView's state, and the card stays mounted.
+// Pull-to-refresh is unchanged.
 export default function GradesScreen({ navigation }) {
   const { user } = useAuth();
   const { tokens } = useTheme();
@@ -73,7 +81,12 @@ export default function GradesScreen({ navigation }) {
       contentContainerClassName="p-4 pb-10"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
-      <ReportCardView report={report} loading={loading} error={error} onRetry={() => load()} empty={empty} onOpenTerm={openTerm} />
+      <Reveal>
+        <View className="gap-4">
+          <SectionHeader title="Report card" onReload={() => load()} reloading={loading || refreshing} reloadLabel="Reload report card" />
+          <ReportCardView report={report} loading={loading} error={error} onRetry={() => load()} empty={empty} onOpenTerm={openTerm} />
+        </View>
+      </Reveal>
     </ScrollView>
   );
 }

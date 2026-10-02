@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import { contactError, contactRuleHint } from '../../format/contactRule';
@@ -12,6 +14,10 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 // OWN row changes the user the session holds, so `refresh` re-reads /auth/me
 // — best effort: the write succeeded, and a failed re-read must not turn it
 // into an error. The login id is not editable and is not shown here.
+//
+// THE LOOK (feat/ui-refresh, 2026-10-03): the three fields in one card, then
+// Cancel and the one filled Save — the shared `Button` at 48dp. NO RELOAD:
+// the form is filled from the list's row and shows no read of its own.
 export default function EditUserScreen({ navigation, route }) {
   const target = route.params.target;
   const { user: me, refresh } = useAuth();
@@ -54,32 +60,30 @@ export default function EditUserScreen({ navigation, route }) {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-3 p-4 pb-10">
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
         {formError ? <ErrorAlert message={formError} /> : null}
-        <FormField label="Name" required value={form.name} onChangeText={set('name')} />
-        <FormField label="Email" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
-        <FormField
-          label="Contact number"
-          value={form.contact_number}
-          onChangeText={set('contact_number')}
-          keyboardType="phone-pad"
-          maxLength={20}
-          hint={contactRuleHint()}
-          error={fieldErrors.contact_number}
-        />
-        <View className="flex-row justify-end gap-2">
-          <Pressable onPress={() => navigation.goBack()} disabled={saving} accessibilityRole="button" className="rounded-lg border border-edge-strong px-4 py-2">
-            <Text className="text-sm font-medium text-fg-body">Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={submit}
-            disabled={saving}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving, busy: saving }}
-            className={`rounded-lg bg-primary px-4 py-2 ${saving ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg">{saving ? 'Saving…' : 'Save'}</Text>
-          </Pressable>
+        <View className={`${cardClass} gap-4 p-4`}>
+          <FormField label="Name" required value={form.name} onChangeText={set('name')} />
+          <FormField label="Email" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
+          <FormField
+            label="Contact number"
+            value={form.contact_number}
+            onChangeText={set('contact_number')}
+            keyboardType="phone-pad"
+            maxLength={20}
+            hint={contactRuleHint()}
+            error={fieldErrors.contact_number}
+          />
+        </View>
+        {/* The label still changes while the write is in flight; `loading` is
+            the old `disabled={saving}` plus its spinner and busy state. */}
+        <View className="flex-row flex-wrap justify-end gap-2">
+          <Button onPress={() => navigation.goBack()} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onPress={submit} loading={saving}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

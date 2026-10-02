@@ -1,21 +1,26 @@
 import { useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import PasswordField from '../../components/PasswordField';
-import { useTheme } from '../../theme/ThemeProvider';
+import SectionHeader from '../../components/SectionHeader';
 
 // The web's Change password section. THE CONFIRMATION IS A NATIVE Alert
 // naming the decision back (§5e: a password change has no undo), with the
 // web's exact sentence. THE REPLACEMENT TOKEN IS STORED BEFORE /me IS
 // RE-READ (applyToken) — R1 bumps token_version on this write, so a caller
 // that dropped the token would sign its own user out on the success path.
+//
+// NO RELOAD HERE (feat/ui-refresh): a write-only form shows no server data.
+// One card, one primary button — Change password — and FormStatus directly
+// under the button that caused it (§7c).
 export default function ChangePasswordScreen() {
   const { applyToken } = useAuth();
-  const { tokens } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -79,13 +84,13 @@ export default function ChangePasswordScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="p-4">
-        <Text className="text-base font-semibold text-fg">Change password</Text>
-        <Text className="mt-1 text-sm text-fg-muted">
-          You will stay logged in on this device. Use the new password the next time you log in.
-        </Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+        <SectionHeader
+          title="Change password"
+          description="You will stay logged in on this device. Use the new password the next time you log in."
+        />
 
-        <View className="mt-6 gap-3">
+        <View className={`${cardClass} gap-4 p-4`}>
           <PasswordField
             label="Current password"
             value={currentPassword}
@@ -124,17 +129,12 @@ export default function ChangePasswordScreen() {
             error={mismatch}
             disabled={saving}
           />
-          <Pressable
-            onPress={requestChange}
-            disabled={saving || !ready}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: saving || !ready, busy: saving }}
-            className={`items-center rounded-lg bg-primary px-4 py-3 ${saving || !ready ? 'opacity-60' : ''}`}
-          >
-            <Text className="text-sm font-medium text-primary-fg" style={{ color: tokens['primary-fg'] }}>
-              {saving ? 'Saving…' : 'Change password'}
-            </Text>
-          </Pressable>
+          {/* The label still changes while the write is in flight; `loading`
+              adds the spinner and the busy state, and the button stays
+              disabled until every rule passes and Confirm matches. */}
+          <Button variant="primary" full onPress={requestChange} disabled={saving || !ready} loading={saving}>
+            {saving ? 'Saving…' : 'Change password'}
+          </Button>
           <FormStatus status={status} />
         </View>
       </ScrollView>

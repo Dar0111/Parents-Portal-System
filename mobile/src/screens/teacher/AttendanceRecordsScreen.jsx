@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, Text, View } from 'react-native';
+import { View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
+import Button from '../../components/Button';
+import { cardClass } from '../../components/buttonStyles';
 import DataList from '../../components/DataList';
 import DateField from '../../components/DateField';
 import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import Text from '../../components/Text';
 import { longDate } from '../../format/date';
 
 // TEACHER → ATTENDANCE RECORDS — the read-only sibling of the encode screen.
@@ -21,6 +25,19 @@ import { longDate } from '../../format/date';
 // reads a row they RECORDED or one for a learner CURRENTLY in a section they
 // advise, and "Everything I recorded" is how a former adviser reads theirs.
 // Three empty branches from the applied values (§5f).
+//
+// RELOAD (feat/ui-refresh, 2026-10-03) is `load(0)` — the request the focus
+// effect and pull-to-refresh already make, with the APPLIED section and
+// dates. It never commits a staged filter (the drafts are separate state and
+// `load` does not read them) and it still never sends `date`. The standing
+// sentence is the section header's description, so it sits under the title
+// in all three states (error, loading, the list).
+//
+// NO ENTRANCE HERE, as on every other list screen: DataList mounts its header
+// anew in each of its four frames, so an entrance inside the header would
+// replay on every one, and one around the whole list would animate every row
+// (the refresh's motion rule: never the rows of a list). The list is the
+// screen's root, exactly as before the refresh.
 const MINE = 'mine';
 
 export default function AttendanceRecordsScreen({ navigation }) {
@@ -121,25 +138,34 @@ export default function AttendanceRecordsScreen({ navigation }) {
   const dirty = isDirty({ sectionId, from, to }, { sectionId: appliedSectionId, from: applied.from, to: applied.to });
   const hasDateRange = Boolean(applied.from || applied.to);
 
+  // The screen's standing sentence, as the section header's description (a
+  // Text inside the header's own Text, so the link inherits its size).
   const hint = (
-    <Text className="text-sm text-fg-muted">
+    <>
       To change a mark, open{' '}
-      <Text onPress={() => navigation.navigate('/teacher/attendance')} accessibilityRole="link" className="font-medium text-brand underline">
+      <Text onPress={() => navigation.navigate('/teacher/attendance')} accessibilityRole="link" className="font-semibold text-brand underline">
         Attendance
       </Text>{' '}
       and pick that date.
-    </Text>
+    </>
   );
 
   if (sectionsError) {
     return (
-      <View className="flex-1 gap-3 bg-page p-4">
-        {hint}
+      <View className="flex-1 gap-4 bg-page p-4">
+        <SectionHeader title="Records" description={hint} />
         <ErrorAlert message={sectionsError} />
       </View>
     );
   }
-  if (sections === null) return <LoadingSpinner className="py-16" label="Loading your sections…" />;
+  if (sections === null) {
+    return (
+      <View className="flex-1 gap-4 bg-page p-4">
+        <SectionHeader title="Records" description={hint} />
+        <LoadingSpinner className="py-16" label="Loading your sections…" />
+      </View>
+    );
+  }
 
   const empty = hasDateRange
     ? {
@@ -147,9 +173,9 @@ export default function AttendanceRecordsScreen({ navigation }) {
         title: 'No records match these dates',
         message: 'Try a different date range, or reset to see every recorded day.',
         action: (
-          <Pressable onPress={resetFilters} accessibilityRole="button" className="rounded-lg border border-edge-strong px-3 py-1.5">
-            <Text className="text-sm text-fg-body">Reset</Text>
-          </Pressable>
+          <Button variant="secondary" size="sm" onPress={resetFilters}>
+            Reset
+          </Button>
         ),
       }
     : showingMine
@@ -161,9 +187,9 @@ export default function AttendanceRecordsScreen({ navigation }) {
       : { icon: 'fa-clipboard-user', title: 'No attendance recorded for this section yet', message: 'Records appear here after the adviser saves a day on Attendance.' };
 
   const header = (
-    <View className="mb-3 gap-3">
-      {hint}
-      <View className="gap-3 rounded-xl border border-edge bg-surface p-3">
+    <View className="mb-4 gap-4">
+      <SectionHeader title="Records" description={hint} onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload attendance records" />
+      <View className={`${cardClass} gap-3 p-4`}>
         <Segmented
           label="Section"
           value={sectionId}
@@ -171,7 +197,7 @@ export default function AttendanceRecordsScreen({ navigation }) {
           options={[...sections.map((s) => ({ key: s.id, label: `Grade ${s.grade_level} - ${s.name}` })), { key: MINE, label: 'Everything I recorded' }]}
         />
         {/* STACKED, not side by side (feat/ui-polish, 2026-09-30): once a
-            date is set each field adds its 44-unit × button, and at half a
+            date is set each field adds its clear button, and at half a
             phone's width "30 September 2026" wrapped. Full width keeps the
             long date on one line; DateField itself is unchanged. */}
         <View className="gap-3">
