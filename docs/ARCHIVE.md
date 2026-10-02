@@ -7066,3 +7066,285 @@ step, the docs pass bundled on Thursday (`docs/stage5`). Target Friday
       Remote push is unavailable in Expo Go on Android since SDK 53 and would
       need a development build, Firebase and a server-side send — a separate
       decision if ever wanted. Built on the Parent branch.
+
+---
+
+## CHANGELOG stubs moved from CLAUDE.md on 2026-10-02 (twentieth batch, docs/claude-md-trim)
+
+Verbatim, as they stood in `CLAUDE.md` → CHANGELOG until 2026-10-02. Each
+full row is in `docs/CHANGELOG.md`. The "(not merged)" notes record their
+date: `feat/nav-drawer-groups` and `docs/stage5` were merged later.
+
+Most recent, one line each (the full row is in `docs/CHANGELOG.md`):
+
+| Date | Change |
+|------|--------|
+| 2026-09-30 | **`feat/nav-drawer-groups`** (not merged): the phone drawer follows the web sidebar — the same groups (`navGroups.js`, the 23rd mirror), foldable on the phone (`pp.navGroups`), the user card with the one Logout icon; on both, the card opens Account information. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`docs/stage5`** (not merged): the docs pass — README, PROGRESS, SETUP_NOTES, TESTING, both conventions docs and KNOWN_ISSUES checked against the code; parent login ids and password values out of the docs; the conservative CLAUDE.md trim. Full row: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`feat/ui-polish`** (merged, `c610bd8`; checks passed, cleaned up by id): the web sidebar grouped, collapsible to a rail (`pp.sidebar`), a drawer below `md`, the user card with the one Logout; the new teacher's login id in the banner; Records' dates stacked; the admin dashboard fetches once; f: whole-card dashboard links, the login sentence; the parent dashboard back to its 69bae24 layout; equal calendar cells; figures one size down (§24). Full rows: `docs/CHANGELOG.md`. |
+| 2026-09-30 | **`fix/server-reliability`** (merged): the backup reset NAMED — `--watch` restarting on `node_modules` access-time events; `dev` watches our code only; `.partial` safeguard; deletes remove their notifications and signal recipients (A2); web Attendance leave prompt. Full row: `docs/CHANGELOG.md`. |
+
+---
+
+## Moved from CLAUDE.md on 2026-10-02 (docs/claude-md-trim)
+
+Verbatim, in CLAUDE.md's order, as each stood until 2026-10-02. CLAUDE.md
+keeps every heading, a one-line pointer here, and — word for word — every
+rule these passages carried that has no other living home (the three
+`activity_logs` rows of 2026-09-21, MOCKUP FIRST, the one email rule, the
+December break, and Stage 4's four page rules). Every other rule is stated
+in a living doc: `docs/FRONTEND_CONVENTIONS.md` §3a, §13d, §13g, §15a,
+§18–§23; `docs/API_REFERENCE.md` (settings, attendance, students);
+`docs/KNOWN_ISSUES.md`; `docs/TESTING.md`; `docs/MOBILE_CONVENTIONS.md`;
+README / `docs/SETUP_NOTES.md`.
+
+### Front matter → the endpoint-count history
+
+> Both +3 on 2026-09-30 (the profile-photo three); +2 on 2026-09-29 (the
+> `verify-contact` pair); +1 on 2026-09-26.
+> Both recounted from the code on 2026-09-22, which moved them twice in one
+> day: `PATCH /grades/:id/descriptive` retired (−1) and the class record's
+> `GET` and `PUT` landed (+2). The archived endpoint table's 81 rows are a
+> dated 2026-09-19 snapshot, not a third figure.
+
+### CURRENT STATE → Grades — fully built (write path + viewing), Stage 3's last backend module
+
+Nine stages (G1a → G2a → G2b → G2c → G1b → G2d → G2e → G3): the schema is
+correctly shaped for DO 009/DO 015 s. 2026, `subjects` holds the school's
+real 40-row per-grade curriculum (Stage G1b — Grade 4's list is recorded
+as inferred, not confirmed), the write-path arithmetic exists as pure,
+unit-tested functions (`utils/gradeComputation.js`), a teacher can create,
+encode (WW/PT and exam — called Summative in Grade 1 — through the same four
+endpoints at every grade level since 2026-09-22; **Grade 1's A–E letter is
+COMPUTED from those scores, not typed**, and the hand-picked letter G2d built
+is gone with its endpoint), correct, delete, and an admin can finalize
+(lock/unlock) a grade row against the real curriculum. **Stage G3 (2026-09-06) closes the loop — a parent can now see
+grades.** `GET /`, `GET /:id`, and `GET /student/:studentId` (the full
+report card: every subject, all three terms, computed Final Grade and
+General Average) are built. G3 also resolved a decision G2b had left
+provisional: teacher read-scope is wider than encode-scope (grade+section,
+any subject — matching `students.js`'s own pattern, not the narrower
+subject-specific scope Grades' writes use), so the five `:id`-keyed write
+endpoints now answer 403 (naming the subject), not 404, when a teacher can
+see a row via `GET` but isn't the subject's assigned teacher — see the
+`routes/grades.js` file entry above and the 2026-09-06 CHANGELOG entry for
+the full mechanism. See BLOCKED / RESOLVED → Grades module below for
+policy detail not yet reflected in code (the ST1/ST2/TE composite column
+gap, `grade_weight_configs`' grade-band-vs-learning-area keying, the term
+vs quarter naming). Backup/Restore is fully built — 5 endpoints, see
+"RESTORE" below. **Excuse Letters is fully built** — both original
+blockers (who approves, does approval touch attendance) are resolved and
+`PATCH /:id/review` is implemented; see BLOCKED / RESOLVED and the
+2026-09-05 CHANGELOG entry.
+
+### BEFORE THE PARENT DEMO → the contacts-endpoint item (closed: built 2026-09-07)
+
+- **`GET /api/messages/contacts` must exist before the demo, not after.**
+  Without it, a parent has no way to find their child's teacher to
+  message them — they'd need to already know a numeric `user_id`, which
+  no parent will. Flagging a real scheduling tension this creates: the
+  section above deliberately defers this endpoint to "build alongside
+  the Stage 4 Messages page." If the parent demo happens before Stage 4
+  web pages are underway, this specific endpoint needs to be pulled
+  forward ahead of the rest of that page's build — that's a scheduling
+  call, not a technical one, and isn't resolved here.
+
+### BUILD ORDER → Stage 4 — the built list, the CLOSED note and the interleaved backend checklist
+
+**All 22 built and ticked, 2026-09-06 → 2026-09-14.** Foundation · Teacher →
+Attendance · Attendance records · Students · Excuse Letters · Announcements,
+Memos, Events · Messages · Grades · ~~Contributions (removed)~~ · Settings ·
+Parent → Announcements, Memos, Events · Grades · Grades breakdown · Excuse
+Letters, Messages · Attendance · Settings · Admin → Users · Students ·
+Settings · Attendance · Announcements (with memos) · Grades · Backup &
+Restore. **Parent → Attendance and Parent → Grades have since been replaced
+by DV2 and DV3** (see below); the dated entries record what shipped then.
+
+**Stage 4 — CLOSED 2026-09-14.** Every Figure 5 admin process has a page.
+Sections, Excuse Letters, Memos, Events and Messages are not built by the
+scope decision (ADMIN SCOPE AUDIT → SCOPE DECISION) — not unfinished work.
+**They were removed from the admin nav on 2026-09-18** rather than left
+dimmed; see that date's SCOPE DECISION. What comes next is the interleaved
+block below, then Stage 5 (Expo).
+
+**Backend work interleaved with Stage 4:**
+
+- [x] Assignments + Subjects API — **DONE 2026-09-08.**
+- [x] `GET /api/grading-modes` — **DONE 2026-09-08.** Missing config is `409`;
+      not a settings key; wrapper is an object.
+- [x] `DELETE /api/grades/:id` — **DONE 2026-09-08.** Admin-only, `403` when
+      locked.
+- [x] `GET /api/messages/contacts` **plus the endpoint audit** — done 2026-09-07.
+
+### BUILD ORDER → After Stage 4 — interleaved, before Stage 5
+
+**Stage 4 is closed and stays closed.** Nothing here reopens it; this is the
+work that has landed on top of it, and the work that must land before Expo
+starts. Full write-ups are on each dispatch’s `docs/CHANGELOG.md` row — this
+is the order, not the record.
+
+**DONE — sixteen items, 2026-09-18 → 2026-09-23.** Each write-up left this
+file permanently under the REFILL RULE and is verbatim in `docs/ARCHIVE.md` →
+BUILD ORDER → After Stage 4. Every rule they carried is already stated in its
+own place; the one exception is kept below.
+
+- [x] **Server hardening A, B, C** — validation · authorization · pagination.
+- [x] **D1 tokens · D2 dark mode · D3 brand + sticky chrome** — §8, §9.
+- [x] **Empty-state duplicate fix** (§5f gained the rule).
+- [x] **Login redesign** — brand split panel, moved onto `FormField`.
+- [x] **Notifications** (N1/N2/N3) — the 21st table, four endpoints, the bell
+      and the badges. §10.
+- [x] **Account recovery** (R1/R2/R3) — the 22nd table `auth_codes`, five
+      endpoints, the `token_version` counter. §11.
+- [x] **Dashboards, all three roles** (DB1/DB2/DB3, 2026-09-20). §12.
+- [x] **DV1 — DataTable restyle + card layout below `sm`** (2026-09-20).
+- [x] **DV2 — monthly Attendance calendar** (2026-09-20). The percentage is
+      gone; the fraction replaced it.
+- [x] **DV3 — SF9-style Grades report card** (2026-09-21). §5a-v, §5a-vi.
+- [x] **DV4 — dashboard elevation + the dark amber** (2026-09-23). The rust
+      cast was a HUE shift, not a lightness one. §15 for the page rules.
+- [x] **Grade 1 computed letters** (2026-09-22). `docs/GRADING_SPEC.md` §6a.
+- [x] **Class-record grid, CR0–CR2** (2026-09-22). §13.
+- [x] **CR3a — `subjects.display_order`** (2026-09-22).
+- [x] **CR3 — the adviser's class summary** (2026-09-22/23). §14. **The grades
+      track is complete.**
+- [x] **Grading fixes** (2026-09-22) — whole Final Grades, two-decimal General
+      Average. `docs/GRADING_SPEC.md` §4a.
+
+**The one rule that did NOT go with its item**, because it is stated nowhere
+else: the **three `activity_logs` rows dated 2026-09-21** are from Darryl
+moving the machine clock forward to verify the weekend-hidden teacher banner —
+his deliberate override of his own "do not fake the date" rule, both states
+seen, clock restored. **Do not "fix" those timestamps.**
+
+**Queued before Stage 5, in this order:**
+
+**The Data views redesign is DONE** — DV1–DV4 and DV1b, 2026-09-20 →
+2026-09-23. The block and its ticked write-ups left under the REFILL RULE
+(`docs/ARCHIVE.md`); its rules are §4, §16, §5a-v, §17c and §17e. **MOCKUP
+FIRST outlived it** and still governs item 5 and UI-D (d).
+
+- [x] **UI polish — opened 2026-09-20 as a list, then a QUEUE. COMPLETE
+      2026-09-25.** All fourteen items are closed and left permanently for
+      `docs/ARCHIVE.md`, with UI-A through UI-E and item 5. **Item 11 was the
+      print check, run on paper 2026-09-23; its finding IS UI-D (a).** Three
+      did not close as written and the archive keeps why; the one that
+      matters here: **item 7 shipped as `className || 'text-fg'`, NOT pure
+      inheritance** — and UI-D-1's base text colour later spent that reason,
+      so it IS pure inheritance now (§18g).
+
+      **The rules the five dispatches left behind are §18-§21**, and the two
+      that generalise beyond their own screens are **print layout is proved
+      ON PAPER** (§18h) and **a proof fixture must mirror the server's
+      shape** (§19f).
+
+- [x] **UI-D — global CSS. DONE 2026-09-25** (D-1 print + the base text
+      colour; D-2 the scroll cue; D-3 the parent hero). All three entries
+      left under the REFILL RULE (`docs/ARCHIVE.md`). Their rules are
+      **`docs/FRONTEND_CONVENTIONS.md` §18 and §19**; two outlive the work
+      and are stated nowhere else: **print layout is proved ON PAPER** —
+      `@media print` does not apply to an SSR render, so §5h's backstop does
+      not reach it — and **a proof fixture must mirror the server's shape**,
+      after one that invented a string where the API sends an object blanked
+      `/parent` while build, oxlint and 71/71 were green.
+
+- [x] **UI-E — a teacher's read-only letter view. DONE 2026-09-25**
+      (`3086086`). Its entry left under the REFILL RULE
+      (`docs/ARCHIVE.md`); the rules are **`docs/FRONTEND_CONVENTIONS.md`
+      §20**.
+- [x] **Item 5 — the staged-filter cue. DONE 2026-09-25** (`2000499`), and
+      with it the UI-polish queue. **Nine pages staged their filter values
+      and none admitted it**; one bounded control now auto-applies and eight
+      keep Apply beside a "Changes not applied" cue. Entry archived under the
+      REFILL RULE; rules are **`docs/FRONTEND_CONVENTIONS.md` §21**.
+      **Order from here: pre-Stage-5 → docs pass → Stage 5.**
+- [x] **Pre-Stage-5 server fixes — CLOSED 2026-09-26**, #2 → #7. Every
+      item's text left under the REFILL RULE (`docs/ARCHIVE.md`); the rules
+      that outlive each are below. **#2 (`819e892`) and #3 (`85c5d8f`,
+      `642ccb2`) DONE 2026-09-25.**
+      Two of #3's lines were wrong as written and the archive keeps why:
+      **`test:restore`'s failure was the crafted token's missing `v` claim,
+      never a sub-second `iat` boundary**, and **(h) had existed at
+      `package.json:12` all along.** Rules that outlive #3, stated nowhere
+      else: **a suite cleans its own `notifications` rows by exact
+      `(item_type, item_id)` pairs through `scripts/test-helpers/notifications.js`
+      and asserts zero left** — the writers are content ×3, excuses ×2,
+      users ×1, grades ×1 (`recomputeGrade`, reached by the class-record PUT);
+      **Tala Halimbawa (G6 Malikhain, active parent) is the browser-fixture
+      learner and nobody's test target — every suite stays on Marwin**; a seed
+      row reaches a live database by `db:migrate:*`, never `db:setup`; and
+      **a verification smoke run is `npm run smoke:isolated`**, its own API
+      without `--watch` on 5001, never 5000. **#4 (`9c413f4`) is DONE
+      2026-09-25** — (b), email validation, (e) and the parents gate; its
+      text left under the REFILL RULE. Rules that outlive it, stated nowhere
+      else here: **only a 401 ends a session, and only the axios interceptor
+      acts on it — every other `/auth/me` failure keeps the token and shows
+      `AuthUnavailable` with Try again** (`docs/FRONTEND_CONVENTIONS.md`
+      §22); **the adviser of the TARGET section enrols and creates the
+      parent account** (`sections.adviser_id`, never `teacher_assignments`,
+      never the read predicate), **edit is assigned OR adviser**, and **admin
+      enrolment is KEPT because 20 of 23 sections have no adviser** — a
+      learner there can have no parent account until one is assigned by hand
+      (KNOWN ISSUES); **`utils/emailRule.js` is the one email rule** for
+      every write site, the school-email field included. The originals are
+      all closed. **#5 is DONE 2026-09-26** — #5a (`fe67803`, `5df33f2`: (f),
+      (g), (k)) and #5b (`4b092ee`: (j)); text left under the REFILL RULE.
+      Rules that outlive it, stated nowhere else: **eight `system_settings`
+      keys (#7 retired `current_term`), and `GET /api/settings/public` is the ONE unauthenticated
+      settings read** — the six `school_*` keys, registered before `/:key`;
+      **the About page hardcodes no school value** — the DepEd VMV and
+      Mandate are constants citing DO 36, s. 2013 and RA 9155 (§23);
+      **every grade level has a confirmed `display_order`** (2–3 seeded
+      2026-09-26); and **the Back button on Teacher → Grades is a
+      `pushState` sentinel** (`classRecord/backGuard.js`, §13d), never a
+      data-router migration. **#6 (`2ae7639`) is DONE 2026-09-26** — (l),
+      text left under the REFILL RULE. The rule, stated nowhere else: **a
+      teacher reads an attendance row if THEY RECORDED IT or the learner is
+      CURRENTLY in a section they advise** (`recorded_by` OR
+      `sections.adviser_id`, two params, no `teacher_assignments` leg, no
+      schema); **writes stay with the current adviser**; the new adviser
+      sees every row of a current learner, pre-transfer included — accepted;
+      Teacher → Attendance records' "Everything I recorded" is how a former
+      adviser views and prints. **#7 (`2decc74`, CAL) is DONE 2026-09-26.**
+      The rules, stated nowhere else: **the school calendar is a PURE
+      MODULE** — `server/utils/schoolCalendar.js` decides,
+      `client/src/format/schoolCalendar.js` mirrors it;
+      **`YYYY-MM-DD` strings only, a `Date` argument THROWS**; **the term
+      is the latest term whose start is ≤ today, else Term 1** (the December
+      break is Term 2); **`current_term` is NOT a
+      setting** — retired from the allow-list, seed and Settings page; a
+      leftover live row is dead data the allow-list hides; **the class record
+      and class summary PIN the term ONCE** (lazy `useState`) and write
+      `?term=` by `replace` before the Back sentinel can arm; Parent →
+      Attendance opens on today's month **clamped to the school year**;
+      **a new school year is a new `TERMS` table AND `academic_year`** —
+      `GET /dashboard` is `500` naming both when they differ; the server
+      runs on Asia/Manila or with `TZ` pinned (KNOWN ISSUES). **Three open
+      leftovers are NOT queued and each is a `docs/KNOWN_ISSUES.md` row:**
+      the NULL-max INVESTIGATE (can an exam score be stored with no
+      denominator), and DV1's two Admin → Users server changes — the filter
+      tabs' `counts` sibling and the "Linked to" column's `linked_student_name`
+      + `advises[]`. Two INVESTIGATEs are CLOSED there (the double
+      `bulk_record_attendance`; the smoke flake's `--watch` lead).
+- [x] **POLISH — DONE 2026-09-26** (`1408b81`, `70b30b0`); the pre-Stage-5
+      block is fully closed. Five of six landed; the Vision card's dead
+      space was **reverted by decision** (equal-height cards). Rules, stated
+      nowhere else: **the class summary has no `min-w-max` and its subject
+      headers wrap** (measured, §18c); **class-record colgroup headers are
+      left-aligned**; **Enroll is neutral beside a filled Apply** (§21b);
+      **Login reads `school_name` from `/settings/public` with a "– Main"
+      fallback**; **a Settings section is `max-w-2xl` with short pairs in
+      `sm:grid-cols-2` rows** (§23). **fix/auth-503** (`1d2b228`): a
+      database error in the middleware or `/me` is `503`, never `401` — §2.
+- [x] **Smoke gate + fix/smoke-gate — DONE 2026-09-26** (to `12a3495`).
+      Docs pass entry left under the REFILL RULE. The rule that outlives the
+      gate is the Set HPS / Save all line in the working agreement.
+      **NEXT: Stage 5.**
+
+### BUILD ORDER → why the auth frontend came before the other backend modules
+
+**Why auth frontend comes before the other backend modules:** finishing all
+ten backend APIs first means reaching roughly 65% of the work with nothing
+visible on screen. If time runs short at that point, there is a collection of
+endpoints and no demo. One complete vertical slice first means there is
+always something to show.

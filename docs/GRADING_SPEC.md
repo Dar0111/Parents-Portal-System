@@ -415,8 +415,8 @@ which cannot import a client constant, gets it in the payload.
 
 | Grade | Order | Confidence |
 |---|---|---|
-| **4, 5, 6** | English · Mathematics · Filipino · Araling Panlipunan · GMRC · Science · MAPEH · EPP | The Key Stage 2 SF9's eight intermediate rows (§6c). **ONE transcription applied to all three grade levels** — not three independent observations. **Confirm at the next school visit.** |
-| **1** | Makabansa · Mathematics · GMRC · Reading and Literacy · Language | **PROVISIONAL.** This is the Grade 1 **class program** — a timetable, not a report card. It is used because an observed school artifact beats alphabetical-by-accident, and it was carried over exactly so the seeded card did not change. **The school has never given a printed order for Key Stage 1.** |
+| **4, 5, 6** | English · Mathematics · Filipino · Araling Panlipunan · GMRC · Science · MAPEH · EPP | The Key Stage 2 SF9's eight intermediate rows (§6c). **ONE transcription applied to all three grade levels** — not three independent observations. **CONFIRMED by the school, 2026-09-23** — the seeded order was right. |
+| **1** | Makabansa · Mathematics · GMRC · Reading and Literacy · Language | **CONFIRMED by the school, 2026-09-23** — no longer provisional; the seeded order was right. It was seeded from the Grade 1 **class program** — a timetable, not a report card — because an observed school artifact beats alphabetical-by-accident, and it was carried over exactly so the seeded card did not change. |
 | **2** | Makabansa · Mathematics · GMRC · English · Filipino | **CONFIRMED by the school, 2026-09-23; seeded 2026-09-26 (pre-Stage-5 #5a).** Until then both rows were `NULL` → `name ASC` on purpose — the honest value while no printed order was known, with `verify-grading-seed` asserting the NULL so a guess would fail first. The school's answer is not a guess; the same script now asserts this order. |
 | **3** | English · Mathematics · Science · Filipino · Makabansa · GMRC | **CONFIRMED by the school, 2026-09-23; seeded 2026-09-26.** As above. |
 

@@ -1899,10 +1899,12 @@ though this is a teacher surface — the rule is about what goes in a URL.
 which is the only dashboard with a hero panel and the only one that shows a
 learner's own grades.
 
-### 15a. ONE term, and it is `current_term` from settings
+### 15a. ONE term, and it is today's term from the school calendar
 
-**The hero and every subject list on the page use the school's
-`current_term`. Never "the latest term that has data."**
+**The hero and every subject list on the page use today's term from the
+school calendar (`format/schoolCalendar.js`) — the `current_term` setting
+until pre-Stage-5 #7 retired it on 2026-09-26. Never "the latest term that
+has data."**
 
 The first build walked terms 3 → 2 → 1 and used the newest that carried a
 letter. On the seeded Grade 1 learner that surfaced **"Term 3 · C"** — one
@@ -1911,13 +1913,14 @@ directly beside it, and the numerical learner's card, both said Term 1.
 
 **One screen showing two different terms is worse than showing nothing**,
 because a parent has no way to tell which is current and no reason to suspect
-the question. `current_term` is a single settings read, it is what every other
-screen already keys on, and it makes cross-term mixing structurally impossible
-rather than merely unlikely.
+the question. The calendar's term is one pure call on today's date — the same
+rule the server's dashboard, the class record and the class summary use — and
+it makes cross-term mixing structurally impossible rather than merely
+unlikely.
 
-The settings read is its own card with a **Term 1 fallback**, so a failed read
-degrades to the same default the rest of the client uses instead of blanking
-the page.
+There is no settings read here any more, so nothing to fall back from: the
+card and the **Term 1 fallback** that guarded a failed `current_term` read
+went with the setting (#7, `ParentDashboard.jsx`).
 
 ### 15b. Key Stage 1 lists EVERY subject; the numerical card does not
 

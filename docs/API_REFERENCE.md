@@ -671,9 +671,10 @@ jump to the front.
 
 | Grade | `display_order` | Status |
 |---|---|---|
-| 4, 5, 6 | English 1, Mathematics 2, Filipino 3, Araling Panlipunan 4, GMRC 5, Science 6, MAPEH 7, EPP 8 | **one Key Stage 2 SF9 order applied to all three** — one transcription, not three observations. Confirm at the next school visit |
-| 1 | Makabansa 1, Mathematics 2, GMRC 3, Reading and Literacy 4, Language 5 | **PROVISIONAL** — the class program, a timetable, not a report card |
-| 2, 3 | `NULL` | no printed order is known; the `name ASC` fallback is the honest answer, not a gap |
+| 4, 5, 6 | English 1, Mathematics 2, Filipino 3, Araling Panlipunan 4, GMRC 5, Science 6, MAPEH 7, EPP 8 | **one Key Stage 2 SF9 order applied to all three** — **CONFIRMED by the school, 2026-09-23** (the seeded order was right) |
+| 1 | Makabansa 1, Mathematics 2, GMRC 3, Reading and Literacy 4, Language 5 | **CONFIRMED by the school, 2026-09-23** — no longer provisional; the seeded order (from the class program) was right |
+| 2 | Makabansa 1, Mathematics 2, GMRC 3, English 4, Filipino 5 | **CONFIRMED by the school, 2026-09-23; seeded 2026-09-26** (pre-Stage-5 #5a) — `NULL` → `name ASC` until then |
+| 3 | English 1, Mathematics 2, Science 3, Filipino 4, Makabansa 5, GMRC 6 | **CONFIRMED by the school, 2026-09-23; seeded 2026-09-26** — `NULL` → `name ASC` until then |
 
 `GET /api/assignments`' **default** order follows it too, because the class
 record's Subject dropdown reads that endpoint and must agree with the report
@@ -1041,7 +1042,7 @@ Final Grade.
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | `all` | — | `settings` (flat object) | only the **8** allow-listed keys: `school_name`, `school_address`, `academic_year`, `logo_url`, and since 2026-09-26 (pre-Stage-5 #5a) `school_id` (6 digits or empty), `school_email` (the email rule), `school_phone` (7–15 digits after stripping spaces/dashes/parens/`+` — a landline passes), `facebook_page` (≤ 255, free text; blank until the school gives it). **`current_term` is RETIRED (pre-Stage-5 #7, 2026-09-26)** — the term is derived from today's date by `utils/schoolCalendar.js`; a PUT or PATCH naming the key is the ordinary unknown-key `400`, whose allowed-keys list no longer contains it, and a row left on a live database never appears in any read |
-| GET | `/public` | **none — unauthenticated** | — | `settings` (flat object) | **The one public settings read** (2026-09-26): exactly the six `school_*` keys (`school_name`, `school_address`, `school_id`, `school_email`, `school_phone`, `facebook_page`), every key present, `''` when unset. For the signed-out About page. **Registered BEFORE `/:key`**, or Express parses `public` as a key and answers 404 |
+| GET | `/public` | **none — unauthenticated** | — | `settings` (flat object) | **The one public settings read** (2026-09-26): exactly six keys — the five `school_*` keys and `facebook_page` (`school_name`, `school_address`, `school_id`, `school_email`, `school_phone`, `facebook_page`; `PUBLIC_KEYS` in `server/routes/settings.js`), every key present, `''` when unset. For the signed-out About page. **Registered BEFORE `/:key`**, or Express parses `public` as a key and answers 404 |
 | GET | `/:key` | `all` | — | `key` + `value` (bare) | `404` if not one of the 8 allow-listed keys (so `/current_term` is `404` since #7); `:key` is a **string**, not `parseId`-validated |
 | PUT | `/:key` | `admin` | `value`* | message + `key` + `value` | `400` if unknown key or fails per-key validation; a string value is trimmed before validation and stored, echoed and logged trimmed (2026-09-15) |
 | PATCH | `/` | `admin` | `settings`* (object of key/value pairs) | `settings` (flat object) | all-or-nothing; `400` naming any unknown key or failing value before anything is written; values trimmed as in PUT; the response is the 8 allow-listed keys only, same read as `GET /` (2026-09-15; nine keys from #5a, eight since #7 retired `current_term`, both 2026-09-26) |
