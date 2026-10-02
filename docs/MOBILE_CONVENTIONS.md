@@ -890,7 +890,7 @@ of FRONTEND_CONVENTIONS §25 holds; this is only where the phone differs.
   never do. What it cannot prove — a photo drawing, the picker, the upload
   over the hotspot, the fallback on a load error — is the phone check.
 
-## M22. The new-message toast on the phone — the web's rules, three differences
+## M22. The new-message toast on the phone — the web's rules, and where the phone differs
 
 **`feat/message-toast`, 2026-10-02.** FRONTEND_CONVENTIONS §26 is the rule
 set; the decisions are the mirrored `realtime/messageToast.js` (the **26th
@@ -970,12 +970,13 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   APK (survey option C):** a native interruption-filter check, or a player
   with notification usage. React Native's `Vibration` (`VibrationModule.kt:30`,
   no audio attributes) ignores the ringer and DND too (KNOWN_ISSUES).
-- **Owner re-check, Tecno in Expo Go:** B9 silent — the tone played at
-  `a797680`; **to be re-checked on this fix** (silent AND vibrate-only:
-  expected no tone; if it still plays, the Metro terminal's
-  `[message-tone]` warning, or its absence, says whether the mode was ever
-  set). B11 DND — **the tone plays** (the limitation above). B13 music —
-  **ducks, OK**.
+- **Owner re-check, Tecno in Expo Go — PASSED on `a567e8c`:** normal ringer
+  = **tone + vibration**; B9 silent AND vibrate-only = **vibration only, no
+  tone** (at `a797680`, before the gate, the tone had played in silent).
+  B11 DND — **the tone plays** (the known issue above). B13 music —
+  **ducks, OK**. If the tone ever plays in silent again, the Metro
+  terminal's `[message-tone]` warning, or its absence, says whether the
+  audio mode was set.
 - **APK build: the expo-audio config plugin is intentionally NOT configured.**
   `npx expo install` added it to `app.json` and it was removed (its defaults
   add `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` and a background-playback
