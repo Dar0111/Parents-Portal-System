@@ -6,7 +6,9 @@
 // MessageThread screen with params.otherId.
 //
 // WHAT IT CANNOT: the socket, the Alert-free toast on screen, the timer, the
-// announcement, View through the leave guard — the phone check.
+// announcement, View through the leave guard, and whether the phone's ringer
+// really silences the tone — the phone check. It DOES prove the order the
+// silent-mode gate depends on: no tone before the audio mode has resolved.
 //
 // Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-message-toast.mjs
@@ -14,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TONE, createToastStore, nextToast, otherIdFromRoute, rowFor, toastLabel } from '../src/realtime/messageToast.js';
-import { VIBRATE_MS, alertOnToast } from '../src/realtime/toastAlert.js';
+import { VIBRATE_MS, alertOnToast, createAudioModeGate, createGatedPlay } from '../src/realtime/toastAlert.js';
 import { SAMPLE_RATE, TONE_PATH, buildToneWav } from './make-message-tone.mjs';
 
 let passed = 0;
@@ -109,6 +111,113 @@ assert(VIBRATE_MS === 150, 'the vibration is 150 ms');
   assert(store.get()?.label === 'New message from Ashley Geguiera', 'and the toast still shows');
 }
 
+// ---- Fix round B9 (2026-10-02): the silent-mode gate ----
+
+console.log('the silent-mode gate — no tone before the audio mode has resolved');
+const unhandled = [];
+process.on('unhandledRejection', (reason) => unhandled.push(reason));
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+{
+  let release;
+  let modeCalls = 0;
+  const gate = createAudioModeGate(() => {
+    modeCalls += 1;
+    return new Promise((resolve) => {
+      release = resolve;
+    });
+  });
+  let tones = 0;
+  const vibrations = [];
+  const fakes = { enabled: true, play: createGatedPlay(gate, () => (tones += 1)), vibrate: (ms) => vibrations.push(ms) };
+  gate.ready(); // the host starts it on mount
+  alertOnToast(true, fakes);
+  await flush();
+  assert(tones === 0 && vibrations.length === 1, 'the mode is still pending: NO tone yet — and the vibration did not wait');
+  release();
+  await flush();
+  assert(tones === 1, 'the mode resolved: the waiting tone plays');
+  alertOnToast(true, fakes);
+  await flush();
+  assert(tones === 2 && modeCalls === 1, 'the next alert: the same promise — the mode is set ONCE, no second call');
+}
+{
+  let modeCalls = 0;
+  const errors = [];
+  const gate = createAudioModeGate(
+    () => {
+      modeCalls += 1;
+      return modeCalls === 1 ? Promise.reject(new Error('mode refused')) : Promise.resolve();
+    },
+    { onError: (error) => errors.push(error.message) }
+  );
+  let tones = 0;
+  const vibrations = [];
+  const fakes = { enabled: true, play: createGatedPlay(gate, () => (tones += 1)), vibrate: (ms) => vibrations.push(ms) };
+  gate.ready(); // on mount — rejected
+  await flush();
+  assert(errors.length === 1 && errors[0] === 'mode refused' && tones === 0, 'a rejected mode is reported once, and nothing plays');
+  alertOnToast(true, fakes);
+  await flush();
+  assert(modeCalls === 2 && tones === 1 && vibrations.length === 1, 'the next alert RETRIES the mode; it resolves, and that alert has its tone');
+}
+{
+  let modeCalls = 0;
+  const errors = [];
+  const gate = createAudioModeGate(
+    () => {
+      modeCalls += 1;
+      return Promise.reject(new Error(`refused ${modeCalls}`));
+    },
+    { onError: (error) => errors.push(error.message) }
+  );
+  let tones = 0;
+  const vibrations = [];
+  const fakes = { enabled: true, play: createGatedPlay(gate, () => (tones += 1)), vibrate: (ms) => vibrations.push(ms) };
+  for (let i = 0; i < 3; i += 1) {
+    alertOnToast(true, fakes);
+    await flush();
+  }
+  assert(modeCalls === 2 && errors.length === 2, 'a mode that keeps failing is tried TWICE in all (once + one retry), never a third time');
+  assert(tones === 0 && vibrations.length === 3, 'with no mode there is no tone — every alert still vibrates');
+}
+{
+  const gate = createAudioModeGate(() => {
+    throw new Error('expo-audio missing');
+  }, {
+    onError: () => {
+      throw new Error('the report itself failed');
+    },
+  });
+  const play = createGatedPlay(gate, () => {
+    throw new Error('player not loaded');
+  });
+  let threw = false;
+  let result = null;
+  let settled = 'pending';
+  try {
+    result = alertOnToast(true, { enabled: true, play, vibrate: () => {} });
+    play().then(
+      () => (settled = 'resolved'),
+      () => (settled = 'rejected')
+    );
+  } catch {
+    threw = true;
+  }
+  await flush();
+  const okGate = createAudioModeGate(() => Promise.resolve());
+  const throwingPlay = createGatedPlay(okGate, () => {
+    throw new Error('player not loaded');
+  });
+  let settled2 = 'pending';
+  throwingPlay().then(
+    () => (settled2 = 'resolved'),
+    () => (settled2 = 'rejected')
+  );
+  await flush();
+  assert(!threw && result?.vibrated && settled === 'resolved' && settled2 === 'resolved', 'a throwing mode, report or player: play never throws and never rejects');
+  assert(unhandled.length === 0, 'and no unhandled rejection anywhere in this proof');
+}
+
 console.log('the tone file — generated from the mirrored TONE');
 const here = path.dirname(fileURLToPath(import.meta.url));
 const wav = fs.existsSync(TONE_PATH) ? fs.readFileSync(TONE_PATH) : null;
@@ -139,6 +248,17 @@ assert(/import messageTone from '\.\.\/\.\.\/assets\/sounds\/message-tone\.wav';
 assert(
   /setAudioModeAsync\(\{ interruptionMode: 'duckOthers', shouldPlayInBackground: false, playsInSilentMode: false \}\)/.test(toastSrc) && !/interruptionModeAndroid/.test(toastSrc),
   'the audio mode DUCKS other apps, no background playback, no deprecated interruptionModeAndroid'
+);
+assert(
+  /^const audioMode = createAudioModeGate\(\s*\(\) => setAudioModeAsync\(/m.test(toastSrc) &&
+    /createGatedPlay\(audioMode, /.test(toastSrc) &&
+    /play: playTone,/.test(toastSrc) &&
+    (toastSrc.match(/setAudioModeAsync\(/g) || []).length === 1,
+  'the mode is ONE module-level gate; the tone plays only through createGatedPlay(audioMode, …)'
+);
+assert(
+  /if \(__DEV__\) console\.warn\('\[message-tone\] /.test(toastSrc) && (toastSrc.match(/console\./g) || []).length === 1,
+  'the failure is reported by one console.warn, inside `if (__DEV__)`'
 );
 const appJson = JSON.parse(fs.readFileSync(path.join(here, '..', 'app.json'), 'utf8'));
 const plugins = appJson?.expo?.plugins || [];

@@ -13,7 +13,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { useSocket } from './SocketProvider';
 import { useUnread } from './UnreadProvider';
 import { TOAST_MS, createToastStore, otherIdFromRoute, rowFor } from './messageToast';
-import { alertOnToast } from './toastAlert';
+import { alertOnToast, createAudioModeGate, createGatedPlay } from './toastAlert';
 
 // THE NEW-MESSAGE TOAST, phone (feat/message-toast, 2026-10-02;
 // MOBILE_CONVENTIONS M22). The web's toast (client/src/realtime/
@@ -35,6 +35,11 @@ import { alertOnToast } from './toastAlert';
 //     player for the life of AppShell, released on unmount (logout). The
 //     audio mode DUCKS other apps' sound rather than pausing it. A tone that
 //     fails is silent; the vibration and the toast still happen.
+//   - SILENT / VIBRATE-ONLY (fix round B9): no tone. Every play waits for
+//     the ONE module-level audio-mode promise (toastAlert.js), because
+//     expo-audio only refuses `play()` in those ringer modes once
+//     `playsInSilentMode: false` has resolved. Do Not Disturb is NOT
+//     covered — expo-audio never reads it (KNOWN_ISSUES; fixed with the APK).
 // Everything else — the words, never the body, the server's count, the
 // newest sender replacing, never my own, never in that conversation — is
 // the mirrored realtime/messageToast.js.
@@ -45,6 +50,21 @@ const HEADER_HEIGHT = 56;
 // The bundled tone — a local asset imported like the seal's PNG (Metro
 // bundles it), never a URL.
 const TONE_SOURCE = messageTone;
+
+// THE AUDIO MODE — ONE promise for the app, kept at module level so a
+// logout and a login do not set it again: DUCK other apps (they lower their
+// volume and keep playing — never paused), no background playback, and NO
+// TONE in silent or vibrate-only mode (Android reads the ringer; iOS the
+// silent switch). Started on mount; a failure is retried once, by the next
+// alert, and is reported in a development build only.
+const audioMode = createAudioModeGate(
+  () => setAudioModeAsync({ interruptionMode: 'duckOthers', shouldPlayInBackground: false, playsInSilentMode: false }),
+  {
+    onError: (error) => {
+      if (__DEV__) console.warn('[message-tone] audio mode not set; the next alert retries once:', error);
+    },
+  }
+);
 
 export default function MessageToast() {
   const { user } = useAuth();
@@ -82,18 +102,9 @@ export default function MessageToast() {
     playerRef.current = player;
   }, [player]);
 
-  // The audio mode, once: DUCK other apps (they lower their volume and keep
-  // playing — never paused), no background playback, and on iOS respect the
-  // silent switch. On Android the tone plays on the media stream, so silent /
-  // vibrate mode does not mute it — accepted (M22).
+  // Start the audio mode now, so the first alert does not wait for it.
   useEffect(() => {
-    try {
-      setAudioModeAsync({ interruptionMode: 'duckOthers', shouldPlayInBackground: false, playsInSilentMode: false }).catch(
-        () => {}
-      );
-    } catch {
-      // No audio mode, no tone: the toast still works.
-    }
+    audioMode.ready();
   }, []);
 
   // 1. A message arrived: remember the sender's id — never the body.
@@ -107,33 +118,33 @@ export default function MessageToast() {
 
   // 2. The Unread provider's re-read landed: decide from that person's row,
   // then — only on a show or update — announce, play the tone and vibrate.
-  useEffect(
-    () =>
-      subscribeConversations((rows) => {
-        const senderId = pendingRef.current;
-        if (senderId == null) return;
-        pendingRef.current = null;
-        const changed = store.receive({
-          senderId,
-          selfId: selfRef.current,
-          viewingOtherId: viewingRef.current,
-          row: rowFor(rows, senderId),
-        });
-        if (!changed) return;
-        AccessibilityInfo.announceForAccessibility(store.get().label);
-        alertOnToast(changed, {
-          enabled: enabledRef.current,
-          play: () => {
-            const tone = playerRef.current;
-            const seek = tone.seekTo(0);
-            if (seek && typeof seek.catch === 'function') seek.catch(() => {});
-            tone.play();
-          },
-          vibrate: (ms) => Vibration.vibrate(ms),
-        });
-      }),
-    [subscribeConversations, store]
-  );
+  useEffect(() => {
+    // The tone, only once the audio mode has resolved (see `audioMode` above).
+    const playTone = createGatedPlay(audioMode, () => {
+      const tone = playerRef.current;
+      const seek = tone.seekTo(0);
+      if (seek && typeof seek.catch === 'function') seek.catch(() => {});
+      tone.play();
+    });
+    return subscribeConversations((rows) => {
+      const senderId = pendingRef.current;
+      if (senderId == null) return;
+      pendingRef.current = null;
+      const changed = store.receive({
+        senderId,
+        selfId: selfRef.current,
+        viewingOtherId: viewingRef.current,
+        row: rowFor(rows, senderId),
+      });
+      if (!changed) return;
+      AccessibilityInfo.announceForAccessibility(store.get().label);
+      alertOnToast(changed, {
+        enabled: enabledRef.current,
+        play: playTone,
+        vibrate: (ms) => Vibration.vibrate(ms),
+      });
+    });
+  }, [subscribeConversations, store]);
 
   // 3. Five seconds, started again by every new toast object.
   useEffect(() => {

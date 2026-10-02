@@ -940,17 +940,42 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   `--clear` after the install). **One `useAudioPlayer` for the life of the
   toast**, released on unmount — and AppShell unmounts on logout. Each tone is
   `seekTo(0)` (its rejection swallowed) then `play()`.
-- **The audio mode, once on mount:** `setAudioModeAsync({ interruptionMode:
-  'duckOthers', shouldPlayInBackground: false, playsInSilentMode: false })` —
-  read from the installed types: `interruptionMode` works on both platforms
-  (`interruptionModeAndroid` is deprecated and not used), and `'duckOthers'`
-  lowers other apps' audio without pausing it. The default was
-  `'mixWithOthers'`.
-- **Silent / vibrate mode: the tone still plays — ACCEPTED, no workaround.**
-  expo-audio plays on Android's media stream, which the ringer's silent mode
-  does not mute; only media volume 0 silences it. Do Not Disturb follows the
-  phone's "allow media" setting. Recorded from the library's behaviour; the
-  owner's re-check reports what this phone does.
+- **The audio mode, ONE module-level promise:** `setAudioModeAsync({
+  interruptionMode: 'duckOthers', shouldPlayInBackground: false,
+  playsInSilentMode: false })` — read from the installed types:
+  `interruptionMode` works on both platforms (`interruptionModeAndroid` is
+  deprecated and not used), and `'duckOthers'` lowers other apps' audio
+  without pausing it. The default was `'mixWithOthers'`. It is
+  `createAudioModeGate` in `toastAlert.js`, held at module level in
+  `MessageToast.jsx` (a logout and login do not set it again) and started on
+  mount.
+- **Silent / vibrate-only: NO TONE (fix round B9, 2026-10-02) — the rule is
+  that the phone's tone follows its notification-sound rules.** expo-audio
+  plays on the MEDIA stream (`AudioPlayer.kt:39`, `AudioAttributes.DEFAULT`;
+  no JS option changes the usage), but its `play()` returns early when
+  `!shouldPlayInSilentMode()` — `playsInSilentMode || ringerMode ==
+  RINGER_MODE_NORMAL` (`AudioModule.kt:139-140`, `:467-475`) — and the
+  native default is `playsInSilentMode = true` (`:63`). So the guard works
+  only once OUR mode has RESOLVED: **every play awaits the gate**
+  (`createGatedPlay`; after the first time the await is an already-settled
+  promise, no added wait). A rejected mode is **retried once, by the next
+  alert**; a second failure means no tone for the session (playing with the
+  native default would ignore silent mode). The failure is reported by one
+  `console.warn('[message-tone] …')` inside `if (__DEV__)` — the Metro
+  terminal shows it; the Android export carries none of it (grepped). The
+  vibration never waits for the tone.
+- **Do Not Disturb: the tone STILL PLAYS — a known Expo Go limitation**
+  (KNOWN_ISSUES). expo-audio reads the ringer mode, never the interruption
+  filter, and no SDK 57 module in Expo Go reads DND for JS. **The fix is the
+  APK (survey option C):** a native interruption-filter check, or a player
+  with notification usage. React Native's `Vibration` (`VibrationModule.kt:30`,
+  no audio attributes) ignores the ringer and DND too (KNOWN_ISSUES).
+- **Owner re-check, Tecno in Expo Go:** B9 silent — the tone played at
+  `a797680`; **to be re-checked on this fix** (silent AND vibrate-only:
+  expected no tone; if it still plays, the Metro terminal's
+  `[message-tone]` warning, or its absence, says whether the mode was ever
+  set). B11 DND — **the tone plays** (the limitation above). B13 music —
+  **ducks, OK**.
 - **APK build: the expo-audio config plugin is intentionally NOT configured.**
   `npx expo install` added it to `app.json` and it was removed (its defaults
   add `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` and a background-playback
@@ -958,7 +983,7 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   `["expo-audio", { "recordAudioAndroid": false, "enableBackgroundPlayback": false }]`.
   A standalone APK will also need `android.permission.VIBRATE` (Expo Go has
   it). `proof-message-toast` fails if the plugin reappears.
-- **Proved by `proof-message-toast` (29)**: the mirror's decisions plus
+- **Proved by `proof-message-toast` (40)**: the mirror's decisions plus
   `otherIdFromRoute` on the real nested shape (root → Home → stack →
   drawer / thread) — **negative control with Edit: the walk stopped at the
   top-level route → 9/11** at 11 checks; the alert with fake play and
@@ -970,5 +995,15 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   control: one voice's peak changed in the phone `TONE`, no regeneration →
   27/29**; source text (expo-audio's player, the local asset, no URL, the
   duck-others mode); and `app.json` without the plugin — **negative control:
-  the plugin added → 26/27** at 27, removed. The toast on screen, the timer,
-  the sound, the vibration, the announcement and View are the phone check.
+  the plugin added → 26/27** at 27, removed. **The silent-mode gate (B9, +11
+  → 40):** no tone while the mode is pending and the vibration not waiting,
+  the tone once it resolves, one mode call for many alerts, a rejected mode
+  reported and retried once by the next alert, a mode that keeps failing
+  tried twice and never a third time with every alert still vibrating, a
+  throwing mode / report / player never throwing or rejecting, no unhandled
+  rejection; source text (ONE module-level gate, play only through it, one
+  `console.warn` inside `if (__DEV__)`) — **negative controls with Edit: the
+  `await` removed → 38/40; the retry removed → 38/40**, each restored to
+  40/40. The toast on screen, the timer, the sound, whether the ringer
+  really silences it, the vibration, the announcement and View are the phone
+  check.
