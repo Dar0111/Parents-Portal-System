@@ -888,8 +888,10 @@ in that conversation (the OTHER user's id: web `:userId`, phone focused
 `MessageThread` `otherId`). **Name and n come from the conversations row the
 Unread provider already re-reads** (`subscribeConversations`) — the server's
 `unread_count`, no server change, no bell. View = `requestLeave`. No admin
-toast. Pure decisions mirrored (`realtime/messageToast.js`). Full text:
-`docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
+toast. Pure decisions mirrored (`realtime/messageToast.js`). **On a show or
+update only: the "two-tone down" `TONE`** (web Web Audio, phone a bundled
+WAV) **and a 150 ms phone vibration.** Enter sends on the web, Shift+Enter is
+a new line. Full text: `docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
 
 ### Corrections — three claims retired here
 
@@ -982,7 +984,10 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   runs**. (M14, fix/leave-guard)
 - **The message toast floats over AppShell's stack** at the top inset + 56
   (React Navigation's default Android header; no `@react-navigation/elements`
-  import), and "in that conversation" is the FOCUSED route. (M22)
+  import), and "in that conversation" is the FOCUSED route. **Every tone
+  awaits the ONE module-level audio mode** (`playsInSilentMode: false`), so
+  silent and vibrate-only play no tone; **DND still plays it** — Expo Go
+  cannot read DND (KNOWN ISSUES; the APK fix). (M22)
 
 ---
 
@@ -1388,6 +1393,8 @@ is still open, needing its own dispatch:**
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
 | **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
 | **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |
+| **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
+| **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1762,13 +1769,12 @@ its `docs/CHANGELOG.md` row.
 - [x] **`fix/mobile-popto`, SMS transport, server reliability** — merged
       2026-09-29 → 30 (SMS before reliability by Darryl's decision).
 - [x] **UI polish — `feat/ui-polish`, merged 2026-09-30 (`c610bd8`).**
-- [ ] **Docs pass + CLAUDE.md trim — `docs/stage5`.**
+- [x] **Docs pass + CLAUDE.md trim — `docs/stage5`** (merged, `5e09c09`).
 - [ ] ~~Push notifications~~ → **in-app notifications only, via Socket.io
       (Darryl, 2026-09-27)** — no `expo-notifications`, no `push_token`
       column; remote push would be a separate decision.
 
-**NEXT, in order:** `docs/stage5` → full phone test / smoke gate →
-manuscript delta list.
+**NEXT, in order:** full phone test / smoke gate → manuscript delta list.
 
 ### Stage 6 — Integration
 

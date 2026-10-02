@@ -150,6 +150,33 @@ never sees a server setting unless the server is unreachable.
 - SecureStore, AsyncStorage (`pp.theme`, `pp.navGroups`, `pp.server`) and
   the socket behave as in Expo Go.
 
+### APK items from the message toast (`feat/message-toast`, 2026-10-02)
+
+The phone's new-message toast plays a bundled tone through **expo-audio**
+and vibrates 150 ms (MOBILE_CONVENTIONS M22). Expo Go needs no config for
+either; an APK does:
+
+- **The expo-audio config plugin is intentionally NOT in `app.json`.**
+  `npx expo install expo-audio` added it and it was removed — its defaults
+  add `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` and a background-playback
+  service, none of which the tone needs (`proof-message-toast` fails if it
+  reappears). If the build ever needs it, add exactly
+  `["expo-audio", { "recordAudioAndroid": false, "enableBackgroundPlayback": false }]`
+  and update that proof check in the same dispatch.
+- **`android.permission.VIBRATE`** — Expo Go has it; the APK must declare
+  it (`"android": { "permissions": ["android.permission.VIBRATE"] }`), and
+  the permission check in section 4.6 confirms it is there.
+- **Do Not Disturb (KNOWN_ISSUES, two rows).** In Expo Go the tone plays
+  during DND (expo-audio uses the media stream and reads only the ringer)
+  and the vibration ignores DND and the ringer. A native build can fix both,
+  either with **a native interruption-filter check**
+  (`NotificationManager.getCurrentInterruptionFilter()` together with the
+  ringer mode, gating the tone and the vibration), or by playing the tone
+  with **notification-usage audio** (`AudioAttributes.USAGE_NOTIFICATION`)
+  so Android applies its own notification rules. Either needs its own
+  small native module or a config plugin — **a separate PLAN ONLY**, not
+  part of the first APK build.
+
 ## 4. Build → install → rebuild checklist
 
 1. Darryl: create the Expo account; `npx eas-cli login`; in `mobile/`,
@@ -168,7 +195,9 @@ never sees a server setting unless the server is unreachable.
    the app. If it cannot reach the server, "Change server address" → the
    laptop's current IP → Test → Save.
 6. Check every role once (both themes), a photo from the library, a
-   message both ways, the bell; confirm the permissions (section 3).
+   message both ways (the toast's tone and vibration; no tone in silent or
+   vibrate-only), the bell; confirm the permissions (section 3, including
+   `VIBRATE` and no `RECORD_AUDIO`).
 7. **Rebuild:** bump `versionCode`, build, install over the old APK (the
    stored server address and theme survive an update; a new `package`
    would not).
@@ -184,5 +213,6 @@ never sees a server setting unless the server is unreachable.
 - **The export grep** on the release bundle, as today, plus a control string
   from `ServerAddressScreen`.
 - **The phone check on the installed APK** (section 4.6), not on Expo Go.
-- CLAUDE.md estimate when built: about +600 (M22, the cleartext and SDK-58
+- CLAUDE.md estimate when built: about +600 (a new MOBILE section — M22 is
+  now the message toast, so the next free number; the cleartext and SDK-58
   KNOWN_ISSUES rows updated).

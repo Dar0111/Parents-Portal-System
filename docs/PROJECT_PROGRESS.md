@@ -11,8 +11,9 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot of `main` at `c610bd8`, 2026-09-30** (after `feat/ui-polish`;
-refreshed by `docs/stage5`). Table and endpoint counts: CLAUDE.md front
+**Snapshot, 2026-10-02: `main` at `02bb5a5` (after `fix/leave-guard`) plus
+`feat/message-toast`, merge-ready and not yet merged.** Table and endpoint
+counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
 
@@ -29,7 +30,8 @@ and only there.
 | After Stage 4 — hardening, notifications, recovery, dashboards, data views, grades track, pre-Stage-5, polish, smoke gate | ✅ | ✅ closed 2026-09-26 | — |
 | 5 — Mobile (Expo) | — | — | ✅ every role's screens (Backup & Restore web only by design) |
 | During Stage 5 — SMS reset codes, server reliability, UI polish (merged 2026-09-29 → 09-30) | ✅ | ✅ | ✅ |
-| 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ |
+| After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merge-ready 2026-10-02) | ✅ | ✅ | ✅ |
+| 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
 and then removed on 2026-09-13 because the school may not collect
@@ -59,12 +61,29 @@ A module with tables and no handlers is not started; there are none.
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
 | Excuse letters | `excuse_letters` | 6 | `test:excuses` | Teacher → Excuse Letters (review); Parent → Excuse Letters |
-| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread |
+| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); the new-message toast on every teacher and parent screen, web and phone |
 | Notifications | `notifications` | 4 | `test:notifications` | the bell and the sidebar badges, every role |
 | Settings + school calendar | `system_settings` | 5 | `test:settings`, `test:school-calendar` | Admin → Settings; About (every role, and public from the login page) |
 | Dashboard | — | 1 | `test:dashboard` | one dashboard per role |
 | Backup & restore | `backups` | 5 | `test:backups`, `test:restore` | Admin → Backup & Restore (web only, by design) |
 | Audit log | `activity_logs` | — (written by every write) | — | none; no read endpoint exists |
+
+**Across every screen, web and phone:**
+
+- **Palette C** — zinc neutrals and one blue accent on every screen,
+  Login and Forgot password included, Light and Dark; the status tones are
+  unchanged (CLAUDE.md §8).
+- **The leave guard** — on the four bulk-entry screens (web Grades and
+  Attendance, phone Attendance and the Grades slot), every user-initiated
+  exit with unsaved work asks "Leave without saving?" (CLAUDE.md §5e).
+- **The new-message toast** — "New message from <name>" / "<n> new messages
+  from <name>", never the body, View + Dismiss, 5 s, never for your own
+  message or the conversation you are in, no admin toast (CLAUDE.md §26).
+  On a show or update it plays the "two-tone down" tone (web and phone) and
+  vibrates 150 ms on the phone. **The phone plays no tone in silent or
+  vibrate-only mode; during Do Not Disturb the tone still plays and the
+  vibration ignores DND and the ringer** — Expo Go limits, fixed with the
+  APK (KNOWN_ISSUES). Enter sends on the web, Shift+Enter is a new line.
 
 **Client render proofs** (`client/scripts/ssr-*.jsx`) and **mobile proofs**
 (`mobile/scripts/proof-*.mjs`) back the screens above; the list, run-books
@@ -76,18 +95,21 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-1. **`docs/stage5`** — the docs pass and a CLAUDE.md trim.
+1. **Merge `feat/message-toast`** — on the owner's word.
 2. **Full phone test / smoke gate** across web and mobile.
 3. **Manuscript delta list** for the team.
 
 Then Stage 6 (integration, the deployment decision, demo data and
-rehearsal). Notifications on the phone are in-app over Socket.io only —
-there is no push (CLAUDE.md → BUILD ORDER → Stage 5).
+rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications
+on the phone are in-app over Socket.io only — there is no push (CLAUDE.md →
+BUILD ORDER → Stage 5).
 
 **Open, not queued** (each a `docs/KNOWN_ISSUES.md` row): can an exam score
 be stored with no denominator (INVESTIGATE); Admin → Users filter-tab counts
 and a "Linked to" column, both needing server fields first; Teacher →
-Excuse Letters does not refetch its list on the counts signal (low).
+Excuse Letters does not refetch its list on the counts signal (low); the
+phone's tone during Do Not Disturb and its vibration ignoring DND and the
+ringer (the APK fix).
 
 ---
 
