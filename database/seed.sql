@@ -64,11 +64,12 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
 
 -- Grade 1
 -- display_order is the school's PRINTED order, 1..N (CR3a, 2026-09-22).
--- Grade 1's is PROVISIONAL — it is the class program, a timetable, not a
--- report card, and is carried over exactly as the deleted client constant
--- had it so Nino's card does not change. Grades 2 and 3 pass NULL on
--- purpose: no printed order is known for them and every reader falls back to
--- name ASC. Grades 4-6 share one order per the Key Stage 2 SF9. Changing an
+-- Grade 1's was seeded from the class program, a timetable, not a report
+-- card, carried over exactly as the deleted client constant had it so
+-- Nino's card does not change — and the school CONFIRMED it on 2026-09-23.
+-- Grades 2 and 3 were NULL (name ASC) until that answer; their orders are
+-- seeded since 2026-09-26 (pre-Stage-5 #5a, below). Grades 4-6 share one
+-- order per the Key Stage 2 SF9, also confirmed 2026-09-23. Changing an
 -- order is an UPDATE, not a code change; keep this in step with
 -- scripts/migrate-subject-display-order.js, which applies the same map to a
 -- live database.
