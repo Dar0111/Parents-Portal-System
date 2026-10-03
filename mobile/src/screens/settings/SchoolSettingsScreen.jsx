@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
@@ -84,20 +84,22 @@ export default function SchoolSettingsScreen() {
   const dirty = Object.keys(changed).length > 0;
   const edit = (key) => (value) => setDraft((prev) => ({ ...(prev ?? detailsFrom(stored)), [key]: value }));
 
-  // RELOAD (feat/ui-refresh) — the header's button. load() is the same
-  // GET /settings the focus effect, Try again and a successful save call.
-  //
-  // IT DROPS THE DRAFT FIRST, as on the web, and that loses nothing: the
-  // button is disabled while the form is dirty, so the only draft it can meet
-  // is one that already equals the stored values — a field typed in and put
-  // back. Left in place, that draft would keep the form following ITSELF
-  // instead of the fresh read, and any field somebody else had changed
-  // meanwhile would count as an edit back to its old value, which the next
-  // save would write. Called from the press, never from an effect.
-  function reload() {
-    setDraft(null);
-    load();
+  // PULL TO REFRESH — load(), the same GET /settings the focus effect, Try
+  // again and a successful save call. A draft that already EQUALS the stored
+  // values (a field typed in and put back) is dropped first, so the form
+  // follows the fresh read; a draft with unsaved edits is kept, exactly as
+  // the focus effect keeps it — a pull never discards what was typed.
+  const [refreshing, setRefreshing] = useState(false);
+  async function pullToRefresh() {
+    if (!dirty) setDraft(null);
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
   }
+  const pull = <RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />;
 
   async function save() {
     if (saving) return;
@@ -123,40 +125,22 @@ export default function SchoolSettingsScreen() {
   if (loading && !stored) return <LoadingSpinner className="py-16" label="Loading school settings…" />;
   if (!stored) {
     return (
-      <View className="flex-1 bg-page p-4">
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pull}>
         <ErrorAlert message={error || 'School settings could not be loaded.'} onRetry={load} />
-      </View>
+      </ScrollView>
     );
   }
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
-        {/* With the form on screen a reload shows no spinner in the page: the
-            button's own spinner turns while `loading` is true, and a failure
-            lands in the ErrorAlert below, as a failed re-read after a save
-            always has.
-
-            DISABLED WHILE THE FORM HAS UNSAVED EDITS, and while a save is in
-            flight: the draft is a copy of ALL seven fields taken at the first
-            keystroke, so against a newer `stored` every field somebody else
-            changed meanwhile would read as "changed" back to its old value
-            and the next save would undo their edit. A phone has no hover for
-            the web's hint, so the reason is a caption under the header for as
-            long as it applies. */}
-        <View className="gap-2">
-          <SectionHeader
-            title="School settings"
-            description="These settings belong to the school, not to your account. Your own account is under Account information."
-            onReload={reload}
-            reloading={loading}
-            reloadDisabled={dirty || saving}
-            reloadLabel="Reload school settings"
-          />
-          {dirty ? (
-            <Text className="text-xs text-fg-muted">Save or discard your changes before reloading.</Text>
-          ) : null}
-        </View>
+      {/* With the form on screen a pull shows no spinner in the page, only
+          the pull's own, and a failure lands in the ErrorAlert below, as a
+          failed re-read after a save always has. */}
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10" refreshControl={pull}>
+        <SectionHeader
+          title="School settings"
+          description="These settings belong to the school, not to your account. Your own account is under Account information."
+        />
         {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
         <View className={`${cardClass} gap-3 p-4`}>

@@ -10,8 +10,10 @@ import { applyTheme, readTheme, resolveTheme, saveTheme } from './theme';
 // SVG icon's colour). Everything with a className reads the CSS variables and
 // never touches this.
 //
-// System stays live: an Appearance listener re-resolves while, and only while,
-// the stored preference is `system`.
+// System stays live: an Appearance listener re-applies the theme while, and
+// only while, the stored preference is `system` — applyTheme writes the
+// resolved values into NativeWind's root variables (theme.js), so a change of
+// the phone's own setting reaches every class only through this listener.
 
 const ThemeContext = createContext({
   preference: 'light',
@@ -45,7 +47,7 @@ export default function ThemeProvider({ children }) {
 
   useEffect(() => {
     if (preference !== 'system') return undefined;
-    const sub = Appearance.addChangeListener(() => setResolved(resolveTheme('system')));
+    const sub = Appearance.addChangeListener(() => setResolved(applyTheme('system')));
     return () => sub.remove();
   }, [preference]);
 

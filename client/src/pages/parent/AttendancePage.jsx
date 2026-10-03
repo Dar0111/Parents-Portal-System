@@ -5,7 +5,6 @@ import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
 import { cardClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
@@ -68,21 +67,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // must never see.
 //
 // §5c: no LRN anywhere, and the route has no :id.
-//
-// ---------------------------------------------------------------------------
-// RELOAD (feat/ui-refresh) — ONE CONTROL, THE SAME FOUR REQUESTS
-// ---------------------------------------------------------------------------
-// The Reload button in the learner's header card asks again for everything
-// on this page that is attendance: the month (`load`, with the month that is
-// on screen — the view and the selected day are not touched), and the two
-// once-only reads, the whole history and the letters, through `refreshKey` in
-// their dependency lists. Those two effects are otherwise exactly as they
-// were: same request, same cancel flag, same silent failure. The adviser's
-// name is reference data and is not re-read.
-//
-// One control and not one per card, because the cards are one answer: a
-// reloaded month beside a school-year table that still shows the old totals
-// would be two versions of the same record on one screen.
 
 const EMPTY_SUMMARY = { Present: 0, Absent: 0, Late: 0, Excused: 0, total: 0 };
 const COUNTS = ['Present', 'Late', 'Absent', 'Excused'];
@@ -155,9 +139,6 @@ export default function ParentAttendancePage() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // Bumped by Reload only (see the header note). It re-runs the two
-  // once-only reads below and nothing else.
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const monthLabel = `${monthName(view.month)} ${view.year}`;
 
@@ -195,8 +176,7 @@ export default function ParentAttendancePage() {
   }, [load]);
 
   // The whole history, once — it drives the school-year table's range and
-  // nothing else, so it does not reload when the month changes. (And again
-  // on Reload: `refreshKey`.)
+  // nothing else, so it does not reload when the month changes.
   useEffect(() => {
     if (studentId == null) return undefined;
     let cancelled = false;
@@ -212,10 +192,10 @@ export default function ParentAttendancePage() {
     return () => {
       cancelled = true;
     };
-  }, [studentId, refreshKey]);
+  }, [studentId]);
 
   // Letters, once. /excuse-letters/mine has no date range, so the set is
-  // fetched whole and matched by absence_date string. (And again on Reload.)
+  // fetched whole and matched by absence_date string.
   useEffect(() => {
     if (studentId == null) return undefined;
     let cancelled = false;
@@ -229,7 +209,7 @@ export default function ParentAttendancePage() {
     return () => {
       cancelled = true;
     };
-  }, [studentId, refreshKey]);
+  }, [studentId]);
 
   // The adviser's name for the "How this is counted" line. GET /sections is
   // unscoped reference data for every role — the same read the parent
@@ -255,13 +235,6 @@ export default function ParentAttendancePage() {
   function goMonth(delta) {
     setSelected(null);
     setView((current) => addMonths(current, delta));
-  }
-
-  // Reload: the month's own request, plus the two once-only reads. The month
-  // on screen and the selected day stay as they are.
-  function reloadAll() {
-    load();
-    setRefreshKey((key) => key + 1);
   }
 
   const fraction = recordedDays(summary);
@@ -331,18 +304,15 @@ export default function ParentAttendancePage() {
 
   return (
     <Reveal className="space-y-6">
-      {/* WHO THIS IS ABOUT, and the page's one Reload. The name is in the
-          title face; "Name not recorded" is the wording the dashboard's hero
-          already uses for a linked learner with no name on the row. */}
+      {/* WHO THIS IS ABOUT. The name is in the title face; "Name not
+          recorded" is the wording the dashboard's hero already uses for a
+          linked learner with no name on the row. */}
       <div className={`${cardClass} flex items-center gap-3 p-4 sm:p-5`}>
         <Avatar name={childName} />
         <div className="min-w-0 flex-1">
           <h2 className="break-words font-serif text-xl font-bold text-fg">{childName || 'Name not recorded'}</h2>
           {childMeta ? <p className="mt-0.5 text-sm text-fg-muted">{childMeta}</p> : null}
         </div>
-        {/* `min-w-11`: below `sm` the button is its icon alone, and the icon
-            plus its padding is narrower than a finger's 44px. */}
-        <ReloadButton onReload={reloadAll} loading={loading} label="Reload attendance" className="min-w-11" />
       </div>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}

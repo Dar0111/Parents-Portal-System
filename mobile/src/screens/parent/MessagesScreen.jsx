@@ -16,12 +16,9 @@ import { useSocket } from '../../realtime/SocketProvider';
 // `created_at` renamed — a TIMESTAMP — so it goes through timestampDay
 // (§5a-iv).
 //
-// THE SECTION HEADER (feat/ui-refresh) carries the list's title and its
-// Reload — `load(0)`, the request pull-to-refresh and "Try again" already
-// make, and the one a socket message triggers, asked for by hand. New message
-// is this screen's one filled action, on its own row under the header: beside
-// the title and Reload it would leave the one word "Conversations" too little
-// room at a larger text size.
+// THE SECTION HEADER (feat/ui-refresh) carries the list's title. New message
+// is this screen's one filled action, on its own row under the header, so
+// the one word "Conversations" keeps the full width at a larger text size.
 export default function MessagesScreen({ navigation }) {
   const { subscribe } = useSocket();
   const [rows, setRows] = useState([]);
@@ -65,7 +62,7 @@ export default function MessagesScreen({ navigation }) {
 
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="Conversations" onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload conversations" />
+      <SectionHeader title="Conversations" />
       <Button variant="primary" icon="fa-plus" className="self-end" onPress={() => navigation.navigate('NewMessage')}>
         New message
       </Button>

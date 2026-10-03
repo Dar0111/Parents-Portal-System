@@ -12,7 +12,6 @@ import { isDirty } from '../../components/filterState';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import RecordCard from '../../components/RecordCard';
-import ReloadButton from '../../components/ReloadButton';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
@@ -54,10 +53,8 @@ import TempPasswordModal from './users/TempPasswordModal';
 // from a settled, successful read: nothing while loading, nothing beside a
 // failed request, nothing at zero.
 //
-// RELOAD: ONE `load()` reads both lists in a Promise.all, so both headers
-// carry the SAME Reload — the request pull-to-refresh already makes, with the
-// applied filters, both lists back on their first page. It waits while a
-// status write is in flight (that write re-reads on its own).
+// PULL TO REFRESH is ONE `load()`: it reads both lists in a Promise.all, with
+// the applied filters, both back on their first page.
 export default function UsersScreen({ navigation, route }) {
   const { user: me, refresh: refreshMe } = useAuth();
   const { refresh: refreshCounts } = useNotifications();
@@ -205,28 +202,23 @@ export default function UsersScreen({ navigation, route }) {
   }
 
   const empty = directoryEmpty(applied);
-  const reloading = loading || refreshing;
-  const writing = statusSavingId !== null;
   const waitingCount = !loading && !error && pendingPage?.total > 0 ? pendingPage.total : null;
 
   const header = (
     <View className="mb-4 gap-4">
-      {/* THE PENDING QUEUE. The count sits before the Reload, in the pending
-          tone's badge; the number is the meaning, the tint is not. The
-          sentence is its own paragraph UNDER the header row: beside the
-          controls a 360dp screen would stack it a few words to a line. */}
+      {/* THE PENDING QUEUE. The count sits at the header's end, in the
+          pending tone's badge; the number is the meaning, the tint is not.
+          The sentence is its own paragraph UNDER the header row: beside the
+          count a 360dp screen would stack it a few words to a line. */}
       <View className="gap-3">
         <SectionHeader
           title="Waiting for approval"
           actions={
-            <>
-              {waitingCount !== null ? (
-                <View accessible accessibilityLabel={`${waitingCount} waiting for approval`}>
-                  <StatusBadge status="pending" label={String(waitingCount)} />
-                </View>
-              ) : null}
-              <ReloadButton onReload={load} loading={reloading} disabled={writing} label="Reload accounts" />
-            </>
+            waitingCount !== null ? (
+              <View accessible accessibilityLabel={`${waitingCount} waiting for approval`}>
+                <StatusBadge status="pending" label={String(waitingCount)} />
+              </View>
+            ) : null
           }
         />
         <Text className="text-sm text-fg-muted">A parent account stays pending until it is approved or rejected. That decision cannot be returned to pending afterward.</Text>
@@ -264,11 +256,10 @@ export default function UsersScreen({ navigation, route }) {
         ) : null}
       </View>
 
-      {/* THE DIRECTORY. The same Reload as the queue's — one `load`, both
-          lists. Create teacher is the screen's one filled action, on its own
-          row; the filter card holds the filters and nothing else. */}
+      {/* THE DIRECTORY. Create teacher is the screen's one filled action, on
+          its own row; the filter card holds the filters and nothing else. */}
       <View className="mt-2 gap-3">
-        <SectionHeader title="All accounts" onReload={load} reloading={reloading} reloadDisabled={writing} reloadLabel="Reload accounts" />
+        <SectionHeader title="All accounts" />
         <Button variant="primary" icon="fa-user-plus" className="self-end" onPress={() => navigation.navigate('CreateTeacher')}>
           Create teacher
         </Button>

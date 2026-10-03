@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
@@ -33,11 +33,10 @@ import { useTheme } from '../../theme/ThemeProvider';
 // number, its one always-available write; every other action is the bordered
 // button, and Remove photo is drawn as the destructive one.
 //
-// RELOAD (feat/ui-refresh) is the web's, on the phone: the section header's
-// button calls AuthContext's refresh() — GET /auth/me, the call the mount
-// effect and every write here already make. It never touches a number being
-// typed or a typed code, so nothing unsaved is lost; a failure is shown under
-// the header rather than swallowed, because this time somebody asked.
+// PULL TO REFRESH calls AuthContext's refresh() — GET /auth/me, the call the
+// mount effect and every write here already make. It never touches a number
+// being typed or a typed code, so nothing unsaved is lost; a failure is shown
+// under the header rather than swallowed, because this time somebody asked.
 
 // A locked fact: the label in the eyebrow style, the value under it.
 function Field({ label, value, empty = 'Not recorded', children }) {
@@ -170,9 +169,9 @@ const ROLE_COPY = {
 // NEVER SHOWS THE LOGIN ID here either (§5c) — and the photo's controls are
 // under them, in the same card as the picture they change.
 //
-// `busy` IS HELD BY THE SCREEN, not here, as on the web, and nothing else
-// about it changed: the header's Reload has to know a photo write is in
-// flight, because that write ends in the same refresh() the reload makes.
+// `busy` IS HELD BY THE SCREEN, not here, and nothing else about it changed:
+// the pull has to know a photo write is in flight, because that write ends in
+// the same refresh() the pull makes.
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PHOTO_MAX = 5 * 1024 * 1024;
 
@@ -281,6 +280,7 @@ function ProfilePhoto({ user, refresh, status, setStatus, busy, setBusy }) {
 
 export default function AccountInfoScreen() {
   const { user, refresh } = useAuth();
+  const { tokens } = useTheme();
   const role = user?.role;
   const linked = Boolean(user?.student_id);
   const storedContact = user?.contact_number ?? '';
@@ -313,34 +313,39 @@ export default function AccountInfoScreen() {
   }, []);
 
   // The profile photo's write in flight (ProfilePhoto sets it). Held here so
-  // the header's Reload can be disabled for it, like the three writes below.
+  // the pull can wait for it, like the three writes below.
   const [photoBusy, setPhotoBusy] = useState(false);
 
-  // RELOAD — the header's button. The same refresh() as the mount read, but
-  // asked for by hand, so its failure is said (under the header, with Try
-  // again) instead of swallowed. Set from the press, never from an effect.
-  // It writes only the auth user: a number being typed and a typed code are
-  // left exactly as they are. The one thing it lets go of is a contact draft
-  // that already EQUALS the stored number (typed in and put back) — kept, the
-  // input would go on following that draft, and a number changed elsewhere
-  // would show in the card above while the field still offered the old one
-  // as an edit to save.
+  // PULL TO REFRESH. The same refresh() as the mount read, but asked for by
+  // hand, so its failure is said (under the header, with Try again) instead of
+  // swallowed. It writes only the auth user: a number being typed and a typed
+  // code are left exactly as they are. The one thing it lets go of is a
+  // contact draft that already EQUALS the stored number (typed in and put
+  // back) — kept, the input would go on following that draft, and a number
+  // changed elsewhere would show in the card above while the field still
+  // offered the old one as an edit to save.
   //
-  // §7c: A FAILED RELOAD IS ONE MORE KEY OF THE SCREEN'S ONE STATUS OBJECT,
-  // not a state of its own — so the next action's message replaces it. A
-  // reload that WORKS leaves every message alone; starting one clears only an
-  // earlier reload's failure.
-  const [reloading, setReloading] = useState(false);
-  async function reload() {
-    setReloading(true);
-    setStatus((prev) => (prev.reload ? {} : prev));
+  // IT WAITS WHILE ONE OF THIS SCREEN'S OWN WRITES IS IN FLIGHT: each of them
+  // ends in the same refresh(), and two reads racing to setUser would let the
+  // older one land last.
+  //
+  // §7c: A FAILED PULL IS ONE MORE KEY OF THE SCREEN'S ONE STATUS OBJECT, not
+  // a state of its own — so the next action's message replaces it. A pull
+  // that WORKS leaves every message alone; starting one clears only an earlier
+  // pull's failure.
+  const writing = saving || emailBusy || contactBusy || photoBusy;
+  const [refreshing, setRefreshing] = useState(false);
+  async function pullToRefresh() {
+    if (writing) return;
+    setRefreshing(true);
+    setStatus((prev) => (prev.refresh ? {} : prev));
     if (!contactDirty) setDraft(null);
     try {
       await refresh();
     } catch (err) {
-      setStatus({ reload: fail(extractError(err)) });
+      setStatus({ refresh: fail(extractError(err)) });
     } finally {
-      setReloading(false);
+      setRefreshing(false);
     }
   }
 
@@ -456,20 +461,16 @@ export default function AccountInfoScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
-        {/* Disabled while one of this screen's own writes is in flight: each
-            of them ends in the same refresh(), and two reads racing to
-            setUser would let the older one land last. */}
-        <SectionHeader
-          title="Account information"
-          description={ROLE_COPY[role] || ''}
-          onReload={reload}
-          reloading={reloading}
-          reloadDisabled={saving || emailBusy || contactBusy || photoBusy}
-          reloadLabel="Reload account information"
-        />
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerClassName="gap-4 p-4 pb-10"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} enabled={!writing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />
+        }
+      >
+        <SectionHeader title="Account information" description={ROLE_COPY[role] || ''} />
 
-        {status.reload ? <ErrorAlert message={status.reload.text} onRetry={reload} /> : null}
+        {status.refresh ? <ErrorAlert message={status.refresh.text} onRetry={pullToRefresh} /> : null}
 
         <Reveal>
           <ProfilePhoto

@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { KeyboardAvoidingView, Modal, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
@@ -13,7 +13,6 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
@@ -34,15 +33,14 @@ import { useTheme } from '../../theme/ThemeProvider';
 //
 // THE LAYOUT (feat/ui-refresh, 2026-10-03) is the web's: a HEADER CARD — the
 // learner in the title face with their initials (a learner has no photo,
-// §25), the class and the status badge, the record's Reload and Edit — and
-// TWO FACT CARDS by what the fact is for: who the learner is, and whether a
-// parent account is linked to them; and how to reach the family. Edit is the
-// neutral button: nothing on this screen is a filled action, the record is
-// mostly read.
+// §25), the class and the status badge, and Edit — and TWO FACT CARDS by what
+// the fact is for: who the learner is, and whether a parent account is
+// linked to them; and how to reach the family. Edit is the neutral button:
+// nothing on this screen is a filled action, the record is mostly read.
 //
-// RELOAD is load() — the same GET every focus already makes. The record stays
-// on screen while it runs (the button shows the spinner), and it waits while
-// the edit sheet is open or saving.
+// PULL TO REFRESH is load() — the same GET every focus already makes. The
+// record stays on screen under the pull spinner; the edit sheet is a Modal
+// over the screen, so no pull can start while it is open.
 const EMPTY_EDIT = { first_name: '', last_name: '', birthday: '', gender: '', address: '', contact_number: '' };
 const GENDERS = [
   { key: '', label: 'Not recorded' },
@@ -86,6 +84,7 @@ export default function StudentDetailScreen({ navigation, route }) {
   const [student, setStudent] = useState(null);
   const [parentAccount, setParentAccount] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [status, setStatus] = useState(null);
@@ -185,27 +184,39 @@ export default function StudentDetailScreen({ navigation, route }) {
     }
   }
 
+  // The pull's handler: load() as it is, with a busy flag for the pull
+  // spinner alone (load keeps the record on screen while it re-reads).
+  async function pullToRefresh() {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   if (loading && !student) return <LoadingSpinner className="py-16" label="Loading student…" />;
+  const pull = <RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />;
   if (notFound) {
     return (
-      <View className="flex-1 bg-page p-4">
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pull}>
         <View className={cardClass}>
           <EmptyState icon="fa-user-slash" title="Student not found" message="No student record exists with this id." />
         </View>
-      </View>
+      </ScrollView>
     );
   }
   if (error && !student) {
     return (
-      <View className="flex-1 bg-page p-4">
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pull}>
         <ErrorAlert message={error} onRetry={load} />
-      </View>
+      </ScrollView>
     );
   }
   if (!student) return null;
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
+    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10" refreshControl={pull}>
       <FormStatus status={status} />
 
       <Reveal>
@@ -223,7 +234,6 @@ export default function StudentDetailScreen({ navigation, route }) {
                 <StatusBadge status={student.status} />
               </View>
             </View>
-            <ReloadButton onReload={load} loading={loading} disabled={editOpen || saving} label="Reload student record" />
           </View>
           <View className="flex-row flex-wrap gap-2">
             <Button icon="fa-pen" onPress={openEdit}>

@@ -54,11 +54,6 @@ import seal from '../assets/school-seal.png';
 // body never renders an <h1> there. The signed-out /about has no top bar, so
 // there the name is the <h1> and the sections are <h2>. One step apart either
 // way; `publicView` is the only thing that decides it.
-//
-// RELOAD (feat/ui-refresh) is on the School details header and calls the
-// page's one existing read — the same settings request, and with it the
-// section count behind the hero's pill. A reload that fails with details
-// already on screen keeps them and says so above the tiles.
 const DEPED_VISION = [
   'We dream of Filipinos who passionately love their country and whose values and competencies enable them to realize their full potential and contribute meaningfully to building the nation.',
   'As a learner-centered public institution, the Department of Education continuously improves itself to better serve its stakeholders.',
@@ -174,16 +169,7 @@ function sectionSummary(sections) {
 // The page body, shared by the four mounts. Exported so a proof can render it
 // with a fixture instead of a request (§14e). `sections` is null when the
 // mount could not read them (the public view) and the pill is simply absent.
-// `onReload` / `reloading` / `error` are the mount's own read: without
-// `onReload` (a fixture render) the details header has no Reload control.
-export function AboutBody({
-  settings,
-  sections = null,
-  publicView = false,
-  onReload = null,
-  reloading = false,
-  error = null,
-}) {
+export function AboutBody({ settings, sections = null, publicView = false }) {
   const name = settings?.school_name || '';
   const schoolYear = settings?.academic_year || '';
   const sectionsPill = sectionSummary(sections);
@@ -195,7 +181,7 @@ export function AboutBody({
 
   return (
     // The page's one entrance. This body mounts when the first read answers,
-    // and stays mounted through a reload, so the entrance never replays.
+    // so the entrance plays once.
     <Reveal className="space-y-6">
       {/* THE HERO BAND — the brand panel in both themes, with its glow and dot
           pattern, like the dashboard heroes. No halo on the seal here: the
@@ -237,17 +223,7 @@ export function AboutBody({
           last row at both widths: two rows of two and then the wide tile at
           `sm`; a row of three, then one tile and the wide tile at `lg`. */}
       <section className="space-y-3">
-        <SectionHeader
-          as={Sub}
-          title="School details"
-          onReload={onReload}
-          reloading={reloading}
-          reloadLabel="Reload school details"
-        />
-        {/* Only a failed RELOAD reaches here — a first read that fails has no
-            details to keep, and the mount shows the error alone. The API's
-            own wording, with the same retry. */}
-        {error ? <ErrorAlert message={error} onRetry={onReload} /> : null}
+        <SectionHeader as={Sub} title="School details" />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <DetailTile icon="fa-location-dot" label="Address" value={settings?.school_address} />
           <DetailTile
@@ -358,9 +334,9 @@ export default function AboutPage({ publicView = false }) {
   const [sections, setSections] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // Retry and Reload re-run the effect below by bumping this; the effect
-  // itself sets no state synchronously (only in the request's callbacks),
-  // which is what oxlint's set-state-in-effect rule is about.
+  // Retry re-runs the effect below by bumping this; the effect itself sets
+  // no state synchronously (only in the request's callbacks), which is what
+  // oxlint's set-state-in-effect rule is about.
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -396,8 +372,8 @@ export default function AboutPage({ publicView = false }) {
     };
   }, [publicView, attempt]);
 
-  // The page's one read, asked for again: the first-load error's "Try again"
-  // and the School details header's Reload both call this.
+  // The page's one read, asked for again by the first-load error's
+  // "Try again".
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
@@ -409,14 +385,7 @@ export default function AboutPage({ publicView = false }) {
   ) : !settings ? (
     <ErrorAlert message={error || 'School details could not be loaded.'} onRetry={load} />
   ) : (
-    <AboutBody
-      settings={settings}
-      sections={sections}
-      publicView={publicView}
-      onReload={load}
-      reloading={loading}
-      error={error}
-    />
+    <AboutBody settings={settings} sections={sections} publicView={publicView} />
   );
 
   if (!publicView) return body;

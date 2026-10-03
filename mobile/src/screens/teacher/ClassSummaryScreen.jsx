@@ -45,8 +45,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 // CELL_W stays 96; the column label's side padding went from 5.25dp to 3.5dp,
 // which gives the 4%-larger label back the width its longest word needs.
 //
-// RELOAD (feat/ui-refresh) IS `load` ITSELF — the same request, for the class
-// and term chosen; nothing is reset. Pull-to-refresh stays.
+// PULL TO REFRESH IS `load` ITSELF — the same request, for the class and term
+// chosen; nothing is reset.
 const TERMS = [
   { key: 1, label: 'Term 1' },
   { key: 2, label: 'Term 2' },
@@ -72,10 +72,9 @@ function Completeness({ entry }) {
 }
 
 // The section's header, on every state of the screen: the sheet's own name
-// and the standing sentence under it. The reload props arrive only from the
-// return that has a sheet to reload.
-function Header(reloadProps) {
-  return <SectionHeader title="Summary of Grades" description="Every learner in your advisory section, across every learning area." {...reloadProps} />;
+// and the standing sentence under it.
+function Header() {
+  return <SectionHeader title="Summary of Grades" description="Every learner in your advisory section, across every learning area." />;
 }
 
 export default function ClassSummaryScreen({ navigation }) {
@@ -248,7 +247,7 @@ export default function ClassSummaryScreen({ navigation }) {
     >
       <Reveal>
         <View className="gap-4">
-          <Header onReload={() => load()} reloading={loading || refreshing} reloadLabel="Reload class summary" />
+          <Header />
           {/* WHICH SHEET: the class and the term, in one card. The class is
               named in the title face with its adviser after it — the same
               line, the same words, as before the refresh. */}

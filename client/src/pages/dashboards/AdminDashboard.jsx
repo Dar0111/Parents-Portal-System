@@ -43,10 +43,6 @@ import { useCard } from './useCard';
 // admin, today's date, and the school year and term — the last two from the
 // SAME /dashboard read the cards use, so they appear when it has answered and
 // not before. No request was added for it.
-//
-// RELOAD (feat/ui-refresh): ONE request feeds all five cards, so each card's
-// Reload is that one `summary.reload` and pressing any of them refreshes all
-// five. System's also re-reads the backup line.
 
 // Green at or under a week, amber beyond it or never — and NEVER red
 // (spec). A stale backup is a prompt, not a failure: the data is still
@@ -175,7 +171,6 @@ export default function AdminDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d ? (
             <Stat
@@ -194,7 +189,6 @@ export default function AdminDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d ? <Stat value={<CountUp value={d.totals.students} />} caption="on the roll" /> : null}
         </Card>
@@ -207,7 +201,6 @@ export default function AdminDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d ? <Stat value={<CountUp value={d.totals.teachers} />} caption="teacher accounts" /> : null}
         </Card>
@@ -220,7 +213,6 @@ export default function AdminDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d ? <Stat value={<CountUp value={d.totals.active_parents} />} caption="active parent accounts" /> : null}
         </Card>
@@ -233,13 +225,6 @@ export default function AdminDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          // This card reads TWO things — the summary and the newest backup —
-          // so its Reload asks for both, and stays busy until both are back.
-          onReload={() => {
-            summary.reload();
-            backups.reload();
-          }}
-          reloading={summary.loading || backups.loading}
         >
           {/* The last backup leads: of everything here it is the one that
               goes stale on its own. Coloured by the same never-red rule as

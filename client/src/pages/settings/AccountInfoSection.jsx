@@ -61,13 +61,6 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 // §5b again: "Verified" renders from user.email_verified_at on the last
 // /auth/me, and refresh() after a successful confirm is the only thing that
 // changes it. The code input never writes it.
-//
-// RELOAD (feat/ui-refresh, 2026-10-02) is that same read, asked for by hand:
-// the section header's button calls AuthContext's refresh() — GET /auth/me,
-// the call the mount effect and every write here already make. It never
-// touches a number being typed or a typed code, so nothing unsaved is lost; a
-// failure is shown under the header rather than swallowed, because this time
-// somebody asked.
 
 // A sub-section's title: the icon chip and the title face. The chip is
 // decoration (aria-hidden) — the heading is the name — and the flex sits on
@@ -230,11 +223,9 @@ function ContactValue({ value, at }) {
 const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const PHOTO_MAX = 5 * 1024 * 1024;
 
-// `busy` IS HELD BY THE PAGE (feat/ui-refresh), not here, and nothing else
-// about it changed: the header's Reload has to know a photo write is in
-// flight, because that write ends in the same refresh() the reload makes.
-function ProfilePhoto({ user, refresh, status, setStatus, busy, setBusy }) {
+function ProfilePhoto({ user, refresh, status, setStatus }) {
   const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [removeError, setRemoveError] = useState(null);
   const hasPhoto = Boolean(user?.profile_pic);
@@ -445,39 +436,6 @@ export default function AccountInfoSection() {
     refreshRef.current().catch(() => {});
   }, []);
 
-  // The profile photo's write in flight (ProfilePhoto sets it). Held here so
-  // the header's Reload can be disabled for it, like the three writes below.
-  const [photoBusy, setPhotoBusy] = useState(false);
-
-  // RELOAD — the header's button. The same refresh() as the mount read, but
-  // asked for by hand, so its failure is said (under the header, with Try
-  // again) instead of swallowed. Set from the click, never from an effect.
-  // It writes only the auth user: a number being typed and a typed code are
-  // left exactly as they are. The one thing it lets go of is a contact draft
-  // that already EQUALS the stored number (typed in and put back) — kept, the
-  // input would go on following that draft, and a number changed elsewhere
-  // would show in the band above while the field still offered the old one
-  // as an edit to save.
-  //
-  // §7c: A FAILED RELOAD IS ONE MORE KEY OF THE PAGE'S ONE STATUS OBJECT, not
-  // a state of its own — so the next action's message replaces it, and a
-  // stale "could not reload" can never sit above a fresh "Contact number
-  // updated.". A reload that WORKS leaves every message alone; starting one
-  // clears only an earlier reload's failure.
-  const [reloading, setReloading] = useState(false);
-  async function reload() {
-    setReloading(true);
-    setStatus((prev) => (prev.reload ? {} : prev));
-    if (!contactDirty) setDraft(null);
-    try {
-      await refresh();
-    } catch (err) {
-      setStatus({ reload: fail(extractError(err)) });
-    } finally {
-      setReloading(false);
-    }
-  }
-
   async function saveContact(event) {
     event.preventDefault();
     setStatus({});
@@ -612,28 +570,9 @@ export default function AccountInfoSection() {
 
   return (
     <div className="space-y-6">
-      {/* Disabled while one of this page's own writes is in flight: each of
-          them ends in the same refresh(), and two reads racing to setUser
-          would let the older one land last. */}
-      <SectionHeader
-        title="Account information"
-        description={ROLE_COPY[role] || ''}
-        onReload={reload}
-        reloading={reloading}
-        reloadDisabled={saving || emailBusy || contactBusy || photoBusy}
-        reloadLabel="Reload account information"
-      />
+      <SectionHeader title="Account information" description={ROLE_COPY[role] || ''} />
 
-      {status.reload ? <ErrorAlert message={status.reload.text} onRetry={reload} /> : null}
-
-      <ProfilePhoto
-        user={user}
-        refresh={refresh}
-        status={status}
-        setStatus={setStatus}
-        busy={photoBusy}
-        setBusy={setPhotoBusy}
-      />
+      <ProfilePhoto user={user} refresh={refresh} status={status} setStatus={setStatus} />
 
       {/* The school's record of this account, locked: a band, two columns
           from `sm`. Every cell is `min-w-0` (Field), so a long address wraps

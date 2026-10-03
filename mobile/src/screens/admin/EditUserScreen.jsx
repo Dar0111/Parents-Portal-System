@@ -16,8 +16,9 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 // into an error. The login id is not editable and is not shown here.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-03): the three fields in one card, then
-// Cancel and the one filled Save — the shared `Button` at 48dp. NO RELOAD:
-// the form is filled from the list's row and shows no read of its own.
+// Cancel and the one filled Save — the shared `Button` at 48dp. NO
+// PULL-TO-REFRESH: the form is filled from the list's row and shows no read
+// of its own.
 export default function EditUserScreen({ navigation, route }) {
   const target = route.params.target;
   const { user: me, refresh } = useAuth();

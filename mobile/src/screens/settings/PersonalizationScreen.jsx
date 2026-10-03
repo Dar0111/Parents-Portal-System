@@ -13,8 +13,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 // outcome renders next to the control (§7c) with the web's two sentences,
 // "browser" replaced by "phone".
 //
-// NO RELOAD HERE (feat/ui-refresh): nothing on this screen comes from the
-// server, so there is nothing to ask for again.
+// NO PULL-TO-REFRESH HERE: nothing on this screen comes from the server, so
+// there is nothing to ask for again.
 
 // The glyph beside each option, keyed by the option's stored value. Decoration
 // only: the label and the description say what the option is. The options

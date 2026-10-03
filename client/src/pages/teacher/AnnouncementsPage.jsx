@@ -47,11 +47,8 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // excuse-letter attachment.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, Reload, New announcement), the Section filter in its own card, the
-// last write's result, the list. RELOAD is `load` itself: the same request
-// with the section, page and sort that are applied now; nothing is reset and
-// the result message is left alone. It re-reads the LIST only — the target
-// sections come from useTeacherTargets, which exposes no refetch.
+// (title, New announcement), the Section filter in its own card, the last
+// write's result, the list.
 //
 // BOTH MODALS SIT BESIDE THE ENTRANCE WRAPPER, NEVER INSIDE IT, and on this
 // page that is load-bearing: a thread arrival opens compose on mount, which
@@ -405,16 +402,8 @@ export default function AnnouncementsPage() {
                 ? null
                 : 'You can post once you are assigned to a class or made a section adviser.'
             }
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload announcements"
-            // BELOW `sm`, WITH THE BUTTON, THE CONTROLS GO UNDER THE TITLE.
-            // SectionHeader gives the title whatever the controls leave, and
-            // on a phone Reload + "New announcement" leave less than the
-            // word "announcements" needs — measured with the real fonts: the
-            // word ran under the Reload button. Stacked, nothing is clipped.
-            // Without the button there is room, and the header is untouched.
-            className={!targetsLoading && canPost ? 'max-sm:flex-col max-sm:items-stretch' : ''}
+            // The title keeps a 12rem basis beside "New announcement", so the
+            // button drops under it by itself wherever both do not fit.
             actions={
               !targetsLoading && canPost ? (
                 <Button variant="primary" icon="fa-plus" onClick={openCompose}>

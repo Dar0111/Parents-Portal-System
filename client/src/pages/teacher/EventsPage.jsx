@@ -35,13 +35,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // the two UTC bugs this project has already paid for.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, Reload, New event), the filter card, the last write's result, the
-// list. RELOAD is `load` itself: the same request with the grade, dates, page
-// and sort that are APPLIED now. It commits no draft filter, resets nothing,
-// and leaves the result message alone. It re-reads the LIST only — the grades
-// come from useTeacherTargets, which exposes no refetch. Both Modals sit
-// BESIDE the entrance wrapper, never inside it: Modal renders inline, and a
-// wrapper mid-tween carries a transform (motion/motion.js).
+// (title, New event), the filter card, the last write's result, the list.
+// Both Modals sit BESIDE the entrance wrapper, never inside it: Modal
+// renders inline, and a wrapper mid-tween carries a transform
+// (motion/motion.js).
 
 const EMPTY_FORM = { title: '', description: '', event_date: '', target_grade: '' };
 
@@ -314,9 +311,6 @@ export default function EventsPage() {
                 ? null
                 : 'You can post once you are assigned to a class or made a section adviser.'
             }
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload events"
             actions={
               !targetsLoading && canPost ? (
                 <Button icon="fa-plus" onClick={openCompose}>

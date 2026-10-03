@@ -14,11 +14,9 @@ import ReportCardView, { REPORT_UNWRAP } from './ReportCardView';
 // empty state and the one thing only a parent does here: a term cell with a
 // grade row opens the breakdown as a modal screen.
 //
-// RELOAD (feat/ui-refresh) is `load` itself: the report card's own request,
-// through the card's own loading and error frame. The school name and the
-// adviser are not re-read (reference data), and the term a parent picked is
-// kept — that choice is ReportCardView's state, and the card stays mounted.
-// Pull-to-refresh is unchanged.
+// PULL TO REFRESH is `load` itself: the report card's own request. The term
+// a parent picked is kept — that choice is ReportCardView's state, and the
+// card stays mounted through a pull (only the first load shows its spinner).
 export default function GradesScreen({ navigation }) {
   const { user } = useAuth();
   const { tokens } = useTheme();
@@ -83,7 +81,7 @@ export default function GradesScreen({ navigation }) {
     >
       <Reveal>
         <View className="gap-4">
-          <SectionHeader title="Report card" onReload={() => load()} reloading={loading || refreshing} reloadLabel="Reload report card" />
+          <SectionHeader title="Report card" />
           <ReportCardView report={report} loading={loading} error={error} onRetry={() => load()} empty={empty} onOpenTerm={openTerm} />
         </View>
       </Reveal>

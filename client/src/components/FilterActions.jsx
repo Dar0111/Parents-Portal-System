@@ -111,11 +111,12 @@ export default function FilterActions({
           where the cue is on its own line just under Apply.
 
           THE LIFT IS RE-DERIVED FOR THE 44px BUTTON (feat/ui-refresh,
-          2026-10-02), by arithmetic and NOT yet re-measured in a browser:
-          Apply is now `min-h-11` (2.75rem) and a `text-sm` line is 1.375rem,
-          so the centres differ by (2.75 − 1.375) / 2 = 0.6875rem. In rem, so
+          2026-10-02; the type scale back to Tailwind's on 2026-10-04), by
+          arithmetic and NOT yet re-measured in a browser: Apply is now
+          `min-h-11` (2.75rem) and a `text-sm` line is 1.25rem, so the centres
+          differ by (2.75 − 1.25) / 2 = 0.75rem (`-translate-y-3`). In rem, so
           it still scales with the Large text size. */}
-      <p role="status" className={dirty ? 'text-sm font-semibold text-brand -translate-y-[0.6875rem]' : 'sr-only'}>
+      <p role="status" className={dirty ? 'text-sm font-semibold text-brand -translate-y-3' : 'sr-only'}>
         {dirty ? (
           <>
             <span aria-hidden="true">●</span> Changes not applied

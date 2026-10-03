@@ -382,7 +382,7 @@
 }
 
 /* -----------------------------------------------------------------------------
-   TYPE (feat/ui-refresh, 2026-10-02) — the two typefaces and the type scale.
+   TYPE (feat/ui-refresh, 2026-10-02) — the two typefaces.
 
    Merriweather 700 is the TITLE face (`font-serif`): the brand wordmark, the
    page title in the top bar, section and card titles, dialog titles and hero
@@ -399,12 +399,12 @@
    COLOUR. A non-colour variable inside any of those three would throw, so
    nothing here may move above the dark theme block.
 
-   THE SCALE IS ONE STEP (1/16rem) UP FROM TAILWIND'S, AND STILL REM. Source
-   Sans 3 has a smaller x-height than the system faces it replaces (Segoe UI,
-   Roboto), so the same rem reads about 7% smaller; the step restores the
-   apparent size rather than enlarging anything (§24's "figures read too big"
-   decision stands: `Stat` keeps text-xl / text-2xl). Rem, so Settings →
-   Personalization's Large (html 112.5%) still scales every size.
+   THE TYPE SCALE IS TAILWIND'S OWN, AS ON MAIN — nothing here redefines a
+   `--text-*` size (fix round, 2026-10-04: the owner found the branch's
+   one-step-up scale too big). text-xs / sm / base / lg / xl / 2xl / 3xl /
+   4xl are 12 / 14 / 16 / 18 / 20 / 24 / 30 / 36px in rem, with Tailwind's
+   line heights. Rem, so Settings → Personalization's Large (html 112.5%)
+   still scales every size. Only the faces changed; §24's figure sizes stand.
 
    `medium` IS 600. Only three Source Sans 3 weights ship (400, 600, 700);
    500 would be drawn with the 400 file and every label would lose its
@@ -415,23 +415,6 @@
   --font-serif: "Merriweather", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 
   --font-weight-medium: 600;
-
-  --text-xs: 0.8125rem;
-  --text-xs--line-height: calc(1.125 / 0.8125);
-  --text-sm: 0.9375rem;
-  --text-sm--line-height: calc(1.375 / 0.9375);
-  --text-base: 1.0625rem;
-  --text-base--line-height: calc(1.625 / 1.0625);
-  --text-lg: 1.1875rem;
-  --text-lg--line-height: calc(1.75 / 1.1875);
-  --text-xl: 1.3125rem;
-  --text-xl--line-height: calc(1.875 / 1.3125);
-  --text-2xl: 1.625rem;
-  --text-2xl--line-height: calc(2.125 / 1.625);
-  --text-3xl: 2rem;
-  --text-3xl--line-height: calc(2.5 / 2);
-  --text-4xl: 2.5rem;
-  --text-4xl--line-height: calc(3 / 2.5);
 }
 
 /* Merriweather is wide and set bold; a hair of negative tracking keeps a

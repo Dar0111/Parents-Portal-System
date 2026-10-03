@@ -8,12 +8,10 @@ import { watchDismiss } from '../layout/navScroll';
 // Not the browser's `title`: that never appears on focus, only after a hover
 // delay, so a keyboard user would land on a bare icon.
 //
-// WHAT IT IS FOR NOW (feat/ui-refresh, 2026-10-02): the user card's Logout
-// button, in the sidebar and in the drawer — the one icon-only control left
-// in the shell. It was written for the 64px icon rail, which labelled every
-// nav item this way; the rail was removed by the owner's decision and the
-// sidebar always shows its words. The file keeps its name; nothing else
-// about it changed.
+// WHAT IT LABELS: every item of the collapsed sidebar's 64px rail, the rail's
+// account avatar and its "Expand sidebar" toggle, and the user card's Logout
+// icon in the wide sidebar and the drawer. (The first refresh build removed
+// the rail; the owner restored it on 2026-10-04, unchanged in behaviour.)
 //
 // KEYBOARD FOCUS MEANS `:focus-visible`, AND A CLICK HIDES IT (UI-11). It
 // showed on any `focus`, and a mouse click leaves focus on the button — so

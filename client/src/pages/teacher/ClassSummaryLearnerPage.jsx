@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import { buttonClass, cardClass } from '../../components/buttonClass';
-import ReloadButton from '../../components/ReloadButton';
 import ReportCard from '../parent/ReportCard';
 import { usePageTitle } from '../../layout/usePageTitle';
 import Reveal from '../../motion/Reveal';
@@ -137,12 +136,6 @@ export default function ClassSummaryLearnerPage() {
   // position on every render, which is all the rules require.
   usePageTitle(name || 'Class summary');
 
-  // RELOAD (feat/ui-refresh) IS `load` ITSELF — the learner's card, asked for
-  // again; the card's own frame shows the loading and error states, as on the
-  // first load. It sits in this page's bar rather than in a section header:
-  // the card below already carries the document's <h2> ("Learner's
-  // Performance Report"), and a second heading over it would name the same
-  // sheet twice.
   return (
     <Reveal className="space-y-6">
       {/* Navigation and a statement about editability: neither survives the
@@ -150,20 +143,16 @@ export default function ClassSummaryLearnerPage() {
           school name, the learner and the school year — so the printed sheet
           is still labelled without this block.
 
-          One bar: the way back on the left as a real 44px control (it was a
-          line of muted text), what this view is under it, Reload on the
-          right. */}
-      <div className={`${cardClass} flex flex-wrap items-center justify-between gap-3 p-4 print:hidden`}>
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-          <Link to="/teacher/class-summary" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
-            <span aria-hidden="true" className="flex items-center justify-center">
-              <i className="fa-solid fa-arrow-left" />
-            </span>
-            Back to class summary
-          </Link>
-          <p className="text-sm text-fg-muted">Report card, read-only.</p>
-        </div>
-        <ReloadButton onReload={load} loading={loading} label="Reload report card" />
+          One bar: the way back as a real 44px control (it was a line of
+          muted text), and what this view is beside it. */}
+      <div className={`${cardClass} flex flex-wrap items-center gap-x-4 gap-y-2 p-4 print:hidden`}>
+        <Link to="/teacher/class-summary" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+          <span aria-hidden="true" className="flex items-center justify-center">
+            <i className="fa-solid fa-arrow-left" />
+          </span>
+          Back to class summary
+        </Link>
+        <p className="text-sm text-fg-muted">Report card, read-only.</p>
       </div>
 
       <ReportCard

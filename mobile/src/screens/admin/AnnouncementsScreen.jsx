@@ -42,10 +42,6 @@ import { announcementFilterParams, canEditAnnouncement, deleteSentence, EMPTY_FI
 // as a note, BEFORE the switch — a reader looking for a Memos screen needs to
 // be told first — then the switch, the chosen list's own SectionHeader, its
 // "New …" action on its own row, and the announcement filter in its own card.
-//
-// RELOAD is `load(0)` for the list the switch is on — the request
-// pull-to-refresh and Try again already make, with the applied filter, back
-// on the first page. The other list is not on screen and is not read.
 const SEGMENTS = [
   { key: 'announcements', label: 'Announcements' },
   { key: 'memos', label: 'Memos' },
@@ -192,12 +188,7 @@ export default function AnnouncementsScreen({ navigation, route }) {
         <Text className="min-w-0 flex-1 text-sm text-info-strong">Memos have no page of their own — they are posted here and go to everyone.</Text>
       </View>
       <Segmented label="Show" value={kind} onChange={setKind} options={SEGMENTS} />
-      <SectionHeader
-        title={isAnn ? 'Announcements' : 'Memos'}
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadLabel={isAnn ? 'Reload announcements' : 'Reload memos'}
-      />
+      <SectionHeader title={isAnn ? 'Announcements' : 'Memos'} />
       {/* Neutral, on its own row (§21b): Apply's fill is the "changes not
           applied" signal, so the page action is never a second filled button
           beside it — and the two "New …" actions match. */}

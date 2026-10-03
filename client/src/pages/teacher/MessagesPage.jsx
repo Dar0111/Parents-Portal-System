@@ -26,13 +26,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // via location.state; it does not add a composer on Messages.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, Reload, New message) and the list. RELOAD is `load` itself, the
-// request the socket already repeats on every incoming message, with the
-// page and sort that are applied now; it is the way to ask again when the
-// live channel is down (§5g). NOTHING ANIMATES WHEN A MESSAGE ARRIVES: the
-// entrance wrapper plays once, when the page mounts, and a refetch only
-// swaps the table inside it. The picker sits BESIDE that wrapper, never
-// inside it (motion/motion.js).
+// (title, New message) and the list. NOTHING ANIMATES WHEN A MESSAGE
+// ARRIVES: the entrance wrapper plays once, when the page mounts, and a
+// refetch only swaps the table inside it. The picker sits BESIDE that
+// wrapper, never inside it (motion/motion.js).
 
 export default function MessagesPage() {
   usePageTitle('Messages');
@@ -188,16 +185,8 @@ export default function MessagesPage() {
         <section className="space-y-3">
           <SectionHeader
             title="Conversations"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload conversations"
-            // BELOW `sm` THE CONTROLS GO UNDER THE TITLE. SectionHeader gives
-            // the title whatever the controls leave; beside Reload and "New
-            // message" that is a few pixels more than the one word
-            // "Conversations" needs at the default text size and less than it
-            // needs at Large (measured with the real fonts), where the word
-            // ran under the Reload button. Stacked, nothing is clipped.
-            className="max-sm:flex-col max-sm:items-stretch"
+            // The title keeps a 12rem basis beside "New message", so the
+            // button drops under it by itself wherever both do not fit.
             actions={
               <Button variant="primary" icon="fa-plus" onClick={openPicker}>
                 New message

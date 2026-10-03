@@ -18,10 +18,8 @@ import { useNotifications } from '../realtime/NotificationProvider';
 //
 // THE LIST'S HEADER (feat/ui-refresh, 2026-10-02) is one SectionHeader: the
 // unread line — the provider's count, as before — is its title, and on the
-// right sit Reload and "Mark all as read". RELOAD IS THE EXISTING `load(0)`,
-// the request pull-to-refresh and "Try again" already make: it re-reads the
-// first page, exactly as a pull does. A failed "Mark all as read" says so
-// under the header, beside the control that caused it (§7c).
+// right sits "Mark all as read". A failed "Mark all as read" says so under
+// the header, beside the control that caused it (§7c).
 const PAGE_SIZE = 8;
 
 // Relative time, kept local as on the web: this is about a TIMESTAMP and
@@ -112,10 +110,6 @@ export default function NotificationsScreen({ navigation }) {
     <View className="mb-4 gap-3">
       <SectionHeader
         title={counts.total > 0 ? `${counts.total} unread` : 'Nothing unread'}
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadDisabled={loadingMore}
-        reloadLabel="Reload notifications"
         actions={
           counts.total > 0 ? (
             <Button variant="secondary" size="sm" onPress={markAllRead}>

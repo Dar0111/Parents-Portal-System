@@ -57,10 +57,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // parent the routing model in exchange for nothing they can act on. Three
 // cases, not two: collapsing whole-grade into "your child's class" would be
 // wrong for an admin's whole-grade post, which the API explicitly permits.
-//
-// RELOAD (feat/ui-refresh) is `load` itself — the same request with the page
-// and sort that are applied now; nothing is reset. The table's own frame
-// shows the loading and error states, as on the first load.
 
 function audienceLabel(row) {
   if (row.target_grade === null) return 'For everyone at the school';
@@ -181,12 +177,7 @@ export default function ParentAnnouncementsPage() {
     <>
       <Reveal className="space-y-6">
         <section className="space-y-3">
-          <SectionHeader
-            title="Posted announcements"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload announcements"
-          />
+          <SectionHeader title="Posted announcements" />
 
           <DataTable
             // CONTENT-LIST CARD (DV1b-a). Reading the announcement is the one

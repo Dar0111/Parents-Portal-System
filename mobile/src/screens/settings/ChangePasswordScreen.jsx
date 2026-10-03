@@ -16,7 +16,7 @@ import SectionHeader from '../../components/SectionHeader';
 // RE-READ (applyToken) — R1 bumps token_version on this write, so a caller
 // that dropped the token would sign its own user out on the success path.
 //
-// NO RELOAD HERE (feat/ui-refresh): a write-only form shows no server data.
+// NO PULL-TO-REFRESH HERE: a write-only form shows no server data.
 // One card, one primary button — Change password — and FormStatus directly
 // under the button that caused it (§7c).
 export default function ChangePasswordScreen() {

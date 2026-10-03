@@ -26,8 +26,9 @@ import { announcementBody, AUDIENCES, audienceHint, EMPTY_ANN, EMPTY_MEMO, formF
 // empty-class warning as a notice with its glyph; a memo has no audience to
 // pick, so it gets its one sentence as a note instead. WHAT IT SAYS is the
 // second card. Then the neutral way out
-// and the one filled step forward, both the shared `Button`. NO RELOAD: a
-// write form shows no server list (the classes are read once, for the picker).
+// and the one filled step forward, both the shared `Button`. NO
+// PULL-TO-REFRESH: a write form shows no server list (the classes are read
+// once, for the picker).
 export default function PostComposeScreen({ navigation, route }) {
   const kind = route.params.kind;
   const editing = route.params.editing || null;

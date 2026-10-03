@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
@@ -7,7 +7,6 @@ import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import Text from '../../components/Text';
 import { dateTime } from '../../format/date';
 import Icon from '../../icons';
@@ -35,7 +34,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 // not" is the sentence that stops a teacher believing they replied.
 //
 // THE LOOK (feat/ui-refresh), as the web's thread: a bar that says who the
-// conversation is with and holds its Reload, the bubbles on their own tokens
+// conversation is with, the bubbles on their own tokens
 // with the message at reading size, and a composer whose field and Send are
 // both 48dp (set in dp — M19; the field through a plain style object, never a
 // style function — M20). The circle is initials: a message row carries the
@@ -45,11 +44,11 @@ import { useTheme } from '../../theme/ThemeProvider';
 // every socket message, so motion here would be motion on arrival, which
 // this app does not have.
 //
-// RELOAD is `load` itself — the same request a socket message triggers, with
-// the same merge: the earlier pages already on screen, the unsent draft and a
-// blocked composer all survive it. `load` keeps the thread on screen while it
-// re-reads (only the first read shows the full-screen spinner), so the button
-// carries its own busy flag, set in its own handler.
+// PULL TO REFRESH (on the messages) is `load` itself — the same request a
+// socket message triggers, with the same merge: the earlier pages already on
+// screen, the unsent draft and a blocked composer all survive it. `load`
+// keeps the thread on screen while it re-reads (only the first read shows the
+// full-screen spinner), so the pull carries its own busy flag.
 export default function MessageThreadScreen({ navigation, route }) {
   const otherId = Number(route.params.otherId);
   const { user } = useAuth();
@@ -60,7 +59,7 @@ export default function MessageThreadScreen({ navigation, route }) {
   const { tokens } = useTheme();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [reloading, setReloading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -155,14 +154,14 @@ export default function MessageThreadScreen({ navigation, route }) {
     return () => clearTimeout(t);
   }, [messages.length]);
 
-  // The Reload button's own handler: `load()` as it is, with a busy flag
-  // around it for the button alone.
-  async function reload() {
-    setReloading(true);
+  // The pull's own handler: `load()` as it is, with a busy flag around it for
+  // the pull spinner alone.
+  async function pullToRefresh() {
+    setRefreshing(true);
     try {
       await load();
     } finally {
-      setReloading(false);
+      setRefreshing(false);
     }
   }
 
@@ -207,15 +206,14 @@ export default function MessageThreadScreen({ navigation, route }) {
     // the composer sat behind it. The frame's bottom inset and this padding
     // add up to exactly the keyboard's height (M11).
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      {/* WHO THE CONVERSATION IS WITH, and its Reload. The teacher's one
-          extra, "Announce to a class", sits under it in the same bar. */}
+      {/* WHO THE CONVERSATION IS WITH. The teacher's one extra, "Announce to
+          a class", sits under it in the same bar. */}
       <View className="gap-2 border-b border-edge bg-surface px-4 py-2">
         <View className="flex-row items-center gap-3">
           <Avatar name={other?.name || route.params.name} />
           <Text accessibilityRole="header" className="min-w-0 flex-1 font-serif text-base text-fg">
             {other?.name || route.params.name || 'Conversation'}
           </Text>
-          <ReloadButton onReload={reload} loading={reloading} label="Reload conversation" />
         </View>
         {isTeacher ? (
           <View className="gap-1">
@@ -243,7 +241,13 @@ export default function MessageThreadScreen({ navigation, route }) {
           <ErrorAlert message={error} onRetry={load} />
         </View>
       ) : null}
-      <ScrollView ref={scrollRef} className="flex-1" contentContainerClassName="gap-3 px-4 py-4" keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1"
+        contentContainerClassName="gap-3 px-4 py-4"
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+      >
         {hasMore ? (
           <View className="items-center">
             <Button size="sm" onPress={loadEarlier} disabled={loadingEarlier} loading={loadingEarlier}>

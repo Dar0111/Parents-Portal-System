@@ -4,7 +4,6 @@ import { RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
-import ReloadButton from '../../components/ReloadButton';
 import Text from '../../components/Text';
 import { isWeekend, longDate, todayLocalDateString, weekdayName } from '../../format/date';
 import Icon from '../../icons';
@@ -32,12 +31,9 @@ import { advisedSections, bannerFor, classesLead, nextEventLead, reviewLead, ter
 // Each fact appears when its read has answered and not before. No request
 // was added.
 //
-// RELOAD (feat/ui-refresh): a card's Reload is the `reload` of the useCard
-// that feeds it, so Term grades and My classes — one /dashboard read — reload
-// together. Messages has none: its count is UnreadProvider's, kept current by
-// the socket, and the card makes no request of its own to ask again. Each
-// attendance banner reloads its own day. Pull-to-refresh still asks for
-// everything, the advisory sections included.
+// PULL TO REFRESH asks for everything, the advisory sections and each
+// banner's day included; the Messages count is UnreadProvider's, kept current
+// by the socket.
 //
 // A CARD NEVER LINKS TO A SCREEN THE PHONE DOES NOT HAVE (§12's last rule,
 // one platform over): Grades and Attendance land on the second half of this
@@ -48,7 +44,7 @@ function openIfBuilt(navigation, path) {
 }
 
 // The banner's frame, shared by its loading, error and loaded states — the
-// notice shape, so a reload swaps the words and the tint, never the outline.
+// notice shape, so a re-read swaps the words and the tint, never the outline.
 const BANNER_FRAME = 'rounded-xl border px-4 py-3';
 
 // `tick` is the dashboard's reload count: the banner owns its card, so a
@@ -105,22 +101,14 @@ function AttendanceBanner({ section, today, tick, navigation }) {
           <Text className="mt-0.5 text-sm text-fg-body">{state.detail}</Text>
         </View>
       </View>
-      <View className="mt-3 flex-row items-center justify-between gap-2">
-        {/* The filled button while there is something to record; the neutral
-            one once the day is done, when opening the register is no longer
-            the thing this screen asks for. */}
-        {open ? (
-          <Button variant={success ? 'secondary' : 'primary'} size="sm" onPress={open}>
-            {success ? 'Open attendance' : 'Record attendance'}
-          </Button>
-        ) : (
-          <View />
-        )}
-        {/* This banner's own read, asked again — the same `day.reload` its
-            error state retries with. While it runs the banner is its
-            "Checking…" line above, so the button is never on screen busy. */}
-        <ReloadButton onReload={day.reload} label={`Reload attendance for ${className}`} />
-      </View>
+      {/* The filled button while there is something to record; the neutral
+          one once the day is done, when opening the register is no longer
+          the thing this screen asks for. */}
+      {open ? (
+        <Button variant={success ? 'secondary' : 'primary'} size="sm" className="mt-3 self-start" onPress={open}>
+          {success ? 'Open attendance' : 'Record attendance'}
+        </Button>
+      ) : null}
     </View>
   );
 }
@@ -222,7 +210,6 @@ export default function DashboardScreen({ navigation }) {
           loading={pending.loading}
           error={pending.error}
           onRetry={pending.reload}
-          onReload={pending.reload}
           tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
         >
           {review ? <Stat large value={review.value} caption={review.caption} /> : null}
@@ -237,7 +224,6 @@ export default function DashboardScreen({ navigation }) {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d ? (
             gradesLine ? (
@@ -250,9 +236,8 @@ export default function DashboardScreen({ navigation }) {
       </Reveal>
 
       <Reveal index={3}>
-        {/* NO RELOAD HERE: the count is UnreadProvider's — the server's
-            answer, re-read on every `new_message` (§10) — and this card makes
-            no request of its own that a button could ask again. */}
+        {/* The count is UnreadProvider's — the server's answer, re-read on
+            every `new_message` (§10); this card makes no request of its own. */}
         <Card title="Messages" icon="fa-comments" onOpen={openIfBuilt(navigation, '/teacher/messages')}>
           <Stat value={messagesLine.value} caption={messagesLine.caption} />
         </Card>
@@ -266,7 +251,6 @@ export default function DashboardScreen({ navigation }) {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {classesLine ? (
             <View>
@@ -302,7 +286,6 @@ export default function DashboardScreen({ navigation }) {
           loading={events.loading}
           error={events.error}
           onRetry={events.reload}
-          onReload={events.reload}
         >
           {eventLine ? (
             <View>

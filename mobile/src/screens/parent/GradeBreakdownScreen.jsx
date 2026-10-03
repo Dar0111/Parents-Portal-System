@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { cardClass } from '../../components/buttonStyles';
@@ -11,6 +11,7 @@ import { shortDate } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
 import TermValue from '../../format/TermValue';
+import { useTheme } from '../../theme/ThemeProvider';
 
 // THE GRADE BREAKDOWN — the web's modal, as a modal SCREEN (approved
 // 2026-09-11; NOW POSSIBLE). Term grade stays; Initial Grade and weights are
@@ -21,9 +22,11 @@ import TermValue from '../../format/TermValue';
 //
 // THE LOOK (feat/ui-refresh): the grade the parent tapped is the screen's
 // figure, in a card of its own, and each group of scores is a card under it
-// with its name in the title face. RELOAD is `load` itself — the one request
-// this screen makes — in the section header above the figure; the loading
-// and error frames are the ones the first load shows.
+// with its name in the title face.
+//
+// PULL TO REFRESH is `load` itself — the one request this screen makes, for
+// the same grade. A pull keeps the scores on screen under the pull spinner;
+// a failed read clears them, so the error is never beside stale scores.
 const DETAIL_UNWRAP = ['grade', 'grade_components', 'descriptor'];
 
 function ScorePair({ score, max }) {
@@ -153,36 +156,50 @@ function BreakdownBody({ mode, detail }) {
 
 export default function GradeBreakdownScreen({ route }) {
   const { gradeId, mode } = route.params;
+  const { tokens } = useTheme();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setDetail(null);
-    try {
-      setDetail(await api.get(`/grades/${gradeId}`, { unwrap: DETAIL_UNWRAP }));
-    } catch (err) {
-      setError(extractError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [gradeId]);
+  const load = useCallback(
+    async ({ pull = false } = {}) => {
+      if (pull) setRefreshing(true);
+      else {
+        setLoading(true);
+        setDetail(null);
+      }
+      setError(null);
+      try {
+        setDetail(await api.get(`/grades/${gradeId}`, { unwrap: DETAIL_UNWRAP }));
+      } catch (err) {
+        setError(extractError(err));
+        setDetail(null);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [gradeId]
+  );
 
   useEffect(() => {
     load();
   }, [load]);
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
-      <SectionHeader title="Scores behind this grade" onReload={load} reloading={loading} reloadLabel="Reload scores" />
-      {loading ? (
+    <ScrollView
+      className="flex-1 bg-page"
+      contentContainerClassName="gap-4 p-4 pb-10"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+    >
+      <SectionHeader title="Scores behind this grade" />
+      {loading || (refreshing && !detail) ? (
         <View className={`${cardClass} p-5`}>
           <LoadingSpinner size="sm" label="Loading scores…" />
         </View>
       ) : null}
-      {error ? <ErrorAlert message={error} onRetry={load} /> : null}
+      {error ? <ErrorAlert message={error} onRetry={() => load()} /> : null}
       {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
     </ScrollView>
   );

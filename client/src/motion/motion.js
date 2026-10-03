@@ -5,7 +5,7 @@ import { useGSAP } from '@gsap/react';
 //
 // GSAP is bundled from node_modules and used for ENTRANCES only: a page or
 // section arriving, dashboard cards staggering in, a figure counting up, the
-// drawer sliding in, the reload icon's turn. Every tween here is transform
+// drawer sliding in. Every tween here is transform
 // and opacity — never width, height, top or left — so nothing reflows and
 // nothing shifts layout, and nothing waits on a tween: the page is
 // interactive from the first frame.

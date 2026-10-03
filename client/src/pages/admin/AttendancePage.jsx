@@ -45,12 +45,8 @@ import Reveal from '../../motion/Reveal';
 // recorded_by (a user id), id and timestamps are not rendered.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, the view-only sentence, Reload), the filter card, the list, the
-// count strip. RELOAD is `load` itself: the same request with the filters,
-// page and sort that are APPLIED now. It commits no draft filter and resets
-// nothing. It is offered only once something is applied (`hasScope`): before
-// that load() returns without asking, and a button that does nothing would
-// be a claim the page does not keep (§5i).
+// (title, the view-only sentence), the filter card, the list, the count
+// strip.
 
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
 // The count strip's own order — the one the count line always had.
@@ -267,9 +263,6 @@ export default function AdminAttendancePage() {
         <SectionHeader
           title="Attendance records"
           description="View only. Each section's adviser records attendance, and corrects a mark by saving that date again on their own Attendance page."
-          onReload={hasScope ? load : null}
-          reloading={loading}
-          reloadLabel="Reload attendance records"
         />
 
         <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>

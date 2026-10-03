@@ -64,10 +64,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // user.grade_level, which /auth/me does return. Two cases here rather than
 // announcements' three: the events table has no target_section column, so
 // whole-grade is the only targeted shape that exists.
-//
-// RELOAD (feat/ui-refresh) is `load` itself — the same request with the
-// range, page and sort that are applied now; nothing is reset. The table's
-// own frame shows the loading and error states, as on the first load.
 
 function audienceLabel(row) {
   return row.target_grade === null
@@ -205,12 +201,7 @@ export default function ParentEventsPage() {
     <>
       <Reveal className="space-y-6">
         <section className="space-y-3">
-          <SectionHeader
-            title="School events"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload events"
-          />
+          <SectionHeader title="School events" />
 
           <div className={`${cardClass} p-4`}>
             <FormField

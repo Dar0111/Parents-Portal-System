@@ -43,13 +43,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // download link for a column that is always NULL would promise a feature that
 // does not exist.
 //
-// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// with Reload, the filter card, the last review's result, the list. RELOAD is
-// `load` itself: the same request with the status, dates, page and sort that
-// are APPLIED now. It commits no draft filter, resets nothing, and leaves the
-// review's result message alone. Both Modals sit BESIDE the entrance wrapper,
-// never inside it: Modal renders inline, and a wrapper mid-tween carries a
-// transform (motion/motion.js).
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header,
+// the filter card, the last review's result, the list. Both Modals sit
+// BESIDE the entrance wrapper, never inside it: Modal renders inline, and a
+// wrapper mid-tween carries a transform (motion/motion.js).
 
 const STATUS_FILTERS = ['Pending', 'Approved', 'Declined', 'All'];
 
@@ -374,12 +371,7 @@ export default function ExcuseLettersPage() {
     <div>
       <Reveal className="space-y-6">
         <section className="space-y-3">
-          <SectionHeader
-            title="Letters from my classes"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload excuse letters"
-          />
+          <SectionHeader title="Letters from my classes" />
 
           <form
             onSubmit={(e) => {

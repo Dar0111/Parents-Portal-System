@@ -27,7 +27,7 @@ import Reveal from '../motion/Reveal';
 // as ForgotPasswordScreen: Login's brand band made compact — the seal beside
 // the wordmark — and one card overlapping its bottom edge, with the screen's
 // title and its sentence at the top of the card and the shared `Button` at
-// Login's size. A screen that is only a write form has no Reload control.
+// Login's size. A screen that is only a write form has no pull-to-refresh.
 
 // The card surface with the sign-in family's larger corner (see LoginScreen).
 const AUTH_CARD = cardClass.replace('rounded-2xl', 'rounded-3xl');

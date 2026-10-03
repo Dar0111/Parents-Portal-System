@@ -529,26 +529,13 @@ export default function AttendancePage() {
       </div>
 
       <section className="space-y-3">
-        {/* RELOAD IS `loadRoster` ITSELF (feat/ui-refresh) — the same two
-            requests, for the class and day chosen above. loadRoster resets
-            the marks from the database, so WHILE ANYTHING IS UNSAVED THE
-            BUTTON IS DISABLED and its hint says why: a reload must never be a
-            silent discard, and the leave dialog's sentence ("Leaving now…")
-            would be wrong for it (§5i). Also disabled while a save is in
-            flight — the save does its own re-read.
-
-            The description names the register: the class, then the day. A
+        {/* The description names the register: the class, then the day. A
             date input can be cleared, and `longDate` hands an empty value
             straight back — so with no date the class stands alone rather
             than trailing a separator with nothing after it. */}
         <SectionHeader
           title="Roster"
           description={date ? `${classLabel} · ${longDate(date)}` : classLabel}
-          onReload={loadRoster}
-          reloading={rosterLoading}
-          reloadDisabled={dirty || saving}
-          reloadHint={dirty ? 'Save or discard your changes before reloading.' : ''}
-          reloadLabel="Reload roster"
         />
 
         {roster.length ? (

@@ -22,8 +22,8 @@ import TermValue from '../../format/TermValue';
 // stored — its value and its lock state — in one tile, above the sentence
 // that says what locking does; then the neutral way out and the one filled
 // action, whose glyph is the state it will SET. Lock and unlock only: there
-// is no Delete here (KNOWN ISSUES). NO MOTION, and no reload — the screen
-// shows the list's snapshot and makes no read of its own.
+// is no Delete here (KNOWN ISSUES). NO MOTION, and no pull-to-refresh — the
+// screen shows the list's snapshot and makes no read of its own.
 export default function GradeLockScreen({ navigation, route }) {
   const { subjectName, term, mode, entry } = route.params;
   const [saving, setSaving] = useState(false);

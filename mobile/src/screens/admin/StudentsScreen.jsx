@@ -27,15 +27,10 @@ import Text from '../../components/Text';
 // control at all. A declared difference (M18). The list reloads after a
 // status write rather than patching the row (§5b), and on focus (M14).
 //
-// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the section's header
-// with its Reload, the sentence that says what deactivating does as its own
-// paragraph under it (beside the Reload a 360dp screen would stack it a few
-// words to a line), and the filters in their own card. There is no header
-// action: nothing is created here.
-//
-// RELOAD is `load(0)` — the request pull-to-refresh and Try again already
-// make, with the applied filters, back on the first page. It waits while a
-// status write is in flight (that write re-reads on its own).
+// THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the section's header,
+// the sentence that says what deactivating does as its own paragraph under
+// it, and the filters in their own card. There is no header action: nothing
+// is created here.
 const STATUS_OPTIONS = [
   { key: 'all', label: 'All statuses' },
   { key: 'active', label: 'Active' },
@@ -145,13 +140,7 @@ export default function StudentsScreen({ navigation }) {
 
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader
-        title="All students"
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadDisabled={savingId !== null}
-        reloadLabel="Reload students"
-      />
+      <SectionHeader title="All students" />
       <Text className="text-sm text-fg-muted">
         Deactivating a student hides them from teachers' student and attendance lists, and stops new attendance and new grade records from being created for
         them. Their existing records and their parent's account are not changed. Activate reverses it.

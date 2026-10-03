@@ -14,9 +14,6 @@ import { THEME_OPTIONS, readTheme, saveTheme } from './theme';
 //
 // §7c: one status object keyed by form, so a text-size message and a theme
 // message can never both be on screen — the latest pick replaces the other.
-//
-// NO RELOAD HERE (feat/ui-refresh): nothing on this tab comes from the
-// server, so there is nothing to ask for again.
 
 // The glyph beside each option, keyed by the option's stored value. Decoration
 // only (aria-hidden): the label and the description say what the option is.

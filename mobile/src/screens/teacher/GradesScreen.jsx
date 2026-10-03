@@ -31,15 +31,15 @@ import useSlotRecord from './classRecord/useSlotRecord';
 // assignment (TCH-002) gets the explaining empty state. THE TERM IS PINNED
 // ONCE from the school calendar (§13g) and the segment overrides it.
 //
-// THE LOOK (feat/ui-refresh, 2026-10-03): the section header with Reload, one
-// card that chooses WHICH record (each picker under its own label — the word
-// was only the control's accessible name before), then the three groups, each
-// a heading over its slots, each slot its own card and a 48dp target that
+// THE LOOK (feat/ui-refresh, 2026-10-03): the section header, one card that
+// chooses WHICH record (each picker under its own label — the word was only
+// the control's accessible name before), then the three groups, each a
+// heading over its slots, each slot its own card and a 48dp target that
 // answers a press with Android's ripple (a prop, never a style function —
-// M20). RELOAD IS `record.reload`, the request the focus effect and
-// pull-to-refresh already make; nothing is typed on this screen, so there is
-// nothing for it to discard. The entrance is on the header alone: a slot row
-// is the way into grade entry and does not move.
+// M20). PULL TO REFRESH is `record.reload`, the request the focus effect
+// already makes; nothing is typed on this screen, so there is nothing for it
+// to discard. The entrance is on the header alone: a slot row is the way into
+// grade entry and does not move.
 const TERMS = [1, 2, 3].map((t) => ({ key: t, label: `Term ${t}` }));
 const EXAM_PARTS = ['st1', 'st2', 'te'];
 const TABULAR = { fontVariant: ['tabular-nums'] };
@@ -266,9 +266,6 @@ export default function GradesScreen({ navigation }) {
           <SectionHeader
             title="Class record"
             description="Record one assessment at a time for one subject and term. Each save writes that column for the whole class."
-            onReload={classKey ? reload : null}
-            reloading={record.loading}
-            reloadLabel="Reload class record"
           />
           {/* WHICH RECORD: subject, then class, then term — the order a
               teacher thinks in. */}

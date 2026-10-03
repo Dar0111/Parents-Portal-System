@@ -73,7 +73,6 @@ import {
   faPalette,
   faPenToSquare,
   faPlus,
-  faRotateRight,
   faShieldHalved,
   faSun,
   faTrash,
@@ -156,8 +155,8 @@ const ICONS = {
   'fa-server': faServer,
   'fa-user-clock': faUserClock,
   'fa-users': faUsers,
-  // The UI refresh (feat/ui-refresh): the reload control, the shared Button's
-  // leading icons, the profile heroes and the Personalization options.
+  // The UI refresh (feat/ui-refresh): the shared Button's leading icons, the
+  // profile heroes and the Personalization options.
   'fa-check': faCheck,
   'fa-chevron-down': faChevronDown,
   'fa-chevron-up': faChevronUp,
@@ -172,7 +171,6 @@ const ICONS = {
   'fa-palette': faPalette,
   'fa-pen-to-square': faPenToSquare,
   'fa-plus': faPlus,
-  'fa-rotate-right': faRotateRight,
   'fa-shield-halved': faShieldHalved,
   'fa-sun': faSun,
   'fa-trash': faTrash,

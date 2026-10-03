@@ -25,13 +25,10 @@ import teacherEventCard from './events/card';
 // native Alert naming the event (§5e). The card is the verbatim
 // `events/card.jsx`. One reset serves the filter row and the empty state.
 //
-// THE SECTION HEADER (feat/ui-refresh) carries the list's title, its Reload
-// and — for a teacher with no grade to post to — the sentence that stops the
-// missing button reading as broken; nothing is said while the target list is
-// loading. Reload is `load(0)`: the request pull-to-refresh and Try again
-// already make, with the APPLIED grade and dates, back on the first page. It
-// does not re-read the teacher's targets (`useTeacherTargets` reads them
-// once). From and To sit one under the other, for the reason on Excuse
+// THE SECTION HEADER (feat/ui-refresh) carries the list's title and — for a
+// teacher with no grade to post to — the sentence that stops the missing
+// button reading as broken; nothing is said while the target list is
+// loading. From and To sit one under the other, for the reason on Excuse
 // Letters: side by side in this card a chosen date has no room at 360dp.
 const DEFAULT = { grade: '', from: '', to: '' };
 
@@ -152,9 +149,6 @@ export default function EventsScreen({ navigation, route }) {
       <SectionHeader
         title="Posted events"
         description={targetsLoading || canPost ? null : 'You can post once you are assigned to a class or made a section adviser.'}
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadLabel="Reload events"
       />
       {!targetsLoading && canPost ? (
         <Button

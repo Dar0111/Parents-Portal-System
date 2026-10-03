@@ -42,10 +42,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // INNER JOINed 2026-09-11 (71d23f9); this page renders it in the modal
 // only (2026-09-12). Only admins POST memos, so the value is always an
 // admin; it is still rendered — same line as the other two pages.
-//
-// RELOAD (feat/ui-refresh) is `load` itself — the same request with the page
-// and sort that are applied now; nothing is reset. The table's own frame
-// shows the loading and error states, as on the first load.
 
 export default function ParentMemosPage() {
   usePageTitle('Memos');
@@ -121,9 +117,6 @@ export default function ParentMemosPage() {
           <SectionHeader
             title="Posted memos"
             description="Memos come from the school administration and go to everyone."
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload memos"
           />
 
           <DataTable

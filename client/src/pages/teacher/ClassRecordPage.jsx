@@ -517,40 +517,6 @@ export default function ClassRecordPage() {
   const th = 'bg-surface-subtle px-2 py-2 text-xs font-semibold uppercase tracking-wider text-fg-body';
   const totalTh = `${th} whitespace-nowrap text-right`;
 
-  // RELOAD (feat/ui-refresh) IS `record.reload` — useClassRecord's own load(),
-  // the same GET for the subject, class and term in the URL. A fresh read
-  // clears every draft ("a fresh read is a new truth"), so WHILE ANYTHING IS
-  // UNSAVED THE BUTTON IS DISABLED and its hint says why — it must never be a
-  // silent discard, and the leave dialog's sentence does not describe a reload
-  // (§5i). Also disabled while a save is in flight (the save re-reads itself)
-  // and while a dry run is — a preview that lands after a fresh read would
-  // describe the old one. Not offered at all until there is a class to read.
-  //
-  // It clears the save result first: "Class record saved." describes the
-  // action before this one, and beside a fresh read it would be taken for the
-  // reload's own outcome (§7c).
-  //
-  // WHILE THE RELOAD IS IN FLIGHT THE GRID IS NOT ON SCREEN — the loading card
-  // is, exactly as on the first read. The button being disabled while dirty
-  // covers what was typed BEFORE the click; this covers what would be typed
-  // AFTER it: load() clears every draft when its reply lands, so a score
-  // typed into a grid left live during the request would vanish with nothing
-  // said. `reloading` is set and cleared by this handler alone (never in an
-  // effect), so a save's own re-read and a subject / class / term change
-  // behave exactly as they did.
-  const [reloading, setReloading] = useState(false);
-  const reloadBlocked = record.dirty || record.saving || previewing;
-  async function reloadRecord() {
-    setStatus({});
-    setReloading(true);
-    try {
-      // load() keeps its own failure in `record.error` and never rejects.
-      await record.reload();
-    } finally {
-      setReloading(false);
-    }
-  }
-
   // NO ENTRANCE AND NO TWEEN ON THIS PAGE (feat/ui-refresh, motion/motion.js):
   // the root is a plain <div>, never <Reveal>. The grid is typed into cell
   // after cell, its stale cells dim and return on every debounced keystroke,
@@ -561,8 +527,8 @@ export default function ClassRecordPage() {
       {assignmentsError ? <ErrorAlert message={assignmentsError} /> : null}
       {settingsError ? <ErrorAlert message={settingsError} /> : null}
 
-      {/* THE HEADER GROUP: the section's title with Reload, and the card that
-          chooses WHICH record. The record itself is the group below. */}
+      {/* THE HEADER GROUP: the section's title, and the card that chooses
+          WHICH record. The record itself is the group below. */}
       <div className="space-y-3">
         {/* NO <h1> HERE. `Shell`'s header already renders this page's <h1>
             from `nav.js`, so this one made "Grades" the word twice, stacked,
@@ -573,11 +539,6 @@ export default function ClassRecordPage() {
         <SectionHeader
           title="Class record"
           description="Record every learner’s scores for one subject and term, then save the whole class at once."
-          onReload={classKey ? reloadRecord : null}
-          reloading={record.loading || reloading}
-          reloadDisabled={reloadBlocked}
-          reloadHint={record.dirty ? 'Save or discard your changes before reloading.' : ''}
-          reloadLabel="Reload class record"
         />
 
         {/* Subject, then class, then term. One card, the three selects at the
@@ -629,7 +590,7 @@ export default function ClassRecordPage() {
         </div>
       </div>
 
-      {assignmentsLoading || (record.loading && !server) || reloading ? (
+      {assignmentsLoading || (record.loading && !server) ? (
         <div className={cardClass}>
           <LoadingSpinner className="py-16" label="Loading the class record…" />
         </div>

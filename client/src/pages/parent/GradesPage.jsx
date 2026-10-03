@@ -94,12 +94,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // is_locked is on every term entry and is NOT rendered. A parent cannot act on
 // it, and it reads either as "final" — a promise the system should not make,
 // since an admin can unlock — or as "hidden from you", which is false.
-//
-// RELOAD (feat/ui-refresh) is `load` itself: the report card's own request,
-// through the card's own loading and error frame. The school name and the
-// adviser are not re-read — they are reference data with no state of their
-// own to show (see TWO MORE READS) — and the term a parent picked on a phone
-// is kept, because that choice lives in ReportCard, which stays mounted.
 
 // The value inside a term cell (number, letter, Pending, N/A) is TermValue in
 // format/TermValue.jsx — extracted 2026-09-14 when Admin → Grades became the
@@ -550,16 +544,9 @@ export default function ParentGradesPage() {
     <>
       <Reveal className="space-y-6">
         <section className="space-y-3">
-          {/* The section's header is screen chrome — Reload, and a name for
-              what it reloads — so it stays off the printed sheet: the
-              document carries its own title. */}
-          <SectionHeader
-            title="Report card"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload report card"
-            className="print:hidden"
-          />
+          {/* The section's header is screen chrome, so it stays off the
+              printed sheet: the document carries its own title. */}
+          <SectionHeader title="Report card" className="print:hidden" />
 
           {/* Everything on the card comes from the report payload — see the
               file header on why not from useAuth(). A name is not an

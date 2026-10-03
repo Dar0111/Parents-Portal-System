@@ -30,8 +30,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 // those options are not offered. No attachment field: nothing uploads.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-02): the form is one card, then the
-// neutral way out and the ONE filled step forward. No reload: the screen is
-// a write form (its targets are `useTeacherTargets`' one read).
+// neutral way out and the ONE filled step forward. No pull-to-refresh: the
+// screen is a write form (its targets are `useTeacherTargets`' one read).
 export default function AnnouncementComposeScreen({ navigation, route }) {
   const { tokens } = useTheme();
   const editing = route?.params?.editing || null;

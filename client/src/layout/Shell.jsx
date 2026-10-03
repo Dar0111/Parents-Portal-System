@@ -9,6 +9,7 @@ import { requestLeave } from './leaveGuard';
 import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
 import { revealActive } from './navScroll';
+import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { settingsTabsForRole } from '../pages/settings/tabs';
 import { PageTitleContext } from './usePageTitle';
 import SocketProvider from '../realtime/SocketProvider';
@@ -40,11 +41,18 @@ const FOCUS =
 // hairline, so the sidebar's rule and the top bar's read as one line across
 // the window (feat/ui-refresh). A minimum, not a fixed height, and neither
 // line truncates: in a narrow drawer at the Large text size the name wraps
-// and the block grows instead of clipping. `children` is the drawer's Close
-// button, inside the same row.
-function Brand({ children = null }) {
+// and the block grows instead of clipping. `children` is the control at the
+// row's end — the drawer's Close button, or the sidebar's collapse toggle.
+//
+// `collapsed` is the 64px rail: the seal alone, centred, in the same 4rem
+// block, so the hairline still meets the top bar's.
+function Brand({ collapsed = false, children = null }) {
   return (
-    <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-edge px-4 py-2">
+    <div
+      className={`flex min-h-16 shrink-0 items-center gap-3 border-b border-edge py-2 ${
+        collapsed ? 'justify-center px-2' : 'px-4'
+      }`}
+    >
       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-seal-bg">
         <img
           src={seal}
@@ -54,10 +62,12 @@ function Brand({ children = null }) {
           className="h-10 w-10 rounded-full"
         />
       </div>
-      <div className="min-w-0 flex-1 leading-tight">
-        <div className="font-serif text-base font-bold text-fg">Parent&rsquo;s Portal</div>
-        <div className="text-xs text-fg-muted">Capt. H. Francisco ES</div>
-      </div>
+      {collapsed ? null : (
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="font-serif text-base font-bold text-fg">Parent&rsquo;s Portal</div>
+          <div className="text-xs text-fg-muted">Capt. H. Francisco ES</div>
+        </div>
+      )}
       {children}
     </div>
   );
@@ -94,11 +104,41 @@ function accountInfoPath(role) {
 // (`line-clamp-2`): one truncated line cut a full name to "Ashley G…", and
 // the name is the one thing this card is for. The link's aria-label always
 // carries it whole.
-function UserCard({ user, onLogout, onNavigate }) {
+//
+// IN THE RAIL (`collapsed`) the tile narrows to the avatar over the Logout
+// icon, each labelled by RailTooltip on hover and keyboard focus, exactly
+// the two controls of the wide card — main's rail card, in the new tile.
+function UserCard({ user, collapsed = false, onLogout, onNavigate }) {
   const role = ROLE_LABEL[user?.role] || user?.role || '';
   const detail = user?.role === 'parent' ? role : [role, user?.login_id].filter(Boolean).join(' · ');
   const name = user?.name || (user?.role === 'parent' ? '' : user?.login_id) || '';
   const account = accountInfoPath(user?.role);
+
+  if (collapsed) {
+    return (
+      <div className="m-2 flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border border-edge bg-surface-subtle p-1">
+        {account ? (
+          <RailTooltip label="Account information">
+            <Link
+              to={account}
+              onClick={onNavigate}
+              className={`flex rounded-full transition hover:opacity-90 ${FOCUS}`}
+            >
+              <Avatar name={name} photo={user?.profile_pic} />
+              <span className="sr-only">Account information</span>
+            </Link>
+          </RailTooltip>
+        ) : (
+          <Avatar name={name} photo={user?.profile_pic} />
+        )}
+        <RailTooltip label="Logout">
+          <Button variant="ghost" size="icon-sm" icon="fa-right-from-bracket" onClick={onLogout}>
+            <span className="sr-only">Logout</span>
+          </Button>
+        </RailTooltip>
+      </div>
+    );
+  }
 
   const who = (
     <>
@@ -144,6 +184,12 @@ function UserCard({ user, onLogout, onNavigate }) {
 // the row instead of clipping.
 const NAV_ITEM = 'relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm transition';
 
+// One icon of the rail: 44px tall, the icon centred in the rail's width.
+const RAIL_ITEM = 'relative flex h-11 items-center justify-center rounded-xl transition';
+
+// The active item's 3px brand bar on its left edge (see NavItem).
+const ACTIVE_BAR = 'absolute left-0 top-1/2 h-5 w-[0.1875rem] -translate-y-1/2 rounded-full bg-brand';
+
 // The icon's box. The WRAPPER carries the width, never the element with
 // `fa-solid` (Font Awesome's unlayered CSS wins over a layered utility —
 // found in D3), and it is aria-hidden: the label beside it is the name.
@@ -165,8 +211,49 @@ function NavIcon({ icon }) {
 // heavier label, and a 3px brand bar on its left edge — so it does not rest
 // on colour alone — and NavLink's own `aria-current="page"` says it to a
 // screen reader (navScroll.js finds the item by that attribute; a proof
-// drives it). There is no icon-only form of an item: the rail was removed.
-export function NavItem({ item, onNavigate, badge = 0 }) {
+// drives it).
+//
+// `collapsed` (feat/ui-polish; restored 2026-10-04): the 64px rail. The icon
+// alone, its label kept for screen readers (`sr-only`) and shown beside it by
+// RailTooltip on hover and on keyboard focus, the brand bar still marking the
+// active item, and a badge becomes a small count on the icon's corner.
+export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
+  if (collapsed && item.built && !item.blocked) {
+    return (
+      <RailTooltip label={item.label}>
+        <NavLink
+          to={item.to}
+          end={item.to.split('/').length === 2}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `${RAIL_ITEM} ${FOCUS} ${
+              isActive ? 'bg-brand-soft text-brand' : 'text-fg-body hover:bg-surface-muted hover:text-fg'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              {isActive ? <span aria-hidden="true" className={ACTIVE_BAR} /> : null}
+              <NavIcon icon={item.icon} />
+              <span className="sr-only">
+                {item.label}
+                {badge > 0 ? ` (${badge})` : ''}
+              </span>
+              {badge > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute right-1 top-1 min-w-4 rounded-full bg-primary px-1 text-center text-[0.625rem] font-semibold leading-4 tabular-nums text-primary-fg"
+                >
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              ) : null}
+            </>
+          )}
+        </NavLink>
+      </RailTooltip>
+    );
+  }
+
   if (item.blocked) {
     return (
       <span
@@ -216,12 +303,7 @@ export function NavItem({ item, onNavigate, badge = 0 }) {
     >
       {({ isActive }) => (
         <>
-          {isActive ? (
-            <span
-              aria-hidden="true"
-              className="absolute left-0 top-1/2 h-5 w-[0.1875rem] -translate-y-1/2 rounded-full bg-brand"
-            />
-          ) : null}
+          {isActive ? <span aria-hidden="true" className={ACTIVE_BAR} /> : null}
           <NavIcon icon={item.icon} />
           <span className="min-w-0 flex-1">{item.label}</span>
           {badge > 0 ? (
@@ -351,23 +433,32 @@ function ShellChrome() {
   const [customTitle, setCustomTitle] = useState(null);
   const titleContext = useMemo(() => ({ setTitle: setCustomTitle }), []);
 
-  // NO ICON-ONLY RAIL (the owner's decision, feat/ui-refresh, 2026-10-02):
-  // from `md` up the sidebar is always its full width, with its words. The
-  // collapse toggle, its `pp.sidebar` preference and layout/sidebarPref.js
-  // are gone; a value an older build stored under that key is never read.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const closeDrawer = () => setMobileNavOpen(false);
+  // THE DESKTOP SIDEBAR'S WIDTH, remembered per browser (`pp.sidebar`,
+  // layout/sidebarPref.js) — the collapse-to-rail toggle of feat/ui-polish,
+  // removed with the first refresh build and RESTORED by the owner on
+  // 2026-10-04, same behaviour, the new look. Read in the initializer, so
+  // the first paint already has the right width. The drawer below `md` is
+  // never collapsed — it is opened for the words.
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      saveSidebarCollapsed(!c);
+      return !c;
+    });
+  }
 
   // THE ACTIVE ITEM IS SCROLLED INTO VIEW (UI-10) — on load, on every route
-  // change, and when the drawer opens; nearest, no animation
-  // (`navScroll.js`). A layout effect, so the nav never paints at the wrong
-  // scroll first.
+  // change, when the sidebar collapses or expands, and when the drawer opens;
+  // nearest, no animation (`navScroll.js`). A layout effect, so the nav never
+  // paints at the wrong scroll first.
   const sidebarNavRef = useRef(null);
   const drawerNavRef = useRef(null);
   useLayoutEffect(() => {
     revealActive(sidebarNavRef.current);
     revealActive(drawerNavRef.current);
-  }, [location.pathname, mobileNavOpen]);
+  }, [location.pathname, collapsed, mobileNavOpen]);
 
   const items = navForRole(user?.role);
   // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the
@@ -390,37 +481,66 @@ function ShellChrome() {
   }
 
   // GROUPED (feat/ui-polish, 2026-09-30): Dashboard on top, the role's groups
-  // with a small label each, and Settings / About pinned at the bottom above
-  // the user card. Which item sits where is layout/navGroups.js; which items
-  // EXIST is still nav.js alone. The groups do not fold on the web. The
-  // sidebar and the drawer render the same two blocks.
+  // with a small label each (a thin divider in the rail), and Settings /
+  // About pinned at the bottom above the user card. Which item sits where is
+  // layout/navGroups.js; which items EXIST is still nav.js alone. The groups
+  // do not fold on the web. The sidebar and the drawer render the same two
+  // blocks; `rail` is true only for the collapsed desktop sidebar.
   const sections = groupNav(user?.role, items);
-  const renderItems = (list) =>
+  const renderItems = (list, rail) =>
     list.map((item) => (
       <NavItem
         key={item.to}
         item={item}
+        collapsed={rail}
         onNavigate={closeDrawer}
         badge={badgeFor(item, user?.role, counts, unread)}
       />
     ));
-  const navBody = (
-    <nav aria-label="Main" className="space-y-1 px-3 pb-4 pt-3">
-      {renderItems(sections.top)}
+  const navBody = (rail) => (
+    <nav aria-label="Main" className={`space-y-1 pb-4 pt-3 ${rail ? 'px-2' : 'px-3'}`}>
+      {renderItems(sections.top, rail)}
       {sections.groups.map((group, i) => (
         <div key={group.label || `rest-${i}`} className="space-y-1 pt-3">
-          {group.label ? (
+          {rail ? (
+            <div aria-hidden="true" className="mx-2 mb-2 border-t border-edge" />
+          ) : group.label ? (
             <div className="px-3 pb-1.5 pt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-muted">
               {group.label}
             </div>
           ) : null}
-          {renderItems(group.items)}
+          {renderItems(group.items, rail)}
         </div>
       ))}
     </nav>
   );
-  const pinned = (
-    <div className="shrink-0 space-y-1 border-t border-edge px-3 py-2">{renderItems(sections.bottom)}</div>
+  const pinned = (rail) => (
+    <div className={`shrink-0 space-y-1 border-t border-edge py-2 ${rail ? 'px-2' : 'px-3'}`}>
+      {renderItems(sections.bottom, rail)}
+    </div>
+  );
+
+  // THE COLLAPSE TOGGLE, as on main: at the end of the brand row while the
+  // sidebar is wide; in the rail, in a row of its own under the brand block
+  // (there the block holds only the seal, and keeps the header's height so
+  // the two hairlines still meet). Its label shows by RailTooltip only in
+  // the rail, where it is "Expand sidebar"; wide, its name is enough. 36px
+  // from `sm` up — the sidebar is a pointer's, from `md`. Measured from the
+  // font files (2026-10-04): the wordmark is 116px at 16px and 130px at the
+  // Large size, and beside a 36px toggle with an 8px gap its column is 132px,
+  // so it stays one line.
+  const collapseToggle = (
+    <RailTooltip label="Expand sidebar" enabled={collapsed}>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        icon={collapsed ? 'fa-angles-right' : 'fa-angles-left'}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        onClick={toggleCollapsed}
+        className={collapsed ? '' : '-ml-1 -mr-2'}
+      />
+    </RailTooltip>
   );
   // NO VISIBLE SCROLLBAR (UI-1): the box still scrolls by wheel, trackpad and
   // touch, and Tab scrolls a focused link into view; only the bar is hidden —
@@ -440,17 +560,28 @@ function ShellChrome() {
 
           `md`, NOT `sm`, SINCE feat/ui-polish (2026-09-30): at 640–767px the
           sidebar (240px then) left a page about 350px wide, so below 768px the
-          menu button opens the drawer instead. ALWAYS 16rem (w-64) since
-          feat/ui-refresh — one width, no rail; <main> is flex-1 min-w-0, so
+          menu button opens the drawer instead. Wide it is 16rem (w-64) since
+          feat/ui-refresh, the rail 4rem (w-16); <main> is flex-1 min-w-0, so
           every page simply gets the rest of the window — nothing below this
           sets a width for it. */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col self-start border-r border-edge bg-surface md:flex">
-        <Brand />
+      <aside
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col self-start border-r border-edge bg-surface md:flex ${
+          collapsed ? 'w-16' : 'w-64'
+        }`}
+      >
+        {collapsed ? (
+          <>
+            <Brand collapsed />
+            <div className="flex shrink-0 justify-center pt-2">{collapseToggle}</div>
+          </>
+        ) : (
+          <Brand>{collapseToggle}</Brand>
+        )}
         <div ref={sidebarNavRef} className={navBox}>
-          {navBody}
+          {navBody(collapsed)}
         </div>
-        {pinned}
-        <UserCard user={user} onLogout={handleLogout} />
+        {pinned(collapsed)}
+        <UserCard user={user} collapsed={collapsed} onLogout={handleLogout} />
       </aside>
 
       {mobileNavOpen ? (
@@ -466,9 +597,9 @@ function ShellChrome() {
             />
           </Brand>
           <div ref={drawerNavRef} className={navBox}>
-            {navBody}
+            {navBody(false)}
           </div>
-          {pinned}
+          {pinned(false)}
           <UserCard user={user} onLogout={handleLogout} onNavigate={closeDrawer} />
         </Drawer>
       ) : null}

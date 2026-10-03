@@ -45,7 +45,6 @@ import { useAuth } from '../../auth/AuthContext';
 // Show/hide is per field. Fields are never pre-filled and never shown as
 // stored.
 //
-// NO RELOAD HERE (feat/ui-refresh): a write-only form shows no server data.
 // One primary button on the screen — Change password — and one in its
 // dialog; FormStatus stays directly under the button that caused it (§7c).
 

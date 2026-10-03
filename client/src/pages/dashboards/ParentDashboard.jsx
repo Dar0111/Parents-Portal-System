@@ -41,15 +41,6 @@ import { useCard } from './useCard';
 // computed server-side with the same roundTo2 the report card uses. A client
 // mean would be a second implementation of a number parents compare against
 // their child's card.
-//
-// RELOAD (feat/ui-refresh, 2026-10-02): each card's Reload is the `reload` of
-// every useCard that card reads — Grades asks for the summary and the report
-// card, Attendance for the month, the school year and the last week — so the
-// button refreshes exactly what its card shows and makes no request of its
-// own. The hero has no button: its three figures are the same reads, and they
-// move when those cards reload. A count that belongs to a provider (unread
-// messages, unread posts) is not re-read by a card's button; the socket keeps
-// those current (§10).
 
 function classLabel(user) {
   if (user?.grade_level == null && !user?.section) return null;
@@ -788,14 +779,6 @@ export default function ParentDashboard() {
         loading={summary.loading}
         error={summary.error}
         onRetry={summary.reload}
-        // This card reads TWO things — the summary and the report card behind
-        // the subject list — so its Reload asks for both, and stays busy
-        // until both are back.
-        onReload={() => {
-          summary.reload();
-          card.reload();
-        }}
-        reloading={summary.loading || card.loading}
       >
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -852,20 +835,6 @@ export default function ParentDashboard() {
           month.reload();
           allTime.reload();
         }}
-        // Reload asks for all THREE reads this card shows — the month, the
-        // school year so far, and the last-week strip (Retry stays the two
-        // whose failure the card reports). An unlinked account makes none of
-        // them (`skip`), so it gets no button that would ask for nothing.
-        onReload={
-          linked
-            ? () => {
-                month.reload();
-                allTime.reload();
-                week.reload();
-              }
-            : null
-        }
-        reloading={month.loading || allTime.loading || week.loading}
       >
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -920,12 +889,10 @@ export default function ParentDashboard() {
         loading={latestMessage.loading}
         error={latestMessage.error}
         onRetry={latestMessage.reload}
-        onReload={latestMessage.reload}
       >
         {/* THE COUNT IS STILL THE SERVER'S ANSWER (§10) — `unread` comes from
             UnreadProvider, never from the length of this list. The preview
-            below supplies only the sender and the snippet, and it is the
-            preview that Reload asks for again. */}
+            below supplies only the sender and the snippet. */}
         {unread > 0 || latestMessage.data ? (
           <Stat value={<CountUp value={unread} />} caption={unread === 1 ? 'unread message' : 'unread messages'} />
         ) : null}
@@ -946,8 +913,6 @@ export default function ParentDashboard() {
         loading={letter.loading}
         error={letter.error}
         onRetry={letter.reload}
-        // Skipped for an unlinked account, as the read itself is.
-        onReload={linked ? letter.reload : null}
       >
         {!linked ? (
           <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -971,7 +936,6 @@ export default function ParentDashboard() {
         loading={posts.loading}
         error={posts.error}
         onRetry={posts.reload}
-        onReload={posts.reload}
       >
         {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
           <>
@@ -1006,7 +970,6 @@ export default function ParentDashboard() {
         loading={events.loading}
         error={events.error}
         onRetry={events.reload}
-        onReload={events.reload}
       >
         {events.data?.length ? (
           <>

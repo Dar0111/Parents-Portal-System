@@ -16,9 +16,6 @@ import { eventAudience } from './PostReadScreen';
 // `sort=event_date&order=asc` explicitly — the default is DESC, right for the
 // full list and wrong for "what is next" (§12). The range is a bounded
 // control and auto-applies (§21). Three empty branches (§5f).
-//
-// RELOAD (feat/ui-refresh) is `load(0)` — the same request with the range
-// that is applied now; the range is not reset.
 const RANGES = [
   { key: 'upcoming', label: 'Upcoming' },
   { key: 'all', label: 'All, including past' },
@@ -86,12 +83,12 @@ export default function EventsScreen({ navigation }) {
     return { icon: 'fa-calendar-days', title: 'No events yet', message: 'School events will appear here once they are posted.' };
   })();
 
-  // The section's title and Reload, then the range in its own card: the two
-  // pills fit a 360dp phone side by side, and the caption under them says
-  // what "Upcoming" includes.
+  // The section's title, then the range in its own card: the two pills fit a
+  // 360dp phone side by side, and the caption under them says what
+  // "Upcoming" includes.
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="School events" onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload events" />
+      <SectionHeader title="School events" />
       <View className={`${cardClass} p-4`}>
         <Segmented label="Show" options={RANGES} value={range} onChange={setRange} />
         <Text className="mt-3 text-xs text-fg-muted">Upcoming includes anything happening today.</Text>

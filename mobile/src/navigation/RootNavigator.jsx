@@ -56,6 +56,18 @@ function frameLayout({ children }) {
   return <ScreenFrame>{children}</ScreenFrame>;
 }
 
+// HOME TAKES NO FRAME (fix round, 2026-10-04). Home is AppShell, whose own
+// navigators already frame every screen they hold, and whose drawer panel
+// pads its own bottom (M9). A frame here too stacked the bottom inset: a
+// drawer screen was lifted by it THREE times (this frame, the detail stack's
+// around the drawer, the drawer screen's own) and the drawer panel ended two
+// insets above the navigation bar — the blank strip of the owner's phone
+// check. A screen-level `layout` beats the navigator's `screenLayout`, and it
+// is called the same way, so it is a module-level function with no hook.
+function bareLayout({ children }) {
+  return children;
+}
+
 // THE SPLASH IS RELEASED WHEN THE THEME IS READY, NOT WHEN /auth/me ANSWERS
 // (phone check, 2026-09-27). The first build held it until the session read
 // finished; on the 503 check the phone sat on Expo Go's white loading view
@@ -125,7 +137,7 @@ export default function RootNavigator() {
           navigators and need the same bottom safe-area frame (their tops
           pad by inset already). Not `withStrip` — the providers are not
           mounted here, and the strip would report a channel that has not
-          been opened. */}
+          been opened. Home overrides it with `bareLayout` (above). */}
       <Stack.Navigator screenLayout={frameLayout} screenOptions={{ headerShown: false, animation: 'fade' }}>
         {!user ? (
           <>
@@ -138,7 +150,7 @@ export default function RootNavigator() {
           <Stack.Screen name="ForcedPasswordChange" component={ForcedPasswordChangeScreen} />
         ) : (
           <>
-            <Stack.Screen name="Home" component={AppShell} />
+            <Stack.Screen name="Home" component={AppShell} layout={bareLayout} />
             {ConnectionScreen ? <Stack.Screen name="Connection" component={ConnectionScreen} /> : null}
           </>
         )}

@@ -1,17 +1,41 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Appearance } from 'react-native';
-import { colorScheme as nativewindScheme } from 'nativewind';
+import { StyleSheet as NativeWindStyleSheet } from 'nativewind';
+import { dark, light, names } from './tokens';
 
 // THE MOBILE TWIN OF client/src/pages/settings/theme.js — Light / Dark /
 // System, stored on THIS DEVICE only (AsyncStorage, key `pp.theme`), DEFAULT
 // LIGHT on a fresh device (Darryl, 2026-09-19 — not System), and no server
 // column. The print branch does not exist here: nothing on a phone prints.
 //
-// THE MECHANISM IS NATIVEWIND'S COLOUR SCHEME, not a class. global.css keys
-// every token on `@media (prefers-color-scheme: dark)`, and NativeWind
-// resolves that media query against the scheme set here — so `colorScheme.set`
-// is the whole switch, the way `data-theme` on <html> is on the web. No screen
-// carries a per-theme variant (§8).
+// THE MECHANISM IS NATIVEWIND'S ROOT VARIABLES, set from JS (fix round,
+// 2026-10-04). global.css declares every token as a `:root` variable, light
+// and dark; `applyTheme` writes the RESOLVED theme's value into each of them
+// through NativeWind's public `StyleSheet.registerCompiled` — the call
+// global.css itself makes at import — and every class reading `var(--name)`
+// re-renders with it, the way `data-theme` on <html> is the switch on the
+// web. No screen carries a per-theme variant (§8).
+//
+// IT NEVER CALLS `Appearance.setColorScheme` (the old mechanism, through
+// NativeWind's `colorScheme.set`). On Android that is
+// `AppCompatDelegate.setDefaultNightMode` — a process-wide night-mode change
+// that Expo Go's window takes as a configuration change, and after it the
+// layout and the status bar no longer matched the edge-to-edge window the app
+// draws for (the owner's phone check, 2026-10-04: a blank strip at the bottom
+// of every screen and a black status bar in Light, until the app restarted).
+// A theme switch is now JS state only; the native window is never touched.
+// The one thing that still follows the PHONE's own setting is native chrome
+// the app does not draw — a system Alert or the date picker dialog.
+//
+// DEV ONLY: a Fast Refresh that re-injects global.css puts the variables
+// back on the phone's own scheme until the next theme apply (a cold boot,
+// M7, applies it at once).
+
+// The resolved theme's value for every token, keyed as global.css names them.
+function rootVariablesFor(resolved) {
+  const table = resolved === 'dark' ? dark : light;
+  return Object.fromEntries(names.map((name) => [`--${name}`, table[name]]));
+}
 //
 // THE TEXT-SIZE SETTING IS DROPPED ON MOBILE (Darryl, Stage 5 decision 3): the
 // OS font scale does that job, and every <Text> keeps `allowFontScaling` at
@@ -46,12 +70,15 @@ export function resolveTheme(preference) {
   return 'light';
 }
 
-// Applies for this session. `system` is handed to NativeWind as `system` so it
-// follows the OS live; the return value is what it resolves to right now, for
-// the callers that need a hex (StatusBar, the navigator).
+// Applies for this session: the resolved theme's values go into NativeWind's
+// root variables. `system` resolves against the phone's setting NOW;
+// ThemeProvider applies it again whenever that setting changes, while the
+// stored preference is `system`. The return value is what it resolved to,
+// for the callers that need a hex (StatusBar, the navigator).
 export function applyTheme(preference) {
-  nativewindScheme.set(THEMES.includes(preference) ? preference : DEFAULT_THEME);
-  return resolveTheme(preference);
+  const resolved = resolveTheme(THEMES.includes(preference) ? preference : DEFAULT_THEME);
+  NativeWindStyleSheet.registerCompiled({ rootVariables: rootVariablesFor(resolved) });
+  return resolved;
 }
 
 // Applies, then tries to remember. Returns whether the device will remember

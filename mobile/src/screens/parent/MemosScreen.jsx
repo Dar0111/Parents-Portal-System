@@ -9,9 +9,6 @@ import { timestampDay } from '../../format/date';
 // columns, so the fact is true of the whole page and is said once above it —
 // as the section's own description since feat/ui-refresh, where it was a note
 // card before. One empty branch (§5f).
-//
-// RELOAD is `load(0)` — the request pull-to-refresh and "Try again" already
-// make, from the section's header.
 export default function MemosScreen({ navigation }) {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(null);
@@ -48,9 +45,6 @@ export default function MemosScreen({ navigation }) {
     <SectionHeader
       title="Posted memos"
       description="Memos come from the school administration and go to everyone."
-      onReload={() => load(0)}
-      reloading={loading || refreshing}
-      reloadLabel="Reload memos"
       className="mb-4"
     />
   );

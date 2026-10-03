@@ -56,14 +56,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): two sections, the queue
 // first because it is the one thing waiting on the admin, then the
-// directory with the page's ONE filled action, Create teacher. RELOAD is
-// `load` itself — and `load` is ONE request pair for both lists, so each
-// section header carries the same Reload and either one re-reads BOTH
-// tables, with the filters, search, pages and sorts that are applied now.
-// It commits no draft filter, resets nothing and leaves both status
-// messages alone. The five Modals sit BESIDE the entrance wrapper, never
-// inside it: Modal renders inline, and a wrapper mid-tween carries a
-// transform (motion/motion.js).
+// directory with the page's ONE filled action, Create teacher. The five
+// Modals sit BESIDE the entrance wrapper, never inside it: Modal renders
+// inline, and a wrapper mid-tween carries a transform (motion/motion.js).
 
 const EMPTY_TEACHER = {
   login_id: '',
@@ -829,9 +824,6 @@ export default function UsersPage() {
                 cannot be returned to pending afterward.
               </span>
             }
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload accounts"
           />
           <FormStatus status={formStatus.pending} />
 
@@ -863,20 +855,14 @@ export default function UsersPage() {
               says WHO CREATES WHAT goes here, beside the one control it is
               about. It is the one thing about this screen that is not
               obvious from it: an admin can create a teacher but not a
-              parent, and not another admin.
-
-              The same Reload as the queue's — one `load`, both tables (see
-              the header). Create teacher is the page's one filled action.
+              parent, and not another admin. Create teacher is the page's one
+              filled action.
 
               The sentence is its own paragraph UNDER the header row, not the
-              header's `description`: on a phone the row's two controls leave
-              the title a column a few words wide, and the sentence would be
-              stacked into it. */}
+              header's `description`: on a phone the button beside the title
+              would leave the sentence a narrow column. */}
           <SectionHeader
             title="All accounts"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload accounts"
             actions={
               <Button variant="primary" icon="fa-user-plus" onClick={openCreate}>
                 Create teacher

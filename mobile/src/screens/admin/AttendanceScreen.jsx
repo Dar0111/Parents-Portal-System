@@ -31,10 +31,6 @@ import { longDate } from '../../format/date';
 // the same order, over the rows SHOWN. Each status is its badge, so the strip
 // and the cards name a mark the same way; the word is in the badge, so
 // nothing here is told by colour alone.
-//
-// RELOAD is `load(0)` with the applied filters — the request pull-to-refresh
-// already makes — and it exists only once a grade or a date range is applied:
-// before that there is nothing to ask for again.
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
 // The count strip's order — the old line's: Present · Late · Absent · Excused.
 const COUNT_ORDER = ['Present', 'Late', 'Absent', 'Excused'];
@@ -157,7 +153,7 @@ export default function AttendanceScreen() {
 
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="Attendance records" onReload={hasScope ? () => load(0) : null} reloading={loading || refreshing} reloadLabel="Reload attendance records" />
+      <SectionHeader title="Attendance records" />
       <Text className="text-sm text-fg-muted">View only. Each section's adviser records attendance, and corrects a mark by saving that date again on their own Attendance page.</Text>
       <View className={`${cardClass} gap-4 p-4`}>
         <Segmented label="Grade" value={draft.grade_level} onChange={(v) => setDraft((p) => ({ ...p, grade_level: v, section: '' }))} options={GRADES} />

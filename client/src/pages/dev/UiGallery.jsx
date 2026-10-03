@@ -19,7 +19,6 @@ import { PersonCell } from '../../components/Avatar';
 import AttendanceCalendar from '../parent/AttendanceCalendar';
 import { NavItem } from '../../layout/Shell';
 import Button from '../../components/Button';
-import ReloadButton from '../../components/ReloadButton';
 import SectionHeader from '../../components/SectionHeader';
 import { buttonClass, cardClass, linkClass } from '../../components/buttonClass';
 import CountUp from '../../motion/CountUp';
@@ -30,8 +29,8 @@ import Reveal from '../../motion/Reveal';
 // reviewed before any feature page is built against it.
 //
 // feat/ui-refresh (2026-10-02) added the three demos at the top — Buttons,
-// SectionHeader + Reload, and Motion — so the system the refresh introduced
-// can be seen in one place, in both themes, without logging in.
+// SectionHeader, and Motion — so the system the refresh introduced can be
+// seen in one place, in both themes, without logging in.
 
 // Every variant at every size, from the one definition (buttonClass.js).
 const BUTTON_VARIANTS = ['primary', 'secondary', 'ghost', 'danger', 'danger-outline', 'success'];
@@ -113,52 +112,21 @@ function ButtonsDemo() {
   );
 }
 
-// SectionHeader with its Reload. The "request" here is a 1.2 s timer, so the
-// button's busy state (disabled, the icon spinning) and the section's own
-// loading frame can be seen; a real page passes its existing fetch.
+// SectionHeader: a section's title, one sentence, and its own action.
 function SectionHeaderDemo() {
-  const [reloading, setReloading] = useState(false);
-  const [times, setTimes] = useState(0);
-  function reload() {
-    setReloading(true);
-    setTimeout(() => {
-      setReloading(false);
-      setTimes((n) => n + 1);
-    }, 1200);
-  }
   return (
-    <div className="space-y-6">
-      <section className="space-y-3">
-        <SectionHeader
-          title="Announcements"
-          description="The title in the title face, one sentence, Reload, then the section's one primary action."
-          onReload={reload}
-          reloading={reloading}
-          reloadLabel="Reload announcements"
-          actions={
-            <Button variant="primary" icon="fa-plus">
-              New announcement
-            </Button>
-          }
-        />
-        <DataTable columns={COLUMNS} rows={STUDENTS.slice(0, 3)} loading={reloading} />
-        <p className="text-xs tabular-nums text-fg-muted">Reloaded {times} time(s) in this visit.</p>
-      </section>
-      <section className="space-y-3">
-        <SectionHeader
-          as="h3"
-          title="Unsaved work"
-          description="On the bulk-entry screens Reload is disabled while anything is unsaved — hover it for the reason."
-          onReload={() => {}}
-          reloadDisabled
-          reloadHint="Save or discard your changes before reloading."
-          reloadLabel="Reload attendance"
-        />
-      </section>
-      <Row label="ReloadButton compact — icon only at every width, for a card's header">
-        <ReloadButton compact onReload={reload} loading={reloading} label="Reload this card" />
-      </Row>
-    </div>
+    <section className="space-y-3">
+      <SectionHeader
+        title="Announcements"
+        description="The title in the title face, one sentence, then the section's one primary action."
+        actions={
+          <Button variant="primary" icon="fa-plus">
+            New announcement
+          </Button>
+        }
+      />
+      <DataTable columns={COLUMNS} rows={STUDENTS.slice(0, 3)} />
+    </section>
   );
 }
 
@@ -438,8 +406,8 @@ export default function UiGallery() {
         </Section>
 
         <Section
-          title="SectionHeader + Reload"
-          note="A section of a page: its title (an h2 — the page's one h1 is the top bar's), a sentence, Reload, and the section's own actions. Reload calls the section's existing fetch and is disabled while that fetch is running."
+          title="SectionHeader"
+          note="A section of a page: its title (an h2 — the page's one h1 is the top bar's), a sentence, and the section's own actions."
         >
           <SectionHeaderDemo />
         </Section>

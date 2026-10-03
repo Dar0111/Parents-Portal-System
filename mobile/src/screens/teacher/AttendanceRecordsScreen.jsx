@@ -26,12 +26,8 @@ import { longDate } from '../../format/date';
 // advise, and "Everything I recorded" is how a former adviser reads theirs.
 // Three empty branches from the applied values (§5f).
 //
-// RELOAD (feat/ui-refresh, 2026-10-03) is `load(0)` — the request the focus
-// effect and pull-to-refresh already make, with the APPLIED section and
-// dates. It never commits a staged filter (the drafts are separate state and
-// `load` does not read them) and it still never sends `date`. The standing
-// sentence is the section header's description, so it sits under the title
-// in all three states (error, loading, the list).
+// The standing sentence is the section header's description, so it sits
+// under the title in all three states (error, loading, the list).
 //
 // NO ENTRANCE HERE, as on every other list screen: DataList mounts its header
 // anew in each of its four frames, so an entrance inside the header would
@@ -188,7 +184,7 @@ export default function AttendanceRecordsScreen({ navigation }) {
 
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="Records" description={hint} onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload attendance records" />
+      <SectionHeader title="Records" description={hint} />
       <View className={`${cardClass} gap-3 p-4`}>
         <Segmented
           label="Section"

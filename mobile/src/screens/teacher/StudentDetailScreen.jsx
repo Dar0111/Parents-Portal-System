@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { KeyboardAvoidingView, Modal, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
@@ -14,7 +14,6 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
@@ -41,14 +40,14 @@ import { useTheme } from '../../theme/ThemeProvider';
 //
 // THE LAYOUT (feat/ui-refresh, 2026-10-02) is the web's: a HEADER CARD — the
 // learner in the title face with their initials (a learner has no photo,
-// §25), the class and the status badge, the record's Reload, then its
-// actions and the notes that say what this teacher may not do here — and
-// TWO FACT CARDS by what the fact is for: who the learner is, and how to
-// reach the family. Create parent account is the screen's one filled action.
+// §25), the class and the status badge, then its actions and the notes that
+// say what this teacher may not do here — and TWO FACT CARDS by what the fact
+// is for: who the learner is, and how to reach the family. Create parent
+// account is the screen's one filled action.
 //
-// RELOAD is load() — the same GET the screen opens with. The whole screen
-// shows the spinner while it runs, exactly as on the first load, so the
-// header card's entrance plays again when the record comes back.
+// PULL TO REFRESH is load() — the same GET the screen opens with; the record
+// stays on screen under the pull spinner (only the first load, and the
+// re-read after Create parent, show the whole-screen spinner).
 const EMPTY_EDIT = { first_name: '', last_name: '', birthday: '', gender: '', address: '', contact_number: '' };
 const GENDERS = [
   { key: '', label: 'Not recorded' },
@@ -114,6 +113,7 @@ export default function StudentDetailScreen({ navigation, route }) {
   const [student, setStudent] = useState(null);
   const [parentAccount, setParentAccount] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [notInScope, setNotInScope] = useState(false);
   const [assignments, setAssignments] = useState([]);
@@ -130,22 +130,27 @@ export default function StudentDetailScreen({ navigation, route }) {
     navigation.setOptions({ title: student ? `${student.first_name} ${student.last_name}` : 'Student' });
   }, [navigation, student]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setNotInScope(false);
-    try {
-      const row = await api.get(`/students/${id}`, { unwrap: ['student', 'parent_account'] });
-      setStudent(row.student);
-      setParentAccount(row.parent_account);
-    } catch (err) {
-      if (err?.response?.status === 404) setNotInScope(true);
-      else setError(extractError(err));
-      setStudent(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  const load = useCallback(
+    async ({ pull = false } = {}) => {
+      if (pull) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+      setNotInScope(false);
+      try {
+        const row = await api.get(`/students/${id}`, { unwrap: ['student', 'parent_account'] });
+        setStudent(row.student);
+        setParentAccount(row.parent_account);
+      } catch (err) {
+        if (err?.response?.status === 404) setNotInScope(true);
+        else setError(extractError(err));
+        setStudent(null);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [id]
+  );
 
   useEffect(() => {
     load();
@@ -263,23 +268,27 @@ export default function StudentDetailScreen({ navigation, route }) {
     }
   }
 
-  if (loading) return <LoadingSpinner className="py-16" label="Loading student…" />;
+  // A pull with no record on screen (from the error or not-found state) shows
+  // the loading frame too, never a blank screen.
+  if (loading || (refreshing && !student)) return <LoadingSpinner className="py-16" label="Loading student…" />;
+
+  const pull = <RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />;
 
   if (notInScope) {
     return (
-      <View className="flex-1 bg-page p-4">
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pull}>
         <View className={cardClass}>
           <EmptyState icon="fa-user-slash" title="This student is not in your classes" message="You can only open students in the sections you teach or advise." />
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
   if (error) {
     return (
-      <View className="flex-1 bg-page p-4">
-        <ErrorAlert message={error} onRetry={load} />
-      </View>
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pull}>
+        <ErrorAlert message={error} onRetry={() => load()} />
+      </ScrollView>
     );
   }
 
@@ -294,7 +303,7 @@ export default function StudentDetailScreen({ navigation, route }) {
   const hasNotes = Boolean(parentAccount) || showEditNote || showParentNote;
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
+    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10" refreshControl={pull}>
       <FormStatus status={status} />
 
       <Reveal>
@@ -312,7 +321,6 @@ export default function StudentDetailScreen({ navigation, route }) {
                 <StatusBadge status={student.status} />
               </View>
             </View>
-            <ReloadButton onReload={load} loading={loading} disabled={editOpen || savingEdit} label="Reload student record" />
           </View>
 
           {canEdit || showCreateParent ? (

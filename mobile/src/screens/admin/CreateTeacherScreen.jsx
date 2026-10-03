@@ -21,7 +21,8 @@ import { createTeacherBody, createTeacherProblem, teacherCreatedNotice } from '.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-03): the fields in one card, then the
 // neutral way out and the one filled step forward — both the shared `Button`
-// at 48dp. NO RELOAD: a write-only form shows no server data. The label still
+// at 48dp. NO PULL-TO-REFRESH: a write-only form shows no server data. The
+// label still
 // changes while the write is in flight; `loading` is the old
 // `disabled={saving}` plus its spinner and busy state.
 const EMPTY = { login_id: '', password: '', name: '', email: '', contact_number: '' };

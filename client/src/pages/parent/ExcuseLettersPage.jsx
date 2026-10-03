@@ -43,11 +43,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // §5b: the table renders last GET /mine only. Compose draft is created on
 // open and discarded on close. Success refetches; the form never writes
 // the list. §5c: no LRN, no login_id, route has no :id.
-//
-// RELOAD (feat/ui-refresh) is `load` itself — GET /mine again. The status
-// filter is client-side state and is not touched, and neither is
-// `writeStatus`: a "Letter submitted." still describes the last write after
-// the list has been read again.
 
 // The label of one field in the reading view: the eyebrow style.
 const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
@@ -261,9 +256,6 @@ export default function ParentExcuseLettersPage() {
               it instead of repeating it (§5f). */}
           <SectionHeader
             title="Submitted letters"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload excuse letters"
             actions={
               canSubmit ? (
                 <Button variant="primary" icon="fa-plus" onClick={openCompose}>

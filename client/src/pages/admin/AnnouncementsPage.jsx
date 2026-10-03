@@ -56,11 +56,8 @@ import Reveal from '../../motion/Reveal';
 // uploads. No category filter: category is free text with no allow-list.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): the one-line note, then the
-// two sections, each with its own header (title, Reload, its "New …"
-// action), its write's result and its list. EACH RELOAD IS THAT LIST'S OWN
-// load(): announcements with the grade/class filter, page and sort that are
-// APPLIED now, memos with their page and sort. Neither commits a draft
-// filter, resets anything, or touches the other list or a status message.
+// two sections, each with its own header (title and its "New …" action), its
+// write's result and its list.
 // The three dialogs sit BESIDE the entrance wrapper, never inside it: Modal
 // renders inline, and a wrapper mid-tween carries a transform
 // (motion/motion.js).
@@ -542,20 +539,15 @@ export default function AdminAnnouncementsPage() {
               (Those figures are from before feat/ui-refresh and have not been
               re-measured; the placement and the reason stand.)
 
-              THE `className` KEEPS THE TITLE WHOLE ON A PHONE. SectionHeader's
-              title column has no minimum width, so beside Reload and "New
-              announcement" a 390px screen leaves it about 7rem — less than the
-              one unbreakable word "Announcements" needs, which would then run
-              under the buttons. `min-w-fit` on that column makes the controls
-              wrap to their own line instead. By arithmetic, not yet seen in a
+              THE `className` KEEPS THE TITLE WHOLE ON A PHONE: `min-w-fit` on
+              the title column means the one unbreakable word "Announcements"
+              is never squeezed under "New announcement" — the button wraps
+              to its own line instead. By arithmetic, not yet seen in a
               browser; from `sm` up everything fits on one row and nothing
               changes. */}
           <SectionHeader
             title="Announcements"
             className="[&>div:first-child]:min-w-fit"
-            onReload={loadAnnouncements}
-            reloading={annLoading}
-            reloadLabel="Reload announcements"
             actions={
               <Button icon="fa-plus" onClick={openNewAnnouncement}>
                 New announcement
@@ -665,9 +657,6 @@ export default function AdminAnnouncementsPage() {
               difference in weight that does not exist. */}
           <SectionHeader
             title="Memos"
-            onReload={loadMemos}
-            reloading={memoLoading}
-            reloadLabel="Reload memos"
             actions={
               <Button icon="fa-plus" onClick={openNewMemo}>
                 New memo

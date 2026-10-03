@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePreventRemove } from '@react-navigation/native';
-import { Alert, KeyboardAvoidingView, ScrollView, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
 import FormField from '../../components/FormField';
@@ -42,30 +42,26 @@ import useSlotRecord from './classRecord/useSlotRecord';
 // removal needs no sentinel), `ask` is the native Alert with the web's words.
 // `usePreventRemove` is armed exactly while the machine says it is.
 //
-// RELOAD IS `record.reload` (feat/ui-refresh, 2026-10-03) — useSlotRecord's
+// PULL TO REFRESH IS `record.reload` (fix round, 2026-10-04) — useSlotRecord's
 // own load(), the same GET for this class key. A fresh read clears every
 // draft ("a fresh read is a new truth"), so WHILE ANYTHING IS UNSAVED THE
-// BUTTON IS DISABLED and the line under the header says why: it must never
-// be a silent discard, and the leave prompt's sentence does not describe a
-// reload (§5i). "Unsaved" here is wider than `record.dirty`: a keystroke
-// that is not a whole number is never sent, so it does not make the record
-// dirty, and a reload would still wipe it — a score, or the column's highest
-// possible score. Also disabled while a save is in flight (the save re-reads
-// itself) and while a dry run is — a preview that lands after a fresh read
-// would describe the old one.
+// PULL IS DISABLED: it must never be a silent discard, and the leave prompt's
+// sentence does not describe a refresh (§5i). "Unsaved" here is wider than
+// `record.dirty`: a keystroke that is not a whole number is never sent, so it
+// does not make the record dirty, and a refresh would still wipe it — a
+// score, or the column's highest possible score. Also disabled while a save
+// is in flight (the save re-reads itself) and while a dry run is — a preview
+// that lands after a fresh read would describe the old one.
 //
-// WHILE THE RELOAD IS IN FLIGHT THE INPUTS ARE NOT ON SCREEN — the loading
+// WHILE A PULL'S READ IS IN FLIGHT THE INPUTS ARE NOT ON SCREEN — the loading
 // state is, as on the first read: load() clears every draft when its reply
 // lands, so a score typed during the request would vanish with nothing said.
-// `reloading` is set and cleared by the reload handler alone (never in an
+// `refreshing` is set and cleared by the pull's handler alone (never in an
 // effect), so a save's own re-read behaves exactly as it did.
 //
-// NOTHING HERE MOVES (the refresh's motion rule): no entrance, and the
-// reload line keeps its place when it is empty, so the first keystroke does
-// not push the column down under the keyboard.
+// NOTHING HERE MOVES (the refresh's motion rule): no entrance.
 const TITLE = 'Leave without saving?';
 const BODY = 'You have unsaved scores in this slot. Leaving now discards them — nothing has been sent to the server yet.';
-const RELOAD_BLOCKED = 'Save or discard your changes before reloading.';
 const TABULAR = { fontVariant: ['tabular-nums'] };
 // 48dp, as a number: the phone's rem is 14, so a height class falls short
 // (M19). It was `h-11` — 38.5dp.
@@ -85,7 +81,7 @@ export default function SlotScreen({ navigation, route }) {
   const { server, draft, setDraft, slotDraft, setSlotDraft, examMaxDraft, setExamMaxDraft, preview, previewGroupHps, previewSlots, previewing, previewError } = record;
   const [status, setStatus] = useState(null);
   const [confirming, setConfirming] = useState(false);
-  const [reloading, setReloading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const isExam = target.kind === 'exam';
   const part = isExam ? target.part : null;
@@ -208,31 +204,43 @@ export default function SlotScreen({ navigation, route }) {
     else doSave();
   }
 
-  // The Reload button's handler. It clears the save result first: "Class
-  // record saved." describes the action before this one (§7c). load() keeps
-  // its own failure in `record.error` and never rejects.
-  async function reloadRecord() {
+  // The pull's handler, given whether a pull is allowed right now (it is
+  // disabled then too; this guards a platform that ignores `enabled`). It
+  // clears the save result first: "Class record saved." describes the action
+  // before this one (§7c). load() keeps its own failure in `record.error` and
+  // never rejects.
+  async function pullToRefresh(allowed) {
+    if (!allowed) return;
     setStatus(null);
-    setReloading(true);
+    setRefreshing(true);
     try {
       await record.reload();
     } finally {
-      setReloading(false);
+      setRefreshing(false);
     }
   }
+  const pullControl = (allowed) => (
+    <RefreshControl
+      refreshing={refreshing}
+      enabled={allowed}
+      onRefresh={() => pullToRefresh(allowed)}
+      tintColor={tokens['fg-muted']}
+      colors={[tokens.brand]}
+    />
+  );
 
   if (record.error) {
     return (
-      <View className="flex-1 bg-page p-4">
+      <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pullControl(!record.dirty && !record.saving)}>
         <ErrorAlert message={record.error} onRetry={record.reload} />
-      </View>
+      </ScrollView>
     );
   }
   if (!server || (!isExam && !slot)) return <LoadingSpinner className="py-16" label="Loading the class record…" />;
 
   const stale = previewing || Boolean(previewError);
   const groupName = isExam ? (descriptive ? 'Summative' : 'Summative Tests & Term Exam') : slot.type === 'WW' ? 'Written / Oral Works' : 'Performance Tasks';
-  // What a reload would wipe: anything the request would send, an invalid
+  // What a refresh would wipe: anything the request would send, an invalid
   // score keystroke, and a highest possible score typed here that differs
   // from the stored one (an invalid or cleared Summative maximum is never
   // sent, so `record.dirty` alone would miss it).
@@ -240,29 +248,19 @@ export default function SlotScreen({ navigation, route }) {
   const hpsTyped = hpsValue !== (hpsStored === null ? '' : String(hpsStored));
   const unsavedWork = record.dirty || pending.invalid.length > 0 || hpsTyped;
   const saveOff = !canEncode || record.saving || !record.dirty;
+  const canPull = !unsavedWork && !record.saving && !previewing;
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-6">
-        <View className="gap-1">
-          {/* WHICH COLUMN OF WHICH RECORD — the navigator's title names the
-              slot; this names the record around it. */}
-          <SectionHeader
-            title="Class record"
-            description={`${server.subject.name} · Grade ${server.grade_level} - ${server.section} · Term ${server.term} · ${groupName}`}
-            onReload={reloadRecord}
-            reloading={record.loading || reloading}
-            reloadDisabled={unsavedWork || record.saving || previewing}
-            reloadLabel="Reload class record"
-          />
-          {/* ALWAYS ONE LINE TALL: empty, it holds a space, so the column
-              does not drop a line on the first keystroke. */}
-          <Text className="text-xs text-fg-muted" style={{ minHeight: 16 }}>
-            {unsavedWork ? RELOAD_BLOCKED : ' '}
-          </Text>
-        </View>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-6" refreshControl={pullControl(canPull)}>
+        {/* WHICH COLUMN OF WHICH RECORD — the navigator's title names the
+            slot; this names the record around it. */}
+        <SectionHeader
+          title="Class record"
+          description={`${server.subject.name} · Grade ${server.grade_level} - ${server.section} · Term ${server.term} · ${groupName}`}
+        />
 
-        {reloading ? (
+        {refreshing ? (
           <LoadingSpinner className="py-12" label="Loading the class record…" />
         ) : (
           <>

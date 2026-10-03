@@ -52,12 +52,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // the student row.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, Reload, Enroll), the filter card, the write's result, the list.
-// RELOAD is `load` itself: the same request with the search, section, page
-// and sort that are APPLIED now. It commits no draft filter and resets
-// nothing, and it leaves the status message alone. The wizard sits BESIDE
-// the entrance wrapper, never inside it: Modal renders inline, and a
-// wrapper mid-tween carries a transform (motion/motion.js).
+// (title, Enroll), the filter card, the write's result, the list. The wizard
+// sits BESIDE the entrance wrapper, never inside it: Modal renders inline,
+// and a wrapper mid-tween carries a transform (motion/motion.js).
 
 const EMPTY_ENROLL = {
   lrn: '',
@@ -478,9 +475,6 @@ export default function StudentsPage() {
                 ? null
                 : 'Enrolling a learner is limited to the section you advise. Teaching a subject in a class is not enough.'
             }
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload students"
             actions={
               canEnroll ? (
                 // NEUTRAL, NOT PRIMARY (fix/polish, 2026-09-26), AND OUTSIDE

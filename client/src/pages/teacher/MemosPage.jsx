@@ -29,9 +29,7 @@ import { usePageTitle } from '../../layout/usePageTitle';
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section. The sentence
 // that explains why the list has no controls is the section's description,
-// under its title; RELOAD is `load` itself — the same request with the page
-// and sort that are applied now, nothing reset. Reload is a read: it is not
-// the start of an Actions column either.
+// under its title.
 
 export default function MemosPage() {
   usePageTitle('Memos');
@@ -114,9 +112,6 @@ export default function MemosPage() {
               here; to reach your own class, use Announcements.
             </span>
           }
-          onReload={load}
-          reloading={loading}
-          reloadLabel="Reload memos"
         />
 
         <DataTable

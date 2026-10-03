@@ -33,7 +33,8 @@ import { DESCRIPTIVE_LEGEND, NUMERICAL_LEGEND, SEGMENTS, finalCell, initialSegme
 // learner's three facts under eyebrow labels, then the term picker, the
 // rows, the general-average box and the two keys. The order is fixed — it is
 // a document, not a list. The chosen segment is this component's state and
-// the component stays mounted through a reload, so Reload keeps the term.
+// the component stays mounted through a pull-to-refresh, so a pull keeps the
+// term.
 export const REPORT_UNWRAP = [
   'student',
   'school_year',

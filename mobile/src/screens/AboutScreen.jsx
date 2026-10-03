@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, View } from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
 import extractError from '../api/extractError';
@@ -27,10 +27,10 @@ import { useTheme } from '../theme/ThemeProvider';
 // order the web has them, stacked. The DepEd text is reading text: the larger
 // body size and relaxed leading.
 //
-// RELOAD (feat/ui-refresh) is on the School details header and calls the
-// screen's one existing read — the same settings request, and with it the
-// section count behind the hero's pill. A reload that fails with details
-// already on screen keeps them and says so above the tiles.
+// PULL TO REFRESH calls the screen's one existing read — the same settings
+// request, and with it the section count behind the hero's pill. A pull that
+// fails with details already on screen keeps them and says so above the
+// tiles.
 const DEPED_VISION = [
   'We dream of Filipinos who passionately love their country and whose values and competencies enable them to realize their full potential and contribute meaningfully to building the nation.',
   'As a learner-centered public institution, the Department of Education continuously improves itself to better serve its stakeholders.',
@@ -163,10 +163,9 @@ function sectionSummary(sections) {
 }
 
 // The screen's body. `sections` is null when the mount could not read them
-// (the public view) and the pill is simply absent. `onReload` / `reloading` /
-// `error` are the mount's own read: without `onReload` the details header has
-// no Reload control.
-export function AboutBody({ settings, sections = null, onReload = null, reloading = false, error = null }) {
+// (the public view) and the pill is simply absent. `error` / `onRetry` are a
+// failed re-read of the mount's own request, with details already on screen.
+export function AboutBody({ settings, sections = null, error = null, onRetry = null }) {
   const name = settings?.school_name || '';
   const schoolYear = settings?.academic_year || '';
   const sectionsPill = sectionSummary(sections);
@@ -178,7 +177,7 @@ export function AboutBody({ settings, sections = null, onReload = null, reloadin
     <View className="gap-4">
       {/* THE HERO — the brand panel in both themes. The screen's one entrance:
           this body mounts when the first read answers and stays mounted
-          through a reload, so the entrance never replays. */}
+          through a pull, so the entrance never replays. */}
       <Reveal>
         <View className="items-center rounded-2xl border border-edge bg-brand-panel p-5">
           <Seal size={88} />
@@ -205,11 +204,11 @@ export function AboutBody({ settings, sections = null, onReload = null, reloadin
 
       {/* SCHOOL DETAILS — one small card per detail, in one column. */}
       <View className="gap-3">
-        <SectionHeader title="School details" onReload={onReload} reloading={reloading} reloadLabel="Reload school details" />
-        {/* Only a failed RELOAD reaches here — a first read that fails has no
+        <SectionHeader title="School details" />
+        {/* Only a failed PULL reaches here — a first read that fails has no
             details to keep, and the mount shows the error alone. The API's
             own wording, with the same retry. */}
-        {error ? <ErrorAlert message={error} onRetry={onReload} /> : null}
+        {error ? <ErrorAlert message={error} onRetry={onRetry} /> : null}
         <DetailTile icon="fa-location-dot" label="Address" value={settings?.school_address} />
         <DetailTile icon="fa-envelope" label="Email" value={settings?.school_email} href={settings?.school_email ? `mailto:${settings.school_email}` : null} />
         <DetailTile icon="fa-phone" label="Phone" value={settings?.school_phone} href={phoneHref} />
@@ -278,11 +277,13 @@ export function AboutBody({ settings, sections = null, onReload = null, reloadin
 export default function AboutScreen({ navigation, route }) {
   const publicView = Boolean(route?.params?.publicView);
   const insets = useSafeAreaInsets();
+  const { tokens } = useTheme();
   const [settings, setSettings] = useState(null);
   const [sections, setSections] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  // Retry and Reload re-run the effect below by bumping this; the effect
+  // Retry and a pull re-run the effect below by bumping this; the effect
   // itself sets no state synchronously, only in the request's callbacks.
   const [attempt, setAttempt] = useState(0);
 
@@ -308,28 +309,36 @@ export default function AboutScreen({ navigation, route }) {
         if (!cancelled) setError(extractError(err));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [publicView, attempt]);
 
-  // The screen's one read, asked for again: the first-load error's "Try
-  // again" and the School details header's Reload both call this.
+  // The screen's one read, asked for again — by "Try again" (in the loading
+  // frame's place) and by a pull (under the pull spinner, the details kept).
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
     setAttempt((n) => n + 1);
   }, []);
+  const pullToRefresh = useCallback(() => {
+    setRefreshing(true);
+    setError(null);
+    setAttempt((n) => n + 1);
+  }, []);
 
   const body =
-    loading && !settings ? (
+    (loading || refreshing) && !settings ? (
       <LoadingSpinner className="py-16" label="Loading school details…" />
     ) : !settings ? (
       <ErrorAlert message={error || 'School details could not be loaded.'} onRetry={load} />
     ) : (
-      <AboutBody settings={settings} sections={sections} onReload={load} reloading={loading} error={error} />
+      <AboutBody settings={settings} sections={sections} error={error} onRetry={load} />
     );
 
   return (
@@ -337,6 +346,7 @@ export default function AboutScreen({ navigation, route }) {
       className="flex-1 bg-page"
       contentContainerClassName="gap-4 p-4 pb-10"
       contentContainerStyle={publicView ? { paddingTop: insets.top + 16 } : undefined}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
       {/* Signed out there is no header and no drawer, so the way back to the
           sign-in screen is here — above the page and, once the details are

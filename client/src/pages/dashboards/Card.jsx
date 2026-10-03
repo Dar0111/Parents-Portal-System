@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 
 // The dashboard card (DB2, 2026-09-19). Local to pages/dashboards/ on
 // purpose (Darryl, Q5): it is used ~17 times by three files and nowhere
@@ -21,24 +20,16 @@ import ReloadButton from '../../components/ReloadButton';
 // uses (§5: the frame stays, the contents change).
 //
 // `onRetry` refetches THAT CARD ONLY. A page-level reload to recover one
-// failed card would re-request six that already succeeded.
-//
-// `onReload` IS THE SAME IDEA WITHOUT A FAILURE (feat/ui-refresh, 2026-10-02):
-// the card's own existing fetch, asked again from a small button at the top
-// right of its header. The body shows its normal spinner while it runs. Cards
-// fed by ONE request each carry that request's reload, so pressing any of
-// them refreshes them all — the button reloads what feeds its card, it never
-// makes a request of its own. `reloading` is for a card whose body also reads
-// a second, quieter request (the System card's backup line, the parent's
-// subject list): the button stays busy until every read it started is back,
-// so a second press cannot stack on the first. It defaults to `loading`.
+// failed card would re-request six that already succeeded. There is no
+// reload control on a card that has not failed (owner, 2026-10-04): the
+// browser's own reload is the reload on the web.
 //
 // THE WHOLE CARD IS THE LINK (feat/ui-polish f2, 2026-09-30). Every card is a
 // doorway to the page that owns its data; the "Open →" footer made the
 // doorway one short word. The TITLE is the link, and its ::after is stretched
 // over the card, so a click anywhere opens it while the keyboard still meets
-// ONE tab stop named by the title. The card itself is not an <a>: Retry,
-// Reload, and the System card's backups link, would then be interactive
+// ONE tab stop named by the title. The card itself is not an <a>: Retry, and
+// the System card's backups link, would then be interactive
 // content inside a link, which HTML forbids. Anything interactive inside a
 // card sits `relative z-10`, above the stretched link. An ERROR card does not
 // link at all — its one action is Retry, and a stray click must not navigate
@@ -54,10 +45,12 @@ import ReloadButton from '../../components/ReloadButton';
 //
 // THE LOOK (feat/ui-refresh): 16px corners and the smallest shadow at rest; a
 // card that links lifts to a larger shadow under the pointer. The header is
-// TWO ROWS — the icon in its chip on the left and Reload on the right, then
-// the title on its own line in the title face — because a 17px serif title
-// beside a chip and a button does not fit a 140px admin tile, and one header
-// shape at every width beats one that changes per card.
+// TWO ROWS — the icon in its chip, then the title on its own line in the
+// title face — because a serif title beside the chip does not fit an admin
+// tile: at 1024px a tile's header is 132px, and "Waiting for approval"
+// (161px) would break to three lines beside the chip and to two under it
+// (measured from the font files, 2026-10-04). One header shape at every
+// width beats one that changes per card.
 //
 // `transition-shadow`, NOT the bare `transition`: the grid's entrance tweens
 // each card's opacity and transform, and a CSS transition on those same two
@@ -74,8 +67,6 @@ export default function Card({
   loading = false,
   error = null,
   onRetry = null,
-  onReload = null,
-  reloading,
   tone = 'default',
   compact = false,
   className = '',
@@ -115,10 +106,7 @@ export default function Card({
         linked ? 'transition-shadow hover:shadow-md' : ''
       } has-[.card-link:focus-visible]:outline-2 has-[.card-link:focus-visible]:outline-offset-2 has-[.card-link:focus-visible]:outline-brand ${className}`}
     >
-      {/* DOM ORDER IS chip, title, Reload — a screen reader meets the heading
-          before the button that names it — and `order-*` draws Reload on the
-          first row beside the chip, with the title filling the second. */}
-      <div className={`${compact ? 'mb-2' : 'mb-3'} flex flex-wrap items-center gap-x-3 gap-y-2`}>
+      <div className={`${compact ? 'mb-2' : 'mb-3'} flex flex-col items-start gap-2`}>
         {icon ? (
           // The wrapper carries the flex, never the element with `fa-solid`:
           // Font Awesome's `.fa-solid { display: inline-block }` is unlayered
@@ -126,12 +114,12 @@ export default function Card({
           // silently dropped (found in D3, 2026-09-19).
           <span
             aria-hidden="true"
-            className={`order-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${chipClass}`}
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${chipClass}`}
           >
             <i className={`fa-solid ${icon}`} />
           </span>
         ) : null}
-        <h2 className="order-3 min-w-0 basis-full font-serif text-base font-bold text-fg">
+        <h2 className="w-full min-w-0 font-serif text-base font-bold text-fg">
           {linked ? (
             <Link
               to={to}
@@ -143,18 +131,6 @@ export default function Card({
             title
           )}
         </h2>
-        {onReload ? (
-          // `relative z-10`: above the title's stretched link, or the click
-          // would open the page instead of reloading the card.
-          <span className="relative z-10 order-2 ml-auto flex shrink-0">
-            <ReloadButton
-              compact
-              onReload={onReload}
-              loading={reloading ?? loading}
-              label={`Reload ${title}`}
-            />
-          </span>
-        ) : null}
       </div>
 
       <div className="min-w-0 flex-1">

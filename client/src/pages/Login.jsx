@@ -269,11 +269,9 @@ export default function Login() {
               {/* `loading` disables the button and shows the spinner; the
                   label still changes while busy, as it always has. */}
               <Button variant="primary" size="lg" full type="submit" loading={submitting}>
+                {/* The label alone — no trailing arrow (owner, 2026-10-04),
+                    the same button as the phone's. */}
                 {submitting ? 'Signing in…' : 'Sign in'}
-                {/* The arrow is decoration on the label, not a second message:
-                    aria-hidden, so the button still announces just "Sign in".
-                    It is dropped while submitting — the spinner is the state. */}
-                {submitting ? null : <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs" />}
               </Button>
             </form>
 

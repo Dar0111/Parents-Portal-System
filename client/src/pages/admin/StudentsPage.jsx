@@ -43,12 +43,9 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // It never goes in a URL — the detail route keys on students.id.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, what deactivating does, Reload), the filter card, the write's
-// result, the list. RELOAD is `load` itself: the same request with the
-// status, grade, section, search, page and sort that are APPLIED now. It
-// commits no draft filter and resets nothing, and it leaves the status
-// message alone. The section list behind the Section filter is reference
-// data read once on mount, as before; Reload does not re-read it.
+// (title, what deactivating does), the filter card, the write's result, the
+// list. The section list behind the Section filter is reference data read
+// once on mount, as before.
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -276,9 +273,6 @@ export default function StudentsPage() {
               existing records and their parent's account are not changed. Activate reverses it.
             </span>
           }
-          onReload={load}
-          reloading={loading}
-          reloadLabel="Reload students"
         />
 
         {/* The filter bar is its own card. */}

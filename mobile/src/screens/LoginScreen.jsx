@@ -34,7 +34,7 @@ import { useTheme } from '../theme/ThemeProvider';
 // THE PANEL'S SCHOOL NAME IS THE SETTING, with the fallback carrying "– Main"
 // (fix/polish, 2026-09-26). `GET /settings/public` is the one unauthenticated
 // settings read; until it answers, or if it never does, the fallback is the
-// copy — no error state, nothing to retry, and so no Reload control either.
+// copy — no error state, nothing to retry, and so no pull-to-refresh either.
 //
 // A REFUSED SIGN-IN IS THE SERVER'S SENTENCE, verbatim: wrong credentials
 // (401), a pending / rejected account (403 + status), and — when no response

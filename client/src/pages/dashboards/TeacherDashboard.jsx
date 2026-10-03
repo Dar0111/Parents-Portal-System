@@ -4,7 +4,6 @@ import { useAuth } from '../../auth/AuthContext';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { longDate, todayLocalDateString, weekdayName } from '../../format/date';
 import Button from '../../components/Button';
-import ReloadButton from '../../components/ReloadButton';
 import { buttonClass } from '../../components/buttonClass';
 import CountUp from '../../motion/CountUp';
 import Reveal from '../../motion/Reveal';
@@ -36,12 +35,6 @@ import { useCard } from './useCard';
 // already makes — /dashboard (school year, term, the class count My classes
 // shows) and the advisory sections the banners are built from. Each fact
 // appears when its read has answered and not before. No request was added.
-//
-// RELOAD (feat/ui-refresh): a card's Reload is the `reload` of the useCard
-// that feeds it, so Term grades and My classes — one /dashboard read — reload
-// together. Messages has none: its count is UnreadProvider's, kept current by
-// the socket, and the card makes no request of its own to ask again. Each
-// attendance banner reloads its own day.
 
 // Amber is not a verdict (§4): partial means "still doing it", not "late" or
 // "bad". Green requires FULL coverage (Darryl, Q4) — the encode screen omits
@@ -84,8 +77,8 @@ function AttendanceBanner({ section, today }) {
   const className = `Grade ${section.grade_level} - ${section.name}`;
 
   // ONE SHAPE IN ALL THREE STATES — the notice radius (`rounded-xl`, as the
-  // admin's hazard notice), the same padding — so pressing Reload swaps the
-  // words and the tint, never the outline of the banner.
+  // admin's hazard notice), the same padding — so Try again swaps the words
+  // and the tint, never the outline of the banner.
   if (day.loading) {
     return (
       <div className={`${BANNER_FRAME} border-edge bg-surface text-sm text-fg-muted`}>
@@ -111,8 +104,8 @@ function AttendanceBanner({ section, today }) {
   const text = done ? 'text-success-strong' : 'text-warning-strong';
 
   return (
-    // THE TEXT BLOCK HAS A BASIS, so on a phone the two controls drop to their
-    // own row under it instead of squeezing the sentence into a narrow column.
+    // THE TEXT BLOCK HAS A BASIS, so on a phone the button drops to its own
+    // row under it instead of squeezing the sentence into a narrow column.
     <div className={`flex flex-wrap items-center gap-x-4 gap-y-3 ${BANNER_FRAME} ${frame}`}>
       <div className="flex min-w-0 grow basis-64 items-start gap-3">
         {/* THE GLYPH SAYS WHAT THE COLOUR SAYS: a check once the register is
@@ -128,18 +121,15 @@ function AttendanceBanner({ section, today }) {
           <p className="mt-0.5 text-sm text-fg-body">{state.detail}</p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {/* This banner's own read, asked again — the same `day.reload` its
-            error state retries with. While it runs the banner is its
-            "Checking…" line above, so the button is never on screen busy. */}
-        <ReloadButton compact onReload={day.reload} label={`Reload attendance for ${className}`} />
-        {/* The filled button while there is something to record; the neutral
-            one once the day is done, when opening the register is no longer
-            the thing this page asks for. */}
-        <Link to="/teacher/attendance" className={buttonClass({ variant: done ? 'secondary' : 'primary', size: 'sm' })}>
-          {done ? 'Open attendance' : 'Record attendance'}
-        </Link>
-      </div>
+      {/* The filled button while there is something to record; the neutral
+          one once the day is done, when opening the register is no longer
+          the thing this page asks for. */}
+      <Link
+        to="/teacher/attendance"
+        className={buttonClass({ variant: done ? 'secondary' : 'primary', size: 'sm', className: 'shrink-0' })}
+      >
+        {done ? 'Open attendance' : 'Record attendance'}
+      </Link>
     </div>
   );
 }
@@ -251,7 +241,6 @@ export default function TeacherDashboard() {
           loading={pending.loading}
           error={pending.error}
           onRetry={pending.reload}
-          onReload={pending.reload}
           tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
         >
           {pending.data ? (
@@ -270,7 +259,6 @@ export default function TeacherDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d ? (
             d.classes_total === 0 ? (
@@ -284,9 +272,8 @@ export default function TeacherDashboard() {
           ) : null}
         </Card>
 
-        {/* NO RELOAD HERE: the count is UnreadProvider's — the server's answer,
-            re-read on every `new_message` (§10) — and this card makes no
-            request of its own that a button could ask again. */}
+        {/* The count is UnreadProvider's — the server's answer, re-read on
+            every `new_message` (§10); this card makes no request of its own. */}
         <Card title="Messages" icon="fa-comments" to="/teacher/messages">
           <Stat value={<CountUp value={unread} />} caption={unread === 1 ? 'unread message' : 'unread messages'} />
         </Card>
@@ -298,7 +285,6 @@ export default function TeacherDashboard() {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          onReload={summary.reload}
         >
           {d?.classes?.length ? (
             <>
@@ -335,7 +321,6 @@ export default function TeacherDashboard() {
           loading={events.loading}
           error={events.error}
           onRetry={events.reload}
-          onReload={events.reload}
         >
           {events.data?.length ? (
             <>

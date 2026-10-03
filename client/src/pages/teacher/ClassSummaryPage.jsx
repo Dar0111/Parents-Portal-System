@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
@@ -424,31 +424,7 @@ export default function ClassSummaryPage() {
     };
   }, [selected, term]);
 
-  // RELOAD (feat/ui-refresh) IS `load` ITSELF — the same request, for the
-  // class and term in the URL; nothing is reset and nothing new is asked for.
-  //
-  // `load` hands back a cancel, and a click has no cleanup to run it. So the
-  // button's request keeps its cancel in a ref, and the effect's cleanup runs
-  // BOTH: without that, a reload still in flight when the Term select changes
-  // would answer late and put the OLD term's sheet on screen under the new
-  // term's name. (The button is disabled while `loading`, so it can never
-  // start a second request beside the effect's own.) The ref is read and
-  // written only in the effect and the click handler, never during render.
-  const reloadCancel = useRef(null);
-
-  useEffect(() => {
-    const cancel = load();
-    return () => {
-      if (cancel) cancel();
-      if (reloadCancel.current) reloadCancel.current();
-      reloadCancel.current = null;
-    };
-  }, [load]);
-
-  function reload() {
-    if (reloadCancel.current) reloadCancel.current();
-    reloadCancel.current = load() || null;
-  }
+  useEffect(() => load(), [load]);
 
   function setParam(name, value) {
     const next = new URLSearchParams(params);
@@ -546,7 +522,7 @@ export default function ClassSummaryPage() {
       </div>
 
       <section className="space-y-3">
-        <Header onReload={reload} reloading={loading} reloadLabel="Reload class summary" />
+        <Header />
 
         {/* WHICH SHEET: the class and the term, in one card. The filters
             choose WHICH sheet to print; on the sheet itself they are chrome.
@@ -645,9 +621,8 @@ export default function ClassSummaryPage() {
 }
 
 // The section's header, on every state of the page: the sheet's own name in
-// the title face and the standing sentence under it. `reload` props arrive
-// only from the return that has a sheet to reload.
-function Header(reloadProps) {
+// the title face and the standing sentence under it.
+function Header() {
   return (
     // NO <h1>: Shell renders this page's from `nav.js`, and a second one
     // made "Class summary" appear twice and gave the document two top-level
@@ -660,7 +635,6 @@ function Header(reloadProps) {
       title="Summary of Grades"
       description="Every learner in your advisory section, across every learning area."
       className="print:hidden"
-      {...reloadProps}
     />
   );
 }

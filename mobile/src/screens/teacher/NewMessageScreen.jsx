@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
 import { cardClass } from '../../components/buttonStyles';
@@ -7,7 +7,6 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import Text from '../../components/Text';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -34,18 +33,18 @@ import { useTheme } from '../../theme/ThemeProvider';
 // the card's corners by `overflow-hidden` on the card. A failed read is the
 // shared alert with the API's own wording (§2), as on the web.
 //
-// RELOAD sits beside Search and repeats the screen's ONE request. The fetch
-// stays inside its effect, exactly as it was; `attempt` is only the effect's
-// key, so Reload and Try again set the loading state in their own handler and
-// the effect itself never sets state synchronously. What was typed in Search
-// is kept. No entrance motion: the rows arrive with the read, and a list's
-// rows never animate.
+// PULL TO REFRESH repeats the screen's ONE request. The fetch stays inside its
+// effect, exactly as it was; `attempt` is only the effect's key, so a pull and
+// Try again set their state in their own handler and the effect itself never
+// sets state synchronously. What was typed in Search is kept. No entrance
+// motion: the rows arrive with the read, and a list's rows never animate.
 const ROW = { minHeight: 48 };
 
 export default function NewMessageScreen({ navigation }) {
   const { tokens } = useTheme();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -60,15 +59,26 @@ export default function NewMessageScreen({ navigation }) {
         if (live) setError(extractError(err));
       })
       .finally(() => {
-        if (live) setLoading(false);
+        if (live) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       });
     return () => {
       live = false;
     };
   }, [attempt]);
 
-  function reload() {
+  // Try again shows the spinner in place of the list; a pull keeps the list
+  // on screen under the pull spinner.
+  function retry() {
     setLoading(true);
+    setError(null);
+    setAttempt((n) => n + 1);
+  }
+
+  function pullToRefresh() {
+    setRefreshing(true);
     setError(null);
     setAttempt((n) => n + 1);
   }
@@ -89,15 +99,17 @@ export default function NewMessageScreen({ navigation }) {
   );
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10" keyboardShouldPersistTaps="handled">
-      <View className="flex-row items-end gap-2">
-        <FormField label="Search" placeholder="Contact name or student name" value={search} onChangeText={setSearch} autoCorrect={false} className="min-w-0 flex-1" />
-        <ReloadButton onReload={reload} loading={loading} label="Reload contacts" />
-      </View>
-      {loading ? (
+    <ScrollView
+      className="flex-1 bg-page"
+      contentContainerClassName="gap-4 p-4 pb-10"
+      keyboardShouldPersistTaps="handled"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+    >
+      <FormField label="Search" placeholder="Contact name or student name" value={search} onChangeText={setSearch} autoCorrect={false} />
+      {loading || (refreshing && contacts.length === 0) ? (
         <LoadingSpinner size="sm" className="py-6" label="Loading contacts…" />
       ) : error ? (
-        <ErrorAlert message={error} onRetry={reload} />
+        <ErrorAlert message={error} onRetry={retry} />
       ) : contacts.length === 0 ? (
         <View className={cardClass}>
           <EmptyState icon="fa-address-book" title="No one to message yet" message="You can message parents once you are assigned to a class or made a section adviser." />

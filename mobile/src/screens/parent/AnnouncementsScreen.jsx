@@ -9,11 +9,9 @@ import { announcementAudience } from './PostReadScreen';
 
 // PARENT → ANNOUNCEMENTS: the paged list as cards (the web's own
 // renderCard data), "Show more" against page.has_more, pull-to-refresh, the
-// reading screen. Two empty branches, keyed on the linked state (§5f).
-//
-// RELOAD (feat/ui-refresh) is `load(0)` — the request pull-to-refresh and
-// "Try again" already make, from the section's header. The header rides in
-// DataList's `header`, so it scrolls with the list and keeps its gutter.
+// reading screen. Two empty branches, keyed on the linked state (§5f). The
+// section header rides in DataList's `header`, so it scrolls with the list
+// and keeps its gutter.
 export default function AnnouncementsScreen({ navigation }) {
   const { user } = useAuth();
   const [rows, setRows] = useState([]);
@@ -57,13 +55,7 @@ export default function AnnouncementsScreen({ navigation }) {
       : { icon: 'fa-bullhorn', title: 'No announcements yet', message: "Posts from the school and from your child's teacher appear here." };
 
   const header = (
-    <SectionHeader
-      title="Posted announcements"
-      onReload={() => load(0)}
-      reloading={loading || refreshing}
-      reloadLabel="Reload announcements"
-      className="mb-4"
-    />
+    <SectionHeader title="Posted announcements" className="mb-4" />
   );
 
   return (

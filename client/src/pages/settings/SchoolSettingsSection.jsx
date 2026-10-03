@@ -151,21 +151,6 @@ export default function SchoolSettingsSection() {
     setDetailsDraft((prev) => ({ ...(prev ?? storedDetails), [key]: value }));
   }
 
-  // RELOAD (feat/ui-refresh) — the header's button. load() is the same
-  // GET /settings the mount effect, Try again and a successful save call.
-  //
-  // IT DROPS THE DRAFT FIRST, and that loses nothing: the button is disabled
-  // while the form is dirty, so the only draft it can meet is one that
-  // already equals the stored values — a field typed in and put back. Left in
-  // place, that draft would keep the form following ITSELF instead of the
-  // fresh read: the reload would show the old values, and any field somebody
-  // else had changed meanwhile would count as an edit back to its old value,
-  // which the next save would write. Called from the click, never an effect.
-  function reload() {
-    setDetailsDraft(null);
-    load();
-  }
-
   async function saveDetails(event) {
     event.preventDefault();
     setStatus({});
@@ -194,25 +179,9 @@ export default function SchoolSettingsSection() {
 
   return (
     <div className="space-y-6">
-      {/* RELOAD (feat/ui-refresh) is reload() above — load() behind it. With
-          the form on screen it shows no spinner in the page: the button's own
-          icon turns while `loading` is true, and a failure lands in the
-          ErrorAlert below, as a failed re-read after a save always has.
-
-          DISABLED WHILE THE FORM HAS UNSAVED EDITS, and while a save is in
-          flight: the draft is a copy of ALL seven fields taken at the first
-          keystroke, so against a newer `stored` every field somebody else
-          changed meanwhile would read as "changed" back to its old value and
-          the next save would undo their edit. The hint is the button's
-          title, so the reason is one hover or long-press away. */}
       <SectionHeader
         title="School settings"
         description="These settings belong to the school, not to your account. Your own account is under Account information."
-        onReload={reload}
-        reloading={loading}
-        reloadDisabled={detailsDirty || saving}
-        reloadHint={detailsDirty ? 'Save or discard your changes before reloading.' : ''}
-        reloadLabel="Reload school settings"
       />
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}

@@ -36,7 +36,7 @@ import { useTheme } from '../theme/ThemeProvider';
 // `Button` at Login's size. The card stays mounted across the two steps, so
 // its entrance never replays.
 //
-// A screen that is only a write form has no Reload control.
+// A screen that is only a write form has no pull-to-refresh.
 
 // The card surface with the sign-in family's larger corner (see LoginScreen).
 const AUTH_CARD = cardClass.replace('rounded-2xl', 'rounded-3xl');

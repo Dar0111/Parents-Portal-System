@@ -13,10 +13,8 @@ import { timestampDay } from '../../format/date';
 // (§5f). A static card: a teacher does not own a memo and the endpoint has
 // no GET /:id — the row is the whole record, so there is nothing to open.
 //
-// THE SECTION HEADER (feat/ui-refresh) is the web's: the list's title, the
-// page's one explanation as the sentence under it, and Reload — `load(0)`,
-// the request pull-to-refresh and Try again already make, back on the first
-// page.
+// THE SECTION HEADER (feat/ui-refresh) is the web's: the list's title and the
+// page's one explanation as the sentence under it.
 export default function MemosScreen() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(null);
@@ -54,9 +52,6 @@ export default function MemosScreen() {
       <SectionHeader
         title="Posted memos"
         description="Memos are posted by the school administration and go to everyone. Teachers read them here; to reach your own class, use Announcements."
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadLabel="Reload memos"
       />
     </View>
   );

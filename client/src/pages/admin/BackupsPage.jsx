@@ -50,18 +50,9 @@ import Reveal from '../../motion/Reveal';
 // typed file name; create does not confirm.
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): the Backups section — its
-// header (title, Reload, Create backup), the privacy note, the write's
-// result, the list — and, only when there are any, the files with no record.
-// RELOAD is `load` itself: the same GET with the page and sort that are
-// applied now. That one request returns BOTH lists, so the one Reload on the
-// Backups header refreshes the orphan list too and the second section has no
-// button of its own. It is held while a create, download or delete is
-// running — the page's one-request-at-a-time rule (`busy`) — and it leaves
-// the status message alone. It is also held for as long as the restore
-// dialog is open (`restoring`): Modal has no focus trap, so the Tab key can
-// still reach the page behind it, and a restore that is running or done must
-// not be followed by a request from this page — the result panel's only exit
-// is "Log in again". Both dialogs sit BESIDE the entrance wrapper, never inside it:
+// header (title, Create backup), the privacy note, the write's result, the
+// list — and, only when there are any, the files with no record. Both
+// dialogs sit BESIDE the entrance wrapper, never inside it:
 // Modal renders inline, and a wrapper mid-tween carries a transform
 // (motion/motion.js).
 //
@@ -442,13 +433,9 @@ export default function AdminBackupsPage() {
         <section className="space-y-3">
           {/* Create backup is the page's ONE filled action. While it runs the
               label says so and the spinner takes the icon's place; every other
-              action on the page — Reload included — waits (`busy`). */}
+              action on the page waits (`busy`). */}
           <SectionHeader
             title="Backups"
-            onReload={load}
-            reloading={loading}
-            reloadDisabled={busy !== null || restoring !== null}
-            reloadLabel="Reload backups"
             actions={
               <Button
                 variant="primary"
@@ -466,9 +453,9 @@ export default function AdminBackupsPage() {
               action the API permits, and it is logged.
 
               A NOTE UNDER THE HEADER, NOT THE HEADER'S `description`: beside
-              Reload and Create backup a phone leaves the header's text column
-              about 9rem, and three sentences in it would run a dozen lines.
-              Here they take the full width. */}
+              Create backup a phone leaves the header's text column narrow,
+              and three sentences in it would run many lines. Here they take
+              the full width. */}
           <p className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
             <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
               <i className="fa-solid fa-circle-info" />
@@ -515,9 +502,8 @@ export default function AdminBackupsPage() {
         </section>
 
         {/* READ-ONLY, AND IT STAYS THAT WAY: no actions, no adopt control, no
-            card (see the header). No Reload of its own either — this list comes
-            back with the Backups request, so that section's Reload is this
-            one's too. */}
+            card (see the header). This list comes back with the Backups
+            request. */}
         {orphans.length ? (
           <section className="space-y-3">
             <SectionHeader

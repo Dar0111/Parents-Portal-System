@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
 import Avatar from '../../components/Avatar';
@@ -39,10 +39,9 @@ import { REPORT_UNWRAP } from '../parent/ReportCardView';
 // The chosen learner's row is tinted, heavier AND carries a check — never
 // colour alone. NO MOTION here: a lock state must read at once.
 //
-// RELOAD is `loadReport` — the request every focus already makes — so it
-// exists only once a learner is picked, and the grade, section and learner
-// stay as chosen. The learner list is read inside its own effect on the
-// grade and section and has no reload of its own.
+// PULL TO REFRESH re-reads what the screen shows with the grade, section and
+// learner as chosen: `loadReport` (the request every focus already makes) and
+// the section's learner list, whose effect takes `studentsAttempt` as a key.
 const GRADES = [1, 2, 3, 4, 5, 6].map((g) => ({ key: String(g), label: `Grade ${g}` }));
 
 // 48dp, in dp (M19): the cell's height whether or not it is a button, so a
@@ -86,6 +85,8 @@ export default function GradesScreen({ navigation, route }) {
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsError, setStudentsError] = useState(null);
+  const [studentsAttempt, setStudentsAttempt] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState(null);
@@ -132,7 +133,7 @@ export default function GradesScreen({ navigation, route }) {
     return () => {
       cancelled = true;
     };
-  }, [grade, sectionName]);
+  }, [grade, sectionName, studentsAttempt]);
 
   const loadReport = useCallback(async () => {
     if (!studentId) {
@@ -157,6 +158,19 @@ export default function GradesScreen({ navigation, route }) {
       loadReport();
     }, [loadReport])
   );
+
+  // The pull's handler: the learner list (through its effect's key) and the
+  // report card, as chosen. A card already on screen stays there while it is
+  // read again.
+  async function pullToRefresh() {
+    setRefreshing(true);
+    setStudentsAttempt((n) => n + 1);
+    try {
+      await loadReport();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -275,8 +289,12 @@ export default function GradesScreen({ navigation, route }) {
   }
 
   return (
-    <ScrollView className="flex-1 bg-page" contentContainerClassName="gap-4 p-4 pb-10">
-      <SectionHeader title="Report card" onReload={studentId ? loadReport : null} reloading={reportLoading} reloadLabel="Reload report card" />
+    <ScrollView
+      className="flex-1 bg-page"
+      contentContainerClassName="gap-4 p-4 pb-10"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+    >
+      <SectionHeader title="Report card" />
 
       {/* THE PICKER CARD. Each choice acts at once and narrows the next —
           there is no Apply here. */}

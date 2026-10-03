@@ -22,11 +22,6 @@ import parentLetterCard from './excuseLetters/card';
 // back with `notice`, consumed once here. Every letter card opens the READING
 // view, whatever its status (§17e). Empty copy is derived from the filter
 // state (§5f): unlinked / filtered / none.
-//
-// RELOAD (feat/ui-refresh) is `load()` — GET /mine again, the request
-// pull-to-refresh and "Try again" already make. The status filter is
-// client-side state and is not touched, and neither is `notice`: a "Letter
-// submitted." still describes the last write after the list is read again.
 const STATUS_FILTERS = ['All', 'Pending', 'Approved', 'Declined'];
 
 export default function ExcuseLettersScreen({ navigation, route }) {
@@ -99,13 +94,12 @@ export default function ExcuseLettersScreen({ navigation, route }) {
   // THE PAGE ACTION IS ON ITS OWN ROW, OUT OF THE FILTER (phone check
   // finding, 2026-09-27: beside the chips it squeezed them and cut "Declined"
   // off). Since feat/ui-refresh it is this screen's ONE filled action, as on
-  // the web, and it sits under the section's header rather than in it: beside
-  // the title and Reload, "Submitted letters" would be left too little room
-  // on a 360dp phone. The four status pills have a card to themselves and
-  // scroll sideways if a larger text size needs it.
+  // the web, and it sits under the section's header rather than in it, so the
+  // title keeps the full width at any text size. The four status pills have a
+  // card to themselves and scroll sideways if a larger text size needs it.
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="Submitted letters" onReload={() => load()} reloading={loading || refreshing} reloadLabel="Reload excuse letters" />
+      <SectionHeader title="Submitted letters" />
       {canSubmit ? (
         <Button variant="primary" icon="fa-plus" className="self-end" onPress={() => navigation.navigate('ExcuseLetterCompose')}>
           Submit letter

@@ -39,14 +39,9 @@ import {
 // hero is not a Card: the brand panel, three figures, no verdicts (§4). The
 // pure helpers live in dashboard/logic.js so a proof can drive them.
 //
-// RELOAD (feat/ui-refresh, 2026-10-02): each card's Reload is the `reload` of
-// every useCard that card reads — Grades asks for the summary and the report
-// card, Attendance for the month, the school year and the last week — so the
-// button refreshes exactly what its card shows and makes no request of its
-// own. The hero has no button: its three figures are the same reads, and they
-// move when those cards reload. A count that belongs to a provider (unread
-// messages, unread posts) is not re-read by a card's button; the socket keeps
-// those current (§10). Pull-to-refresh still asks for everything.
+// PULL TO REFRESH asks every card again (`reloadAll`); a count that belongs
+// to a provider (unread messages, unread posts) is kept current by the
+// socket (§10).
 const EYEBROW = 'text-xs font-semibold uppercase tracking-wide';
 
 function AbsenceLine({ date, className = '' }) {
@@ -393,14 +388,6 @@ export default function DashboardScreen({ navigation }) {
           loading={summary.loading}
           error={summary.error}
           onRetry={summary.reload}
-          // This card reads TWO things — the summary and the report card
-          // behind the subject list — so its Reload asks for both, and stays
-          // busy until both are back.
-          onReload={() => {
-            summary.reload();
-            card.reload();
-          }}
-          reloading={summary.loading || card.loading}
         >
           {!linked ? (
             <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -439,20 +426,6 @@ export default function DashboardScreen({ navigation }) {
             month.reload();
             allTime.reload();
           }}
-          // Reload asks for all THREE reads this card shows — the month, the
-          // school year so far, and the last-week strip (Retry stays the two
-          // whose failure the card reports). An unlinked account makes none
-          // of them (`skip`), so it gets no button that would ask for nothing.
-          onReload={
-            linked
-              ? () => {
-                  month.reload();
-                  allTime.reload();
-                  week.reload();
-                }
-              : null
-          }
-          reloading={month.loading || allTime.loading || week.loading}
         >
           {!linked ? (
             <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -489,8 +462,7 @@ export default function DashboardScreen({ navigation }) {
       <Reveal index={3}>
         {/* THE COUNT IS STILL THE SERVER'S ANSWER (§10) — `unread` comes from
             UnreadProvider, never from the length of this list. The preview
-            below supplies only the sender and the snippet, and it is the
-            preview that Reload asks for again. */}
+            below supplies only the sender and the snippet. */}
         <Card
           title="Messages"
           icon="fa-comments"
@@ -498,7 +470,6 @@ export default function DashboardScreen({ navigation }) {
           loading={latestMessage.loading}
           error={latestMessage.error}
           onRetry={latestMessage.reload}
-          onReload={latestMessage.reload}
         >
           {mLead ? <Stat value={mLead.value} caption={mLead.caption} /> : null}
           {latestMessage.data ? (
@@ -522,8 +493,6 @@ export default function DashboardScreen({ navigation }) {
           loading={letter.loading}
           error={letter.error}
           onRetry={letter.reload}
-          // Skipped for an unlinked account, as the read itself is.
-          onReload={linked ? letter.reload : null}
         >
           {!linked ? (
             <CardEmpty>No learner is linked to this account.</CardEmpty>
@@ -547,7 +516,6 @@ export default function DashboardScreen({ navigation }) {
           loading={posts.loading}
           error={posts.error}
           onRetry={posts.reload}
-          onReload={posts.reload}
         >
           {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
             <View>
@@ -581,7 +549,6 @@ export default function DashboardScreen({ navigation }) {
           loading={events.loading}
           error={events.error}
           onRetry={events.reload}
-          onReload={events.reload}
         >
           {eLead ? (
             <View>

@@ -64,18 +64,11 @@ import Reveal from '../../motion/Reveal';
 // shows it. Never `remarks` ("Passed"), never a colour keyed on the band,
 // never a class rank or "at risk". The absence is deliberate.
 //
-// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header
-// (title, Reload), the picker card, the lock's result, then the chosen
-// learner: a header card, the report card, the General Average.
-// RELOAD is `loadReport` itself, so it re-reads the SAME learner's card: the
-// grade, section and student stay picked, and an open cell would stay
-// selected. It is offered only once a student is chosen — before that there
-// is no request to repeat. The two reference reads behind the pickers
-// (sections, the section's students) have no reload: each lives inside its
-// own effect with its own cancel flag, and lifting it out would change when
-// it runs. The lock dialog sits BESIDE the entrance wrapper, never inside
-// it: Modal renders inline, and a wrapper mid-tween carries a transform
-// (motion/motion.js).
+// THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): one section — its header,
+// the picker card, the lock's result, then the chosen learner: a header
+// card, the report card, the General Average. The lock dialog sits BESIDE
+// the entrance wrapper, never inside it: Modal renders inline, and a wrapper
+// mid-tween carries a transform (motion/motion.js).
 
 const REPORT_UNWRAP = [
   'student',
@@ -297,12 +290,7 @@ export default function AdminGradesPage() {
         <section className="space-y-3">
           {/* No description: the prompt below already says how to pick, and
               an empty state never has to be repeated by a header. */}
-          <SectionHeader
-            title="Report card"
-            onReload={studentId ? loadReport : null}
-            reloading={reportLoading}
-            reloadLabel="Reload report card"
-          />
+          <SectionHeader title="Report card" />
 
           {/* THE PICKER CARD. Three selects that act on change — there is no
               Apply here, because each choice narrows the next. */}

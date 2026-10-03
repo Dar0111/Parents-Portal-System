@@ -25,12 +25,9 @@ import teacherAnnouncementCard from './announcements/card';
 // `announcements/card.jsx`; the outcome of a write renders above the list
 // (§7c), carried back from the compose screen as `notice`.
 //
-// THE SECTION HEADER (feat/ui-refresh) carries the list's title, its Reload
-// and — for a teacher with no class to post to — the sentence that stops the
-// missing button reading as broken; nothing is said while the target list is
-// loading. Reload is `load(0)`: the request pull-to-refresh and Try again
-// already make, with the applied section, back on the first page. It does
-// not re-read the teacher's targets (`useTeacherTargets` reads them once).
+// THE SECTION HEADER (feat/ui-refresh) carries the list's title and — for a
+// teacher with no class to post to — the sentence that stops the missing
+// button reading as broken; nothing is said while the target list is loading.
 export default function AnnouncementsScreen({ navigation, route }) {
   const { user } = useAuth();
   const { sections, loading: targetsLoading } = useTeacherTargets();
@@ -132,9 +129,6 @@ export default function AnnouncementsScreen({ navigation, route }) {
       <SectionHeader
         title="Posted announcements"
         description={targetsLoading || canPost ? null : 'You can post once you are assigned to a class or made a section adviser.'}
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadLabel="Reload announcements"
       />
       {!targetsLoading && canPost ? (
         <Button

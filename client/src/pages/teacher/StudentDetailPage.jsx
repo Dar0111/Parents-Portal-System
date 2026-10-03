@@ -16,7 +16,6 @@ import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import { contactError, contactRuleHint } from '../../format/contactRule';
-import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
 import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -49,11 +48,9 @@ import { useAuth } from '../../auth/AuthContext';
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): a header card — who the
 // learner is, the class and status, and the record's actions — then the
-// facts in two cards. RELOAD is `load` itself, the same GET for the same id;
-// like the first load it shows the page's spinner, and it leaves the status
-// message alone. ONE entrance wrapper holds every state (spinner, refusal,
-// error, record), so a reload swaps what is inside it and never replays the
-// entrance. Both Modals sit BESIDE that wrapper, never inside it: Modal
+// facts in two cards. ONE entrance wrapper holds every state (spinner,
+// refusal, error, record), so a re-read swaps what is inside it and never
+// replays the entrance. Both Modals sit BESIDE that wrapper, never inside it: Modal
 // renders inline, and a wrapper mid-tween carries a transform
 // (motion/motion.js).
 
@@ -470,8 +467,7 @@ export default function StudentDetailPage() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <ReloadButton onReload={load} loading={loading} label="Reload student record" />
+            <div className="flex flex-wrap items-center gap-2 empty:hidden">
               {canEdit ? (
                 <Button icon="fa-pen" onClick={openEdit}>
                   Edit

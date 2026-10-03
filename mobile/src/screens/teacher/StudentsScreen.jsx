@@ -30,11 +30,6 @@ import { sectionOptions, showSectionFilter } from './students/sectionOptions';
 // teacher who advises nothing reads why there is no button, under the
 // section's title, in place of the button.
 //
-// THE SECTION HEADER'S RELOAD (feat/ui-refresh) is `load(0)` — the request
-// pull-to-refresh and Try again already make, with the APPLIED search and
-// section, back on the first page. It does not re-read the two one-shot
-// lists (assignments, advised sections).
-//
 // A card is one <Pressable> into the detail screen, and the LRN does not come
 // along (§5c): the name plus the class identifies the learner on a phone.
 export default function StudentsScreen({ navigation, route }) {
@@ -179,9 +174,6 @@ export default function StudentsScreen({ navigation, route }) {
       <SectionHeader
         title="Students in my sections"
         description={canEnroll ? null : 'Enrolling a learner is limited to the section you advise. Teaching a subject in a class is not enough.'}
-        onReload={() => load(0)}
-        reloading={loading || refreshing}
-        reloadLabel="Reload students"
       />
       {canEnroll ? (
         <Button icon="fa-user-plus" className="self-end" onPress={() => navigation.navigate('Enroll', { classOptions })}>

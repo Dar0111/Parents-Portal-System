@@ -8,7 +8,6 @@ import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import { controlClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import { cardClass } from '../../components/buttonClass';
 import { shouldSendOnEnter } from '../../components/enterToSend';
 import { useAuth } from '../../auth/AuthContext';
@@ -33,10 +32,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // loading state, so an entrance on this page would replay each time someone
 // writes — motion on arrival, which this app does not have. The root is a
 // plain div.
-//
-// RELOAD is `load` itself, in the conversation's header: the same request a
-// socket message triggers, with the same merge — the earlier pages already
-// on screen, the unsent draft and a blocked composer all survive it.
 
 export default function ParentMessageThreadPage() {
   const { userId } = useParams();
@@ -197,16 +192,14 @@ export default function ParentMessageThreadPage() {
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
       <div className={cardClass}>
-        {/* Who the conversation is with, and its Reload. The circle is
-            initials — a message row carries the other person's name and role
-            but no photo. */}
+        {/* Who the conversation is with. The circle is initials — a message
+            row carries the other person's name and role but no photo. */}
         <div className="flex items-center gap-3 border-b border-edge px-4 py-3 sm:px-5">
           <Avatar name={other?.name} />
           <div className="min-w-0 flex-1">
             <h2 className="break-words font-serif text-base font-bold text-fg">{other?.name || 'Conversation'}</h2>
             {other?.role ? <p className="text-xs capitalize text-fg-muted">{other.role}</p> : null}
           </div>
-          <ReloadButton onReload={load} loading={loading} label="Reload conversation" compact />
         </div>
 
         <div className="max-h-[28rem] space-y-3 overflow-y-auto px-4 py-4 sm:px-5">

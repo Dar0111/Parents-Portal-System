@@ -31,9 +31,6 @@ import teacherLetterCard from './excuseLetters/card';
 // above the list and NAMES THE LEARNER, because a reviewed letter leaves the
 // default Pending list on the reload.
 //
-// THE SECTION HEADER'S RELOAD (feat/ui-refresh) is `load(0)` — the request
-// pull-to-refresh and Try again already make, with the APPLIED status and
-// dates, back on the first page. It does not re-read the advisory sections.
 // From and To sit one under the other: side by side in this card on a 360dp
 // phone, a chosen date beside its clear button is left about 38dp — less
 // than one word of "September 24, 2026" (worked out from the paddings, not
@@ -167,7 +164,7 @@ export default function ExcuseLettersScreen({ navigation, route }) {
 
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="Letters from my classes" onReload={() => load(0)} reloading={loading || refreshing} reloadLabel="Reload excuse letters" />
+      <SectionHeader title="Letters from my classes" />
       <View className={`${cardClass} gap-3 p-4`}>
         <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_FILTERS.map((s) => ({ key: s, label: s === 'All' ? 'All statuses' : s }))} />
         <DateField label="From" value={from} onChange={setFrom} clearable />

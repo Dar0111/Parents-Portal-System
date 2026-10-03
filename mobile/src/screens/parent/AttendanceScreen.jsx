@@ -7,7 +7,6 @@ import Avatar from '../../components/Avatar';
 import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import ReloadButton from '../../components/ReloadButton';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
 import Icon from '../../icons';
@@ -25,14 +24,10 @@ import { COUNTS, EMPTY_SUMMARY, countOf, recordedDays, yearRows, yearTotals } fr
 // month opens on today's, clamped to the school year (#7). The year table
 // scrolls sideways with its row labels fixed.
 //
-// RELOAD (feat/ui-refresh) — ONE CONTROL, THE SAME REQUESTS AS A PULL. The
-// button in the learner's band runs `reloadAll`, which is what
-// pull-to-refresh has always run: the month (`load`, with the month that is
+// PULL TO REFRESH runs `reloadAll`: the month (`load`, with the month that is
 // on screen — the view and the selected day are not touched) and, through
-// `yearTick`, the whole history and the letters. The adviser's name is
-// reference data and is not re-read. One control and not one per card,
-// because the cards are one answer: a reloaded month beside a school-year
-// table that still shows the old totals would be two versions of one record.
+// `yearTick`, the whole history and the letters, so the cards stay one
+// answer. The adviser's name is reference data and is not re-read.
 
 // One cell of the school-year table. The SIZE is named where the cell is
 // used — `text-xs` on the header row, `text-sm` on the body rows — and never
@@ -147,8 +142,7 @@ export default function AttendanceScreen() {
   }
 
   // The month's own request plus the two whole-history reads — what a pull
-  // has always asked for. The Reload button calls it without `pull`, so the
-  // grid shows its own loading frame as on the first load.
+  // has always asked for.
   function reloadAll({ pull = false } = {}) {
     setYearTick((n) => n + 1);
     load({ pull });
@@ -198,10 +192,9 @@ export default function AttendanceScreen() {
         />
       }
     >
-      {/* WHO THIS IS ABOUT, and the page's one Reload — the same band as the
-          dashboard's "Your child" card. "Name not recorded" is the wording
-          that card already uses for a linked learner with no name on the
-          row. */}
+      {/* WHO THIS IS ABOUT — the same band as the dashboard's "Your child"
+          card. "Name not recorded" is the wording that card already uses
+          for a linked learner with no name on the row. */}
       <Reveal>
         <View className="flex-row items-center gap-3 rounded-2xl border border-edge bg-brand-panel p-4">
           <Avatar name={childName} size={48} />
@@ -211,7 +204,6 @@ export default function AttendanceScreen() {
             </Text>
             {childMeta ? <Text className="mt-0.5 text-sm text-brand-panel-muted">{childMeta}</Text> : null}
           </View>
-          <ReloadButton onReload={reloadAll} loading={loading || refreshing} label="Reload attendance" />
         </View>
       </Reveal>
 

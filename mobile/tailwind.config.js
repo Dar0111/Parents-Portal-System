@@ -28,9 +28,9 @@ const { names } = require('./src/theme/tokens');
 //   font-serif                 Merriweather Bold — titles; never beside a
 //                              weight class (both are families; one wins)
 //
-// THE SIZES ARE THE WEB'S SCALE, in rem, and the phone's rem stays 14 (M19):
-// one step up from Tailwind's, because Source Sans 3 runs smaller than the
-// Roboto it replaces — the apparent size is what it was, not bigger.
+// THE SIZES ARE TAILWIND'S OWN, AS ON MAIN — no `fontSize` is redefined here
+// (fix round, 2026-10-04: the owner found the branch's one-step-up scale too
+// big), and the phone's rem stays 14 (M19). Only the faces changed.
 const SOURCE_SANS = {
   regular: 'SourceSans3_400Regular',
   semibold: 'SourceSans3_600SemiBold',
@@ -55,15 +55,6 @@ module.exports = {
         semibold: SOURCE_SANS.semibold,
         bold: SOURCE_SANS.bold,
         serif: 'Merriweather_700Bold',
-      },
-      fontSize: {
-        xs: ['0.8125rem', { lineHeight: '1.125rem' }],
-        sm: ['0.9375rem', { lineHeight: '1.375rem' }],
-        base: ['1.0625rem', { lineHeight: '1.625rem' }],
-        lg: ['1.1875rem', { lineHeight: '1.75rem' }],
-        xl: ['1.3125rem', { lineHeight: '1.875rem' }],
-        '2xl': ['1.625rem', { lineHeight: '2.125rem' }],
-        '3xl': ['2rem', { lineHeight: '2.5rem' }],
       },
     },
   },

@@ -185,6 +185,11 @@ const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event'
 // screen anchors at its bottom — a composer, a form's buttons, the last
 // card of a list — can land under the bar. The headers own the top inset;
 // the drawer, outside any screen layout, pads both edges itself.
+//
+// EXACTLY ONE FRAME PER SCREEN (fix round, 2026-10-04): the frames nest, and
+// every one pads the same window inset, so a frame around a navigator would
+// add the inset again for each screen inside it. Home (RootNavigator's
+// `bareLayout`) and Main (`stripLayout` below) take none.
 export function ScreenFrame({ children }) {
   const insets = useSafeAreaInsets();
   const { tokens } = useTheme();
@@ -197,6 +202,22 @@ function withStrip({ children }) {
       <LiveStatus />
       {children}
     </ScreenFrame>
+  );
+}
+
+// MAIN — THE DRAWER — KEEPS ITS STRIP BUT PADS NOTHING (fix round,
+// 2026-10-04). Every drawer screen is framed by the drawer's own `withStrip`,
+// and the drawer panel pads its own bottom (DrawerContent), so a frame around
+// the whole drawer lifted each drawer screen by the bottom inset a second time
+// and ended the panel above the navigation bar (RootNavigator's `bareLayout`
+// says the rest). The strip stays exactly where it was. A screen-level
+// `layout`, called like `screenLayout`: module-level, no hook.
+function stripLayout({ children }) {
+  return (
+    <View style={{ flex: 1 }}>
+      <LiveStatus />
+      {children}
+    </View>
   );
 }
 
@@ -258,7 +279,7 @@ export default function AppShell() {
   return (
     <View style={{ flex: 1 }}>
     <Stack.Navigator screenLayout={withStrip} screenOptions={headerOptions(tokens)}>
-      <Stack.Screen name="Main" component={RoleDrawer} options={{ headerShown: false }} />
+      <Stack.Screen name="Main" component={RoleDrawer} layout={stripLayout} options={{ headerShown: false }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Account information' }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change password' }} />

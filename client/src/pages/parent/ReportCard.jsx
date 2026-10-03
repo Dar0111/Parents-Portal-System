@@ -508,9 +508,9 @@ const SEGMENTS = [
 ];
 
 // THE CHOSEN SEGMENT IS THE CARD'S STATE, NOT THIS COMPONENT'S
-// (feat/ui-refresh). A reload puts the card through its loading frame, which
+// (feat/ui-refresh). A re-read puts the card through its loading frame, which
 // unmounts this view; a `useState` here would come back on the default and a
-// parent reading Term 1 would be moved to Term 3 by pressing Reload. `chosen`
+// parent reading Term 1 would be moved to Term 3 by any re-read. `chosen`
 // is null until a segment is pressed, and until then the view shows the
 // default below — so nothing is stored that the data can contradict.
 function TermView({

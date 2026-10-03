@@ -32,10 +32,6 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // pending-approval copy are omitted on purpose — they would be a lie here.
 //
 // §5c: :userId is users.id, never an LRN. login_id is not rendered.
-//
-// RELOAD (feat/ui-refresh) is `load` itself — the conversations request with
-// the page and sort that are applied now. It is the same call a socket
-// message already triggers, asked for by hand.
 
 export default function ParentMessagesPage() {
   usePageTitle('Messages');
@@ -187,16 +183,13 @@ export default function ParentMessagesPage() {
               header at every state — the empty state below names it rather
               than repeating it (§5f).
 
-              `[&_h2]:break-words`: the title is one long word beside two
-              controls. At 390px it fits; at the Large text size it may not,
-              and a word that cannot wrap would run under the Reload button,
-              so it is allowed to break instead. */}
+              `[&_h2]:break-words`: the title is one long word beside the
+              button. Where both do not fit the button drops under it (the
+              title's 12rem basis); a word that still cannot fit is allowed
+              to break rather than run past the card's edge. */}
           <SectionHeader
             title="Conversations"
             className="[&_h2]:break-words"
-            onReload={load}
-            reloading={loading}
-            reloadLabel="Reload conversations"
             actions={
               <Button variant="primary" icon="fa-plus" onClick={openPicker}>
                 New message

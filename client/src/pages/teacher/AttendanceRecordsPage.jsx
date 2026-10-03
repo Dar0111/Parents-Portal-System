@@ -53,12 +53,6 @@ const MINE = 'mine';
 // §5i sentence is always on the page, not gated on a loaded section — since
 // feat/ui-refresh it is the section header's description, so it sits under
 // the title in all three states (error, loading, the list).
-//
-// RELOAD (feat/ui-refresh) is `load` itself: the same GET with the APPLIED
-// section and dates, the current page and the current sort. It never commits
-// a staged filter — the drafts are separate state and `load` does not read
-// them — and it still never sends `date`. The table's own frame shows the
-// loading and error states, as on the first load.
 
 export default function AttendanceRecordsPage() {
   usePageTitle('Attendance records');
@@ -281,8 +275,7 @@ export default function AttendanceRecordsPage() {
   // ONE <Reveal> AT THE ROOT OF ALL THREE RETURNS (feat/ui-refresh): the same
   // component in the same position, so React keeps the one instance and the
   // entrance plays once — when the page arrives — not again when the sections
-  // finish loading. The header carries Reload only in the third return, where
-  // there is a list to reload.
+  // finish loading.
   if (sectionsError) {
     return (
       <Reveal className="space-y-6">
@@ -314,13 +307,7 @@ export default function AttendanceRecordsPage() {
   return (
     <Reveal className="space-y-6">
       <section className="space-y-3">
-        <SectionHeader
-          title="Records"
-          description={hint}
-          onReload={load}
-          reloading={loading}
-          reloadLabel="Reload attendance records"
-        />
+        <SectionHeader title="Records" description={hint} />
 
         <form
           onSubmit={(e) => {
