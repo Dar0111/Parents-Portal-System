@@ -3290,7 +3290,9 @@ Phase 1 covers five forms and the message box: the parent's excuse letter,
 the teacher's announcement and event, the admin's announcement and memo, and
 both Messages threads. The phone's side is MOBILE_CONVENTIONS M25. Plan
 approved by the owner on 2026-10-04 with eleven decisions; each is cited
-below where it lives.
+below where it lives. **Device-checked 2026-10-04** by the owner: web in
+laptop Chrome (parent in a normal window, teacher in Incognito); the phone
+side in Expo Go (Tecno, Android 14).
 
 ### 28a. One pure core, mirrored
 

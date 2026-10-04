@@ -1636,18 +1636,21 @@ its `docs/CHANGELOG.md` row.
 - [x] **Notifications — in-app only, via Socket.io** (Darryl, 2026-09-27):
       no `expo-notifications`, no `push_token` column; remote push would be
       a separate decision.
-- [ ] **Form drafts, Phase 1 — `feat/form-drafts`**, built 2026-10-04 (web
-      + phone, both proofs green). **The owner's browser and phone checks
-      next; not merged.** Rules: §28, M25.
+- [x] **Form drafts, Phase 1 — `feat/form-drafts`** (`0df46b3` + its docs
+      pass), device-checked 2026-10-04 (web: laptop Chrome, parent in a
+      normal window, teacher in Incognito; phone: Expo Go on a Tecno,
+      Android 14), cleaned up by id (backup 277). **Not merged.** Rules: §28,
+      M25.
 
-**NEXT, in order (owner, 2026-10-04):** form drafts Phase 1 — the owner's
-checks, then merge → the `create-backup-zip.js` fix (before the
-smoke gate; the script is not run until it is fixed) → small KNOWN ISSUES
-fixes (the phone Login's Next key; the focus trap in `Modal` and the web
-drawer; the web message-thread spinner; the class-record load guard) →
-smoke gate → manuscript delta list (team) → professor system check, Fri
-2026-10-09. After the check: colour on the dashboard cards; the cloud
-(Supabase) survey.
+**NEXT, in order (owner, 2026-10-04):** merge `feat/form-drafts` → build 1
+(the flagged screens and their fixes, the button and chip shapes, and the
+four small KNOWN ISSUES fixes — the phone Login's Next key; the focus trap
+in `Modal` and the web drawer; the web message-thread spinner; the
+class-record load guard) → build 2 (the dashboards) → the
+`scripts/create-backup-zip.js` fix (before the smoke gate; the script is
+not run until it is fixed) → smoke gate → manuscript delta list (the team
+applies it) → professor system check, Fri 2026-10-09. After the check: the
+cloud (Supabase) survey.
 
 ### Stage 6 — Integration
 

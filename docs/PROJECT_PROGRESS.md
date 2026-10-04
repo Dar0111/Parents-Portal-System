@@ -13,7 +13,8 @@ Technological College, IICT · Final defense expected around November 2026.
 
 **Snapshot, 2026-10-04: `main` at `ee36b97` (the UI refresh is merged)
 plus `feat/form-drafts` — built on web and phone, both proofs green,
-awaiting the owner's browser and phone checks, not yet merged.** Table and endpoint
+device-checked by the owner and cleaned up by id (backup 277), merge-ready,
+not yet merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -33,7 +34,7 @@ and only there.
 | During Stage 5 — SMS reset codes, server reliability, UI polish (merged 2026-09-29 → 09-30) | ✅ | ✅ | ✅ |
 | After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
-| Form drafts, Phase 1 — `feat/form-drafts` (built 2026-10-04) | — | ✅ built, checks pending | ✅ built, checks pending |
+| Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merge-ready | ✅ merge-ready |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -112,18 +113,19 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 The owner's order (2026-10-04, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Form drafts, Phase 1** — the owner's browser and phone checks, then
-   merge on the owner's word.
-2. **The `create-backup-zip.js` fix** — before the smoke gate; the script is
-   not run until it is fixed.
-3. **Small KNOWN_ISSUES fixes:** the phone Login's Next key; the focus trap
-   in `Modal` and the web drawer; the web message-thread spinner; the
-   class-record load guard.
-4. **Smoke gate** across web and mobile.
-5. **Manuscript delta list** (the team).
-6. **Professor system check, Fri 2026-10-09.**
+1. **Merge `feat/form-drafts`** — on the owner's word.
+2. **Build 1** — the flagged screens and their fixes, the button and chip
+   shapes, and the four small KNOWN_ISSUES fixes (the phone Login's Next
+   key; the focus trap in `Modal` and the web drawer; the web message-thread
+   spinner; the class-record load guard).
+3. **Build 2** — the dashboards.
+4. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
+   script is not run until it is fixed.
+5. **Smoke gate** across web and mobile.
+6. **Manuscript delta list** (the team applies it).
+7. **Professor system check, Fri 2026-10-09.**
 
-After the check: colour on the dashboard cards; the cloud (Supabase) survey.
+After the check: the cloud (Supabase) survey.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications

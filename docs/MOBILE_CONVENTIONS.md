@@ -1187,5 +1187,5 @@ Where the phone differs:
 - **Close, not Cancel, on the four compose screens** — and nowhere else.
 
 **Proof:** `scripts/proof-form-drafts.mjs` (TESTING → Mobile proofs). The
-phone check (M7) still owns the debounce, AppState, a killed app and both
-Alerts.
+phone check (M7) owns the debounce, AppState, a killed app and both Alerts —
+**device-checked 2026-10-04 in Expo Go on a Tecno, Android 14.**
