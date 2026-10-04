@@ -9,9 +9,11 @@ import { cardClass } from '../components/buttonStyles';
 import FormStatus, { fail } from '../components/FormStatus';
 import PasswordField from '../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../components/PasswordChecklist';
+import ScreenStatusBar from '../components/ScreenStatusBar';
 import Seal from '../components/Seal';
 import Text from '../components/Text';
 import Reveal from '../motion/Reveal';
+import { useTheme } from '../theme/ThemeProvider';
 
 // The forced password change (R2). RootNavigator renders ONLY this screen
 // while `user.must_change_password` is set — routed on the FIELD from
@@ -36,6 +38,7 @@ const BAND_CORNERS = { borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }
 
 export default function ForcedPasswordChangeScreen() {
   const { user, logout, applyToken } = useAuth();
+  const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -87,6 +90,8 @@ export default function ForcedPasswordChangeScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
+      {/* The status bar takes the band's colour while focused, as on Login. */}
+      <ScreenStatusBar color={tokens['brand-panel']} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow">
         <View className="bg-brand-panel px-6 pb-16" style={{ paddingTop: insets.top + 24, ...BAND_CORNERS }}>
           <Reveal>

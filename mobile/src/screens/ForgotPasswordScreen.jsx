@@ -9,6 +9,7 @@ import FormStatus, { ok, fail } from '../components/FormStatus';
 import FormField from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../components/PasswordChecklist';
+import ScreenStatusBar from '../components/ScreenStatusBar';
 import Seal from '../components/Seal';
 import Text from '../components/Text';
 import Icon from '../icons';
@@ -105,6 +106,8 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
+      {/* The status bar takes the band's colour while focused, as on Login. */}
+      <ScreenStatusBar color={tokens['brand-panel']} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow">
         {/* The halo's ring colour is the brand panel's, so the seal carries
             it here, on the band, as it does on Login. */}

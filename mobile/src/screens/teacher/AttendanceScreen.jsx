@@ -173,7 +173,7 @@ export default function AttendanceScreen({ navigation }) {
   const pick = useCallback((id, value) => setMarks((m) => pickStatus(m, recorded, id, value)), [recorded]);
 
   function promptBody(verb) {
-    return `You have ${unsaved} unsaved mark${unsaved === 1 ? '' : 's'} for ${className} on ${longDate(date)}. ${verb} discards them — nothing has been sent to the server yet.`;
+    return `You have ${unsaved} unsaved mark${unsaved === 1 ? '' : 's'} for ${className} on ${longDate(date)}. ${verb} discards ${unsaved === 1 ? 'it' : 'them'} — nothing has been sent to the server yet.`;
   }
 
   // 1. In-screen: a date or section change reloads the roster.
@@ -205,7 +205,7 @@ export default function AttendanceScreen({ navigation }) {
       if (unsaved === 0) return undefined;
       // promptBody('Leaving now'), spelled out so the dependency list below is
       // complete without listing a function that is new on every render.
-      const body = `You have ${unsaved} unsaved mark${unsaved === 1 ? '' : 's'} for ${className} on ${longDate(date)}. Leaving now discards them — nothing has been sent to the server yet.`;
+      const body = `You have ${unsaved} unsaved mark${unsaved === 1 ? '' : 's'} for ${className} on ${longDate(date)}. Leaving now discards ${unsaved === 1 ? 'it' : 'them'} — nothing has been sent to the server yet.`;
       const ask = (proceed) => {
         Alert.alert(PROMPT_TITLE, body, [
           { text: 'Stay on this page', style: 'cancel' },

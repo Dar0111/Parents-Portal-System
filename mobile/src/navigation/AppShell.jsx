@@ -189,7 +189,7 @@ const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event'
 // EXACTLY ONE FRAME PER SCREEN (fix round, 2026-10-04): the frames nest, and
 // every one pads the same window inset, so a frame around a navigator would
 // add the inset again for each screen inside it. Home (RootNavigator's
-// `bareLayout`) and Main (`stripLayout` below) take none.
+// `bareLayout`) and Main (this file's `bareLayout`, below) take none.
 export function ScreenFrame({ children }) {
   const insets = useSafeAreaInsets();
   const { tokens } = useTheme();
@@ -205,20 +205,19 @@ function withStrip({ children }) {
   );
 }
 
-// MAIN — THE DRAWER — KEEPS ITS STRIP BUT PADS NOTHING (fix round,
+// MAIN — THE DRAWER — TAKES NO FRAME AND NO STRIP (fix round + re-check fix,
 // 2026-10-04). Every drawer screen is framed by the drawer's own `withStrip`,
 // and the drawer panel pads its own bottom (DrawerContent), so a frame around
 // the whole drawer lifted each drawer screen by the bottom inset a second time
 // and ended the panel above the navigation bar (RootNavigator's `bareLayout`
-// says the rest). The strip stays exactly where it was. A screen-level
-// `layout`, called like `screenLayout`: module-level, no hook.
-function stripLayout({ children }) {
-  return (
-    <View style={{ flex: 1 }}>
-      <LiveStatus />
-      {children}
-    </View>
-  );
+// says the rest). A strip here was a SECOND strip on every drawer screen: a
+// layout wraps its route's scene, Main's scene is the whole drawer, so it sat
+// ABOVE the drawer's header while `withStrip` put another one below it. Now
+// the one strip is `withStrip`'s, below the header, on drawer and pushed
+// screens alike. A screen-level `layout`, called like `screenLayout`:
+// module-level, no hook.
+function bareLayout({ children }) {
+  return children;
 }
 
 function headerOptions(tokens) {
@@ -279,7 +278,7 @@ export default function AppShell() {
   return (
     <View style={{ flex: 1 }}>
     <Stack.Navigator screenLayout={withStrip} screenOptions={headerOptions(tokens)}>
-      <Stack.Screen name="Main" component={RoleDrawer} layout={stripLayout} options={{ headerShown: false }} />
+      <Stack.Screen name="Main" component={RoleDrawer} layout={bareLayout} options={{ headerShown: false }} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notifications' }} />
       <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Account information' }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change password' }} />

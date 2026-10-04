@@ -6,6 +6,7 @@ import extractError from '../api/extractError';
 import { cardClass } from '../components/buttonStyles';
 import ErrorAlert from '../components/ErrorAlert';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ScreenStatusBar from '../components/ScreenStatusBar';
 import SectionHeader from '../components/SectionHeader';
 import Seal from '../components/Seal';
 import Text from '../components/Text';
@@ -348,6 +349,9 @@ export default function AboutScreen({ navigation, route }) {
       contentContainerStyle={publicView ? { paddingTop: insets.top + 16 } : undefined}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
+      {/* Signed out, the top of this screen is the page, not a header, so the
+          status bar takes the page colour while it is focused. */}
+      {publicView ? <ScreenStatusBar color={tokens.page} /> : null}
       {/* Signed out there is no header and no drawer, so the way back to the
           sign-in screen is here — above the page and, once the details are
           on screen, under it too, because the page is several screens long. */}

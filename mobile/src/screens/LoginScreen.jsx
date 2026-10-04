@@ -9,6 +9,7 @@ import Button from '../components/Button';
 import { cardClass } from '../components/buttonStyles';
 import FormField, { controlClassFor } from '../components/FormField';
 import PasswordField from '../components/PasswordField';
+import ScreenStatusBar from '../components/ScreenStatusBar';
 import Seal from '../components/Seal';
 import Text from '../components/Text';
 import Icon from '../icons';
@@ -100,6 +101,8 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
+      {/* The status bar takes the band's colour while this screen is focused. */}
+      <ScreenStatusBar color={tokens['brand-panel']} />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="flex-grow">
         <View className="bg-brand-panel px-6 pb-16" style={{ paddingTop: insets.top + 32, ...BAND_CORNERS }}>
           <Reveal>

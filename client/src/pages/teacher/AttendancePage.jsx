@@ -699,7 +699,7 @@ export default function AttendancePage() {
       >
         <p className="text-sm text-fg-body">
           You have {unsaved} unsaved mark{unsaved === 1 ? '' : 's'} for {classLabel} on {longDate(date)}.{' '}
-          {leaveVerb} discards them — nothing has been sent to the server yet.
+          {leaveVerb} discards {unsaved === 1 ? 'it' : 'them'} — nothing has been sent to the server yet.
         </p>
       </Modal>
     </div>
