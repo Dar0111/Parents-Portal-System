@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
@@ -17,6 +18,9 @@ import Reveal from '../../motion/Reveal';
 import teacherEventCard from './events/card';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { useAuth } from '../../auth/AuthContext';
+import { editContext, itemChangedSince } from '../../drafts/draftCore';
+import { findOpenDrafts, loadDraft } from '../../drafts/sessionDrafts';
+import { useDraftAutosave } from '../../drafts/useDraft';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher events: list, compose, edit, delete.
@@ -39,8 +43,23 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // Both Modals sit BESIDE the entrance wrapper, never inside it: Modal
 // renders inline, and a wrapper mid-tween carries a transform
 // (motion/motion.js).
+//
+// THE FORM KEEPS A DRAFT (feat/form-drafts, 2026-10-04; FRONTEND §28): kept in
+// this tab under this account's numeric id — `new`, or `edit-<event id>` — so
+// Close and a reload keep it and a reload reopens the form; removed on a
+// confirmed post or edit, on a confirmed Discard draft, and on logout.
 
 const EMPTY_FORM = { title: '', description: '', event_date: '', target_grade: '' };
+
+// The form's fields of an event — what an edit opens with, and the draft's base.
+function eventFields(row) {
+  return {
+    title: row.title || '',
+    description: row.description || '',
+    event_date: row.event_date || '',
+    target_grade: String(row.target_grade ?? ''),
+  };
+}
 
 export default function EventsPage() {
   usePageTitle('Events');
@@ -67,6 +86,20 @@ export default function EventsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  // What the form opened with (the draft's base), and the notice while a
+  // kept draft is on screen ('restored' / 'changed').
+  const [formBase, setFormBase] = useState(EMPTY_FORM);
+  const [draftNotice, setDraftNotice] = useState(null);
+  const userId = user?.id ?? null;
+  const draft = useDraftAutosave({
+    userId,
+    form: 'event',
+    context: editing ? editContext(editing.id) : 'new',
+    values: form,
+    base: formBase,
+    active: composing,
+  });
+  const restoreTried = useRef(false);
 
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -101,6 +134,20 @@ export default function EventsPage() {
       const result = await api.get('/events', { unwrap: ['events', 'page'], params });
       setRows(result.events);
       setPage(result.page);
+      // THE FORM THAT WAS OPEN COMES BACK after a reload (FRONTEND §28): a new
+      // event's draft, or an edit whose event is on this page. Once, here.
+      if (!restoreTried.current) {
+        restoreTried.current = true;
+        const [open] = findOpenDrafts({ userId, form: 'event' });
+        const row = open && open.context !== 'new' ? result.events.find((r) => editContext(r.id) === open.context) : null;
+        if (open && (open.context === 'new' || row)) {
+          setEditing(row || null);
+          setForm(open.record.values);
+          setFormBase(open.record.base || (row ? eventFields(row) : EMPTY_FORM));
+          setDraftNotice(row && itemChangedSince('event', open.record, eventFields(row)) ? 'changed' : 'restored');
+          setComposing(true);
+        }
+      }
     } catch (err) {
       setError(extractError(err));
       setRows([]);
@@ -108,7 +155,7 @@ export default function EventsPage() {
     } finally {
       setLoading(false);
     }
-  }, [applied, offset, sort]);
+  }, [applied, offset, sort, userId]);
 
   function changeSort(next) {
     setSort(next);
@@ -122,26 +169,53 @@ export default function EventsPage() {
   function openCompose() {
     setWriteStatus({});
     setEditing(null);
-    setForm({
+    const opening = {
       ...EMPTY_FORM,
       event_date: todayLocalDateString(),
       target_grade: grades.length === 1 ? String(grades[0]) : '',
-    });
+    };
+    const kept = loadDraft({ userId, form: 'event', context: 'new' });
+    setForm(kept ? kept.values : opening);
+    setFormBase(kept?.base || opening);
+    setDraftNotice(kept ? 'restored' : null);
     setFormError(null);
     setComposing(true);
   }
 
-  function openEdit(row) {
-    setWriteStatus({});
-    setEditing(row);
-    setForm({
-      title: row.title || '',
-      description: row.description || '',
-      event_date: row.event_date || '',
-      target_grade: String(row.target_grade ?? ''),
-    });
-    setFormError(null);
-    setComposing(true);
+  // A callback on the account id, because the table's columns (memoised
+  // below) call it: it reads this account's draft for the row.
+  const openEdit = useCallback(
+    (row) => {
+      setWriteStatus({});
+      setEditing(row);
+      const current = eventFields(row);
+      const kept = loadDraft({ userId, form: 'event', context: editContext(row.id) });
+      setForm(kept ? kept.values : current);
+      setFormBase(kept?.base || current);
+      setDraftNotice(kept ? (itemChangedSince('event', kept, current) ? 'changed' : 'restored') : null);
+      setFormError(null);
+      setComposing(true);
+    },
+    [userId]
+  );
+
+  // Close keeps the draft; only Discard draft and a confirmed write remove it.
+  function closeCompose() {
+    if (saving) return;
+    draft.close();
+    setComposing(false);
+    setDraftNotice(null);
+  }
+
+  // After the inline "Discard this draft?" was confirmed (DraftNotice).
+  function discardDraft() {
+    draft.discard();
+    const opening = editing
+      ? eventFields(editing)
+      : { ...EMPTY_FORM, event_date: todayLocalDateString(), target_grade: grades.length === 1 ? String(grades[0]) : '' };
+    setForm(opening);
+    setFormBase(opening);
+    setDraftNotice(null);
   }
 
   async function submitForm(event) {
@@ -163,6 +237,9 @@ export default function EventsPage() {
         await api.post('/events', body, { unwrap: 'event' });
       }
       const message = editing ? 'Event updated.' : 'Event posted.';
+      // The server confirmed: the draft goes, and is not written again.
+      draft.submitted(form);
+      setDraftNotice(null);
       setComposing(false);
       await load();
       setWriteStatus({ events: ok(message) });
@@ -285,7 +362,7 @@ export default function EventsPage() {
           ) : null,
       },
     ],
-    [user?.id]
+    [user?.id, openEdit]
   );
 
   return (
@@ -413,14 +490,14 @@ export default function EventsPage() {
 
       <Modal
         open={composing}
-        onClose={() => (saving ? null : setComposing(false))}
+        onClose={closeCompose}
         closeOnBackdrop={!saving}
         title={editing ? 'Edit event' : 'New event'}
         size="lg"
         footer={
           <>
-            <Button onClick={() => setComposing(false)} disabled={saving}>
-              Cancel
+            <Button onClick={closeCompose} disabled={saving}>
+              Close
             </Button>
             {/* `loading` adds the spinner; the button is disabled exactly
                 when it was before (saving, or a required field empty). */}
@@ -437,6 +514,7 @@ export default function EventsPage() {
         }
       >
         <form id="event-form" onSubmit={submitForm} className="space-y-4">
+          {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
           {formError ? <ErrorAlert message={formError} /> : null}
 
           <FormField

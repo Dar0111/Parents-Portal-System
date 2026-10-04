@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import api, { setSessionEndedListener } from '../api/client';
 import extractError from '../api/extractError';
+import { deviceDrafts } from '../drafts/useDraft';
 import * as tokenStore from './tokenStore';
 import { classifyAuthFailure } from './authFailure';
 
@@ -94,7 +95,12 @@ export function AuthProvider({ children }) {
     return loggedIn;
   }
 
+  // A DELIBERATE logout also removes every form draft on this phone — every
+  // account's, every version (feat/form-drafts, MOBILE M25). The 401 listener
+  // above does not, so a session that merely expired keeps its drafts for the
+  // same account to sign back in to.
   async function logout() {
+    await deviceDrafts.clearAll();
     await tokenStore.clear();
     setUser(null);
   }

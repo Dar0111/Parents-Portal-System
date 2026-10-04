@@ -56,6 +56,7 @@ export const PAIRS = [
   ['src/navigation/leaveGuard.js', 'layout/leaveGuard.js'],
   // feat/message-toast — what the new-message toast shows, and when.
   ['src/realtime/messageToast.js', 'realtime/messageToast.js'],
+  ['src/drafts/draftCore.js', 'drafts/draftCore.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

@@ -1,13 +1,17 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import Text from '../../components/Text';
+import { editContext, itemChangedSince } from '../../drafts/draftCore';
+import { useDeviceDraft } from '../../drafts/useDraft';
 import { longDate, todayLocalDateString } from '../../format/date';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
@@ -24,12 +28,18 @@ import { useTheme } from '../../theme/ThemeProvider';
 // `notice` and re-reads its rows.
 //
 // THE LOOK (feat/ui-refresh): the note about what a letter does, then the
-// three fields in one card, then Cancel and the screen's one filled action.
+// three fields in one card, then Close and the screen's one filled action.
 // The date trigger has the shared date field's shape (components/DateField:
 // FormField's corner and padding, 48dp set in dp — M19 — and Android's ripple
 // for feedback, never a style function — M20). It stays inline here because
 // its accessible name while empty is this screen's own sentence. A write
 // form: nothing is fetched, so there is nothing to reload.
+//
+// THE FORM KEEPS A DRAFT ON THIS PHONE (feat/form-drafts, 2026-10-04; MOBILE
+// M25) under this account's numeric id — `new`, or `edit-<letter id>`. Close
+// and Back keep it, and so does a killed app; it comes back when this screen
+// opens again, with the notice. It is removed when the server confirms the
+// submit, on a confirmed Discard draft, and on logout.
 function dateFromParts(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -51,6 +61,47 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
   const [formError, setFormError] = useState(null);
   const [dateError, setDateError] = useState(null);
 
+  // The draft: the letter's own fields are the base for an edit (empty for a
+  // new letter); a restored draft keeps the base it was started on, so the
+  // "item changed" notice stays true until it is submitted or discarded.
+  const { user } = useAuth();
+  const opening = useMemo(
+    () => ({ absence_date: editing?.absence_date || '', reason: editing?.reason || '', details: editing?.details || '' }),
+    [editing]
+  );
+  const [draftBase, setDraftBase] = useState(opening);
+  const [draftNotice, setDraftNotice] = useState(null);
+  const values = useMemo(() => ({ absence_date: absenceDate, reason, details }), [absenceDate, reason, details]);
+  const restore = useCallback(
+    (record) => {
+      if (!record) return;
+      setAbsenceDate(record.values.absence_date);
+      setReason(record.values.reason);
+      setDetails(record.values.details);
+      setDraftBase(record.base || opening);
+      setDraftNotice(editing && itemChangedSince('excuse', record, opening) ? 'changed' : 'restored');
+    },
+    [editing, opening]
+  );
+  const draft = useDeviceDraft({
+    userId: user?.id ?? null,
+    form: 'excuse',
+    context: editing ? editContext(editing.id) : 'new',
+    values,
+    base: draftBase,
+    onRestore: restore,
+  });
+
+  // After "Discard this draft?" was confirmed (DraftNotice's Alert).
+  function discardDraft() {
+    draft.discard();
+    setAbsenceDate(opening.absence_date);
+    setReason(opening.reason);
+    setDetails(opening.details);
+    setDraftBase(opening);
+    setDraftNotice(null);
+  }
+
   async function submit() {
     if (saving) return;
     setFormError(null);
@@ -64,6 +115,8 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
       const body = { absence_date: absenceDate, reason, details: details.trim() ? details : null };
       if (editing) await api.put(`/excuse-letters/${editing.id}`, body, { unwrap: 'excuse_letter' });
       else await api.post('/excuse-letters', body, { unwrap: 'excuse_letter' });
+      // The server confirmed: the draft goes, and is not written on unmount.
+      draft.submitted(values);
       // popTo, not navigate: navigate pushes a second drawer (M16).
       navigation.popTo('Main', { screen: '/parent/excuse-letters', params: { notice: editing ? 'Letter updated.' : 'Letter submitted.' } });
     } catch (err) {
@@ -78,6 +131,7 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+        {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
         {formError ? <ErrorAlert message={formError} /> : null}
         <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
           <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
@@ -146,7 +200,7 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
             before (saving, or no reason typed). */}
         <View className="flex-row flex-wrap justify-end gap-2">
           <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
-            Cancel
+            Close
           </Button>
           <Button variant="primary" onPress={submit} disabled={saving || !reason.trim()} loading={saving}>
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Submit'}

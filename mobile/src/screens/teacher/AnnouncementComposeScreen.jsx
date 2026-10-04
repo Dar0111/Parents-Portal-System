@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
+import { DRAFT_COPY, editContext, itemChangedSince, threadContext } from '../../drafts/draftCore';
+import { deviceDrafts, useDeviceDraft } from '../../drafts/useDraft';
 import useTeacherTargets, { keyOf } from '../../hooks/useTeacherTargets';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
@@ -32,35 +36,106 @@ import { useTheme } from '../../theme/ThemeProvider';
 // THE LOOK (feat/ui-refresh, 2026-10-02): the form is one card, then the
 // neutral way out and the ONE filled step forward. No pull-to-refresh: the
 // screen is a write form (its targets are `useTeacherTargets`' one read).
+//
+// THE FORM KEEPS A DRAFT ON THIS PHONE (feat/form-drafts, 2026-10-04; MOBILE
+// M25) under this account's numeric id — `new`, or `edit-<post id>`. Close,
+// Back and a killed app keep it; it comes back when this screen opens again,
+// with the notice; it is removed on a confirmed post or edit, a confirmed
+// Discard draft, and logout. A thread hand-off over a saved new-announcement
+// draft ASKS first ("Replace your saved announcement draft with this
+// message?"), and an announcement started from a conversation clears that
+// conversation's draft once it posts (`fromThread`). The auto-selected
+// section counts as what the form OPENED with, so it alone never makes a draft.
 export default function AnnouncementComposeScreen({ navigation, route }) {
   const { tokens } = useTheme();
   const editing = route?.params?.editing || null;
   const arrivedContent = typeof route?.params?.content === 'string' ? route.params.content : null;
   const requestedTarget = typeof route?.params?.target === 'string' ? route.params.target : '';
+  const handoffThread = Number.isInteger(route?.params?.fromThread) && route.params.fromThread > 0 ? route.params.fromThread : null;
   const { sections, loading: targetsLoading } = useTeacherTargets();
 
-  const [form, setForm] = useState({
+  // What the form OPENED with — without a hand-off's text, so that text
+  // counts as typed and is kept as this form's draft.
+  const [opening] = useState(() => ({
     title: editing?.title || '',
-    content: editing?.content || arrivedContent || '',
+    content: editing?.content || '',
     category: editing?.category || '',
     target: editing ? `${editing.target_grade}|${editing.target_section}` : '',
-  });
+  }));
+  const [form, setForm] = useState(() => ({ ...opening, content: editing?.content || arrivedContent || '' }));
   const [staleTargetNotice, setStaleTargetNotice] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [resolved, setResolved] = useState(false);
 
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const autoBase = useMemo(() => {
+    if (editing || targetsLoading) return opening;
+    if (requestedTarget && sections.some((s) => keyOf(s) === requestedTarget)) return { ...opening, target: requestedTarget };
+    if (!requestedTarget && sections.length === 1) return { ...opening, target: keyOf(sections[0]) };
+    return opening;
+  }, [editing, targetsLoading, requestedTarget, sections, opening]);
+  const [restoredBase, setRestoredBase] = useState(null);
+  const [draftNotice, setDraftNotice] = useState(null);
+  const [fromThread, setFromThread] = useState(editing ? null : handoffThread);
+  const restore = useCallback(
+    (record, { saveNow }) => {
+      if (!record) return;
+      function applySaved() {
+        setForm(record.values);
+        setRestoredBase(record.base || opening);
+        setFromThread(editing ? null : record.fromThread);
+        setDraftNotice(editing && itemChangedSince('announcement', record, opening) ? 'changed' : 'restored');
+      }
+      // A hand-off with text over a saved new-announcement draft: ask. "This
+      // message" is shown as the question's body. "Use this message" writes
+      // the hand-off over the saved draft at once.
+      if (!editing && arrivedContent && arrivedContent.trim()) {
+        Alert.alert(DRAFT_COPY.replaceTitle, arrivedContent, [
+          { text: DRAFT_COPY.replaceKeep, style: 'cancel', onPress: applySaved },
+          { text: DRAFT_COPY.replaceUse, onPress: saveNow },
+        ]);
+        return;
+      }
+      applySaved();
+    },
+    [editing, opening, arrivedContent]
+  );
+  const draft = useDeviceDraft({
+    userId,
+    form: 'announcement',
+    context: editing ? editContext(editing.id) : 'new',
+    values: form,
+    base: restoredBase || autoBase,
+    // Written only while there is a section to post to: with none, the form
+    // never opens and a hand-off's text stays in its conversation.
+    active: Boolean(editing) || sections.length > 0,
+    fromThread: editing ? null : fromThread,
+    onRestore: restore,
+  });
+
+  // After "Discard this draft?" was confirmed (DraftNotice's Alert).
+  function discardDraft() {
+    draft.discard();
+    setForm(autoBase);
+    setRestoredBase(null);
+    setFromThread(null);
+    setDraftNotice(null);
+  }
+
   // Resolve the target ONCE the list has loaded: the thread's requested
   // key if known, else the one-section auto-select, else "Pick a section".
+  // A restored draft keeps its own section: nothing is resolved over it.
   useEffect(() => {
     if (targetsLoading || resolved) return;
     setResolved(true);
-    if (editing) return;
+    if (editing || restoredBase) return;
     const known = requestedTarget && sections.some((s) => keyOf(s) === requestedTarget);
     if (known) setForm((f) => ({ ...f, target: requestedTarget }));
     else if (requestedTarget) setStaleTargetNotice(true);
     else if (sections.length === 1) setForm((f) => ({ ...f, target: keyOf(sections[0]) }));
-  }, [targetsLoading, resolved, editing, requestedTarget, sections]);
+  }, [targetsLoading, resolved, editing, requestedTarget, sections, restoredBase]);
 
   async function submit() {
     if (saving) return;
@@ -77,6 +152,11 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
       };
       if (editing) await api.put(`/announcements/${editing.id}`, body, { unwrap: 'announcement' });
       else await api.post('/announcements', body, { unwrap: 'announcement' });
+      // The server confirmed: this form's draft goes — and, for an
+      // announcement started from a conversation, that conversation's draft
+      // too, so the same words are not later sent to the parent by mistake.
+      draft.submitted(form);
+      if (!editing && fromThread) deviceDrafts.clear({ userId, form: 'message', context: threadContext(fromThread) });
       // popTo, not navigate: navigate pushes a second drawer (M16). From a
       // message thread this also closes the thread — accepted.
       navigation.popTo('Main', { screen: '/teacher/announcements', params: { notice: editing ? 'Announcement updated.' : 'Announcement posted.' } });
@@ -103,7 +183,7 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
           </View>
           {arrivedContent ? (
             <>
-              <Text className="text-sm text-warning-strong">Your message draft is below. Copy it before leaving this screen.</Text>
+              <Text className="text-sm text-warning-strong">{DRAFT_COPY.handoffStillInThread}</Text>
               <FormField label="Undelivered message draft" value={arrivedContent} editable={false} multiline textAlignVertical="top" className="min-h-20" />
             </>
           ) : null}
@@ -120,6 +200,7 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+        {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
         {formError ? <ErrorAlert message={formError} /> : null}
         {staleTargetNotice ? (
           <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
@@ -166,7 +247,7 @@ export default function AnnouncementComposeScreen({ navigation, route }) {
             before (saving, or a required field empty). */}
         <View className="flex-row flex-wrap justify-end gap-2">
           <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
-            Cancel
+            Close
           </Button>
           <Button variant="primary" onPress={submit} disabled={saving || !ready} loading={saving}>
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Post'}

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import api, { TOKEN_KEY } from '../api/axios';
 import extractError from '../api/extractError';
+import { clearAllDrafts } from '../drafts/sessionDrafts';
 import { classifyAuthFailure } from './authFailure';
 
 const AuthContext = createContext(null);
@@ -73,7 +74,12 @@ export function AuthProvider({ children }) {
     return loggedIn;
   }
 
+  // A DELIBERATE logout also removes every form draft kept in this tab — every
+  // account's, every version (feat/form-drafts, FRONTEND §28). A 401 does not
+  // pass through here (api/axios.js sends the tab to /login), so a session
+  // that merely expired keeps its drafts for the same account to sign back in.
   function logout() {
+    clearAllDrafts();
     localStorage.removeItem(TOKEN_KEY);
     setUser(null);
   }

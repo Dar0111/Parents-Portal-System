@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
@@ -16,6 +17,9 @@ import { timestampDay } from '../../format/date';
 import Reveal from '../../motion/Reveal';
 import teacherAnnouncementCard from './announcements/card';
 import { useAuth } from '../../auth/AuthContext';
+import { DRAFT_COPY, editContext, itemChangedSince, threadContext } from '../../drafts/draftCore';
+import { clearDraft, findOpenDrafts, loadDraft } from '../../drafts/sessionDrafts';
+import { useDraftAutosave } from '../../drafts/useDraft';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher announcements: list, compose, edit, delete.
@@ -55,8 +59,27 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // can land while the entrance is still running — and a wrapper mid-tween
 // carries a transform, which would become the containing block of the
 // dialog's fixed backdrop (motion/motion.js).
+//
+// THE FORM KEEPS A DRAFT (feat/form-drafts, 2026-10-04; FRONTEND §28): kept in
+// this tab under this account's numeric id — `new`, or `edit-<post id>` — so
+// Close and a reload keep it and a reload reopens the form; removed on a
+// confirmed post or edit, on a confirmed Discard draft, and on logout. A
+// thread hand-off is still read ONCE; it is the saved draft that a reload
+// brings back. A hand-off that would overwrite a saved new-announcement draft
+// ASKS first, and an announcement built from a conversation clears that
+// conversation's draft once it posts (`fromThread`).
 
 const EMPTY_FORM = { title: '', content: '', category: '', target: '' };
+
+// The form's fields of a post — what an edit opens with, and the draft's base.
+function postFields(row) {
+  return {
+    title: row.title || '',
+    content: row.content || '',
+    category: row.category || '',
+    target: `${row.target_grade}|${row.target_section}`,
+  };
+}
 
 export default function AnnouncementsPage() {
   usePageTitle('Announcements');
@@ -72,9 +95,9 @@ export default function AnnouncementsPage() {
   const [sectionFilter, setSectionFilter] = useState('');
   const [applied, setApplied] = useState({ section: '' });
 
-  // Compose/edit modal owns its draft, created when it opens and discarded when
-  // it closes (convention 5b). The list row renders the STORED post and is
-  // never written from this form — on success the list refetches.
+  // The compose/edit modal's form is kept as a draft (see the header). The
+  // list row renders the STORED post and is never written from this form —
+  // on success the list refetches (convention 5b).
   const [composing, setComposing] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -89,6 +112,29 @@ export default function AnnouncementsPage() {
   // back empty. Held here so the draft is shown, not discarded — see the
   // arrival effect.
   const [undelivered, setUndelivered] = useState(null);
+
+  // The draft: what the form opened with (its base), the notice while a kept
+  // draft is on screen ('restored' / 'changed'), the conversation a new
+  // announcement was started from, and a hand-off waiting on "Replace your
+  // saved announcement draft with this message?".
+  const [formBase, setFormBase] = useState(EMPTY_FORM);
+  const [draftNotice, setDraftNotice] = useState(null);
+  const [fromThread, setFromThread] = useState(null);
+  const [replaceAsk, setReplaceAsk] = useState(null);
+  const userId = user?.id ?? null;
+  const draft = useDraftAutosave({
+    userId,
+    form: 'announcement',
+    context: editing ? editContext(editing.id) : 'new',
+    values: form,
+    base: formBase,
+    active: composing,
+    fromThread: editing ? null : fromThread,
+  });
+  // A reload reopens the open draft once — unless the page was reached by a
+  // thread hand-off, which decides for itself (it may ask first).
+  const restoreTried = useRef(false);
+  const [arrivedWithHandoff] = useState(() => Boolean(location.state?.compose));
 
   // Delete is a HARD DELETE with no status column and no restore path, so it
   // gets an explicit confirmation naming the post (convention 5e). Editing is
@@ -129,6 +175,22 @@ export default function AnnouncementsPage() {
       const result = await api.get('/announcements', { unwrap: ['announcements', 'page'], params });
       setRows(result.announcements);
       setPage(result.page);
+      // THE FORM THAT WAS OPEN COMES BACK after a reload (FRONTEND §28): a new
+      // announcement's draft, or an edit whose post is on this page. Once.
+      if (!restoreTried.current) {
+        restoreTried.current = true;
+        const [open] = arrivedWithHandoff ? [] : findOpenDrafts({ userId, form: 'announcement' });
+        const row = open && open.context !== 'new' ? result.announcements.find((r) => editContext(r.id) === open.context) : null;
+        if (open && (open.context === 'new' || row)) {
+          setEditing(row || null);
+          setForm(open.record.values);
+          setFormBase(open.record.base || (row ? postFields(row) : EMPTY_FORM));
+          setFromThread(row ? null : open.record.fromThread);
+          setDraftNotice(row && itemChangedSince('announcement', open.record, postFields(row)) ? 'changed' : 'restored');
+          setStaleTargetNotice(false);
+          setComposing(true);
+        }
+      }
     } catch (err) {
       setError(extractError(err));
       setRows([]);
@@ -136,7 +198,7 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [applied, offset, sort]);
+  }, [applied, offset, sort, userId, arrivedWithHandoff]);
 
   function changeSort(next) {
     setSort(next);
@@ -180,14 +242,47 @@ export default function AnnouncementsPage() {
   function openCompose() {
     setWriteStatus({});
     setEditing(null);
-    setForm({ ...EMPTY_FORM, target: sections.length === 1 ? keyOf(sections[0]) : '' });
+    const opening = { ...EMPTY_FORM, target: sections.length === 1 ? keyOf(sections[0]) : '' };
+    const kept = loadDraft({ userId, form: 'announcement', context: 'new' });
+    setForm(kept ? kept.values : opening);
+    setFormBase(kept?.base || opening);
+    setFromThread(kept ? kept.fromThread : null);
+    setDraftNotice(kept ? 'restored' : null);
     setFormError(null);
     setStaleTargetNotice(false);
     setComposing(true);
   }
 
+  // A thread hand-off. A saved new-announcement draft is not overwritten
+  // without asking: "Replace your saved announcement draft with this message?"
+  // A hand-off with no text has nothing to replace a saved draft with, so the
+  // saved draft simply opens.
+  function openComposeFromThread(compose) {
+    if (loadDraft({ userId, form: 'announcement', context: 'new' })) {
+      if (typeof compose.content === 'string' && compose.content.trim()) setReplaceAsk(compose);
+      else openCompose();
+      return;
+    }
+    openFromHandoff(compose);
+  }
+
+  // "Keep saved draft": the saved draft opens; the message stays in its
+  // conversation (that conversation's own draft).
+  function keepSavedDraft() {
+    setReplaceAsk(null);
+    openCompose();
+  }
+
+  // "Use this message": the hand-off opens and its text replaces the saved
+  // draft as soon as the form autosaves.
+  function takeHandoffMessage() {
+    const compose = replaceAsk;
+    setReplaceAsk(null);
+    if (compose) openFromHandoff(compose);
+  }
+
   // Do not call openCompose() from the thread path — that helper resets content.
-  function openComposeFromThread({ content, target: requested }) {
+  function openFromHandoff({ content, target: requested, fromThread: thread }) {
     const requestedKey = typeof requested === 'string' && requested ? requested : '';
     const known = requestedKey && sections.some((s) => keyOf(s) === requestedKey);
     let target = '';
@@ -202,28 +297,56 @@ export default function AnnouncementsPage() {
     }
     setWriteStatus({});
     setEditing(null);
+    // The base is the form WITHOUT the message, so the message counts as
+    // typed and is kept as this form's draft from the first save.
+    setFormBase({ ...EMPTY_FORM, target });
     setForm({
       ...EMPTY_FORM,
       content: typeof content === 'string' ? content : '',
       target,
     });
+    setFromThread(Number.isInteger(thread) && thread > 0 ? thread : null);
+    setDraftNotice(null);
     setFormError(null);
     setStaleTargetNotice(stale);
     setComposing(true);
   }
 
-  function openEdit(row) {
-    setWriteStatus({});
-    setEditing(row);
-    setForm({
-      title: row.title || '',
-      content: row.content || '',
-      category: row.category || '',
-      target: `${row.target_grade}|${row.target_section}`,
-    });
-    setFormError(null);
-    setStaleTargetNotice(false);
-    setComposing(true);
+  // A callback on the account id, because the table's columns (memoised
+  // below) call it: it reads this account's draft for the row.
+  const openEdit = useCallback(
+    (row) => {
+      setWriteStatus({});
+      setEditing(row);
+      const current = postFields(row);
+      const kept = loadDraft({ userId, form: 'announcement', context: editContext(row.id) });
+      setForm(kept ? kept.values : current);
+      setFormBase(kept?.base || current);
+      setFromThread(null);
+      setDraftNotice(kept ? (itemChangedSince('announcement', kept, current) ? 'changed' : 'restored') : null);
+      setFormError(null);
+      setStaleTargetNotice(false);
+      setComposing(true);
+    },
+    [userId]
+  );
+
+  // Close keeps the draft; only Discard draft and a confirmed write remove it.
+  function closeCompose() {
+    if (saving) return;
+    draft.close();
+    setComposing(false);
+    setDraftNotice(null);
+  }
+
+  // After the inline "Discard this draft?" was confirmed (DraftNotice).
+  function discardDraft() {
+    draft.discard();
+    const opening = editing ? postFields(editing) : { ...EMPTY_FORM, target: sections.length === 1 ? keyOf(sections[0]) : '' };
+    setForm(opening);
+    setFormBase(opening);
+    setFromThread(null);
+    setDraftNotice(null);
   }
 
   async function submitForm(event) {
@@ -245,6 +368,13 @@ export default function AnnouncementsPage() {
         await api.post('/announcements', body, { unwrap: 'announcement' });
       }
       const message = editing ? 'Announcement updated.' : 'Announcement posted.';
+      // The server confirmed: this form's draft goes — and, for an
+      // announcement started from a conversation, that conversation's draft
+      // too, so the same words are not later sent to the parent by mistake.
+      draft.submitted(form);
+      if (!editing && fromThread) clearDraft({ userId, form: 'message', context: threadContext(fromThread) });
+      setFromThread(null);
+      setDraftNotice(null);
       setComposing(false);
       await load();
       setWriteStatus({ announcements: ok(message) });
@@ -354,7 +484,7 @@ export default function AnnouncementsPage() {
           ) : null,
       },
     ],
-    [user?.id]
+    [user?.id, openEdit]
   );
 
   return (
@@ -374,7 +504,7 @@ export default function AnnouncementsPage() {
               </p>
               {undelivered.content ? (
                 <>
-                  <p>Your message draft is below. Copy it before leaving this page.</p>
+                  <p>{DRAFT_COPY.handoffStillInThread}</p>
                   <textarea
                     readOnly
                     rows={3}
@@ -513,14 +643,14 @@ export default function AnnouncementsPage() {
 
       <Modal
         open={composing}
-        onClose={() => (saving ? null : setComposing(false))}
+        onClose={closeCompose}
         closeOnBackdrop={!saving}
         title={editing ? 'Edit announcement' : 'New announcement'}
         size="lg"
         footer={
           <>
-            <Button onClick={() => setComposing(false)} disabled={saving}>
-              Cancel
+            <Button onClick={closeCompose} disabled={saving}>
+              Close
             </Button>
             {/* `loading` adds the spinner; the button is disabled exactly
                 when it was before (saving, or a required field empty). */}
@@ -537,6 +667,7 @@ export default function AnnouncementsPage() {
         }
       >
         <form id="announcement-form" onSubmit={submitForm} className="space-y-4">
+          {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
           {formError ? <ErrorAlert message={formError} /> : null}
           {staleTargetNotice ? (
             <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
@@ -599,6 +730,27 @@ export default function AnnouncementsPage() {
             hint="Optional — e.g. Reminder, Activity."
           />
         </form>
+      </Modal>
+
+      {/* A hand-off over a saved new-announcement draft asks first. Closing
+          the question changes nothing: the saved draft stays, and the
+          message stays in its conversation's draft. */}
+      <Modal
+        open={Boolean(replaceAsk)}
+        onClose={() => setReplaceAsk(null)}
+        title={DRAFT_COPY.replaceTitle}
+        size="sm"
+        footer={
+          <>
+            <Button onClick={keepSavedDraft}>{DRAFT_COPY.replaceKeep}</Button>
+            <Button variant="primary" onClick={takeHandoffMessage}>
+              {DRAFT_COPY.replaceUse}
+            </Button>
+          </>
+        }
+      >
+        {/* "This message" is shown, so the choice is made seeing it. */}
+        <p className="max-w-prose whitespace-pre-wrap break-words text-sm text-fg-body">{replaceAsk?.content}</p>
       </Modal>
 
       <Modal

@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
+import { editContext, itemChangedSince } from '../../drafts/draftCore';
+import { useDeviceDraft } from '../../drafts/useDraft';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
 import { announcementBody, AUDIENCES, audienceHint, EMPTY_ANN, EMPTY_MEMO, formFromRow, memoBody } from './posts/logic';
@@ -29,15 +33,54 @@ import { announcementBody, AUDIENCES, audienceHint, EMPTY_ANN, EMPTY_MEMO, formF
 // and the one filled step forward, both the shared `Button`. NO
 // PULL-TO-REFRESH: a write form shows no server list (the classes are read
 // once, for the picker).
+//
+// THE FORM KEEPS A DRAFT ON THIS PHONE (feat/form-drafts, 2026-10-04; MOBILE
+// M25) under this account's numeric id — `adminAnnouncement` or `memo`, `new`
+// or `edit-<id>`. Close, Back and a killed app keep it; it comes back when
+// this screen opens again for the same post, with the notice; it is removed on
+// a confirmed post or edit, a confirmed Discard draft, and logout.
 export default function PostComposeScreen({ navigation, route }) {
   const kind = route.params.kind;
   const editing = route.params.editing || null;
   const isMemo = kind === 'memo';
   const { tokens } = useTheme();
-  const [form, setForm] = useState(isMemo ? (editing ? { title: editing.title || '', content: editing.content || '' } : EMPTY_MEMO) : editing ? formFromRow(editing) : EMPTY_ANN);
+  const [opening] = useState(() =>
+    isMemo ? (editing ? { title: editing.title || '', content: editing.content || '' } : EMPTY_MEMO) : editing ? formFromRow(editing) : EMPTY_ANN
+  );
+  const [form, setForm] = useState(opening);
   const [sections, setSections] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const draftForm = isMemo ? 'memo' : 'adminAnnouncement';
+  const { user } = useAuth();
+  const [draftBase, setDraftBase] = useState(opening);
+  const [draftNotice, setDraftNotice] = useState(null);
+  const restore = useCallback(
+    (record) => {
+      if (!record) return;
+      setForm(record.values);
+      setDraftBase(record.base || opening);
+      setDraftNotice(editing && itemChangedSince(draftForm, record, opening) ? 'changed' : 'restored');
+    },
+    [editing, opening, draftForm]
+  );
+  const draft = useDeviceDraft({
+    userId: user?.id ?? null,
+    form: draftForm,
+    context: editing ? editContext(editing.id) : 'new',
+    values: form,
+    base: draftBase,
+    onRestore: restore,
+  });
+
+  // After "Discard this draft?" was confirmed (DraftNotice's Alert).
+  function discardDraft() {
+    draft.discard();
+    setForm(opening);
+    setDraftBase(opening);
+    setDraftNotice(null);
+  }
 
   useEffect(() => {
     if (isMemo) return undefined;
@@ -77,6 +120,8 @@ export default function PostComposeScreen({ navigation, route }) {
       if (editing) await api.put(`${path}/${editing.id}`, body, { unwrap });
       else await api.post(path, body, { unwrap });
       const notice = isMemo ? (editing ? 'Memo updated.' : 'Memo posted.') : editing ? 'Announcement updated.' : 'Announcement posted.';
+      // The server confirmed: the draft goes, and is not written on unmount.
+      draft.submitted(form);
       // popTo, not navigate: navigate pushes a second drawer (A1, M16).
       navigation.popTo('Main', { screen: '/admin/announcements', params: { notice, kind } });
     } catch (err) {
@@ -91,6 +136,7 @@ export default function PostComposeScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+        {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
         {error ? <ErrorAlert message={error} /> : null}
         {isMemo ? (
           <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
@@ -147,7 +193,7 @@ export default function PostComposeScreen({ navigation, route }) {
             until there is a title and a message. */}
         <View className="flex-row flex-wrap justify-end gap-2">
           <Button onPress={() => navigation.goBack()} disabled={saving}>
-            Cancel
+            Close
           </Button>
           <Button variant="primary" onPress={submit} disabled={saving || !ready} loading={saving}>
             {saving ? 'Saving…' : editing ? 'Save changes' : isMemo ? 'Post memo' : 'Post'}

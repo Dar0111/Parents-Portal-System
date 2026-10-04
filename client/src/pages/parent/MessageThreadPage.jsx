@@ -5,12 +5,16 @@ import extractError from '../../api/extractError';
 import { dateTime } from '../../format/date';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import { controlClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { cardClass } from '../../components/buttonClass';
 import { shouldSendOnEnter } from '../../components/enterToSend';
 import { useAuth } from '../../auth/AuthContext';
+import { threadContext } from '../../drafts/draftCore';
+import { loadDraft } from '../../drafts/sessionDrafts';
+import { useDraftAutosave } from '../../drafts/useDraft';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -33,6 +37,15 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // writes — motion on arrival, which this app does not have. The root is a
 // plain div.
 
+// The composer's draft is the `message` form's only field.
+const MESSAGE_BASE = Object.freeze({ body: '' });
+
+// What this account kept for the conversation with `otherId`, or ''.
+function keptMessage(myId, otherId) {
+  const record = loadDraft({ userId: myId, form: 'message', context: threadContext(otherId) });
+  return record ? record.values.body : '';
+}
+
 export default function ParentMessageThreadPage() {
   const { userId } = useParams();
   const otherId = Number(userId);
@@ -44,10 +57,40 @@ export default function ParentMessageThreadPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [blockedReason, setBlockedReason] = useState(null);
+
+  // THE COMPOSER KEEPS A DRAFT PER CONVERSATION (feat/form-drafts, 2026-10-04;
+  // FRONTEND §28): kept in this tab under this account's numeric id and the
+  // other person's (`thread-<id>`), written as it is typed. It survives a
+  // reload, a failed send and the spinner swap on an incoming message (the
+  // text is this component's state, above the swap); it is removed when the
+  // server confirms a send, on a confirmed Discard draft, and on logout. A
+  // blocked conversation (403) keeps it — nothing is deleted silently.
+  //
+  // This page instance is REUSED when :userId changes (App.jsx mounts it with
+  // no key), so the composer switches to that conversation's own draft here,
+  // during render — never one conversation's text in another's box.
+  const myId = user?.id ?? null;
+  const [draftFor, setDraftFor] = useState(otherId);
+  const [draft, setDraft] = useState(() => keptMessage(myId, otherId));
+  const [draftRestored, setDraftRestored] = useState(() => keptMessage(myId, otherId) !== '');
+  if (draftFor !== otherId) {
+    const kept = keptMessage(myId, otherId);
+    setDraftFor(otherId);
+    setDraft(kept);
+    setDraftRestored(kept !== '');
+  }
+  const composerValues = useMemo(() => ({ body: draft }), [draft]);
+  const messageDraft = useDraftAutosave({
+    userId: myId,
+    form: 'message',
+    context: threadContext(otherId),
+    values: composerValues,
+    base: MESSAGE_BASE,
+    active: draftFor === otherId && !blockedReason,
+  });
 
   const bottomRef = useRef(null);
 
@@ -160,7 +203,10 @@ export default function ParentMessageThreadPage() {
         { unwrap: 'data' }
       );
       setMessages((rows) => [...rows, sent]);
+      // The server confirmed: the draft goes (Send and Enter alike).
+      messageDraft.submitted(composerValues);
       setDraft('');
+      setDraftRestored(false);
     } catch (err) {
       const message = extractError(err);
       if (err?.response?.status === 403) {
@@ -171,6 +217,13 @@ export default function ParentMessageThreadPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  // After the inline "Discard this draft?" was confirmed (DraftNotice).
+  function discardDraft() {
+    messageDraft.discard();
+    setDraft('');
+    setDraftRestored(false);
   }
 
   if (loading) return <LoadingSpinner className="py-16" label="Loading conversation…" />;
@@ -246,6 +299,9 @@ export default function ParentMessageThreadPage() {
 
         <form onSubmit={send} className="border-t border-edge px-4 py-3 sm:px-5">
           {sendError ? <ErrorAlert message={sendError} className="mb-3" /> : null}
+          {draftRestored && draft && !blockedReason ? (
+            <DraftNotice kind="message" onDiscard={discardDraft} className="mb-3" />
+          ) : null}
 
           {blockedReason ? (
             <p className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">

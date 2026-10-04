@@ -11,9 +11,9 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-04: `main` at `7dd21a8` (the message toast is merged)
-plus `feat/ui-refresh` — its code at `0ac7fec` plus this docs commit —
-device-checked and cleaned up by id, merge-ready, not yet merged.** Table and endpoint
+**Snapshot, 2026-10-04: `main` at `ee36b97` (the UI refresh is merged)
+plus `feat/form-drafts` — built on web and phone, both proofs green,
+awaiting the owner's browser and phone checks, not yet merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -32,7 +32,8 @@ and only there.
 | 5 — Mobile (Expo) | — | — | ✅ every role's screens (Backup & Restore web only by design) |
 | During Stage 5 — SMS reset codes, server reliability, UI polish (merged 2026-09-29 → 09-30) | ✅ | ✅ | ✅ |
 | After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
-| The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merge-ready | ✅ merge-ready |
+| The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
+| Form drafts, Phase 1 — `feat/form-drafts` (built 2026-10-04) | — | ✅ built, checks pending | ✅ built, checks pending |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -75,7 +76,7 @@ A module with tables and no handlers is not started; there are none.
 - **Palette C** — zinc neutrals and one blue accent on every screen,
   Login and Forgot password included, Light and Dark; the status tones are
   unchanged (CLAUDE.md §8).
-- **The UI refresh** (on `feat/ui-refresh`, not yet merged) — Merriweather
+- **The UI refresh** (merged 2026-10-04) — Merriweather
   titles and Source Sans 3 text at Tailwind's own sizes, one `Button` and one
   `SectionHeader`, motion for entrances only, no Reload control (the
   browser's reload on the web, pull-to-refresh on the phone), a painted
@@ -92,6 +93,12 @@ A module with tables and no handlers is not started; there are none.
   vibrate-only mode; during Do Not Disturb the tone still plays and the
   vibration ignores DND and the ringer** — Expo Go limits, fixed with the
   APK (KNOWN_ISSUES). Enter sends on the web, Shift+Enter is a new line.
+- **Form drafts** (on `feat/form-drafts`, not yet merged) — the excuse
+  letter, the teacher's announcement and event, the admin's announcement
+  and memo, and each Messages thread keep what was typed until a confirmed
+  submit, Discard draft or logout: in the browser tab on the web (a reload
+  reopens the form), on the device on the phone (back when the form
+  reopens). "Close", not "Cancel", on those forms (CLAUDE.md §28, MOBILE M25).
 
 **Client render proofs** (`client/scripts/ssr-*.jsx`) and **mobile proofs**
 (`mobile/scripts/proof-*.mjs`) back the screens above; the list, run-books
@@ -105,16 +112,16 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 The owner's order (2026-10-04, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Merge `feat/ui-refresh`** — on the owner's word.
-2. **Form drafts, Phase 1** (text forms).
-3. **The `create-backup-zip.js` fix** — before the smoke gate; the script is
+1. **Form drafts, Phase 1** — the owner's browser and phone checks, then
+   merge on the owner's word.
+2. **The `create-backup-zip.js` fix** — before the smoke gate; the script is
    not run until it is fixed.
-4. **Small KNOWN_ISSUES fixes:** the phone Login's Next key; the focus trap
+3. **Small KNOWN_ISSUES fixes:** the phone Login's Next key; the focus trap
    in `Modal` and the web drawer; the web message-thread spinner; the
    class-record load guard.
-5. **Smoke gate** across web and mobile.
-6. **Manuscript delta list** (the team).
-7. **Professor system check, Fri 2026-10-09.**
+4. **Smoke gate** across web and mobile.
+5. **Manuscript delta list** (the team).
+6. **Professor system check, Fri 2026-10-09.**
 
 After the check: colour on the dashboard cards; the cloud (Supabase) survey.
 
@@ -131,7 +138,9 @@ phone's tone during Do Not Disturb and its vibration ignoring DND and the
 ringer (the APK fix); the phone status bar's colour under enforced
 edge-to-edge (re-check on Android 15+ and in the APK); native dialogs not
 following the app's theme (accepted); the seeded admin password (change it
-before the pilot).
+before the pilot); form drafts stored unencrypted in the tab or on the
+device, the phone not reopening a form after a kill, and a draft's free text
+holding anything typed (all three accepted).
 
 ---
 
@@ -151,7 +160,8 @@ before the pilot).
       KNOWN ISSUES hazard).
 
 School-visit questions still open: real data for the demo and consent; how
-many parents can attend and when; whether Saturday or make-up classes exist.
+many parents can attend and when; whether make-up classes exist, and on
+which days (Saturday is answered: no Saturday classes in SY 2026-2027).
 
 ---
 

@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-04, `feat/ui-refresh` (code at `0ac7fec`, plus its docs pass) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-04, `feat/form-drafts` (on `main` `ee36b97`, where the UI refresh is merged) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -178,8 +178,8 @@ that exist. **Shape:** `server/` is `routes/` (one file per module) +
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
-`src/components/` + `src/format/` (copies) + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, eighteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
+`src/components/` + `src/format/` (copies) + `src/drafts/` + `src/theme/` (generated tokens)
++ `scripts/` (three checks, nineteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -888,6 +888,24 @@ a font FAMILY, `theme.fontWeight` is `{}`, and every `<Text>` is
 `components/Text.jsx`.** Full text: `docs/FRONTEND_CONVENTIONS.md` §27,
 MOBILE M23–M24.
 
+### 28. Form drafts — kept until submit, discard or logout; keyed by numbers
+
+**feat/form-drafts, 2026-10-04.** The excuse letter, teacher announcement and
+event, admin announcement and memo, and each Messages thread keep what was
+typed: the web in the tab's `sessionStorage` (a reload REOPENS a create
+modal; an edit draft when its row loads), the phone in AsyncStorage (back
+when the form or thread reopens; nothing reopens after a kill). **The key is
+`pp.draft.v1.<numeric user id>.<form>.<new | edit-<id> | thread-<id>>` — a
+login id, an LRN or a name THROWS (§5c)**; only allow-listed fields, capped,
+under 32 000 characters; the pure core `drafts/draftCore.js` is mirrored.
+**Removed only by a server-confirmed write, a confirmed Discard draft, or a
+deliberate logout (every `pp.draft.*` key) — never by a 401 or a 403.**
+**Close**, not Cancel, on those five modals and four phone screens. An edit
+draft keeps its snapshot and says when the item changed. A thread hand-off
+over a saved announcement draft asks first, and the posted announcement
+clears that thread's draft. Full text: `docs/FRONTEND_CONVENTIONS.md` §28,
+MOBILE M25.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, recorded so they cannot be re-derived:
@@ -910,7 +928,7 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin; M23–M24 the UI refresh
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin; M23–M24 the UI refresh; M25 form drafts
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
@@ -921,7 +939,7 @@ cleanup, M13 Grades one slot at a time, M14 the roster and where
 `popTo` back to the drawer, M17 sensitive actions and the shown-once
 password, M18 the admin's lists, M20 the drawer grouped and foldable (`pp.navGroups`, the
 active group always open), M21 the photo picker (library only, no camera), M23 the refresh on the phone
-(faces, `Text`, `Button`, motion, pull-to-refresh), M24 the status bar — stated only there**). Darryl's decisions of 2026-09-27
+(faces, `Text`, `Button`, motion, pull-to-refresh), M24 the status bar, M25 form drafts — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -997,6 +1015,10 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   alpha dropped — so a style-only bar turned black. Device-checked on
   Android 14 in Expo Go; Android ignores the colour under enforced
   edge-to-edge (KNOWN ISSUES). (M24)
+- **A form draft lives on the device until submit, discard or logout** —
+  AsyncStorage through the pure `drafts/deviceDrafts.js`; the hook writes
+  nothing until the stored draft has been read; Discard and the hand-off
+  question are system `Alert`s; no "continue draft" after a kill. (M25)
 - **One LiveStatus strip per signed-in screen, below the header, and one
   bottom frame** — the drawer's and the stack's `screenLayout` add both;
   Home and Main take a bare layout. (M9)
@@ -1609,14 +1631,17 @@ its `docs/CHANGELOG.md` row.
 - [x] **Docs pass + CLAUDE.md trim — `docs/stage5`** (merged, `5e09c09`).
 - [x] **UI refresh — `feat/ui-refresh`** (`e46168f` → `0ac7fec` + its docs
       pass), device-checked 2026-10-04 (web, phone Chrome, Expo Go on
-      Android 14), cleaned up by id (backups 275, 276). **Not merged.**
-      Rules: §27, M23–M24.
-- [ ] ~~Push notifications~~ → **in-app notifications only, via Socket.io
-      (Darryl, 2026-09-27)** — no `expo-notifications`, no `push_token`
-      column; remote push would be a separate decision.
+      Android 14), cleaned up by id (backups 275, 276). **Merged 2026-10-04
+      (`ee36b97`, fast-forward).** Rules: §27, M23–M24.
+- [x] **Notifications — in-app only, via Socket.io** (Darryl, 2026-09-27):
+      no `expo-notifications`, no `push_token` column; remote push would be
+      a separate decision.
+- [ ] **Form drafts, Phase 1 — `feat/form-drafts`**, built 2026-10-04 (web
+      + phone, both proofs green). **The owner's browser and phone checks
+      next; not merged.** Rules: §28, M25.
 
-**NEXT, in order (owner, 2026-10-04):** merge `feat/ui-refresh` → form
-drafts Phase 1 (text forms) → the `create-backup-zip.js` fix (before the
+**NEXT, in order (owner, 2026-10-04):** form drafts Phase 1 — the owner's
+checks, then merge → the `create-backup-zip.js` fix (before the
 smoke gate; the script is not run until it is fixed) → small KNOWN ISSUES
 fixes (the phone Login's Next key; the focus trap in `Modal` and the web
 drawer; the web message-thread spinner; the class-record load guard) →
@@ -1748,16 +1773,18 @@ the same way.**
 
 ### School questions — still open (ONE)
 
-- **Are there Saturday or make-up classes?** Asked because the code
-  already permits them and nobody decided that it should:
-  `POST /api/attendance/bulk` has **no weekday validation**, so a
-  Saturday is accepted, and two fixtures have recorded one. Parent →
-  Attendance shows such a day in an "Also recorded" strip beneath the
-  Mon–Fri grid and counts it (DV2, 2026-09-20). **If the school holds
-  weekend classes, everything is already right.** If it does not, the
-  answer is a server-side `400`, never a client filter — hiding a row
-  the database holds would make the calendar disagree with its own
-  totals. `docs/KNOWN_ISSUES.md` has the full row.
+- **Are there make-up classes — and on which days?** Saturday is
+  answered: the SY 2026-2027 calendar has no Saturday class days
+  (`client/src/format/schoolCalendar.js:7–10`). Make-up classes stay open;
+  the team will ask. It matters because `POST /api/attendance/bulk` has
+  **no weekday validation**, so a Saturday is accepted, and two fixtures
+  have recorded one. Parent → Attendance shows such a day in an "Also
+  recorded" strip beneath the Mon–Fri grid and counts it (DV2,
+  2026-09-20). **If make-up classes fall on weekends, everything is
+  already right.** If they never do, the answer is a server-side `400`,
+  never a client filter — hiding a row the database holds would make the
+  calendar disagree with its own totals. `docs/KNOWN_ISSUES.md` has the
+  full row.
 
 ### School questions — answered
 
@@ -1767,6 +1794,7 @@ bullets are verbatim in `docs/ARCHIVE.md` → "OPEN QUESTIONS — answered schoo
 bullets and closed engineering bullets as they stood in CLAUDE.md until
 2026-09-30" (and the older "… until 2026-09-19").
 
+- **2026-09-26** — no Saturday classes in SY 2026-2027 (the school's calendar); make-up classes are still open above. Do not re-ask.
 - **2026-09-26** — "Quiz up to 10" = FIVE written-work slots (`WW_SLOTS = 5`). Do not re-ask.
 - **2026-09-23** — mid-year transfer: old adviser before, new adviser from the transfer date; built as `recorded_by` OR current adviser. Do not re-ask.
 - **2026-09-23** — the printed subject order is confirmed for every grade. Do not re-ask.
@@ -1795,8 +1823,6 @@ questions.
 - Adviser response to the 5 revision requests.
 - Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
   Undecided; blocks the Figure 1 hardware requirements in the manuscript.
-- `Manage Templates` (Figure 23) — undefined in the manuscript; likely the
-  grade weight configuration display. Confirm or remove.
 - `users.email` UNIQUE — not added, deliberately (sibling parent accounts
   share one guardian email; one account per student is locked). If email
   login is ever built, scope uniqueness to `role IN ('teacher', 'admin')` —
@@ -1811,6 +1837,7 @@ school questions:**
 
 - **2026-10-03** — the report card's header, info row and legend moved to container units with feat/ui-refresh (`ReportCard.jsx:712–718`); nothing in it reads the viewport. Full text: `docs/ARCHIVE.md` → "Closed engineering bullet moved from CLAUDE.md on 2026-10-04". Do not re-ask.
 - **2026-09-30** — Teacher → Attendance DOES warn before leaving with unsaved marks (§17c). Do not re-ask.
+- **2026-09-26** — `Manage Templates` (Figure 23, undefined in the manuscript; likely the grade weight display): not built, and the manuscript drops it. This line is its full text. Do not re-ask.
 - **2026-09-06/07** — read scopes widened to assigned OR adviser (TCH-002 is that account); **`routes/grades.js` is deliberately NOT widened** — encoding is the subject teacher's. Do not re-ask.
 - **2026-09-18** — `Account is not active.` is `401` (login keeps `403` + `status`). Do not re-derive.
 - **2026-09-07** — endpoint audit, all three buckets empty; **re-run it after any dispatch that adds or removes an endpoint.**

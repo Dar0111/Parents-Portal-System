@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField, { filterSelectClass } from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
@@ -14,6 +15,9 @@ import Reveal from '../../motion/Reveal';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
 import parentLetterCard from './excuseLetters/card';
 import { useAuth } from '../../auth/AuthContext';
+import { editContext, itemChangedSince } from '../../drafts/draftCore';
+import { findOpenDrafts, loadDraft } from '../../drafts/sessionDrafts';
+import { useDraftAutosave } from '../../drafts/useDraft';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Parent excuse letters — submit, list, edit while Pending.
@@ -40,9 +44,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // Default is All — a parent cares about history, not a review queue.
 // Dates are not offered: the endpoint would ignore them.
 //
-// §5b: the table renders last GET /mine only. Compose draft is created on
-// open and discarded on close. Success refetches; the form never writes
-// the list. §5c: no LRN, no login_id, route has no :id.
+// §5b: the table renders last GET /mine only. Success refetches; the form
+// never writes the list. §5c: no LRN, no login_id, route has no :id.
+//
+// THE FORM KEEPS A DRAFT (feat/form-drafts, 2026-10-04; FRONTEND §28). What
+// is typed is kept in this tab (sessionStorage) under this account's numeric
+// id — `new`, or `edit-<letter id>` — so Close and a reload keep it, and a
+// reload reopens the form it was in. It is removed when the server confirms
+// the submit, on a confirmed Discard draft, and on logout.
 
 // The label of one field in the reading view: the eyebrow style.
 const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
@@ -52,6 +61,15 @@ const FIELD_PROSE = 'mt-1 max-w-prose whitespace-pre-wrap break-words text-base 
 
 const STATUS_FILTERS = ['All', 'Pending', 'Approved', 'Declined'];
 const EMPTY_FORM = { absence_date: '', reason: '', details: '' };
+
+// The form's fields of a letter — what an edit opens with, and the draft's base.
+function letterFields(letter) {
+  return {
+    absence_date: letter.absence_date || '',
+    reason: letter.reason || '',
+    details: letter.details || '',
+  };
+}
 
 export default function ParentExcuseLettersPage() {
   usePageTitle('Excuse Letters');
@@ -74,6 +92,22 @@ export default function ParentExcuseLettersPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
+  // What the form opened with — the draft's base: EMPTY_FORM for a new
+  // letter, the letter's fields when the edit began.
+  const [formBase, setFormBase] = useState(EMPTY_FORM);
+  // 'restored' / 'changed' while a kept draft is on screen, else null.
+  const [draftNotice, setDraftNotice] = useState(null);
+  const userId = user?.id ?? null;
+  const draft = useDraftAutosave({
+    userId,
+    form: 'excuse',
+    context: editing ? editContext(editing.id) : 'new',
+    values: form,
+    base: formBase,
+    active: composing,
+  });
+  // A reload reopens the draft that was open — once, on the first load.
+  const restoreTried = useRef(false);
 
   // The outcome of the last write, rendered above the list it changed (§7c —
   // it outlives the modal that caused it). `writeStatus`, not `status`: this
@@ -93,14 +127,38 @@ export default function ParentExcuseLettersPage() {
       // it. The table keeps its client-side sort; no pager here on purpose:
       // a pager over a locally filtered page would show "3 of 40" for a
       // filter the server never saw (C4).
-      setLetters(await fetchAll('/excuse-letters/mine', { unwrap: 'excuse_letters' }));
+      const rows = await fetchAll('/excuse-letters/mine', { unwrap: 'excuse_letters' });
+      setLetters(rows);
+      // THE FORM THAT WAS OPEN COMES BACK after a reload (FRONTEND §28): a
+      // new letter's draft, or an edit whose letter is here and still
+      // Pending. Here, after the list arrives, not in an effect of its own.
+      if (!restoreTried.current) {
+        restoreTried.current = true;
+        const [open] = findOpenDrafts({ userId, form: 'excuse' });
+        if (open && open.context === 'new') {
+          setEditing(null);
+          setForm(open.record.values);
+          setFormBase(open.record.base || EMPTY_FORM);
+          setDraftNotice('restored');
+          setComposing(true);
+        } else if (open) {
+          const row = rows.find((l) => editContext(l.id) === open.context && l.status === 'Pending');
+          if (row) {
+            setEditing(row);
+            setForm(open.record.values);
+            setFormBase(open.record.base || letterFields(row));
+            setDraftNotice(itemChangedSince('excuse', open.record, letterFields(row)) ? 'changed' : 'restored');
+            setComposing(true);
+          }
+        }
+      }
     } catch (err) {
       setError(extractError(err));
       setLetters([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     load();
@@ -149,7 +207,10 @@ export default function ParentExcuseLettersPage() {
   function openCompose() {
     setWriteStatus({});
     setEditing(null);
-    setForm(EMPTY_FORM);
+    const kept = loadDraft({ userId, form: 'excuse', context: 'new' });
+    setForm(kept ? kept.values : EMPTY_FORM);
+    setFormBase(kept?.base || EMPTY_FORM);
+    setDraftNotice(kept ? 'restored' : null);
     setFormError(null);
     setComposing(true);
   }
@@ -157,21 +218,34 @@ export default function ParentExcuseLettersPage() {
   function openEdit(letter) {
     setWriteStatus({});
     setEditing(letter);
-    setForm({
-      absence_date: letter.absence_date || '',
-      reason: letter.reason || '',
-      details: letter.details || '',
-    });
+    const current = letterFields(letter);
+    const kept = loadDraft({ userId, form: 'excuse', context: editContext(letter.id) });
+    setForm(kept ? kept.values : current);
+    setFormBase(kept?.base || current);
+    setDraftNotice(kept ? (itemChangedSince('excuse', kept, current) ? 'changed' : 'restored') : null);
     setFormError(null);
     setReading(null);
     setComposing(true);
   }
 
+  // Close keeps the draft (it comes back on the next Submit letter / Edit);
+  // only Discard draft and a confirmed submit remove it.
   function closeCompose() {
     if (saving) return;
+    draft.close();
     setComposing(false);
     setEditing(null);
     setFormError(null);
+    setDraftNotice(null);
+  }
+
+  // After the inline "Discard this draft?" was confirmed (DraftNotice).
+  function discardDraft() {
+    draft.discard();
+    const opening = editing ? letterFields(editing) : EMPTY_FORM;
+    setForm(opening);
+    setFormBase(opening);
+    setDraftNotice(null);
   }
 
   async function submitForm(event) {
@@ -192,6 +266,10 @@ export default function ParentExcuseLettersPage() {
         await api.post('/excuse-letters', body, { unwrap: 'excuse_letter' });
       }
       const message = editing ? 'Letter updated.' : 'Letter submitted.';
+      // The server confirmed: the draft goes, and is not written again as
+      // the modal closes.
+      draft.submitted(form);
+      setDraftNotice(null);
       setComposing(false);
       setEditing(null);
       await load();
@@ -405,7 +483,7 @@ export default function ParentExcuseLettersPage() {
         footer={
           <>
             <Button onClick={closeCompose} disabled={saving}>
-              Cancel
+              Close
             </Button>
             <Button variant="primary" type="submit" form="parent-excuse-form" loading={saving}>
               {editing ? 'Save changes' : 'Submit'}
@@ -414,6 +492,7 @@ export default function ParentExcuseLettersPage() {
         }
       >
         <form id="parent-excuse-form" onSubmit={submitForm} className="space-y-4">
+          {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
           {formError ? <ErrorAlert message={formError} /> : null}
           <p className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
             <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import DataTable from '../../components/DataTable';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FilterActions from '../../components/FilterActions';
@@ -14,6 +15,9 @@ import { buttonClass, cardClass } from '../../components/buttonClass';
 import { staffAudienceLabel } from '../../format/audience';
 import { timestampDay } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
+import { editContext, itemChangedSince } from '../../drafts/draftCore';
+import { findOpenDrafts, loadDraft } from '../../drafts/sessionDrafts';
+import { useDraftAutosave } from '../../drafts/useDraft';
 import { usePageTitle } from '../../layout/usePageTitle';
 import Reveal from '../../motion/Reveal';
 
@@ -92,6 +96,16 @@ const buttonDanger = buttonClass({ variant: 'danger-outline', size: 'sm' });
 // action you are about to take, not a post that exists.
 const audienceLabel = staffAudienceLabel;
 
+// The memo form's fields of a memo — what an edit opens with, and its base.
+function memoFields(row) {
+  return { title: row.title || '', content: row.content || '' };
+}
+
+// BOTH FORMS KEEP A DRAFT (feat/form-drafts, 2026-10-04; FRONTEND §28): kept in
+// this tab under this account's numeric id — `adminAnnouncement` / `memo`,
+// `new` or `edit-<id>` — so Close and a reload keep it and a reload reopens
+// the form; removed on a confirmed post or edit, on a confirmed Discard
+// draft, and on logout. One modal at a time: a reload reopens at most one.
 function formFromRow(row) {
   return {
     audience: row.target_grade === null ? 'school' : row.target_section ? 'class' : 'grade',
@@ -138,6 +152,35 @@ export default function AdminAnnouncementsPage() {
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // The drafts: each form's opening values (its base) and its notice while a
+  // kept draft is on screen ('restored' / 'changed').
+  const [annBase, setAnnBase] = useState(EMPTY_ANN);
+  const [annNotice, setAnnNotice] = useState(null);
+  const [memoBase, setMemoBase] = useState(EMPTY_MEMO);
+  const [memoNotice, setMemoNotice] = useState(null);
+  const userId = me?.id ?? null;
+  const annDraft = useDraftAutosave({
+    userId,
+    form: 'adminAnnouncement',
+    context: annEditing?.id ? editContext(annEditing.id) : 'new',
+    values: annForm,
+    base: annBase,
+    active: annEditing !== null,
+  });
+  const memoDraft = useDraftAutosave({
+    userId,
+    form: 'memo',
+    context: memoEditing?.id ? editContext(memoEditing.id) : 'new',
+    values: memoForm,
+    base: memoBase,
+    active: memoEditing !== null,
+  });
+  // A reload reopens at most ONE form, once: whichever list arrives first
+  // with an open draft for its form.
+  const annRestoreTried = useRef(false);
+  const memoRestoreTried = useRef(false);
+  const reopened = useRef(false);
+
   const [deleting, setDeleting] = useState(null); // { kind, row }
   const [deleteError, setDeleteError] = useState(null);
 
@@ -161,6 +204,19 @@ export default function AdminAnnouncementsPage() {
       const result = await api.get('/announcements', { unwrap: ['announcements', 'page'], params });
       setAnnouncements(result.announcements);
       setAnnPage(result.page);
+      // THE FORM THAT WAS OPEN COMES BACK after a reload (FRONTEND §28).
+      if (!annRestoreTried.current) {
+        annRestoreTried.current = true;
+        const [open] = reopened.current ? [] : findOpenDrafts({ userId, form: 'adminAnnouncement' });
+        const row = open && open.context !== 'new' ? result.announcements.find((r) => editContext(r.id) === open.context) : null;
+        if (open && (open.context === 'new' || row)) {
+          reopened.current = true;
+          setAnnForm(open.record.values);
+          setAnnBase(open.record.base || (row ? formFromRow(row) : EMPTY_ANN));
+          setAnnNotice(row && itemChangedSince('adminAnnouncement', open.record, formFromRow(row)) ? 'changed' : 'restored');
+          setAnnEditing(row || {});
+        }
+      }
     } catch (err) {
       setAnnError(extractError(err));
       setAnnouncements([]);
@@ -168,7 +224,7 @@ export default function AdminAnnouncementsPage() {
     } finally {
       setAnnLoading(false);
     }
-  }, [filter, annOffset, annSort]);
+  }, [filter, annOffset, annSort, userId]);
 
   const loadMemos = useCallback(async () => {
     setMemoLoading(true);
@@ -180,6 +236,19 @@ export default function AdminAnnouncementsPage() {
       });
       setMemos(result.memos);
       setMemoPage(result.page);
+      // THE FORM THAT WAS OPEN COMES BACK after a reload (FRONTEND §28).
+      if (!memoRestoreTried.current) {
+        memoRestoreTried.current = true;
+        const [open] = reopened.current ? [] : findOpenDrafts({ userId, form: 'memo' });
+        const row = open && open.context !== 'new' ? result.memos.find((r) => editContext(r.id) === open.context) : null;
+        if (open && (open.context === 'new' || row)) {
+          reopened.current = true;
+          setMemoForm(open.record.values);
+          setMemoBase(open.record.base || (row ? memoFields(row) : EMPTY_MEMO));
+          setMemoNotice(row && itemChangedSince('memo', open.record, memoFields(row)) ? 'changed' : 'restored');
+          setMemoEditing(row || {});
+        }
+      }
     } catch (err) {
       setMemoError(extractError(err));
       setMemos([]);
@@ -187,7 +256,7 @@ export default function AdminAnnouncementsPage() {
     } finally {
       setMemoLoading(false);
     }
-  }, [memoOffset, memoSort]);
+  }, [memoOffset, memoSort, userId]);
 
   function changeAnnSort(next) {
     setAnnSort(next);
@@ -258,22 +327,41 @@ export default function AdminAnnouncementsPage() {
 
   function openNewAnnouncement() {
     clearStrips();
-    setAnnForm(EMPTY_ANN);
+    const kept = loadDraft({ userId, form: 'adminAnnouncement', context: 'new' });
+    setAnnForm(kept ? kept.values : EMPTY_ANN);
+    setAnnBase(kept?.base || EMPTY_ANN);
+    setAnnNotice(kept ? 'restored' : null);
     setFormError(null);
     setAnnEditing({});
   }
 
   function openEditAnnouncement(row) {
     clearStrips();
-    setAnnForm(formFromRow(row));
+    const current = formFromRow(row);
+    const kept = loadDraft({ userId, form: 'adminAnnouncement', context: editContext(row.id) });
+    setAnnForm(kept ? kept.values : current);
+    setAnnBase(kept?.base || current);
+    setAnnNotice(kept ? (itemChangedSince('adminAnnouncement', kept, current) ? 'changed' : 'restored') : null);
     setFormError(null);
     setAnnEditing(row);
   }
 
+  // Close keeps the draft; only Discard draft and a confirmed write remove it.
   function closeAnnouncement() {
     if (saving) return;
+    annDraft.close();
     setAnnEditing(null);
+    setAnnNotice(null);
     setFormError(null);
+  }
+
+  // After the inline "Discard this draft?" was confirmed (DraftNotice).
+  function discardAnnouncementDraft() {
+    annDraft.discard();
+    const opening = annEditing?.id ? formFromRow(annEditing) : EMPTY_ANN;
+    setAnnForm(opening);
+    setAnnBase(opening);
+    setAnnNotice(null);
   }
 
   async function submitAnnouncement(event) {
@@ -309,6 +397,9 @@ export default function AdminAnnouncementsPage() {
       } else {
         await api.post('/announcements', body, { unwrap: 'announcement' });
       }
+      // The server confirmed: the draft goes, and is not written again.
+      annDraft.submitted(annForm);
+      setAnnNotice(null);
       setAnnEditing(null);
       setStatus({ announcements: ok(isEdit ? 'Announcement updated.' : 'Announcement posted.') });
       await loadAnnouncements();
@@ -321,22 +412,41 @@ export default function AdminAnnouncementsPage() {
 
   function openNewMemo() {
     clearStrips();
-    setMemoForm(EMPTY_MEMO);
+    const kept = loadDraft({ userId, form: 'memo', context: 'new' });
+    setMemoForm(kept ? kept.values : EMPTY_MEMO);
+    setMemoBase(kept?.base || EMPTY_MEMO);
+    setMemoNotice(kept ? 'restored' : null);
     setFormError(null);
     setMemoEditing({});
   }
 
   function openEditMemo(row) {
     clearStrips();
-    setMemoForm({ title: row.title || '', content: row.content || '' });
+    const current = memoFields(row);
+    const kept = loadDraft({ userId, form: 'memo', context: editContext(row.id) });
+    setMemoForm(kept ? kept.values : current);
+    setMemoBase(kept?.base || current);
+    setMemoNotice(kept ? (itemChangedSince('memo', kept, current) ? 'changed' : 'restored') : null);
     setFormError(null);
     setMemoEditing(row);
   }
 
+  // Close keeps the draft; only Discard draft and a confirmed write remove it.
   function closeMemo() {
     if (saving) return;
+    memoDraft.close();
     setMemoEditing(null);
+    setMemoNotice(null);
     setFormError(null);
+  }
+
+  // After the inline "Discard this draft?" was confirmed (DraftNotice).
+  function discardMemoDraft() {
+    memoDraft.discard();
+    const opening = memoEditing?.id ? memoFields(memoEditing) : EMPTY_MEMO;
+    setMemoForm(opening);
+    setMemoBase(opening);
+    setMemoNotice(null);
   }
 
   async function submitMemo(event) {
@@ -356,6 +466,9 @@ export default function AdminAnnouncementsPage() {
       } else {
         await api.post('/memos', { title, content }, { unwrap: 'memo' });
       }
+      // The server confirmed: the draft goes, and is not written again.
+      memoDraft.submitted(memoForm);
+      setMemoNotice(null);
       setMemoEditing(null);
       setStatus({ memos: ok(isEdit ? 'Memo updated.' : 'Memo posted.') });
       await loadMemos();
@@ -717,7 +830,7 @@ export default function AdminAnnouncementsPage() {
           // the spinner the old button drew by hand while saving.
           <>
             <Button onClick={closeAnnouncement} disabled={saving}>
-              Cancel
+              Close
             </Button>
             <Button
               variant="primary"
@@ -734,6 +847,7 @@ export default function AdminAnnouncementsPage() {
         {/* No scroller of its own: the dialog's body is the scroller now
             (Modal), so a long form no longer scrolls inside a scrolling box. */}
         <form id="admin-announcement-form" onSubmit={submitAnnouncement} className="space-y-4">
+          {annNotice ? <DraftNotice changed={annNotice === 'changed'} onDiscard={discardAnnouncementDraft} /> : null}
           {formError ? <ErrorAlert message={formError} /> : null}
 
           {/* Each audience is ONE <label> around a NATIVE radio, so the whole
@@ -848,7 +962,7 @@ export default function AdminAnnouncementsPage() {
         footer={
           <>
             <Button onClick={closeMemo} disabled={saving}>
-              Cancel
+              Close
             </Button>
             <Button
               variant="primary"
@@ -863,6 +977,7 @@ export default function AdminAnnouncementsPage() {
         }
       >
         <form id="admin-memo-form" onSubmit={submitMemo} className="space-y-4">
+          {memoNotice ? <DraftNotice changed={memoNotice === 'changed'} onDiscard={discardMemoDraft} /> : null}
           {formError ? <ErrorAlert message={formError} /> : null}
           {/* A form with no audience field invites the assumption that one was
               forgotten. Memos have no targeting columns (content.js). */}

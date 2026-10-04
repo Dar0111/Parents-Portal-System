@@ -5,9 +5,12 @@ import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Text from '../../components/Text';
+import { threadContext } from '../../drafts/draftCore';
+import { useDeviceDraft } from '../../drafts/useDraft';
 import { dateTime } from '../../format/date';
 import Icon from '../../icons';
 import { useSocket } from '../../realtime/SocketProvider';
@@ -49,6 +52,17 @@ import { useTheme } from '../../theme/ThemeProvider';
 // screen, the unsent draft and a blocked composer all survive it. `load`
 // keeps the thread on screen while it re-reads (only the first read shows the
 // full-screen spinner), so the pull carries its own busy flag.
+//
+// THE COMPOSER KEEPS A DRAFT PER CONVERSATION ON THIS PHONE (feat/form-drafts,
+// 2026-10-04; MOBILE M25) under this account's numeric id and the other
+// person's (`thread-<id>`). It survives a killed app, a failed send and every
+// re-read; it comes back when this conversation opens again, with the notice;
+// it is removed when the server confirms a send, on a confirmed Discard draft
+// and on logout. A blocked conversation (403) keeps it. "Announce to" hands
+// the text on with this conversation's id (`fromThread`); the announcement
+// clears this draft once it posts.
+const MESSAGE_BASE = Object.freeze({ body: '' });
+
 export default function MessageThreadScreen({ navigation, route }) {
   const otherId = Number(route.params.otherId);
   const { user } = useAuth();
@@ -61,10 +75,37 @@ export default function MessageThreadScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [blockedReason, setBlockedReason] = useState(null);
+
+  // The draft. A changed `otherId` (the screen reused for another
+  // conversation) empties the box here, in render, before that
+  // conversation's own draft is read — never one conversation's text in
+  // another's box.
+  const [draftFor, setDraftFor] = useState(otherId);
+  const [draft, setDraft] = useState('');
+  const [draftRestored, setDraftRestored] = useState(false);
+  if (draftFor !== otherId) {
+    setDraftFor(otherId);
+    setDraft('');
+    setDraftRestored(false);
+  }
+  const composerValues = useMemo(() => ({ body: draft }), [draft]);
+  const restoreDraft = useCallback((record) => {
+    if (!record) return;
+    setDraft(record.values.body);
+    setDraftRestored(true);
+  }, []);
+  const messageDraft = useDeviceDraft({
+    userId: user?.id ?? null,
+    form: 'message',
+    context: threadContext(otherId),
+    values: composerValues,
+    base: MESSAGE_BASE,
+    active: draftFor === otherId && !blockedReason,
+    onRestore: restoreDraft,
+  });
   const [hasMore, setHasMore] = useState(false);
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const scrollRef = useRef(null);
@@ -188,7 +229,10 @@ export default function MessageThreadScreen({ navigation, route }) {
     try {
       const sent = await api.post('/messages', { receiver_id: otherId, body: draft.trim() }, { unwrap: 'data' });
       setMessages((rows) => [...rows, sent]);
+      // The server confirmed: the draft goes.
+      messageDraft.submitted(composerValues);
       setDraft('');
+      setDraftRestored(false);
     } catch (err) {
       const message = extractError(err);
       if (err?.response?.status === 403) setBlockedReason(message);
@@ -196,6 +240,13 @@ export default function MessageThreadScreen({ navigation, route }) {
     } finally {
       setSending(false);
     }
+  }
+
+  // After "Discard this draft?" was confirmed (DraftNotice's Alert).
+  function discardDraft() {
+    messageDraft.discard();
+    setDraft('');
+    setDraftRestored(false);
   }
 
   if (loading) return <LoadingSpinner className="py-16" label="Loading conversation…" />;
@@ -224,7 +275,9 @@ export default function MessageThreadScreen({ navigation, route }) {
               onPress={() =>
                 navigation.navigate(
                   'AnnouncementCompose',
-                  announceClass ? { content: draft.trim(), target: announceClass.key } : { content: draft.trim() }
+                  announceClass
+                    ? { content: draft.trim(), target: announceClass.key, fromThread: otherId }
+                    : { content: draft.trim(), fromThread: otherId }
                 )
               }
             >
@@ -278,6 +331,7 @@ export default function MessageThreadScreen({ navigation, route }) {
       </ScrollView>
       <View className="border-t border-edge bg-surface px-4 py-3">
         {sendError ? <ErrorAlert message={sendError} className="mb-3" /> : null}
+        {draftRestored && draft && !blockedReason ? <DraftNotice kind="message" onDiscard={discardDraft} className="mb-3" /> : null}
         {blockedReason ? (
           <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
             <Icon name="fa-circle-info" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />

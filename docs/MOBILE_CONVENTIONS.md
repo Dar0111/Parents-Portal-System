@@ -1139,3 +1139,53 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   correctly (Dashboard, drawer, Login), so no phone setting is needed.
   **Not yet on Android 15+ or in the APK:** under enforced edge-to-edge
   Android ignores the colour (KNOWN_ISSUES).
+
+## M25. Form drafts on the phone — kept on the device, back when the form reopens (`feat/form-drafts`, 2026-10-04)
+
+The web's FRONTEND §28, on the four compose screens (excuse letter,
+announcement, event, admin announcement / memo) and the Messages thread.
+**Same core:** `src/drafts/draftCore.js` is a mirror (pair 27) — the key with
+numeric ids only, the allow-list, the 32 000-character limit, the copy.
+Where the phone differs:
+
+- **AsyncStorage, not a tab.** The draft is on the device until the server
+  confirms the submit, a confirmed Discard draft, or a deliberate logout —
+  a killed app keeps it. The notice says so: "Draft restored. It is kept on
+  this phone until you submit it, discard it or log out." (a message:
+  "…until you send it…"). `src/drafts/deviceDrafts.js` is PURE — the storage
+  is passed in, so the proof drives it in Node; `src/drafts/useDraft.js`
+  binds it to AsyncStorage, the store `pp.theme` already uses. No new
+  package.
+- **Nothing reopens after a kill** (decision 3). There is no "continue
+  draft" prompt and no `open` flag: the app starts on its home screen, and
+  the draft comes back when that form or thread is opened again.
+- **Read once per key before any write.** The hook writes nothing until the
+  stored draft has been read (`readyKey`, `useDraft.js:44–99`), so a form's
+  opening values can never overwrite a kept draft before it is restored.
+  Writes are 500 ms after the last change and flushed at once when the app
+  leaves the foreground (`AppState`) and on unmount (Close, Back).
+- **Logout clears every `pp.draft.*` key on the device** —
+  `auth/AuthContext.jsx:102–103`, `await deviceDrafts.clearAll()` before the
+  token goes; **the 401 listener does not** (`:75–80`).
+- **Discard draft asks with a system `Alert`** ("Discard this draft?", Keep
+  draft / Discard draft, destructive) — on the phone a dialog is already the
+  confirmation every irreversible action uses (`components/DraftNotice.jsx`).
+- **The hand-off question is an `Alert` too**, shown when a thread hands text
+  to an announcement over a saved new-announcement draft: the hand-off text is
+  its body; **Keep saved draft** restores the saved one, **Use this message**
+  writes the hand-off over it at once (`saveNow`, passed to `onRestore`)
+  (`screens/teacher/AnnouncementComposeScreen.jsx:82–104`). A confirmed post
+  clears `thread-<fromThread>` (`:158–159`).
+- **The announcement draft is written only while there is a section to post
+  to** (`active`, `:113`): with none the form never opens and the hand-off's
+  text stays in its conversation. **A restored draft keeps its own section**
+  — the one-section auto-select does not run over it (`:130–138`), and the
+  auto-selected section counts as what the form opened with, so it alone
+  never makes a draft (Events: the single grade, likewise).
+- **A blocked thread keeps its draft**: `active: draftFor === otherId &&
+  !blockedReason` (`screens/parent/MessageThreadScreen.jsx:106`).
+- **Close, not Cancel, on the four compose screens** — and nowhere else.
+
+**Proof:** `scripts/proof-form-drafts.mjs` (TESTING → Mobile proofs). The
+phone check (M7) still owns the debounce, AppState, a killed app and both
+Alerts.

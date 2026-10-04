@@ -29,6 +29,7 @@
     "proof:photo-url": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-photo-url.mjs",
     "proof:leave-guard": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-leave-guard.mjs",
     "proof:message-toast": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-message-toast.mjs",
+    "proof:form-drafts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-form-drafts.mjs",
     "tone:write": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-message-tone.mjs"
   },
   "dependencies": {

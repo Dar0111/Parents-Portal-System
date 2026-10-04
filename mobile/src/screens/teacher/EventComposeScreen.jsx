@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
 import DateField from '../../components/DateField';
+import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Segmented from '../../components/Segmented';
+import { editContext, itemChangedSince } from '../../drafts/draftCore';
+import { useDeviceDraft } from '../../drafts/useDraft';
 import { todayLocalDateString } from '../../format/date';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import Reveal from '../../motion/Reveal';
@@ -23,18 +27,59 @@ import Reveal from '../../motion/Reveal';
 // THE LOOK (feat/ui-refresh, 2026-10-02): the form is one card, then the
 // neutral way out and the ONE filled step forward. No reload: the screen is
 // a write form (its targets are `useTeacherTargets`' one read).
+//
+// THE FORM KEEPS A DRAFT ON THIS PHONE (feat/form-drafts, 2026-10-04; MOBILE
+// M25) under this account's numeric id — `new`, or `edit-<event id>`. Close,
+// Back and a killed app keep it; it comes back when this screen opens again,
+// with the notice; it is removed on a confirmed post or edit, a confirmed
+// Discard draft, and logout. The auto-selected grade counts as part of what
+// the form OPENED with, so it alone never makes a draft.
 export default function EventComposeScreen({ navigation, route }) {
   const editing = route?.params?.editing || null;
   const { grades, loading: targetsLoading } = useTeacherTargets();
-  const [form, setForm] = useState({
+  const [opening] = useState(() => ({
     title: editing?.title || '',
     description: editing?.description || '',
     event_date: editing?.event_date || todayLocalDateString(),
     target_grade: editing ? String(editing.target_grade ?? '') : '',
-  });
+  }));
+  const [form, setForm] = useState(opening);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [resolved, setResolved] = useState(false);
+
+  const { user } = useAuth();
+  const autoBase = useMemo(
+    () => (!editing && grades.length === 1 ? { ...opening, target_grade: String(grades[0]) } : opening),
+    [editing, grades, opening]
+  );
+  const [restoredBase, setRestoredBase] = useState(null);
+  const [draftNotice, setDraftNotice] = useState(null);
+  const restore = useCallback(
+    (record) => {
+      if (!record) return;
+      setForm(record.values);
+      setRestoredBase(record.base || opening);
+      setDraftNotice(editing && itemChangedSince('event', record, opening) ? 'changed' : 'restored');
+    },
+    [editing, opening]
+  );
+  const draft = useDeviceDraft({
+    userId: user?.id ?? null,
+    form: 'event',
+    context: editing ? editContext(editing.id) : 'new',
+    values: form,
+    base: restoredBase || autoBase,
+    onRestore: restore,
+  });
+
+  // After "Discard this draft?" was confirmed (DraftNotice's Alert).
+  function discardDraft() {
+    draft.discard();
+    setForm(autoBase);
+    setRestoredBase(null);
+    setDraftNotice(null);
+  }
 
   useEffect(() => {
     if (targetsLoading || resolved) return;
@@ -55,6 +100,8 @@ export default function EventComposeScreen({ navigation, route }) {
       };
       if (editing) await api.put(`/events/${editing.id}`, body, { unwrap: 'event' });
       else await api.post('/events', body, { unwrap: 'event' });
+      // The server confirmed: the draft goes, and is not written on unmount.
+      draft.submitted(form);
       // popTo, not navigate: navigate pushes a second drawer (M16).
       navigation.popTo('Main', { screen: '/teacher/events', params: { notice: editing ? 'Event updated.' : 'Event posted.' } });
     } catch (err) {
@@ -71,6 +118,7 @@ export default function EventComposeScreen({ navigation, route }) {
   return (
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerClassName="gap-4 p-4 pb-10">
+        {draftNotice ? <DraftNotice changed={draftNotice === 'changed'} onDiscard={discardDraft} /> : null}
         {formError ? <ErrorAlert message={formError} /> : null}
         <Reveal>
           <View className={`${cardClass} gap-4 p-4`}>
@@ -106,7 +154,7 @@ export default function EventComposeScreen({ navigation, route }) {
             before (saving, or a required field empty). */}
         <View className="flex-row flex-wrap justify-end gap-2">
           <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
-            Cancel
+            Close
           </Button>
           <Button variant="primary" onPress={submit} disabled={saving || !ready} loading={saving}>
             {saving ? 'Saving…' : editing ? 'Save changes' : 'Post'}

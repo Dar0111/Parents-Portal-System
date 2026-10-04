@@ -3284,3 +3284,106 @@ Expo Go. The phone's side is MOBILE_CONVENTIONS M23–M24.
   and the phone's two sentences (`AttendanceScreen.jsx:176`, `:208`). No
   proof pins the sentence (TESTING → Not yet proved).
 
+## 28. Form drafts — kept in the tab, keyed by numbers, gone on logout (`feat/form-drafts`, 2026-10-04)
+
+Phase 1 covers five forms and the message box: the parent's excuse letter,
+the teacher's announcement and event, the admin's announcement and memo, and
+both Messages threads. The phone's side is MOBILE_CONVENTIONS M25. Plan
+approved by the owner on 2026-10-04 with eleven decisions; each is cited
+below where it lives.
+
+### 28a. One pure core, mirrored
+
+- **`drafts/draftCore.js` decides everything** — the key, the fields kept,
+  the size limit, the copy — and is mirrored byte for byte to the phone
+  (`npm run lint:mirrors`, 27 pairs). The storage is the platform's:
+  `drafts/sessionDrafts.js` here, `mobile/src/drafts/deviceDrafts.js` there.
+- **The key is `pp.draft.v1.<numeric user id>.<form>.<context>`**, the
+  context `new`, `edit-<row id>` or `thread-<other user's numeric id>`
+  (`draftCore.js:103–108`). **A login id, an LRN or a name THROWS** — the
+  context pattern takes at most ten digits and an INT UNSIGNED, a 12-digit
+  LRN does not fit (`:33–35`, `:79–87`). §5c, extended to storage keys.
+- **Only allow-listed fields are kept, each cut to its cap**
+  (`DRAFT_FORMS`, `:41–48`); a stored record with any other field, another
+  version or another form reads as none (`:177–198`). **Above 32 000
+  encoded characters nothing is written** (`:31`, `:170–171`) — and nothing
+  claims it was, because the notice only appears on a restore.
+- **Values equal to what the form opened with are not a draft**
+  (`:159–160`): opening a form and closing it never leaves one behind.
+
+### 28b. Where it lives and when it goes
+
+- **`sessionStorage`** — a reload or a navigation inside the tab keeps it;
+  closing the tab ends it. Every access is wrapped: a private window, blocked
+  site data or a full quota THROWS, and then nothing is kept
+  (`sessionDrafts.js:13–65`).
+- **Written 500 ms after the last change** (`SAVE_DELAY_MS`), and flushed at
+  once on `pagehide`, `visibilitychange` and unmount (`drafts/useDraft.js:22–64`).
+- **Removed only on:** a write the server confirmed (`draft.submitted(form)`,
+  e.g. `pages/parent/ExcuseLettersPage.jsx:271`), a confirmed **Discard
+  draft**, and a **deliberate logout**, which removes every `pp.draft.*` key in
+  the tab — every account's, every version (`auth/AuthContext.jsx:81–82`;
+  decision 4). **A 401 does not** — `api/axios.js` sends the tab to /login
+  without passing through `logout()`, so an expired session keeps its drafts
+  for the same account to sign back in to. Another account signing in on the
+  same tab never reads them: the key carries the user id.
+- **Close keeps the draft** — the button is **Close**, not Cancel, in the five
+  Phase 1 modals and nowhere else (decision 1): Cancel would promise the text
+  is thrown away.
+
+### 28c. A reload reopens
+
+- **A create draft reopens its modal after a reload; an edit draft reopens
+  when its row is loaded** (decision 2). The draft is saved with an `open`
+  flag while its modal is open; Close clears the flag (`closeDraft`). Each
+  page restores ONCE, inside its existing `load()` after the rows arrive
+  (`ExcuseLettersPage.jsx:135–150`, `teacher/EventsPage.jsx:139–147`,
+  `teacher/AnnouncementsPage.jsx:180–189`), so no effect sets state and a
+  later page change does not reopen anything. Admin → Announcements reopens at
+  most one of its two forms (`admin/AnnouncementsPage.jsx:182`, `:210–248`).
+- **An excuse-letter edit draft reopens only while the letter is still
+  Pending** — a reviewed letter can no longer be edited.
+- **Edit drafts keep the snapshot they began on, and say when the item has
+  changed since** (decision 5): "Draft restored. This item was changed after
+  your draft was saved — submitting replaces those changes."
+  (`itemChangedSince`, `draftCore.js:203–206`).
+
+### 28d. The notice, and Discard asks first
+
+- **`components/DraftNotice.jsx`** — `role="status"`, the info tokens, one
+  **Discard draft** button. It says where the draft is kept and until when
+  (§5i): "Draft restored. It is kept in this browser tab until you submit it,
+  discard it or log out, or close the tab." (a message: "…until you send
+  it…").
+- **Discard draft asks first (§5e — typed text has no undo), INLINE:** the
+  question replaces the notice in the same box ("Discard this draft?" / "The
+  text you typed will be deleted. This cannot be undone." / Keep draft /
+  Discard draft). Not a second `Modal`: the notice sits inside a compose
+  Modal, and two open Modals would both answer one Escape.
+
+### 28e. Messages and the hand-off
+
+- **Each thread keeps its own draft** (`thread-<otherId>`). The thread page
+  is reused across `:userId`, so the draft switches during render when the id
+  changes, never in an effect (`teacher/MessageThreadPage.jsx:104–121`).
+- **A blocked thread (403) keeps its draft** (decision 10): writes stop while
+  `blockedReason` is set (`active: … && !blockedReason`, `:121`) and the
+  notice is hidden (`:416`); the text is still there if the thread opens
+  again.
+- **"Announce to a class" over a saved new-announcement draft ASKS**
+  (decision 6): "Replace your saved announcement draft with this message?" —
+  **Keep saved draft** / **Use this message**, the hand-off's text as the
+  question's body (`teacher/AnnouncementsPage.jsx:739–753`). A hand-off with
+  no text opens the saved draft without asking.
+- **The announcement clears the thread's draft once it posts** (decision 7):
+  the hand-off carries `fromThread`, the announcement draft keeps it, and a
+  confirmed post clears `thread-<fromThread>` (`:374–375`) — the same words
+  are not later sent to the parent by mistake. Until then the text is in
+  both places, and the could-not-open notice says so: "Your message draft is
+  below. It is also still in the conversation's message box." (`:507`).
+- **Free text can hold anything typed**, an LRN included — the allow-list
+  stops a FIELD, not what a person types into one (decision 8; KNOWN_ISSUES).
+
+**Proof:** `client/scripts/ssr-form-drafts.jsx` (TESTING). **Not in this
+branch:** the web spinner's focus loss (decision 11).
+
