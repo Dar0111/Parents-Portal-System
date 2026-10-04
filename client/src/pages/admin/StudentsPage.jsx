@@ -265,7 +265,7 @@ export default function StudentsPage() {
             The sentence is the header's description, held to a reading
             measure. There is no header action: nothing is created here. */}
         <SectionHeader
-          title="All students"
+          title="Students"
           description={
             <span className="block max-w-prose">
               Deactivating a student hides them from teachers' student and attendance lists, and

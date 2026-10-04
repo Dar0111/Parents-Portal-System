@@ -71,8 +71,10 @@ function Completeness({ entry }) {
   return <Text className="mt-0.5 text-xs text-fg-muted">{pending === 0 ? 'Complete' : `${pending} pending`}</Text>;
 }
 
-// The section's header, on every state of the screen: the sheet's own name
-// and the standing sentence under it.
+// The section's header: the sheet's own name and the standing sentence under
+// it. NOT on the no-advisory state, which takes the title alone, as the web
+// did on main — there the sentence would name an advisory section the
+// teacher does not have (§5i).
 function Header() {
   return <SectionHeader title="Summary of Grades" description="Every learner in your advisory section, across every learning area." />;
 }
@@ -150,7 +152,7 @@ export default function ClassSummaryScreen({ navigation }) {
   if (sections.length === 0) {
     return (
       <View className="flex-1 gap-4 bg-page p-4">
-        <Header />
+        <SectionHeader title="Summary of Grades" />
         <View className={cardClass}>
           <EmptyState
             icon="fa-table-list"

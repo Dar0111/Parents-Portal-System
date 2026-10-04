@@ -140,7 +140,7 @@ export default function StudentsScreen({ navigation }) {
 
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="All students" />
+      <SectionHeader title="Students" />
       <Text className="text-sm text-fg-muted">
         Deactivating a student hides them from teachers' student and attendance lists, and stops new attendance and new grade records from being created for
         them. Their existing records and their parent's account are not changed. Activate reverses it.
