@@ -59,8 +59,8 @@ const PAIRS = [
   // this is the other foreground that now sits on it.
   ['fg', 'brand-soft', 'text', 'the report card general-average row'],
   ['fg-secondary', 'surface', 'text', 'form labels'], ['fg-secondary', 'surface-subtle', 'text', 'labels in bands'],
-  ['fg-body', 'surface', 'text', 'secondary buttons, copy'], ['fg-body', 'page', 'text', 'nav inactive'], ['fg-body', 'surface-subtle', 'text', 'DataTable header and pager'], ['fg-body', 'surface-muted', 'text', 'secondary button hover'],
-  ['fg-muted', 'surface', 'text', 'muted copy, placeholders, dt labels'], ['fg-muted', 'page', 'text', 'muted copy on the page'], ['fg-muted', 'surface-subtle', 'text', 'muted copy in bands'], ['fg-muted', 'surface-muted', 'text', 'count chip on the parent announcement row'],
+  ['fg-body', 'surface', 'text', 'secondary buttons, copy'], ['fg-body', 'page', 'text', 'nav inactive'], ['fg-body', 'surface-subtle', 'text', 'DataTable pager'], ['fg-body', 'surface-muted', 'text', 'secondary button hover'],
+  ['fg-muted', 'surface', 'text', 'muted copy, placeholders, dt labels'], ['fg-muted', 'page', 'text', 'muted copy on the page'], ['fg-muted', 'surface-subtle', 'text', 'muted copy in bands, DataTable header'], ['fg-muted', 'surface-muted', 'text', 'count chip on the parent announcement row'],
   ['fg-faint', 'surface', 'ui', 'spinner, modal close, password eye'], ['fg-ghost', 'surface', 'ui', 'inactive sort icon, empty-state icon, checklist dot'],
   ['primary-fg', 'primary', 'text', 'primary buttons, badges'], ['primary-fg', 'primary-hover', 'text', 'primary button hover'], ['primary-fg', 'primary-disabled', 'disabled', 'disabled primary button'],
   ['solid-fg', 'danger-solid', 'text', 'danger buttons'], ['solid-fg', 'danger-solid-hover', 'text', 'danger hover'], ['solid-fg', 'success-solid', 'text', 'Approve buttons'], ['solid-fg', 'success-solid-hover', 'text', 'Approve hover'],
@@ -107,7 +107,7 @@ const PAIRS = [
   // `surface-muted`. The dot is a meaningful UI part, not decoration — it is
   // the ONLY thing distinguishing an unread row — so it is scored as `ui`.
   ['primary', 'surface', 'ui', 'bell unread dot and count chip'], ['primary', 'surface-muted', 'ui', 'unread dot on a hovered row'],
-  ['bubble-mine', 'surface', 'boundary', 'own bubble vs card'], ['bubble-theirs', 'surface', 'boundary', 'their bubble vs card'], ['edge', 'surface', 'boundary', 'card border'], ['surface', 'page', 'boundary', 'card vs page'], ['surface-subtle', 'surface', 'boundary', 'band vs card'], ['surface-muted', 'surface-subtle', 'boundary', 'active nav vs hovered'],
+  ['bubble-mine', 'surface', 'boundary', 'own bubble vs card'], ['bubble-theirs', 'surface', 'boundary', 'their bubble vs card'], ['edge', 'surface', 'boundary', 'card border, Avatar ring'], ['surface', 'page', 'boundary', 'card vs page'], ['surface-subtle', 'surface', 'boundary', 'band vs card'], ['surface-muted', 'surface-subtle', 'boundary', 'active nav vs hovered'],
 ];
 const NEED = { text: 4.5, ui: 3, disabled: 0, boundary: 0 };
 

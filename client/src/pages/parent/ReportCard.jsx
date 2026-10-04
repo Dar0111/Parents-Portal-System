@@ -348,9 +348,9 @@ function TermCell({ entry, mode, onOpen, label }) {
 //
 // THE COLUMN LABEL STYLE, as on every table since feat/ui-refresh: small,
 // uppercase, muted — quieter than the values under it. `px-3` between
-// columns and `pl-4` / `pr-4` at the two edges: the type scale grew one step
-// with the new face, and the 8px a cell gives back is what keeps five columns
-// inside the 36rem crossover (see the note in the card).
+// columns and `pl-4` / `pr-4` at the two edges: 32px narrower across five
+// columns than `px-4` on every cell, which keeps the row well inside the
+// 36rem crossover (see the note in the card).
 const TH =
   'whitespace-nowrap bg-surface-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wider text-fg-muted first:pl-4 last:pr-4';
 
@@ -673,8 +673,10 @@ export default function ReportCard({
   // Learning area column scrolled out with it, leaving rows unlabelled.
   //
   // NO VIEWPORT BREAKPOINT CAN BE RIGHT HERE, because the container is not
-  // monotonic in the viewport. Shell reveals its 240px sidebar at the SAME
-  // `sm`, and <main> goes from p-4 to p-6 there:
+  // monotonic in the viewport. When this was measured (DV3), Shell revealed
+  // its sidebar — 240px then — at the SAME `sm`, and <main> went from p-4 to
+  // p-6 there (the sidebar appears at `md` since feat/ui-polish, 256px or a
+  // 64px rail since feat/ui-refresh):
   //
   //     viewport 639px -> no sidebar, 32px padding -> 607px of card
   //     viewport 640px -> sidebar + 48px padding   -> 351px of card
@@ -699,12 +701,13 @@ export default function ReportCard({
   // A future browser check must MEASURE THE CARD, not the window — a
   // container query does not move with the responsive-mode width readout.
   //
-  // THE TYPE SCALE GREW ONE STEP WITH feat/ui-refresh (text-sm is 15px), and
-  // the arithmetic above was done at 14px. The threshold is unchanged; the
-  // table's cells give 8px each back instead (`px-3` between columns — see
-  // `TH`), which is the same order as what the larger text adds. That is
-  // arithmetic again, not a measurement, and the same safety net holds:
-  // `overflow-x-auto` turns a wrong guess into a scroller.
+  // FEAT/UI-REFRESH KEPT THE TYPE SCALE (text-sm is 14px — its one-step-larger
+  // scale was reverted on the owner's check, 2026-10-04) and changed the face
+  // to Source Sans 3. The cells are `px-3` between columns with `px-4` kept at
+  // the two edges (see `TH`): 32px narrower across five columns than the
+  // `px-4` the arithmetic above counted, and the new face was not measured.
+  // The threshold is unchanged; the same safety net holds: `overflow-x-auto`
+  // turns a wrong guess into a scroller.
   //
   // THE TITLE BAND, THE INFO ROW AND THE LEGEND FOLLOW THE SAME CONTAINER
   // THRESHOLD NOW. They used viewport `sm:` inside a card that measures

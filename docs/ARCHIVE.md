@@ -7348,3 +7348,18 @@ ten backend APIs first means reaching roughly 65% of the work with nothing
 visible on screen. If time runs short at that point, there is a collection of
 endpoints and no demo. One complete vertical slice first means there is
 always something to show.
+
+## Closed engineering bullet moved from CLAUDE.md on 2026-10-04 (feat/ui-refresh docs pass)
+
+Closed by the code, not by a decision: feat/ui-refresh (`e46168f`,
+2026-10-03) moved the title band, the info row and the legend onto the same
+container threshold as the table (`client/src/pages/parent/ReportCard.jsx`,
+the note "THE TITLE BAND, THE INFO ROW AND THE LEGEND FOLLOW THE SAME
+CONTAINER THRESHOLD NOW" — "nothing in this file reads the viewport any
+more"). The bullet as it stood in CLAUDE.md → OPEN QUESTIONS → Engineering:
+
+- **Should the report card's header, info row and legend move to container
+  units too?** DV3 converted only the crossover (§5a-vi), so those three
+  still use viewport `sm:` inside a card that now measures itself. The
+  re-check found no visible mismatch on a real window and called no action —
+  recorded so the mixed basis is known rather than a later surprise.

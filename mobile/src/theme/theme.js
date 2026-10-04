@@ -24,8 +24,9 @@ import { dark, light, names } from './tokens';
 // draws for (the owner's phone check, 2026-10-04: a blank strip at the bottom
 // of every screen and a black status bar in Light, until the app restarted).
 // A theme switch is now JS state only; the native window is never touched.
-// The one thing that still follows the PHONE's own setting is native chrome
-// the app does not draw — a system Alert or the date picker dialog.
+// Native chrome the app does not draw — a system Alert, the date picker
+// dialog — does NOT follow the app's theme (docs/KNOWN_ISSUES.md): on the
+// owner's phone it rendered light even with the phone in Dark.
 //
 // DEV ONLY: a Fast Refresh that re-injects global.css puts the variables
 // back on the phone's own scheme until the next theme apply (a cold boot,

@@ -78,7 +78,10 @@ npm run dev
 sagot (since 2026-09-25 nagpi-ping na ito ng MySQL; `503` kapag down).
 
 **Telepono (Expo Go):** ang setup, ang hotspot at ang troubleshooting ay
-nasa **Mobile** section ng [`README.md`](../README.md).
+nasa **Mobile** section ng [`README.md`](../README.md). Ang tunog ng bagong
+mensahe ay nasa **media volume** ng telepono (expo-audio), hindi sa ringer —
+walang tunog sa silent o vibrate-only, pero tumutunog pa rin sa Do Not
+Disturb (MOBILE M22, KNOWN_ISSUES).
 
 **Web sa Chrome ng telepono (since 2026-10-01, `feat/lan-web`):** walang
 Expo — ang web mismo, sa browser ng telepono, sa parehong hotspot.
@@ -87,7 +90,9 @@ Expo — ang web mismo, sa browser ng telepono, sa parehong hotspot.
 comma ang hati, walang `*` (hindi tatanggapin kahit ilagay), tapos i-restart
 ang API. (3) Sa `client\.env`: `VITE_API_BASE_URL=` — **blangko**; kapag
 blangko, sinusundan ng client ang host ng page (localhost → localhost:5000,
-IP → IP:5000). (4) Sa `client/`: `npm run dev:lan` (hindi `npm run dev`).
+IP → IP:5000). (4) Sa `client/`: `npm run dev:lan` (hindi `npm run dev`) —
+pareho lang ito ng `npx vite --host --port 3000` (`vite.config.js` ang
+nagtatakda ng port 3000).
 (5) Sa telepono: `http://<laptop IP>:5000/api/health` muna, tapos
 `http://<laptop IP>:3000`. Gumagana pa rin ang `localhost:3000` sa laptop.
 Kapag nagbago ang IP, `CORS_ORIGIN` lang ang babaguhin. Detalye: README →

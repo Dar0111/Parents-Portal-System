@@ -11,8 +11,9 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-02: `main` at `02bb5a5` (after `fix/leave-guard`) plus
-`feat/message-toast`, merge-ready and not yet merged.** Table and endpoint
+**Snapshot, 2026-10-04: `main` at `7dd21a8` (the message toast is merged)
+plus `feat/ui-refresh` — its code at `0ac7fec` plus this docs commit —
+device-checked and cleaned up by id, merge-ready, not yet merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -30,7 +31,8 @@ and only there.
 | After Stage 4 — hardening, notifications, recovery, dashboards, data views, grades track, pre-Stage-5, polish, smoke gate | ✅ | ✅ closed 2026-09-26 | — |
 | 5 — Mobile (Expo) | — | — | ✅ every role's screens (Backup & Restore web only by design) |
 | During Stage 5 — SMS reset codes, server reliability, UI polish (merged 2026-09-29 → 09-30) | ✅ | ✅ | ✅ |
-| After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merge-ready 2026-10-02) | ✅ | ✅ | ✅ |
+| After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
+| The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merge-ready | ✅ merge-ready |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -73,13 +75,19 @@ A module with tables and no handlers is not started; there are none.
 - **Palette C** — zinc neutrals and one blue accent on every screen,
   Login and Forgot password included, Light and Dark; the status tones are
   unchanged (CLAUDE.md §8).
+- **The UI refresh** (on `feat/ui-refresh`, not yet merged) — Merriweather
+  titles and Source Sans 3 text at Tailwind's own sizes, one `Button` and one
+  `SectionHeader`, motion for entrances only, no Reload control (the
+  browser's reload on the web, pull-to-refresh on the phone), a painted
+  status bar and one "Live updates paused" strip on the phone (CLAUDE.md §27,
+  MOBILE M23–M24).
 - **The leave guard** — on the four bulk-entry screens (web Grades and
   Attendance, phone Attendance and the Grades slot), every user-initiated
   exit with unsaved work asks "Leave without saving?" (CLAUDE.md §5e).
 - **The new-message toast** — "New message from <name>" / "<n> new messages
   from <name>", never the body, View + Dismiss, 5 s, never for your own
   message or the conversation you are in, no admin toast (CLAUDE.md §26).
-  On a show or update it plays the "two-tone down" tone (web and phone) and
+  On a show or update it plays the "two-note rise" tone (web and phone) and
   vibrates 150 ms on the phone. **The phone plays no tone in silent or
   vibrate-only mode; during Do Not Disturb the tone still plays and the
   vibration ignores DND and the ringer** — Expo Go limits, fixed with the
@@ -95,9 +103,20 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-1. **Merge `feat/message-toast`** — on the owner's word.
-2. **Full phone test / smoke gate** across web and mobile.
-3. **Manuscript delta list** for the team.
+The owner's order (2026-10-04, CLAUDE.md → BUILD ORDER → NEXT):
+
+1. **Merge `feat/ui-refresh`** — on the owner's word.
+2. **Form drafts, Phase 1** (text forms).
+3. **The `create-backup-zip.js` fix** — before the smoke gate; the script is
+   not run until it is fixed.
+4. **Small KNOWN_ISSUES fixes:** the phone Login's Next key; the focus trap
+   in `Modal` and the web drawer; the web message-thread spinner; the
+   class-record load guard.
+5. **Smoke gate** across web and mobile.
+6. **Manuscript delta list** (the team).
+7. **Professor system check, Fri 2026-10-09.**
+
+After the check: colour on the dashboard cards; the cloud (Supabase) survey.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications
@@ -109,7 +128,10 @@ be stored with no denominator (INVESTIGATE); Admin → Users filter-tab counts
 and a "Linked to" column, both needing server fields first; Teacher →
 Excuse Letters does not refetch its list on the counts signal (low); the
 phone's tone during Do Not Disturb and its vibration ignoring DND and the
-ringer (the APK fix).
+ringer (the APK fix); the phone status bar's colour under enforced
+edge-to-edge (re-check on Android 15+ and in the APK); native dialogs not
+following the app's theme (accepted); the seeded admin password (change it
+before the pilot).
 
 ---
 

@@ -104,16 +104,36 @@ RN-specific rule: a hex / `rgb()` / `hsl()` string literal anywhere under
 never passes through Tailwind and the web's three regexes would not see it.
 An icon's `color` prop reads `tokens['fg-faint']`, never a literal.
 
-## M3. The theme is NativeWind's colour scheme, stored on the device, Light by default
+## M3. The theme is NativeWind's ROOT VARIABLES, set from JS — stored on the device, Light by default
 
 `src/theme/theme.js` mirrors `client/src/pages/settings/theme.js`: key
 `pp.theme` in AsyncStorage, values light / dark / system, **default Light on a
-fresh device** (Darryl, 2026-09-19 — not System). `applyTheme` hands the
-preference to NativeWind's `colorScheme.set()`, which is what resolves the
-`prefers-color-scheme` media block in `global.css` — the phone's `data-theme`.
-`system` is handed through as `system` so it follows the OS live;
-`ThemeProvider` re-resolves on `Appearance` changes only while the stored
-preference is `system`. No print branch: nothing on a phone prints.
+fresh device** (Darryl, 2026-09-19 — not System). No print branch: nothing on
+a phone prints.
+
+**The mechanism since FR7 (fix round, 2026-10-04):** `applyTheme` writes the
+RESOLVED theme's value for every token into NativeWind's root variables
+through `StyleSheet.registerCompiled({ rootVariables })` — the call
+`global.css` itself makes at import — and every class reading `var(--name)`
+re-renders with it, the way `data-theme` is the switch on the web
+(`theme.js:11–18`, `:36–39`, `:79–83`). `system` resolves against
+`Appearance.getColorScheme()` now; `ThemeProvider` re-applies on an
+`Appearance` change only while the stored preference is `system`
+(`ThemeProvider.jsx:48–52`).
+
+**NEVER `colorScheme.set()` and NEVER `Appearance.setColorScheme()`.** That
+was the old mechanism; on Android each is `AppCompatDelegate.setDefaultNightMode`,
+a process-wide night-mode change that Expo Go's window takes as a
+configuration change (`theme.js:19–26`) — the blank strip at the bottom after
+a theme switch on the owner's check, until a restart. A theme switch is JS
+state only now. **Native dialogs (the date picker, Alert) do not follow the
+app's theme** — KNOWN_ISSUES. **It depends on `registerCompiled`'s
+`rootVariables` shape** (keys `--<token>`; a plain value sets light and dark
+both): re-verify on every NativeWind / react-native-css-interop upgrade. DEV
+only: a Fast Refresh that re-injects `global.css` puts the variables back on
+the phone's scheme until the next apply (`theme.js:31–33`).
+
+**The faces and the splash:** M23.
 
 `ThemeProvider` exposes `tokens` — the hex table for the RESOLVED theme — for
 the handful of non-className consumers. Everything with a `className` reads
@@ -253,7 +273,12 @@ A proof is plain Node under `mobile/scripts/`, drives pure modules, prints a
 count, and says in its header what it cannot prove. **There is no render
 proof on mobile** — React Native does not render under Node — so **every
 screen is proved on the phone**, both themes, every text field typed a full
-word, the error path seen once. The phone check list per branch is on its
+word, the error path seen once. **The Android export also checks the assets
+(since feat/ui-refresh):** `npx expo export --platform android
+--dump-assetmap`, and `assetmap.json` must list the message tone and the four
+font files (`Merriweather_700Bold`, `SourceSans3_400Regular` / `600SemiBold` /
+`700Bold`) — the fonts load at runtime (M23), so a missing file would show
+only as the system face. The phone check list per branch is on its
 CHANGELOG row; the scaffold's is: sign in as each seeded role · the 401 path
 (change the fixture parent's password on the web to bump `token_version`; the
 phone logs out with the reason) · the 503 path (stop MySQL; `AuthUnavailable`,
@@ -344,6 +369,19 @@ until branch 4 — M16: `RoleHome.jsx` is gone).
 navigators wrap every screen with `LiveStatus` through `screenLayout`, which
 is §5g's "wherever anything depending on the channel is shown": the badges
 are in the drawer and the bell is in every header, so that is every screen.
+
+**One strip per signed-in screen, below the header (re-check fix,
+2026-10-04).** A layout wraps only its route's SCENE
+(`@react-navigation/core` `useDescriptors.tsx:241–270`), and the drawer
+renders that scene under its header (`@react-navigation/drawer`
+`DrawerView.tsx:276–291`), as the native stack does. So `withStrip` on the
+drawer and on the stack (`navigation/AppShell.jsx:199–206`, `:248`, `:280`)
+puts the ONE strip below the header on drawer and pushed screens alike, and
+**Main and Home take a bare layout** (`AppShell.jsx:208–221`, `:281`;
+`RootNavigator.jsx:59–69`, `:153`). Main's old strip sat ABOVE the drawer's
+header and was a second one — two "Live updates paused" strips on Dashboard
+and Students with the API stopped. The strip's copy and Refresh are
+unchanged, and there is still one bottom frame per screen (M3, FR7).
 
 **The same layout owns the BOTTOM SAFE AREA (re-check finding,
 2026-09-27).** Android runs edge-to-edge here, so the system navigation bar
@@ -756,7 +794,9 @@ font size on Small, so raising the rem to 16 would go the wrong way. What
 changed instead is the figures, one step down on the web AND the phone
 (FRONTEND_CONVENTIONS §24): `Stat` `text-xl` (17.5dp), `large` `text-2xl`
 (21dp), the parent hero's figures `text-xl`, its name `text-lg` (15.75dp),
-the admin System line `text-xl`. There is no render proof on the phone (M7):
+the admin System line `text-xl`. (Since feat/ui-refresh the dashboard hero's
+name is `font-serif text-xl`, 17.5dp — `screens/dashboards/ProfileHero.jsx:44`
+— and the figures are `font-bold`, `screens/dashboards/Card.jsx:91`.) There is no render proof on the phone (M7):
 these are class values times the 14dp rem, confirmed on the device by the
 phone check. **Still open, as `docs/KNOWN_ISSUES.md` rows:** the 38.5dp touch
 targets below, and a `maxFontSizeMultiplier` cap (1.3 recommended) — React
@@ -776,8 +816,9 @@ The finding, as recorded when it was deferred:
   M14 speak of, is 38.5 units on the phone** — under the 44 (iOS) / 48
   (Android) guidance.
 - **Colours are NOT different** (generated from the web's tokens; `lint:tokens`
-  proves 71 × 2 equal), and the font is the same on the same phone (the web's
-  system stack is Roboto in Android Chrome; React Native's default is Roboto).
+  proves 71 × 2 equal), and the font is the same on the same phone — then
+  Roboto on both; **since feat/ui-refresh both use Source Sans 3 and
+  Merriweather** (M23). The rem stays 14.
 - **Why it was deferred:** `inlineRem: 16` resizes every phone screen by
   ~14% and needs a full phone sweep. (Superseded: the rem stays 14, above.)
 
@@ -800,6 +841,15 @@ because M19 was already the size scale.
 - **The same active style and badges** as before and as the web:
   `bg-brand-soft` + `text-brand`, the `bg-primary` pill capped at `99+`,
   `badgeFor()` unchanged.
+- **The look since feat/ui-refresh is the web sidebar's**
+  (`navigation/DrawerContent.jsx:35–41`): the brand block with the product
+  name in the title face; rows as rounded pills at 48dp; **the active row is
+  said three ways** — the brand tint, the heavier label and a 3dp brand bar on
+  its left edge (`:134`), never colour alone, with
+  `accessibilityState.selected`; group labels as eyebrows, still folding
+  (below); and the user card as a rounded, bordered tile
+  (`rounded-2xl border border-edge bg-surface-subtle`, `:278–287`). The
+  drawer is 296dp wide, was 280 (`AppShell.jsx:253–257`).
 - **Folding is the phone's own** (`navigation/drawerFold.js`, pure, no
   imports): a group label is a button (`accessibilityState.expanded`, a
   chevron turned 90° when open). **Remembered per role on the device,**
@@ -925,16 +975,20 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   (React Native's `Vibration`, no package). A tone that fails is silent; the
   vibration and the toast still happen.
 - **The tone is a bundled WAV, `assets/sounds/message-tone.wav`** — 16-bit
-  PCM mono 22 050 Hz, **400 ms, 8 820 samples, 17 684 bytes** (44 + 2 ×
-  8 820), loudest sample **0.2171** of full scale (at most 0.44, no clipping)
+  PCM mono 22 050 Hz, **360 ms, 7 938 samples, 15 920 bytes** (44 + 2 ×
+  7 938), loudest sample **0.2156** of full scale (at most 0.26, no clipping)
   — GENERATED by `scripts/make-message-tone.mjs` (`npm run tone:write`, Node
-  `fs`, not a shell redirect) from the mirrored `TONE`: **"two-tone down"**,
-  1047 Hz from 0 ms for 150 ms and 784 Hz from 100 ms for 300 ms, peak 0.22
-  each, summed; per voice a LINEAR rise from 0.0001 over 3 ms then an
-  EXPONENTIAL decay to 0.0001 at its end (held there for the web's 20 ms stop
-  pad) — the web's Web Audio envelope, sample by sample. It replaced a flat
-  880 Hz beep (6 660 bytes) the owner rejected on 2026-10-02. No URL, no
-  third-party file; imported like the seal's PNG.
+  `fs`, not a shell redirect) from the mirrored `TONE`: **"two-note rise"**
+  (feat/ui-refresh), four sine voices summed — 587 Hz from 0 ms for 140 ms,
+  880 Hz from 80 ms for 280 ms, and their octaves 1174 Hz (0–60 ms) and
+  1760 Hz (80–170 ms), peak 0.125 each; per voice a LINEAR rise from 0.0001
+  over 6 ms then an EXPONENTIAL decay to 0.0001 at its end (held there for the
+  web's 20 ms stop pad) — the web's Web Audio envelope, sample by sample
+  (`realtime/messageToast.js:24–59`; `scripts/proof-message-toast.mjs:231–242`).
+  It replaced "two-tone down" (1047 → 784 Hz, 17 684 bytes), which the owner
+  found clinical (`messageToast.js:30–32`); that had replaced a flat 880 Hz
+  beep (6 660 bytes). No URL, no third-party file; imported like the seal's
+  PNG.
 - **`expo-audio` ~57.0.5** (`npx expo install expo-audio`; SDK 57 ships no
   `expo-av`; it runs in Expo Go with no native build — restart Metro with
   `--clear` after the install). **One `useAudioPlayer` for the life of the
@@ -1008,3 +1062,80 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   40/40. The toast on screen, the timer, the sound, whether the ringer
   really silences it, the vibration, the announcement and View are the phone
   check.
+
+## M23. The refresh on the phone — faces as families, one `Text`, one `Button`, entrances only, pull-to-refresh (`feat/ui-refresh`, 2026-10-02 → 10-04)
+
+The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
+
+- **A weight class IS a font family, and `theme.fontWeight` is emptied**
+  (`mobile/tailwind.config.js:14–57`, `fontWeight: {}` at `:49`). React
+  Native has no font matching: a custom family is one file, and a
+  `fontWeight` beside it makes Android fake the bold. So `font-sans` /
+  `font-normal` are Source Sans 3 Regular, `font-medium` and `font-semibold`
+  SemiBold (600, as on the web), `font-bold` Bold, `font-serif`
+  Merriweather Bold — titles, never beside a weight class.
+- **Every `<Text>` comes from `components/Text.jsx`**, which adds `font-sans`
+  unless the call site names a family (`Text.jsx:7–28`); it is the only file
+  that imports react-native's `Text`.
+- **Four bundled files** (`@expo-google-fonts`, `src/theme/fonts.js:2–21`)
+  load at runtime through `expo-font` — no config plugin in `app.json`.
+  **The splash waits for them with a clock:** loaded, failed or 2.5 s,
+  whichever comes first (`fonts.js:26–40`; `navigation/RootNavigator.jsx:81–91`),
+  so the worst case is the system face, never a stuck splash (M4).
+- **The rem stays 14** (M19). The sizes are Tailwind's own (the branch's
+  larger scale was reverted, FR5).
+- **`components/Button.jsx` over `components/buttonStyles.js`:** the web's
+  five variants; heights as a `minHeight` NUMBER in dp — `md` 48, `sm` 44,
+  `lg` 52 — and Android's ripple for the press, never a style function (M20)
+  (`buttonStyles.js:9–39`; `Button.jsx:7–21`). `SectionHeader.jsx` is the
+  web's, with no Reload (`SectionHeader.jsx:4–13`).
+- **Motion:** React Native `Animated` through `motion/Reveal.jsx`, the web's
+  numbers in milliseconds; **an unknown reduced-motion setting means NO
+  motion** (`motion/reduceMotion.js:4–28`). None on attendance marking, the
+  Grades slot, the toast or the native leave-guard Alert — neither
+  `teacher/AttendanceScreen.jsx`, `teacher/SlotScreen.jsx` nor
+  `realtime/MessageToast.jsx` imports motion.
+- **Pull-to-refresh is the phone's reload** — on every screen that shows
+  server data, re-running that screen's own fetch with its filters and sort;
+  a paged list starts again at page 1 (KNOWN_ISSUES). **Off while anything is
+  unsaved on the two leave-guard screens:** Attendance
+  (`teacher/AttendanceScreen.jsx:151–164`), which also blocks taps on the
+  roster and Save during a pull (`:357–358`, `:396`), and the Grades slot
+  (`teacher/SlotScreen.jsx:222–255`). **The LiveStatus Refresh reconnects the
+  socket and refetches both counts** (`realtime/LiveStatus.jsx:14–17`,
+  `:30–31`) — the only refresh button on the phone.
+
+## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
+
+- **Root:** React Native's own `StatusBar` in `App.jsx` (`ThemedStatusBar`,
+  `App.jsx:17–32`): `barStyle` from the resolved theme (dark icons in Light,
+  light in Dark), `backgroundColor={tokens.surface}` — the header's colour,
+  the top of every signed-in screen — and `translucent={false}`: the app is
+  laid out below the bar.
+- **Why never style-only:** React Native's `StatusBar` re-sends a background
+  colour on every Android update; given none, it sends
+  `DEFAULT_BACKGROUND_COLOR`, the window's status-bar colour with its alpha
+  dropped (`react-native/.../statusbar/StatusBarModule.kt:68–78`;
+  `Libraries/Components/StatusBar/StatusBar.js:235–245`, `:471–500`), so a
+  transparent bar came back opaque black — under dark icons in Light. The
+  root `expo-status-bar` set only the style (`NativeStatusBarWrapper.tsx:20–33`)
+  from `02107c2` (2026-09-27) until `0ac7fec`; it is no longer imported (the
+  package is still installed — APK_READY_PLAN).
+- **A screen whose top is not a header** renders
+  `components/ScreenStatusBar.jsx` with its top colour, only while FOCUSED
+  (`useIsFocused`) — a native-stack screen stays mounted under the one pushed
+  over it: `brand-panel` on Login, Forgot password and the forced password
+  change (`LoginScreen.jsx:105`, `ForgotPasswordScreen.jsx:110`,
+  `ForcedPasswordChangeScreen.jsx:94`), `page` on the public About
+  (`AboutScreen.jsx:354`). The newest mounted StatusBar wins, an update
+  replaces it in place, an unmount hands the bar back (`StatusBar.js:363–426`).
+- **The icons need no per-screen logic:** in each theme the header, band and
+  page colours share a lightness (`theme/tokens.js` — light `#ffffff` /
+  `#f4f4f5` / `#fafafa`, dark `#18181b` / `#27272a` / `#09090b`).
+- **Device-checked on the owner's Tecno, Android 14, in Expo Go.** The full
+  check ran with Expo Go's Full Screen for Apps on **Show Cutout**: Light and
+  Dark, cold boot, live switch, after a native dialog, the phone's dark mode
+  on and off. With **Auto** (the default), a cold boot in Light painted
+  correctly (Dashboard, drawer, Login), so no phone setting is needed.
+  **Not yet on Android 15+ or in the APK:** under enforced edge-to-edge
+  Android ignores the colour (KNOWN_ISSUES).

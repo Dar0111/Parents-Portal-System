@@ -642,8 +642,9 @@ switched on at the one width where its container was narrowest it would ever
 be. Raising the breakpoint moves that cliff; it does not remove it.
 
 **Since feat/ui-polish (2026-09-30) the sidebar appears at `md` (768px), not
-`sm`**, and above that it is 240px or a 64px rail by the user's choice
-(§9). The table above is a dated measurement; the cliff moved to 768px and
+`sm`**, and above that it is expanded or a 64px rail by the user's choice
+(§9) — expanded was 240px then and is 256px since feat/ui-refresh. The
+table above is a dated measurement; the cliff moved to 768px and
 now depends on the rail too — which is exactly why this card measures its
 CONTAINER and not the window.
 
@@ -658,6 +659,14 @@ superseded by this one. `overflow-x-auto` stays either way, so a wrong
 threshold degrades to a scroller rather than to breakage. Confirmed in the
 browser by sweeping 1100 / 1000 / 950 / 900 / 850: the table holds with no
 horizontal scrollbar down to 900 and flips to segments between 900 and 850.
+
+**Since feat/ui-refresh (2026-10-03) the row is narrower than that recount,
+not wider.** The cells are `px-3` with `px-4` kept at the two outer edges
+(`ReportCard.jsx:354–360`; every cell was `px-4`) — 32px less across the
+five columns — and the type scale is Tailwind's own again (`text-sm` 14px,
+FR5, 2026-10-04). The face is Source Sans 3 now and was not measured; the
+558px figure was counted in the old face and was not recounted. 36rem only
+gains margin. The sidebar is 256px or a 64px rail (§9).
 
 **A FUTURE BROWSER CHECK MUST MEASURE THE CARD, NOT THE WINDOW.** A container
 query does not move with the responsive-mode width readout, and a tester
@@ -1407,8 +1416,9 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
 **The sidebar since feat/ui-polish (2026-09-30).**
 - **Below `md` (768px) it is hidden and the menu button opens the drawer**,
   as the phone does (the breakpoint moved from `sm`; §5a-vi says why).
-- **At `md` and up it is expanded (240px, `w-60`) or a 64px rail
-  (`w-16`)**, toggled at its top and remembered per browser under
+- **At `md` and up it is expanded (256px, `w-64`, since feat/ui-refresh —
+  it was `w-60` before) or a 64px rail (`w-16`)** (`layout/Shell.jsx:568–569`),
+  toggled at its top and remembered per browser under
   **`pp.sidebar`** (`layout/sidebarPref.js`, read in the `useState`
   initializer — no flash, no `index.html` script). Default: expanded.
 - **Grouped** (`layout/navGroups.js`, a separate file from `nav.js`, and a
@@ -1454,7 +1464,9 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   pixel-identical before and after at 1366 wide in both themes, and a global
   rule changed it (the negative control).
 - **Width:** `<main>` is `flex-1 min-w-0`, so every page gets the window
-  minus 240 or 64px; nothing else sets a width for it. **No width cap** — f3's
+  minus 256 or 64px; nothing else sets a width for it (its padding is
+  `p-4 sm:p-6 lg:p-8`, `Shell.jsx:619`; the drawer below `md` is `w-72`,
+  at most 85vw, `:350–354`). **No width cap** — f3's
   80rem centred cap (2026-09-30) was removed the same day by Darryl's decision.
 
 **The seal** (`client/src/assets/school-seal.png`, 192 px, 24-bit, under 50
@@ -2900,6 +2912,11 @@ instead of 12px (accepted). The clean state — `sr-only`, empty, the §21b /
 item-5b live region — is untouched, and `ssr-item5` still asserts it
 exactly.
 
+**Since feat/ui-refresh Apply is the shared `Button` at `min-h-11`
+(2.75rem, `components/buttonClass.js:34`), so the lift is
+(2.75 − 1.25) / 2 = 0.75rem — `-translate-y-3`**
+(`components/FilterActions.jsx:106–119`). Same rule, new arithmetic.
+
 ## 22. A failed session read — only a 401 logs out
 
 **Frozen 2026-09-25 (pre-Stage-5 #4).** The companion to §2, one layer up:
@@ -3046,9 +3063,17 @@ the parent hero's figures 24px.
   M19): 17.5 / 21 / 17.5dp, and the phone hero's NAME `text-lg` (15.75dp).
   Proved on the web by computed font-size, Light and Dark, all three
   dashboards.
-- **Nothing else moves.** No `html` base-size change — body, titles, nav,
-  spacing and the sidebar are as they were — so the parent calendar keeps
+- **Nothing else moved then.** No `html` base-size change — body, titles, nav,
+  spacing and the sidebar were as they were — so the parent calendar kept
   97.0 / 77.0px (re-measured). The phone's rem stays 14.
+- **Since feat/ui-refresh (2026-10-04) titles are a step up, by CLASS, in the
+  title face** — the sizes are still Tailwind's own (the branch's larger scale
+  was reverted, FR5): the page `<h1>` is `text-lg sm:text-xl`
+  (`layout/Header.jsx:41`, was `text-base`), a dashboard card title
+  `text-base` (`pages/dashboards/Card.jsx:122`, was `text-sm`), a section
+  heading `text-lg` (`components/SectionHeader.jsx:30`). Body and nav stay
+  14px (`layout/Shell.jsx:185`); the figures above are unchanged in size and
+  now `font-bold` (`Card.jsx:182`). §27.
 - **A new figure uses `Stat`** (or states why not). A size picked at a call
   site is how the scale drifts.
 
@@ -3130,12 +3155,15 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   hovered or focused**.
 - **A short tone on a toast SHOW or UPDATE — never on a skip, never twice**
   (fix round, 2026-10-02; the owner reversed "no sound"). One definition for
-  both platforms, `TONE` in the mirrored `messageToast.js`: **"two-tone down"
-  — two sine voices, summed: 1047 Hz from 0 ms for 150 ms and 784 Hz from
-  100 ms for 300 ms, peak 0.22 each, 400 ms in all; per voice a LINEAR rise
-  from 0.0001 to the peak over 3 ms, then an EXPONENTIAL decay to 0.0001 at
-  its end, the oscillator stopped 20 ms later** (it replaced a flat 880 Hz
-  beep the owner rejected, same day). The web generates it with the Web
+  both platforms, `TONE` in the mirrored `messageToast.js`: **"two-note rise"
+  (feat/ui-refresh) — D5 then A5, a fifth up: four sine voices, summed —
+  587 Hz from 0 ms for 140 ms, 880 Hz from 80 ms for 280 ms, and their
+  octaves 1174 Hz (0–60 ms) and 1760 Hz (80–170 ms); peak 0.125 each, 360 ms
+  in all; per voice a LINEAR rise from 0.0001 to the peak over 6 ms, then an
+  EXPONENTIAL decay to 0.0001 at its end, the oscillator stopped 20 ms
+  later** (`messageToast.js:24–59`). It replaced "two-tone down" (1047 Hz
+  falling to 784 Hz), which the owner found clinical (`messageToast.js:30–32`);
+  that had replaced a flat 880 Hz beep. The web generates it with the Web
   Audio API (`realtime/messageTone.js`): no file, no install, no URL, **ONE
   `AudioContext` created lazily and reused**, `resume()` before each tone, and
   silent — never a throw — if the browser refuses (autoplay policy, no Web
@@ -3184,10 +3212,75 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   set to 880 Hz in the client `TONE` → 37/39, and `lint:mirrors` red) — the
   words, the row lookup, both "in that conversation" readings, every skip,
   the server's count, the replacement, no body anywhere, the rendered toast,
-  the tone on show / update / replace only, both voices' frequencies, ramps
-  and start / stop times, ONE context, a refused or missing Web Audio
+  the tone on show / update / replace only (three tones of four voices, 12
+  oscillator starts), the voices' frequencies, ramps and start / stop times,
+  ONE context, a refused or missing Web Audio
   never throwing, and the store after × and expiry; and by
   `ssr-enter-to-send` (15; negative control: the composition check removed
   → 12/15). The socket, the timer, the pausing, the sound itself, a real key
   press and View are the owner check with two accounts.
+
+## 27. The UI refresh — one type, one button, entrances only, no Reload (`feat/ui-refresh`, 2026-10-02 → 10-04)
+
+Built 2026-10-02/03 (`e46168f`), corrected on the owner's checks (`03c6238`,
+`1b7a298`, `0ac7fec`), device-checked on the web, in a phone's Chrome and in
+Expo Go. The phone's side is MOBILE_CONVENTIONS M23–M24.
+
+### 27a. Two faces, and the sizes are Tailwind's own
+
+- **Merriweather 700 for titles** (`font-serif`) **and Source Sans 3 for
+  everything else** (`font-sans`: 400, 400 italic, 600, 700), bundled from
+  `@fontsource` — no CDN, `font-display: swap` (`client/src/main.jsx:8–12`;
+  `client/src/index.css:384–415`). **`font-medium` is 600** (`index.css:417`):
+  only 400, 600 and 700 ship, and a 500 would be drawn with the 400 file
+  (`index.css:409–411`).
+- **The sizes are Tailwind's own** (12 / 14 / 16 / 18 / 20 / 24 / 30 / 36px)
+  — the branch's one-step-larger scale was reverted on the owner's check
+  (FR5). Titles step up by class (§24).
+
+### 27b. One Button, one SectionHeader
+
+- **`components/buttonClass.js` is the only button style; `Button.jsx` is the
+  element over it**, and a `<Link>` that must look like a button takes
+  `buttonClass()`. Variants `primary`, `secondary` (the default), `ghost`,
+  `danger`, `danger-outline`. Sizes are MIN-heights, never fixed: `md` 44px
+  (every form and page action), `sm` 44px below `sm` and 36px above (a row
+  action), `lg` 48px (auth submits), `icon` / `icon-sm` square
+  (`buttonClass.js:13–51`). `type` defaults to `"button"`; `loading`
+  disables it and swaps the icon for a spinner while the label stays
+  (`Button.jsx:11–20`).
+- **`components/SectionHeader.jsx`:** the section's title in the title face —
+  an `<h2>` (`as="h3"` inside a section), **never an `<h1>`**, which is the
+  top bar's and the smoke fails a page with two — an optional sentence, and
+  the section's own actions on the right. The page's primary action goes in
+  `actions`, and an empty state never repeats it (§5f). **No Reload control**
+  (`SectionHeader.jsx:1–14`).
+
+### 27c. Motion is for entrances, and never where work is done
+
+- **GSAP, from `motion/motion.js`:** a page or section arriving, cards
+  staggering in, a figure counting up, the drawer sliding in — transform and
+  opacity only, never a layout property; nothing waits on a tween; every
+  entrance clears its inline styles (`motion.js:4–22`).
+- **Reduced motion is the default path:** a tween exists only inside
+  `gsap.matchMedia().add('(prefers-reduced-motion: no-preference)', …)`, so
+  with `reduce`, in an SSR render and with no JavaScript the markup IS its
+  final state (`motion.js:13–17`, `:29`).
+- **No motion on attendance marking, grade entry, the new-message toast or
+  the "Leave without saving?" dialogs — so `Modal` is never animated**
+  (`motion.js:24–26`; `components/Modal.jsx:31`; `realtime/MessageToast.jsx:47–48`).
+
+### 27d. No in-app Reload
+
+- **The browser's reload is the web's reload** — no page or section carries a
+  Reload control (`SectionHeader.jsx:9–11`). The one refresh button is the
+  LiveStatus strip's, and on the web it is a full page reload
+  (`layout/Shell.jsx:642–647`; §5g).
+
+### 27e. The leave-guard sentence counts
+
+- "You have N unsaved mark(s) … discards **it**" for one mark and
+  "discards **them**" for more — `pages/teacher/AttendancePage.jsx:701–702`,
+  and the phone's two sentences (`AttendanceScreen.jsx:176`, `:208`). No
+  proof pins the sentence (TESTING → Not yet proved).
 

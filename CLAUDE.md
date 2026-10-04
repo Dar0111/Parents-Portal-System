@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-09-30, `docs/stage5` (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-04, `feat/ui-refresh` (code at `0ac7fec`, plus its docs pass) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -450,8 +450,8 @@ concludes.** Adding one requires the school to have said otherwise first.
 - **That card's crossover is measured on the CONTAINER (`@min-[36rem]`), every
   DataTable page on `sm:` viewport width — deliberately inconsistent**, because
   `Shell` revealed its 240px sidebar at that same `sm` and **crossing 640px cut
-  a page body from 607px to 351px** (since 2026-09-30 it appears at `md`, 240px
-  or a 64px rail — §9). **A browser check must measure the CARD,
+  a page body from 607px to 351px** (since 2026-09-30 it appears at `md`; 256px
+  or a 64px rail since feat/ui-refresh — §9). **A browser check must measure the CARD,
   not the window**, and a container variant that generates no CSS fails
   silently — **grep the built stylesheet** (the `h-9.5` lesson). Detail: §5a-vi.
 
@@ -684,7 +684,8 @@ sidebar is `sticky top-0 h-screen self-start` with its nav box
 one scrollbar, no layout shift. **Do not add a second scroll container to
 `<main>`.** z-order: header 30, mobile drawer 40, the notification panel 40
 (closed when the drawer opens), rail tooltip 45 (on `<body>`), Modal backdrop 50. **Since 2026-09-30:** a
-drawer below `md`, above it 240px or a 64px rail, grouped by
+drawer below `md`, above it 256px (`w-64`, since feat/ui-refresh) or a 64px
+rail (`pp.sidebar`), grouped by
 `layout/navGroups.js` (a mirror: the phone groups the same, M20); the user
 card holds the ONE Logout, its avatar and name open Account information, and
 it **never shows a parent's login id** (§5c); `<main>` has no width cap.
@@ -862,9 +863,30 @@ in that conversation (the OTHER user's id: web `:userId`, phone focused
 Unread provider already re-reads** (`subscribeConversations`) — the server's
 `unread_count`, no server change, no bell. View = `requestLeave`. No admin
 toast. Pure decisions mirrored (`realtime/messageToast.js`). **On a show or
-update only: the "two-tone down" `TONE`** (web Web Audio, phone a bundled
+update only: the "two-note rise" `TONE`** (web Web Audio, phone a bundled
 WAV) **and a 150 ms phone vibration.** Enter sends on the web, Shift+Enter is
 a new line. Full text: `docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
+
+### 27. The UI refresh — one type, one button, entrances only, no Reload
+
+**feat/ui-refresh, 2026-10-02 → 10-04.** Titles in **Merriweather 700**
+(`font-serif`), everything else **Source Sans 3** 400/600/700 (+400 italic on
+the web), `font-medium` = 600; the sizes are **Tailwind's own** (the branch's
+larger scale was reverted, FR5) and titles step up by class. **One `Button`**
+(`buttonClass.js` / phone `buttonStyles.js`; min-heights — web 44px, phone
+48dp) and **one `SectionHeader`** (an `<h2>`, never an `<h1>`). **Motion is
+for ENTRANCES only** — GSAP on the web, `Animated` on the phone, none under
+reduced motion (unknown counts as reduced on the phone) — and **never on
+attendance marking, grade entry, the toast or the leave-guard dialogs**
+(`Modal` never animates). **No Reload control:** the browser's reload on the
+web; on the phone pull-to-refresh, OFF on Attendance and the Grades slot
+while anything is unsaved (Attendance also blocks taps and Save during a
+pull); the LiveStatus strip's Refresh is the only refresh button (web: a full
+reload; phone: reconnect + both counts). The leave-guard sentence says
+"discards it" for one mark, "them" for more. **On the phone a weight class is
+a font FAMILY, `theme.fontWeight` is `{}`, and every `<Text>` is
+`components/Text.jsx`.** Full text: `docs/FRONTEND_CONVENTIONS.md` §27,
+MOBILE M23–M24.
 
 ### Corrections — three claims retired here
 
@@ -888,7 +910,7 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin; M23–M24 the UI refresh
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
@@ -898,7 +920,8 @@ cleanup, M13 Grades one slot at a time, M14 the roster and where
 `beforeRemove` can fire, M15 the teacher's lists, M16 the admin shell and
 `popTo` back to the drawer, M17 sensitive actions and the shown-once
 password, M18 the admin's lists, M20 the drawer grouped and foldable (`pp.navGroups`, the
-active group always open), M21 the photo picker (library only, no camera) — stated only there**). Darryl's decisions of 2026-09-27
+active group always open), M21 the photo picker (library only, no camera), M23 the refresh on the phone
+(faces, `Text`, `Button`, motion, pull-to-refresh), M24 the status bar — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -916,16 +939,21 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   against seven Tailwind hexes). `tailwind.config.js` REPLACES the palette:
   `bg-slate-500` does not compile. `npm run lint:colors` also refuses a hex /
   rgb / hsl literal outside `tokens.js`. (M2)
-- **The theme is NativeWind's colour scheme**, key `pp.theme` in
-  AsyncStorage, **Light by default**, System live only while stored. **Text
-  size is a declared deviation: dropped for the OS font scale.** (M3)
+- **The theme is NativeWind's ROOT VARIABLES, set from JS** — `applyTheme`
+  writes every token through `StyleSheet.registerCompiled`; key `pp.theme` in
+  AsyncStorage, **Light by default**, System live only while stored. **Never
+  `colorScheme.set()` or `Appearance.setColorScheme()`**: on Android each is a
+  process-wide night-mode change (the blank strip after a theme switch, FR7).
+  Re-verify `registerCompiled` on every NativeWind upgrade. **Text size is a
+  declared deviation: dropped for the OS font scale.** (M3)
 - **Auth parity is §22 with three named differences**: the token in
   expo-secure-store behind an injected provider (`api/client.js` imports
   nothing native, so a proof can load it); a 401 clears the store and
   signals `AuthContext`, the reason in memory, never a navigation param; a
   15 s timeout, filed as "keep the token". The root navigator IS
   `ProtectedRoute`: an unmounted `Stack.Screen` cannot be reached. **The
-  native splash is released when the theme is ready, never held for
+  native splash is released when the theme is ready and the fonts have
+  settled (loaded, failed or 2.5 s), never held for
   `/auth/me`** — held, a stuck request leaves the phone on Expo Go's overlay
   with no way out; our own spinner covers the read. (M4)
 - **The network proof order is fixed:** phone Chrome reaches
@@ -961,6 +989,17 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   awaits the ONE module-level audio mode** (`playsInSilentMode: false`), so
   silent and vibrate-only play no tone; **DND still plays it** — Expo Go
   cannot read DND (KNOWN ISSUES; the APK fix). (M22)
+- **The status bar is PAINTED, never style-only** — React Native's own
+  `StatusBar` at the root (`App.jsx`) with the header's `surface` and the
+  theme's icon style, not translucent; `ScreenStatusBar` while FOCUSED on a
+  screen whose top is not a header (the sign-in band, the public About).
+  React Native re-sends its default background — the window colour with its
+  alpha dropped — so a style-only bar turned black. Device-checked on
+  Android 14 in Expo Go; Android ignores the colour under enforced
+  edge-to-edge (KNOWN ISSUES). (M24)
+- **One LiveStatus strip per signed-in screen, below the header, and one
+  bottom frame** — the drawer's and the stack's `screenLayout` add both;
+  Home and Main take a bare layout. (M9)
 
 ---
 
@@ -1355,6 +1394,8 @@ gate in full on its `POST /api/users/parents` row.
 | **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |
 | **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
+| **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
+| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` | It still signs in on the live DB (backups 275 and 276, 2026-10-04), and the proof holds it in the repo. After the change the proof needs another way to sign in (an env var, never a value in a file). **Never print the value** |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1457,7 +1498,9 @@ ready — do not let that arrive without these done.
   (`seed.sql` holds only a placeholder). A parent
   logs in with their child's LRN as the login id — anyone who knows a
   child's LRN would know that account's password too. Change every
-  default password before any real account exists.
+  default password before any real account exists. **The admin's is also in
+  `server/scripts/proof-backup-loop.js:172`, and it still signed in on the
+  live DB on 2026-10-04** (KNOWN ISSUES).
 - **RA 10173 (Data Privacy Act) applies** — the manuscript itself cites
   it. Loading real student names and LRNs needs the school's answer on
   whether a consent process is required, whether they already have a
@@ -1564,11 +1607,22 @@ its `docs/CHANGELOG.md` row.
       2026-09-29 → 30 (SMS before reliability by Darryl's decision).
 - [x] **UI polish — `feat/ui-polish`, merged 2026-09-30 (`c610bd8`).**
 - [x] **Docs pass + CLAUDE.md trim — `docs/stage5`** (merged, `5e09c09`).
+- [x] **UI refresh — `feat/ui-refresh`** (`e46168f` → `0ac7fec` + its docs
+      pass), device-checked 2026-10-04 (web, phone Chrome, Expo Go on
+      Android 14), cleaned up by id (backups 275, 276). **Not merged.**
+      Rules: §27, M23–M24.
 - [ ] ~~Push notifications~~ → **in-app notifications only, via Socket.io
       (Darryl, 2026-09-27)** — no `expo-notifications`, no `push_token`
       column; remote push would be a separate decision.
 
-**NEXT, in order:** full phone test / smoke gate → manuscript delta list.
+**NEXT, in order (owner, 2026-10-04):** merge `feat/ui-refresh` → form
+drafts Phase 1 (text forms) → the `create-backup-zip.js` fix (before the
+smoke gate; the script is not run until it is fixed) → small KNOWN ISSUES
+fixes (the phone Login's Next key; the focus trap in `Modal` and the web
+drawer; the web message-thread spinner; the class-record load guard) →
+smoke gate → manuscript delta list (team) → professor system check, Fri
+2026-10-09. After the check: colour on the dashboard cards; the cloud
+(Supabase) survey.
 
 ### Stage 6 — Integration
 
@@ -1738,11 +1792,6 @@ questions.
   for it. DV1b inherits it for the other consumers. Cost to weigh: each
   sticky cell needs its own background repainted on hover and on the
   emphasised row, or scrolled content shows through.
-- **Should the report card's header, info row and legend move to container
-  units too?** DV3 converted only the crossover (§5a-vi), so those three
-  still use viewport `sm:` inside a card that now measures itself. The
-  re-check found no visible mismatch on a real window and called no action —
-  recorded so the mixed basis is known rather than a later surprise.
 - Adviser response to the 5 revision requests.
 - Deployment for the demo: localhost or cloud (Railway + Vercel + Cloudinary)?
   Undecided; blocks the Figure 1 hardware requirements in the manuscript.
@@ -1760,6 +1809,7 @@ questions.
 **Closed — one line each, full text in the same ARCHIVE block as the answered
 school questions:**
 
+- **2026-10-03** — the report card's header, info row and legend moved to container units with feat/ui-refresh (`ReportCard.jsx:712–718`); nothing in it reads the viewport. Full text: `docs/ARCHIVE.md` → "Closed engineering bullet moved from CLAUDE.md on 2026-10-04". Do not re-ask.
 - **2026-09-30** — Teacher → Attendance DOES warn before leaving with unsaved marks (§17c). Do not re-ask.
 - **2026-09-06/07** — read scopes widened to assigned OR adviser (TCH-002 is that account); **`routes/grades.js` is deliberately NOT widened** — encoding is the subject teacher's. Do not re-ask.
 - **2026-09-18** — `Account is not active.` is `401` (login keeps `403` + `status`). Do not re-derive.

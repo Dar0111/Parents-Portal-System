@@ -150,6 +150,25 @@ never sees a server setting unless the server is unreachable.
 - SecureStore, AsyncStorage (`pp.theme`, `pp.navGroups`, `pp.server`) and
   the socket behave as in Expo Go.
 
+### APK items from the UI refresh (`feat/ui-refresh`, 2026-10-04)
+
+- **The fonts load at runtime.** `expo-font` has no config plugin in
+  `app.json` (`mobile/app.json:18–30`); `src/theme/fonts.js` loads the four
+  bundled files with `useFonts` and the splash waits for them with a 2.5 s
+  clock (MOBILE M23). The export's `assetmap.json` lists them (TESTING →
+  Mobile proofs). Nothing to add for the APK; the plugin would only embed
+  them at build time instead.
+- **`expo-status-bar` is installed but no longer imported** (`mobile/package.json`;
+  the root uses React Native's own `StatusBar`, M24). Removing it is a
+  package change — its own small dispatch, not part of the APK build.
+- **Check the status bar and the display cutout on the APK.** The colour
+  comes from React Native `StatusBar`'s `backgroundColor`, which Android
+  ignores under enforced edge-to-edge (Android 15+ with a target SDK of
+  35+). On the first APK, on an Android 15+ phone if one is available: is
+  the bar the header's colour (the band's on Login) with readable icons, in
+  Light and Dark, with Full Screen for Apps on Auto and on Show Cutout?
+  (KNOWN_ISSUES.)
+
 ### APK items from the message toast (`feat/message-toast`, 2026-10-02)
 
 The phone's new-message toast plays a bundled tone through **expo-audio**
