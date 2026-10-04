@@ -8,6 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
 import Text from '../components/Text';
 import Icon from '../icons';
+import { drawerOpenInState } from '../navigation/drawerOpen';
 import { requestLeave } from '../navigation/leaveGuard';
 import { isBuilt } from '../navigation/routes';
 import { useTheme } from '../theme/ThemeProvider';
@@ -79,6 +80,12 @@ export default function MessageToast() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const viewingOtherId = useNavigationState((state) => otherIdFromRoute(state));
+  // NOT OVER AN OPEN DRAWER (feat/look-fixes, 2026-10-05): the drawer lives
+  // inside the stack this toast floats over, so the toast sat on the drawer's
+  // top. While it is open the toast renders nothing; the store, the 5 s timer,
+  // the tone and the announcement run exactly as before, and no motion is
+  // added (navigation/drawerOpen.js).
+  const drawerOpen = useNavigationState((state) => drawerOpenInState(state));
   const enabled = isBuilt(`/${user?.role}/messages`);
 
   const [toast, setToast] = useState(null);
@@ -183,7 +190,7 @@ export default function MessageToast() {
       accessibilityLiveRegion="polite"
       style={{ position: 'absolute', top: insets.top + HEADER_HEIGHT + 8, left: 12, right: 12, zIndex: 50 }}
     >
-      {toast ? (
+      {toast && !drawerOpen ? (
         <View className="flex-row items-center gap-2 rounded-2xl border border-edge bg-surface p-3" style={{ elevation: 6 }}>
           <Avatar name={toast.name} photo={toast.photo} />
           <Text className="min-w-0 flex-1 text-sm font-semibold text-fg">{toast.label}</Text>

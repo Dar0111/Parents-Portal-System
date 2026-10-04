@@ -812,7 +812,7 @@ export default function UsersPage() {
               <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
                 Waiting for approval
                 {waitingCount !== null ? (
-                  <span className="inline-flex items-center rounded-full border border-warning-edge bg-warning-soft px-2.5 py-0.5 font-sans text-xs font-semibold tabular-nums text-warning-strong">
+                  <span className="inline-flex items-center rounded-md border border-warning-edge bg-warning-soft px-2.5 py-0.5 font-sans text-xs font-semibold tabular-nums text-warning-strong">
                     {waitingCount}
                     <span className="sr-only"> waiting</span>
                   </span>

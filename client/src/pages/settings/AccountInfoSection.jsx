@@ -164,7 +164,7 @@ export function VerifiedMark({ at, className = 'ml-2' }) {
   if (!at) {
     return (
       <span
-        className={`${className} inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong`}
+        className={`${className} inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong`}
       >
         <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />
         Not confirmed
@@ -173,7 +173,7 @@ export function VerifiedMark({ at, className = 'ml-2' }) {
   }
   return (
     <span
-      className={`${className} inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-strong`}
+      className={`${className} inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-success-soft px-2 py-0.5 text-xs font-semibold text-success-strong`}
     >
       <i className="fa-solid fa-circle-check" aria-hidden="true" />
       Verified · {new Date(at).toLocaleDateString()}

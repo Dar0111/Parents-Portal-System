@@ -445,7 +445,7 @@ export default function AnnouncementsPage() {
         nowrap: true,
         render: (row) => (
           <span
-            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            className={`inline-flex rounded-md px-2.5 py-0.5 text-xs font-semibold ${
               row.target_grade === null ? 'bg-surface-muted text-fg-muted' : 'bg-brand-soft text-brand'
             }`}
           >

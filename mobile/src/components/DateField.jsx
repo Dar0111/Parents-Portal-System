@@ -75,7 +75,7 @@ export default function DateField({
               accessibilityLabel={value ? `${label}, ${longDate(value)}` : `${label}, ${placeholder}`}
               accessibilityState={{ disabled }}
               android_ripple={{ color: tokens['edge-strong'] }}
-              className={`flex-1 flex-row items-center justify-between gap-3 overflow-hidden rounded-xl border bg-surface px-4 py-3.5 ${
+              className={`flex-1 flex-row items-center justify-between gap-3 overflow-hidden rounded-lg border bg-surface px-4 py-3.5 ${
                 invalid ? 'border-danger-edge-strong' : 'border-edge-strong'
               } ${disabled ? 'opacity-60' : ''}`}
               style={{ minHeight: TARGET }}
@@ -92,7 +92,7 @@ export default function DateField({
                 accessibilityRole="button"
                 accessibilityLabel={`Clear ${label}`}
                 android_ripple={{ color: tokens['edge-strong'] }}
-                className="items-center justify-center self-stretch overflow-hidden rounded-xl border border-edge-strong bg-surface"
+                className="items-center justify-center self-stretch overflow-hidden rounded-lg border border-edge-strong bg-surface"
                 style={{ width: TARGET, minHeight: TARGET }}
               >
                 <Icon name="fa-xmark" size={15} color={tokens['fg-body']} />

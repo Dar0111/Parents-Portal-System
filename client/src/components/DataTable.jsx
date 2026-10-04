@@ -136,21 +136,21 @@ function CardBody({ card, interactive }) {
   );
 }
 
-// `first:rounded-t-2xl` so a hovered first card does not paint a square
+// `first:rounded-t-xl` so a hovered first card does not paint a square
 // corner over the frame's rounded one — the same job the frame's old
 // `overflow-hidden` used to do. The radius is the FRAME's (`cardClass`,
-// rounded-2xl since feat/ui-refresh); move the two together.
+// rounded-xl since feat/look-fixes); move the two together.
 //
 // `py-3.5` (feat/ui-refresh): a card is a finger's target on a phone, so it
 // gets a little more air than a table row's cell.
 const CARD_SHELL =
-  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3.5 text-left first:rounded-t-2xl last:border-0';
+  'flex w-full items-start gap-3 border-b border-edge-soft px-4 py-3.5 text-left first:rounded-t-xl last:border-0';
 
 // THE LAST CARD ROUNDS ITS BOTTOM ONLY WHEN NOTHING SITS UNDER IT. In paged
 // mode the pager is the frame's bottom edge and carries the rounding; without
 // one the last card is, and its hover would paint square over the frame's
 // bottom corners. Decided by the table, so it is a prop, not a guess.
-const CARD_SHELL_END = 'last:rounded-b-2xl';
+const CARD_SHELL_END = 'last:rounded-b-xl';
 
 // One interactive card's hover and keyboard focus. The outline is drawn
 // INSIDE the card (-2px offset): the frame has no overflow to clip an outer
@@ -307,10 +307,10 @@ export default function DataTable({
   // card — which costs a few classes and no containing block. Do not put
   // `overflow-hidden` back.
   //
-  // THE FRAME IS `cardClass` (feat/ui-refresh, 2026-10-02): 16px corners, the
-  // hairline edge, the smallest shadow — the same surface as every card and
-  // panel. Every `rounded-*-2xl` below is that radius; if `cardClass` ever
-  // changes its corner, they change with it.
+  // THE FRAME IS `cardClass` (feat/ui-refresh, 2026-10-02): 12px corners since
+  // feat/look-fixes, the hairline edge, no shadow at rest — the same surface
+  // as every card and panel. Every `rounded-*-xl` below is that radius; if
+  // `cardClass` ever changes its corner, they change with it.
   const frame = `${cardClass} ${className}`;
 
   if (error) {
@@ -416,7 +416,7 @@ export default function DataTable({
                     // the cell (`p-0` here), so the whole header cell is the
                     // target — 44px tall — instead of the label's own few
                     // pixels, and the keyboard outline has a box to draw in.
-                    className={`whitespace-nowrap bg-surface-subtle text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-2xl last:rounded-tr-2xl ${
+                    className={`whitespace-nowrap bg-surface-subtle text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-xl last:rounded-tr-xl ${
                       column.sortable ? 'p-0' : 'px-4 py-3'
                     } ${ALIGN[column.align] || ALIGN.left}`}
                   >
@@ -480,7 +480,7 @@ export default function DataTable({
                     // frame's bottom corners (see the note on `frame`).
                     className={`px-4 py-3.5 text-fg-secondary ${column.nowrap ? 'whitespace-nowrap' : ''} ${
                       ALIGN[column.align] || ALIGN.left
-                    } ${!paged && index === sortedRows.length - 1 ? 'first:rounded-bl-2xl last:rounded-br-2xl' : ''}`}
+                    } ${!paged && index === sortedRows.length - 1 ? 'first:rounded-bl-xl last:rounded-br-xl' : ''}`}
                   >
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
@@ -493,7 +493,7 @@ export default function DataTable({
 
       {paged && (
         <div
-          className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-edge bg-surface-subtle px-4 py-2.5 text-sm text-fg-body"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-b-xl border-t border-edge bg-surface-subtle px-4 py-2.5 text-sm text-fg-body"
           data-testid="datatable-pager"
         >
           <span className="tabular-nums">

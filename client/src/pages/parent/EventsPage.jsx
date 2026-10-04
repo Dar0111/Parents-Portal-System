@@ -269,7 +269,7 @@ export default function ParentEventsPage() {
               {reading ? longDate(reading.event_date) : null}
             </p>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-fg-muted">
-              <span className="rounded-full bg-brand-soft px-2.5 py-0.5 font-semibold text-brand">
+              <span className="rounded-md bg-brand-soft px-2.5 py-0.5 font-semibold text-brand">
                 {reading ? audienceLabel(reading) : null}
               </span>
               <span>Posted by {reading?.posted_by_name}</span>

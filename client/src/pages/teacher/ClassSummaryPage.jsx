@@ -114,13 +114,13 @@ export function ClassSummaryTable({ data }) {
   const stickyCell = `sticky left-0 z-10 whitespace-nowrap bg-surface text-left font-normal ${bodyCell}`;
   // The last row's outer cells are the frame's bottom corners.
   const endCorners = (rowIndex) =>
-    rowIndex === learners.length - 1 ? 'first:rounded-bl-2xl last:rounded-br-2xl' : '';
+    rowIndex === learners.length - 1 ? 'first:rounded-bl-xl last:rounded-br-xl' : '';
 
   // THE COLUMN LABEL STYLE, as on every table since feat/ui-refresh: small,
   // uppercase, muted — quieter than the values under it. The background is on
   // each cell (the sticky one always painted its own).
   const headCell =
-    'bg-surface-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-2xl last:rounded-tr-2xl';
+    'bg-surface-subtle px-3 py-3 text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-xl last:rounded-tr-xl';
 
   return (
     // `ScrollCue` owns the scroller now (UI-D-2) — it applies

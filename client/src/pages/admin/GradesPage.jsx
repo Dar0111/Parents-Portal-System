@@ -272,11 +272,20 @@ export default function AdminGradesPage() {
       render: (row) => (
         <div className="whitespace-nowrap">
           {/* `whole` — a Final Grade is an integer. The General Average at
-              the foot of this page keeps two decimals and is untouched. */}
-          <GradeValue value={row.final_grade} mode={mode} whole />
-          {row.final_grade_descriptor ? (
-            <div className="text-xs text-fg-muted">{row.final_grade_descriptor.descriptor}</div>
-          ) : null}
+              the foot of this page keeps two decimals and is untouched.
+              TWO RENDERERS (feat/look-fixes), the parent card's rule: Grade 1's
+              Final is a LETTER, and GradeValue prints a letter as "— N/A", so
+              descriptive mode goes through TermValue with its descriptor. */}
+          {mode === 'descriptive' ? (
+            <TermValue entry={{ descriptive_grade: row.final_grade, descriptor: row.final_grade_descriptor }} mode={mode} />
+          ) : (
+            <>
+              <GradeValue value={row.final_grade} mode={mode} whole />
+              {row.final_grade_descriptor ? (
+                <div className="text-xs text-fg-muted">{row.final_grade_descriptor.descriptor}</div>
+              ) : null}
+            </>
+          )}
         </div>
       ),
     },
@@ -450,7 +459,12 @@ export default function AdminGradesPage() {
                     ),
                     meta: (
                       <span>
-                        Final <GradeValue value={row.final_grade} mode={mode} whole />
+                        Final{' '}
+                        {mode === 'descriptive' ? (
+                          <TermValue entry={{ descriptive_grade: row.final_grade, descriptor: row.final_grade_descriptor }} mode={mode} />
+                        ) : (
+                          <GradeValue value={row.final_grade} mode={mode} whole />
+                        )}
                       </span>
                     ),
                   })}
@@ -474,8 +488,10 @@ export default function AdminGradesPage() {
               {/* THE GENERAL AVERAGE, as the card's one figure. The SIZE is on
                   the wrapper, never on GradeValue (§3) — two decimals, the
                   server's own number, and no word beside it but the server's
-                  descriptor. */}
-              {report && subjects.length ? (
+                  descriptor. NOT ON A DESCRIPTIVE CARD (feat/look-fixes): Grade
+                  1 has no general average at all (§5a-v, the parent card's
+                  rule); Grades 2–3 are numerical and keep it. */}
+              {report && subjects.length && mode !== 'descriptive' ? (
                 <div className={`${cardClass} flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-4`}>
                   <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
                     General Average

@@ -41,7 +41,8 @@ export default function StatusBadge({ status, tone, label, className = '' }) {
   if (status === null || status === undefined || status === '') return null;
   const resolved = TONES[tone] || TONES[toneForStatus(status)];
   return (
-    <View className={`self-start rounded-full border px-2.5 py-0.5 ${resolved.box} ${className}`}>
+    // A TAG, not a pill (feat/look-fixes, §27f / M23): the tag corner.
+    <View className={`self-start rounded-md border px-2.5 py-0.5 ${resolved.box} ${className}`}>
       <Text className={`text-xs font-semibold ${resolved.text}`}>{label || titleCase(status)}</Text>
     </View>
   );

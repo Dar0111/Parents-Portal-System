@@ -10,7 +10,6 @@ import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
 
@@ -138,9 +137,11 @@ export default function StudentsScreen({ navigation }) {
 
   const canReset = applied.status !== DEFAULT_FILTERS.status || Boolean(applied.grade_level || applied.section || applied.search);
 
+  // No section title (feat/look-fixes, owner-approved copy): the navigator's
+  // header already says "Students", and a second "Students" right under it
+  // was the same word twice.
   const header = (
     <View className="mb-4 gap-4">
-      <SectionHeader title="Students" />
       <Text className="text-sm text-fg-muted">
         Deactivating a student hides them from teachers' student and attendance lists, and stops new attendance and new grade records from being created for
         them. Their existing records and their parent's account are not changed. Activate reverses it.

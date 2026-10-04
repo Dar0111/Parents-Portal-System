@@ -197,7 +197,9 @@ export default function GradesScreen({ navigation, route }) {
   }
 
   let body;
-  if (studentsError) body = <ErrorAlert message={studentsError} />;
+  // The learner list's own retry (feat/look-fixes): its effect takes
+  // `studentsAttempt` as a key, so bumping it reads the list again.
+  if (studentsError) body = <ErrorAlert message={studentsError} onRetry={() => setStudentsAttempt((n) => n + 1)} />;
   else if (!studentId) {
     // In the frame the report card will take, so the screen keeps its shape
     // when a student is picked.
@@ -257,11 +259,23 @@ export default function GradesScreen({ navigation, route }) {
             <View key={subject.subject_id} className={`${cardClass} gap-3 p-4`}>
               <View className="flex-row items-start justify-between gap-3">
                 <Text className="min-w-0 flex-1 font-serif text-base text-fg">{subject.subject_name}</Text>
+                {/* TWO RENDERERS FOR THE FINAL (feat/look-fixes), as on the
+                    parent's card: Grade 1's Final is a LETTER, and GradeValue
+                    prints a letter as "— N/A". TermValue carries the letter
+                    and its descriptor; a number keeps GradeValue. */}
                 <View className="items-end">
-                  <Text className="text-xs text-fg-muted">
-                    Final <GradeValue value={subject.final_grade} mode={mode} whole className="text-sm text-fg" />
-                  </Text>
-                  {subject.final_grade_descriptor ? <Text className="text-right text-xs text-fg-muted">{subject.final_grade_descriptor.descriptor}</Text> : null}
+                  {mode === 'descriptive' ? (
+                    <Text className="text-xs text-fg-muted">
+                      Final <TermValue entry={{ descriptive_grade: subject.final_grade, descriptor: subject.final_grade_descriptor }} mode={mode} className="text-sm text-fg" />
+                    </Text>
+                  ) : (
+                    <>
+                      <Text className="text-xs text-fg-muted">
+                        Final <GradeValue value={subject.final_grade} mode={mode} whole className="text-sm text-fg" />
+                      </Text>
+                      {subject.final_grade_descriptor ? <Text className="text-right text-xs text-fg-muted">{subject.final_grade_descriptor.descriptor}</Text> : null}
+                    </>
+                  )}
                 </View>
               </View>
               <View className="flex-row gap-2">
@@ -277,13 +291,19 @@ export default function GradesScreen({ navigation, route }) {
           “— Pending” means not yet computable{mode === 'descriptive' ? '; “— N/A” means it does not apply to this grade level' : ''}.
         </Text>
 
-        <View className={`${cardClass} flex-row flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-4`}>
-          <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">General Average</Text>
-          <Text className="text-xl font-bold text-fg">
-            <GradeValue value={report.general_average} mode={mode} />
-          </Text>
-          {report.general_average_descriptor ? <Text className="text-xs text-fg-muted">{report.general_average_descriptor.descriptor}</Text> : null}
-        </View>
+        {/* NO GENERAL AVERAGE ON A DESCRIPTIVE CARD (feat/look-fixes), the
+            parent card's rule (§5a-v: "has a Final" and "has a General
+            Average" are two flags): Grade 1 has none at all. Grades 2–3 are
+            numerical and keep it. */}
+        {mode !== 'descriptive' ? (
+          <View className={`${cardClass} flex-row flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-4`}>
+            <Text className="text-xs font-semibold uppercase tracking-wide text-fg-muted">General Average</Text>
+            <Text className="text-xl font-bold text-fg">
+              <GradeValue value={report.general_average} mode={mode} />
+            </Text>
+            {report.general_average_descriptor ? <Text className="text-xs text-fg-muted">{report.general_average_descriptor.descriptor}</Text> : null}
+          </View>
+        ) : null}
       </View>
     );
   }

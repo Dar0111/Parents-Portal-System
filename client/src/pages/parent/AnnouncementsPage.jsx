@@ -149,7 +149,7 @@ export default function ParentAnnouncementsPage() {
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
               <span>{audienceLabel(row)}</span>
               {row.category ? (
-                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-fg-muted">
+                <span className="rounded-md bg-surface-muted px-2 py-0.5 text-fg-muted">
                   {/* Rendered exactly as stored. Free-text columns are outside
                       convention 5d's casing permission, which covers only
                       values whose stored form is lowercase BY SCHEMA. */}
@@ -228,7 +228,7 @@ export default function ParentAnnouncementsPage() {
               whether the post concerns this parent), then when and by whom,
               as a caption. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-fg-muted">
-            <span className="rounded-full bg-brand-soft px-2.5 py-0.5 font-semibold text-brand">
+            <span className="rounded-md bg-brand-soft px-2.5 py-0.5 font-semibold text-brand">
               {reading ? audienceLabel(reading) : null}
             </span>
             <span className="tabular-nums">Posted {timestampDay(reading?.created_at)}</span>

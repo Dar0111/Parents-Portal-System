@@ -39,7 +39,7 @@ export default function NotificationBell() {
         accessibilityRole="button"
         accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications, none unread'}
         android_ripple={{ color: tokens['edge-strong'] }}
-        className="items-center justify-center overflow-hidden rounded-xl border border-edge-strong"
+        className="items-center justify-center overflow-hidden rounded-lg border border-edge-strong"
         style={{ width: SIZE, height: SIZE }}
       >
         <Icon name="fa-bell" size={16} color={tokens['fg-body']} />

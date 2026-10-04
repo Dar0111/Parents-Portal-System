@@ -74,9 +74,10 @@ export default function StatusBadge({ status, tone, label, className = '' }) {
 
   const resolved = TONES[tone] || TONES[toneForStatus(status)];
 
+  // A TAG, not a pill (feat/look-fixes, §27f): the 6px tag corner.
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${resolved} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-md px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${resolved} ${className}`}
     >
       {label || titleCase(status)}
     </span>

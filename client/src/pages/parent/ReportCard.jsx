@@ -344,7 +344,7 @@ function TermCell({ entry, mode, onOpen, label }) {
 // the frame's top edge — the title band and the info row are above it — so a
 // rounded header cell cut a notch into the middle of the card. The pieces
 // that DO paint at the frame's corners round themselves: the title band
-// (`rounded-t-2xl`, in the card below).
+// (`rounded-t-xl`, in the card below).
 //
 // THE COLUMN LABEL STYLE, as on every table since feat/ui-refresh: small,
 // uppercase, muted — quieter than the values under it. `px-3` between
@@ -545,7 +545,7 @@ function TermView({
           apart, and four across fit a 390px phone without wrapping to a
           second row. The pressed one is the filled accent — colour, weight
           and `aria-pressed` together, never colour alone. */}
-      <div role="group" aria-label="Term" className="grid grid-cols-4 gap-2 rounded-xl bg-surface-muted p-1">
+      <div role="group" aria-label="Term" className="grid grid-cols-4 gap-2 rounded-lg bg-surface-muted p-1">
         {segments.map((segment) => {
           const active = selected === segment.key;
           return (
@@ -554,9 +554,9 @@ function TermView({
               type="button"
               onClick={() => onChoose(segment.key)}
               aria-pressed={active}
-              className={`min-h-11 rounded-lg px-1 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
+              className={`min-h-11 rounded-md px-1 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
                 active
-                  ? 'bg-primary font-bold text-primary-fg shadow-xs'
+                  ? 'bg-primary font-bold text-primary-fg'
                   : 'font-semibold text-fg-body hover:bg-surface hover:text-fg'
               }`}
             >
@@ -758,7 +758,7 @@ export default function ReportCard({
   // carries the frame's rounding. The icon chip is decoration and stays off
   // the printed sheet.
   const header = (
-    <div className="flex flex-col gap-3 rounded-t-2xl border-b border-edge bg-surface-subtle px-4 py-4 @min-[36rem]:flex-row @min-[36rem]:items-start @min-[36rem]:justify-between @min-[36rem]:gap-4">
+    <div className="flex flex-col gap-3 rounded-t-xl border-b border-edge bg-surface-subtle px-4 py-4 @min-[36rem]:flex-row @min-[36rem]:items-start @min-[36rem]:justify-between @min-[36rem]:gap-4">
       <div className="flex min-w-0 items-start gap-3">
         <span
           aria-hidden="true"

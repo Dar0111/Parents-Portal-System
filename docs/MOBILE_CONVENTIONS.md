@@ -1104,6 +1104,29 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   (`teacher/SlotScreen.jsx:222–255`). **The LiveStatus Refresh reconnects the
   socket and refetches both counts** (`realtime/LiveStatus.jsx:14–17`,
   `:30–31`) — the only refresh button on the phone.
+- **The radius scale on the phone (`feat/look-fixes`, 2026-10-05; FRONTEND
+  §27f).** Container `rounded-xl` (10.5dp at rem 14) — `cardClass`; control
+  `rounded-lg` (7dp) — every `Button` (`components/buttonStyles.js`), the
+  inputs, the date field and its clear button, `Segmented` (no longer a pill),
+  the bell, the attendance marks; tag `rounded-md` (5.25dp) — `StatusBadge`.
+  **Every variant has a 1dp border** in its own colour (ghost transparent), so
+  a button that changes variant keeps its box. Heights unchanged (48 / 44 /
+  52dp); the drawer is not touched.
+- **Apply is KEYED by its state** (`components/FilterActions.jsx`): going dirty
+  or clean mounts a fresh Pressable instead of restyling the old one. Restyled
+  in place, the owner's phone showed a dirty Apply as an empty blue box in Dark
+  on every filter bar; the cause was not provable from the source, so both
+  routes are closed (the remount, and a box that no longer changes border).
+- **`DataList` is ONE FlatList in every state** (`components/DataList.jsx`):
+  loading, the error and the empty state are its `ListEmptyComponent` under the
+  same `ListHeaderComponent`, so a screen's filter header is never remounted —
+  Search keeps its focus when the results go empty. A failed "Show more" keeps
+  the loaded rows; the error and its Retry render in the footer with "Show
+  more" still under them.
+- **The new-message toast renders nothing while the drawer is open**
+  (`navigation/drawerOpen.js`, pure — the drawer router's own rule, read from
+  the focused path; `realtime/MessageToast.jsx`). The store, the 5 s timer,
+  the tone and the announcement run as before.
 
 ## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
 

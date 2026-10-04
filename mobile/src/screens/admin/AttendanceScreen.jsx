@@ -165,17 +165,22 @@ export default function AttendanceScreen() {
             options={[{ key: '', label: 'All sections' }, ...sectionOptions.map((s) => ({ key: s.name, label: `${s.name}${s.adviser_id == null ? ' (no adviser)' : ''}` }))]}
           />
         ) : null}
-        <View className="flex-row gap-2">
-          <DateField label="From" value={draft.from} onChange={(v) => setDraft((p) => ({ ...p, from: v }))} clearable className="flex-1" />
-          <DateField label="To" value={draft.to} onChange={(v) => setDraft((p) => ({ ...p, to: v }))} clearable className="flex-1" />
-        </View>
+        {/* STACKED, as on the teacher screens (feat/look-fixes): side by side,
+            a chosen date and its 48dp × left about 37dp for "14 September
+            2026" on a 360dp phone, and the date wrapped. */}
+        <DateField label="From" value={draft.from} onChange={(v) => setDraft((p) => ({ ...p, from: v }))} clearable />
+        <DateField label="To" value={draft.to} onChange={(v) => setDraft((p) => ({ ...p, to: v }))} clearable />
         <Segmented label="Status" value={draft.status} onChange={(v) => setDraft((p) => ({ ...p, status: v }))} options={[{ key: '', label: 'All statuses' }, ...STATUSES.map((s) => ({ key: s, label: s }))]} />
         <FilterActions dirty={dirty} canReset={canReset} onApply={applyFilters} onReset={resetFilters} />
       </View>
       {hasScope && !loading && !error && rows.length ? (
         <View className={`${cardClass} gap-3 p-4`}>
+          {/* "N of T records" (feat/look-fixes, owner-approved copy): T is the
+              API's `page.total`, so a first page of 50 no longer reads as if
+              it were everything. The counts beside it stay over the rows
+              SHOWN, as the header note says. */}
           <Text className="text-sm font-semibold text-fg">
-            {rows.length} record{rows.length === 1 ? '' : 's'}
+            {rows.length} of {page?.total ?? rows.length} record{(page?.total ?? rows.length) === 1 ? '' : 's'}
           </Text>
           <View className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
             {COUNT_ORDER.map((name) => (

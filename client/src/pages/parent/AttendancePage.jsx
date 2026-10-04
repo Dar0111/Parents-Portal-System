@@ -466,7 +466,7 @@ export default function ParentAttendancePage() {
               Only months with recorded days are shown. A dash means nothing was recorded that month.
             </p>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-b-2xl">
+          <div className="mt-4 overflow-x-auto rounded-b-xl">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-y border-edge">

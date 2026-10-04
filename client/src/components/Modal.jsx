@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useFocusTrap } from './focusTrap';
 
 // Three sizes, lg (max-w-2xl) is the ceiling. Teacher → Contributions'
 // roster was the first Stage 4 content to hit it — the page cut columns
@@ -32,6 +33,12 @@ import { useEffect, useRef } from 'react';
 // dialogs are this component, and nothing about them may wait on a tween. It
 // also still renders INLINE, not through a portal — which is why no ancestor
 // may be left carrying a transform.
+//
+// FOCUS STAYS INSIDE (feat/look-fixes, 2026-10-05): `useFocusTrap` puts focus
+// on the panel once per opening (its effect depends on `open` only — the rule
+// above), wraps Tab inside the panel, and gives focus back to the control that
+// opened the dialog when it closes. The panel is a CONTAINER: 12px corners
+// (§27f).
 
 const SIZES = {
   sm: 'max-w-sm',
@@ -56,6 +63,10 @@ export default function Modal({
     onCloseRef.current = onClose;
   });
 
+  // Focus on the panel once per opening, Tab kept inside, focus back to the
+  // opener on close (components/focusTrap.js). Depends on `open` only.
+  useFocusTrap(panelRef, open);
+
   useEffect(() => {
     if (!open) return undefined;
 
@@ -65,12 +76,10 @@ export default function Modal({
 
     document.addEventListener('keydown', onKeyDown);
 
-    // Stop the page behind the modal from scrolling while it is open, and put
-    // focus on the panel so keyboard users are not left back on the trigger.
-    // Runs when `open` becomes true, not when onClose's identity changes.
+    // Stop the page behind the modal from scrolling while it is open. Runs
+    // when `open` becomes true, not when onClose's identity changes.
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    panelRef.current?.focus();
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
@@ -95,7 +104,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
-        className={`flex max-h-[calc(100dvh-2rem)] w-full flex-col ${SIZES[size] || SIZES.md} rounded-2xl border border-edge bg-surface shadow-xl outline-none`}
+        className={`flex max-h-[calc(100dvh-2rem)] w-full flex-col ${SIZES[size] || SIZES.md} rounded-xl border border-edge bg-surface shadow-xl outline-none`}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-edge py-2 pl-5 pr-2">
           <h2 className="min-w-0 py-1.5 font-serif text-base font-bold text-fg">{title}</h2>
@@ -106,7 +115,7 @@ export default function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-fg-muted transition hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-muted transition hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
           >
             <i aria-hidden="true" className="fa-solid fa-xmark" />
           </button>

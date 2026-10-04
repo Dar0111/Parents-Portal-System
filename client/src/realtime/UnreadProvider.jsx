@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../api/axios';
+import { createTickets } from '../api/tickets';
 import { useSocket } from './SocketProvider';
 
 // The unread-message count behind the Messages nav badge.
@@ -26,6 +27,14 @@ import { useSocket } from './SocketProvider';
 // count for that person; both are in the rows this provider already reads on
 // every `new_message`. `subscribeConversations(fn)` passes each successful
 // read's rows to `fn` — no second request, and no count made here.
+//
+// ONLY THE NEWEST REPLY IS APPLIED (feat/look-fixes, 2026-10-05). A thread that
+// marks messages read calls refresh() in the same moment as this provider's
+// own socket refresh, so two reads overlap; an older reply landing last left
+// the badge saying 1 while the Messages list, read after, showed nothing
+// unread. Every read takes a ticket (api/tickets.js), and a reply whose
+// ticket is no longer the latest is dropped — count, rows and failure alike.
+// The count is still the server's; nothing is decremented here.
 
 const UnreadContext = createContext({ unread: 0, refresh: () => {}, subscribeConversations: () => () => {} });
 
@@ -37,6 +46,7 @@ export default function UnreadProvider({ enabled, children }) {
   const { subscribe } = useSocket();
   const [unread, setUnread] = useState(0);
   const rowListenersRef = useRef(new Set());
+  const [tickets] = useState(createTickets);
 
   const refresh = useCallback(() => {
     // `enabled` is false for a role whose Messages page is not built — no
@@ -46,18 +56,20 @@ export default function UnreadProvider({ enabled, children }) {
       setUnread(0);
       return Promise.resolve();
     }
+    const ticket = tickets.take();
     return api
       .get('/messages/conversations', { unwrap: 'conversations' })
       .then((rows) => {
+        if (!tickets.isLatest(ticket)) return; // a newer read has started
         setUnread(rows.reduce((sum, r) => sum + Number(r.unread_count || 0), 0));
         for (const fn of rowListenersRef.current) fn(rows);
       })
       .catch(() => {
         // A failed count is not worth a page-level error — the Messages page
         // itself reports properly if the endpoint is unreachable.
-        setUnread(0);
+        if (tickets.isLatest(ticket)) setUnread(0);
       });
-  }, [enabled]);
+  }, [enabled, tickets]);
 
   useEffect(() => {
     refresh();

@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-04, `feat/form-drafts` (on `main` `ee36b97`, where the UI refresh is merged) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-05, `feat/look-fixes` (on `main` `28fee18`, where form drafts are merged) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -885,8 +885,13 @@ pull); the LiveStatus strip's Refresh is the only refresh button (web: a full
 reload; phone: reconnect + both counts). The leave-guard sentence says
 "discards it" for one mark, "them" for more. **On the phone a weight class is
 a font FAMILY, `theme.fontWeight` is `{}`, and every `<Text>` is
-`components/Text.jsx`.** Full text: `docs/FRONTEND_CONVENTIONS.md` §27,
-MOBILE M23–M24.
+`components/Text.jsx`.** **One radius scale by role (§27f, `feat/look-fixes`):
+container `rounded-xl` (`cardClass`, Modal), control `rounded-lg` (every
+button, input, tab, segment), tag `rounded-md` (badges, chips), circles for
+avatars, the seal, dots and counts; every button variant has a 1px border in
+its own colour and no shadow; inner corners of a card move with `cardClass`;
+input focus is the `focus-accent` border.** Full text:
+`docs/FRONTEND_CONVENTIONS.md` §27, MOBILE M23–M24.
 
 ### 28. Form drafts — kept until submit, discard or logout; keyed by numbers
 
@@ -1639,14 +1644,14 @@ its `docs/CHANGELOG.md` row.
 - [x] **Form drafts, Phase 1 — `feat/form-drafts`** (`0df46b3` + its docs
       pass), device-checked 2026-10-04 (web: laptop Chrome, parent in a
       normal window, teacher in Incognito; phone: Expo Go on a Tecno,
-      Android 14), cleaned up by id (backup 277). **Not merged.** Rules: §28,
-      M25.
+      Android 14), cleaned up by id (backup 277). **Merged 2026-10-05
+      (fast-forward, `28fee18`).** Rules: §28, M25.
+- [ ] **Build 1 — `feat/look-fixes`**, built 2026-10-05: the flagged screens
+      and their fixes, the button and chip shapes (§27f), the four small KNOWN
+      ISSUES fixes. **Not yet device-checked; not merged.** Rules: §27f, M23.
 
-**NEXT, in order (owner, 2026-10-04):** merge `feat/form-drafts` → build 1
-(the flagged screens and their fixes, the button and chip shapes, and the
-four small KNOWN ISSUES fixes — the phone Login's Next key; the focus trap
-in `Modal` and the web drawer; the web message-thread spinner; the
-class-record load guard) → build 2 (the dashboards) → the
+**NEXT, in order (owner, 2026-10-04):** build 1's device check, then merge
+→ build 2 (the dashboards) → the
 `scripts/create-backup-zip.js` fix (before the smoke gate; the script is
 not run until it is fixed) → smoke gate → manuscript delta list (the team
 applies it) → professor system check, Fri 2026-10-09. After the check: the

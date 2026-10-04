@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
 import Button from '../components/Button';
+import { useFocusTrap } from '../components/focusTrap';
 import RailTooltip from '../components/RailTooltip';
 import { DURATION, EASE, MOTION_OK, gsap, useGSAP } from '../motion/motion';
 import { requestLeave } from './leaveGuard';
@@ -331,9 +332,17 @@ export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
 //
 // The panel is a bare <aside>, like the sidebar, on purpose — the print rules
 // hide `aside` and `header` by element name.
+//
+// FOCUS STAYS INSIDE (feat/look-fixes, 2026-10-05): the panel takes focus once
+// per opening — the drawer mounts when it opens, so `active` is simply true
+// for its life — Tab wraps inside it, Escape closes it as its close button
+// does, and focus goes back to the menu button when it closes
+// (components/focusTrap.js). The <aside> is named "Menu" (`aria-label`; its
+// own complementary role carries the name).
 function Drawer({ onClose, children }) {
   const backdropRef = useRef(null);
   const panelRef = useRef(null);
+  useFocusTrap(panelRef, true, { onEscape: onClose });
 
   useGSAP(() => {
     const backdrop = backdropRef.current;
@@ -351,7 +360,9 @@ function Drawer({ onClose, children }) {
       <div ref={backdropRef} className="absolute inset-0 bg-backdrop" onClick={onClose} />
       <aside
         ref={panelRef}
-        className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-surface shadow-xl"
+        tabIndex={-1}
+        aria-label="Menu"
+        className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-surface shadow-xl outline-none"
       >
         {children}
       </aside>

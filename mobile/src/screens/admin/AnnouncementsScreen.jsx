@@ -153,6 +153,17 @@ export default function AnnouncementsScreen({ navigation, route }) {
     ]);
   }
 
+  // SWITCHING LISTS CLEARS THE OLD ROWS FIRST (feat/look-fixes): they stayed
+  // on screen until the other list's read landed, formatted as the new kind —
+  // announcements dressed as memos. With no rows the list shows its spinner.
+  function switchKind(next) {
+    if (next === kind) return;
+    setRows([]);
+    setPage(null);
+    setError(null);
+    setKind(next);
+  }
+
   function applyFilter() {
     setFilter(filterDraft);
   }
@@ -187,7 +198,7 @@ export default function AnnouncementsScreen({ navigation, route }) {
         <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
         <Text className="min-w-0 flex-1 text-sm text-info-strong">Memos have no page of their own — they are posted here and go to everyone.</Text>
       </View>
-      <Segmented label="Show" value={kind} onChange={setKind} options={SEGMENTS} />
+      <Segmented label="Show" value={kind} onChange={switchKind} options={SEGMENTS} />
       <SectionHeader title={isAnn ? 'Announcements' : 'Memos'} />
       {/* Neutral, on its own row (§21b): Apply's fill is the "changes not
           applied" signal, so the page action is never a second filled button

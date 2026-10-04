@@ -288,7 +288,9 @@ export default function MessagesPage() {
                           type="button"
                           onClick={() => {
                             setPicking(false);
-                            navigate(`/teacher/messages/${c.id}`);
+                            // The name rides in router state, so a new thread
+                            // is titled with it before any message exists.
+                            navigate(`/teacher/messages/${c.id}`, { state: { name: c.name } });
                           }}
                           className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent"
                         >

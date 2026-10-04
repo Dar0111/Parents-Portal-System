@@ -4,11 +4,18 @@ import { buttonClass } from './buttonClass';
 // Shared control styling, exported so a page rendering a control this
 // component does not cover (a date range, a custom picker) can still match.
 //
-// THE CONTROL IS 44px TALL AND 12px-CORNERED (feat/ui-refresh, 2026-10-02):
-// `min-h-11 rounded-xl`, the same height and corner as every button
-// (buttonClass.js), so a filter row's inputs and its Apply line up and a
-// finger has a full target. A MIN-height, so a <textarea> still takes the
-// height its `rows` ask for.
+// THE CONTROL IS 44px TALL AND 8px-CORNERED (feat/ui-refresh, 2026-10-02;
+// the corner since feat/look-fixes, 2026-10-05): `min-h-11 rounded-lg`, the
+// same height and the CONTROL corner every button has (buttonClass.js, §27f),
+// so a filter row's inputs and its Apply line up and a finger has a full
+// target. A MIN-height, so a <textarea> still takes the height its `rows`
+// ask for.
+//
+// FOCUS IS THE ACCENT BORDER (feat/look-fixes): `focus:border-focus-accent`,
+// 5.17:1 on `surface` in Light and 6.97:1 in Dark (lint:contrast's
+// focus-accent/surface pair). It was `focus-edge`, 2.56:1 in Light — under
+// WCAG 1.4.11's 3:1, so in Light a focused field barely differed from an
+// idle one. The 2px `focus-ring` halo stays as decoration around it.
 //
 // THE ERROR BORDER NEVER SHOWED, FOR ANY SHAPE, UNTIL 2026-09-18. The old
 // composition was `${controlClass} ${error ? errorClass : ''}` — BOTH
@@ -20,8 +27,8 @@ import { buttonClass } from './buttonClass';
 // different class but NOT emitting the slate state classes when invalid:
 // controlClassFor(invalid) picks one state or the other, never both.
 const controlBaseClass =
-  'block min-h-11 w-full rounded-xl border bg-surface px-3 py-2 text-sm text-fg shadow-xs transition placeholder:text-fg-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
-const normalStateClass = 'border-edge-strong focus:border-focus-edge focus:ring-focus-ring';
+  'block min-h-11 w-full rounded-lg border bg-surface px-3 py-2 text-sm text-fg shadow-xs transition placeholder:text-fg-muted focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-fg-muted';
+const normalStateClass = 'border-edge-strong focus:border-focus-accent focus:ring-focus-ring';
 
 // Exported for shape-4 callers: the render object tells them `invalid`, and
 // this is the border they apply — the same one shapes 1–3 get.

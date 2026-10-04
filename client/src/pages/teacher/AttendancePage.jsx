@@ -96,7 +96,7 @@ export function StatusButtons({ student, marks, onPick, size = 'phone' }) {
             // mark, and an unset radio group cannot express that.
             aria-pressed={on}
             onClick={() => onPick(student.id, s)}
-            className={`h-11 rounded-xl border px-1 text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
+            className={`h-11 rounded-lg border px-1 text-xs transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
               size === 'web' ? 'w-[5.5rem]' : ''
             } ${
               on

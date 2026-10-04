@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import { dateTime } from '../../format/date';
@@ -142,18 +142,35 @@ export default function MessageThreadPage() {
   // sets state synchronously on a thread change.
   const [contactInfo, setContactInfo] = useState({ forId: null, failed: false, row: null });
 
+  // THE OTHER PERSON, from a message that CARRIES their name (feat/look-fixes).
+  // A just-sent message is the POST's row, which has no names; in a new thread
+  // it was the only row, so `other.name` was undefined and the header fell
+  // back to the nav's "Messages". Only a row with the name counts now.
   const other = useMemo(() => {
-    const row = messages.find((m) => m.sender_id === otherId || m.receiver_id === otherId);
+    const row = messages.find((m) => (m.sender_id === otherId && m.sender_name) || (m.receiver_id === otherId && m.receiver_name));
     if (!row) return null;
     return row.sender_id === otherId
       ? { name: row.sender_name, role: row.sender_role }
       : { name: row.receiver_name, role: row.receiver_role };
   }, [messages, otherId]);
 
-  usePageTitle(other ? other.name : 'Conversation');
+  // A NEW THREAD IS TITLED WITH THE PERSON'S NAME (owner-approved copy): the
+  // New-message picker hands the contact's name over in router state, so the
+  // header names them before the first message exists. Router state, never
+  // the URL (§5c: the URL carries users.id only).
+  const location = useLocation();
+  const pickedName = typeof location.state?.name === 'string' && location.state.name ? location.state.name : null;
+
+  usePageTitle(other?.name || pickedName || 'Conversation');
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // THE SPINNER IS FOR A THREAD'S FIRST LOAD ONLY (feat/look-fixes): this
+    // runs on every incoming message, and swapping the whole page to the
+    // spinner each time blinked the thread out and took focus from the
+    // composer. Now it shows while this thread has never loaded, or while it
+    // is empty — the phone's rule (MessageThreadScreen) — and a re-read keeps
+    // the list on screen.
+    setLoading(loadedForRef.current !== otherId || messagesRef.current.length === 0);
     setError(null);
     try {
       const result = await api.get(`/messages/with/${otherId}`, { unwrap: ['messages', 'page'] });
@@ -180,7 +197,9 @@ export default function MessageThreadPage() {
       }
     } catch (err) {
       setError(extractError(err));
-      setMessages([]);
+      // A failed RE-READ keeps the list (the error shows above it, with its
+      // Retry); only a thread that never loaded is left empty.
+      if (loadedForRef.current !== otherId) setMessages([]);
     } finally {
       setLoading(false);
     }

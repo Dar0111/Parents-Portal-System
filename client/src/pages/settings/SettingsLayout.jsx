@@ -79,7 +79,7 @@ export default function SettingsLayout() {
                 to={tab.to}
                 end={tab.to === ''}
                 className={({ isActive }) =>
-                  `flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
+                  `flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent ${
                     isActive
                       ? 'bg-brand-soft font-semibold text-brand'
                       : 'text-fg-body hover:bg-surface-muted hover:text-fg'

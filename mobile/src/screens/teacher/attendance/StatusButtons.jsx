@@ -44,7 +44,7 @@ export default function StatusButtons({ student, marks, onPick }) {
             accessibilityRole="button"
             accessibilityLabel={`${status}${on ? ', selected' : ''}`}
             accessibilityState={{ selected: on }}
-            className={`flex-1 items-center justify-center rounded-xl px-1 ${on ? `border-2 ${tone.box}` : 'border border-edge-strong bg-surface'}`}
+            className={`flex-1 items-center justify-center rounded-lg px-1 ${on ? `border-2 ${tone.box}` : 'border border-edge-strong bg-surface'}`}
             style={{ minHeight: TARGET }}
           >
             <Text numberOfLines={1} className={`text-xs ${on ? `font-bold ${tone.text}` : 'text-fg-body'}`}>

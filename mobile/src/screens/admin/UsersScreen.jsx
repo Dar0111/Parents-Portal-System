@@ -68,6 +68,7 @@ export default function UsersScreen({ navigation, route }) {
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingMorePending, setLoadingMorePending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
@@ -120,13 +121,19 @@ export default function UsersScreen({ navigation, route }) {
     }
   }
 
+  // One page at a time (feat/look-fixes): a second tap while a page is on its
+  // way would ask for the same offset twice and append it twice.
   async function loadMorePending() {
+    if (loadingMorePending) return;
+    setLoadingMorePending(true);
     try {
       const result = await api.get('/users/parents/pending', { unwrap: ['parents', 'page'], params: listParams({ offset: pending.length }) });
       setPending((prev) => [...prev, ...result.parents]);
       setPendingPage(result.page);
     } catch (err) {
       setFormStatus({ pending: fail(extractError(err)) });
+    } finally {
+      setLoadingMorePending(false);
     }
   }
 
@@ -223,7 +230,10 @@ export default function UsersScreen({ navigation, route }) {
         />
         <Text className="text-sm text-fg-muted">A parent account stays pending until it is approved or rejected. That decision cannot be returned to pending afterward.</Text>
         <FormStatus status={formStatus.pending} />
-        {pending.length === 0 && !loading ? (
+        {/* Not over a failed read (feat/look-fixes): "No parent accounts
+            waiting" would be a claim the screen cannot make — the error shows
+            below, where the directory's list would be. */}
+        {pending.length === 0 && !loading && !error ? (
           <View className={`${cardClass} flex-row items-start gap-3 p-4`}>
             <View className="h-9 w-9 items-center justify-center rounded-xl bg-surface-muted">
               <Icon name="fa-envelope-open-text" size={15} color={tokens['fg-muted']} />
@@ -250,7 +260,7 @@ export default function UsersScreen({ navigation, route }) {
           ))
         )}
         {pendingPage?.has_more ? (
-          <Button variant="secondary" full onPress={loadMorePending}>
+          <Button variant="secondary" full loading={loadingMorePending} onPress={loadMorePending}>
             Show more
           </Button>
         ) : null}

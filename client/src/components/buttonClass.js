@@ -25,8 +25,20 @@
 // `disabledStyles: false` leaves out the two `disabled:` utilities, for a
 // button that is never disabled and whose markup a proof reads for that word
 // (FilterActions: Apply is quiet when clean, never disabled — §21).
+//
+// ONE RADIUS SCALE BY ROLE (feat/look-fixes, 2026-10-05; FRONTEND §27f): a
+// CONTROL — this button, an input, a tab, a toggle track — is `rounded-lg`
+// (8px); a CONTAINER (`cardClass` below, a modal) is `rounded-xl` (12px); a
+// segment inside a track and a TAG (a status badge, an audience chip) are
+// `rounded-md` (6px); avatars, the seal, dots and counts stay circles.
+//
+// EVERY VARIANT HAS A 1px BORDER, the filled ones in their own fill colour
+// (hover included) and ghost a transparent one, so a button never changes
+// size when its variant changes — Apply flips from secondary to primary in
+// place — and a primary beside a secondary is the same box. No shadow: the
+// fill and the border carry the button.
 const BASE =
-  'inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent';
+  'inline-flex items-center justify-center gap-2 rounded-lg border font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent';
 
 const DISABLED = 'disabled:cursor-not-allowed disabled:opacity-60';
 
@@ -40,17 +52,17 @@ const SIZES = {
 
 const VARIANTS = {
   // The one filled accent action on a screen.
-  primary: 'bg-primary text-primary-fg shadow-xs hover:bg-primary-hover',
+  primary: 'border-primary bg-primary text-primary-fg hover:border-primary-hover hover:bg-primary-hover',
   // The neutral bordered button: Cancel, Reset, a row action.
-  secondary: 'border border-edge-strong bg-surface text-fg-secondary shadow-xs hover:bg-surface-muted',
+  secondary: 'border-edge-strong bg-surface text-fg-secondary hover:bg-surface-muted',
   // No frame until hovered: toolbar and icon controls.
-  ghost: 'text-fg-body hover:bg-surface-muted hover:text-fg',
+  ghost: 'border-transparent text-fg-body hover:bg-surface-muted hover:text-fg',
   // A destructive confirm.
-  danger: 'bg-danger-solid text-solid-fg shadow-xs hover:bg-danger-solid-hover',
+  danger: 'border-danger-solid bg-danger-solid text-solid-fg hover:border-danger-solid-hover hover:bg-danger-solid-hover',
   // A destructive row action, before the confirmation that names it.
-  'danger-outline': 'border border-danger-edge bg-surface text-danger-text hover:bg-danger-soft',
+  'danger-outline': 'border-danger-edge bg-surface text-danger-text hover:bg-danger-soft',
   // An approving confirm.
-  success: 'bg-success-solid text-solid-fg shadow-xs hover:bg-success-solid-hover',
+  success: 'border-success-solid bg-success-solid text-solid-fg hover:border-success-solid-hover hover:bg-success-solid-hover',
 };
 
 export function buttonClass({
@@ -77,8 +89,8 @@ export function buttonClass({
 export const linkClass =
   'font-semibold text-brand underline-offset-2 transition hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent';
 
-// THE CARD SURFACE. Every panel, list frame and form card: 16px corners, the
-// hairline edge, and the smallest shadow — the edge still carries the
-// separation in dark, where a shadow is invisible (§8). Add padding at the
-// call site.
-export const cardClass = 'rounded-2xl border border-edge bg-surface shadow-xs';
+// THE CARD SURFACE. Every panel, list frame and form card: the CONTAINER
+// radius (12px), the hairline edge, and no shadow at rest — the edge carries
+// the separation in both themes (§8; in dark a shadow is invisible anyway).
+// Add padding at the call site.
+export const cardClass = 'rounded-xl border border-edge bg-surface';

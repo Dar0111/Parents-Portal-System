@@ -3284,6 +3284,43 @@ Expo Go. The phone's side is MOBILE_CONVENTIONS M23–M24.
   and the phone's two sentences (`AttendanceScreen.jsx:176`, `:208`). No
   proof pins the sentence (TESTING → Not yet proved).
 
+### 27f. One radius scale by role, constant borders (`feat/look-fixes`, 2026-10-05)
+
+The owner found the buttons and chips tacky: soft pills and 12–16px corners
+on everything. Planned with the `redesign-existing-projects` skill (its
+"uniform border-radius" and "pill badges" findings), approved, built in build 1.
+
+| Role | Corner (web / phone) | What takes it |
+|---|---|---|
+| Container | `rounded-xl` — 12px / 10.5dp | `cardClass` (`components/buttonClass.js`, phone `buttonStyles.js`), `Modal`'s panel |
+| Control | `rounded-lg` — 8px / 7dp | every `Button` and `buttonClass()`, inputs (`FormField`), the phone's date field, segments and bell, the settings tabs, the report card's term track, the attendance marks, ScrollCue's button |
+| Segment inside a track | `rounded-md` — 6px | the report card's term segments |
+| Tag | `rounded-md` — 6px / 5.25dp | `StatusBadge`, the audience and category chips, the verified chips, the waiting count, the backup tag |
+| Circle | `rounded-full` | avatars, the seal, dots, the unread and bell counts — unchanged |
+
+- **Every button variant has a 1px border**, the filled ones in their own
+  fill colour with hover (`border-primary hover:border-primary-hover`, likewise
+  danger and success), ghost `border-transparent`; **no button shadow**. A
+  button that changes variant in place keeps its size, and a primary beside a
+  secondary is the same box (`buttonClass.js:28–68`).
+- **`cardClass` is `rounded-xl border border-edge bg-surface`** — no shadow at
+  rest. Anything that paints a card's corner from inside (DataTable's header
+  cells, first card, last row and pager; the class record, the class summary,
+  the parent attendance table, the report card's title band) uses the same
+  `rounded-*-xl`. **Move them together** (`DataTable.jsx:139–142`).
+- **Input focus is the accent border** (`FormField.jsx`,
+  `focus:border-focus-accent`, 5.17:1 Light / 6.97:1 Dark); the `focus-ring`
+  halo stays as decoration.
+- **Heights, padding and touch areas are unchanged** (44 / 36 / 48px web;
+  48 / 44 / 52dp phone). **No press motion** (§27c).
+- **Not reshaped:** the web sidebar and rail and the phone drawer (locked —
+  they keep `rounded-xl`); the dashboards' own card, hero and chips (build 2);
+  one-off inner rectangles.
+- **The focus trap** (`components/focusTrap.js`): `Modal` and the web drawer
+  take focus once per opening (the effect depends on the open state only),
+  wrap Tab, and give focus back to the opener; the drawer closes on Escape and
+  is named "Menu" on its `<aside>`.
+
 ## 28. Form drafts — kept in the tab, keyed by numbers, gone on logout (`feat/form-drafts`, 2026-10-04)
 
 Phase 1 covers five forms and the message box: the parent's excuse letter,

@@ -1,4 +1,4 @@
-import { FlatList, RefreshControl, ScrollView, View } from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
 import Button from './Button';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
@@ -18,6 +18,27 @@ import { useTheme } from '../theme/ThemeProvider';
 // "Show more" is the shared `Button` (feat/ui-refresh, 2026-10-02): full
 // width, 48dp, and while the next page loads it is disabled with a spinner
 // beside the same "Loading…" label it always showed.
+//
+// ONE FlatList, WHATEVER THE STATE (feat/look-fixes, 2026-10-05). Loading,
+// the error and the empty state are the list's EMPTY content, and the header
+// is always its `ListHeaderComponent` — so the screen's filter header is the
+// same mounted element in every state. It was a ScrollView in three of the
+// four branches and the FlatList in the fourth, so a filter that took the
+// list from rows to none (or back) remounted the header: Search lost its
+// focus and the keyboard, and the scroll jumped to the top.
+//
+// A FAILED "SHOW MORE" KEEPS THE ROWS. An error that arrives while rows are on
+// screen renders in the FOOTER — its Retry is the screen's own re-read, and
+// "Show more" stays under it while the list still has more, so the failed page
+// can be asked for again — and the loaded rows stay where they were. It used
+// to replace the whole list with the error. (The list cannot tell a failed
+// page from a failed re-read; offering both is honest either way.)
+//
+// THE HEADER KEEPS THE LIST'S 16px GUTTER (phone check finding, 2026-09-27):
+// the content container pads everything, header and empty states included.
+// Every state scrolls and takes pull-to-refresh, so a list that came back
+// empty or failed can be asked again the same way (feat/ui-refresh) — except
+// the first load, which has nothing to pull yet.
 export default function DataList({
   rows,
   keyField = 'id',
@@ -36,51 +57,33 @@ export default function DataList({
   contentContainerStyle,
 }) {
   const { tokens } = useTheme();
+  const firstLoad = loading && !rows.length;
+  const pull =
+    onRefresh && !firstLoad ? (
+      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />
+    ) : undefined;
 
-  // THE HEADER KEEPS THE LIST'S 16px GUTTER IN EVERY BRANCH (phone check
-  // finding, 2026-09-27): the empty branch rendered it flush against the
-  // screen edge, so "New message" had no right margin before the first
-  // conversation existed. The FlatList branch pads through its content
-  // container; the other three pad through theirs.
-  //
-  // THOSE THREE SCROLL (feat/ui-refresh, 2026-10-02). They were a plain View,
-  // and a screen's header — a section title, filters, 48dp controls — is now
-  // tall enough that on a short phone the empty state or the error under it
-  // could fall below the fold with no way to reach it. A ScrollView with the
-  // same gutter keeps everything reachable, and the error and empty states
-  // take the same pull-to-refresh the list has, so a list that came back
-  // empty can be asked again the same way.
-  const pull = onRefresh ? (
-    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />
-  ) : undefined;
-  const frame = { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 };
+  let emptyContent;
+  if (firstLoad) emptyContent = <LoadingSpinner className="py-12" />;
+  else if (error) emptyContent = <ErrorAlert message={error} onRetry={onRetry} />;
+  else emptyContent = <EmptyState icon={empty.icon} title={empty.title} message={empty.message} action={empty.action} />;
 
-  if (loading && !rows.length) {
-    return (
-      <ScrollView className="flex-1" contentContainerStyle={frame} keyboardShouldPersistTaps="handled">
-        {header}
-        <LoadingSpinner className="py-12" />
-      </ScrollView>
-    );
-  }
-
-  if (error) {
-    return (
-      <ScrollView className="flex-1" contentContainerStyle={frame} keyboardShouldPersistTaps="handled" refreshControl={pull}>
-        {header}
-        <ErrorAlert message={error} onRetry={onRetry} />
-      </ScrollView>
-    );
-  }
-
-  if (!rows.length) {
-    return (
-      <ScrollView className="flex-1" contentContainerStyle={frame} keyboardShouldPersistTaps="handled" refreshControl={pull}>
-        {header}
-        <EmptyState icon={empty.icon} title={empty.title} message={empty.message} action={empty.action} />
-      </ScrollView>
-    );
-  }
+  // With rows on screen: the error (a failed "Show more" or re-read) and its
+  // Retry, then "Show more" while there is more.
+  const footerError = rows.length && error ? <ErrorAlert message={error} onRetry={onRetry} /> : null;
+  const footerMore =
+    rows.length && hasMore ? (
+      <Button variant="secondary" full loading={loadingMore} onPress={onLoadMore}>
+        {loadingMore ? 'Loading…' : loadMoreLabel}
+      </Button>
+    ) : null;
+  const footer =
+    footerError || footerMore ? (
+      <View className="mt-4 gap-3">
+        {footerError}
+        {footerMore}
+      </View>
+    ) : null;
 
   return (
     <FlatList
@@ -89,13 +92,8 @@ export default function DataList({
       renderItem={({ item }) => <RecordCard card={renderCard(item)} />}
       ItemSeparatorComponent={() => <View className="h-3" />}
       ListHeaderComponent={header}
-      ListFooterComponent={
-        hasMore ? (
-          <Button variant="secondary" full loading={loadingMore} onPress={onLoadMore} className="mt-4">
-            {loadingMore ? 'Loading…' : loadMoreLabel}
-          </Button>
-        ) : null
-      }
+      ListEmptyComponent={emptyContent}
+      ListFooterComponent={footer}
       refreshControl={pull}
       contentContainerStyle={[{ padding: 16 }, contentContainerStyle]}
       keyboardShouldPersistTaps="handled"

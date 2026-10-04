@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
@@ -81,6 +81,10 @@ export default function LoginScreen({ navigation }) {
 
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
+  // NEXT MOVES TO THE PASSWORD (feat/look-fixes, 2026-10-05): the login id's
+  // Next key focuses this field, and `submitBehavior="submit"` keeps the
+  // keyboard up through the move. It used to only close the keyboard.
+  const passwordRef = useRef(null);
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState(() => takeLogoutReason());
   const [submitting, setSubmitting] = useState(false);
@@ -149,6 +153,8 @@ export default function LoginScreen({ navigation }) {
                         autoComplete="username"
                         textContentType="username"
                         returnKeyType="next"
+                        submitBehavior="submit"
+                        onSubmitEditing={() => passwordRef.current?.focus()}
                         placeholderTextColor={tokens['fg-muted']}
                         className={`${controlClassFor(invalid)} pl-10`}
                       />
@@ -158,6 +164,7 @@ export default function LoginScreen({ navigation }) {
 
                 <PasswordField
                   label="Password"
+                  inputRef={passwordRef}
                   value={password}
                   onChangeText={setPassword}
                   autoComplete="current-password"

@@ -11,10 +11,9 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-04: `main` at `ee36b97` (the UI refresh is merged)
-plus `feat/form-drafts` — built on web and phone, both proofs green,
-device-checked by the owner and cleaned up by id (backup 277), merge-ready,
-not yet merged.** Table and endpoint
+**Snapshot, 2026-10-05: `main` at `28fee18` (form drafts are merged,
+fast-forward) plus `feat/look-fixes` — build 1, built on web and phone,
+its proofs green, not yet device-checked, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -34,7 +33,8 @@ and only there.
 | During Stage 5 — SMS reset codes, server reliability, UI polish (merged 2026-09-29 → 09-30) | ✅ | ✅ | ✅ |
 | After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
-| Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merge-ready | ✅ merge-ready |
+| Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merged 2026-10-05 | ✅ merged 2026-10-05 |
+| Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built 2026-10-05) | — | ✅ built, device check next | ✅ built, device check next |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -94,7 +94,11 @@ A module with tables and no handlers is not started; there are none.
   vibrate-only mode; during Do Not Disturb the tone still plays and the
   vibration ignores DND and the ringer** — Expo Go limits, fixed with the
   APK (KNOWN_ISSUES). Enter sends on the web, Shift+Enter is a new line.
-- **Form drafts** (on `feat/form-drafts`, not yet merged) — the excuse
+- **One shape language** (on `feat/look-fixes`, not yet merged) — cards
+  `rounded-xl`, every control `rounded-lg`, badges and chips `rounded-md`
+  tags, circles only for avatars, the seal, dots and counts; every button has
+  a border in its own colour and no shadow (CLAUDE.md §27, FRONTEND §27f).
+- **Form drafts** (merged 2026-10-05) — the excuse
   letter, the teacher's announcement and event, the admin's announcement
   and memo, and each Messages thread keep what was typed until a confirmed
   submit, Discard draft or logout: in the browser tab on the web (a reload
@@ -113,17 +117,14 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 The owner's order (2026-10-04, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Merge `feat/form-drafts`** — on the owner's word.
-2. **Build 1** — the flagged screens and their fixes, the button and chip
-   shapes, and the four small KNOWN_ISSUES fixes (the phone Login's Next
-   key; the focus trap in `Modal` and the web drawer; the web message-thread
-   spinner; the class-record load guard).
-3. **Build 2** — the dashboards.
-4. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
+1. **Build 1's device check** (`feat/look-fixes`, built 2026-10-05), then
+   merge on the owner's word.
+2. **Build 2** — the dashboards.
+3. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
    script is not run until it is fixed.
-5. **Smoke gate** across web and mobile.
-6. **Manuscript delta list** (the team applies it).
-7. **Professor system check, Fri 2026-10-09.**
+4. **Smoke gate** across web and mobile.
+5. **Manuscript delta list** (the team applies it).
+6. **Professor system check, Fri 2026-10-09.**
 
 After the check: the cloud (Supabase) survey.
 
@@ -142,7 +143,8 @@ edge-to-edge (re-check on Android 15+ and in the APK); native dialogs not
 following the app's theme (accepted); the seeded admin password (change it
 before the pilot); form drafts stored unencrypted in the tab or on the
 device, the phone not reopening a form after a kill, and a draft's free text
-holding anything typed (all three accepted).
+holding anything typed (all three accepted); the parent calendar's faint
+"Today" ring (the `focus-ring` token, under 3:1).
 
 ---
 

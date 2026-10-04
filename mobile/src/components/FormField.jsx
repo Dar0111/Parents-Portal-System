@@ -23,7 +23,8 @@ import Text from './Text';
 // about 48dp at the phone's 14dp rem (M19). `font-sans` is IN the class
 // because a TextInput is not the shared `Text`: without it the typed text and
 // the placeholder would fall back to the system face.
-const controlBaseClass = 'w-full rounded-xl border bg-surface px-4 py-3.5 font-sans text-base text-fg';
+// The CONTROL corner since feat/look-fixes (`rounded-lg`, §27f / M23).
+const controlBaseClass = 'w-full rounded-lg border bg-surface px-4 py-3.5 font-sans text-base text-fg';
 const normalStateClass = 'border-edge-strong';
 export const errorClass = 'border-danger-edge-strong';
 

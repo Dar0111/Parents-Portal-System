@@ -18,7 +18,13 @@
 // class (§8 still holds — the value is the token's). The neutral ripple is
 // `edge-strong`, not `surface-muted`: Android draws a ripple at reduced
 // alpha, and the lighter token all but vanishes on a white surface.
-const BOX = 'flex-row items-center justify-center gap-2 overflow-hidden rounded-xl';
+//
+// THE WEB'S SHAPE RULES (feat/look-fixes, 2026-10-05; FRONTEND §27f, MOBILE
+// M23): a button is a CONTROL, `rounded-lg` (7dp at the phone's rem); a card
+// is a CONTAINER, `rounded-xl`. EVERY VARIANT HAS A 1dp BORDER — the filled
+// ones in their own fill colour, ghost a transparent one — so a button that
+// changes variant in place (FilterActions' Apply) keeps the same box.
+const BOX = 'flex-row items-center justify-center gap-2 overflow-hidden rounded-lg border';
 
 const SIZES = {
   md: { pad: 'px-4 py-2.5', minHeight: 48, label: 'text-sm' },
@@ -28,17 +34,17 @@ const SIZES = {
 
 const VARIANTS = {
   // The one filled accent action on a screen.
-  primary: { box: 'bg-primary', label: 'text-primary-fg', ink: 'primary-fg', ripple: 'primary-hover' },
+  primary: { box: 'border-primary bg-primary', label: 'text-primary-fg', ink: 'primary-fg', ripple: 'primary-hover' },
   // The neutral bordered button: Cancel, Reset, a row action.
-  secondary: { box: 'border border-edge-strong bg-surface', label: 'text-fg-secondary', ink: 'fg-secondary', ripple: 'edge-strong' },
+  secondary: { box: 'border-edge-strong bg-surface', label: 'text-fg-secondary', ink: 'fg-secondary', ripple: 'edge-strong' },
   // No frame: a quiet control beside others.
-  ghost: { box: '', label: 'text-fg-body', ink: 'fg-body', ripple: 'edge-strong' },
+  ghost: { box: 'border-transparent', label: 'text-fg-body', ink: 'fg-body', ripple: 'edge-strong' },
   // A destructive confirm.
-  danger: { box: 'bg-danger-solid', label: 'text-solid-fg', ink: 'solid-fg', ripple: 'danger-solid-hover' },
+  danger: { box: 'border-danger-solid bg-danger-solid', label: 'text-solid-fg', ink: 'solid-fg', ripple: 'danger-solid-hover' },
   // A destructive row action, before the confirmation that names it.
-  'danger-outline': { box: 'border border-danger-edge bg-surface', label: 'text-danger-text', ink: 'danger-text', ripple: 'danger-edge' },
+  'danger-outline': { box: 'border-danger-edge bg-surface', label: 'text-danger-text', ink: 'danger-text', ripple: 'danger-edge' },
   // An approving confirm.
-  success: { box: 'bg-success-solid', label: 'text-solid-fg', ink: 'solid-fg', ripple: 'success-solid-hover' },
+  success: { box: 'border-success-solid bg-success-solid', label: 'text-solid-fg', ink: 'solid-fg', ripple: 'success-solid-hover' },
 };
 
 export function buttonStyles({ variant = 'secondary', size = 'md', full = false, disabled = false } = {}) {
@@ -53,6 +59,7 @@ export function buttonStyles({ variant = 'secondary', size = 'md', full = false,
   };
 }
 
-// THE CARD SURFACE: 16px corners (14dp at the phone's rem), the hairline
-// edge, and the smallest elevation. Add padding at the call site.
-export const cardClass = 'rounded-2xl border border-edge bg-surface';
+// THE CARD SURFACE: the CONTAINER corner (`rounded-xl`, 10.5dp at the phone's
+// rem; 14dp before feat/look-fixes) and the hairline edge. Add padding at the
+// call site.
+export const cardClass = 'rounded-xl border border-edge bg-surface';

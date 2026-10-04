@@ -344,7 +344,7 @@ export default function AdminBackupsPage() {
         if (!row.file_exists) {
           return (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-warning-soft px-2 py-1 text-xs font-semibold text-warning-fg">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-warning-soft px-2 py-1 text-xs font-semibold text-warning-fg">
                 <i aria-hidden="true" className="fa-solid fa-triangle-exclamation" />
                 Missing from disk
               </span>

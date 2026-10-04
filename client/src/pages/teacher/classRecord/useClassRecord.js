@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../../api/axios';
 import extractError from '../../../api/extractError';
+import { createTickets } from '../../../api/tickets';
 import {
   WW_SLOTS,
   PT_SLOTS,
@@ -105,8 +106,16 @@ export default function useClassRecord(classKey) {
   const key = classKey;
   const keyReady = Boolean(key?.subject_id && key?.grade_level && key?.section && key?.term && key?.school_year);
 
+  // THE LOAD TAKES A TICKET TOO (feat/look-fixes, 2026-10-05; api/tickets.js):
+  // switching subject or term quickly starts a second read before the first
+  // answers, and the older reply must not land last and put the wrong class
+  // on screen. A reply — data, failure, or the end of loading — is applied
+  // only while its ticket is the latest. The preview above keeps its own.
+  const [loadTickets] = useState(createTickets);
+
   const load = useCallback(async () => {
     if (!keyReady) return;
+    const ticket = loadTickets.take();
     setLoading(true);
     setError(null);
     try {
@@ -120,6 +129,7 @@ export default function useClassRecord(classKey) {
           school_year: key.school_year,
         },
       });
+      if (!loadTickets.isLatest(ticket)) return; // a newer load has started
       setServer(data);
       // A fresh read is a new truth: drafts and preview describe the old one.
       setDraft({});
@@ -130,15 +140,16 @@ export default function useClassRecord(classKey) {
       setPreviewSlots(null);
       setPreviewError(null);
     } catch (err) {
+      if (!loadTickets.isLatest(ticket)) return;
       setError(extractError(err));
       setServer(null);
     } finally {
-      setLoading(false);
+      if (loadTickets.isLatest(ticket)) setLoading(false);
     }
     // `key` whole, not its five fields: the page builds it with useMemo, so
     // it is already stable, and naming the fields individually made the
     // compiler's inferred dependency disagree with the written one.
-  }, [key, keyReady]);
+  }, [key, keyReady, loadTickets]);
 
   useEffect(() => {
     load();

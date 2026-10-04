@@ -669,13 +669,13 @@ export default function ClassRecordPage() {
               </caption>
               <thead>
                 <tr className="border-b border-edge">
-                  {/* `rounded-tl-2xl` here and `rounded-tr-2xl` on the Grade
+                  {/* `rounded-tl-xl` here and `rounded-tr-xl` on the Grade
                       group are the FRAME's radius (`cardClass`): on a window
                       wide enough that no hint line sits above the table,
                       these two cells are the frame's top corners, and a
                       square background would paint over its curve. A radius
                       changes no measurement — the cell is the same box. */}
-                  <th scope="col" className={`sticky left-0 z-10 rounded-tl-2xl ${th} text-left`} rowSpan={2}>
+                  <th scope="col" className={`sticky left-0 z-10 rounded-tl-xl ${th} text-left`} rowSpan={2}>
                     Learner
                   </th>
                   {/* `data-group` carries the BARE name for `ScrollCue`'s
@@ -728,7 +728,7 @@ export default function ClassRecordPage() {
                     scope="colgroup"
                     colSpan={2}
                     data-group="Grade"
-                    className={`${th} rounded-tr-2xl border-l border-edge text-left`}
+                    className={`${th} rounded-tr-xl border-l border-edge text-left`}
                   >
                     Grade
                   </th>
@@ -932,7 +932,7 @@ export default function ClassRecordPage() {
                           row would leave it transparent and the scrolled
                           columns would show through.
 
-                          `rounded-bl-2xl` on the LAST row's is the frame's
+                          `rounded-bl-xl` on the LAST row's is the frame's
                           radius again (see the Learner header): this opaque
                           cell is the frame's bottom-left corner, and a square
                           background would paint over its curve. No
@@ -941,7 +941,7 @@ export default function ClassRecordPage() {
                         scope="row"
                         className={`sticky left-0 z-10 whitespace-nowrap px-3 py-1.5 text-left font-normal text-fg ${
                           learner.is_locked ? 'bg-surface-muted' : 'bg-surface group-hover:bg-surface-subtle'
-                        } ${lastRow ? 'rounded-bl-2xl' : ''}`}
+                        } ${lastRow ? 'rounded-bl-xl' : ''}`}
                       >
                         <span className="flex items-center gap-2">
                           {learner.name}
