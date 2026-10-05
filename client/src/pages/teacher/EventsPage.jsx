@@ -403,7 +403,7 @@ export default function EventsPage() {
               setOffset(0);
               setApplied(draftFilters);
             }}
-            className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}
+            className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}
           >
             <FormField
               label="Grade"

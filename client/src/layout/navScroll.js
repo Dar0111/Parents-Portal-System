@@ -20,18 +20,33 @@ export function nearestScrollTop({ scrollTop, viewHeight, itemTop, itemHeight })
 // `aria-current="page"`. It sets `scrollTop` directly — no animation, and NOT
 // `scrollIntoView`, which may also scroll the document itself. A box with no
 // layout (the sidebar below md is `display: none`) is left alone.
+//
+// NO ITEM IS CUT AT THE TOP EDGE (build 1 fix round, 2026-10-05). Scrolling
+// DOWN to an item below the box aligns its bottom with the box's bottom, and
+// whatever item that leaves at the top was cut through — on Class summary in
+// the teacher's rail, Grades showed only its bottom edge under the » toggle,
+// with no scrollbar to say the list had moved. So a downward scroll is
+// rounded UP to the top of the first item at or past it: the top edge then
+// falls between items. The active item stays whole — it is one of the
+// candidates, so the rounding never passes its own top. Upward scrolls
+// already align an item's top and are left as they are.
 export function revealActive(box) {
   if (!box || box.clientHeight === 0) return;
   const item = box.querySelector('[aria-current="page"]');
   if (!item) return;
   const boxTop = box.getBoundingClientRect().top;
+  const contentTop = (el) => el.getBoundingClientRect().top - boxTop + box.scrollTop;
   const rect = item.getBoundingClientRect();
-  const next = nearestScrollTop({
+  let next = nearestScrollTop({
     scrollTop: box.scrollTop,
     viewHeight: box.clientHeight,
-    itemTop: rect.top - boxTop + box.scrollTop,
+    itemTop: contentTop(item),
     itemHeight: rect.height,
   });
+  if (next > box.scrollTop) {
+    const tops = Array.from(box.querySelectorAll('a[href]'), contentTop).filter((top) => top >= next);
+    if (tops.length) next = Math.min(...tops);
+  }
   if (next !== box.scrollTop) box.scrollTop = next;
 }
 

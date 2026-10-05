@@ -57,6 +57,8 @@ export const PAIRS = [
   // feat/message-toast — what the new-message toast shows, and when.
   ['src/realtime/messageToast.js', 'realtime/messageToast.js'],
   ['src/drafts/draftCore.js', 'drafts/draftCore.js'],
+  // build 1 fix round — the newest reply wins (UnreadProvider's re-read).
+  ['src/api/tickets.js', 'api/tickets.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

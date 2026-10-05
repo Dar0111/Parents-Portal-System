@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
@@ -79,6 +79,9 @@ export default function GradesScreen({ navigation, route }) {
   const { tokens } = useTheme();
   const notice = route?.params?.notice || null;
   const [sections, setSections] = useState([]);
+  const [sectionsError, setSectionsError] = useState(null);
+  const [sectionsAttempt, setSectionsAttempt] = useState(0);
+  const sectionsFailed = useRef(false);
   const [grade, setGrade] = useState('');
   const [sectionName, setSectionName] = useState('');
   const [studentId, setStudentId] = useState(null);
@@ -92,20 +95,40 @@ export default function GradesScreen({ navigation, route }) {
   const [reportError, setReportError] = useState(null);
   const [status, setStatus] = useState(null);
 
+  // THE SECTIONS READ SAYS WHEN IT FAILED, AND READS AGAIN (build 1 fix round,
+  // 2026-10-05). It used to swallow a failure into an empty list: with the API
+  // down, Grade 1 showed a Section row with nothing in it, no error and no
+  // Retry, and since this drawer screen stays mounted the list never loaded
+  // again. Now a failure keeps the last good list and sets the error, which
+  // the Section row shows with Retry; `sectionsAttempt` is the effect's key,
+  // and a pull or coming back to the screen bumps it while the read is failed.
   useEffect(() => {
     let cancelled = false;
     api
       .get('/sections', { unwrap: 'sections' })
       .then((rows) => {
-        if (!cancelled) setSections(rows);
+        if (cancelled) return;
+        sectionsFailed.current = false;
+        setSections(rows);
+        setSectionsError(null);
       })
-      .catch(() => {
-        if (!cancelled) setSections([]);
+      .catch((err) => {
+        if (cancelled) return;
+        sectionsFailed.current = true;
+        setSectionsError(extractError(err));
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sectionsAttempt]);
+
+  // Back on the screen with the sections read failed: read them again. A ref,
+  // so this runs on focus only, never as a loop on the error itself.
+  useFocusEffect(
+    useCallback(() => {
+      if (sectionsFailed.current) setSectionsAttempt((n) => n + 1);
+    }, [])
+  );
 
   useEffect(() => {
     if (!grade || !sectionName) {
@@ -160,10 +183,11 @@ export default function GradesScreen({ navigation, route }) {
   );
 
   // The pull's handler: the learner list (through its effect's key) and the
-  // report card, as chosen. A card already on screen stays there while it is
-  // read again.
+  // report card, as chosen — and the sections, while their read is failed. A
+  // card already on screen stays there while it is read again.
   async function pullToRefresh() {
     setRefreshing(true);
+    if (sectionsFailed.current) setSectionsAttempt((n) => n + 1);
     setStudentsAttempt((n) => n + 1);
     try {
       await loadReport();
@@ -288,7 +312,7 @@ export default function GradesScreen({ navigation, route }) {
         </View>
 
         <Text className="text-xs text-fg-muted">
-          “— Pending” means not yet computable{mode === 'descriptive' ? '; “— N/A” means it does not apply to this grade level' : ''}.
+          “— Pending” means not yet computable{mode === 'descriptive' ? '; “— N/A” means it does not apply to this grade level; a final letter needs every term\'s scores recorded' : ''}.
         </Text>
 
         {/* NO GENERAL AVERAGE ON A DESCRIPTIVE CARD (feat/look-fixes), the
@@ -331,16 +355,20 @@ export default function GradesScreen({ navigation, route }) {
           options={GRADES}
         />
         {grade ? (
-          <Segmented
-            label="Section"
-            value={sectionName}
-            onChange={(name) => {
-              setSectionName(name);
-              setStudentId(null);
-              setStatus(null);
-            }}
-            options={sectionOptions.map((s) => ({ key: s.name, label: s.name }))}
-          />
+          sectionsError ? (
+            <ErrorAlert message={sectionsError} onRetry={() => setSectionsAttempt((n) => n + 1)} />
+          ) : (
+            <Segmented
+              label="Section"
+              value={sectionName}
+              onChange={(name) => {
+                setSectionName(name);
+                setStudentId(null);
+                setStatus(null);
+              }}
+              options={sectionOptions.map((s) => ({ key: s.name, label: s.name }))}
+            />
+          )
         ) : (
           <Text className="text-sm text-fg-muted">Pick a grade first.</Text>
         )}

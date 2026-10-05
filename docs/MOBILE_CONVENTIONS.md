@@ -967,6 +967,15 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
 - **Admin:** no toast — `isBuilt('/admin/messages')` is false.
 - **Imported as `../realtime/MessageToast.jsx`, extension included** — the
   web build failed on the case-only clash with `messageToast.js` (§26).
+- **One send at a time is a REF, and the newest unread reply wins (build 1
+  fix round, 2026-10-05).** The thread's `send()`
+  (`screens/parent/MessageThreadScreen.jsx`, both roles) checks `sendingRef`
+  first, sets it before the POST and clears it in `finally` — the web's guard
+  (§26); `sending` still drives the button. `UnreadProvider` takes a ticket
+  from `api/tickets.js` — **the 28th mirror**, the web's file byte for byte —
+  before every read and drops a reply that is no longer the newest (count,
+  rows and failure alike), so a late older read can no longer put a stale
+  count on the badge or stale rows in this toast.
 - **TONE AND VIBRATION on a toast SHOW or UPDATE** (fix round, 2026-10-02;
   the owner reversed "no sound, no vibration"). Never on a skip (my own
   message, the open conversation), never for admin, once per show / update.
@@ -1127,6 +1136,19 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   (`navigation/drawerOpen.js`, pure — the drawer router's own rule, read from
   the focused path; `realtime/MessageToast.jsx`). The store, the 5 s timer,
   the tone and the announcement run as before.
+- **Admin → Grades reads its sections again (build 1 fix round, 2026-10-05).**
+  The sections read used to swallow a failure into an empty list: with the
+  API down, a picked grade showed an empty Section row with no error, and
+  because a drawer screen stays mounted the list never came back. Now
+  (`screens/admin/GradesScreen.jsx`) a failure keeps the last good list and
+  sets `sectionsError`; while a grade is picked the Section row is that error
+  with Retry, the effect keyed by `sectionsAttempt`; a pull and coming back to
+  the screen bump the attempt while the read is failed (a ref, so the focus
+  effect never loops on the error). The web page has the same error and Retry
+  under its pickers, and its learner-list error gained the Retry the phone
+  already had. The phone's 15 s timeout (`api/client.js`) means a stopped API
+  fails at once (refused) and an unreachable laptop after 15 s — both land in
+  that error.
 
 ## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
 

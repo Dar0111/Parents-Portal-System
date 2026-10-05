@@ -89,6 +89,11 @@ export default function MessageThreadPage() {
   const [error, setError] = useState(null);
 
   const [sending, setSending] = useState(false);
+  // THE IN-FLIGHT GUARD (build 1 fix round, 2026-10-05): set the moment a send
+  // starts, cleared when it settles. `sending` is state and drives the button,
+  // but two submits before the next render would both read it as false; a
+  // ref cannot be stale, so one send at a time holds for Enter and Send alike.
+  const sendingRef = useRef(false);
   const [sendError, setSendError] = useState(null);
   const [blockedReason, setBlockedReason] = useState(null);
 
@@ -291,14 +296,17 @@ export default function MessageThreadPage() {
     event.preventDefault();
     // One send at a time, whichever way it was asked for (Send or Enter).
     if (sending) return;
-    if (!draft.trim()) return;
+    if (sendingRef.current) return;
+    const body = draft.trim();
+    if (!body) return;
 
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
     try {
       const sent = await api.post(
         '/messages',
-        { receiver_id: otherId, body: draft.trim() },
+        { receiver_id: otherId, body },
         { unwrap: 'data' }
       );
       // The row the SERVER returned, appended after it confirmed.
@@ -319,6 +327,7 @@ export default function MessageThreadPage() {
         setSendError(message);
       }
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }
@@ -379,11 +388,14 @@ export default function MessageThreadPage() {
       <div className={cardClass}>
         {/* Who the conversation is with. The circle is initials — a message
             row carries the other person's name and role but no photo. The
-            role is re-cased for display only (§5d). */}
+            role is re-cased for display only (§5d). A NEW thread names them
+            from the picker until a message carries the name (build 1 fix
+            round), as the page title already did; the role line waits for
+            that message. */}
         <div className="flex items-center gap-3 border-b border-edge px-4 py-3 sm:px-5">
-          <Avatar name={other?.name} />
+          <Avatar name={other?.name || pickedName} />
           <div className="min-w-0 flex-1">
-            <h2 className="break-words font-serif text-base font-bold text-fg">{other?.name || 'Conversation'}</h2>
+            <h2 className="break-words font-serif text-base font-bold text-fg">{other?.name || pickedName || 'Conversation'}</h2>
             {other?.role ? <p className="text-xs capitalize text-fg-muted">{other.role}</p> : null}
           </div>
         </div>

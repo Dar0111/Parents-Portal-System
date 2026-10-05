@@ -876,7 +876,7 @@ export default function UsersPage() {
           </p>
 
           {/* The filter bar is its own card, and only the filters live in it. */}
-          <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+          <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}>
             <FormField
               label="Role"
               as="select"

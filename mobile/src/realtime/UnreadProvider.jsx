@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../api/client';
+import { createTickets } from '../api/tickets';
 import { useSocket } from './SocketProvider';
 
 // The unread-message count behind the Messages drawer badge — the web's
@@ -12,6 +13,13 @@ import { useSocket } from './SocketProvider';
 // exactly as on the web: `subscribeConversations(fn)` passes each successful
 // read's rows to the new-message toast, which takes the sender's name and the
 // server's unread count from them (M22).
+//
+// ONLY THE NEWEST REPLY IS APPLIED (build 1 fix round, 2026-10-05), the web's
+// rule: a thread marking messages read, this provider's own socket refresh
+// and a reconnect can all read at once, and an older reply landing last would
+// put a stale count on the badge and stale rows in the toast. Every read takes
+// a ticket (api/tickets.js, mirrored from the web), and a reply whose ticket
+// is no longer the latest is dropped — count, rows and failure alike.
 const UnreadContext = createContext({
   unread: 0,
   refresh: () => Promise.resolve(),
@@ -26,6 +34,7 @@ export default function UnreadProvider({ enabled, children }) {
   const { subscribe, subscribeConnect } = useSocket();
   const [unread, setUnread] = useState(0);
   const rowListenersRef = useRef(new Set());
+  const [tickets] = useState(createTickets);
 
   const refresh = useCallback(() => {
     // `enabled` is false for a role whose Messages screen is not built — no
@@ -34,16 +43,18 @@ export default function UnreadProvider({ enabled, children }) {
       setUnread(0);
       return Promise.resolve();
     }
+    const ticket = tickets.take();
     return api
       .get('/messages/conversations', { unwrap: 'conversations' })
       .then((rows) => {
+        if (!tickets.isLatest(ticket)) return; // a newer read has started
         setUnread(rows.reduce((sum, r) => sum + Number(r.unread_count || 0), 0));
         for (const fn of rowListenersRef.current) fn(rows);
       })
       .catch(() => {
-        setUnread(0);
+        if (tickets.isLatest(ticket)) setUnread(0);
       });
-  }, [enabled]);
+  }, [enabled, tickets]);
 
   useEffect(() => {
     refresh();

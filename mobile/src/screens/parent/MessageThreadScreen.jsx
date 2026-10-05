@@ -76,6 +76,11 @@ export default function MessageThreadScreen({ navigation, route }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [sending, setSending] = useState(false);
+  // THE IN-FLIGHT GUARD (build 1 fix round, 2026-10-05), the web's: set the
+  // moment a send starts, cleared when it settles. `sending` is state and
+  // drives the button, but two taps before the next render would both read it
+  // as false; a ref cannot be stale.
+  const sendingRef = useRef(false);
   const [sendError, setSendError] = useState(null);
   const [blockedReason, setBlockedReason] = useState(null);
 
@@ -223,11 +228,14 @@ export default function MessageThreadScreen({ navigation, route }) {
   }
 
   async function send() {
-    if (!draft.trim() || sending) return;
+    if (sendingRef.current || sending) return;
+    const body = draft.trim();
+    if (!body) return;
+    sendingRef.current = true;
     setSending(true);
     setSendError(null);
     try {
-      const sent = await api.post('/messages', { receiver_id: otherId, body: draft.trim() }, { unwrap: 'data' });
+      const sent = await api.post('/messages', { receiver_id: otherId, body }, { unwrap: 'data' });
       setMessages((rows) => [...rows, sent]);
       // The server confirmed: the draft goes.
       messageDraft.submitted(composerValues);
@@ -238,6 +246,7 @@ export default function MessageThreadScreen({ navigation, route }) {
       if (err?.response?.status === 403) setBlockedReason(message);
       else setSendError(message);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }

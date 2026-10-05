@@ -58,71 +58,83 @@ export default function FilterActions({
   applyLabel = 'Apply',
   resetLabel = 'Reset',
 }) {
+  // THE CUE STAYS WITH APPLY (build 1 fix round, 2026-10-05). Apply, Reset
+  // and the cue are ONE group, one flex item of the page's filter row: beside
+  // Reset when the rest of the line has room, directly under Apply when it
+  // has not — never on a line of its own under the first filter, which is
+  // where it went as its own item of a wrapping row (Admin → Users at 1366
+  // with the sidebar open). `grow basis-0` keeps the group on the filters'
+  // line and lets it fill what is left; it moves down as a unit only when
+  // even its narrowest piece (the cue, nowrap) no longer fits there.
+  //
+  // THE SPACER IS A LABEL'S HEIGHT, so Apply lines up with the controls under
+  // the filters' labels: the eight filter rows are `items-start`, and the
+  // spacer carries FormField's own label classes (`mb-1.5 block text-sm
+  // font-semibold`, FormField.jsx), so a change of label size moves both.
+  // `items-end`, as before, aligned the BOTTOMS, so a cue under Apply would
+  // have lifted Apply above the inputs. Below `sm` every filter is full width
+  // and the group has its own line, so no label stands beside it.
   return (
-    <>
-      {/* QUIET WHEN CLEAN, AND STILL ENABLED. Disabling it would be the
-          obvious move and the wrong one: a disabled control gives no reason,
-          and re-applying an unchanged filter is harmless — it refetches, which
-          is a legitimate thing to want. Quiet says "nothing is waiting";
-          disabled would say "you may not", which is false.
+    <div className="flex grow basis-0 flex-col">
+      <span aria-hidden="true" className="mb-1.5 block text-sm font-semibold max-sm:hidden">
+        &nbsp;
+      </span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {/* QUIET WHEN CLEAN, AND STILL ENABLED. Disabling it would be the
+            obvious move and the wrong one: a disabled control gives no
+            reason, and re-applying an unchanged filter is harmless — it
+            refetches, which is a legitimate thing to want. Quiet says
+            "nothing is waiting"; disabled would say "you may not", which is
+            false.
 
-          Clean reuses the RESET class exactly, so the two buttons are a
-          matched pair by construction rather than by two strings that have to
-          be kept in step. */}
-      <button type="submit" className={dirty ? applyDirtyClass : buttonNeutralClass}>
-        {applyLabel}
-      </button>
-
-      {canReset ? (
-        <button type="button" onClick={onReset} className={buttonNeutralClass}>
-          {resetLabel}
+            Clean reuses the RESET class exactly, so the two buttons are a
+            matched pair by construction rather than by two strings that have
+            to be kept in step. */}
+        <button type="submit" className={dirty ? applyDirtyClass : buttonNeutralClass}>
+          {applyLabel}
         </button>
-      ) : null}
 
-      {/* THE SENTENCE IS THE SIGNAL; THE DOT IS DECORATION. `aria-hidden` on
-          the dot because "●" read aloud is noise, and because a mark that is
-          the only carrier of meaning fails the same way a colour-only one
-          does (§12's weekly strip, one component out).
-
-          `role="status"` and not `role="alert"`: nothing has gone wrong and
-          nothing is urgent — the reader is told at the next natural pause.
-
-          THE LIVE REGION IS ALWAYS MOUNTED; ONLY ITS TEXT TOGGLES (item 5b).
-          Item 5 rendered the <p> only while dirty and called the alternative
-          "an empty live region claiming a state that is not true". That had
-          it backwards, and the code review caught it: a screen reader
-          announces CHANGES INSIDE an existing live region, not a node that
-          appears with its text already in it — so the sighted cue worked and
-          the assistive one never spoke. `ScrollCue` had already stated the
-          right rule (§19d) and this component contradicted it in the same
-          codebase. `sr-only` while empty keeps the region alive at zero
-          layout cost; the visible classes return with the text.
-
-          CENTRED ON APPLY BY A TRANSFORM, NOT BY LAYOUT (fix/smoke-gate).
-          Every filter row is `items-end` so the button lines up with the
-          inputs under their labels, which left this line sitting on Apply's
-          bottom edge — its centre low, measured on all eight pages at 1280
-          and 390 when the line was 1.25rem and Apply 2.25rem (8px low, so
-          the lift was `-translate-y-2`). A transform moves NOTHING ELSE: 0
-          other controls differed from the untransformed layout on any page.
-          A wrapper around Apply + cue would have centred it too, but it
-          wraps as a unit and moved Apply on the three rows where only the
-          cue wraps today (Admin → Users 1280, both Students pages 390),
-          where the cue is on its own line just under Apply.
-
-          THE LIFT IS RE-DERIVED FOR THE 44px BUTTON (feat/ui-refresh,
-          2026-10-02; the type scale back to Tailwind's on 2026-10-04), by
-          arithmetic and NOT yet re-measured in a browser: Apply is now
-          `min-h-11` (2.75rem) and a `text-sm` line is 1.25rem, so the centres
-          differ by (2.75 − 1.25) / 2 = 0.75rem (`-translate-y-3`). In rem, so
-          it still scales with the Large text size. */}
-      <p role="status" className={dirty ? 'text-sm font-semibold text-brand -translate-y-3' : 'sr-only'}>
-        {dirty ? (
-          <>
-            <span aria-hidden="true">●</span> Changes not applied
-          </>
+        {canReset ? (
+          <button type="button" onClick={onReset} className={buttonNeutralClass}>
+            {resetLabel}
+          </button>
         ) : null}
-      </p>
-    </>
+
+        {/* THE SENTENCE IS THE SIGNAL; THE DOT IS DECORATION. `aria-hidden`
+            on the dot because "●" read aloud is noise, and because a mark
+            that is the only carrier of meaning fails the same way a
+            colour-only one does (§12's weekly strip, one component out).
+
+            `role="status"` and not `role="alert"`: nothing has gone wrong and
+            nothing is urgent — the reader is told at the next natural pause.
+
+            THE LIVE REGION IS ALWAYS MOUNTED; ONLY ITS TEXT TOGGLES (item
+            5b). Item 5 rendered the <p> only while dirty and called the
+            alternative "an empty live region claiming a state that is not
+            true". That had it backwards, and the code review caught it: a
+            screen reader announces CHANGES INSIDE an existing live region,
+            not a node that appears with its text already in it — so the
+            sighted cue worked and the assistive one never spoke. `ScrollCue`
+            had already stated the right rule (§19d) and this component
+            contradicted it in the same codebase. `sr-only` while empty keeps
+            the region alive at zero layout cost; the visible classes return
+            with the text.
+
+            CENTRED ON APPLY BY LAYOUT, NO LONGER BY A TRANSFORM (build 1 fix
+            round). The inner row is `items-center`, so beside Apply the line
+            sits on Apply's centre with no lift; under Apply it starts at
+            Apply's left edge. `whitespace-nowrap` keeps "● Changes not
+            applied" one line, so it is beside or under as a whole, never
+            split. The `-translate-y-3` it replaces existed only because the
+            cue was an item of an `items-end` row. */}
+        <p role="status" className={dirty ? 'whitespace-nowrap text-sm font-semibold text-brand' : 'sr-only'}>
+          {dirty ? (
+            <>
+              <span aria-hidden="true">●</span> Changes not applied
+            </>
+          ) : null}
+        </p>
+      </div>
+    </div>
   );
 }

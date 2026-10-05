@@ -493,7 +493,7 @@ export default function StudentsPage() {
 
           {/* THE FILTER BAR IS ITS OWN CARD, and only the filters live in it
               (see the note on Enroll above). */}
-          <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+          <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}>
             <FormField
               label="Search"
               placeholder="Name or LRN"

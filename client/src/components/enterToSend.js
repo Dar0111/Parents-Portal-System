@@ -18,8 +18,14 @@
 //
 // Only a PLAIN Enter sends: Shift+Enter keeps the browser's new line, and
 // Ctrl / Alt / Meta+Enter are left alone.
+//
+// A HELD ENTER SENDS ONCE (build 1 fix round, 2026-10-05): the key's
+// auto-repeat keydowns carry `repeat`, and none of them sends — the first
+// press does. The thread pages' in-flight ref guards the same thing one layer
+// down; this keeps a held key from even asking.
 export function shouldSendOnEnter(event, { sending, draft }) {
   if (!event || event.key !== 'Enter') return false;
+  if (event.repeat) return false;
   if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
   if (event.isComposing || event.nativeEvent?.isComposing || event.keyCode === 229) return false;
   if (sending) return false;

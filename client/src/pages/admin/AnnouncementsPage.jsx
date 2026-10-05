@@ -668,7 +668,7 @@ export default function AdminAnnouncementsPage() {
             }
           />
           {/* THE FILTER BAR IS ITS OWN CARD, and only the filter lives in it. */}
-          <form onSubmit={applyFilter} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+          <form onSubmit={applyFilter} className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}>
             <FormField
               label="Grade"
               as="select"

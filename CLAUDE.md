@@ -865,7 +865,9 @@ Unread provider already re-reads** (`subscribeConversations`) — the server's
 toast. Pure decisions mirrored (`realtime/messageToast.js`). **On a show or
 update only: the "two-note rise" `TONE`** (web Web Audio, phone a bundled
 WAV) **and a 150 ms phone vibration.** Enter sends on the web, Shift+Enter is
-a new line. Full text: `docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
+a new line, a held Enter sends once; **one send at a time is a REF**
+(`sendingRef`), never only the `sending` state. Full text:
+`docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
 
 ### 27. The UI refresh — one type, one button, entrances only, no Reload
 
@@ -1422,6 +1424,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
+| **Two web parent messages were stored twice, 7 s and 19 s apart (ids 303/304, 308/309)** — added 2026-10-05 | thread `send()` (web ×2, phone) | Not a double submit by the timings, and no code path found; a ref guard was added anyway. If it recurs: note what the screen showed after the first send, Network tab open |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` | It still signs in on the live DB (backups 275 and 276, 2026-10-04), and the proof holds it in the repo. After the change the proof needs another way to sign in (an env var, never a value in a file). **Never print the value** |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in

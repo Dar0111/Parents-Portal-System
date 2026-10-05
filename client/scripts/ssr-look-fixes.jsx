@@ -15,9 +15,17 @@
 // Unread and class-record tickets, the admin Grades descriptive rules, and
 // DataTable's corners following the frame.
 //
+// THE FIX ROUND (2026-10-05) adds: FilterActions RENDERED (Apply, Reset and
+// the cue as one group) and the eight rows' `items-start` (source); C1's text;
+// the picked-name fallback in both thread headings; the send guard in both
+// thread pages (source, each with a negative control) and its mechanism as a
+// model with a negative control; a held Enter (pure); the admin Grades
+// sections and learner Retries (source).
+//
 // WHAT IT CANNOT: a real Tab or Escape press, focus returning to the opener,
 // the spinner not blinking while a message arrives, the badge after a real
-// race, the look itself — the owner's browser check.
+// race, the look itself, where the cue actually wraps at a given width, a
+// real double click or held key — the owner's browser check.
 //
 // Run (from client/):
 //   npx vite build --ssr scripts/ssr-look-fixes.jsx --outDir .ssr-tmp && node .ssr-tmp/ssr-look-fixes.js
@@ -32,6 +40,8 @@ import { controlClass } from '../src/components/FormField.jsx';
 import StatusBadge from '../src/components/StatusBadge.jsx';
 import TermValue from '../src/format/TermValue.jsx';
 import GradeValue from '../src/format/grade.jsx';
+import FilterActions from '../src/components/FilterActions.jsx';
+import { shouldSendOnEnter } from '../src/components/enterToSend.js';
 
 let passed = 0;
 let failed = 0;
@@ -136,6 +146,68 @@ const badge = renderToStaticMarkup(<StatusBadge status="active" />);
 assert(/rounded-md/.test(badge) && !/rounded-full/.test(badge), 'a status badge is a 6px tag, not a pill');
 const table = src('src/components/DataTable.jsx');
 assert(!/rounded-(t|b|tl|tr|bl|br)-2xl/.test(table) && /first:rounded-t-xl/.test(table), "DataTable's inner corners follow the frame's 12px");
+
+// ------------------------------------------------ the build 1 fix round
+// (2026-10-05) — the owner's device-check findings 1, 2, 3, 5 and 6.
+
+console.log('Fix round 1 — the filter cue stays with Apply (rendered + source)');
+const cueDirty = renderToStaticMarkup(<FilterActions dirty canReset onReset={() => {}} />);
+const CUE_GROUP =
+  /^<div class="flex grow basis-0 flex-col"><span aria-hidden="true" class="mb-1\.5 block text-sm font-semibold max-sm:hidden">(?: |&nbsp;)<\/span><div class="flex flex-wrap items-center gap-x-3 gap-y-1"><button type="submit"[^>]*>Apply<\/button><button type="button"[^>]*>Reset<\/button><p role="status" class="whitespace-nowrap text-sm font-semibold text-brand">/;
+assert(CUE_GROUP.test(cueDirty), 'Apply, Reset and the cue are ONE group — a label-height spacer, then one wrapping row that starts with Apply — so the cue can only wrap under Apply, never onto a line under the first filter', cueDirty.slice(0, 200));
+assert(!/translate-y/.test(cueDirty), 'no transform lifts the cue any more: the row centres it');
+const FILTER_PAGES = ['admin/UsersPage', 'admin/AnnouncementsPage', 'admin/StudentsPage', 'admin/AttendancePage', 'teacher/ExcuseLettersPage', 'teacher/EventsPage', 'teacher/AttendanceRecordsPage', 'teacher/StudentsPage'];
+const startRows = FILTER_PAGES.filter((p) => {
+  const s = src(`src/pages/${p}.jsx`);
+  return /<FilterActions/.test(s) && /flex flex-wrap items-start gap-3 p-4/.test(s) && !/flex flex-wrap items-end gap-3 p-4/.test(s);
+});
+assert(startRows.length === FILTER_PAGES.length, 'all eight filter rows are items-start, so Apply sits level with the inputs under the spacer whatever wraps below it', `missing: ${FILTER_PAGES.filter((p) => !startRows.includes(p)).join(', ')}`);
+
+console.log('Fix round 2 — C1, the descriptive Final sentence (source)');
+const C1 = 'The final letter for a learning area is worked out from the scores of all three terms, so it appears once every term has its scores recorded.';
+const reportCardSrc = src('src/pages/parent/ReportCard.jsx');
+assert(reportCardSrc.includes(`'${C1}'`) && !reportCardSrc.includes('The final letter for a learning area appears once all three terms are recorded.'), "C1: the Final needs every term's SCORES — not merely three letters on the card (Nino's legacy letters have none)");
+
+console.log('Fix rounds 3 and 5 — the thread heading and the send guard (source + a model)');
+for (const role of ['teacher', 'parent']) {
+  const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
+  assert(/<Avatar name=\{other\?\.name \|\| pickedName\} \/>/.test(page) && /\{other\?\.name \|\| pickedName \|\| 'Conversation'\}<\/h2>/.test(page), `${role}: the thread card's avatar and heading fall back to the picked name, as the title does`);
+  const at = page.indexOf('async function send(event)');
+  const sendFn = page.slice(at, at + 1600);
+  const GUARD = /if \(sendingRef\.current\) return;[\s\S]*?sendingRef\.current = true;[\s\S]*?await api\.post\([\s\S]*?finally \{\s*sendingRef\.current = false;/;
+  assert(at > 0 && GUARD.test(sendFn), `${role}: send() is guarded by a REF — checked first, set before the POST, cleared in finally`);
+  assert(!GUARD.test(sendFn.replace('if (sendingRef.current) return;', '')), `NEGATIVE CONTROL (${role}): with the ref check taken out, the guard assertion fails`);
+}
+// The mechanism, modelled: `sending` is the render's state, still false for a
+// second submit in the same tick; the ref is not.
+function sendModel(withRef) {
+  let posts = 0;
+  const sending = false;
+  const ref = { current: false };
+  async function send() {
+    if (sending) return;
+    if (withRef && ref.current) return;
+    if (withRef) ref.current = true;
+    posts += 1;
+    await sleep(5); // the POST in flight
+    if (withRef) ref.current = false;
+  }
+  return async () => {
+    await Promise.all([send(), send()]);
+    return posts;
+  };
+}
+assert((await sendModel(true)()) === 1, 'two submits in one tick: ONE post with the ref guard');
+assert((await sendModel(false)()) === 2, 'NEGATIVE CONTROL: the state check alone lets both through — two posts');
+const enter = (extra = {}) => ({ key: 'Enter', ...extra });
+assert(shouldSendOnEnter(enter({ repeat: true }), { sending: false, draft: 'Hello' }) === false, "a held Enter's auto-repeats never send");
+assert(shouldSendOnEnter(enter(), { sending: false, draft: 'Hello' }) === true, 'CONTROL: the first press still sends');
+
+console.log('Fix round 6 — admin Grades reads its sections again (source)');
+const gradesFix = src('src/pages/admin/GradesPage.jsx');
+assert(/\.catch\(\(err\) => \{\s*if \(!cancelled\) setSectionsError\(extractError\(err\)\);\s*\}\);\s*return \(\) => \{\s*cancelled = true;\s*\};\s*\}, \[sectionsAttempt\]\);/.test(gradesFix), 'a failed sections read keeps the last list and sets the error — the effect keyed by sectionsAttempt');
+assert(/\{grade && sectionsError \? \(\s*<ErrorAlert message=\{sectionsError\} onRetry=\{\(\) => setSectionsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(gradesFix), 'with a grade picked, the sections error shows with Retry');
+assert(/<ErrorAlert message=\{studentsError\} onRetry=\{\(\) => setStudentsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(gradesFix) && /\}, \[grade, sectionName, studentsAttempt\]\);/.test(gradesFix), 'the learner list has its Retry, keyed into its effect');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

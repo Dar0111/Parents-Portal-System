@@ -83,6 +83,8 @@ export default function AdminGradesPage() {
   usePageTitle('Grades');
 
   const [sections, setSections] = useState([]);
+  const [sectionsError, setSectionsError] = useState(null);
+  const [sectionsAttempt, setSectionsAttempt] = useState(0);
   const [grade, setGrade] = useState('');
   const [sectionName, setSectionName] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -90,6 +92,7 @@ export default function AdminGradesPage() {
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsError, setStudentsError] = useState(null);
+  const [studentsAttempt, setStudentsAttempt] = useState(0);
 
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
@@ -104,20 +107,27 @@ export default function AdminGradesPage() {
   // the modal and belongs above the report card it describes. See FormStatus.
   const [status, setStatus] = useState({});
 
+  // THE SECTIONS READ SAYS WHEN IT FAILED (build 1 fix round, 2026-10-05), as
+  // on the phone. It used to swallow a failure into an empty list, so a
+  // picked grade offered no sections and nothing said why. A failure keeps
+  // the last good list and sets the error, shown under the pickers with
+  // Retry; `sectionsAttempt` is the effect's key.
   useEffect(() => {
     let cancelled = false;
     api
       .get('/sections', { unwrap: 'sections' })
       .then((rows) => {
-        if (!cancelled) setSections(rows);
+        if (cancelled) return;
+        setSections(rows);
+        setSectionsError(null);
       })
-      .catch(() => {
-        if (!cancelled) setSections([]);
+      .catch((err) => {
+        if (!cancelled) setSectionsError(extractError(err));
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sectionsAttempt]);
 
   // status=all: an inactive student still has grades.
   useEffect(() => {
@@ -146,7 +156,9 @@ export default function AdminGradesPage() {
     return () => {
       cancelled = true;
     };
-  }, [grade, sectionName]);
+    // `studentsAttempt`: the learner list's Retry reads it again (build 1 fix
+    // round), the phone's key.
+  }, [grade, sectionName, studentsAttempt]);
 
   const loadReport = useCallback(async () => {
     if (!studentId) {
@@ -368,7 +380,10 @@ export default function AdminGradesPage() {
 
           <FormStatus status={status.card} />
 
-          {studentsError ? <ErrorAlert message={studentsError} /> : null}
+          {grade && sectionsError ? (
+            <ErrorAlert message={sectionsError} onRetry={() => setSectionsAttempt((n) => n + 1)} />
+          ) : null}
+          {studentsError ? <ErrorAlert message={studentsError} onRetry={() => setStudentsAttempt((n) => n + 1)} /> : null}
 
           {!studentId ? (
             // In the frame the report card will take, so the page keeps its

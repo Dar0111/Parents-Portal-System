@@ -2878,7 +2878,7 @@ it is each page's primary control and was sized that way on purpose.
 **Flattening a considered choice into a shared constant is the wrong kind of
 consistency** — stated here so the exception is not later "tidied".
 
-### 21e. A page's action never sits in the filter card, and the cue is centred by a transform
+### 21e. A page's action never sits in the filter card, and the cue stays with Apply
 
 **Added 2026-09-26 (fix/smoke-gate `b84694c`, `8cac83d`).** Two rules the
 smoke gate measured into existence.
@@ -2898,7 +2898,9 @@ as Enroll student — and "New memo" too, so a page's two "New …" actions do
 not read as different weights. **Admin → Announcements does NOT auto-apply**
 (it has Apply); only Teacher → Announcements does.
 
-**"● Changes not applied" is centred on Apply by `-translate-y-2`.** Every
+**SUPERSEDED on 2026-10-05 by the placement rule at the end of this
+section; kept as the record.** "● Changes not applied" is centred on Apply by
+`-translate-y-2`. Every
 filter row is `items-end` (so buttons line up with inputs under labels), and
 that sat the 1.25rem cue on Apply's 2.25rem bottom edge — its centre **8px
 low**, measured on all eight `FilterActions` pages at 1280 and 390 wherever
@@ -2916,6 +2918,32 @@ exactly.
 (2.75rem, `components/buttonClass.js:34`), so the lift is
 (2.75 − 1.25) / 2 = 0.75rem — `-translate-y-3`**
 (`components/FilterActions.jsx:106–119`). Same rule, new arithmetic.
+
+**THE CUE STAYS WITH APPLY — beside it when the line has room, directly
+under it when it has not, never on a line of its own under the first filter
+(build 1 fix round, 2026-10-05; the owner's rule).** The owner's device check
+found it under Role on Admin → Users at 1366 with the sidebar open (beside
+Apply with the rail): the cue was its own item of the wrapping row, so it
+wrapped to the row's left edge. The "wrapper wraps as a unit" objection above
+was right about a plain wrapper and is answered by two pieces:
+
+- **One group, `flex grow basis-0 flex-col`** (`components/FilterActions.jsx`):
+  Apply, Reset and the cue in one wrapping row inside it. `basis-0` + `grow`
+  keep the group on the filters' line and let it fill the rest; it moves down
+  as a unit only when even its narrowest piece — the cue, `whitespace-nowrap`
+  — no longer fits there. Inside, the cue sits beside Reset or wraps to
+  start at Apply's left edge, centred on the buttons by `items-center` (no
+  transform).
+- **The eight filter rows are `items-start`, and the group opens with a
+  label-height spacer** carrying FormField's own label classes (`mb-1.5 block
+  text-sm font-semibold`; hidden below `sm`, where every filter is full width
+  and the group has its own line). `items-end` aligned the BOTTOMS, so a cue
+  under Apply would have lifted Apply above the inputs; with `items-start`
+  Apply sits level with the controls whatever wraps below it.
+
+The clean state is untouched (`sr-only`, empty — `ssr-item5` still asserts it
+exactly); `ssr-look-fixes` renders the dirty group and checks the eight rows.
+Where the cue actually wraps at a given width is the owner's browser check.
 
 ## 22. A failed session read — only a 401 logs out
 
@@ -3184,7 +3212,14 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   when the Send button is disabled (`sending || !draft.trim()`), during an IME
   composition (`isComposing`, `keyCode 229`), and for Ctrl / Alt / Meta+Enter;
   `send()` itself now refuses while a send is in flight, so neither path can
-  send twice.
+  send twice. **ONE SEND AT A TIME IS A REF (build 1 fix round,
+  2026-10-05):** `sendingRef` is checked first, set before the POST and
+  cleared in `finally` (both web thread pages; the phone's thread, M22) —
+  `sending` is state and still drives the button, but two submits before the
+  next render both read it as false. A held Enter's auto-repeats
+  (`event.repeat`) never send; the first press does. The owner's double
+  "Test 1" / "Test 4" rows were 7 s and 19 s apart, which no double submit
+  explains — KNOWN_ISSUES keeps that open.
 - **Where:** web, fixed top-right just under the sticky header (`top-16`,
   `z-[35]` — under the bell's panel at 40 and the modal at 50); phone, M22.
 - **Accessible:** `role="status"` + `aria-live="polite"` on a box that is

@@ -3,9 +3,15 @@
 // state React Navigation really builds, and `buttonStyles()` directly; reads
 // the screens as SOURCE TEXT, said plainly, for the rest.
 //
+// THE FIX ROUND (2026-10-05) adds: C1 through `readingNoteLines` and C2's
+// text; the thread's send guard (source, with a negative control); the admin
+// Grades sections Retry, pull and refocus (source); the mirrored tickets
+// (pure) and their use in UnreadProvider (source).
+//
 // WHAT IT CANNOT: the toast actually hidden behind an open drawer, the Apply
 // label actually readable in Dark, a list keeping Search's focus when results
-// go empty, Next moving the caret — the owner's phone check.
+// go empty, Next moving the caret, two real taps on Send, the sections
+// coming back after a real outage — the owner's phone check.
 //
 // Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-look-fixes.mjs
@@ -109,6 +115,38 @@ console.log('the shapes on the phone (source)');
 assert(/rounded-md border px-2\.5/.test(src('components/StatusBadge.jsx')), 'a status badge is a tag (rounded-md), not a pill');
 assert(/overflow-hidden rounded-lg border px-4/.test(src('components/Segmented.jsx')), 'a segment is a control (rounded-lg), not a pill');
 assert(/rounded-lg border bg-surface px-4 py-3\.5/.test(src('components/FormField.jsx')), 'an input is a control (rounded-lg)');
+
+// ------------------------------------------------ the build 1 fix round
+// (2026-10-05) — the owner's device-check findings 2, 5, 6 and 7.
+
+console.log('fix round 2 — C1 and C2, the descriptive Final copy (pure + source)');
+const { readingNoteLines } = await import('../src/screens/parent/reportCard/logic.js');
+const C1 = 'The final letter for a learning area is worked out from the scores of all three terms, so it appears once every term has its scores recorded.';
+const descriptiveNote = readingNoteLines('descriptive');
+assert(descriptiveNote.includes(C1) && !descriptiveNote.some((line) => line.includes('appears once all three terms are recorded')), "C1: the report card's Final sentence needs every term's SCORES");
+const gradesFix = src('screens/admin/GradesScreen.jsx');
+assert(/mode === 'descriptive' \? '; “— N\/A” means it does not apply to this grade level; a final letter needs every term\\'s scores recorded' : ''/.test(gradesFix), 'C2: admin Grades says, on a descriptive card only, that a final letter needs every term’s scores');
+
+console.log('fix round 5 — one send at a time (source)');
+const thread = src('screens/parent/MessageThreadScreen.jsx');
+const sendAt = thread.indexOf('async function send()');
+const sendFn = thread.slice(sendAt, sendAt + 1000);
+const PHONE_GUARD = /if \(sendingRef\.current \|\| sending\) return;[\s\S]*?sendingRef\.current = true;[\s\S]*?await api\.post\([\s\S]*?finally \{\s*sendingRef\.current = false;/;
+assert(sendAt > 0 && PHONE_GUARD.test(sendFn), 'the thread send() is guarded by a REF — checked first, set before the POST, cleared in finally');
+assert(!PHONE_GUARD.test(sendFn.replace('sendingRef.current || ', '')), 'NEGATIVE CONTROL: with the ref check taken out, the guard assertion fails');
+
+console.log('fix round 6 — admin Grades reads its sections again (source)');
+assert(/<ErrorAlert message=\{sectionsError\} onRetry=\{\(\) => setSectionsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(gradesFix) && /\}, \[sectionsAttempt\]\);/.test(gradesFix), 'Grades: a failed sections read shows in the Section row with Retry, the effect keyed by sectionsAttempt');
+assert((gradesFix.match(/if \(sectionsFailed\.current\) setSectionsAttempt\(\(n\) => n \+ 1\);/g) || []).length === 2, 'Grades: a pull and coming back to the screen read the sections again while they are failed');
+
+console.log('fix round 7 — the newest unread reply wins (pure + source)');
+const { createTickets } = await import('../src/api/tickets.js');
+const tickets = createTickets();
+const older = tickets.take();
+const newer = tickets.take();
+assert(!tickets.isLatest(older) && tickets.isLatest(newer), 'tickets: the older read is no longer the latest');
+const unreadSrc = src('realtime/UnreadProvider.jsx');
+assert(/import \{ createTickets \} from '\.\.\/api\/tickets';/.test(unreadSrc) && /const ticket = tickets\.take\(\);/.test(unreadSrc) && /if \(!tickets\.isLatest\(ticket\)\) return; \/\/ a newer read has started\n\s+setUnread\(rows\.reduce/.test(unreadSrc) && /if \(tickets\.isLatest\(ticket\)\) setUnread\(0\);/.test(unreadSrc), 'UnreadProvider: a reply that is no longer the newest is dropped — count, rows and failure alike');
 
 console.log(`\nproof-look-fixes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

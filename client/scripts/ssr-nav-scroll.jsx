@@ -42,13 +42,15 @@ assert(nearestScrollTop({ ...view, itemTop: 500, itemHeight: 400 }) === 500, 'ta
 assert(nearestScrollTop({ scrollTop: 0, viewHeight: 300, itemTop: 0, itemHeight: 40 }) === 0, 'the first item at rest → 0');
 
 console.log('\n2. revealActive (a stand-in nav box)');
-function fakeBox({ scrollTop, clientHeight, boxTop, item }) {
+function fakeBox({ scrollTop, clientHeight, boxTop, item, links = [] }) {
   const box = {
     scrollTop,
     clientHeight,
     writes: 0,
     getBoundingClientRect: () => ({ top: boxTop }),
     querySelector: (sel) => (sel === '[aria-current="page"]' ? item : null),
+    // The nav's links, for the round-up to an item's top (build 1 fix round).
+    querySelectorAll: (sel) => (sel === 'a[href]' ? links : []),
   };
   // Count writes, so "leaves it alone" means no assignment at all.
   let value = scrollTop;
@@ -62,10 +64,20 @@ function fakeBox({ scrollTop, clientHeight, boxTop, item }) {
   return box;
 }
 // The box is at y=50 and scrolled 0; the active item's viewport top is 650,
-// so its content top is 600 and it is below a 300-tall box → 640 − 300 = 340.
-const below = fakeBox({ scrollTop: 0, clientHeight: 300, boxTop: 50, item: { getBoundingClientRect: () => ({ top: 650, height: 40 }) } });
+// so its content top is 600 and it is below a 300-tall box → its bottom
+// aligns at 640 − 300 = 340. The nav's items are 44px tall every 50px from
+// content top 0 (viewport 50), the active one the thirteenth (600), so 340
+// would cut the item at 300–344 through the top edge; the scroll is rounded
+// up to the next item's top, 350 (build 1 fix round). The active item,
+// 600–640, is still whole in 350–650.
+const active = { getBoundingClientRect: () => ({ top: 650, height: 40 }) };
+const links = Array.from({ length: 13 }, (_, i) => (i === 12 ? active : { getBoundingClientRect: () => ({ top: 50 + i * 50, height: 44 }) }));
+const below = fakeBox({ scrollTop: 0, clientHeight: 300, boxTop: 50, item: active, links });
 revealActive(below);
-assert(below.scrollTop === 340 && below.writes === 1, 'an active item below the fold is scrolled to — once, to 340', `got ${below.scrollTop} in ${below.writes} write(s)`);
+assert(below.scrollTop === 350 && below.writes === 1, 'an active item below the fold is scrolled to — once, to 350: its bottom would sit at 340, rounded up to the next item top so no item is cut at the top edge', `got ${below.scrollTop} in ${below.writes} write(s)`);
+const bare = fakeBox({ scrollTop: 0, clientHeight: 300, boxTop: 50, item: { getBoundingClientRect: () => ({ top: 650, height: 40 }) } });
+revealActive(bare);
+assert(bare.scrollTop === 340 && bare.writes === 1, 'CONTROL: with no item tops to round to, the bottom alignment stands (340) — the round-up comes from the items, not a constant', `got ${bare.scrollTop}`);
 const visible = fakeBox({ scrollTop: 0, clientHeight: 300, boxTop: 50, item: { getBoundingClientRect: () => ({ top: 100, height: 40 }) } });
 revealActive(visible);
 assert(visible.writes === 0, 'an already-visible item → scrollTop is not written at all');

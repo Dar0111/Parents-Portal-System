@@ -311,9 +311,16 @@ assessment data — that is honestly what a transitional row looks like.
 **What that means on screen, and it is visible on the demo card:** a legacy
 subject with all three letters recorded still shows **no Final letter**,
 because the Final averages the three terms' Initial Grades and there are none
-behind a typed letter. Nino's Mathematics reads A / B / C with a blank Final,
+behind a typed letter. Nino's Mathematics reads A / B / C with "— Pending" for the Final,
 and that is correct, not a bug. The breakdown modal on such a row says the
 grade predates kept scores rather than claiming the grade level has none.
+**The card's reading note says so too (build 1 fix round, 2026-10-05):** it
+said the final letter "appears once all three terms are recorded", which read
+as false beside three recorded letters; it now says the final letter "is
+worked out from the scores of all three terms, so it appears once every term
+has its scores recorded" (web `ReportCard.jsx`, phone
+`reportCard/logic.js`), and phone Admin → Grades adds that a final letter
+needs every term's scores. The rule itself did not change.
 
 ### What it touched, as built
 

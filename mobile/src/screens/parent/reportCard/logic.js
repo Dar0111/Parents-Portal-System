@@ -74,7 +74,7 @@ export function readingNoteLines(mode, { hasTermGrade = false, canOpen = false }
       ? [
           'This grade level uses descriptive grading (A to E).',
           'A term shows "Pending" until its letter can be worked out — written works, performance tasks and all three summative scores must be recorded first.',
-          'The final letter for a learning area appears once all three terms are recorded.',
+          'The final letter for a learning area is worked out from the scores of all three terms, so it appears once every term has its scores recorded.',
           'There is no general average for this grade level.',
         ]
       : [

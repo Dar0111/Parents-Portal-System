@@ -276,7 +276,7 @@ export default function StudentsPage() {
         />
 
         {/* The filter bar is its own card. */}
-        <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+        <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}>
           <FormField
             label="Status"
             as="select"

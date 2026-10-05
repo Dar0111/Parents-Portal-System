@@ -316,7 +316,7 @@ export default function AttendanceRecordsPage() {
             setAppliedSectionId(sectionId);
             setApplied({ from, to });
           }}
-          className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}
+          className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}
         >
           {/* Always a select since #6 — even one advisory section is two
               choices with "Everything I recorded" beside it. The option's

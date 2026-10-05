@@ -265,7 +265,7 @@ export default function AdminAttendancePage() {
           description="View only. Each section's adviser records attendance, and corrects a mark by saving that date again on their own Attendance page."
         />
 
-        <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-end gap-3 p-4`}>
+        <form onSubmit={applyFilters} className={`${cardClass} flex flex-wrap items-start gap-3 p-4`}>
           <FormField
             label="Grade"
             as="select"
