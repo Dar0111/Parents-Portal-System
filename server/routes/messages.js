@@ -11,6 +11,19 @@ const router = express.Router();
 // The security boundary for who may message whom. Used on every send
 // (POST /api/messages) — reads are participant-scoped instead, not
 // eligibility-scoped; see the read handlers below for why.
+//
+// THE ROLE PAIRS (the owner's decision, 2026-10-05 — the admin's inbox):
+//   teacher ↔ parent   only the parents of the teacher's own learners
+//   teacher ↔ teacher  allowed
+//   teacher ↔ admin    allowed, both ways
+//   parent  ↔ admin    REFUSED, both ways (403)
+//   admin   ↔ admin    REFUSED (403)
+// Until then an admin could message anyone and anyone the admin — that
+// blanket allow is gone. A refusal is 403 like every other one here (§2:
+// a write that is not permitted says why). History stays readable: a
+// parent ↔ admin thread from before keeps its messages, and only a NEW
+// send is refused — a scope change removes future authority, never past
+// records.
 async function canMessage(senderUser, recipientId) {
   const [recipientRows] = await pool.query(
     `SELECT id, role, student_id FROM users WHERE id = ? AND status = 'active' LIMIT 1`,
@@ -21,7 +34,10 @@ async function canMessage(senderUser, recipientId) {
     return { ok: false, status: 404, message: 'Recipient not found.' };
   }
 
-  if (senderUser.role === 'admin' || recipient.role === 'admin') {
+  if (senderUser.role === 'admin') {
+    if (recipient.role !== 'teacher') {
+      return { ok: false, status: 403, message: 'The admin may only message teachers.' };
+    }
     return { ok: true };
   }
 
@@ -30,7 +46,7 @@ async function canMessage(senderUser, recipientId) {
       return {
         ok: false,
         status: 403,
-        message: 'Parents may only message their child\'s teachers or an admin.',
+        message: 'Parents may only message their child\'s teachers.',
       };
     }
     // Assigned to the child's class OR its section adviser — the shared
@@ -56,7 +72,7 @@ async function canMessage(senderUser, recipientId) {
   }
 
   if (senderUser.role === 'teacher') {
-    if (recipient.role === 'teacher') {
+    if (recipient.role === 'teacher' || recipient.role === 'admin') {
       return { ok: true };
     }
     if (recipient.role !== 'parent') {
@@ -153,11 +169,12 @@ router.get('/conversations', authenticate, async (req, res) => {
 // Scope per role, stated plainly because this is the endpoint that would leak
 // the whole school if it were ever loosened:
 //   parent  -> teachers connected to THEIR OWN CHILD only (assigned to the
-//              child's class, or its section adviser — the shared predicate),
-//              plus admins.
+//              child's class, or its section adviser — the shared predicate).
+//              No admin since 2026-10-05: a parent may not message the admin.
 //   teacher -> parents of students in their own scope (assigned or adviser),
 //              plus other teachers and admins.
-//   admin   -> everyone else.
+//   admin   -> active teachers only (2026-10-05) — the admin may message
+//              teachers and nobody else.
 // NEVER an unscoped user search. ?search= filters WITHIN the already-scoped
 // set only; it can never widen it.
 //
@@ -183,11 +200,10 @@ router.get('/contacts', authenticate, async (req, res) => {
       return res.json({ success: true, contacts: [] });
     }
     scopeSql = `(
-      u.role = 'admin'
-      OR (u.role = 'teacher' AND EXISTS (
+      u.role = 'teacher' AND EXISTS (
         SELECT 1 FROM students s
         WHERE s.id = ? AND ${TEACHER_VIEW_SCOPE_SQL.replace('ta.teacher_id = ?', 'ta.teacher_id = u.id').replace('sec.adviser_id = ?', 'sec.adviser_id = u.id')}
-      ))
+      )
     )`;
     scopeParams = [req.user.student_id];
   } else if (req.user.role === 'teacher') {
@@ -199,8 +215,12 @@ router.get('/contacts', authenticate, async (req, res) => {
       ))
     )`;
     scopeParams = teacherViewScopeParams(userId);
+  } else if (req.user.role === 'admin') {
+    scopeSql = "u.role = 'teacher'";
+    scopeParams = [];
   } else {
-    scopeSql = '1 = 1';
+    // An unknown role is offered no one, never everyone.
+    scopeSql = '1 = 0';
     scopeParams = [];
   }
 

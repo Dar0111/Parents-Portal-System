@@ -25,9 +25,10 @@ import { useTheme } from '../../theme/ThemeProvider';
 // (§2): the composer is replaced by the sentence and the thread stays
 // readable. `dateTime` is the one place the time of day is the point.
 //
-// ONE THREAD SCREEN FOR BOTH ROLES (branch 3). The teacher's thread adds
-// exactly one thing, "Announce to a class", and it is ROLE-GATED here rather
-// than a second thread file: the button opens the ONE composer
+// ONE THREAD SCREEN FOR EVERY ROLE (branch 3; the admin since 2026-10-05).
+// The teacher's thread adds exactly one thing, "Announce to a class", and it
+// is ROLE-GATED here rather than a second thread file — on a PARENT'S thread
+// only, never a teacher's or the admin's: the button opens the ONE composer
 // (AnnouncementCompose) with the UNSENT DRAFT — never the last incoming
 // message — and a target only when the contacts row for this thread is a
 // parent row carrying the child's class. GET /messages/contacts is the one
@@ -155,6 +156,14 @@ export default function MessageThreadScreen({ navigation, route }) {
     return row.sender_id === otherId ? { name: row.sender_name, role: row.sender_role } : { name: row.receiver_name, role: row.receiver_role };
   }, [messages, otherId]);
 
+  // "ANNOUNCE TO A CLASS" IS FOR A TEACHER ON A PARENT'S THREAD ONLY
+  // (2026-10-05, the web's rule): a thread with another teacher or with the
+  // admin has no class behind it. The role comes from a message that names
+  // the other person, else from their contacts row; until one has loaded the
+  // button stays away rather than flashing on a thread that is not a
+  // parent's.
+  const showAnnounce = isTeacher && (other?.role || contactRow?.role) === 'parent';
+
   useLayoutEffect(() => {
     navigation.setOptions({ title: other?.name || route.params.name || 'Conversation' });
   }, [navigation, other?.name, route.params.name]);
@@ -267,7 +276,8 @@ export default function MessageThreadScreen({ navigation, route }) {
     // add up to exactly the keyboard's height (M11).
     <KeyboardAvoidingView behavior="padding" className="flex-1 bg-page">
       {/* WHO THE CONVERSATION IS WITH. The teacher's one extra, "Announce to
-          a class", sits under it in the same bar. */}
+          a class", sits under it in the same bar — on a parent's thread
+          only. */}
       <View className="gap-2 border-b border-edge bg-surface px-4 py-2">
         <View className="flex-row items-center gap-3">
           <Avatar name={other?.name || route.params.name} />
@@ -275,7 +285,7 @@ export default function MessageThreadScreen({ navigation, route }) {
             {other?.name || route.params.name || 'Conversation'}
           </Text>
         </View>
-        {isTeacher ? (
+        {showAnnounce ? (
           <View className="gap-1">
             <Button
               size="sm"

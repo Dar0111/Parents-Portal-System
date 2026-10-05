@@ -73,15 +73,16 @@ export function rowFor(conversations, senderId) {
 
 // WEB: whose conversation is open? A Messages URL's :userId is the OTHER
 // person's user id, not a conversation id (App.jsx: messages/:userId).
-// The list page and every other page are null.
+// The list page and every other page are null. The admin has a thread too
+// since 2026-10-05 (teacher <-> admin only).
 export function otherIdFromPath(pathname) {
-  const match = /^\/(teacher|parent)\/messages\/(\d+)\/?$/.exec(String(pathname || ''));
+  const match = /^\/(teacher|parent|admin)\/messages\/(\d+)\/?$/.exec(String(pathname || ''));
   return match ? Number(match[2]) : null;
 }
 
 // PHONE: the same question from React Navigation's state — walk to the
 // FOCUSED leaf route; the thread is the `MessageThread` stack screen with
-// `params.otherId` (the other person's user id) for both roles.
+// `params.otherId` (the other person's user id) for every role.
 export function otherIdFromRoute(state) {
   let route = null;
   let node = state;

@@ -217,12 +217,17 @@ async function run() {
       'Parent messaging a teacher not assigned to their child is blocked, naming the reason'
     );
 
-    const m2 = await request('POST', '/api/messages', {
+    // Parent → admin is REFUSED since 2026-10-05 (the owner's decision: the
+    // admin's inbox is teacher ↔ admin only). Was: 201 "Parent messages admin".
+    const parentToAdmin = await request('POST', '/api/messages', {
       token: parent1Token,
-      body: { receiver_id: adminId, body: 'Hello admin' },
+      body: { receiver_id: adminId, body: 'Should be blocked' },
     });
-    assert(m2.status === 201, 'Parent messages admin');
-    if (m2.data?.data?.id) createdMessageIds.push(m2.data.data.id);
+    assert(
+      parentToAdmin.status === 403 && parentToAdmin.data?.message === "Parents may only message their child's teachers.",
+      'Parent messaging the admin is blocked (403), naming the reason'
+    );
+    if (parentToAdmin.data?.data?.id) createdMessageIds.push(parentToAdmin.data.data.id);
 
     const parentToParent = await request('POST', '/api/messages', {
       token: parent1Token,
@@ -259,6 +264,58 @@ async function run() {
     });
     assert(m4.status === 201, 'Teacher messages the parent of their own assigned student');
     if (m4.data?.data?.id) createdMessageIds.push(m4.data.data.id);
+
+    // --- canMessage: the admin (teacher ↔ admin only, since 2026-10-05) ---
+    console.log('\ncanMessage — the admin:');
+
+    const teacherToAdmin = await request('POST', '/api/messages', {
+      token: teacher1Token,
+      body: { receiver_id: adminId, body: 'Hello admin' },
+    });
+    assert(teacherToAdmin.status === 201, 'Teacher messages the admin');
+    if (teacherToAdmin.data?.data?.id) createdMessageIds.push(teacherToAdmin.data.data.id);
+
+    const adminToTeacher = await request('POST', '/api/messages', {
+      token: adminToken,
+      body: { receiver_id: teacher1Id, body: 'Hello teacher' },
+    });
+    assert(adminToTeacher.status === 201, 'The admin messages a teacher');
+    if (adminToTeacher.data?.data?.id) createdMessageIds.push(adminToTeacher.data.data.id);
+
+    const adminToParent = await request('POST', '/api/messages', {
+      token: adminToken,
+      body: { receiver_id: parent1Id, body: 'Should be blocked' },
+    });
+    assert(
+      adminToParent.status === 403 && adminToParent.data?.message === 'The admin may only message teachers.',
+      'The admin messaging a parent is blocked (403), naming the reason'
+    );
+    if (adminToParent.data?.data?.id) createdMessageIds.push(adminToParent.data.data.id);
+
+    // A second admin, inserted for this run only (the seed has one) and
+    // removed by its login id in cleanup(), like the parent fixture above.
+    const admin2LoginId = `ADM-MSG${runId}`;
+    createdLoginIds.push(admin2LoginId);
+    await withDb((conn) =>
+      conn.query(
+        `INSERT INTO users (login_id, password, role, status, name, created_by)
+         VALUES (?, 'not-a-real-hash', 'admin', 'active', 'Second Admin', ?)`,
+        [admin2LoginId, adminId]
+      )
+    );
+    const [admin2Rows] = await withDb((conn) =>
+      conn.query('SELECT id FROM users WHERE login_id = ? LIMIT 1', [admin2LoginId])
+    );
+    const admin2Id = admin2Rows[0]?.id;
+    const adminToAdmin = await request('POST', '/api/messages', {
+      token: adminToken,
+      body: { receiver_id: admin2Id, body: 'Should be blocked' },
+    });
+    assert(
+      Number.isInteger(admin2Id) && adminToAdmin.status === 403 && adminToAdmin.data?.message === 'The admin may only message teachers.',
+      'The admin messaging another admin is blocked (403)'
+    );
+    if (adminToAdmin.data?.data?.id) createdMessageIds.push(adminToAdmin.data.data.id);
 
     // --- Validation ---
     console.log('\nValidation:');
@@ -499,9 +556,11 @@ async function run() {
       parentContactIds.includes(teacher1Id),
       "Parent sees their own child's teacher"
     );
+    // Since 2026-10-05 a parent may not message the admin, so the admin is
+    // not offered. Was: 'Parent sees admin'.
     assert(
-      (parentContacts.data?.contacts || []).some((c) => c.role === 'admin'),
-      'Parent sees admin'
+      !(parentContacts.data?.contacts || []).some((c) => c.role === 'admin'),
+      'Parent never sees the admin'
     );
     // The privacy property this endpoint exists to protect: a parent must never
     // see a teacher with no connection to their own child.
@@ -571,11 +630,17 @@ async function run() {
       'Adviser-only teacher still sees admin and other teachers'
     );
 
+    // Since 2026-10-05 the admin may message teachers only, so its contacts
+    // are the ACTIVE teachers. Was: 'Admin sees everyone (never fewer than a
+    // scoped role does)'.
     const adminContacts = await request('GET', '/api/messages/contacts', { token: adminToken });
+    const adminContactRows = adminContacts.data?.contacts || [];
     assert(
       adminContacts.status === 200 &&
-        (adminContacts.data?.contacts || []).length >= parentContactIds.length,
-      'Admin sees everyone (never fewer than a scoped role does)'
+        adminContactRows.length > 0 &&
+        adminContactRows.every((c) => c.role === 'teacher') &&
+        adminContactRows.some((c) => c.id === teacher1Id),
+      'The admin sees active teachers only — no parent, no admin'
     );
     assert(
       !(adminContacts.data?.contacts || []).some((c) => c.id === adminId),
@@ -647,20 +712,30 @@ async function run() {
       assert(sorted.status === 200 && ordered(sorted.data?.[key] || [], field), `${path}: sort=${sort}&order=desc is ordered on the page`);
     }
 
-    await checkPage('/api/messages/conversations', parent1Token, 'conversations', {
+    // TEACHER1's conversations since 2026-10-05: the parent's second
+    // conversation was with the admin, which is refused now, so the parent
+    // holds one and the offset=1 check below would never run. Teacher1 holds
+    // at least two this run (parent1, and the admin both ways).
+    await checkPage('/api/messages/conversations', teacher1Token, 'conversations', {
       sort: 'last_message_at',
       field: 'last_message_at',
       idField: 'other_user_id',
     });
     await checkPage('/api/messages/contacts', adminToken, 'contacts', { sort: 'name', field: 'name' });
 
-    // C4: ?search= narrows total within scope.
-    const searchContacts = await request('GET', '/api/messages/contacts?search=Conde&limit=200', { token: adminToken });
+    // C4: ?search= narrows total within scope. A TEACHER-name search since
+    // 2026-10-05 (the admin's contacts are teachers only, so the old parent
+    // search would have passed on zero rows): the term is a word of TCH-001's
+    // own name, read from the admin's contacts, so the row must come back.
+    const searchTerm = String(adminContactRows.find((c) => c.id === teacher1Id)?.name || '').split(/\s+/).filter(Boolean).pop() || 'zzzznomatch';
+    const searchContacts = await request('GET', `/api/messages/contacts?search=${encodeURIComponent(searchTerm)}&limit=200`, { token: adminToken });
+    const searchRows = searchContacts.data?.contacts || [];
     assert(
       searchContacts.status === 200 &&
-        (searchContacts.data?.contacts || []).every((c) => /Conde/i.test(`${c.name} ${c.student_name || ''}`)) &&
-        (searchContacts.data?.page?.has_more || searchContacts.data?.page?.total === searchContacts.data?.contacts?.length),
-      'GET /messages/contacts?search=Conde: every row matches and total is the filtered count'
+        searchRows.some((c) => c.id === teacher1Id) &&
+        searchRows.every((c) => c.role === 'teacher' && new RegExp(searchTerm, 'i').test(`${c.name} ${c.student_name || ''}`)) &&
+        (searchContacts.data?.page?.has_more || searchContacts.data?.page?.total === searchRows.length),
+      "GET /messages/contacts?search=<a teacher's name> (the admin): the teacher comes back, every row matches, and total is the filtered count"
     );
 
     // --- C3: the thread pages on a cursor, newest page first, oldest-first

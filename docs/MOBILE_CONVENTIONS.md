@@ -395,6 +395,18 @@ the top inset. **The drawer is outside every screen layout and pads both
 edges itself** (`DrawerContent`: the scroll view's top, the footer's
 bottom). A screen never adds its own bottom inset on top of the frame.
 
+**A screen may serve two roles' drawer routes (2026-10-05).** The admin's
+Messages is `/admin/messages` → `AdminMessages`, which `AppShell` maps to the
+PARENT's `MessagesScreen` — the owner's decision of 2026-10-05 (teacher ↔
+admin only; CLAUDE.md → ADMIN SCOPE AUDIT). The detail stack is every role's,
+so its `NewMessage` and `MessageThread` pushes need nothing new. What differs
+by role is read from `useAuth()` in the screen, never from a second file:
+`NewMessageScreen` holds one group, Teachers, for both roles, with "Teacher
+name" and a role's own empty message; `MessageThreadScreen` shows "Announce
+to a class" to a teacher on a PARENT's thread only (the role from a message
+that names the other person, else from the contacts row). A shared component
+replaces this reuse after the Fri 9 Oct 2026 check.
+
 **Badges are joined at the row.** `DrawerContent.badgeFor` is the web's
 `badgeFor`: Messages from `UnreadProvider`, the rest from
 `NotificationProvider`, admin's Announcements carrying memos, a badge only
@@ -694,7 +706,7 @@ everything under them by key, guarded by the ids a read-only survey found.
 Run 2026-09-28: 1 grade row, 1 slot, 1 component, 2 attendance rows, 0
 notifications; Marwin 0 grade rows before and after.
 
-## M16. The admin shell: eight items, one web-only item hidden, one Settings
+## M16. The admin shell: eight items (nine since Messages, 2026-10-05 — M9), one web-only item hidden, one Settings
 
 **Branch 4, 2026-09-29. Darryl's fixed decision: Backup & Restore is web
 only — no screen, no nav item.**
@@ -964,7 +976,9 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
 - **View** goes through `requestLeave` (M14) and navigates
   `Home → MessageThread { otherId, name }` — AppShell is the root's `Home`
   screen, so the toast's navigation is the root's.
-- **Admin:** no toast — `isBuilt('/admin/messages')` is false.
+- **Admin:** the toast, the tone and the vibration too since 2026-10-05 —
+  `isBuilt('/admin/messages')` is true (Admin → Messages, teacher ↔ admin;
+  M9). Until then it was false and the admin got none.
 - **Imported as `../realtime/MessageToast.jsx`, extension included** — the
   web build failed on the case-only clash with `messageToast.js` (§26).
 - **One send at a time is a REF, and the newest unread reply wins (build 1
@@ -981,7 +995,8 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   line.
 - **TONE AND VIBRATION on a toast SHOW or UPDATE** (fix round, 2026-10-02;
   the owner reversed "no sound, no vibration"). Never on a skip (my own
-  message, the open conversation), never for admin, once per show / update.
+  message, the open conversation), never for a role with no Messages screen
+  (none since 2026-10-05 — the admin's was the last), once per show / update.
   `realtime/toastAlert.js` (phone-only, pure — play and vibrate are passed
   in) tries the tone first and swallows its failure, then vibrates **150 ms**
   (React Native's `Vibration`, no package). A tone that fails is silent; the

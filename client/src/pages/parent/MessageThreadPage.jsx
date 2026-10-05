@@ -24,6 +24,12 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // the socket / unread-refresh / 403-composer logic is identical and must
 // not drift, but this dispatch does not touch the teacher file.
 //
+// THE ADMIN'S THREAD TOO (2026-10-05): /admin/messages/:userId renders this
+// page, and the back link follows the signed-in role. The shared component
+// the paragraph above asks for comes after the Fri 9 Oct 2026 check (the
+// owner's decision). Neither role gets "Announce to a class" — that is a
+// teacher's hand-off, and only on a parent's thread.
+//
 // NO OPTIMISTIC APPEND — convention 5b. The composer holds an unsent draft;
 // `messages` holds ONLY server-returned rows.
 //
@@ -100,7 +106,12 @@ export default function ParentMessageThreadPage() {
     active: draftFor === otherId && !blockedReason,
   });
 
-  const bottomRef = useRef(null);
+  // The message LIST, not a marker at its end: the list scrolls itself
+  // (finding #11, below). And the composer, so a send by the Send button
+  // hands the focus back to it.
+  const listRef = useRef(null);
+  const composerRef = useRef(null);
+  const sentIdRef = useRef(null);
 
   // C3 (2026-09-19): the thread pages on a cursor. load() fetches the TAIL
   // (the newest page) and merges it over what is already on screen, so a
@@ -188,11 +199,26 @@ export default function ParentMessageThreadPage() {
   // Scroll to the bottom only when the NEWEST message changed — a page
   // prepended by loadEarlier() leaves the last id alone and must not yank
   // the reader back down.
+  //
+  // THE LIST SCROLLS ITSELF, NEVER THE PAGE (finding #11, 2026-10-05). This
+  // was `scrollIntoView({ block: 'end' })` on a marker at the list's end,
+  // which scrolls EVERY scrollable ancestor — the document too — to line the
+  // marker up with the bottom of the window, so after a send by Enter the
+  // page jumped and the composer under the list left the view. Setting the
+  // list's own scrollTop moves only the 28rem list.
   useEffect(() => {
     const lastId = messages[messages.length - 1]?.id ?? null;
     if (lastId !== lastIdRef.current) {
       lastIdRef.current = lastId;
-      bottomRef.current?.scrollIntoView({ block: 'end' });
+      const list = listRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+      // My own send, now on screen: the composer gets the focus back (a
+      // click on Send leaves it on the button, which is disabled mid-send),
+      // and `preventScroll` keeps that from moving the page either.
+      if (lastId !== null && lastId === sentIdRef.current) {
+        sentIdRef.current = null;
+        composerRef.current?.focus({ preventScroll: true });
+      }
     }
   }, [messages]);
 
@@ -232,6 +258,7 @@ export default function ParentMessageThreadPage() {
         { receiver_id: otherId, body },
         { unwrap: 'data' }
       );
+      sentIdRef.current = sent.id;
       setMessages((rows) => [...rows, sent]);
       // The server confirmed: the draft goes (Send and Enter alike).
       messageDraft.submitted(composerValues);
@@ -243,6 +270,9 @@ export default function ParentMessageThreadPage() {
         setBlockedReason(message);
       } else {
         setSendError(message);
+        // The draft is still there to send again: back to the composer,
+        // without moving the page.
+        composerRef.current?.focus({ preventScroll: true });
       }
     } finally {
       sendingRef.current = false;
@@ -264,7 +294,7 @@ export default function ParentMessageThreadPage() {
       {/* A 44px-tall target with the shared keyboard outline; the arrow is
           decoration. */}
       <Link
-        to="/parent/messages"
+        to={user?.role === 'admin' ? '/admin/messages' : '/parent/messages'}
         className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
       >
         <span aria-hidden="true" className="flex items-center justify-center">
@@ -289,7 +319,7 @@ export default function ParentMessageThreadPage() {
           </div>
         </div>
 
-        <div className="max-h-[28rem] space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
+        <div ref={listRef} className="max-h-[28rem] space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
           {hasMore ? (
             <div className="flex justify-center">
               <Button size="sm" onClick={loadEarlier} disabled={loadingEarlier}>
@@ -328,7 +358,6 @@ export default function ParentMessageThreadPage() {
               );
             })
           )}
-          <div ref={bottomRef} />
         </div>
 
         <form onSubmit={send} className="border-t border-edge px-4 py-3 sm:px-5">
@@ -350,6 +379,7 @@ export default function ParentMessageThreadPage() {
             // its aria-label — a placeholder is not a label.
             <div className="flex items-end gap-2">
               <textarea
+                ref={composerRef}
                 rows={2}
                 aria-label="Write a message"
                 value={draft}

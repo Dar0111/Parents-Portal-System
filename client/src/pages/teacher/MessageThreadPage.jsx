@@ -129,7 +129,12 @@ export default function MessageThreadPage() {
     active: draftFor === otherId && !blockedReason,
   });
 
-  const bottomRef = useRef(null);
+  // The message LIST, not a marker at its end: the list scrolls itself
+  // (finding #11, below). And the composer, so a send by the Send button
+  // hands the focus back to it.
+  const listRef = useRef(null);
+  const composerRef = useRef(null);
+  const sentIdRef = useRef(null);
 
   // C3 (2026-09-19): the thread pages on a cursor. load() fetches the TAIL
   // (the newest page) and merges it over what is already on screen, so a
@@ -230,11 +235,26 @@ export default function MessageThreadPage() {
   // Scroll to the bottom only when the NEWEST message changed — a page
   // prepended by loadEarlier() leaves the last id alone and must not yank
   // the reader back down.
+  //
+  // THE LIST SCROLLS ITSELF, NEVER THE PAGE (finding #11, 2026-10-05). This
+  // was `scrollIntoView({ block: 'end' })` on a marker at the list's end,
+  // which scrolls EVERY scrollable ancestor — the document too — to line the
+  // marker up with the bottom of the window, so after a send by Enter the
+  // page jumped and the composer under the list left the view. Setting the
+  // list's own scrollTop moves only the 28rem list.
   useEffect(() => {
     const lastId = messages[messages.length - 1]?.id ?? null;
     if (lastId !== lastIdRef.current) {
       lastIdRef.current = lastId;
-      bottomRef.current?.scrollIntoView({ block: 'end' });
+      const list = listRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+      // My own send, now on screen: the composer gets the focus back (a
+      // click on Send leaves it on the button, which is disabled mid-send),
+      // and `preventScroll` keeps that from moving the page either.
+      if (lastId !== null && lastId === sentIdRef.current) {
+        sentIdRef.current = null;
+        composerRef.current?.focus({ preventScroll: true });
+      }
     }
   }, [messages]);
 
@@ -281,6 +301,14 @@ export default function MessageThreadPage() {
   }, [otherId]);
 
   const contactRow = contactInfo.forId === otherId ? contactInfo.row : null;
+  // "ANNOUNCE TO A CLASS" IS FOR A PARENT'S THREAD ONLY (2026-10-05). It
+  // exists to stop a teacher answering one parent by hand when the whole
+  // class needs the answer; a thread with another teacher or with the admin
+  // has no class behind it. The role comes from a message that names the
+  // other person, else from their contacts row; while neither has loaded the
+  // button stays away rather than flashing on a thread that is not a
+  // parent's.
+  const otherIsParent = (other?.role || contactRow?.role) === 'parent';
   const announceClass =
     contactRow?.student_name && contactRow.student_grade_level != null && contactRow.student_section
       ? {
@@ -313,6 +341,7 @@ export default function MessageThreadPage() {
         { unwrap: 'data' }
       );
       // The row the SERVER returned, appended after it confirmed.
+      sentIdRef.current = sent.id;
       setMessages((rows) => [...rows, sent]);
       // The server confirmed: the draft goes (Send and Enter alike).
       messageDraft.submitted(composerValues);
@@ -326,8 +355,10 @@ export default function MessageThreadPage() {
         setBlockedReason(message);
       } else {
         // Draft is preserved deliberately — a teacher should not retype a
-        // message because the network blipped.
+        // message because the network blipped. Back to the composer,
+        // without moving the page.
         setSendError(message);
+        composerRef.current?.focus({ preventScroll: true });
       }
     } finally {
       sendingRef.current = false;
@@ -361,29 +392,31 @@ export default function MessageThreadPage() {
             </span>
             All conversations
           </Link>
-          <Button
-            icon="fa-bullhorn"
-            title={announceHint}
-            onClick={() =>
-              navigate('/teacher/announcements', {
-                state: {
-                  compose: announceClass
-                    ? { content: draft.trim(), target: announceClass.key, fromThread: otherId }
-                    : { content: draft.trim(), fromThread: otherId },
-                },
-              })
-            }
-          >
-            {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
-          </Button>
+          {otherIsParent ? (
+            <Button
+              icon="fa-bullhorn"
+              title={announceHint}
+              onClick={() =>
+                navigate('/teacher/announcements', {
+                  state: {
+                    compose: announceClass
+                      ? { content: draft.trim(), target: announceClass.key, fromThread: otherId }
+                      : { content: draft.trim(), fromThread: otherId },
+                  },
+                })
+              }
+            >
+              {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
+            </Button>
+          ) : null}
         </div>
         {/* Visible, not only the title tooltip: hover does not exist on touch,
             and "This conversation will not" is the sentence that stops a
             teacher believing they replied to the parent (§3's rule). Under
             the button it explains: right-aligned from `sm`, where the button
             sits on the right; left-aligned on a phone, where the button has
-            wrapped to the left. */}
-        <p className="text-xs text-fg-muted sm:text-right">{announceHint}</p>
+            wrapped to the left. It goes with the button. */}
+        {otherIsParent ? <p className="text-xs text-fg-muted sm:text-right">{announceHint}</p> : null}
       </div>
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
@@ -403,7 +436,7 @@ export default function MessageThreadPage() {
           </div>
         </div>
 
-        <div className="max-h-[28rem] space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
+        <div ref={listRef} className="max-h-[28rem] space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
           {hasMore ? (
             <div className="flex justify-center">
               <Button size="sm" onClick={loadEarlier} disabled={loadingEarlier}>
@@ -442,7 +475,6 @@ export default function MessageThreadPage() {
               );
             })
           )}
-          <div ref={bottomRef} />
         </div>
 
         <form onSubmit={send} className="border-t border-edge px-4 py-3 sm:px-5">
@@ -464,6 +496,7 @@ export default function MessageThreadPage() {
             // its aria-label — a placeholder is not a label.
             <div className="flex items-end gap-2">
               <textarea
+                ref={composerRef}
                 rows={2}
                 aria-label="Write a message"
                 value={draft}

@@ -70,7 +70,7 @@ const EXPECTED = {
     top: ['/admin'],
     groups: [
       ['Manage', ['/admin/users', '/admin/students', '/admin/grades', '/admin/attendance']],
-      ['Communicate', ['/admin/announcements']],
+      ['Communicate', ['/admin/announcements', '/admin/messages']],
     ],
     bottom: ['/admin/settings', '/admin/about'],
   },

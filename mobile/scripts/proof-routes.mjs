@@ -50,6 +50,7 @@ const KNOWN_SCREENS = new Set([
   'AdminGrades',
   'AdminAttendance',
   'AdminAnnouncements',
+  'AdminMessages',
 ]);
 
 console.log('nav paths');
@@ -71,14 +72,16 @@ const teacherBuilt = NAV_BY_ROLE.teacher.filter((i) => isBuilt(i.to));
 console.log(`  teacher built: ${teacherBuilt.map((i) => i.label).join(', ')}`);
 assert(teacherBuilt.length === NAV_BY_ROLE.teacher.length, `every teacher nav item is built (${teacherBuilt.length} of ${NAV_BY_ROLE.teacher.length})`);
 assert(SECOND_HALF.every((p) => routeFor(p) !== null), 'teacher: Attendance, Attendance records, Grades and Class summary route to their screens');
-// Branch 4 complete: all eight visible admin items built (at its checkpoint
-// the second half's four were asserted unbuilt). Backup & Restore is WEB
-// ONLY — never routed, and dropped from the drawer rather than dimmed.
+// Branch 4 complete: every visible admin item built (at its checkpoint the
+// second half's four were asserted unbuilt) — nine since Messages came back
+// on 2026-10-05. Backup & Restore is WEB ONLY — never routed, and dropped
+// from the drawer rather than dimmed.
 const SECOND_HALF_ADMIN = ['/admin/students', '/admin/grades', '/admin/attendance', '/admin/announcements'];
 const adminVisible = NAV_BY_ROLE.admin.filter((i) => !isWebOnly(i.to));
 const adminBuilt = adminVisible.filter((i) => isBuilt(i.to));
 console.log(`  admin on the phone: ${adminVisible.map((i) => i.label).join(', ')}`);
-assert(adminVisible.length === 8 && adminVisible.every((i) => i.to !== '/admin/backups'), 'admin shows eight items; Backup & Restore is not one of them');
+assert(adminVisible.length === 9 && adminVisible.every((i) => i.to !== '/admin/backups'), 'admin shows nine items; Backup & Restore is not one of them');
+assert(routeFor('/admin/messages') === 'AdminMessages', "admin: Messages routes to its screen (the parent's, 2026-10-05)");
 assert(isWebOnly('/admin/backups') && !isBuilt('/admin/backups'), 'Backup & Restore is web-only and has no screen');
 assert(adminBuilt.length === adminVisible.length, `every visible admin item is built (${adminBuilt.length} of ${adminVisible.length})`);
 assert(SECOND_HALF_ADMIN.every((p) => isBuilt(p)), 'admin: Students, Grades, Attendance and Announcements route to their screens');

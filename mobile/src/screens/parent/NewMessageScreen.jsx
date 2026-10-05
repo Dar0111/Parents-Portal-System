@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
+import { useAuth } from '../../auth/AuthContext';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -13,10 +14,13 @@ import { useTheme } from '../../theme/ThemeProvider';
 
 // THE CONTACT PICKER — the web's "New message" modal as a screen.
 // GET /messages/contacts is scoped by the inverse of canMessage() (a parent
-// sees the teachers connected to their own child, and admins); the search
-// filters WITHIN that list on the phone and is never an unscoped user
-// search. Choosing a contact REPLACES this screen with the thread, so Back
-// from the thread returns to the list, not to the picker.
+// sees the teachers connected to their own child; since 2026-10-05 the
+// admin is not one of them, and the ADMIN — who reaches this screen from
+// its own Messages — sees every active teacher); the search filters WITHIN
+// that list on the phone and is never an unscoped user search. Both roles
+// message teachers only, so there is one group, Teachers. Choosing a
+// contact REPLACES this screen with the thread, so Back from the thread
+// returns to the list, not to the picker.
 //
 // THE LOOK (feat/ui-refresh) is the web picker's: each group is an eyebrow
 // over ONE card of rows, a hairline between them, and a row is one button —
@@ -37,6 +41,8 @@ const ROW = { minHeight: 48 };
 
 export default function NewMessageScreen({ navigation }) {
   const { tokens } = useTheme();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,10 +91,7 @@ export default function NewMessageScreen({ navigation }) {
   }, [contacts, search]);
 
   const groups = useMemo(
-    () => [
-      { role: 'teacher', label: 'Teachers', rows: filtered.filter((c) => c.role === 'teacher') },
-      { role: 'admin', label: 'Admin', rows: filtered.filter((c) => c.role === 'admin') },
-    ],
+    () => [{ role: 'teacher', label: 'Teachers', rows: filtered.filter((c) => c.role === 'teacher') }],
     [filtered]
   );
 
@@ -99,7 +102,7 @@ export default function NewMessageScreen({ navigation }) {
       keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
-      <FormField label="Search" placeholder="Teacher or admin name" value={search} onChangeText={setSearch} autoCorrect={false} />
+      <FormField label="Search" placeholder="Teacher name" value={search} onChangeText={setSearch} autoCorrect={false} />
       {loading || (refreshing && contacts.length === 0) ? (
         <LoadingSpinner size="sm" className="py-6" label="Loading contacts…" />
       ) : error ? (
@@ -109,7 +112,11 @@ export default function NewMessageScreen({ navigation }) {
           <EmptyState
             icon="fa-address-book"
             title="No one to message yet"
-            message="You can message your child's teachers and the school admin once your account is linked to a student."
+            message={
+              isAdmin
+                ? 'Active teacher accounts appear here.'
+                : "You can message your child's teachers once your account is linked to a student."
+            }
           />
         </View>
       ) : (

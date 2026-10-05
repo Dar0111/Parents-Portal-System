@@ -106,6 +106,12 @@ export default function App() {
             </Route>
             <Route path="attendance" element={<AdminAttendance />} />
             <Route path="announcements" element={<AdminAnnouncements />} />
+            {/* The admin's inbox (2026-10-05): the PARENT pages, which take
+                their base path from the signed-in role — teacher ↔ admin
+                only, so the admin's picker holds teachers and its threads
+                have no "Announce to a class". */}
+            <Route path="messages" element={<ParentMessages />} />
+            <Route path="messages/:userId" element={<ParentMessageThread />} />
             <Route path="grades" element={<AdminGrades />} />
             <Route path="backups" element={<AdminBackups />} />
             <Route path="about" element={<AboutPage />} />

@@ -44,6 +44,9 @@ export const PAGES = {
     '/admin/grades',
     '/admin/attendance',
     '/admin/announcements',
+    // The admin's inbox (2026-10-05): the conversation list only. New
+    // message opens a picker and never sends; nothing here clicks it.
+    '/admin/messages',
     '/admin/settings',
     '/admin/settings/account',
     '/admin/settings/password',

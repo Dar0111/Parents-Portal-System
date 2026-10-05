@@ -18,7 +18,9 @@
 // than keeping them dimmed — see CLAUDE.md -> ADMIN SCOPE AUDIT -> SCOPE
 // DECISION (2026-09-18), which supersedes one line of the 2026-09-13 decision.
 // Memos went with them because Admin -> Announcements is the only place a memo
-// can ever be written, and that page says so itself.
+// can ever be written, and that page says so itself. MESSAGES CAME BACK on
+// 2026-10-05 (the owner's decision — SCOPE DECISION 2026-10-05): the admin's
+// inbox, teacher <-> admin only; a parent cannot message the admin.
 //
 // NO ROLE CURRENTLY HAS A `built: false` ITEM, and that is not the same as the
 // state being retired: Stage 5 and any future page will reintroduce it, Shell
@@ -78,6 +80,7 @@ export const NAV_BY_ROLE = {
     { to: '/admin/grades', label: 'Grades', icon: 'fa-chart-simple', built: true },
     { to: '/admin/attendance', label: 'Attendance', icon: 'fa-clipboard-user', built: true },
     { to: '/admin/announcements', label: 'Announcements', icon: 'fa-bullhorn', built: true },
+    { to: '/admin/messages', label: 'Messages', icon: 'fa-comments', built: true },
     { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: true },
     { to: '/admin/backups', label: 'Backup & Restore', icon: 'fa-database', built: true },
     // Last, after Backup & Restore — "after Settings" for the other roles

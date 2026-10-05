@@ -22,6 +22,14 @@
 // model with a negative control; a held Enter (pure); the admin Grades
 // sections and learner Retries (source).
 //
+// ADMIN MESSAGES (feat/admin-messages, 2026-10-05) adds: the admin's nav item
+// and its group (driven through nav.js and navGroups.js), the admin routes,
+// the parent pages' role-based base path and single Teachers group, the
+// teacher thread's hand-off only on a parent's thread, the five copy changes
+// (the two refusals read from server/routes/messages.js), and finding #11 —
+// the list scrolls itself, never the page — each thread page with a negative
+// control (source).
+//
 // WHAT IT CANNOT: a real Tab or Escape press, focus returning to the opener,
 // the spinner not blinking while a message arrives, the badge after a real
 // race, the look itself, where the cue actually wraps at a given width, a
@@ -42,6 +50,8 @@ import TermValue from '../src/format/TermValue.jsx';
 import GradeValue from '../src/format/grade.jsx';
 import FilterActions from '../src/components/FilterActions.jsx';
 import { shouldSendOnEnter } from '../src/components/enterToSend.js';
+import { navForRole } from '../src/layout/nav.js';
+import { groupNav } from '../src/layout/navGroups.js';
 
 let passed = 0;
 let failed = 0;
@@ -120,7 +130,11 @@ for (const role of ['teacher', 'parent']) {
   assert(/\(m\.sender_id === otherId && m\.sender_name\) \|\| \(m\.receiver_id === otherId && m\.receiver_name\)/.test(page), `${role}: the other person comes only from a message that carries their name`);
   assert(/usePageTitle\(other\?\.name \|\| pickedName \|\| 'Conversation'\);/.test(page) && /location\.state\?\.name/.test(page), `${role}: a new thread is titled with the picked person's name`);
   const list = src(`src/pages/${role}/MessagesPage.jsx`);
-  assert(new RegExp(`navigate\\(\`/${role}/messages/\\$\\{c\\.id\\}\`, \\{ state: \\{ name: c\\.name \\} \\}\\)`).test(list), `${role}: the New-message picker hands the contact's name over in router state (never the URL)`);
+  // The parent page's links take their base from the role since 2026-10-05
+  // (the admin's inbox is the same page), so its picker navigates to
+  // `${base}/<id>`; the teacher's still names its own path.
+  const pickerBase = role === 'teacher' ? '/teacher/messages' : '\\$\\{base\\}';
+  assert(new RegExp(`navigate\\(\`${pickerBase}/\\$\\{c\\.id\\}\`, \\{ state: \\{ name: c\\.name \\} \\}\\)`).test(list), `${role}: the New-message picker hands the contact's name over in router state (never the URL)`);
 }
 
 console.log('Admin → Grades on a descriptive card');
@@ -208,6 +222,70 @@ const gradesFix = src('src/pages/admin/GradesPage.jsx');
 assert(/\.catch\(\(err\) => \{\s*if \(!cancelled\) setSectionsError\(extractError\(err\)\);\s*\}\);\s*return \(\) => \{\s*cancelled = true;\s*\};\s*\}, \[sectionsAttempt\]\);/.test(gradesFix), 'a failed sections read keeps the last list and sets the error — the effect keyed by sectionsAttempt');
 assert(/\{grade && sectionsError \? \(\s*<ErrorAlert message=\{sectionsError\} onRetry=\{\(\) => setSectionsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(gradesFix), 'with a grade picked, the sections error shows with Retry');
 assert(/<ErrorAlert message=\{studentsError\} onRetry=\{\(\) => setStudentsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(gradesFix) && /\}, \[grade, sectionName, studentsAttempt\]\);/.test(gradesFix), 'the learner list has its Retry, keyed into its effect');
+
+// ------------------------------------------------ admin Messages
+// (feat/admin-messages, 2026-10-05) — the owner's decisions of that day.
+
+console.log("Admin Messages — the nav item and its group (driven)");
+const adminNav = navForRole('admin');
+const adminMsgAt = adminNav.findIndex((i) => i.to === '/admin/messages');
+const adminMsg = adminNav[adminMsgAt];
+assert(adminNav.length === 10 && adminMsg?.built === true && adminMsg.label === 'Messages' && adminMsg.icon === 'fa-comments', "the admin's nav has 10 items, Messages among them, built, with the other roles' Messages icon");
+assert(adminMsgAt > 0 && adminNav[adminMsgAt - 1].to === '/admin/announcements', '…directly after Announcements');
+assert(['teacher', 'parent'].every((r) => navForRole(r).find((i) => i.to === `/${r}/messages`)?.icon === adminMsg?.icon), "CONTROL: the teacher's and parent's Messages carry that same icon");
+const adminGroups = groupNav('admin', adminNav).groups;
+const communicate = adminGroups.find((g) => g.label === 'Communicate');
+assert(communicate && communicate.items.map((i) => i.to).join(',') === '/admin/announcements,/admin/messages', "the admin's Communicate group is Announcements then Messages");
+assert(adminGroups.every((g) => g.label !== null), 'no admin item falls into the unlabelled leftover group');
+
+console.log('Admin Messages — the routes, the base path, one group (source)');
+const app = src('src/App.jsx');
+const adminBlock = app.slice(app.indexOf('path="/admin"'), app.indexOf('path="/teacher"'));
+assert(/<Route path="messages" element=\{<ParentMessages \/>\} \/>/.test(adminBlock) && /<Route path="messages\/:userId" element=\{<ParentMessageThread \/>\} \/>/.test(adminBlock), 'the /admin layout route renders the parent Messages list and thread');
+const parentList = src('src/pages/parent/MessagesPage.jsx');
+assert(/const isAdmin = user\?\.role === 'admin';/.test(parentList) && /const base = isAdmin \? '\/admin\/messages' : '\/parent\/messages';/.test(parentList), 'the list page takes its base path from the signed-in role');
+assert(!/['`]\/parent\/messages\//.test(parentList) && (parentList.match(/`\$\{base\}\//g) || []).length === 3, '…every thread link uses it — the Open button, the card and the picker — and none names /parent/messages/');
+assert(/\[\{ role: 'teacher', label: 'Teachers', rows: filteredContacts\.filter\(\(c\) => c\.role === 'teacher'\) \}\]/.test(parentList) && !/role: 'admin'/.test(parentList), 'the picker is ONE group, Teachers — no Admin group for either role');
+const parentThread = src('src/pages/parent/MessageThreadPage.jsx');
+assert(/to=\{user\?\.role === 'admin' \? '\/admin\/messages' : '\/parent\/messages'\}/.test(parentThread), "the thread's back link follows the role too");
+// CODE, not comments: a `//` line may say what the page does not do.
+const code = (s) => s.replace(/^\s*\/\/.*$/gm, '');
+assert(!/fa-bullhorn|Announce to|\/teacher\/announcements/.test(code(parentThread)), 'the parent/admin thread has no "Announce to a class"');
+
+console.log('Admin Messages — the teacher hand-off only on a parent thread (source)');
+const teacherThread = src('src/pages/teacher/MessageThreadPage.jsx');
+assert(/const otherIsParent = \(other\?\.role \|\| contactRow\?\.role\) === 'parent';/.test(teacherThread), "the rule: the other person's role from a named message, else from the contacts row, must be parent");
+const HANDOFF = /\{otherIsParent \? \(\s*<Button\s+icon="fa-bullhorn"/;
+const HINT = /\{otherIsParent \? <p className="text-xs text-fg-muted sm:text-right">\{announceHint\}<\/p> : null\}/;
+assert(HANDOFF.test(teacherThread) && HINT.test(teacherThread), 'the button AND its hint render only under that rule');
+assert((teacherThread.match(/>\{announceHint\}</g) || []).length === 1 && (teacherThread.match(/icon="fa-bullhorn"/g) || []).length === 1, '…and neither appears anywhere else on the page');
+const ungated = teacherThread.replace('{otherIsParent ? (\n            <Button', '{true ? (\n            <Button');
+assert(!HANDOFF.test(ungated), 'NEGATIVE CONTROL: with the button ungated, the hand-off assertion fails');
+
+console.log('Admin Messages — the five copy changes (source)');
+const routesMessages = src('../server/routes/messages.js');
+assert(routesMessages.includes("message: 'Parents may only message their child\\'s teachers.'"), 'copy 1: "Parents may only message their child\'s teachers."');
+assert(routesMessages.includes("message: 'The admin may only message teachers.'"), 'copy 2: "The admin may only message teachers."');
+assert(/placeholder="Teacher name"/.test(parentList) && !/Teacher or admin name/.test(parentList), 'copy 3: the picker placeholder is "Teacher name"');
+assert(parentList.includes(`"You can message your child's teachers once your account is linked to a student."`) && !/and the school admin/.test(parentList), "copy 4: the parent's empty picker names teachers only");
+assert(parentList.includes("'Active teacher accounts appear here.'") && /title="No one to message yet"/.test(parentList), "copy 5: the admin's empty picker, under the existing title");
+
+console.log('Finding #11 — the list scrolls itself, never the page (source, both thread pages)');
+const scrollsOnlyTheList = (s) =>
+  !/scrollIntoView/.test(code(s)) &&
+  /const list = listRef\.current;\s*if \(list\) list\.scrollTop = list\.scrollHeight;/.test(s) &&
+  /<div ref=\{listRef\} className="max-h-\[28rem\] space-y-3 overflow-y-auto/.test(s) &&
+  !/bottomRef/.test(s);
+for (const role of ['teacher', 'parent']) {
+  const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
+  assert(scrollsOnlyTheList(page), `${role}: no scrollIntoView; the 28rem list sets its own scrollTop`);
+  const focusCalls = page.match(/\.focus\(/g) || [];
+  const quietFocus = page.match(/composerRef\.current\?\.focus\(\{ preventScroll: true \}\)/g) || [];
+  assert(focusCalls.length === 2 && quietFocus.length === 2 && /<textarea\s+ref=\{composerRef\}/.test(page), `${role}: the composer gets the focus back after a send (and after a failed one) with preventScroll — no other focus call on the page`);
+  assert(/sentIdRef\.current = sent\.id;/.test(page) && /if \(lastId !== null && lastId === sentIdRef\.current\) \{/.test(page), `${role}: the refocus waits for MY send to be on screen, not for any message`);
+  const reverted = page.replace('if (list) list.scrollTop = list.scrollHeight;', "bottomRef.current?.scrollIntoView({ block: 'end' });");
+  assert(!scrollsOnlyTheList(reverted), `NEGATIVE CONTROL (${role}): with the old scrollIntoView back, the assertion fails`);
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

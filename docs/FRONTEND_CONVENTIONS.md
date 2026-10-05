@@ -1113,13 +1113,15 @@ unclickable entry is worse than no count: it announces something the user
 cannot go and read. `UnreadProvider` therefore skips the request entirely
 unless that role's Messages item is built.
 
-**Live today for TEACHER and PARENT.** Admin has no Messages item at all
-since 2026-09-18, so there is nothing to badge and `UnreadProvider` never
-fetches for that role. The wiring is unchanged and still flag-driven: a role
-that gains a built Messages item gets the badge with no edit to `Shell.jsx`,
-and that dispatch should not build its own badge. (This paragraph previously
-said admin would get the badge "the day its Messages page lands" — that page
-will not land; see CLAUDE.md → ADMIN SCOPE AUDIT.)
+**Live today for EVERY ROLE — the admin since 2026-10-05.** Admin had no
+Messages item from 2026-09-18, so there was nothing to badge and
+`UnreadProvider` never fetched for that role. The owner's SCOPE DECISION of
+2026-10-05 (CLAUDE.md → ADMIN SCOPE AUDIT) brought it back, teacher ↔ admin
+only, and the wiring proved itself flag-driven: the admin's built Messages
+item gave the badge with **no edit to `Shell.jsx`**, and that dispatch built
+no badge of its own. Admin → Messages was an ADD to `nav.js`, not a flip — no
+`built: false` row stood for it. (This paragraph said, on 2026-09-18, that
+the page "will not land"; it landed, by a later decision.)
 
 **§5g's inverse was closed on 2026-09-18 and the gate removed on
 2026-09-19.** For one day `LiveStatus` was gated on the same "does this role
@@ -1526,6 +1528,11 @@ rings the bell. Only some badge a nav item:
 | Teacher, Parent | Excuse Letters, Announcements, Memos, Events |
 | Admin | Users, and Announcements carrying **announcements + memos** |
 | every role | Grades — **never**, bell only (Darryl, 2026-09-19) |
+
+The Messages badge is not in this table on purpose — it is the other source
+above, and since 2026-10-05 the admin has it too (Admin → Messages,
+teacher ↔ admin; CLAUDE.md → ADMIN SCOPE AUDIT → SCOPE DECISION 2026-10-05).
+A message still rings no bell, for the admin as for everyone.
 
 Admin’s Announcements badge carries memos too because admin has no Memos
 page — memos live on Admin → Announcements, the only place one can be
@@ -3234,8 +3241,11 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   already holding its text is not announced (§21).
 - **View goes through the leave guard** (`requestLeave`, §5e): on Grades or
   Attendance with unsaved work it asks "Leave without saving?" first.
-- **Admin gets no toast**: the host mounts only where Messages is built
-  (teacher, parent) — a notification must be openable (§10).
+- **The host mounts only where Messages is built** — a notification must be
+  openable (§10). That is every role since 2026-10-05: **the admin gets the
+  toast and the tone too** (teacher ↔ admin), its thread at
+  `/admin/messages/:userId`, which `otherIdFromPath` accepts. (Until then the
+  admin got none, having no Messages page.)
 - **Tokens and existing pieces only** — `bg-surface`, `border-edge`,
   `text-fg`, the primary small button, `Avatar` (with the sender's photo,
   a USER row, §25) — so a later restyle reaches it with no edit.

@@ -173,6 +173,10 @@ const COMPONENTS = {
   AdminGrades: AdminGradesScreen,
   AdminAttendance: AdminAttendanceScreen,
   AdminAnnouncements: AdminAnnouncementsScreen,
+  // The parent's screen, reused (2026-10-05): its NewMessage and
+  // MessageThread pushes below are every role's, and the picker holds
+  // teachers for both roles.
+  AdminMessages: MessagesScreen,
 };
 
 const POST_TITLES = { announcement: 'Announcement', memo: 'Memo', event: 'Event' };

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { fetchAll, listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
+import { useAuth } from '../../auth/AuthContext';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
@@ -18,6 +19,14 @@ import { usePageTitle } from '../../layout/usePageTitle';
 
 // Conversation list. The thread is its own route (/parent/messages/:userId).
 //
+// THE ADMIN'S INBOX TOO (2026-10-05, the owner's decision): the admin is
+// routed to this page and its thread at /admin/messages, so every link here
+// takes its base path from the signed-in role. Both roles message teachers
+// only — a parent may not message the admin, and the admin may message
+// teachers only — so the picker is ONE group, Teachers. The page-level copy
+// that differs by role is the picker's empty message. A shared component
+// replaces this reuse after the Fri 9 Oct 2026 check.
+//
 // FETCH SHAPE COPIED FROM Teacher → Messages, not reinvented: the TABLE is
 // GET /messages/conversations. GET /messages/contacts is the New-message
 // picker only. Contacts already carries last_message and unread_count; this
@@ -27,9 +36,10 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // "Post to class" is not here. That pre-fills the teacher Announcements
 // composer, a write a parent cannot make (403 Access denied.).
 //
-// Contact groups are Teachers + Admin. A parent never sees other parents
-// (canMessage refuses them). The Teacher picker's Parents group and its
-// pending-approval copy are omitted on purpose — they would be a lie here.
+// The one contact group is Teachers (since 2026-10-05; it was Teachers +
+// Admin). A parent never sees other parents (canMessage refuses them). The
+// Teacher picker's Parents group and its pending-approval copy are omitted on
+// purpose — they would be a lie here.
 //
 // §5c: :userId is users.id, never an LRN. login_id is not rendered.
 
@@ -37,6 +47,9 @@ export default function ParentMessagesPage() {
   usePageTitle('Messages');
   const navigate = useNavigate();
   const { subscribe } = useSocket();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const base = isAdmin ? '/admin/messages' : '/parent/messages';
 
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,10 +124,7 @@ export default function ParentMessagesPage() {
   }, [contacts, search]);
 
   const groups = useMemo(
-    () => [
-      { role: 'teacher', label: 'Teachers', rows: filteredContacts.filter((c) => c.role === 'teacher') },
-      { role: 'admin', label: 'Admin', rows: filteredContacts.filter((c) => c.role === 'admin') },
-    ],
+    () => [{ role: 'teacher', label: 'Teachers', rows: filteredContacts.filter((c) => c.role === 'teacher') }],
     [filteredContacts]
   );
 
@@ -168,7 +178,7 @@ export default function ParentMessagesPage() {
       align: 'right',
       nowrap: true,
       render: (row) => (
-        <Button size="sm" onClick={() => navigate(`/parent/messages/${row.other_user_id}`)}>
+        <Button size="sm" onClick={() => navigate(`${base}/${row.other_user_id}`)}>
           Open
         </Button>
       ),
@@ -208,7 +218,7 @@ export default function ParentMessagesPage() {
             // because StatusBadge maps a vocabulary to a tone and a number is
             // not one.
             renderCard={(row) => ({
-              to: `/parent/messages/${row.other_user_id}`,
+              to: `${base}/${row.other_user_id}`,
               avatar: row.other_user_name,
               avatarPhoto: row.other_user_profile_pic,
               title: row.other_user_name,
@@ -241,7 +251,7 @@ export default function ParentMessagesPage() {
         <div className="space-y-5">
           <FormField
             label="Search"
-            placeholder="Teacher or admin name"
+            placeholder="Teacher name"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -254,7 +264,11 @@ export default function ParentMessagesPage() {
             <EmptyState
               icon="fa-address-book"
               title="No one to message yet"
-              message="You can message your child's teachers and the school admin once your account is linked to a student."
+              message={
+                isAdmin
+                  ? 'Active teacher accounts appear here.'
+                  : "You can message your child's teachers once your account is linked to a student."
+              }
             />
           ) : (
             groups.map((group) => (
@@ -283,7 +297,7 @@ export default function ParentMessagesPage() {
                             setPicking(false);
                             // The name rides in router state, so a new thread
                             // is titled with it before any message exists.
-                            navigate(`/parent/messages/${c.id}`, { state: { name: c.name } });
+                            navigate(`${base}/${c.id}`, { state: { name: c.name } });
                           }}
                           className="flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent"
                         >

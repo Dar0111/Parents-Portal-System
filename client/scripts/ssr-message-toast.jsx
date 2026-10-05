@@ -60,9 +60,10 @@ assert(TOAST_MS === 5000, 'five seconds');
 console.log('The row and the open conversation');
 assert(rowFor([LIG, ANA], '3') === ANA && rowFor([LIG], 3) === null && rowFor(null, 3) === null, 'rowFor finds that person by id, string or number; null otherwise');
 assert(otherIdFromPath('/teacher/messages/3') === 3 && otherIdFromPath('/parent/messages/647/') === 647, 'a thread URL names the OTHER person (teacher and parent)');
+assert(otherIdFromPath('/admin/messages/3') === 3, "the admin's thread URL names the OTHER person too (since 2026-10-05)");
 assert(
-  otherIdFromPath('/teacher/messages') === null && otherIdFromPath('/admin/messages/3') === null && otherIdFromPath('/teacher/grades') === null,
-  'the list page, admin and every other page are not a conversation'
+  otherIdFromPath('/teacher/messages') === null && otherIdFromPath('/admin/messages') === null && otherIdFromPath('/teacher/grades') === null,
+  'the list page (admin included) and every other page are not a conversation'
 );
 const threadState = {
   index: 0,
@@ -242,9 +243,9 @@ console.log('The toast is never stale (× close, expiry)');
   assert(later && store.get().label === '3 new messages from Ashley Geguiera', 'after the expiry, the server count as before: "3 new messages from Ashley Geguiera"');
 }
 
-console.log('Admin never mounts the toast (source text, Shell.jsx)');
+console.log('The toast mounts only where Messages is built (source text, Shell.jsx)');
 const shell = fs.readFileSync(path.resolve('src/layout/Shell.jsx'), 'utf8');
-assert(/\{messagesBuilt \? <MessageToast \/> : null\}/.test(shell), 'Shell mounts MessageToast only where Messages is built — no toast, no tone for admin');
+assert(/\{messagesBuilt \? <MessageToast \/> : null\}/.test(shell), 'Shell mounts MessageToast only where Messages is built — every role since 2026-10-05, the admin included');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

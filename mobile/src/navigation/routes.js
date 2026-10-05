@@ -65,6 +65,9 @@ export const ROUTES = Object.freeze({
   '/admin/grades': 'AdminGrades',
   '/admin/attendance': 'AdminAttendance',
   '/admin/announcements': 'AdminAnnouncements',
+  // The admin's inbox (2026-10-05): the parent's Messages screen, whose
+  // picker and thread follow the signed-in role (teacher <-> admin only).
+  '/admin/messages': 'AdminMessages',
   '/admin/settings': 'Settings',
   '/admin/about': 'About',
 });

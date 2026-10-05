@@ -11,11 +11,10 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-05: `main` at `28fee18` (form drafts are merged,
-fast-forward) plus `feat/look-fixes` at `942ebb8` — build 1, built on web
-and phone, device-checked 2026-10-05 (the fix round and the follow-up
-re-checked the same day), cleaned up by id (backup 278), merge-ready, not
-merged.** Table and endpoint
+**Snapshot, 2026-10-06: `main` at `1ef3c00` (build 1 is merged,
+fast-forward) plus `feat/admin-messages` — the admin's inbox (teacher ↔
+admin only) and the Enter page-jump fix, built on web and phone, NOT yet
+device-checked, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -36,17 +35,20 @@ and only there.
 | After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
 | Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merged 2026-10-05 | ✅ merged 2026-10-05 |
-| Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ device-checked, merge-ready | ✅ device-checked, merge-ready |
+| Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
+| Admin Messages — `feat/admin-messages`: teacher ↔ admin only, and the Enter page-jump fix (built 2026-10-06) | ✅ built | ✅ built, not device-checked | ✅ built, not device-checked |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
 and then removed on 2026-09-13 because the school may not collect
 contributions — CLAUDE.md → SCOPE DECISION).
 
-**Navigation today:** teacher 13 items, parent 10, admin 9, every one
+**Navigation today:** teacher 13 items, parent 10, admin 10, every one
 built; About is last on every role. Admin has no Sections, Excuse Letters,
-Memos, Events or Messages page by the Figure 5 scope decision — memos are
-written on Admin → Announcements.
+Memos or Events page by the Figure 5 scope decision — memos are written on
+Admin → Announcements. **Admin → Messages came back on 2026-10-05** by the
+owner's decision (teacher ↔ admin only; on `feat/admin-messages`, not yet
+merged).
 
 ---
 
@@ -67,7 +69,7 @@ A module with tables and no handlers is not started; there are none.
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
 | Excuse letters | `excuse_letters` | 6 | `test:excuses` | Teacher → Excuse Letters (review); Parent → Excuse Letters |
-| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); the new-message toast on every teacher and parent screen, web and phone |
+| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); Admin → Messages (teachers only, on `feat/admin-messages`); the new-message toast on every screen of a role with Messages, web and phone |
 | Notifications | `notifications` | 4 | `test:notifications` | the bell and the sidebar badges, every role |
 | Settings + school calendar | `system_settings` | 5 | `test:settings`, `test:school-calendar` | Admin → Settings; About (every role, and public from the login page) |
 | Dashboard | — | 1 | `test:dashboard` | one dashboard per role |
@@ -90,13 +92,14 @@ A module with tables and no handlers is not started; there are none.
   exit with unsaved work asks "Leave without saving?" (CLAUDE.md §5e).
 - **The new-message toast** — "New message from <name>" / "<n> new messages
   from <name>", never the body, View + Dismiss, 5 s, never for your own
-  message or the conversation you are in, no admin toast (CLAUDE.md §26).
+  message or the conversation you are in; the admin gets it too on
+  `feat/admin-messages` (CLAUDE.md §26).
   On a show or update it plays the "two-note rise" tone (web and phone) and
   vibrates 150 ms on the phone. **The phone plays no tone in silent or
   vibrate-only mode; during Do Not Disturb the tone still plays and the
   vibration ignores DND and the ringer** — Expo Go limits, fixed with the
   APK (KNOWN_ISSUES). Enter sends on the web, Shift+Enter is a new line.
-- **One shape language** (on `feat/look-fixes`, not yet merged) — cards
+- **One shape language** (merged 2026-10-06) — cards
   `rounded-xl`, every control `rounded-lg`, badges and chips `rounded-md`
   tags, circles only for avatars, the seal, dots and counts; every button has
   a border in its own colour and no shadow (CLAUDE.md §27, FRONTEND §27f).
@@ -119,17 +122,16 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 The owner's order (2026-10-05, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Merge build 1** (`feat/look-fixes`, device-checked and cleaned up
-   2026-10-05) on the owner's word.
-2. **Admin Messages** — `feat/admin-messages`; the owner's decision of
-   2026-10-05: teacher ↔ admin only, and parents cannot message the admin.
-3. **Build 2** — the dashboards, with skeleton loading tier 1.
-4. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
+1. **Admin Messages' device check, then merge** — `feat/admin-messages`
+   (built; the owner's decision of 2026-10-05: teacher ↔ admin only, and
+   parents cannot message the admin; the Enter page-jump fix rides along).
+2. **Build 2** — the dashboards, with skeleton loading tier 1.
+3. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
    script is not run until it is fixed.
-5. **Smoke gate** across web and mobile.
-6. **Manuscript delta list** (the team applies it; it now includes
+4. **Smoke gate** across web and mobile.
+5. **Manuscript delta list** (the team applies it; it now includes
    Chapter 5's admin Messages text).
-7. **Professor system check, Fri 2026-10-09.**
+6. **Professor system check, Fri 2026-10-09.**
 
 After the check: the cloud (Supabase) survey.
 

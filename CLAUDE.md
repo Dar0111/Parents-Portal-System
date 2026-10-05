@@ -104,13 +104,14 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-05, `feat/look-fixes` at `942ebb8` — build 1 device-checked, cleaned up by id (backup 278), merge-ready (on `main` `28fee18`) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-06, `feat/admin-messages` — the admin's inbox built, not yet device-checked (on `main` `1ef3c00`, where build 1 is merged) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
-nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
+nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
 Messages were **removed** on 2026-09-18 rather than left `built: false`, by
-the scope decision under ADMIN SCOPE AUDIT, and **About is last on every
-role since 2026-09-26** (9 / 13 / 10); **no role has a `built: false`
+the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
+2026-10-05** (that section's SCOPE DECISION 2026-10-05), and **About is last on every
+role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
 item**. **23 tables, 94 handlers + `/api/health`**
 (2026-09-30). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
@@ -538,8 +539,8 @@ channel is shown**: `LiveStatus` renders in `Shell`, above the routed page,
 because the unread badge is on every page; its Refresh is a full reload.
 `UnreadProvider` is gated on `messagesBuilt`; **`LiveStatus` is UNGATED for
 every role, since N2 on 2026-09-19** — and the copy says "new updates", not
-"new messages", because the strip is no longer only about Messages and is
-shown to a role that has none. The 2026-09-18 gate on `messagesBuilt` is
+"new messages", because the strip is no longer only about Messages and was
+shown to a role that had none (the admin, until 2026-10-05). The 2026-09-18 gate on `messagesBuilt` is
 gone: it was sound when written (nothing on an admin's screen was
 channel-fed, so the strip announced a failure they could do nothing about),
 but N1 changed the fact it rested on. Every role now has a bell and sidebar
@@ -584,8 +585,8 @@ live `NavLink`), **blocked** (`blocked: '<reason>'`, muted, reason as tooltip
 — the page cannot be designed until an external question is answered;
 currently none), **unbuilt** (`built: false`, dimmed, non-clickable). **A
 badge renders only on a BUILT item**; `UnreadProvider` skips the request
-unless that role's Messages item is built (live for Teacher and Parent;
-Admin → Messages will not be built). **Flipping `built: false` to `true` is
+unless that role's Messages item is built (live for every role — Admin →
+Messages since 2026-10-05, an ADD, not a flip). **Flipping `built: false` to `true` is
 part of whichever dispatch adds that page's route — never a follow-up.** A
 page with no unbuilt row is an add, not a flip.
 
@@ -720,7 +721,8 @@ audiences and the accessibility contract are in
 - **Bell vs badge is a decision.** Everything rings the bell. Badged:
   Excuse Letters / Announcements / Memos / Events for teacher and parent,
   Users and Announcements (carrying **announcements + memos**, since admin
-  has no Memos page) for admin. **Grades is never badged** — bell only. So a
+  has no Memos page) for admin. Messages carries its own unread count for
+  every role, the admin's since 2026-10-05. **Grades is never badged** — bell only. So a
   parent’s bell total EXCEEDS the sum of their badges; that is correct, and
   it must be written down wherever it could read as a bug.
 - **A notification must be openable**, and "cannot open" includes having no
@@ -861,8 +863,9 @@ hover/focus); one at a time, the newest sender replaces; never my own, never
 in that conversation (the OTHER user's id: web `:userId`, phone focused
 `MessageThread` `otherId`). **Name and n come from the conversations row the
 Unread provider already re-reads** (`subscribeConversations`) — the server's
-`unread_count`, no server change, no bell. View = `requestLeave`. No admin
-toast. Pure decisions mirrored (`realtime/messageToast.js`). **On a show or
+`unread_count`, no server change, no bell. View = `requestLeave`. **The
+admin gets the toast and the tone too since 2026-10-05** (its Messages is
+built; `/admin/messages/:userId` is a thread). Pure decisions mirrored (`realtime/messageToast.js`). **On a show or
 update only: the "two-note rise" `TONE`** (web Web Audio, phone a bundled
 WAV) **and a 150 ms phone vibration.** Enter sends on the web, Shift+Enter is
 a new line, **a plain Enter never types a new line** (it sends or does
@@ -1426,9 +1429,8 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
-| **Two web parent messages were stored twice, 7 s and 19 s apart (ids 303/304, 308/309)** — added 2026-10-05 | thread `send()` (web ×2, phone) | Not a double submit by the timings, and no code path found; a ref guard was added anyway. The Enter page jump may be why (unconfirmed). If it recurs: note what the screen showed after the first send, Network tab open |
-| **On the web thread, sending with Enter makes the page jump; the message box leaves the view** — added 2026-10-05 | both thread pages' `scrollIntoView` | Likely the scroll to the newest message moving the document too. Fix in `feat/admin-messages`, next |
-| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
+| **Two web parent messages were stored twice, 7 s and 19 s apart (ids 303/304, 308/309)** — added 2026-10-05 | thread `send()` (web ×2, phone) | Not a double submit by the timings, and no code path found; a ref guard was added anyway. The Enter page jump (fixed 2026-10-06, `feat/admin-messages`) may have been why — **open until the owner's check**. If it recurs: note what the screen showed after the first send, Network tab open |
+| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1534,7 +1536,8 @@ ready — do not let that arrive without these done.
   default password before any real account exists. **The admin's is also in
   `server/scripts/proof-backup-loop.js:172` and
   `server/scripts/test-messages-flows.js:95`, and it still signed in on the
-  live DB on 2026-10-04 and 2026-10-06** (KNOWN ISSUES).
+  live DB on 2026-10-04 and 2026-10-06** (KNOWN ISSUES). That suite's `:101`
+  and `:106` hold the seeded teacher's and parent's sign-ins.
 - **RA 10173 (Data Privacy Act) applies** — the manuscript itself cites
   it. Loading real student names and LRNs needs the school's answer on
   whether a consent process is required, whether they already have a
@@ -1660,11 +1663,15 @@ its `docs/CHANGELOG.md` row.
       admin and parent in a normal window, teacher in Incognito; phone: Expo
       Go on a Tecno, Android 14; admin, teacher, parent), the fix round and
       the follow-up re-checked the same day, cleaned up by id (backup 278).
-      **Merge-ready.** Rules: §27f, M23.
+      **Merged 2026-10-06 (fast-forward, `1ef3c00`).** Rules: §27f, M23.
+- [ ] **Admin Messages — `feat/admin-messages`**, built 2026-10-06: the
+      admin's inbox (teacher ↔ admin only; SCOPE DECISION 2026-10-05 under
+      ADMIN SCOPE AUDIT), the parent pages and screens reused by role, the
+      hand-off on a parent's thread only, and the Enter page jump fixed.
+      **Not yet device-checked; not merged.** Rules: §6, §10, §26, M9, M22.
 
-**NEXT, in order (owner, 2026-10-05):** merge build 1 → admin Messages
-(`feat/admin-messages`; the owner's decision of 2026-10-05: teacher ↔ admin
-only, and parents cannot message the admin) → build 2 (the dashboards, with
+**NEXT, in order (owner, 2026-10-05):** admin Messages' device check, then
+merge → build 2 (the dashboards, with
 skeleton loading tier 1) → the `scripts/create-backup-zip.js` fix (before
 the smoke gate; the script is not run until it is fixed) → smoke gate →
 manuscript delta list (the team applies it; it now includes Chapter 5's
@@ -1763,6 +1770,21 @@ is `authorize('admin')` and is the only route reaching the server's sole
 `UPDATE grades SET is_locked`; direction is the request's `is_locked`
 boolean and there is no separate unlock path. Written down so a later
 dispatch does not add a teacher-side lock as a convenience.
+
+**SCOPE DECISION, the owner (Darryl), 2026-10-05 — Admin → Messages comes
+back, teacher ↔ admin only.** It reverses the Messages line of 2026-09-13 and
+2026-09-18 for one pairing; both entries stay as written. Teacher ↔ admin is
+allowed both ways and the admin's picker lists ACTIVE teachers only;
+**parent ↔ admin and admin ↔ admin are refused with `403`** ("Parents may only
+message their child's teachers." / "The admin may only message teachers.");
+teacher ↔ teacher and teacher ↔ parent are unchanged. An existing parent ↔
+admin thread stays readable and its composer shows the refusal (a scope
+change removes future authority, never past records). The web reuses the
+parent pages by role and the phone the parent's screens; a shared component
+comes after the Fri 9 Oct 2026 check. The admin gets the unread badge, the
+toast and the tone; "Announce to a class" shows on a parent's thread only.
+Figure 5 has no admin Messages process: **this is the owner's decision, and
+Chapter 5 must say so** (manuscript delta list).
 
 Both decisions' full text, the nav-item table and the 2026-09-13 finding
 paragraph are verbatim in `docs/ARCHIVE.md` → ADMIN SCOPE AUDIT (three

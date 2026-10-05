@@ -89,7 +89,7 @@ assert(VIBRATE_MS === 150, 'the vibration is 150 ms');
   deliver({ senderId: 3, viewingOtherId: 3, row: row(3, 'Ashley Geguiera', 3) });
   assert(calls.play === 3 && calls.vibrate.length === 3, 'my own message, or the open conversation: neither');
   const admin = alertOnToast(true, { ...fakes, enabled: false });
-  assert(!admin.played && !admin.vibrated && calls.play === 3, 'admin (no Messages screen): neither, even on a change');
+  assert(!admin.played && !admin.vibrated && calls.play === 3, 'a role with no Messages screen (none since 2026-10-05; the admin has one now): neither, even on a change');
 }
 {
   const vibrated = [];

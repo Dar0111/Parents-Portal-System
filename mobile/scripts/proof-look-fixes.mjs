@@ -9,7 +9,10 @@
 // (pure) and their use in UnreadProvider (source). THE FOLLOW-UP (2026-10-05)
 // adds: admin Grades never restarts a load in flight — the Retries, the pull,
 // the report's own guard, the error path, the reconnect (source) — and the
-// mechanism as a model, with a negative control.
+// mechanism as a model, with a negative control. ADMIN MESSAGES
+// (feat/admin-messages, 2026-10-05) adds: AppShell's AdminMessages screen,
+// the picker's single Teachers group and its role-aware copy, and "Announce
+// to a class" only on a parent's thread (source, with a negative control).
 //
 // WHAT IT CANNOT: the toast actually hidden behind an open drawer, the Apply
 // label actually readable in Dark, a list keeping Search's focus when results
@@ -171,6 +174,19 @@ const newer = tickets.take();
 assert(!tickets.isLatest(older) && tickets.isLatest(newer), 'tickets: the older read is no longer the latest');
 const unreadSrc = src('realtime/UnreadProvider.jsx');
 assert(/import \{ createTickets \} from '\.\.\/api\/tickets';/.test(unreadSrc) && /const ticket = tickets\.take\(\);/.test(unreadSrc) && /if \(!tickets\.isLatest\(ticket\)\) return; \/\/ a newer read has started\n\s+setUnread\(rows\.reduce/.test(unreadSrc) && /if \(tickets\.isLatest\(ticket\)\) setUnread\(0\);/.test(unreadSrc), 'UnreadProvider: a reply that is no longer the newest is dropped — count, rows and failure alike');
+
+console.log('admin Messages — the screen, the picker, the hand-off (source)');
+const shell = src('navigation/AppShell.jsx');
+assert(/\n {2}AdminMessages: MessagesScreen,\n/.test(shell) && /import MessagesScreen from '\.\.\/screens\/parent\/MessagesScreen';/.test(shell), "AppShell: the admin's Messages is the parent's MessagesScreen");
+const picker = src('screens/parent/NewMessageScreen.jsx');
+assert(/const isAdmin = user\?\.role === 'admin';/.test(picker) && /\[\{ role: 'teacher', label: 'Teachers', rows: filtered\.filter\(\(c\) => c\.role === 'teacher'\) \}\]/.test(picker) && !/role: 'admin'/.test(picker), 'the picker is ONE group, Teachers, for the parent and the admin alike');
+assert(/placeholder="Teacher name"/.test(picker) && !/Teacher or admin name/.test(picker), 'copy 3: the placeholder is "Teacher name"');
+assert(picker.includes(`"You can message your child's teachers once your account is linked to a student."`) && !/and the school admin/.test(picker), "copy 4: the parent's empty picker names teachers only");
+assert(picker.includes("? 'Active teacher accounts appear here.'") && /title="No one to message yet"/.test(picker), "copy 5: the admin's empty picker, under the existing title");
+assert(/const showAnnounce = isTeacher && \(other\?\.role \|\| contactRow\?\.role\) === 'parent';/.test(thread), 'the thread: "Announce to a class" needs a teacher AND a parent on the other side');
+const ANNOUNCE_GATED = (s) => /\{showAnnounce \? \(\s*<View className="gap-1">\s*<Button/.test(s) && !/\{isTeacher \? \(/.test(s);
+assert(ANNOUNCE_GATED(thread), '…and the button with its hint renders only under it');
+assert(!ANNOUNCE_GATED(thread.replace('{showAnnounce ? (', '{isTeacher ? (')), 'NEGATIVE CONTROL: gated on the role alone (the old rule), the assertion fails');
 
 console.log(`\nproof-look-fixes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);
