@@ -7,15 +7,21 @@
 // submits the FORM (the same onSubmit={send} as the Send button), and send()
 // refuses a second send while one is in flight.
 //
+// BUILD 1 FOLLOW-UP (2026-10-05): a plain Enter never types a new line —
+// `enterKeyAction` answers 'send', 'block' or null — driven directly, and both
+// key handlers modelled on a fake event that records preventDefault, with
+// the OLD handler as the negative control (its held-Enter repeats typed blank
+// lines). The wiring regex follows the new onKeyDown.
+//
 // WHAT IT CANNOT: a real key press, an IME on a real keyboard — the owner
-// check (type "Hello", press Enter; Shift+Enter; an empty Enter).
+// check (type "Hello", press Enter; Shift+Enter; an empty Enter; hold Enter).
 //
 // Run (from client/):
 //   npx vite build --ssr scripts/ssr-enter-to-send.jsx --outDir .ssr-tmp && node .ssr-tmp/ssr-enter-to-send.js
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { shouldSendOnEnter } from '../src/components/enterToSend.js';
+import { enterKeyAction, shouldSendOnEnter } from '../src/components/enterToSend.js';
 
 let passed = 0;
 let failed = 0;
@@ -59,13 +65,51 @@ for (const draft of ['', '   ', 'Hi', ' Hi ']) {
 }
 assert(matrix.every(Boolean), 'across every state, Enter sends exactly when the Send button is enabled (`sending || !draft.trim()`)');
 
+console.log('A plain Enter never types a new line (build 1 follow-up)');
+assert(enterKeyAction(key(), ready) === 'send', "Enter with text: 'send'");
+assert(enterKeyAction(key({ repeat: true }), ready) === 'block', "a held Enter's repeat: 'block' — no send, no new line");
+assert(enterKeyAction(key(), { sending: false, draft: '' }) === 'block' && enterKeyAction(key(), { sending: false, draft: ' \n ' }) === 'block', "an empty or blank box: 'block'");
+assert(enterKeyAction(key(), { sending: true, draft: 'Hello' }) === 'block', "a send in flight: 'block'");
+assert(enterKeyAction(key({ shiftKey: true }), ready) === null && enterKeyAction(key({ shiftKey: true, repeat: true }), ready) === null, 'Shift+Enter, held or not: null — the browser types the new line');
+assert(
+  [{ ctrlKey: true }, { altKey: true }, { metaKey: true }, { isComposing: true }, { keyCode: 229 }, { key: 'a', keyCode: 65 }].every((m) => enterKeyAction(key(m), ready) === null),
+  'a modifier, an IME composition or another key: null — left to the browser'
+);
+// The two handlers, on a fake event that records preventDefault: the new one
+// (the pages' onKeyDown) and the OLD one, which prevented the newline only
+// when it sent.
+function press(over, state, handler) {
+  const e = { ...key(over), prevented: false, submitted: false, preventDefault() { this.prevented = true; } };
+  handler(e, state);
+  return e;
+}
+function newHandler(e, state) {
+  const action = enterKeyAction(e, state);
+  if (!action) return;
+  e.preventDefault();
+  if (action === 'send') e.submitted = true;
+}
+function oldHandler(e, state) {
+  if (!shouldSendOnEnter(e, state)) return;
+  e.preventDefault();
+  e.submitted = true;
+}
+const heldNew = press({ repeat: true }, { sending: false, draft: '' }, newHandler);
+assert(heldNew.prevented && !heldNew.submitted, 'a held repeat over the emptied box: the newline is prevented, nothing is sent');
+const heldOld = press({ repeat: true }, { sending: false, draft: '' }, oldHandler);
+assert(!heldOld.prevented, 'NEGATIVE CONTROL: the old handler let that repeat type a new line — the blank lines the owner saw');
+const shiftNew = press({ shiftKey: true, repeat: true }, ready, newHandler);
+assert(!shiftNew.prevented && !shiftNew.submitted, 'a held Shift+Enter still types its new lines');
+const sendNew = press({}, ready, newHandler);
+assert(sendNew.prevented && sendNew.submitted, 'a plain Enter with text: prevented and submitted');
+
 console.log('Source text — both thread pages (read as files, not rendered)');
 for (const who of ['teacher', 'parent']) {
   const src = fs.readFileSync(path.resolve(`src/pages/${who}/MessageThreadPage.jsx`), 'utf8');
   const wired =
-    /import \{ shouldSendOnEnter \} from '\.\.\/\.\.\/components\/enterToSend';/.test(src) &&
-    /onKeyDown=\{\(e\) => \{[\s\S]*?if \(!shouldSendOnEnter\(e, \{ sending, draft \}\)\) return;\s*e\.preventDefault\(\);\s*e\.currentTarget\.form\?\.requestSubmit\(\);/.test(src);
-  assert(wired, `${who}: the textarea's Enter submits the FORM (onSubmit={send}, the Send button's own path)`);
+    /import \{ enterKeyAction \} from '\.\.\/\.\.\/components\/enterToSend';/.test(src) &&
+    /onKeyDown=\{\(e\) => \{[\s\S]*?const action = enterKeyAction\(e, \{ sending, draft \}\);\s*if \(!action\) return;\s*e\.preventDefault\(\);\s*if \(action === 'send'\) e\.currentTarget\.form\?\.requestSubmit\(\);/.test(src);
+  assert(wired, `${who}: the textarea's Enter submits the FORM (onSubmit={send}, the Send button's own path), and prevents the new line on every plain Enter`);
   assert(/async function send\(event\) \{\s*event\.preventDefault\(\);[\s\S]{0,120}?if \(sending\) return;/.test(src), `${who}: send() refuses while a send is in flight`);
 }
 

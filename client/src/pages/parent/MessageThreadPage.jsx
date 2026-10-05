@@ -10,7 +10,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import { controlClass } from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { cardClass } from '../../components/buttonClass';
-import { shouldSendOnEnter } from '../../components/enterToSend';
+import { enterKeyAction } from '../../components/enterToSend';
 import { useAuth } from '../../auth/AuthContext';
 import { threadContext } from '../../drafts/draftCore';
 import { loadDraft } from '../../drafts/sessionDrafts';
@@ -40,10 +40,13 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // The composer's draft is the `message` form's only field.
 const MESSAGE_BASE = Object.freeze({ body: '' });
 
-// What this account kept for the conversation with `otherId`, or ''.
+// What this account kept for the conversation with `otherId`, or ''. Text
+// that is empty after trimming is not a draft (build 1 follow-up): it is
+// neither restored nor announced as "Draft restored".
 function keptMessage(myId, otherId) {
   const record = loadDraft({ userId: myId, form: 'message', context: threadContext(otherId) });
-  return record ? record.values.body : '';
+  const body = record ? record.values.body : '';
+  return typeof body === 'string' && body.trim() ? body : '';
 }
 
 export default function ParentMessageThreadPage() {
@@ -352,11 +355,14 @@ export default function ParentMessageThreadPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  // Enter sends through the form, exactly as Send does;
-                  // Shift+Enter is a new line (§26).
-                  if (!shouldSendOnEnter(e, { sending, draft })) return;
+                  // Enter sends through the form, exactly as Send does, and
+                  // never types a new line — a held key, an empty box or a
+                  // send in flight does nothing; Shift+Enter is the new line
+                  // (§26).
+                  const action = enterKeyAction(e, { sending, draft });
+                  if (!action) return;
                   e.preventDefault();
-                  e.currentTarget.form?.requestSubmit();
+                  if (action === 'send') e.currentTarget.form?.requestSubmit();
                 }}
                 placeholder="Write a message…"
                 className={`${controlClass} min-w-0 flex-1`}

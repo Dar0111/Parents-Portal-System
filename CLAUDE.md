@@ -865,7 +865,8 @@ Unread provider already re-reads** (`subscribeConversations`) — the server's
 toast. Pure decisions mirrored (`realtime/messageToast.js`). **On a show or
 update only: the "two-note rise" `TONE`** (web Web Audio, phone a bundled
 WAV) **and a 150 ms phone vibration.** Enter sends on the web, Shift+Enter is
-a new line, a held Enter sends once; **one send at a time is a REF**
+a new line, **a plain Enter never types a new line** (it sends or does
+nothing; a held one sends once); **one send at a time is a REF**
 (`sendingRef`), never only the `sending` state. Full text:
 `docs/FRONTEND_CONVENTIONS.md` §26, MOBILE M22.
 
@@ -907,7 +908,8 @@ login id, an LRN or a name THROWS (§5c)**; only allow-listed fields, capped,
 under 32 000 characters; the pure core `drafts/draftCore.js` is mirrored.
 **Removed only by a server-confirmed write, a confirmed Discard draft, or a
 deliberate logout (every `pp.draft.*` key) — never by a 401 or a 403.**
-**Close**, not Cancel, on those five modals and four phone screens. An edit
+**Text that is empty after trimming is not a draft** — never saved, cleared,
+not restored (`isBlankDraft`, both hooks). **Close**, not Cancel, on those five modals and four phone screens. An edit
 draft keeps its snapshot and says when the item changed. A thread hand-off
 over a saved announcement draft asks first, and the posted announcement
 clears that thread's draft. Full text: `docs/FRONTEND_CONVENTIONS.md` §28,

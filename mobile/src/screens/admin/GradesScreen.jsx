@@ -15,6 +15,7 @@ import Text from '../../components/Text';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
 import Icon from '../../icons';
+import { useSocket } from '../../realtime/SocketProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import { REPORT_UNWRAP } from '../parent/ReportCardView';
 
@@ -95,6 +96,23 @@ export default function GradesScreen({ navigation, route }) {
   const [reportError, setReportError] = useState(null);
   const [status, setStatus] = useState(null);
 
+  // NO LOAD IS RESTARTED WHILE IT IS IN FLIGHT (build 1 follow-up,
+  // 2026-10-05). With the API stopped, a phone's request to the laptop hangs
+  // until the 15 s timeout (api/client.js) instead of failing at once as the
+  // web's does — and a pull used to restart the learner list every time,
+  // cancelling the request in flight, so "Loading…" never turned into its
+  // error. Each load now says whether it is in flight and whether it failed;
+  // a pull, coming back to the screen, Retry and the socket reconnecting re-
+  // read a FAILED load and never one in flight. The report card keeps its
+  // re-read on focus and on a pull while it is not in flight — that is how a
+  // lock or unlock shows (see the header).
+  const sectionsInFlight = useRef(false);
+  const studentsInFlight = useRef(false);
+  const studentsFailed = useRef(false);
+  const reportInFlight = useRef(null);
+  const reportFailed = useRef(false);
+  const { subscribeConnect } = useSocket();
+
   // THE SECTIONS READ SAYS WHEN IT FAILED, AND READS AGAIN (build 1 fix round,
   // 2026-10-05). It used to swallow a failure into an empty list: with the API
   // down, Grade 1 showed a Section row with nothing in it, no error and no
@@ -104,16 +122,19 @@ export default function GradesScreen({ navigation, route }) {
   // and a pull or coming back to the screen bumps it while the read is failed.
   useEffect(() => {
     let cancelled = false;
+    sectionsInFlight.current = true;
     api
       .get('/sections', { unwrap: 'sections' })
       .then((rows) => {
         if (cancelled) return;
+        sectionsInFlight.current = false;
         sectionsFailed.current = false;
         setSections(rows);
         setSectionsError(null);
       })
       .catch((err) => {
         if (cancelled) return;
+        sectionsInFlight.current = false;
         sectionsFailed.current = true;
         setSectionsError(extractError(err));
       });
@@ -122,21 +143,17 @@ export default function GradesScreen({ navigation, route }) {
     };
   }, [sectionsAttempt]);
 
-  // Back on the screen with the sections read failed: read them again. A ref,
-  // so this runs on focus only, never as a loop on the error itself.
-  useFocusEffect(
-    useCallback(() => {
-      if (sectionsFailed.current) setSectionsAttempt((n) => n + 1);
-    }, [])
-  );
-
   useEffect(() => {
     if (!grade || !sectionName) {
+      studentsInFlight.current = false;
+      studentsFailed.current = false;
       setStudents([]);
       setStudentsError(null);
       return undefined;
     }
     let cancelled = false;
+    studentsInFlight.current = true;
+    studentsFailed.current = false;
     setStudentsLoading(true);
     setStudentsError(null);
     api
@@ -146,32 +163,44 @@ export default function GradesScreen({ navigation, route }) {
       })
       .catch((err) => {
         if (!cancelled) {
+          studentsFailed.current = true;
           setStudentsError(extractError(err));
           setStudents([]);
         }
       })
       .finally(() => {
-        if (!cancelled) setStudentsLoading(false);
+        if (cancelled) return;
+        studentsInFlight.current = false;
+        setStudentsLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [grade, sectionName, studentsAttempt]);
 
+  // One read of a learner's card at a time: a second ask for the SAME card
+  // while it is in flight is dropped (a pull, a focus, Retry); another
+  // learner's card is read at once.
   const loadReport = useCallback(async () => {
     if (!studentId) {
+      reportFailed.current = false;
       setReport(null);
       setReportError(null);
       return;
     }
+    if (reportInFlight.current === studentId) return;
+    reportInFlight.current = studentId;
     setReportLoading(true);
     setReportError(null);
     try {
       setReport(await api.get(`/grades/student/${studentId}`, { unwrap: REPORT_UNWRAP }));
+      reportFailed.current = false;
     } catch (err) {
+      reportFailed.current = true;
       setReportError(extractError(err));
       setReport(null);
     } finally {
+      if (reportInFlight.current === studentId) reportInFlight.current = null;
       setReportLoading(false);
     }
   }, [studentId]);
@@ -182,13 +211,47 @@ export default function GradesScreen({ navigation, route }) {
     }, [loadReport])
   );
 
-  // The pull's handler: the learner list (through its effect's key) and the
-  // report card, as chosen — and the sections, while their read is failed. A
-  // card already on screen stays there while it is read again.
+  // Read a failed list again — never one already in flight. The flag is set
+  // here as well as in the effect, so a second ask before the effect runs is
+  // dropped too.
+  const retrySections = useCallback(() => {
+    if (sectionsInFlight.current) return;
+    sectionsInFlight.current = true;
+    setSectionsAttempt((n) => n + 1);
+  }, []);
+  const retryStudents = useCallback(() => {
+    if (studentsInFlight.current) return;
+    studentsInFlight.current = true;
+    setStudentsAttempt((n) => n + 1);
+  }, []);
+
+  // Back on the screen, or the socket back (the API is up again): every
+  // FAILED load is read again; a load in flight is left to finish. The report
+  // card's own focus re-read is above.
+  useFocusEffect(
+    useCallback(() => {
+      if (sectionsFailed.current) retrySections();
+      if (studentsFailed.current) retryStudents();
+    }, [retrySections, retryStudents])
+  );
+  useEffect(
+    () =>
+      subscribeConnect(() => {
+        if (sectionsFailed.current) retrySections();
+        if (studentsFailed.current) retryStudents();
+        if (reportFailed.current) loadReport();
+      }),
+    [subscribeConnect, retrySections, retryStudents, loadReport]
+  );
+
+  // The pull's handler: a FAILED sections or learner read is read again (one
+  // in flight is not restarted), and the report card, as chosen, unless its
+  // own read is in flight. A card already on screen stays there while it is
+  // read again.
   async function pullToRefresh() {
     setRefreshing(true);
-    if (sectionsFailed.current) setSectionsAttempt((n) => n + 1);
-    setStudentsAttempt((n) => n + 1);
+    if (sectionsFailed.current) retrySections();
+    if (studentsFailed.current) retryStudents();
     try {
       await loadReport();
     } finally {
@@ -223,7 +286,7 @@ export default function GradesScreen({ navigation, route }) {
   let body;
   // The learner list's own retry (feat/look-fixes): its effect takes
   // `studentsAttempt` as a key, so bumping it reads the list again.
-  if (studentsError) body = <ErrorAlert message={studentsError} onRetry={() => setStudentsAttempt((n) => n + 1)} />;
+  if (studentsError) body = <ErrorAlert message={studentsError} onRetry={retryStudents} />;
   else if (!studentId) {
     // In the frame the report card will take, so the screen keeps its shape
     // when a student is picked.
@@ -356,7 +419,7 @@ export default function GradesScreen({ navigation, route }) {
         />
         {grade ? (
           sectionsError ? (
-            <ErrorAlert message={sectionsError} onRetry={() => setSectionsAttempt((n) => n + 1)} />
+            <ErrorAlert message={sectionsError} onRetry={retrySections} />
           ) : (
             <Segmented
               label="Section"

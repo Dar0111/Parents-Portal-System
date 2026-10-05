@@ -14,6 +14,11 @@
 //   3. components/DraftNotice.jsx RENDERED with the approved copy, and the
 //      source of AuthContext / api/axios.js: a deliberate logout clears the
 //      drafts, a 401 does not.
+//   4. (build 1 follow-up, 2026-10-05) drafts/useDraft.js's `isBlankDraft`
+//      driven directly — a form whose every text field is empty after
+//      trimming is not a draft — with the storage layer alone as the negative
+//      control, and the hook's flush / close and both thread pages' restore
+//      read as source.
 //
 // WHAT IT CANNOT: the 500 ms debounce, pagehide, a real reload reopening a
 // modal, the hand-off question — the owner's browser check.
@@ -38,6 +43,7 @@ import {
   threadContext,
 } from '../src/drafts/draftCore.js';
 import { clearAllDrafts, clearDraft, closeDraft, createDraftStore, findOpenDrafts, loadDraft, saveDraft } from '../src/drafts/sessionDrafts.js';
+import { DRAFT_TEXT_FIELDS, isBlankDraft } from '../src/drafts/useDraft.js';
 
 let passed = 0;
 let failed = 0;
@@ -252,6 +258,32 @@ assert(logoutBody.includes('clearAllDrafts()'), 'AuthContext.logout() calls clea
 assert(auth.split('clearAllDrafts(').length - 1 === 1, 'and nothing else in AuthContext does');
 const axiosSrc = fs.readFileSync(path.resolve('src/api/axios.js'), 'utf8');
 assert(/401/.test(axiosSrc) && !/draft/i.test(axiosSrc), 'api/axios.js — the 401 path — never touches a draft');
+
+// ------------------------------------------------ build 1 follow-up
+// (2026-10-05): text that is empty after trimming is not a draft.
+console.log('A blank form is not a draft (pure + source)');
+assert(isBlankDraft('message', { body: '\n\n  \t' }) === true && isBlankDraft('message', { body: 'Hi' }) === false, 'a message of new lines and spaces is blank; one word is not');
+assert(isBlankDraft('announcement', { target: '6|Malikhain', title: ' ', content: '\n', category: '' }) === true, 'an announcement with only its section picked and blank text is blank — every TEXT field counts, the picker does not');
+assert(isBlankDraft('announcement', { target: '', title: 'Fair', content: '', category: '' }) === false, 'one text field with words: a draft');
+assert(isBlankDraft('excuse', { absence_date: '2026-10-05', reason: '  ', details: '' }) === true, 'an excuse letter with only a date picked is blank');
+assert(isBlankDraft('event', { title: '', event_date: '2026-10-10', description: ' ', target_grade: '6' }) === true && isBlankDraft('memo', { title: '', content: ' x ' }) === false, 'an event of pickers only is blank; a memo with a word is not');
+assert(Object.keys(DRAFT_TEXT_FIELDS).sort().join() === 'announcement,event,excuse,memo,message', 'the rule names all five Phase 1 forms');
+{
+  // NEGATIVE CONTROL: the storage layer alone keeps a blank message — saved,
+  // and read back as a restorable draft. That is the defect the hook's rule
+  // stops before it gets here.
+  const fake = fakeStorage();
+  const store = createDraftStore(() => fake);
+  const target = { userId: 7, form: 'message', context: 'thread-2' };
+  assert(saveDraft({ ...target, values: { body: '\n\n' } }, store) === true && loadDraft(target, store)?.values.body === '\n\n', 'NEGATIVE CONTROL: without the rule, blank lines are stored and come back');
+}
+const hookSrc = fs.readFileSync(path.resolve('src/drafts/useDraft.js'), 'utf8').replace(/\r\n/g, '\n');
+assert(/if \(!p\) return;\s*if \(isBlankDraft\(p\.form, p\.values\)\) clearDraft\(p\);\s*else saveDraft\(p\);/.test(hookSrc), 'the web hook clears the key instead of saving a blank form (every write goes through flush)');
+assert(/if \(stored && isBlankDraft\(form, stored\.values\)\) clearDraft\(\{ userId, form, context \}\);\s*else closeDraft\(\{ userId, form, context \}\);/.test(hookSrc), 'closing a form removes a blank draft kept from before, instead of keeping it closed');
+for (const who of ['teacher', 'parent']) {
+  const page = fs.readFileSync(path.resolve(`src/pages/${who}/MessageThreadPage.jsx`), 'utf8');
+  assert(/const body = record \? record\.values\.body : '';\s*return typeof body === 'string' && body\.trim\(\) \? body : '';/.test(page), `${who} thread: a blank kept message is neither restored nor announced as "Draft restored"`);
+}
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

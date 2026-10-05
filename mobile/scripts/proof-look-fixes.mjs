@@ -6,7 +6,10 @@
 // THE FIX ROUND (2026-10-05) adds: C1 through `readingNoteLines` and C2's
 // text; the thread's send guard (source, with a negative control); the admin
 // Grades sections Retry, pull and refocus (source); the mirrored tickets
-// (pure) and their use in UnreadProvider (source).
+// (pure) and their use in UnreadProvider (source). THE FOLLOW-UP (2026-10-05)
+// adds: admin Grades never restarts a load in flight — the Retries, the pull,
+// the report's own guard, the error path, the reconnect (source) — and the
+// mechanism as a model, with a negative control.
 //
 // WHAT IT CANNOT: the toast actually hidden behind an open drawer, the Apply
 // label actually readable in Dark, a list keeping Search's focus when results
@@ -105,7 +108,7 @@ assert(/function switchKind\(next\) \{\n\s+if \(next === kind\) return;\n\s+setR
 const grades = src('screens/admin/GradesScreen.jsx');
 assert(/mode === 'descriptive' \? \(\s*<Text className="text-xs text-fg-muted">\s*Final <TermValue entry=\{\{ descriptive_grade: subject\.final_grade, descriptor: subject\.final_grade_descriptor \}\}/.test(grades), 'Grades: a descriptive Final is the letter (TermValue), not "— N/A"');
 assert(/\{mode !== 'descriptive' \? \(\s*<View className=\{`\$\{cardClass\} flex-row flex-wrap items-baseline/.test(grades), 'Grades: no General Average on a descriptive card (Grade 1); Grades 2–3 keep it');
-assert(/<ErrorAlert message=\{studentsError\} onRetry=\{\(\) => setStudentsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(grades), 'Grades: the learner list has its own retry');
+assert(/<ErrorAlert message=\{studentsError\} onRetry=\{retryStudents\} \/>/.test(grades) && /const retryStudents = useCallback\(\(\) => \{\s*if \(studentsInFlight\.current\) return;\s*studentsInFlight\.current = true;\s*setStudentsAttempt\(\(n\) => n \+ 1\);/.test(grades), 'Grades: the learner list has its own retry (since the build 1 follow-up: one that never restarts a read in flight)');
 
 console.log('Login: Next moves to the password (source)');
 const login = src('screens/LoginScreen.jsx');
@@ -136,8 +139,29 @@ assert(sendAt > 0 && PHONE_GUARD.test(sendFn), 'the thread send() is guarded by 
 assert(!PHONE_GUARD.test(sendFn.replace('sendingRef.current || ', '')), 'NEGATIVE CONTROL: with the ref check taken out, the guard assertion fails');
 
 console.log('fix round 6 — admin Grades reads its sections again (source)');
-assert(/<ErrorAlert message=\{sectionsError\} onRetry=\{\(\) => setSectionsAttempt\(\(n\) => n \+ 1\)\} \/>/.test(gradesFix) && /\}, \[sectionsAttempt\]\);/.test(gradesFix), 'Grades: a failed sections read shows in the Section row with Retry, the effect keyed by sectionsAttempt');
-assert((gradesFix.match(/if \(sectionsFailed\.current\) setSectionsAttempt\(\(n\) => n \+ 1\);/g) || []).length === 2, 'Grades: a pull and coming back to the screen read the sections again while they are failed');
+assert(/<ErrorAlert message=\{sectionsError\} onRetry=\{retrySections\} \/>/.test(gradesFix) && /\}, \[sectionsAttempt\]\);/.test(gradesFix) && /const retrySections = useCallback\(\(\) => \{\s*if \(sectionsInFlight\.current\) return;\s*sectionsInFlight\.current = true;\s*setSectionsAttempt\(\(n\) => n \+ 1\);/.test(gradesFix), 'Grades: a failed sections read shows in the Section row with Retry, the effect keyed by sectionsAttempt (the Retry never restarts a read in flight)');
+assert((gradesFix.match(/if \(sectionsFailed\.current\) retrySections\(\);/g) || []).length === 3, 'Grades: a pull, coming back to the screen and the socket reconnecting read the sections again while they are failed');
+
+console.log('build 1 follow-up — no load restarted in flight (source + a model)');
+const pullAt = gradesFix.indexOf('async function pullToRefresh()');
+const pullFn = gradesFix.slice(pullAt, pullAt + 400);
+assert(pullAt > 0 && /if \(studentsFailed\.current\) retryStudents\(\);/.test(pullFn) && !/setStudentsAttempt/.test(pullFn), 'a pull re-reads the learner list only when it FAILED — no longer every time, which cancelled the read in flight');
+assert(/if \(reportInFlight\.current === studentId\) return;\s*reportInFlight\.current = studentId;/.test(gradesFix), 'the report card is never read twice at once for the same learner (a pull, a focus, Retry)');
+assert(/\.catch\(\(err\) => \{\s*if \(!cancelled\) \{\s*studentsFailed\.current = true;\s*setStudentsError\(extractError\(err\)\);/.test(gradesFix) && /\.finally\(\(\) => \{\s*if \(cancelled\) return;\s*studentsInFlight\.current = false;\s*setStudentsLoading\(false\);/.test(gradesFix), 'the error path: a failed learner read ends "Loading…" and marks itself failed');
+assert(/subscribeConnect\(\(\) => \{\s*if \(sectionsFailed\.current\) retrySections\(\);\s*if \(studentsFailed\.current\) retryStudents\(\);\s*if \(reportFailed\.current\) loadReport\(\);/.test(gradesFix), 'the API back (the socket reconnects): every failed load is read again');
+// The mechanism, modelled: a read with no reply fails at 15 s (api/client.js;
+// the throwaway loop measured 15 014 ms); someone pulls every 5 s while it
+// shows "Loading…". Restarting a read in flight resets its clock each time.
+function settlesAt(restartInFlight) {
+  let started = 0;
+  for (let t = 1; t <= 120; t += 1) {
+    if (t % 5 === 0 && restartInFlight) started = t; // a pull
+    if (t - started >= 15) return t;
+  }
+  return null;
+}
+assert(settlesAt(false) === 15, 'pulls that leave a read in flight alone: the error shows at 15 s');
+assert(settlesAt(true) === null, 'NEGATIVE CONTROL: pulls that restart it every 5 s: "Loading…" never settles — the owner’s screen');
 
 console.log('fix round 7 — the newest unread reply wins (pure + source)');
 const { createTickets } = await import('../src/api/tickets.js');

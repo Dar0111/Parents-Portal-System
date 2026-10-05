@@ -3219,7 +3219,14 @@ mirror); `realtime/MessageToast.jsx` renders them on each platform.
   next render both read it as false. A held Enter's auto-repeats
   (`event.repeat`) never send; the first press does. The owner's double
   "Test 1" / "Test 4" rows were 7 s and 19 s apart, which no double submit
-  explains — KNOWN_ISSUES keeps that open.
+  explains — KNOWN_ISSUES keeps that open. **A PLAIN ENTER NEVER TYPES A NEW
+  LINE (build 1 follow-up, 2026-10-05):** `enterKeyAction` answers `'send'`
+  (prevent the newline, submit), `'block'` (prevent the newline, nothing
+  else — a repeat, a blank box, a send in flight) or `null` (left to the
+  browser — Shift+Enter, held or not, a modifier, an IME composition). The
+  owner held Enter on "Test 8": the repeats, refused as sends but not
+  prevented, typed blank lines into the emptied box, and a reload announced
+  them as "Draft restored". `shouldSendOnEnter` stays as the `'send'` case.
 - **Where:** web, fixed top-right just under the sticky header (`top-16`,
   `z-[35]` — under the bell's panel at 40 and the modal at 50); phone, M22.
 - **Accessible:** `role="status"` + `aria-live="polite"` on a box that is
@@ -3404,6 +3411,22 @@ side in Expo Go (Tecno, Android 14).
 - **Close keeps the draft** — the button is **Close**, not Cancel, in the five
   Phase 1 modals and nowhere else (decision 1): Cancel would promise the text
   is thrown away.
+- **TEXT THAT IS EMPTY AFTER TRIMMING IS NOT A DRAFT (build 1 follow-up,
+  2026-10-05).** A form whose every TEXT field is blank — message `body`;
+  excuse `reason`, `details`; announcement `title`, `content`, `category`;
+  memo `title`, `content`; event `title`, `description` — is never saved:
+  the hook's flush clears the key instead (`drafts/useDraft.js`,
+  `isBlankDraft` / `DRAFT_TEXT_FIELDS`), and Close removes a blank one kept
+  from before rather than keeping it closed. A picker or a date is not typed
+  text, so a picked date alone is not a draft. Both thread pages' restore
+  (`keptMessage`) treats a blank kept message as none — no text, no "Draft
+  restored". It reaches every Phase 1 form: the excuse letter, the two
+  thread pages, teacher and admin announcements, the memo, the event. **One
+  gap, on the web only:** the four modal forms restore through
+  `sessionDrafts.loadDraft` / `findOpenDrafts`, which this rule does not
+  touch, so a blank draft saved BEFORE the rule in a tab still open can
+  reopen once; the next save or Close clears it, and a new one is never
+  written. The phone has no such gap (M25).
 
 ### 28c. A reload reopens
 

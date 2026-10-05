@@ -9,6 +9,27 @@ import { createDeviceDrafts } from './deviceDrafts';
 // package.
 export const deviceDrafts = createDeviceDrafts(AsyncStorage);
 
+// TEXT THAT IS EMPTY AFTER TRIMMING IS NOT A DRAFT (build 1 follow-up,
+// 2026-10-05), the web hook's rule (client/src/drafts/useDraft.js, the same
+// list): a form whose every TEXT field is empty after trimming is never saved,
+// a draft stored under its key is cleared, and a blank one kept from before
+// is neither restored nor announced — the form gets null, as when nothing was
+// kept. A picker or a date is not typed text.
+export const DRAFT_TEXT_FIELDS = Object.freeze({
+  excuse: Object.freeze(['reason', 'details']),
+  message: Object.freeze(['body']),
+  announcement: Object.freeze(['title', 'content', 'category']),
+  memo: Object.freeze(['title', 'content']),
+  event: Object.freeze(['title', 'description']),
+});
+
+export function isBlankDraft(form, values) {
+  const fields = DRAFT_TEXT_FIELDS[form];
+  if (!fields) return false;
+  if (!values) return true;
+  return fields.every((field) => typeof values[field] !== 'string' || values[field].trim() === '');
+}
+
 function keyOf(target) {
   try {
     return draftKey(target);
@@ -54,12 +75,15 @@ export function useDeviceDraft({ userId, form, context, values, base = null, act
     latest.current = { key, userId, form, context, values, base, fromThread, active };
   });
 
+  // A blank form is not saved: its key is cleared instead (the rule above).
   const flush = useCallback(() => {
     clearTimeout(timer.current);
     timer.current = null;
     const p = pending.current;
     pending.current = null;
-    if (p) deviceDrafts.save(p);
+    if (!p) return;
+    if (isBlankDraft(p.form, p.values)) deviceDrafts.clear(p);
+    else deviceDrafts.save(p);
   }, []);
 
   const schedule = useCallback(() => {
@@ -78,9 +102,13 @@ export function useDeviceDraft({ userId, form, context, values, base = null, act
     if (!key) return undefined;
     let cancelled = false;
     readyKey.current = null;
-    deviceDrafts.load({ userId, form, context }).then((record) => {
+    deviceDrafts.load({ userId, form, context }).then((stored) => {
       if (cancelled) return;
       readyKey.current = key;
+      // A blank draft kept from before the rule: not restored, not noticed,
+      // and removed.
+      const record = stored && isBlankDraft(form, stored.values) ? null : stored;
+      if (stored && !record) deviceDrafts.clear({ userId, form, context });
       restoreRef.current?.(record, {
         saveNow: () => {
           schedule();

@@ -975,7 +975,10 @@ mirror**) and `UnreadProvider` hands the conversations rows on through
   from `api/tickets.js` — **the 28th mirror**, the web's file byte for byte —
   before every read and drops a reply that is no longer the newest (count,
   rows and failure alike), so a late older read can no longer put a stale
-  count on the badge or stale rows in this toast.
+  count on the badge or stale rows in this toast. **The web's Enter rule
+  (§26: a plain Enter never types a new line) has no phone counterpart** —
+  the phone sends with its button, and the keyboard's return types the
+  line.
 - **TONE AND VIBRATION on a toast SHOW or UPDATE** (fix round, 2026-10-02;
   the owner reversed "no sound, no vibration"). Never on a skip (my own
   message, the open conversation), never for admin, once per show / update.
@@ -1149,6 +1152,20 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   already had. The phone's 15 s timeout (`api/client.js`) means a stopped API
   fails at once (refused) and an unreachable laptop after 15 s — both land in
   that error.
+- **No load on Admin → Grades is restarted while it is in flight (build 1
+  follow-up, 2026-10-05).** The owner's phone sat on "Loading…" for the
+  learner list with the API stopped, while the web said "Cannot reach the
+  server" at once. A throwaway loop drove the real `api/client.js`: a request
+  with no reply reached `.catch` after **15 014 ms** (`ECONNABORTED`), a
+  refused port after 12 ms — so one read always settles; the phone's request
+  to the laptop is the slow kind. What kept it loading: **a pull re-read the
+  learner list every time**, cancelling the read in flight and starting the
+  15 s again. Now each load tracks in-flight and failed (refs): a pull, coming
+  back to the screen, Retry and the socket reconnecting (the API is back) re-
+  read only a FAILED sections or learner read, never one in flight; the
+  report card keeps its re-read on focus and on a pull (that is how a lock or
+  unlock shows) but never twice at once for the same learner. The timeout
+  itself is unchanged.
 
 ## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
 
@@ -1209,6 +1226,12 @@ Where the phone differs:
   opening values can never overwrite a kept draft before it is restored.
   Writes are 500 ms after the last change and flushed at once when the app
   leaves the foreground (`AppState`) and on unmount (Close, Back).
+- **Text that is empty after trimming is not a draft (build 1 follow-up,
+  2026-10-05)** — the web's rule (FRONTEND §28b), the same `DRAFT_TEXT_FIELDS`
+  and `isBlankDraft`, held byte-equal by `proof-form-drafts`. A blank form is
+  never saved (the flush clears the key), and a blank draft kept on the device
+  from before is NOT restored or noticed — the form gets null, as when nothing
+  was kept — and is removed. Reaches the four compose screens and the thread.
 - **Logout clears every `pp.draft.*` key on the device** —
   `auth/AuthContext.jsx:102–103`, `await deviceDrafts.clearAll()` before the
   token goes; **the 401 listener does not** (`:75–80`).

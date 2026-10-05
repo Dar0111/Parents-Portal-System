@@ -6,6 +6,9 @@
 // leaving every other key alone, and a storage that rejects never throwing.
 // Then the source: logout clears, the 401 listener does not; the four compose
 // screens say Close; an announcement from a thread clears that thread's draft.
+// Build 1 follow-up (2026-10-05): the blank-draft rule — the phone hook's copy
+// held byte-equal to the web's, its flush and restore read as source, and the
+// storage alone as the negative control.
 //
 // WHAT IT CANNOT: the hook's debounce, AppState, a killed app, the Alerts —
 // the phone check (M7).
@@ -188,6 +191,27 @@ const ann = src('screens/teacher/AnnouncementComposeScreen.jsx');
 assert(/if \(!editing && fromThread\) deviceDrafts\.clear\(\{ userId, form: 'message', context: threadContext\(fromThread\) \}\)/.test(ann), 'an announcement from a conversation clears that conversation’s draft once it posts');
 const thread = src('screens/parent/MessageThreadScreen.jsx');
 assert(/fromThread: otherId/.test(thread) && /active: draftFor === otherId && !blockedReason/.test(thread), 'the thread passes its id on Announce, and a blocked thread keeps (never writes over) its draft');
+
+// ------------------------------------------------ build 1 follow-up
+// (2026-10-05): text that is empty after trimming is not a draft.
+console.log('a blank form is not a draft (source, the web rule held equal)');
+const phoneHook = src('drafts/useDraft.js');
+const webHook = fs.readFileSync(path.resolve(MOBILE, '..', 'client', 'src', 'drafts', 'useDraft.js'), 'utf8').replace(/\r\n/g, '\n');
+const RULE = /export const DRAFT_TEXT_FIELDS = Object\.freeze\(\{[\s\S]*?\n\}\);\n\nexport function isBlankDraft\(form, values\) \{[\s\S]*?\n\}\n/;
+const phoneRule = phoneHook.match(RULE)?.[0];
+const webRule = webHook.match(RULE)?.[0];
+assert(Boolean(phoneRule) && phoneRule === webRule, 'the phone hook holds the web’s rule byte for byte — the same five forms, the same text fields (ssr-form-drafts drives it)');
+assert(/if \(!p\) return;\s*if \(isBlankDraft\(p\.form, p\.values\)\) deviceDrafts\.clear\(p\);\s*else deviceDrafts\.save\(p\);/.test(phoneHook), 'a blank form is never saved: its key is cleared instead');
+assert(/const record = stored && isBlankDraft\(form, stored\.values\) \? null : stored;\s*if \(stored && !record\) deviceDrafts\.clear\(\{ userId, form, context \}\);\s*restoreRef\.current\?\.\(record,/.test(phoneHook), 'a blank draft kept from before is not restored or noticed (the form gets null) and is removed');
+{
+  // NEGATIVE CONTROL: the storage layer alone keeps a blank message and
+  // hands it back — the defect the hook's rule stops before it gets here.
+  const fake = fakeAsyncStorage();
+  const drafts = createDeviceDrafts(fake);
+  const target = { userId: 7, form: 'message', context: 'thread-2' };
+  const kept = (await drafts.save({ ...target, values: { body: '\n\n' } })) && (await drafts.load(target))?.values.body === '\n\n';
+  assert(kept, 'NEGATIVE CONTROL: without the rule, blank lines are stored and come back');
+}
 
 console.log(`\nproof-form-drafts: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

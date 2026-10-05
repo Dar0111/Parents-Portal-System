@@ -1,6 +1,30 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { SAVE_DELAY_MS, draftKey, sameValues } from './draftCore';
-import { clearDraft, closeDraft, saveDraft } from './sessionDrafts';
+import { clearDraft, closeDraft, loadDraft, saveDraft } from './sessionDrafts';
+
+// TEXT THAT IS EMPTY AFTER TRIMMING IS NOT A DRAFT (build 1 follow-up,
+// 2026-10-05). The owner held Enter on a sent message; the repeats typed blank
+// lines into the emptied box, they were saved, and a reload announced "Draft
+// restored" over an empty-looking box. So a form whose every TEXT field is
+// empty after trimming is never saved, and whatever is stored under its key
+// goes. The text fields per form — a picker or a date (an announcement's
+// target, an excuse letter's absence date, an event's date and grade) is not
+// typed text, so a picked date alone is not a draft. The phone's hook
+// (mobile/src/drafts/useDraft.js) holds the same list.
+export const DRAFT_TEXT_FIELDS = Object.freeze({
+  excuse: Object.freeze(['reason', 'details']),
+  message: Object.freeze(['body']),
+  announcement: Object.freeze(['title', 'content', 'category']),
+  memo: Object.freeze(['title', 'content']),
+  event: Object.freeze(['title', 'description']),
+});
+
+export function isBlankDraft(form, values) {
+  const fields = DRAFT_TEXT_FIELDS[form];
+  if (!fields) return false;
+  if (!values) return true;
+  return fields.every((field) => typeof values[field] !== 'string' || values[field].trim() === '');
+}
 
 // FORM DRAFTS ON THE WEB — the autosave hook (feat/form-drafts, 2026-10-04).
 //
@@ -24,12 +48,15 @@ export function useDraftAutosave({ userId, form, context, values, base = null, a
   const pending = useRef(null);
   const suppressed = useRef(null);
 
+  // A blank form is not saved: its key is cleared instead (the rule above).
   const flush = useCallback(() => {
     clearTimeout(timer.current);
     timer.current = null;
     const p = pending.current;
     pending.current = null;
-    if (p) saveDraft(p);
+    if (!p) return;
+    if (isBlankDraft(p.form, p.values)) clearDraft(p);
+    else saveDraft(p);
   }, []);
 
   useEffect(() => {
@@ -72,7 +99,11 @@ export function useDraftAutosave({ userId, form, context, values, base = null, a
       flush();
       return;
     }
-    if (userId && context) closeDraft({ userId, form, context });
+    if (!userId || !context) return;
+    // A blank draft stored before the rule is removed, not kept as closed.
+    const stored = loadDraft({ userId, form, context });
+    if (stored && isBlankDraft(form, stored.values)) clearDraft({ userId, form, context });
+    else closeDraft({ userId, form, context });
   }, [userId, form, context, flush]);
 
   const discard = useCallback(() => {
