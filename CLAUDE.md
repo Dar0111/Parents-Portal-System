@@ -690,6 +690,12 @@ rail (`pp.sidebar`), grouped by
 `layout/navGroups.js` (a mirror: the phone groups the same, M20); the user
 card holds the ONE Logout, its avatar and name open Account information, and
 it **never shows a parent's login id** (§5c); `<main>` has no width cap.
+**Since the 2026-10-06 fix round:** the collapse toggle has ONE place, a row
+under the brand block 14px from the left, in both states; and **Messages is
+`sticky bottom-0` in the nav** (`data-nav-pinned`), so it and its badge stay
+on screen at short heights — which is why the groups are FLAT in `<nav>` (a
+per-group box traps a sticky row), `revealActive` keeps the active item clear
+of it, and the nav box carries `scroll-pb-12`. Do not re-box the groups.
 
 **The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
 image** — the source is a JPG with a white field and no alpha, so the disc
@@ -1429,8 +1435,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
-| **Two web parent messages were stored twice, 7 s and 19 s apart (ids 303/304, 308/309)** — added 2026-10-05 | thread `send()` (web ×2, phone) | Not a double submit by the timings, and no code path found; a ref guard was added anyway. The Enter page jump (fixed 2026-10-06, `feat/admin-messages`) may have been why — **open until the owner's check**. If it recurs: note what the screen showed after the first send, Network tab open |
-| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
+| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1536,8 +1541,8 @@ ready — do not let that arrive without these done.
   default password before any real account exists. **The admin's is also in
   `server/scripts/proof-backup-loop.js:172` and
   `server/scripts/test-messages-flows.js:95`, and it still signed in on the
-  live DB on 2026-10-04 and 2026-10-06** (KNOWN ISSUES). That suite's `:101`
-  and `:106` hold the seeded teacher's and parent's sign-ins.
+  live DB on 2026-10-04 and 2026-10-06** (KNOWN ISSUES). That suite's `:101`,
+  `:106`, `:151` and `:165` hold the seeded teacher's and parent's sign-ins.
 - **RA 10173 (Data Privacy Act) applies** — the manuscript itself cites
   it. Loading real student names and LRNs needs the school's answer on
   whether a consent process is required, whether they already have a

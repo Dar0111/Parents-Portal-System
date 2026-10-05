@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
@@ -43,7 +43,8 @@ const FOCUS =
 // the window (feat/ui-refresh). A minimum, not a fixed height, and neither
 // line truncates: in a narrow drawer at the Large text size the name wraps
 // and the block grows instead of clipping. `children` is the control at the
-// row's end — the drawer's Close button, or the sidebar's collapse toggle.
+// row's end — the drawer's Close button. (The sidebar's collapse toggle has
+// its own row under the block since the 2026-10-06 fix round.)
 //
 // `collapsed` is the 64px rail: the seal alone, centred, in the same 4rem
 // block, so the hairline still meets the top bar's.
@@ -284,11 +285,10 @@ export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
 
   // The badge renders ONLY on a built item. A count on a dimmed, unclickable
   // nav entry would be worse than no count: it announces something the user
-  // cannot go and read. Teacher and Parent Messages are both built, so both
-  // carry a live count; admin has no Messages item at all since 2026-09-18,
-  // so there is nothing to badge and `UnreadProvider` never fetches for that
-  // role. A future role/page that lands built: false inherits this untouched.
-  // See the unread note in Shell below.
+  // cannot go and read. Every role's Messages is built — the admin's since
+  // 2026-10-05 (teacher <-> admin only) — so every role carries a live count.
+  // A future role/page that lands built: false inherits this untouched. See
+  // the unread note in Shell below.
   return (
     <NavLink
       to={item.to}
@@ -389,8 +389,9 @@ export default function Shell() {
         <NotificationProvider>
           <ShellChrome />
           {/* The new-message toast (feat/message-toast, §26): only where
-              Messages is built — admin has no Messages page, and a toast
-              must be openable (§10). Never in the bell. */}
+              Messages is built — every role since 2026-10-05, the admin
+              included — because a toast must be openable (§10). Never in
+              the bell. */}
           {messagesBuilt ? <MessageToast /> : null}
         </NotificationProvider>
       </UnreadProvider>
@@ -498,30 +499,58 @@ function ShellChrome() {
   // do not fold on the web. The sidebar and the drawer render the same two
   // blocks; `rail` is true only for the collapsed desktop sidebar.
   const sections = groupNav(user?.role, items);
+  // MESSAGES STAYS ON SCREEN (fix round, 2026-10-06). On a laptop's short
+  // window (1366×600) the group holding Messages sat below the nav's fold,
+  // so a new message's badge could not be seen until the sidebar was
+  // scrolled — and no list of 10–13 rows at 44px fits that height. So the
+  // Messages row is `sticky bottom-0`: while its own place is below the
+  // fold it holds the bottom edge of the nav box, badge and all; scrolled
+  // to, it is back in its own place. Same item, same group, same order —
+  // nothing is duplicated. Opaque `surface`, so the rows passing under it
+  // never show through. `data-nav-pinned` is how navScroll.js keeps the
+  // active item clear of it, and the box's `scroll-pb-12` (below) does the
+  // same for an item reached by Tab.
   const renderItems = (list, rail) =>
-    list.map((item) => (
-      <NavItem
-        key={item.to}
-        item={item}
-        collapsed={rail}
-        onNavigate={closeDrawer}
-        badge={badgeFor(item, user?.role, counts, unread)}
-      />
-    ));
+    list.map((item) => {
+      const navItem = (
+        <NavItem
+          key={item.to}
+          item={item}
+          collapsed={rail}
+          onNavigate={closeDrawer}
+          badge={badgeFor(item, user?.role, counts, unread)}
+        />
+      );
+      if (!item.to.endsWith('/messages')) return navItem;
+      return (
+        <div key={item.to} data-nav-pinned="" className="sticky bottom-0 z-10 bg-surface">
+          {navItem}
+        </div>
+      );
+    });
+  // THE GROUPS ARE FLAT (fix round, 2026-10-06): each group's label (or the
+  // rail's divider) and its items are siblings in the <nav>, never inside a
+  // per-group box. A sticky row cannot leave its parent, and inside its
+  // group's box Messages could not rise above the group's own top — which on
+  // the teacher's list is itself below the fold. The spacing is the old one:
+  // the label's wrapper carries the group's 12px (`pt-3`), the <nav>'s
+  // `space-y-1` the 4px between rows.
   const navBody = (rail) => (
     <nav aria-label="Main" className={`space-y-1 pb-4 pt-3 ${rail ? 'px-2' : 'px-3'}`}>
       {renderItems(sections.top, rail)}
       {sections.groups.map((group, i) => (
-        <div key={group.label || `rest-${i}`} className="space-y-1 pt-3">
-          {rail ? (
-            <div aria-hidden="true" className="mx-2 mb-2 border-t border-edge" />
-          ) : group.label ? (
-            <div className="px-3 pb-1.5 pt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-muted">
-              {group.label}
-            </div>
-          ) : null}
+        <Fragment key={group.label || `rest-${i}`}>
+          <div className="pt-3">
+            {rail ? (
+              <div aria-hidden="true" className="mx-2 mb-2 border-t border-edge" />
+            ) : group.label ? (
+              <div className="px-3 pb-1.5 pt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-muted">
+                {group.label}
+              </div>
+            ) : null}
+          </div>
           {renderItems(group.items, rail)}
-        </div>
+        </Fragment>
       ))}
     </nav>
   );
@@ -531,33 +560,38 @@ function ShellChrome() {
     </div>
   );
 
-  // THE COLLAPSE TOGGLE, as on main: at the end of the brand row while the
-  // sidebar is wide; in the rail, in a row of its own under the brand block
-  // (there the block holds only the seal, and keeps the header's height so
-  // the two hairlines still meet). Its label shows by RailTooltip only in
-  // the rail, where it is "Expand sidebar"; wide, its name is enough. 36px
-  // from `sm` up — the sidebar is a pointer's, from `md`. Measured from the
-  // font files (2026-10-04): the wordmark is 116px at 16px and 130px at the
-  // Large size, and beside a 36px toggle with an 8px gap its column is 132px,
-  // so it stays one line.
+  // THE COLLAPSE TOGGLE HAS ONE PLACE (fix round, 2026-10-06): a row of its
+  // own directly under the brand block, its 36px box 14px from the sidebar's
+  // left edge, in BOTH states — so it is the same spot on the screen whether
+  // the sidebar is 256px or the 64px rail (centred under the seal there, in
+  // line with the rail's icons). It used to sit at the end of the brand row
+  // while wide and drop under the seal in the rail. The rail's layout is the
+  // one it already had, so the rail's snap (build 1 fix round) is untouched.
+  // Its label shows by RailTooltip only in the rail, where it is "Expand
+  // sidebar"; wide, its name is enough. 36px from `sm` up — the sidebar is a
+  // pointer's, from `md`.
   const collapseToggle = (
-    <RailTooltip label="Expand sidebar" enabled={collapsed}>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        icon={collapsed ? 'fa-angles-right' : 'fa-angles-left'}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        onClick={toggleCollapsed}
-        className={collapsed ? '' : '-ml-1 -mr-2'}
-      />
-    </RailTooltip>
+    <div className="flex shrink-0 px-3.5 pt-2">
+      <RailTooltip label="Expand sidebar" enabled={collapsed}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          icon={collapsed ? 'fa-angles-right' : 'fa-angles-left'}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={toggleCollapsed}
+        />
+      </RailTooltip>
+    </div>
   );
   // NO VISIBLE SCROLLBAR (UI-1): the box still scrolls by wheel, trackpad and
   // touch, and Tab scrolls a focused link into view; only the bar is hidden —
   // Firefox by scrollbar-width, Chromium and Safari by the
-  // ::-webkit-scrollbar pseudo-element.
-  const navBox = 'min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  // ::-webkit-scrollbar pseudo-element. `scroll-pb-12` (48px — the pinned
+  // Messages row, 44px, and its 4px gap) keeps a link reached by Tab clear of
+  // that row instead of scrolled under it.
+  const navBox =
+    'min-h-0 flex-1 overflow-y-auto scroll-pb-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
   return (
     // `data-app-shell` scopes the stable scrollbar gutter to the app's pages
@@ -580,14 +614,8 @@ function ShellChrome() {
           collapsed ? 'w-16' : 'w-64'
         }`}
       >
-        {collapsed ? (
-          <>
-            <Brand collapsed />
-            <div className="flex shrink-0 justify-center pt-2">{collapseToggle}</div>
-          </>
-        ) : (
-          <Brand>{collapseToggle}</Brand>
-        )}
+        <Brand collapsed={collapsed} />
+        {collapseToggle}
         <div ref={sidebarNavRef} className={navBox}>
           {navBody(collapsed)}
         </div>

@@ -270,15 +270,21 @@ assert(/placeholder="Teacher name"/.test(parentList) && !/Teacher or admin name/
 assert(parentList.includes(`"You can message your child's teachers once your account is linked to a student."`) && !/and the school admin/.test(parentList), "copy 4: the parent's empty picker names teachers only");
 assert(parentList.includes("'Active teacher accounts appear here.'") && /title="No one to message yet"/.test(parentList), "copy 5: the admin's empty picker, under the existing title");
 
-console.log('Finding #11 — the list scrolls itself, never the page (source, both thread pages)');
+console.log('Finding #11 — the list scrolls itself; the page moves only to bring the box back (source, both thread pages)');
 const scrollsOnlyTheList = (s) =>
-  !/scrollIntoView/.test(code(s)) &&
+  !/scrollIntoView\(\{ block: 'end' \}\)/.test(code(s)) &&
   /const list = listRef\.current;\s*if \(list\) list\.scrollTop = list\.scrollHeight;/.test(s) &&
   /<div ref=\{listRef\} className="max-h-\[28rem\] space-y-3 overflow-y-auto/.test(s) &&
   !/bottomRef/.test(s);
 for (const role of ['teacher', 'parent']) {
   const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
-  assert(scrollsOnlyTheList(page), `${role}: no scrollIntoView; the 28rem list sets its own scrollTop`);
+  assert(scrollsOnlyTheList(page), `${role}: no end-of-list scrollIntoView; the 28rem list sets its own scrollTop`);
+  const sendBranch = code(page).slice(code(page).indexOf('if (lastId !== null && lastId === sentIdRef.current) {'));
+  assert(
+    (code(page).match(/scrollIntoView\(/g) || []).length === 1 &&
+      /^if \(lastId !== null && lastId === sentIdRef\.current\) \{[\s\S]*?if \(box\.top < 0 \|\| box\.bottom > window\.innerHeight\) \{\s*composer\.scrollIntoView\(\{ block: 'nearest' \}\);/.test(sendBranch),
+    `${role}: the page's only scrollIntoView is composer.scrollIntoView({ block: 'nearest' }), inside the my-send branch, under the out-of-view check`
+  );
   const focusCalls = page.match(/\.focus\(/g) || [];
   const quietFocus = page.match(/composerRef\.current\?\.focus\(\{ preventScroll: true \}\)/g) || [];
   assert(focusCalls.length === 2 && quietFocus.length === 2 && /<textarea\s+ref=\{composerRef\}/.test(page), `${role}: the composer gets the focus back after a send (and after a failed one) with preventScroll — no other focus call on the page`);

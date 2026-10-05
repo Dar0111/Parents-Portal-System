@@ -180,8 +180,10 @@ export default function MessageToast() {
     });
   }, [toast, navigation, store]);
 
-  // An admin has no Messages screen, so no toast and no alert (a
-  // notification must be openable, §10).
+  // A role with no Messages screen gets no toast and no alert (a
+  // notification must be openable, §10). Every role has one since
+  // 2026-10-05 — the admin too (teacher <-> admin only) — so the admin gets
+  // the badge, the toast, the tone and the vibration.
   if (!enabled) return null;
 
   return (

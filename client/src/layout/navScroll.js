@@ -30,6 +30,23 @@ export function nearestScrollTop({ scrollTop, viewHeight, itemTop, itemHeight })
 // falls between items. The active item stays whole — it is one of the
 // candidates, so the rounding never passes its own top. Upward scrolls
 // already align an item's top and are left as they are.
+//
+// THE PINNED ROW (fix round, 2026-10-06). Messages is `sticky bottom-0` in
+// the nav (Shell.jsx, `data-nav-pinned`): while its own place is below the
+// fold it covers the bottom 44px of the box. An active item ABOVE it in the
+// list must clear that row, not the box's edge, so the view is shortened by
+// the row and its 4px gap. An item after it (the admin's Backup & Restore)
+// needs nothing — by the time it shows, the row is back in its own place —
+// nor does Messages itself. And the row is never a snap candidate: stuck,
+// its top is wherever the box's bottom is, not a place in the list.
+function pinnedReserve(box, item) {
+  const pinned = box.querySelector('[data-nav-pinned]');
+  if (!pinned || typeof pinned.contains !== 'function' || pinned.contains(item)) return 0;
+  if (typeof item.compareDocumentPosition !== 'function') return 0;
+  const after = item.compareDocumentPosition(pinned) & Node.DOCUMENT_POSITION_FOLLOWING;
+  return after ? pinned.getBoundingClientRect().height + 4 : 0;
+}
+
 export function revealActive(box) {
   if (!box || box.clientHeight === 0) return;
   const item = box.querySelector('[aria-current="page"]');
@@ -39,12 +56,15 @@ export function revealActive(box) {
   const rect = item.getBoundingClientRect();
   let next = nearestScrollTop({
     scrollTop: box.scrollTop,
-    viewHeight: box.clientHeight,
+    viewHeight: box.clientHeight - pinnedReserve(box, item),
     itemTop: contentTop(item),
     itemHeight: rect.height,
   });
   if (next > box.scrollTop) {
-    const tops = Array.from(box.querySelectorAll('a[href]'), contentTop).filter((top) => top >= next);
+    const links = Array.from(box.querySelectorAll('a[href]')).filter(
+      (link) => typeof link.closest !== 'function' || !link.closest('[data-nav-pinned]')
+    );
+    const tops = links.map(contentTop).filter((top) => top >= next);
     if (tops.length) next = Math.min(...tops);
   }
   if (next !== box.scrollTop) box.scrollTop = next;

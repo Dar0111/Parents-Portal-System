@@ -77,8 +77,9 @@ export function MessageToastView({ toast, onView, onDismiss, onPause, onResume }
 }
 
 // The host: one per Shell, mounted only for a role whose Messages page is
-// built (teacher, parent) — an admin gets no toast, because a notification
-// must be openable (§10) and admin has no Messages page.
+// built — every role since 2026-10-05, the admin included (teacher <-> admin
+// only), so the admin gets the badge, the toast and the tone. A notification
+// must be openable (§10), which is why the mount is gated at all.
 export default function MessageToast() {
   const { user } = useAuth();
   const { subscribe } = useSocket();

@@ -1420,7 +1420,7 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   as the phone does (the breakpoint moved from `sm`; §5a-vi says why).
 - **At `md` and up it is expanded (256px, `w-64`, since feat/ui-refresh —
   it was `w-60` before) or a 64px rail (`w-16`)** (`layout/Shell.jsx:568–569`),
-  toggled at its top and remembered per browser under
+  toggled from its own row under the brand block (below) and remembered per browser under
   **`pp.sidebar`** (`layout/sidebarPref.js`, read in the `useState`
   initializer — no flash, no `index.html` script). Default: expanded.
 - **Grouped** (`layout/navGroups.js`, a separate file from `nav.js`, and a
@@ -1459,6 +1459,32 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   change, on collapse/expand and when the drawer opens — nearest, no
   animation, by setting the nav box's `scrollTop` (`revealActive`), never
   `scrollIntoView`, which may scroll the page too.
+- **The collapse toggle has ONE place** (fix round, 2026-10-06): a row of its
+  own directly under the brand block, its 36px box 14px from the sidebar's
+  left edge, in BOTH states — the same spot on the screen at 256px and in the
+  rail, where it already was (centred under the seal, in line with the rail's
+  icons). Until then it sat at the end of the brand row while wide and
+  dropped under the seal in the rail. Its accessible names, the rail's
+  "Expand sidebar" tooltip and its place in the tab order are unchanged; the
+  rail's layout, and so its snap (build 1 fix round), is untouched.
+- **Messages is pinned** (fix round, 2026-10-06): its row is `sticky
+  bottom-0` on an opaque `bg-surface` (`data-nav-pinned`, `Shell.jsx`). While
+  its own place is below the fold it holds the bottom of the nav box, badge
+  and all; scrolled to, it is back in its own place — never duplicated, and
+  the groups, items and order are unchanged. Measured for a 1366×600 window:
+  the nav box is 305px wide / 277px in the rail, and Messages' natural bottom
+  is 429 / 477 / 621px (admin / parent / teacher) wide and 386 / 434 / 578px
+  in the rail, so without the pin it was below the fold for every role.
+  **The groups are FLAT in `<nav>`**: each group's label (or the rail's
+  divider) sits in a `pt-3` wrapper and its items are siblings after it,
+  because a sticky row cannot leave its parent box and a per-group box would
+  trap Messages inside a group that, on the teacher's list, itself starts
+  below the fold. **Do not re-box the groups.** `revealActive` shortens the
+  view by the pinned row and its gap (48px) for an active item ABOVE it, and
+  never snaps to the stuck row; the nav box's `scroll-pb-12` does the same
+  for a link reached by Tab. While pinned, the row covers the bottom of the
+  row above it — accepted; CSS cannot tell pinned from in place, so no
+  hairline is drawn.
 - **A stable scrollbar gutter on the app's pages only** (UI-6):
   `html:has([data-app-shell])` in `index.css`, so the bell no longer shifts
   between short and long pages. **Not on every `html`** (Condition A): the

@@ -11,7 +11,8 @@
 //            UPDATE (same-sender count, or a different sender replacing); a
 //            skip (my own message, the open conversation, nothing unread)
 //            is false and alerts nothing.
-//   enabled  the role has a Messages screen; an admin never alerts.
+//   enabled  the role has a Messages screen — every role since 2026-10-05,
+//            the admin included, so the admin alerts too.
 //
 // THE SOUND IS TRIED FIRST AND MAY FAIL SILENTLY: a player that is not
 // loaded, or throws, must not stop the vibration or the toast. One alert per

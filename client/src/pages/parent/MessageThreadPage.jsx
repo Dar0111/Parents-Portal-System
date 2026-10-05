@@ -215,9 +215,24 @@ export default function ParentMessageThreadPage() {
       // My own send, now on screen: the composer gets the focus back (a
       // click on Send leaves it on the button, which is disabled mid-send),
       // and `preventScroll` keeps that from moving the page either.
+      //
+      // THE BOX STAYS IN VIEW (fix round, 2026-10-06). While the list is
+      // still under its 28rem cap, each new bubble makes it taller and pushes
+      // the box down; on the owner's laptop (1366×600) it ended at the bottom
+      // edge with one line showing and Send hidden. So after MY send, and only
+      // then: if the box is not wholly inside the window, the smallest page
+      // scroll that brings it in (`nearest`); otherwise the page does not
+      // move. An incoming message never moves the page.
       if (lastId !== null && lastId === sentIdRef.current) {
         sentIdRef.current = null;
         composerRef.current?.focus({ preventScroll: true });
+        const composer = composerRef.current;
+        if (composer) {
+          const box = composer.getBoundingClientRect();
+          if (box.top < 0 || box.bottom > window.innerHeight) {
+            composer.scrollIntoView({ block: 'nearest' });
+          }
+        }
       }
     }
   }, [messages]);
