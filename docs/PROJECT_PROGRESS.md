@@ -12,8 +12,10 @@
 Technological College, IICT · Final defense expected around November 2026.
 
 **Snapshot, 2026-10-05: `main` at `28fee18` (form drafts are merged,
-fast-forward) plus `feat/look-fixes` — build 1, built on web and phone,
-its proofs green, not yet device-checked, not merged.** Table and endpoint
+fast-forward) plus `feat/look-fixes` at `942ebb8` — build 1, built on web
+and phone, device-checked 2026-10-05 (the fix round and the follow-up
+re-checked the same day), cleaned up by id (backup 278), merge-ready, not
+merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -34,7 +36,7 @@ and only there.
 | After Stage 5 — docs pass, drawer groups, profile photos, the web on a phone's Chrome, palette C, the leave guard (merged 2026-09-30 → 10-01); the message toast (merged 2026-10-02) | ✅ | ✅ | ✅ |
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
 | Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merged 2026-10-05 | ✅ merged 2026-10-05 |
-| Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built 2026-10-05) | — | ✅ built, device check next | ✅ built, device check next |
+| Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ device-checked, merge-ready | ✅ device-checked, merge-ready |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -115,16 +117,19 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-The owner's order (2026-10-04, CLAUDE.md → BUILD ORDER → NEXT):
+The owner's order (2026-10-05, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Build 1's device check** (`feat/look-fixes`, built 2026-10-05), then
-   merge on the owner's word.
-2. **Build 2** — the dashboards.
-3. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
+1. **Merge build 1** (`feat/look-fixes`, device-checked and cleaned up
+   2026-10-05) on the owner's word.
+2. **Admin Messages** — `feat/admin-messages`; the owner's decision of
+   2026-10-05: teacher ↔ admin only, and parents cannot message the admin.
+3. **Build 2** — the dashboards, with skeleton loading tier 1.
+4. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
    script is not run until it is fixed.
-4. **Smoke gate** across web and mobile.
-5. **Manuscript delta list** (the team applies it).
-6. **Professor system check, Fri 2026-10-09.**
+5. **Smoke gate** across web and mobile.
+6. **Manuscript delta list** (the team applies it; it now includes
+   Chapter 5's admin Messages text).
+7. **Professor system check, Fri 2026-10-09.**
 
 After the check: the cloud (Supabase) survey.
 

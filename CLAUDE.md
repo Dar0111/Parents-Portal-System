@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-05, `feat/look-fixes` (on `main` `28fee18`, where form drafts are merged) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-05, `feat/look-fixes` at `942ebb8` — build 1 device-checked, cleaned up by id (backup 278), merge-ready (on `main` `28fee18`) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 9 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -174,12 +174,12 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-five test files); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `database/`
+`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-seven test files); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/drafts/` + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, nineteen proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks, twenty proofs) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -1426,8 +1426,9 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
-| **Two web parent messages were stored twice, 7 s and 19 s apart (ids 303/304, 308/309)** — added 2026-10-05 | thread `send()` (web ×2, phone) | Not a double submit by the timings, and no code path found; a ref guard was added anyway. If it recurs: note what the screen showed after the first send, Network tab open |
-| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` | It still signs in on the live DB (backups 275 and 276, 2026-10-04), and the proof holds it in the repo. After the change the proof needs another way to sign in (an env var, never a value in a file). **Never print the value** |
+| **Two web parent messages were stored twice, 7 s and 19 s apart (ids 303/304, 308/309)** — added 2026-10-05 | thread `send()` (web ×2, phone) | Not a double submit by the timings, and no code path found; a ref guard was added anyway. The Enter page jump may be why (unconfirmed). If it recurs: note what the screen showed after the first send, Network tab open |
+| **On the web thread, sending with Enter makes the page jump; the message box leaves the view** — added 2026-10-05 | both thread pages' `scrollIntoView` | Likely the scroll to the newest message moving the document too. Fix in `feat/admin-messages`, next |
+| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1531,8 +1532,9 @@ ready — do not let that arrive without these done.
   logs in with their child's LRN as the login id — anyone who knows a
   child's LRN would know that account's password too. Change every
   default password before any real account exists. **The admin's is also in
-  `server/scripts/proof-backup-loop.js:172`, and it still signed in on the
-  live DB on 2026-10-04** (KNOWN ISSUES).
+  `server/scripts/proof-backup-loop.js:172` and
+  `server/scripts/test-messages-flows.js:95`, and it still signed in on the
+  live DB on 2026-10-04 and 2026-10-06** (KNOWN ISSUES).
 - **RA 10173 (Data Privacy Act) applies** — the manuscript itself cites
   it. Loading real student names and LRNs needs the school's answer on
   whether a consent process is required, whether they already have a
@@ -1651,16 +1653,23 @@ its `docs/CHANGELOG.md` row.
       normal window, teacher in Incognito; phone: Expo Go on a Tecno,
       Android 14), cleaned up by id (backup 277). **Merged 2026-10-05
       (fast-forward, `28fee18`).** Rules: §28, M25.
-- [ ] **Build 1 — `feat/look-fixes`**, built 2026-10-05: the flagged screens
-      and their fixes, the button and chip shapes (§27f), the four small KNOWN
-      ISSUES fixes. **Not yet device-checked; not merged.** Rules: §27f, M23.
+- [x] **Build 1 — `feat/look-fixes`** (`1a31961`, fix round `dc7e9ed`,
+      follow-up `942ebb8` + its docs pass), built 2026-10-05: the flagged
+      screens and their fixes, the button and chip shapes (§27f), the four
+      small KNOWN ISSUES fixes. Device-checked 2026-10-05 (web: laptop Chrome,
+      admin and parent in a normal window, teacher in Incognito; phone: Expo
+      Go on a Tecno, Android 14; admin, teacher, parent), the fix round and
+      the follow-up re-checked the same day, cleaned up by id (backup 278).
+      **Merge-ready.** Rules: §27f, M23.
 
-**NEXT, in order (owner, 2026-10-04):** build 1's device check, then merge
-→ build 2 (the dashboards) → the
-`scripts/create-backup-zip.js` fix (before the smoke gate; the script is
-not run until it is fixed) → smoke gate → manuscript delta list (the team
-applies it) → professor system check, Fri 2026-10-09. After the check: the
-cloud (Supabase) survey.
+**NEXT, in order (owner, 2026-10-05):** merge build 1 → admin Messages
+(`feat/admin-messages`; the owner's decision of 2026-10-05: teacher ↔ admin
+only, and parents cannot message the admin) → build 2 (the dashboards, with
+skeleton loading tier 1) → the `scripts/create-backup-zip.js` fix (before
+the smoke gate; the script is not run until it is fixed) → smoke gate →
+manuscript delta list (the team applies it; it now includes Chapter 5's
+admin Messages text) → professor system check, Fri 2026-10-09. After the
+check: the cloud (Supabase) survey.
 
 ### Stage 6 — Integration
 
