@@ -1,9 +1,7 @@
 import { View } from 'react-native';
 import Avatar from '../../components/Avatar';
 import Text from '../../components/Text';
-import Icon from '../../icons';
 import { userCardLines } from '../../navigation/drawerFold';
-import { useTheme } from '../../theme/ThemeProvider';
 
 // THE PROFILE HERO (feat/ui-refresh, 2026-10-02) — the web's
 // pages/dashboards/ProfileHero.jsx on the phone: the band at the top of the
@@ -26,15 +24,19 @@ import { useTheme } from '../../theme/ThemeProvider';
 // parent screen renders this component today; the rule holds anyway, so
 // reusing it cannot leak one.
 //
-// NOTHING IN HERE IS `primary`, AND NOTHING IS RED: the pills are the plain
-// surface, as on the parent hero and on About.
+// NOTHING IN HERE IS `primary`, AND NOTHING IS RED.
+//
+// THE LOOK (build 2, feat/dashboards-look, 2026-10-07 — the owner's Part C,
+// the web hero's): the container corner (`rounded-xl`, §27f), no shadow, and
+// the facts as ONE LINE of `text-sm text-brand-panel-muted` joined by " · "
+// — the role line's own muted colour — not a row of pills. A fact's `icon`
+// is no longer drawn. The line wraps at a space at 360dp.
 export default function ProfileHero({ user, facts = [] }) {
-  const { tokens } = useTheme();
   const { name, detail } = userCardLines(user);
   const shown = facts.filter((fact) => fact && fact.label);
 
   return (
-    <View className="rounded-2xl border border-edge bg-brand-panel p-5">
+    <View className="rounded-xl border border-edge bg-brand-panel p-5">
       <View className="flex-row items-center gap-4">
         {/* A photo when the account has one, initials otherwise — Avatar's own
             rule, and its own fallback when the file is gone. */}
@@ -48,21 +50,7 @@ export default function ProfileHero({ user, facts = [] }) {
           {detail ? <Text className="mt-1 text-sm text-brand-panel-muted">{detail}</Text> : null}
         </View>
       </View>
-      {shown.length ? (
-        <View className="mt-4 flex-row flex-wrap gap-2">
-          {shown.map((fact) => (
-            // `maxWidth` and the label's `flexShrink` are plain style objects:
-            // a pill longer than the band wraps its words instead of running
-            // off the edge at 360dp.
-            <View key={fact.key || fact.label} className="flex-row items-center gap-2 rounded-full bg-surface px-3 py-1" style={{ maxWidth: '100%' }}>
-              {fact.icon ? <Icon name={fact.icon} size={11} color={tokens['fg-muted']} /> : null}
-              <Text className="text-xs font-semibold text-fg-secondary" style={{ flexShrink: 1 }}>
-                {fact.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      {shown.length ? <Text className="mt-4 text-sm text-brand-panel-muted">{shown.map((fact) => fact.label).join(' · ')}</Text> : null}
     </View>
   );
 }

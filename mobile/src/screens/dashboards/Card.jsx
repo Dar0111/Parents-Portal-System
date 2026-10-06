@@ -20,21 +20,24 @@ import { useTheme } from '../../theme/ThemeProvider';
 // No reload control on a card (owner, 2026-10-04): the dashboard's own
 // pull-to-refresh asks every card again.
 //
-// THE LOOK (feat/ui-refresh): the card surface (16px corners, the hairline
-// edge), the icon in its chip, the title in the title face. On a toned card
-// the chip is the plain surface with the tone's own strong colour, so it
-// reads as a cut-out of the tinted frame rather than a second tint on it.
+// THE LOOK (build 2, feat/dashboards-look, 2026-10-07 — the owner's Part C,
+// the web card's): the container corner on EVERY tone (`rounded-xl`, §27f —
+// the amber frame was `rounded-2xl` beside a `rounded-xl` default, two
+// corners on one screen), the hairline edge, no shadow; the icon INLINE
+// before the title in `fg-muted`, no tinted chip; the title in the title
+// face. The amber frame stays (§12).
 const TONES = {
-  default: { frame: cardClass, chip: 'bg-brand-soft', ink: 'brand' },
-  warning: { frame: 'rounded-2xl border border-warning-edge bg-warning-soft', chip: 'bg-surface', ink: 'warning-strong' },
-  danger: { frame: 'rounded-2xl border border-danger-edge bg-danger-soft', chip: 'bg-surface', ink: 'danger-text' },
+  default: { frame: cardClass },
+  warning: { frame: 'rounded-xl border border-warning-edge bg-warning-soft' },
+  danger: { frame: 'rounded-xl border border-danger-edge bg-danger-soft' },
 };
 
 // LOADING AND RE-READING (build 2, feat/dashboards-look, 2026-10-07), the
 // web Card's rule (decision 1), with useCard's two flags (a verbatim copy):
 //   `loading` — nothing of this card's query is on screen: its SKELETON, in
 //     the shape of what will arrive (`skeleton`: a figure, the bigger lead
-//     figure, a figure over a short list, or the System card's facts), after
+//     figure, a figure over a short list, the admin's three counts, or the
+//     System card's facts), after
 //     300 ms, with the height reserved from the first frame.
 //   `refreshing` — the same query read again (a focus re-read, a pull) over
 //     its answer: the answer STAYS, its content takes no touches and is
@@ -74,6 +77,24 @@ const SKELETON_SHAPES = {
       <Lines widths={['w-3/4', 'w-2/3', 'w-1/2']} />
     </>
   ),
+  // The admin People card (Part C): three label-figure-caption counts.
+  counts: () => (
+    <View className="gap-1">
+      {['w-16', 'w-14', 'w-12'].map((w) => (
+        <View key={w} className="px-3 py-2" style={{ minHeight: 48 }}>
+          <View className="h-5 justify-center">
+            <SkeletonBar className={`h-3 ${w}`} />
+          </View>
+          <View className="h-7 justify-center">
+            <SkeletonBar className="h-5 w-10" />
+          </View>
+          <View className="mt-1 h-5 justify-center">
+            <SkeletonBar className="h-3 w-3/4" />
+          </View>
+        </View>
+      ))}
+    </View>
+  ),
   facts: () => (
     <>
       <View className="h-7 justify-center">
@@ -102,14 +123,10 @@ export default function Card({
   const look = TONES[tone] || TONES.default;
   const frame = (
     <View className={`${look.frame} p-4`}>
-      {/* The chip and the title on one row. A long title wraps beside the
-          chip; it is never cut. */}
-      <View className="mb-3 flex-row items-center gap-3">
-        {icon ? (
-          <View className={`h-9 w-9 items-center justify-center rounded-xl ${look.chip}`}>
-            <Icon name={icon} size={14} color={tokens[look.ink]} />
-          </View>
-        ) : null}
+      {/* The icon and the title on one row. A long title wraps beside the
+          icon; it is never cut. */}
+      <View className="mb-3 flex-row items-center gap-2">
+        {icon ? <Icon name={icon} size={14} color={tokens['fg-muted']} /> : null}
         <Text className="min-w-0 flex-1 font-serif text-base text-fg">{title}</Text>
       </View>
       <View
@@ -146,12 +163,18 @@ export default function Card({
 // rendered by GradeValue; a count arrives as a number. `large` is the
 // emphasised card's lead (f2): on one column, emphasis is first position plus
 // the bigger number.
+// TABULAR FIGURES (Part C, as the web's `tabular-nums`): a figure that
+// changes on a re-read does not shift the caption under it.
+const TABULAR = { fontVariant: ['tabular-nums'] };
+
 export function Stat({ value, caption, muted = false, large = false }) {
   return (
     <View className="min-w-0">
       {/* One step down, as on the web (§24, M19): `text-xl` / `large`
           `text-2xl`. Bold since feat/ui-refresh, as the web's figure is. */}
-      <Text className={`${large ? 'text-2xl' : 'text-xl'} font-bold ${muted ? 'text-fg-muted' : 'text-fg'}`}>{value}</Text>
+      <Text className={`${large ? 'text-2xl' : 'text-xl'} font-bold ${muted ? 'text-fg-muted' : 'text-fg'}`} style={TABULAR}>
+        {value}
+      </Text>
       {caption ? <Text className="mt-1 text-sm text-fg-muted">{caption}</Text> : null}
     </View>
   );

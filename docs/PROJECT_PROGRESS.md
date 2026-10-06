@@ -11,11 +11,12 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-06: `main` at `2f2dbb7` (admin Messages is merged,
-fast-forward) plus `fix/source-zip` — `scripts/create-backup-zip.js` rebuilt
-on `git archive` (tracked files only, a dated and sha-named zip on the
-Desktop), proved by `scripts/proof-source-zip.mjs`, pending the owner's
-first real run, not merged.** Table and endpoint
+**Snapshot, 2026-10-07: `main` at `1692103` (the source-zip fix merged,
+fast-forward, after the owner's first run made
+`Parents_Portal_source_2026-10-07_1692103.zip`) plus `feat/dashboards-look`
+— build 2, two commits: skeleton loading tier 1, re-reads that keep what is
+on screen, the web drawer as a dialog, and the dashboards' Part C — built,
+NOT yet device-checked, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -38,6 +39,8 @@ and only there.
 | Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merged 2026-10-05 | ✅ merged 2026-10-05 |
 | Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
 | Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
+| The source-code zip — `fix/source-zip`: `git archive` of HEAD, tracked files only (the owner's first run 2026-10-07) | ✅ merged 2026-10-07 (a root script, not the server) | — | — |
+| Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07) | — | 🟡 built, not yet device-checked, not merged | 🟡 built, not yet device-checked, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -48,8 +51,7 @@ contributions — CLAUDE.md → SCOPE DECISION).
 built; About is last on every role. Admin has no Sections, Excuse Letters,
 Memos or Events page by the Figure 5 scope decision — memos are written on
 Admin → Announcements. **Admin → Messages came back on 2026-10-05** by the
-owner's decision (teacher ↔ admin only; on `feat/admin-messages`, not yet
-merged).
+owner's decision (teacher ↔ admin only; merged 2026-10-06).
 
 ---
 
@@ -70,7 +72,7 @@ A module with tables and no handlers is not started; there are none.
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
 | Excuse letters | `excuse_letters` | 6 | `test:excuses` | Teacher → Excuse Letters (review); Parent → Excuse Letters |
-| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); Admin → Messages (teachers only, on `feat/admin-messages`); the new-message toast on every screen of a role with Messages, web and phone |
+| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); Admin → Messages (teachers only); the new-message toast on every screen of a role with Messages, web and phone |
 | Notifications | `notifications` | 4 | `test:notifications` | the bell and the sidebar badges, every role |
 | Settings + school calendar | `system_settings` | 5 | `test:settings`, `test:school-calendar` | Admin → Settings; About (every role, and public from the login page) |
 | Dashboard | — | 1 | `test:dashboard` | one dashboard per role |
@@ -93,8 +95,8 @@ A module with tables and no handlers is not started; there are none.
   exit with unsaved work asks "Leave without saving?" (CLAUDE.md §5e).
 - **The new-message toast** — "New message from <name>" / "<n> new messages
   from <name>", never the body, View + Dismiss, 5 s, never for your own
-  message or the conversation you are in; the admin gets it too on
-  `feat/admin-messages` (CLAUDE.md §26).
+  message or the conversation you are in; the admin gets it too
+  (CLAUDE.md §26).
   On a show or update it plays the "two-note rise" tone (web and phone) and
   vibrates 150 ms on the phone. **The phone plays no tone in silent or
   vibrate-only mode; during Do Not Disturb the tone still plays and the
@@ -121,19 +123,22 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-The owner's order (2026-10-06, CLAUDE.md → BUILD ORDER → NEXT):
+As the owner's dispatches stand (2026-10-07, CLAUDE.md → BUILD ORDER →
+NEXT):
 
-1. **The owner's first run of the fixed source zip** —
-   `node scripts/create-backup-zip.js` from the repository root, on a clean
-   tree (`fix/source-zip`; the zip lands on the Desktop), then merge it.
-2. **Smoke gate** across web and mobile.
-3. **Manuscript delta list** (the team applies it; it now includes
+1. **The owner's device check of build 2** (`feat/dashboards-look`: the
+   skeletons and the fill, a re-read keeping its rows, the drawer dialog,
+   the dashboards' Part C, web and phone), then merge it.
+2. **The privacy build** (`feat/privacy`, plan approved, waiting for build 2's
+   merge).
+3. **Smoke gate** across web and mobile.
+4. **Manuscript delta list** (the team applies it; it now includes
    Chapter 5's admin Messages text).
-4. **Professor system check, Fri 2026-10-09.**
+5. **Professor system check, Fri 2026-10-09.**
 
-**Build 2** (the dashboards, with skeleton loading tier 1) waits for the
-owner's decision once the professor confirms the Friday time. After the
-check: the cloud (Supabase) survey.
+Later: option 1 — a `queryKey` on the 36 list consumers, so a query change
+shows the skeleton — with skeleton tier 2. After the check: the cloud
+(Supabase) survey.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications

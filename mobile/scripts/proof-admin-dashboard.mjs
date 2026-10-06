@@ -2,7 +2,8 @@
 // `admin/dashboard/logic.js`: the backup card's tone and words by CALENDAR
 // day in Manila with the clock pinned, never red; every card opening an
 // admin route and none opening the web-only Backup & Restore; the lockout
-// hazard; the waiting card's tone. What it cannot: the cards render — the
+// hazard; the waiting card's tone; and since build 2 (Part C) the People
+// card's three counts (`countRows`). What it cannot: the cards render — the
 // phone (M7). Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-dashboard.mjs
 import { register } from 'node:module';
@@ -10,7 +11,7 @@ import { register } from 'node:module';
 const HOOK = `export async function resolve(s, c, n) { try { return await n(s, c); } catch (e) { if (e.code === 'ERR_MODULE_NOT_FOUND' && /^\\.{1,2}\\//.test(s) && !/\\.[a-z]+$/.test(s)) return n(s + '.js', c); throw e; } }`;
 register('data:text/javascript,' + encodeURIComponent(HOOK), import.meta.url);
 
-const { backupAge, CARD_LINKS, pendingLead, pendingTone, showLockoutHazard } = await import('../src/screens/admin/dashboard/logic.js');
+const { backupAge, CARD_LINKS, countRows, pendingLead, pendingTone, showLockoutHazard } = await import('../src/screens/admin/dashboard/logic.js');
 
 let passed = 0;
 let failed = 0;
@@ -39,8 +40,15 @@ assert(['success', 'warning'].includes(backupAge('garbage', NOW).tone) && backup
 
 console.log('cards open admin routes, never the web-only one');
 const links = Object.values(CARD_LINKS);
-assert(links.every((l) => l.startsWith('/admin')) && !links.includes('/admin/backups'), `five cards, every link an admin route, none to Backup & Restore (${links.join(', ')})`);
+assert(links.every((l) => l.startsWith('/admin')) && !links.includes('/admin/backups'), `every link — the waiting card, the three counts, System — an admin route, none to Backup & Restore (${links.join(', ')})`);
 assert(CARD_LINKS.system === '/admin/settings' && CARD_LINKS.pending === '/admin/users', 'System opens Settings; the waiting count opens Users');
+
+console.log('the People card — three counts, each its own link (build 2, Part C)');
+const rows = countRows({ students: 4, teachers: 3, active_parents: 2 });
+assert(rows.map((r) => r.key).join(',') === 'students,teachers,parents' && rows.map((r) => r.label).join(',') === 'Students,Teachers,Parents', 'Students, Teachers, Parents — in the web’s order and words');
+assert(rows[0].link === '/admin/students' && rows[1].link === '/admin/users' && rows[2].link === '/admin/users', 'each opens the list whose WHERE it repeats: Students → Students, Teachers and Parents → Users');
+assert(rows.map((r) => r.value).join(',') === '4,3,2' && rows.map((r) => r.caption).join(' | ') === 'on the roll | teacher accounts | active parent accounts', 'the server’s totals as text, with the web’s captions');
+assert(countRows(undefined).every((r) => r.value === '0') && countRows({ students: 'x' })[0].value === '0', 'a missing or unreadable total reads 0, never "undefined" or "NaN"');
 
 console.log('the hazard and the waiting card');
 assert(showLockoutHazard({ hazard: { single_unverified_admin: true } }) && !showLockoutHazard({ hazard: { single_unverified_admin: false } }) && !showLockoutHazard(null), 'the hazard shows only on the server\'s true, never on a missing payload');

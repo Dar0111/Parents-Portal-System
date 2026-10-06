@@ -43,6 +43,10 @@ import {
 // to a provider (unread messages, unread posts) is kept current by the
 // socket (§10).
 const EYEBROW = 'text-xs font-semibold uppercase tracking-wide';
+// The hero's labels (build 2, Part C): plain words, no uppercase tracking,
+// one step up to `text-sm` — the web hero's `HERO_LABEL`. The card's own
+// eyebrow ("Last 7 days") keeps EYEBROW.
+const HERO_LABEL = 'text-sm font-semibold';
 
 function AbsenceLine({ date, className = '' }) {
   return <Text className={className}>Absence on {longDate(date)}</Text>;
@@ -152,22 +156,23 @@ function DateTile({ dateStr }) {
 function HeroFigure({ label, children, first = false }) {
   return (
     <View className={first ? '' : 'mt-4 border-t border-brand-panel-ring pt-4'}>
-      <Text className={`${EYEBROW} text-brand-panel-muted`}>{label}</Text>
+      <Text className={`${HERO_LABEL} text-brand-panel-muted`}>{label}</Text>
       {children}
     </View>
   );
 }
 
 // THE SAME BAND AS THE STAFF PROFILE HERO since feat/ui-refresh
-// (dashboards/ProfileHero.jsx): 16px corners, the hairline edge, the eyebrow,
-// the name in the title face, and a 64dp disc. INITIALS, NOT A PHOTO — a
-// learner has none (`students` has no photo column, §25), so the disc is
-// drawn as Avatar draws its fallback. A letter sits on the plain surface, as
-// a pill on this panel does.
+// (dashboards/ProfileHero.jsx): the container corner (`rounded-xl`, since
+// build 2's Part C), the hairline edge, plain-word labels (no uppercase
+// tracking since Part C), the name in the title face, and a 64dp disc.
+// INITIALS, NOT A PHOTO — a learner has none (`students` has no photo column,
+// §25), so the disc is drawn as Avatar draws its fallback. A letter sits on
+// the plain surface.
 export function ChildHero({ linked, user, section, grades, letterTerm: letters, monthDays, letter, term }) {
   return (
-    <View className="rounded-2xl border border-edge bg-brand-panel p-5">
-      <Text className={`${EYEBROW} text-brand-panel-muted`}>Your child</Text>
+    <View className="rounded-xl border border-edge bg-brand-panel p-5">
+      <Text className={`${HERO_LABEL} text-brand-panel-muted`}>Your child</Text>
       {!linked ? (
         <Text className="mt-2 text-sm text-brand-panel-fg">This account is not linked to a learner yet. Ask the school office.</Text>
       ) : (
@@ -527,41 +532,6 @@ export default function DashboardScreen({ navigation }) {
 
       <Reveal index={5}>
         <Card
-          title="Announcements & memos"
-          icon="fa-bullhorn"
-          onOpen={() => navigation.navigate('/parent/announcements')}
-          skeleton="list"
-          loading={posts.loading}
-          refreshing={posts.refreshing}
-          error={posts.error}
-          onRetry={posts.reload}
-        >
-          {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
-            <View>
-              <Stat value={pLead.value} caption={pLead.caption} />
-              <View className="mt-3 gap-2 border-t border-edge-soft pt-3">
-                {posts.data.announcements.map((row) => (
-                  <Text key={`a-${row.id}`} className="text-sm text-fg">
-                    {row.title}
-                    <Text className="text-xs text-fg-muted">  Announcement</Text>
-                  </Text>
-                ))}
-                {posts.data.memos.map((row) => (
-                  <Text key={`m-${row.id}`} className="text-sm text-fg">
-                    {row.title}
-                    <Text className="text-xs text-fg-muted">  Memo</Text>
-                  </Text>
-                ))}
-              </View>
-            </View>
-          ) : (
-            <CardEmpty>Nothing posted yet.</CardEmpty>
-          )}
-        </Card>
-      </Reveal>
-
-      <Reveal index={6}>
-        <Card
           title="Upcoming events"
           icon="fa-calendar-days"
           onOpen={() => navigation.navigate('/parent/events')}
@@ -587,6 +557,40 @@ export default function DashboardScreen({ navigation }) {
             </View>
           ) : (
             <CardEmpty>No upcoming events.</CardEmpty>
+          )}
+        </Card>
+      </Reveal>
+
+      {/* LAST, AS A LIST (Part C, the web's order): one row per post, its
+          title on the left and its kind on the right, a hairline between. */}
+      <Reveal index={6}>
+        <Card
+          title="Announcements & memos"
+          icon="fa-bullhorn"
+          onOpen={() => navigation.navigate('/parent/announcements')}
+          skeleton="list"
+          loading={posts.loading}
+          refreshing={posts.refreshing}
+          error={posts.error}
+          onRetry={posts.reload}
+        >
+          {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
+            <View>
+              <Stat value={pLead.value} caption={pLead.caption} />
+              <View className="mt-3 border-t border-edge-soft">
+                {[
+                  ...posts.data.announcements.map((row) => ({ key: `a-${row.id}`, title: row.title, kind: 'Announcement' })),
+                  ...posts.data.memos.map((row) => ({ key: `m-${row.id}`, title: row.title, kind: 'Memo' })),
+                ].map((post, i) => (
+                  <View key={post.key} className={`flex-row items-baseline justify-between gap-3 py-2.5 ${i ? 'border-t border-edge-soft' : ''}`}>
+                    <Text className="min-w-0 flex-1 text-sm text-fg">{post.title}</Text>
+                    <Text className="text-xs text-fg-muted">{post.kind}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : (
+            <CardEmpty>Nothing posted yet.</CardEmpty>
           )}
         </Card>
       </Reveal>

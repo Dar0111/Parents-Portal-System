@@ -19,8 +19,14 @@ import Avatar from '../../components/Avatar';
 // name fallback. No parent screen renders this component today; the rule is
 // kept here anyway so that reusing it cannot leak one.
 //
-// NOTHING IN HERE IS `primary`, AND NOTHING IS RED: the pills are the plain
-// surface, as on the parent hero.
+// NOTHING IN HERE IS `primary`, AND NOTHING IS RED.
+//
+// THE LOOK (build 2, feat/dashboards-look, 2026-10-07 — the owner's Part C):
+// the container corner (`rounded-xl`, §27f) and NO SHADOW; the facts are ONE
+// LINE of `text-sm text-brand-panel-muted`, joined by " · " — the same
+// muted line the role detail already uses, a pair lint:contrast checks
+// (7.03:1 light, 10.08:1 dark) — not a row of pills. A fact's `icon` is no
+// longer drawn; the words carry it. The line wraps at a space on a phone.
 const ROLE_LABEL = { admin: 'Admin', teacher: 'Teacher', parent: 'Parent' };
 
 export default function ProfileHero({ user, facts = [] }) {
@@ -31,7 +37,7 @@ export default function ProfileHero({ user, facts = [] }) {
   const shown = facts.filter((fact) => fact && fact.label);
 
   return (
-    <section className="brand-panel-art rounded-2xl border border-edge bg-brand-panel p-5 text-brand-panel-fg shadow-xs sm:p-6">
+    <section className="brand-panel-art rounded-xl border border-edge bg-brand-panel p-5 text-brand-panel-fg sm:p-6">
       <div className="flex items-center gap-4">
         {/* A photo when the account has one, initials otherwise — Avatar's own
             rule, its own fallback when the file is gone, and its own hairline
@@ -43,21 +49,7 @@ export default function ProfileHero({ user, facts = [] }) {
         </div>
       </div>
       {shown.length ? (
-        <ul className="mt-4 flex flex-wrap gap-2">
-          {shown.map((fact) => (
-            <li
-              key={fact.key || fact.label}
-              className="flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-fg-secondary"
-            >
-              {fact.icon ? (
-                <span aria-hidden="true" className="flex items-center justify-center text-fg-muted">
-                  <i className={`fa-solid ${fact.icon}`} />
-                </span>
-              ) : null}
-              <span className="min-w-0">{fact.label}</span>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-4 text-sm text-brand-panel-muted">{shown.map((fact) => fact.label).join(' · ')}</p>
       ) : null}
     </section>
   );

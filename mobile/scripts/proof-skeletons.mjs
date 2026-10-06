@@ -86,7 +86,7 @@ assert(/extraData=\{busy \? \(dimmed \? 'dimmed' : 'busy'\) : 'idle'\}/.test(lis
 console.log('the dashboard Card (source)');
 const card = src('screens/dashboards/Card.jsx');
 assert(/<Skeleton phase=\{phase\}>\n\s+<Shape \/>\n\s+<\/Skeleton>/.test(card) && !/LoadingSpinner/.test(card), 'loading: the skeleton in the card’s shape, no spinner');
-assert(['figure', 'lead', 'list', 'facts'].every((s) => new RegExp(`\\n  ${s}: \\(\\) =>`).test(card)), 'four shapes: figure, lead, list, facts');
+assert(['figure', 'lead', 'list', 'counts', 'facts'].every((s) => new RegExp(`\\n  ${s}: \\(\\) =>`).test(card)), 'five shapes: figure, lead, list, the admin’s counts (commit 2), facts');
 assert(/pointerEvents=\{refreshing \? 'none' : 'auto'\}\n\s+accessibilityState=\{refreshing \? \{ busy: true \} : undefined\}/.test(card), 'a re-read: the answer stays, takes no touches, and is marked busy');
 
 console.log('the three dashboards: a pull shows the indicator while the cards re-read (source)');

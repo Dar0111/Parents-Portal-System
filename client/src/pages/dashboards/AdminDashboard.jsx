@@ -43,6 +43,15 @@ import { useCard } from './useCard';
 // admin, today's date, and the school year and term — the last two from the
 // SAME /dashboard read the cards use, so they appear when it has answered and
 // not before. No request was added for it.
+//
+// THE LAYOUT (build 2, feat/dashboards-look, 2026-10-07 — the owner's Part C):
+// two LEAD cards, each two columns wide — "Waiting for approval" (amber while
+// something waits) and one card holding the three counts — then System across
+// the page. The counts card is THE ONE EXCEPTION to "the whole card is its
+// link" (§12, the owner's decision 3, FRONTEND §15e): Students, Teachers and
+// Parents each open a different list, so the card itself links nowhere and
+// each count is its own link. Teachers and Parents both open Admin → Users —
+// that page takes no role from the address; its role filter is on the page.
 
 // Green at or under a week, amber beyond it or never — and NEVER red
 // (spec). A stale backup is a prompt, not a failure: the data is still
@@ -71,6 +80,39 @@ function backupAge(createdAt) {
 const FACT_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
 const FACT_VALUE = 'mt-0.5 text-sm font-semibold tabular-nums';
 
+// THE COUNTS CARD'S THREE LINKS (Part C, decision 3). Each count repeats the
+// WHERE of the list it opens (see the note at the top of this file).
+const COUNTS = [
+  { key: 'students', label: 'Students', to: '/admin/students', caption: 'on the roll', value: (t) => t.students },
+  { key: 'teachers', label: 'Teachers', to: '/admin/users', caption: 'teacher accounts', value: (t) => t.teachers },
+  { key: 'parents', label: 'Parents', to: '/admin/users', caption: 'active parent accounts', value: (t) => t.active_parents },
+];
+
+// Each count is a real <Link>: the label, the number and its caption are its
+// name ("Students 12 on the roll"), the control radius (§27f), a hover tint
+// and the shared focus outline drawn inside it. Exported so the proof can
+// render it (§17b).
+export function CountLinks({ totals }) {
+  return (
+    <ul className="grid gap-2 sm:grid-cols-3">
+      {COUNTS.map((count) => (
+        <li key={count.key} className="min-w-0">
+          <Link
+            to={count.to}
+            className="flex min-h-11 items-start justify-between gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-fg">{count.label}</span>
+              <Stat value={<CountUp value={count.value(totals)} />} caption={count.caption} />
+            </span>
+            <i aria-hidden="true" className="fa-solid fa-chevron-right mt-1 shrink-0 text-xs text-fg-faint" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { connected } = useSocket();
@@ -90,11 +132,11 @@ export default function AdminDashboard() {
   // The hero's facts. The date is the device's own day; the other two are
   // `d`, so they are simply absent until /dashboard has answered. Each is
   // keyed on ITS OWN VALUE, not on `d`: a payload with no school year (the
-  // setting unset) must leave the pill out, never print the word "undefined".
+  // setting unset) must leave the fact out, never print the word "undefined".
   const facts = [
-    { key: 'today', icon: 'fa-calendar-day', label: `${weekdayName(today)}, ${longDate(today)}` },
-    d?.school_year ? { key: 'year', icon: 'fa-school', label: `School year ${d.school_year}` } : null,
-    d?.term ? { key: 'term', icon: 'fa-book-open', label: `Term ${d.term}` } : null,
+    { key: 'today', label: `${weekdayName(today)}, ${longDate(today)}` },
+    d?.school_year ? { key: 'year', label: `School year ${d.school_year}` } : null,
+    d?.term ? { key: 'term', label: `Term ${d.term}` } : null,
   ];
 
   return (
@@ -149,26 +191,28 @@ export default function AdminDashboard() {
         </div>
       ) : null}
 
-      {/* FOUR COMPACT NUMBER TILES IN ONE ROW, SYSTEM FULL WIDTH BELOW
-          (UI-3, Darryl's Q2). The approval queue is the EMPHASISED tile —
-          first, amber while something waits, the bigger number — but the
-          same width as the other three. `items-start`: a card takes its own
-          height, never its row's tallest. Two columns below lg, so the
-          tiles pair up and System still spans.
+      {/* TWO LEAD CARDS, THEN SYSTEM ACROSS THE PAGE (Part C, 2026-10-07).
+          At `lg` the grid is four columns and each lead card takes two, so
+          they share the first row; from `sm` each takes the whole two-column
+          row. The approval queue comes first — amber while something waits,
+          the bigger number — and the three counts share the second card,
+          each its own link. Each row stretches to its tallest card.
 
           The cards arrive one after another (Reveal); they all exist from
-          the first render — each owns its spinner — so the stagger has its
-          five children at mount. */}
-      <Reveal stagger className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          the first render — each owns its skeleton — so the stagger has its
+          three children at mount. */}
+      <Reveal stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card
           title="Waiting for approval"
           icon="fa-user-clock"
           to="/admin/users"
-          compact
+          className="sm:col-span-2"
+          skeleton="lead"
           // Amber ONLY when there is something in the queue. A permanently
           // amber card is wallpaper, and the next real one is not noticed.
           tone={pending > 0 ? 'warning' : 'default'}
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -181,40 +225,19 @@ export default function AdminDashboard() {
           ) : null}
         </Card>
 
+        {/* NO `to`: the one card that is not its own link (decision 3) —
+            its three counts are. */}
         <Card
-          title="Students"
-          icon="fa-user-graduate"
-          to="/admin/students"
-          compact
-          loading={summary.loading}
-          error={summary.error}
-          onRetry={summary.reload}
-        >
-          {d ? <Stat value={<CountUp value={d.totals.students} />} caption="on the roll" /> : null}
-        </Card>
-
-        <Card
-          title="Teachers"
-          icon="fa-chalkboard-user"
-          to="/admin/users"
-          compact
-          loading={summary.loading}
-          error={summary.error}
-          onRetry={summary.reload}
-        >
-          {d ? <Stat value={<CountUp value={d.totals.teachers} />} caption="teacher accounts" /> : null}
-        </Card>
-
-        <Card
-          title="Parents"
+          title="People"
           icon="fa-users"
-          to="/admin/users"
-          compact
+          className="sm:col-span-2"
+          skeleton="counts"
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
-          {d ? <Stat value={<CountUp value={d.totals.active_parents} />} caption="active parent accounts" /> : null}
+          {d ? <CountLinks totals={d.totals} /> : null}
         </Card>
 
         <Card
@@ -222,7 +245,9 @@ export default function AdminDashboard() {
           icon="fa-server"
           to="/admin/settings"
           className="sm:col-span-2 lg:col-span-4"
+          skeleton="facts"
           loading={summary.loading}
+          refreshing={summary.refreshing || backups.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >

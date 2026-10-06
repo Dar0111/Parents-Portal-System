@@ -191,18 +191,15 @@ export default function TeacherDashboard() {
   // `advisory`, so each is simply absent until its read has answered. The
   // class count is the figure My classes leads with, from the same array.
   // The year and the term are keyed on THEIR OWN VALUE, not on `d`: a payload
-  // with no school year (the setting unset) must leave the pill out, never
+  // with no school year (the setting unset) must leave the fact out, never
   // print the word "undefined".
   const facts = [
-    { key: 'today', icon: 'fa-calendar-day', label: `${weekdayName(today)}, ${longDate(today)}` },
-    d?.school_year ? { key: 'year', icon: 'fa-school', label: `School year ${d.school_year}` } : null,
-    d?.term ? { key: 'term', icon: 'fa-book-open', label: `Term ${d.term}` } : null,
-    classCount
-      ? { key: 'classes', icon: 'fa-users-rectangle', label: `${classCount} ${classCount === 1 ? 'class' : 'classes'}` }
-      : null,
+    { key: 'today', label: `${weekdayName(today)}, ${longDate(today)}` },
+    d?.school_year ? { key: 'year', label: `School year ${d.school_year}` } : null,
+    d?.term ? { key: 'term', label: `Term ${d.term}` } : null,
+    classCount ? { key: 'classes', label: `${classCount} ${classCount === 1 ? 'class' : 'classes'}` } : null,
     ...advisory.map((section) => ({
       key: `advisory-${section.id}`,
-      icon: 'fa-chalkboard-user',
       label: `Adviser of Grade ${section.grade_level} - ${section.name}`,
     })),
   ];
@@ -222,15 +219,15 @@ export default function TeacherDashboard() {
       ) : null}
 
       {/* EVERY CARD LEADS WITH A NUMBER (f2, 2026-09-30). The review queue is
-          the EMPHASISED card — first, two columns, the bigger number, amber
-          only while something waits — because it is the one card that asks
-          the teacher to act. The other four are one column each, so no
-          width leaves a hole in the grid. Each row stretches to its
-          tallest card — UI-3's `items-start` was undone here by Darryl's
-          decision of 2026-09-30.
+          the LEAD card — first, two columns, the bigger number, amber only
+          while something waits — because it is the one card that asks the
+          teacher to act; Part C (2026-10-07) kept this layout as it was. The
+          other four are one column each, so no width leaves a hole in the
+          grid. Each row stretches to its tallest card — UI-3's
+          `items-start` was undone here by Darryl's decision of 2026-09-30.
 
           The cards arrive one after another (Reveal); all five exist from
-          the first render — each owns its spinner — so the stagger has its
+          the first render — each owns its skeleton — so the stagger has its
           children at mount. */}
       <Reveal stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card
@@ -238,7 +235,9 @@ export default function TeacherDashboard() {
           icon="fa-envelope-open-text"
           to="/teacher/excuse-letters"
           className="sm:col-span-2"
+          skeleton="lead"
           loading={pending.loading}
+          refreshing={pending.refreshing}
           error={pending.error}
           onRetry={pending.reload}
           tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
@@ -257,6 +256,7 @@ export default function TeacherDashboard() {
           icon="fa-chart-simple"
           to="/teacher/grades"
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -282,7 +282,9 @@ export default function TeacherDashboard() {
           title="My classes"
           icon="fa-users-rectangle"
           to="/teacher/grades"
+          skeleton="list"
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -318,7 +320,9 @@ export default function TeacherDashboard() {
           title="Upcoming events"
           icon="fa-calendar-days"
           to="/teacher/events"
+          skeleton="list"
           loading={events.loading}
+          refreshing={events.refreshing}
           error={events.error}
           onRetry={events.reload}
         >

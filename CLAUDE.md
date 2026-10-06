@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-06, `fix/source-zip` — the source zip rebuilt on `git archive`, pending the owner's first run (on `main` `2f2dbb7`, where admin Messages is merged) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-07, `feat/dashboards-look` — build 2 built (skeletons, re-reads, the drawer dialog, Part C), NOT yet device-checked (on `main` `1692103`, where the source-zip fix is merged) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -807,7 +807,9 @@ temporary-password endpoint is admin-only and refuses your own id (§5i).
   — it rejects as a unit, and one timed-out request would blank every card
   that worked. `pages/dashboards/useCard.js` is the hook; `onRetry`
   refetches that card alone. `allSettled` INSIDE one card is fine. **The
-  whole card is its link; no "Open →"** (§15e).
+  whole card is its link; no "Open →"** (§15e) — **one exception, the
+  admin's People card (build 2): its three counts are each a link.** Part C
+  (2026-10-07) is the look and the lead cards: §15e, M23.
 - **No dashboard card is red.** `Card`'s `danger` tone is defined and
   deliberately unused. Red means something HAS failed, and the only thing
   that can fail is a request — which `ErrorAlert` already renders inside the
@@ -1666,54 +1668,34 @@ its `docs/CHANGELOG.md` row.
       2026-09-29 → 30 (SMS before reliability by Darryl's decision).
 - [x] **UI polish — `feat/ui-polish`, merged 2026-09-30 (`c610bd8`).**
 - [x] **Docs pass + CLAUDE.md trim — `docs/stage5`** (merged, `5e09c09`).
-- [x] **UI refresh — `feat/ui-refresh`** (`e46168f` → `0ac7fec` + its docs
-      pass), device-checked 2026-10-04 (web, phone Chrome, Expo Go on
-      Android 14), cleaned up by id (backups 275, 276). **Merged 2026-10-04
-      (`ee36b97`, fast-forward).** Rules: §27, M23–M24.
 - [x] **Notifications — in-app only, via Socket.io** (Darryl, 2026-09-27):
       no `expo-notifications`, no `push_token` column; remote push would be
       a separate decision.
-- [x] **Form drafts, Phase 1 — `feat/form-drafts`** (`0df46b3` + its docs
-      pass), device-checked 2026-10-04 (web: laptop Chrome, parent in a
-      normal window, teacher in Incognito; phone: Expo Go on a Tecno,
-      Android 14), cleaned up by id (backup 277). **Merged 2026-10-05
-      (fast-forward, `28fee18`).** Rules: §28, M25.
-- [x] **Build 1 — `feat/look-fixes`** (`1a31961`, fix round `dc7e9ed`,
-      follow-up `942ebb8` + its docs pass), built 2026-10-05: the flagged
-      screens and their fixes, the button and chip shapes (§27f), the four
-      small KNOWN ISSUES fixes. Device-checked 2026-10-05 (web: laptop Chrome,
-      admin and parent in a normal window, teacher in Incognito; phone: Expo
-      Go on a Tecno, Android 14; admin, teacher, parent), the fix round and
-      the follow-up re-checked the same day, cleaned up by id (backup 278).
-      **Merged 2026-10-06 (fast-forward, `1ef3c00`).** Rules: §27f, M23.
-- [x] **Admin Messages — `feat/admin-messages`** (`86d93b7`, fix round
-      `9141390`, follow-up `4255427`, the adviser label + its docs pass),
-      built 2026-10-06: the admin's inbox (teacher ↔ admin only; SCOPE
-      DECISION 2026-10-05 under ADMIN SCOPE AUDIT), the parent pages and
-      screens reused by role, the hand-off on a parent's thread only, the
-      Enter page jump, one toggle place, Messages pinned in the sidebar, no
-      half-cut nav rows, threads opening at the newest message, and an
-      adviser-only teacher labelled "Adviser of …" in the pickers.
-      Device-checked and re-checked 2026-10-06 (web and phone, admin,
-      teacher, parent), cleaned up by id (backup 279). **Merged 2026-10-06
-      (fast-forward, `2f2dbb7`).** Rules: §6, §9, §10, §26, M9, M22.
-- [ ] **The source-zip fix — `fix/source-zip`**, 2026-10-06:
-      `scripts/create-backup-zip.js` is `git archive` of HEAD (tracked files
-      only: README.md, .gitignore, client, database, docs, mobile, scripts,
-      server) to the Desktop as `Parents_Portal_source_<date>_<sha>.zip`;
-      it refuses on uncommitted tracked changes, a tracked `.env` or an
-      existing file. `node scripts/proof-source-zip.mjs` 24/24
-      (`docs/TESTING.md`). **Done; pending the owner's first real run; not
-      merged.**
+- [x] **UI refresh, form drafts, build 1, admin Messages, the source-zip
+      fix** — each device-checked or first-run by the owner and merged
+      fast-forward, 2026-10-04 → 10-07 (`ee36b97`, `28fee18`, `1ef3c00`,
+      `2f2dbb7`, `1692103`; the owner's zip:
+      `Parents_Portal_source_2026-10-07_1692103.zip`). Rules: §26–§28,
+      §27f, M22–M25. Each entry verbatim: `docs/ARCHIVE.md` → "BUILD ORDER →
+      Stage 5 entries moved from CLAUDE.md on 2026-10-07".
+- [ ] **Build 2 — `feat/dashboards-look`** (two commits), built 2026-10-07:
+      skeleton loading tier 1 (DataTable, DataList, the dashboard Card, the
+      report card; 300 ms, no minimum, a two-pulse shimmer), re-reads that
+      keep what is on screen (busy and inert; the Card tells a same-query
+      re-read from a new query; a phone pull shows its indicator), the web
+      drawer as a modal dialog with its two defects fixed, and Part C (the
+      dashboards' look and lead cards, the admin's People card). Decision 1
+      narrowed by the owner's scope answer (KNOWN ISSUES: the query-change
+      skeleton is option 1, deferred). Rules: §5a-vii, §9, §15e, M11, M23.
+      **NOT yet device-checked; not merged.**
 
-**NEXT, in order (owner, 2026-10-06):** the owner's first run of
-`node scripts/create-backup-zip.js`, then merge `fix/source-zip` → smoke
-gate → manuscript
-delta list (the team applies it; it now includes Chapter 5's admin
-Messages text) → professor system check, Fri 2026-10-09. **Build 2** (the
-dashboards, with skeleton loading tier 1) waits for the owner's decision
-once the professor confirms the Friday time. After the check: the cloud
-(Supabase) survey.
+**NEXT, in order (as the owner's dispatches stand, 2026-10-07):** the
+owner's device check of build 2, then merge `feat/dashboards-look` → the
+privacy build (`feat/privacy`, plan approved, waiting for this merge) →
+smoke gate → manuscript delta list (the team applies it; it now includes
+Chapter 5's admin Messages text) → professor system check, Fri
+2026-10-09. Later: option 1 (`queryKey`) with skeleton tier 2; after the
+check, the cloud (Supabase) survey.
 
 ### Stage 6 — Integration
 

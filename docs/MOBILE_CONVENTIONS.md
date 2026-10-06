@@ -829,8 +829,9 @@ changed instead is the figures, one step down on the web AND the phone
 (FRONTEND_CONVENTIONS §24): `Stat` `text-xl` (17.5dp), `large` `text-2xl`
 (21dp), the parent hero's figures `text-xl`, its name `text-lg` (15.75dp),
 the admin System line `text-xl`. (Since feat/ui-refresh the dashboard hero's
-name is `font-serif text-xl`, 17.5dp — `screens/dashboards/ProfileHero.jsx:44`
-— and the figures are `font-bold`, `screens/dashboards/Card.jsx:91`.) There is no render proof on the phone (M7):
+name is `font-serif text-xl`, 17.5dp — `screens/dashboards/ProfileHero.jsx:46`
+— and the figures are `font-bold`, `screens/dashboards/Card.jsx:175`, tabular
+since build 2.) There is no render proof on the phone (M7):
 these are class values times the 14dp rem, confirmed on the device by the
 phone check. **Still open, as `docs/KNOWN_ISSUES.md` rows:** the 38.5dp touch
 targets below, and a `maxFontSizeMultiplier` cap (1.3 recommended) — React
@@ -1222,6 +1223,23 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   and stays quiet. The teacher's attendance banners re-read through useCard's
   `refresh` counter, not a dep, so a banner keeps its answer instead of
   dropping to "Checking…" on every return to the dashboard.
+- **The dashboards' look, Part C (build 2 commit 2, 2026-10-07; FRONTEND
+  §15e).** The phone stays ONE column; only these differ from before:
+  `dashboards/Card.jsx` is `rounded-xl` on every tone (the amber frame was
+  `rounded-2xl` beside a `rounded-xl` default), no shadow, **the icon inline
+  before the title in `fg-muted`, no chip**, and **`Stat` takes tabular
+  figures** (`fontVariant: ['tabular-nums']`, the report card's precedent).
+  `ProfileHero` is `rounded-xl` with **the facts as one `text-sm` muted line
+  joined by " · "** — no pills, no fact icons. The parent hero is `rounded-xl`
+  and its labels lose their uppercase tracking (`HERO_LABEL`; the Attendance
+  card's "Last 7 days" keeps the eyebrow). **Admin:** Waiting for approval,
+  then **one People card with three counts, each its own link** (`countRows`
+  in `admin/dashboard/logic.js`, a `Pressable` with `accessibilityRole="link"`,
+  48dp, the ripple — the one card that is not itself pressable, decision 3),
+  then System. **Parent:** the web's order — Grades, Attendance, Messages,
+  Excuse letters, Upcoming events, then **Announcements & memos last, as a
+  list** (one row per post, a hairline between). Teacher: unchanged but for
+  the look.
 
 ## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
 

@@ -7363,3 +7363,49 @@ more"). The bullet as it stood in CLAUDE.md → OPEN QUESTIONS → Engineering:
   still use viewport `sm:` inside a card that now measures itself. The
   re-check found no visible mismatch on a real window and called no action —
   recorded so the mixed basis is known rather than a later surprise.
+
+## BUILD ORDER → Stage 5 entries moved from CLAUDE.md on 2026-10-07 (build 2, the REFILL RULE)
+
+CLAUDE.md reached 135,630 bytes on disk in build 2's docs pass
+(`feat/dashboards-look`), over the 135,000 the plan named, so the five
+finished Stage 5 entries left it under the REFILL RULE, verbatim as they
+stood that day (the source-zip entry with that day's merge and first run).
+CLAUDE.md keeps one line and this pointer.
+
+- [x] **UI refresh — `feat/ui-refresh`** (`e46168f` → `0ac7fec` + its docs
+      pass), device-checked 2026-10-04 (web, phone Chrome, Expo Go on
+      Android 14), cleaned up by id (backups 275, 276). **Merged 2026-10-04
+      (`ee36b97`, fast-forward).** Rules: §27, M23–M24.
+- [x] **Form drafts, Phase 1 — `feat/form-drafts`** (`0df46b3` + its docs
+      pass), device-checked 2026-10-04 (web: laptop Chrome, parent in a
+      normal window, teacher in Incognito; phone: Expo Go on a Tecno,
+      Android 14), cleaned up by id (backup 277). **Merged 2026-10-05
+      (fast-forward, `28fee18`).** Rules: §28, M25.
+- [x] **Build 1 — `feat/look-fixes`** (`1a31961`, fix round `dc7e9ed`,
+      follow-up `942ebb8` + its docs pass), built 2026-10-05: the flagged
+      screens and their fixes, the button and chip shapes (§27f), the four
+      small KNOWN ISSUES fixes. Device-checked 2026-10-05 (web: laptop Chrome,
+      admin and parent in a normal window, teacher in Incognito; phone: Expo
+      Go on a Tecno, Android 14; admin, teacher, parent), the fix round and
+      the follow-up re-checked the same day, cleaned up by id (backup 278).
+      **Merged 2026-10-06 (fast-forward, `1ef3c00`).** Rules: §27f, M23.
+- [x] **Admin Messages — `feat/admin-messages`** (`86d93b7`, fix round
+      `9141390`, follow-up `4255427`, the adviser label + its docs pass),
+      built 2026-10-06: the admin's inbox (teacher ↔ admin only; SCOPE
+      DECISION 2026-10-05 under ADMIN SCOPE AUDIT), the parent pages and
+      screens reused by role, the hand-off on a parent's thread only, the
+      Enter page jump, one toggle place, Messages pinned in the sidebar, no
+      half-cut nav rows, threads opening at the newest message, and an
+      adviser-only teacher labelled "Adviser of …" in the pickers.
+      Device-checked and re-checked 2026-10-06 (web and phone, admin,
+      teacher, parent), cleaned up by id (backup 279). **Merged 2026-10-06
+      (fast-forward, `2f2dbb7`).** Rules: §6, §9, §10, §26, M9, M22.
+- [x] **The source-zip fix — `fix/source-zip`**, 2026-10-06:
+      `scripts/create-backup-zip.js` is `git archive` of HEAD (tracked files
+      only: README.md, .gitignore, client, database, docs, mobile, scripts,
+      server) to the Desktop as `Parents_Portal_source_<date>_<sha>.zip`;
+      it refuses on uncommitted tracked changes, a tracked `.env` or an
+      existing file. `node scripts/proof-source-zip.mjs` 24/24
+      (`docs/TESTING.md`). **The owner's first run, 2026-10-07:
+      `Parents_Portal_source_2026-10-07_1692103.zip`; the old Desktop zip
+      deleted. Merged 2026-10-07 (fast-forward, `1692103`).**

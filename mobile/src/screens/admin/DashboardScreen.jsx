@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
@@ -14,7 +14,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import Card, { Stat } from '../dashboards/Card';
 import ProfileHero from '../dashboards/ProfileHero';
 import { useCard } from '../dashboards/useCard';
-import { backupAge, CARD_LINKS, pendingLead, pendingTone, showLockoutHazard } from './dashboard/logic';
+import { backupAge, CARD_LINKS, countRows, pendingLead, pendingTone, showLockoutHazard } from './dashboard/logic';
 
 // THE ADMIN DASHBOARD (§12) — the web's AdminDashboard.jsx in one column. One
 // request per card; every count is the server's (`GET /dashboard`) and each
@@ -30,6 +30,43 @@ import { backupAge, CARD_LINKS, pendingLead, pendingTone, showLockoutHazard } fr
 // signed-in admin, today's date, and the school year and term — the last two
 // from the SAME /dashboard read the cards use, so they appear when it has
 // answered and not before. No request was added for it.
+// THE PEOPLE CARD (build 2, Part C, decision 3): the web's three counts in
+// one card, each its own link — announced as a link with its label, number
+// and caption, 48dp at least, Android's ripple for the press (M20) — because
+// the three open different lists. A count whose list is not built is static.
+function CountLink({ row, onOpen }) {
+  const { tokens } = useTheme();
+  const body = (
+    <>
+      <View className="min-w-0 flex-1">
+        <Text className="text-sm font-semibold text-fg">{row.label}</Text>
+        <Stat value={row.value} caption={row.caption} />
+      </View>
+      {onOpen ? <Icon name="fa-chevron-right" size={12} color={tokens['fg-faint']} /> : null}
+    </>
+  );
+  const shape = 'flex-row items-center justify-between gap-2 rounded-lg px-3 py-2';
+  if (!onOpen) {
+    return (
+      <View className={shape} style={{ minHeight: 48 }}>
+        {body}
+      </View>
+    );
+  }
+  return (
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="link"
+      accessibilityLabel={`${row.label}, ${row.value} ${row.caption}`}
+      android_ripple={{ color: tokens['edge-strong'] }}
+      className={`${shape} overflow-hidden`}
+      style={{ minHeight: 48 }}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
 function Row({ label, value, tone }) {
   return (
     <View className="flex-row items-baseline justify-between gap-3 border-t border-edge-soft py-2">
@@ -89,12 +126,12 @@ export default function DashboardScreen({ navigation }) {
   // The hero's facts, in the web's words. The date is the phone's own day;
   // the other two are `d`, so they are simply absent until /dashboard has
   // answered. Each is keyed on ITS OWN VALUE, not on `d`: a payload with no
-  // school year (the setting unset) must leave the pill out, never print the
+  // school year (the setting unset) must leave the fact out, never print the
   // word "undefined".
   const facts = [
-    { key: 'today', icon: 'fa-calendar-days', label: `${weekdayName(today)}, ${longDate(today)}` },
-    d?.school_year ? { key: 'year', icon: 'fa-school', label: `School year ${d.school_year}` } : null,
-    d?.term ? { key: 'term', icon: 'fa-book', label: `Term ${d.term}` } : null,
+    { key: 'today', label: `${weekdayName(today)}, ${longDate(today)}` },
+    d?.school_year ? { key: 'year', label: `School year ${d.school_year}` } : null,
+    d?.term ? { key: 'term', label: `Term ${d.term}` } : null,
   ];
 
   return (
@@ -103,7 +140,7 @@ export default function DashboardScreen({ navigation }) {
       contentContainerClassName="gap-4 p-4 pb-10"
       refreshControl={<RefreshControl refreshing={pulled && rereading} onRefresh={onPull} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
-      {/* The hero and the five cards arrive one after another (Reveal), once,
+      {/* The hero and the three cards arrive one after another (Reveal), once,
           on mount; the cards all exist from the first render — each owns its
           spinner. The hazard notice is not part of it. */}
       <Reveal>
@@ -136,8 +173,10 @@ export default function DashboardScreen({ navigation }) {
         </View>
       ) : null}
 
-      {/* The approval queue is the EMPHASISED card (f2): FIRST, and the
-          bigger number — on one column, that is what emphasis can be. */}
+      {/* The approval queue is the LEAD card (f2, Part C): FIRST, and the
+          bigger number — on one column, that is what emphasis can be. Then
+          the People card with the three counts, then System — the web's
+          order (Part C, 2026-10-07). */}
       <Reveal index={1}>
         <Card
           title="Waiting for approval"
@@ -154,45 +193,27 @@ export default function DashboardScreen({ navigation }) {
         </Card>
       </Reveal>
       <Reveal index={2}>
+        {/* NO `onOpen`: the one card that is not its own press target
+            (decision 3) — its three counts are. */}
         <Card
-          title="Students"
-          icon="fa-user-graduate"
-          onOpen={open('students')}
+          title="People"
+          icon="fa-users"
+          skeleton="counts"
           loading={summary.loading}
           refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
-          {d ? <Stat value={String(d.totals.students)} caption="on the roll" /> : null}
+          {d ? (
+            <View className="gap-1">
+              {countRows(d.totals).map((row) => (
+                <CountLink key={row.key} row={row} onOpen={open(row.key)} />
+              ))}
+            </View>
+          ) : null}
         </Card>
       </Reveal>
       <Reveal index={3}>
-        <Card
-          title="Teachers"
-          icon="fa-chalkboard-user"
-          onOpen={open('teachers')}
-          loading={summary.loading}
-          refreshing={summary.refreshing}
-          error={summary.error}
-          onRetry={summary.reload}
-        >
-          {d ? <Stat value={String(d.totals.teachers)} caption="teacher accounts" /> : null}
-        </Card>
-      </Reveal>
-      <Reveal index={4}>
-        <Card
-          title="Parents"
-          icon="fa-users"
-          onOpen={open('parents')}
-          loading={summary.loading}
-          refreshing={summary.refreshing}
-          error={summary.error}
-          onRetry={summary.reload}
-        >
-          {d ? <Stat value={String(d.totals.active_parents)} caption="active parent accounts" /> : null}
-        </Card>
-      </Reveal>
-      <Reveal index={5}>
         <Card
           title="System"
           icon="fa-server"

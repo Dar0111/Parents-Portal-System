@@ -2124,7 +2124,7 @@ The dashboard printed `87.5` against the report card's `87.50` until DV4 — one
 number, two spellings, two screens. **Split at the call site**, exactly as the
 2026-09-22 rounding fix split `GradeValue`'s `whole`.
 
-### 15e. The whole card is the link, and every card leads (`feat/ui-polish` f2, 2026-09-30)
+### 15e. The whole card is the link, and every card leads (`feat/ui-polish` f2, 2026-09-30; the layouts rewritten by build 2's Part C, 2026-10-07)
 
 All three roles, web and phone. **No "Open →" row.**
 
@@ -2138,34 +2138,55 @@ All three roles, web and phone. **No "Open →" row.**
 - **Phone: the card is a `Pressable`, `accessibilityRole="link"`**, press
   feedback a plain style function on a Pressable with no `className` (the
   frame sits on the View inside). Not pressable in error, as on the web.
+- **THE ONE EXCEPTION: the admin's People card** (build 2, the owner's
+  decision 3, 2026-10-07). Students, Teachers and Parents share one card and
+  open DIFFERENT lists, so the card has no `to` (phone: no `onOpen`) and
+  **each count is its own link** — a real `<Link>` (phone: a `Pressable`,
+  `accessibilityRole="link"`) named by its label, number and caption, a
+  44px / 48dp target with the control radius, a hover tint and the shared
+  focus outline, a chevron. Students opens Admin → Students; **Teachers and
+  Parents both open Admin → Users**, which takes no role from the address
+  (its role filter is on the page). `AdminDashboard.jsx` `CountLinks`;
+  phone `countRows` in `admin/dashboard/logic.js`. Any other card that
+  wants several destinations is a new decision, not this exception.
 - **Every card opens on a number or the next action, as `Stat`.** A count is
   printed at 0 once there is anything to count; none keeps the card's empty
   copy. Key Stage 1 still has no count (§12), and there is still no partial
   average.
-- **Emphasis:** teacher "Excuse letters to review" and admin "Waiting for
-  approval". On the web the teacher one is first, two columns and
-  `Stat large` (`text-2xl` since §24); on the phone every emphasised card is
-  first plus `large`. Teacher is
-  `sm:2 / lg:3` with the review queue `sm:col-span-2`; no width leaves a hole.
-- **The web PARENT dashboard is the 69bae24 layout** (Darryl, owner decision,
-  2026-09-30 — final): the hero, then six equal cards in `sm:2 / lg:3`, two
-  rows at `lg` — Grades · Attendance · Messages / Excuse letters ·
-  Announcements & memos · Upcoming events — **no emphasised card**, each row
-  as tall as its tallest card. Grades is one normal-size line ("1 of 8
-  subjects recorded · Term 2") then the recorded subjects; Excuse letters is
-  the small `StatusBadge` then "Absence on …", or "No excuse letters.";
-  Attendance keeps its large absences number and everything under it.
-  **The phone follows the web parent dashboard** (Darryl, 2026-09-30): the
-  same cards, order, wording and emphasis, stacked in one column —
-  `gradesLead` is the one line, `letterLead` the badge's status and date.
-- **Row height:** parent and teacher rows stretch to their tallest card (the
-  grid default); **only the admin grid is `items-start` (UI-3)**, its number
-  tiles taking their content height.
-- **Admin (UI-3, Darryl's Q2): four `compact` number tiles in one row —
-  Waiting for approval · Students · Teachers · Parents, the same width —
-  and System full width below** (`sm:2 / lg:4`, System
-  `sm:col-span-2 lg:col-span-4`). Waiting is emphasised by position, amber
-  while something waits, and the large number only.
+- **THE LOOK (Part C, 2026-10-07):** one blue accent (palette C) and no new
+  token. **Cards:** the container corner `rounded-xl` (§27f), the hairline
+  edge, **no shadow at rest**; a card that links darkens its edge
+  (`hover:border-edge-strong`, `transition-colors`) instead of lifting; **the
+  icon inline before the title in `text-fg-muted`, no tinted chip** — one
+  header row; the serif title stays (§27); the amber frame stays (§12).
+  **Heroes:** `rounded-xl`, no shadow; **the staff hero's facts are ONE line**
+  of `text-sm text-brand-panel-muted` joined by " · " (the role line's own
+  pair, 7.03:1 light / 10.08:1 dark) — no pills, no fact icons — and the
+  hero is staff only; **the parent hero's labels lose their uppercase
+  tracking** (the same words, `text-sm font-semibold text-brand-panel-muted`).
+  The phone's `Stat` takes tabular figures, as the web's always had.
+- **LEAD CARDS (Part C) — the 69bae24 parent layout, recorded here as final
+  on 2026-09-30, is superseded by the owner's decision of 2026-10-07:**
+  - **Admin** (`sm:2 / lg:4`): **"Waiting for approval" leads, two columns**
+    (amber while something waits, `Stat large`), then **the People card, two
+    columns** — the two share the first row at `lg` — then **System across
+    the page** (`sm:col-span-2 lg:col-span-4`). The hazard notice stays above
+    the grid. No `compact` tiles.
+  - **Teacher** (`sm:2 / lg:3`): unchanged — **"Excuse letters to review"
+    leads**, first, `sm:col-span-2`, `Stat large`; no width leaves a hole.
+  - **Parent** (`sm:2 / lg:3`): **Grades leads, two columns, beside
+    Attendance**; then Messages, Excuse letters and Upcoming events; then
+    **Announcements & memos across the page** (`sm:col-span-2 lg:col-span-3`)
+    **as a list** — the unread count, then one row per post, its title and
+    its kind, a hairline between. Grades is one normal-size line ("1 of 8
+    subjects recorded · Term 2") or the average, then the recorded subjects;
+    Excuse letters is the small `StatusBadge` then "Absence on …", or "No
+    excuse letters."; Attendance keeps its large absences number.
+  - **The phone stays one column**, in the web's DOM order — so the parent's
+    Announcements & memos moved to the end there too — with the same cards,
+    wording and emphasis (`gradesLead`, `letterLead`).
+- **Row height:** every dashboard row stretches to its tallest card (the
+  grid default) — the admin grid's `items-start` went with its tiles.
 - **The keyboard focus outline is `brand`, 2px, offset 2px, on the
   `<section>`** (UI-5), keyed on `.card-link:focus-visible` so an inner link
   does not light the card. It sits on the page, where `brand` is 15.31:1
@@ -3487,8 +3508,9 @@ on everything. Planned with the `redesign-existing-projects` skill (its
 - **Heights, padding and touch areas are unchanged** (44 / 36 / 48px web;
   48 / 44 / 52dp phone). **No press motion** (§27c).
 - **Not reshaped:** the web sidebar and rail and the phone drawer (locked —
-  they keep `rounded-xl`); the dashboards' own card, hero and chips (build 2);
-  one-off inner rectangles.
+  they keep `rounded-xl`); one-off inner rectangles. The dashboards' own
+  card, hero and chips followed in build 2's Part C (2026-10-07, §15e): the
+  container corner, no shadow, the icon inline, the facts as one line.
 - **The focus trap** (`components/focusTrap.js`): `Modal` and the web drawer
   take focus once per opening (the effect depends on the open state only),
   wrap Tab, and give focus back to the opener; the drawer closes on Escape and

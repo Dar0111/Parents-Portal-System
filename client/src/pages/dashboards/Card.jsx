@@ -44,29 +44,32 @@ import { useSkeleton } from '../../hooks/useSkeleton';
 // not light the whole card), and sits on the page background, where `brand`
 // is 15.31:1 (Light) and 9.29:1 (Dark) — asserted by lint:contrast.
 //
-// THE LOOK (feat/ui-refresh): 16px corners and the smallest shadow at rest; a
-// card that links lifts to a larger shadow under the pointer. The header is
-// TWO ROWS — the icon in its chip, then the title on its own line in the
-// title face — because a serif title beside the chip does not fit an admin
-// tile: at 1024px a tile's header is 132px, and "Waiting for approval"
-// (161px) would break to three lines beside the chip and to two under it
-// (measured from the font files, 2026-10-04). One header shape at every
-// width beats one that changes per card.
+// THE LOOK (build 2, feat/dashboards-look, 2026-10-07 — the owner's Part C):
+// the container corner (`rounded-xl`, §27f, the same as `cardClass`), the
+// hairline edge, NO SHADOW at rest; a card that links darkens its edge to
+// `edge-strong` under the pointer instead of lifting. The icon sits INLINE
+// before the title in `text-fg-muted` — no tinted chip — so the header is ONE
+// row, and the title keeps the title face (§27). It was two rows, chip over
+// title, because a serif title beside a 36px chip did not fit the admin's
+// 132px tiles at 1024px; the admin's lead cards now span two columns, and a
+// 14px icon beside the title fits every card at every width. The amber frame
+// stays (§12).
 //
-// `transition-shadow`, NOT the bare `transition`: the grid's entrance tweens
+// `transition-colors`, NOT the bare `transition`: the grid's entrance tweens
 // each card's opacity and transform, and a CSS transition on those same two
-// properties would chase every frame of it.
+// properties would chase every frame of it. A colour change is not motion
+// (§27c).
 //
-// `compact` (UI-3): the admin's four number tiles — less padding, a tighter
-// header. The admin grid says `items-start`, so there a card takes its
-// CONTENT height; the parent and teacher grids stretch each row (Darryl,
-// 2026-09-30).
+// `compact`: less padding and a tighter header. Unused since Part C (the
+// admin's four tiles became two lead cards); kept for a card that needs it.
+// Every dashboard grid stretches each row to its tallest card.
 //
 // LOADING AND RE-READING (build 2, feat/dashboards-look, 2026-10-07). The two
 // flags are useCard's and mean different things (decision 1):
 //   `loading` — nothing of this card's query is on screen: its SKELETON, in
 //     the shape of what will arrive (`skeleton`: a figure, the bigger lead
-//     figure, a figure over a short list, or the System card's facts), after
+//     figure, a figure over a short list, the admin's three counts, or the
+//     System card's facts), after
 //     300 ms, with the height reserved from the first frame (Skeleton.jsx).
 //   `refreshing` — the same query read again over its answer: the answer
 //     STAYS, `aria-busy` and inert, so nothing stale inside it can be pressed
@@ -112,6 +115,24 @@ const SKELETON_SHAPES = {
         ))}
       </div>
     </>
+  ),
+  // The admin People card (Part C): three label-figure-caption counts.
+  counts: (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {['w-16', 'w-14', 'w-12'].map((w) => (
+        <div key={w} className="min-h-11 px-3 py-2">
+          <div className="flex h-5 items-center">
+            <SkeletonBar className={`h-3 ${w}`} />
+          </div>
+          <div className="flex h-7 items-center">
+            <SkeletonBar className="h-5 w-10" />
+          </div>
+          <div className="mt-1 flex h-5 items-center">
+            <SkeletonBar className="h-3 w-3/4" />
+          </div>
+        </div>
+      ))}
+    </div>
   ),
   // The admin System card: the backup line, then four label-over-value facts.
   facts: (
@@ -165,43 +186,25 @@ export default function Card({
         ? 'border-danger-edge bg-danger-soft'
         : 'border-edge bg-surface';
 
-  // The icon's chip. On a toned card the chip is the plain surface with the
-  // tone's own strong colour, so it reads as a cut-out of the tinted frame
-  // rather than a second tint on top of it. Each is a pair lint:contrast
-  // already checks on `surface`.
-  const chipClass =
-    tone === 'warning'
-      ? 'bg-surface text-warning-strong'
-      : tone === 'danger'
-        ? 'bg-surface text-danger-text'
-        : 'bg-brand-soft text-brand';
-
   const linked = Boolean(to) && !error;
 
   return (
     <section
-      className={`group relative flex flex-col rounded-2xl border shadow-xs ${toneClass} ${compact ? 'p-4' : 'p-5'} ${
-        linked ? 'transition-shadow hover:shadow-md' : ''
+      className={`group relative flex flex-col rounded-xl border ${toneClass} ${compact ? 'p-4' : 'p-5'} ${
+        linked ? 'transition-colors hover:border-edge-strong' : ''
       } has-[.card-link:focus-visible]:outline-2 has-[.card-link:focus-visible]:outline-offset-2 has-[.card-link:focus-visible]:outline-brand ${className}`}
     >
-      <div className={`${compact ? 'mb-2' : 'mb-3'} flex flex-col items-start gap-2`}>
+      <div className={`${compact ? 'mb-2' : 'mb-3'} flex min-w-0 items-baseline gap-2`}>
         {icon ? (
-          // The wrapper carries the flex, never the element with `fa-solid`:
-          // Font Awesome's `.fa-solid { display: inline-block }` is unlayered
-          // and beats Tailwind's layered `.flex`, so flex on the <i> is
-          // silently dropped (found in D3, 2026-09-19).
-          <span
-            aria-hidden="true"
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${chipClass}`}
-          >
-            <i className={`fa-solid ${icon}`} />
-          </span>
+          // Decoration: the title names the card. `fa-fw` keeps every icon
+          // the same width, so titles line up from card to card.
+          <i aria-hidden="true" className={`fa-solid fa-fw ${icon} shrink-0 text-sm text-fg-muted`} />
         ) : null}
-        <h2 className="w-full min-w-0 font-serif text-base font-bold text-fg">
+        <h2 className="min-w-0 flex-1 font-serif text-base font-bold text-fg">
           {linked ? (
             <Link
               to={to}
-              className="card-link underline-offset-2 after:absolute after:inset-0 after:rounded-2xl group-hover:underline focus-visible:outline-none"
+              className="card-link underline-offset-2 after:absolute after:inset-0 after:rounded-xl group-hover:underline focus-visible:outline-none"
             >
               {title}
             </Link>

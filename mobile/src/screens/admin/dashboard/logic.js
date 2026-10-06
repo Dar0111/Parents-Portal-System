@@ -28,6 +28,21 @@ export const CARD_LINKS = Object.freeze({
   system: '/admin/settings',
 });
 
+// THE PEOPLE CARD'S THREE COUNTS (build 2, feat/dashboards-look, 2026-10-07
+// — the owner's Part C and decision 3): Students, Teachers and Parents share
+// ONE card, and each count is its own link — the one exception to "the whole
+// card is the link" (§15e), because the three open different lists. Each
+// opens the list whose WHERE it repeats (CARD_LINKS above); Teachers and
+// Parents both open Users, which takes no role from a link. The web's words.
+export function countRows(totals) {
+  const n = (value) => String(Number(value) || 0);
+  return [
+    { key: 'students', label: 'Students', value: n(totals?.students), caption: 'on the roll', link: CARD_LINKS.students },
+    { key: 'teachers', label: 'Teachers', value: n(totals?.teachers), caption: 'teacher accounts', link: CARD_LINKS.teachers },
+    { key: 'parents', label: 'Parents', value: n(totals?.active_parents), caption: 'active parent accounts', link: CARD_LINKS.parents },
+  ];
+}
+
 // The lockout hazard (§12): shown only while the server says the one admin
 // has no confirmed email; it clears itself, names no account, and is amber,
 // never red — a state that COULD strand you is a warning.

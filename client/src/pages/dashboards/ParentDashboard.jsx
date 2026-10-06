@@ -295,6 +295,9 @@ function DateTile({ dateStr }) {
   );
 }
 
+// The hero's four labels (Part C): plain words, no uppercase tracking.
+const HERO_LABEL = 'text-sm font-semibold text-brand-panel-muted';
+
 // THE HERO, EXPORTED so the SSR proof can reach every state by passing
 // props (§14e). A component that fetches its own data renders only its
 // spinner under renderToStaticMarkup, and the states that matter here — a
@@ -317,12 +320,18 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
     // edge is what separates it.
     //
     // THE SAME BAND AS THE STAFF PROFILE HERO since feat/ui-refresh
-    // (ProfileHero.jsx): 16px corners, the hairline edge, and the panel's own
-    // glow and dot pattern (`brand-panel-art`, whose text pairs over the glow
-    // are the `brand-panel-lit` ones lint:contrast checks). The eyebrow, the
-    // name in the title face and the disc follow that hero too.
-    <section className="brand-panel-art rounded-2xl border border-edge bg-brand-panel p-5 text-brand-panel-fg shadow-xs sm:p-6">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">Your child</h2>
+    // (ProfileHero.jsx): the container corner (`rounded-xl`, no shadow, since
+    // build 2's Part C), the hairline edge, and the panel's own glow and dot
+    // pattern (`brand-panel-art`, whose text pairs over the glow are the
+    // `brand-panel-lit` ones lint:contrast checks). The name in the title face
+    // and the disc follow that hero too.
+    //
+    // THE LABELS ARE PLAIN WORDS since Part C (2026-10-07): "Your child" and
+    // the three figures' labels lost their uppercase tracking — the same
+    // words, in the muted panel colour, one step up to `text-sm` so a label
+    // in lower case is not smaller than the capitals it replaced.
+    <section className="brand-panel-art rounded-xl border border-edge bg-brand-panel p-5 text-brand-panel-fg sm:p-6">
+      <h2 className={HERO_LABEL}>Your child</h2>
       {!linked ? (
         <p className="mt-2 text-sm text-brand-panel-fg">
           This account is not linked to a learner yet. Ask the school office.
@@ -363,9 +372,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
               the leading edge in both directions. */}
           <div className="mt-5 grid gap-4 sm:grid-cols-3 [&>div]:min-w-0 [&>div]:border-t [&>div]:border-brand-panel-muted/40 [&>div]:pt-4 [&>div]:first:border-t-0 [&>div]:first:pt-0 sm:[&>div]:border-l sm:[&>div]:border-t-0 sm:[&>div]:pl-4 sm:[&>div]:pt-0 sm:[&>div]:first:border-l-0 sm:[&>div]:first:pl-0">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">
-                {grades?.descriptive ? 'Latest letters' : 'General average'}
-              </p>
+              <p className={HERO_LABEL}>{grades?.descriptive ? 'Latest letters' : 'General average'}</p>
               {grades?.descriptive ? (
                 // KEY STAGE 1 HAS NO GENERAL AVERAGE (GRADING_SPEC §6a), so
                 // the hero shows the grades themselves. Darryl, 2026-09-23.
@@ -473,7 +480,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">Present this month</p>
+              <p className={HERO_LABEL}>Present this month</p>
               {/* "recorded days" BELONGS TO THE FRACTION and goes inside the
                   branch with it (F4). It used to sit outside, so an account
                   with nothing recorded printed "Nothing recorded this month."
@@ -493,7 +500,7 @@ export function ChildHero({ linked, user, section, grades, letterTerm, monthDays
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-panel-muted">Latest excuse letter</p>
+              <p className={HERO_LABEL}>Latest excuse letter</p>
               {letter.data ? (
                 <div className="mt-1 space-y-1">
                   {/* The badge paints its own tint, so it is unaffected by
@@ -757,18 +764,18 @@ export default function ParentDashboard() {
         />
       </Reveal>
 
-      {/* THE LAYOUT OF 69bae24 (Darryl, owner decision, 2026-09-30 — final;
-          it replaces f2's large cards and UI-3's `items-start` HERE ONLY).
-          Six equal cards, three columns, two rows, and each row as tall as
-          its tallest card (the grid's default stretch): Grades · Attendance ·
-          Messages / Excuse letters · Announcements & memos · Upcoming events.
-          No emphasised card. The whole card is still the link (f2) with the
-          brand focus outline (UI-5). The Grades and Excuse letters bodies
-          are normal-size text again, and since 2026-09-30 the phone follows
-          this card for card (`gradesLead`, `letterLead`, §15e).
+      {/* THE LAYOUT OF PART C (the owner's decision, 2026-10-07 — it replaces
+          the six equal cards of 69bae24, which §15e had recorded as final).
+          Three columns at `lg`: GRADES LEADS, two columns wide, beside
+          Attendance; then Messages, Excuse letters and Upcoming events; then
+          Announcements & memos ACROSS THE PAGE, as a list. Two columns from
+          `sm` (Grades and Announcements take both), one on a phone — the
+          DOM order is the phone's order. Each row is as tall as its tallest
+          card. The whole card is still the link (f2) with the brand focus
+          outline (UI-5), and the phone follows card for card (§15e).
 
           The cards arrive one after another (Reveal); all six exist from the
-          first render — each owns its spinner — so the stagger has its
+          first render — each owns its skeleton — so the stagger has its
           children at mount. */}
       <Reveal stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 
@@ -776,7 +783,10 @@ export default function ParentDashboard() {
         title="Grades"
         icon="fa-chart-simple"
         to="/parent/grades"
+        className="sm:col-span-2"
+        skeleton="list"
         loading={summary.loading}
+        refreshing={summary.refreshing || card.refreshing}
         error={summary.error}
         onRetry={summary.reload}
       >
@@ -829,7 +839,9 @@ export default function ParentDashboard() {
         title="Attendance"
         icon="fa-clipboard-user"
         to="/parent/attendance"
+        skeleton="lead"
         loading={month.loading || allTime.loading}
+        refreshing={month.refreshing || allTime.refreshing || week.refreshing}
         error={month.error || allTime.error}
         onRetry={() => {
           month.reload();
@@ -887,6 +899,7 @@ export default function ParentDashboard() {
         icon="fa-comments"
         to="/parent/messages"
         loading={latestMessage.loading}
+        refreshing={latestMessage.refreshing}
         error={latestMessage.error}
         onRetry={latestMessage.reload}
       >
@@ -911,6 +924,7 @@ export default function ParentDashboard() {
         icon="fa-envelope-open-text"
         to="/parent/excuse-letters"
         loading={letter.loading}
+        refreshing={letter.refreshing}
         error={letter.error}
         onRetry={letter.reload}
       >
@@ -930,44 +944,12 @@ export default function ParentDashboard() {
       </Card>
 
       <Card
-        title="Announcements &amp; memos"
-        icon="fa-bullhorn"
-        to="/parent/announcements"
-        loading={posts.loading}
-        error={posts.error}
-        onRetry={posts.reload}
-      >
-        {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
-          <>
-            {/* The bell's own count (§10: the server's answer, never a list
-                length) — posts carry no read state of their own. The same two
-                sections the sidebar badge adds. */}
-            <Stat value={<CountUp value={counts.announcements + counts.memos} />} caption="unread" />
-            <ul className="mt-3 space-y-2 border-t border-edge-soft pt-3">
-              {posts.data.announcements.map((row) => (
-                <li key={`a-${row.id}`} className="text-sm text-fg">
-                  {row.title}
-                  <span className="ml-2 whitespace-nowrap text-xs text-fg-muted">Announcement</span>
-                </li>
-              ))}
-              {posts.data.memos.map((row) => (
-                <li key={`m-${row.id}`} className="text-sm text-fg">
-                  {row.title}
-                  <span className="ml-2 whitespace-nowrap text-xs text-fg-muted">Memo</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <CardEmpty>Nothing posted yet.</CardEmpty>
-        )}
-      </Card>
-
-      <Card
         title="Upcoming events"
         icon="fa-calendar-days"
         to="/parent/events"
+        skeleton="list"
         loading={events.loading}
+        refreshing={events.refreshing}
         error={events.error}
         onRetry={events.reload}
       >
@@ -988,6 +970,42 @@ export default function ParentDashboard() {
           </>
         ) : (
           <CardEmpty>No upcoming events.</CardEmpty>
+        )}
+      </Card>
+
+      {/* ACROSS THE PAGE, AS A LIST (Part C): one row per post, its title on
+          the left and its kind on the right, a hairline between rows. */}
+      <Card
+        title="Announcements &amp; memos"
+        icon="fa-bullhorn"
+        to="/parent/announcements"
+        className="sm:col-span-2 lg:col-span-3"
+        skeleton="list"
+        loading={posts.loading}
+        refreshing={posts.refreshing}
+        error={posts.error}
+        onRetry={posts.reload}
+      >
+        {posts.data && (posts.data.announcements.length || posts.data.memos.length) ? (
+          <>
+            {/* The bell's own count (§10: the server's answer, never a list
+                length) — posts carry no read state of their own. The same two
+                sections the sidebar badge adds. */}
+            <Stat value={<CountUp value={counts.announcements + counts.memos} />} caption="unread" />
+            <ul className="mt-3 divide-y divide-edge-soft border-t border-edge-soft">
+              {[
+                ...posts.data.announcements.map((row) => ({ key: `a-${row.id}`, title: row.title, kind: 'Announcement' })),
+                ...posts.data.memos.map((row) => ({ key: `m-${row.id}`, title: row.title, kind: 'Memo' })),
+              ].map((post) => (
+                <li key={post.key} className="flex items-baseline justify-between gap-3 py-2.5">
+                  <span className="min-w-0 text-sm text-fg">{post.title}</span>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-fg-muted">{post.kind}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <CardEmpty>Nothing posted yet.</CardEmpty>
         )}
       </Card>
       </Reveal>

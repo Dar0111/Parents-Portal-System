@@ -153,16 +153,15 @@ export default function DashboardScreen({ navigation }) {
   // has answered. The class count is the figure My classes leads with, from
   // the same array. The year and the term are keyed on THEIR OWN VALUE, not
   // on `d`: a payload with no school year (the setting unset) must leave the
-  // pill out, never print the word "undefined".
+  // fact out, never print the word "undefined".
   const classCount = d?.classes?.length ?? 0;
   const facts = [
-    { key: 'today', icon: 'fa-calendar-days', label: `${weekdayName(today)}, ${longDate(today)}` },
-    d?.school_year ? { key: 'year', icon: 'fa-school', label: `School year ${d.school_year}` } : null,
-    d?.term ? { key: 'term', icon: 'fa-book', label: `Term ${d.term}` } : null,
-    classCount ? { key: 'classes', icon: 'fa-users-rectangle', label: `${classCount} ${classCount === 1 ? 'class' : 'classes'}` } : null,
+    { key: 'today', label: `${weekdayName(today)}, ${longDate(today)}` },
+    d?.school_year ? { key: 'year', label: `School year ${d.school_year}` } : null,
+    d?.term ? { key: 'term', label: `Term ${d.term}` } : null,
+    classCount ? { key: 'classes', label: `${classCount} ${classCount === 1 ? 'class' : 'classes'}` } : null,
     ...advisory.map((section) => ({
       key: `advisory-${section.id}`,
-      icon: 'fa-chalkboard-user',
       label: `Adviser of Grade ${section.grade_level} - ${section.name}`,
     })),
   ];
