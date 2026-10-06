@@ -1,80 +1,122 @@
 /**
  * This is a SOURCE-CODE archiver for project submission — it zips the
- * codebase (database/, docs/, server/) to the Desktop. It is NOT a database
- * backup: it never touches MySQL and has no relationship to the `backups`
- * table. For an actual restorable database dump, see server/routes/backups.js
- * (POST /api/backups — runs a real mysqldump).
+ * codebase to the Desktop. It is NOT a database backup: it never touches
+ * MySQL and has no relationship to the `backups` table. For an actual
+ * restorable database dump, see server/routes/backups.js (POST /api/backups —
+ * runs a real mysqldump).
  *
- * Creates Parents_Portal_Backup.zip with correct folder structure.
- * Excludes: node_modules, .env, .git
+ * REBUILT ON `git archive` (fix/source-zip, 2026-10-06). It used to COPY
+ * folders off the disk, skipping only `node_modules`, `.git` and files named
+ * `.env` — so everything else lying in those folders went in, tracked or
+ * not: the database dumps in server/backups/, uploaded photos, texted reset
+ * codes. It also left out client/ and mobile/, overwrote the last zip without
+ * asking, and ran PowerShell through a shell string. Now:
  *
- * Usage: node scripts/create-backup-zip.js
+ *   - the zip is `git archive` of HEAD: TRACKED, COMMITTED files only, so an
+ *     ignored file (node_modules, .env, server/backups, uploads) can never be
+ *     in it;
+ *   - only README.md, .gitignore, client, database, docs, mobile, scripts and
+ *     server, under one Parents_Portal/ folder;
+ *   - it REFUSES when a tracked file has an uncommitted change, staged or not
+ *     (the zip would not be what is on disk), and when HEAD tracks a `.env`
+ *     file under those paths (`.env.example` templates are allowed); an
+ *     untracked file only gets a WARNING — it is not in the zip either way;
+ *   - the name says what it holds: Parents_Portal_source_<YYYY-MM-DD>_<short
+ *     sha>.zip (the local date), and it REFUSES if that file already exists;
+ *   - git runs without a shell (execFileSync, an argument array), so a path
+ *     with spaces — the owner's home is "C:\Users\Win10 User" — is one
+ *     argument, never split or re-quoted.
+ *
+ * The output folder is the same as before: the Desktop (%USERPROFILE%\Desktop).
+ * SOURCE_ZIP_ROOT and SOURCE_ZIP_OUT_DIR override the repository and the
+ * output folder; they exist for scripts/proof-source-zip.mjs, which runs this
+ * against a throwaway repository in a temp folder.
+ *
+ * Usage: node scripts/create-backup-zip.js   (from the repository root)
  */
 const fs = require('fs');
-const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const path = require('path');
+const { execFileSync } = require('child_process');
 
-const ROOT = path.join(__dirname, '..');
-const DESKTOP = path.join(process.env.USERPROFILE || '', 'Desktop');
-const ZIP_NAME = 'Parents_Portal_Backup.zip';
-const BUILD = path.join(os.tmpdir(), 'Parents_Portal_zip_build', 'Parents_Portal');
+const ROOT = process.env.SOURCE_ZIP_ROOT
+  ? path.resolve(process.env.SOURCE_ZIP_ROOT)
+  : path.join(__dirname, '..');
+const OUT_DIR = process.env.SOURCE_ZIP_OUT_DIR
+  ? path.resolve(process.env.SOURCE_ZIP_OUT_DIR)
+  : path.join(process.env.USERPROFILE || os.homedir(), 'Desktop');
+const INCLUDE = ['README.md', '.gitignore', 'client', 'database', 'docs', 'mobile', 'scripts', 'server'];
+const PREFIX = 'Parents_Portal/';
 
-const SKIP_DIRS = new Set(['node_modules', '.git']);
-const SKIP_FILES = new Set(['.env']);
+// A real environment file: `.env` or `.env.<anything>`, but not a template
+// that ends in `.example`.
+function isEnvFile(filePath) {
+  const base = filePath.split('/').pop();
+  return (base === '.env' || base.startsWith('.env.')) && !base.endsWith('.example');
+}
 
-function copyDir(src, dest) {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      copyDir(path.join(src, entry.name), path.join(dest, entry.name));
-    } else {
-      if (SKIP_FILES.has(entry.name)) continue;
-      fs.copyFileSync(path.join(src, entry.name), path.join(dest, entry.name));
-    }
-  }
+function git(args) {
+  return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+}
+
+function refuse(message) {
+  console.error(`REFUSED: ${message}`);
+  process.exit(1);
+}
+
+// The local calendar date, YYYY-MM-DD — never toISOString(), which is UTC
+// and a day behind in Manila before 08:00.
+function localDate(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function main() {
-  const tempRoot = path.dirname(BUILD);
-  if (fs.existsSync(tempRoot)) fs.rmSync(tempRoot, { recursive: true, force: true });
-  fs.mkdirSync(BUILD, { recursive: true });
-
-  for (const file of ['README.md', '.gitignore']) {
-    const src = path.join(ROOT, file);
-    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(BUILD, file));
+  try {
+    if (git(['rev-parse', '--is-inside-work-tree']).trim() !== 'true') refuse(`${ROOT} is not a git work tree.`);
+  } catch {
+    refuse(`${ROOT} is not a git work tree.`);
   }
 
-  copyDir(path.join(ROOT, 'database'), path.join(BUILD, 'database'));
-  copyDir(path.join(ROOT, 'docs'), path.join(BUILD, 'docs'));
-  copyDir(path.join(ROOT, 'server'), path.join(BUILD, 'server'));
+  // Uncommitted changes to TRACKED files, staged or not: the zip is HEAD, so
+  // it would not be what is on disk.
+  const changed = git(['status', '--porcelain', '--untracked-files=no']).split('\n').filter(Boolean);
+  if (changed.length) {
+    refuse(`${changed.length} tracked file(s) have uncommitted changes (staged or not). Commit or stash them first — the zip is built from HEAD. See: git status`);
+  }
 
-  const zipPath = path.join(DESKTOP, ZIP_NAME);
-  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+  // Untracked files are never in the zip; say so, and go on.
+  const untracked = git(['status', '--porcelain', '--untracked-files=all']).split('\n').filter((l) => l.startsWith('??'));
+  if (untracked.length) {
+    console.warn(`WARNING: ${untracked.length} untracked file(s) are NOT in the zip (it holds tracked, committed files only). See: git status`);
+  }
 
-  execSync(
-    `powershell -NoProfile -Command "Compress-Archive -Path '${BUILD.replace(/'/g, "''")}' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force"`,
-    { stdio: 'inherit' }
-  );
+  const present = INCLUDE.filter((p) => git(['ls-tree', '--name-only', 'HEAD', p]).trim() !== '');
+  const missing = INCLUDE.filter((p) => !present.includes(p));
+  if (!present.length) refuse('HEAD holds none of the paths to include.');
 
-  fs.rmSync(tempRoot, { recursive: true, force: true });
+  const envFiles = git(['ls-tree', '-r', '--name-only', 'HEAD', ...present]).split('\n').filter(Boolean).filter(isEnvFile);
+  if (envFiles.length) {
+    refuse(`HEAD tracks ${envFiles.length} environment file(s) (.env) under the included paths. Untrack them (git rm --cached) before zipping.`);
+  }
+
+  if (!fs.existsSync(OUT_DIR)) refuse(`The output folder does not exist: ${OUT_DIR}`);
+  const sha = git(['rev-parse', '--short', 'HEAD']).trim();
+  const zipName = `Parents_Portal_source_${localDate()}_${sha}.zip`;
+  const zipPath = path.join(OUT_DIR, zipName);
+  if (fs.existsSync(zipPath)) refuse(`${zipPath} already exists. Move or rename it first; it is never overwritten.`);
+
+  execFileSync('git', ['archive', '--format=zip', `--prefix=${PREFIX}`, '-o', zipPath, 'HEAD', ...present], {
+    cwd: ROOT,
+    stdio: ['ignore', 'inherit', 'inherit'],
+  });
 
   console.log(`\nCreated: ${zipPath}`);
+  console.log(`From HEAD ${sha}, tracked files only.`);
+  if (missing.length) console.log(`Not at HEAD, so not in the zip: ${missing.join(', ')}`);
   console.log('\nTamang structure pag na-extract:');
   console.log('  Parents_Portal/');
-  console.log('  ├── README.md');
-  console.log('  ├── .gitignore');
-  console.log('  ├── database/');
-  console.log('  │   ├── schema.sql');
-  console.log('  │   └── seed.sql');
-  console.log('  ├── docs/');
-  console.log('  └── server/');
-  console.log('      ├── config/');
-  console.log('      ├── routes/');
-  console.log('      ├── scripts/');
-  console.log('      ├── server.js');
-  console.log('      └── package.json');
+  for (const p of present) console.log(`  ├── ${p}${p.includes('.') ? '' : '/'}`);
 }
 
 main();

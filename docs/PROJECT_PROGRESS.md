@@ -11,11 +11,11 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-06: `main` at `1ef3c00` (build 1 is merged,
-fast-forward) plus `feat/admin-messages` — the admin's inbox (teacher ↔
-admin only) with its fix rounds, built on web and phone, device-checked and
-re-checked 2026-10-06, cleaned up by id (backup 279), merge-ready, not
-merged.** Table and endpoint
+**Snapshot, 2026-10-06: `main` at `2f2dbb7` (admin Messages is merged,
+fast-forward) plus `fix/source-zip` — `scripts/create-backup-zip.js` rebuilt
+on `git archive` (tracked files only, a dated and sha-named zip on the
+Desktop), proved by `scripts/proof-source-zip.mjs`, pending the owner's
+first real run, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -37,7 +37,7 @@ and only there.
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
 | Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merged 2026-10-05 | ✅ merged 2026-10-05 |
 | Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
-| Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merge-ready | ✅ device-checked, merge-ready | ✅ device-checked, merge-ready |
+| Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -123,14 +123,13 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 The owner's order (2026-10-06, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Merge admin Messages** — `feat/admin-messages`, device-checked and
-   cleaned up, on the owner's word.
-2. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
-   script is not run until it is fixed.
-3. **Smoke gate** across web and mobile.
-4. **Manuscript delta list** (the team applies it; it now includes
+1. **The owner's first run of the fixed source zip** —
+   `node scripts/create-backup-zip.js` from the repository root, on a clean
+   tree (`fix/source-zip`; the zip lands on the Desktop), then merge it.
+2. **Smoke gate** across web and mobile.
+3. **Manuscript delta list** (the team applies it; it now includes
    Chapter 5's admin Messages text).
-5. **Professor system check, Fri 2026-10-09.**
+4. **Professor system check, Fri 2026-10-09.**
 
 **Build 2** (the dashboards, with skeleton loading tier 1) waits for the
 owner's decision once the professor confirms the Friday time. After the

@@ -357,7 +357,9 @@ Parents_Portal/
 ├── README.md, CLAUDE.md, .cursorrules
 ├── docs/            ← the documents above; docs/agents/ for the skills
 ├── database/        ← schema.sql (23 tables), seed.sql
-├── scripts/         ← create-backup-zip.js: a SOURCE-CODE archiver, not a DB backup
+├── scripts/         ← create-backup-zip.js: a SOURCE-CODE archiver, not a DB backup —
+│                       `git archive` of HEAD (tracked files only) to the Desktop as
+│                       Parents_Portal_source_<date>_<sha>.zip; proof-source-zip.mjs proves it
 ├── server/          ← Express + Socket.io API
 │   ├── routes/      ← one file per module
 │   ├── utils/       ← shared helpers (scoping, rules, calendar, mailer, …)

@@ -494,6 +494,31 @@ Five figures, one set, run from `mobile/` AFTER the last file is written:
 | `npm run lint:tokens` | **71 tokens × 2 themes, both files match** | `scripts/check-tokens.mjs` — `src/theme/tokens.js` and `global.css` regenerate equal from `client/src/index.css` |
 | `npm run lint:colors` | **0** | the web's token lint plus a hex / rgb / hsl literal rule outside `theme/tokens.js` |
 
+## The source-zip proof — `scripts/`, the repository root
+
+`node scripts/proof-source-zip.mjs`, from the repository root — plain Node,
+no `npm` script (the root has no `package.json`), no database, no server.
+**24/24** (new, fix/source-zip, 2026-10-06). It proves
+`scripts/create-backup-zip.js` against a THROWAWAY git repository it builds
+in a temp folder (paths with spaces), through `SOURCE_ZIP_ROOT` /
+`SOURCE_ZIP_OUT_DIR`, reading each zip's central directory itself; it writes
+nothing outside that folder and removes it. It shows: only the allowed
+top-level entries under `Parents_Portal/` (README.md, .gitignore, client,
+database, docs, mobile, scripts, server), each of them present; a tracked
+file outside the list left out; no `.env` (a `.env.example` template kept),
+no `node_modules`, nothing untracked; the name
+`Parents_Portal_source_<local date>_<short sha>.zip`; REFUSAL when that file
+exists (the old one untouched), on an unstaged and on a staged change to a
+tracked file, and on a tracked `.env`; only a WARNING for an untracked file.
+**Three negative controls**: a whole-repository zip fails the top-level
+check, the `.env` check catches a force-tracked `.env`, the `node_modules`
+check catches a `node_modules` path. It then READS the real repository with
+`git ls-files` (464 tracked files under the allowed paths at `2f2dbb7`; no
+`node_modules`, no `.env`, 4 `.env.example` templates) — it never runs the
+script on it: the owner makes the first real zip. **No lint covers the root
+`scripts/`** (each package's oxlint runs inside its own folder);
+`node --check scripts/create-backup-zip.js` is the syntax check.
+
 ## Lint baselines
 
 Every client dispatch reports all four. **They are one set: three of them

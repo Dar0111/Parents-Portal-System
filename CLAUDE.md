@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-06, `feat/admin-messages` — the admin's inbox device-checked and re-checked, cleaned up by id (backup 279), merge-ready (on `main` `1ef3c00`, where build 1 is merged) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-06, `fix/source-zip` — the source zip rebuilt on `git archive`, pending the owner's first run (on `main` `2f2dbb7`, where admin Messages is merged) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1681,12 +1681,20 @@ its `docs/CHANGELOG.md` row.
       half-cut nav rows, threads opening at the newest message, and an
       adviser-only teacher labelled "Adviser of …" in the pickers.
       Device-checked and re-checked 2026-10-06 (web and phone, admin,
-      teacher, parent), cleaned up by id (backup 279). **Merge-ready.**
-      Rules: §6, §9, §10, §26, M9, M22.
+      teacher, parent), cleaned up by id (backup 279). **Merged 2026-10-06
+      (fast-forward, `2f2dbb7`).** Rules: §6, §9, §10, §26, M9, M22.
+- [ ] **The source-zip fix — `fix/source-zip`**, 2026-10-06:
+      `scripts/create-backup-zip.js` is `git archive` of HEAD (tracked files
+      only: README.md, .gitignore, client, database, docs, mobile, scripts,
+      server) to the Desktop as `Parents_Portal_source_<date>_<sha>.zip`;
+      it refuses on uncommitted tracked changes, a tracked `.env` or an
+      existing file. `node scripts/proof-source-zip.mjs` 24/24
+      (`docs/TESTING.md`). **Done; pending the owner's first real run; not
+      merged.**
 
-**NEXT, in order (owner, 2026-10-06):** merge admin Messages on the
-owner's word → the `scripts/create-backup-zip.js` fix (before the smoke
-gate; the script is not run until it is fixed) → smoke gate → manuscript
+**NEXT, in order (owner, 2026-10-06):** the owner's first run of
+`node scripts/create-backup-zip.js`, then merge `fix/source-zip` → smoke
+gate → manuscript
 delta list (the team applies it; it now includes Chapter 5's admin
 Messages text) → professor system check, Fri 2026-10-09. **Build 2** (the
 dashboards, with skeleton loading tier 1) waits for the owner's decision
