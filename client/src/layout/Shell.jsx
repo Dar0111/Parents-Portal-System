@@ -9,7 +9,7 @@ import { DURATION, EASE, MOTION_OK, gsap, useGSAP } from '../motion/motion';
 import { requestLeave } from './leaveGuard';
 import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
-import { revealActive } from './navScroll';
+import { gridHeight, revealActive, rowPitch } from './navScroll';
 import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { settingsTabsForRole } from '../pages/settings/tabs';
 import { PageTitleContext } from './usePageTitle';
@@ -467,10 +467,36 @@ function ShellChrome() {
   // paints at the wrong scroll first.
   const sidebarNavRef = useRef(null);
   const drawerNavRef = useRef(null);
+
+  // THE SIDEBAR'S NAV BOX SHOWS WHOLE SLOTS (fix round follow-up F3): its
+  // height is the largest whole number of 3rem slots that fits the space
+  // between the toggle row and Settings (navScroll.js `gridHeight`), so no
+  // resting place cuts a row; the leftover sits blank below it. Measured from
+  // the slot that holds it and from the <nav> itself, again whenever either
+  // changes size (the window, collapse/expand, the text size). Null — the
+  // whole slot — when the list fits. The drawer below `md` is not gridded.
+  const sidebarSlotRef = useRef(null);
+  const [navHeight, setNavHeight] = useState(null);
   useLayoutEffect(() => {
-    revealActive(sidebarNavRef.current);
+    const slot = sidebarSlotRef.current;
+    const box = sidebarNavRef.current;
+    const nav = box?.firstElementChild;
+    if (!slot || !nav) return undefined;
+    const fit = () => setNavHeight(gridHeight(slot.clientHeight, nav.offsetHeight, rowPitch()));
+    fit();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(fit);
+    observer.observe(slot);
+    observer.observe(nav);
+    return () => observer.disconnect();
+  }, [collapsed]);
+
+  useLayoutEffect(() => {
+    // Gridded, the sidebar's box rests at slot starts (`snapToSlot`); the
+    // drawer's keeps the item-top rounding.
+    revealActive(sidebarNavRef.current, navHeight ? rowPitch() : 0);
     revealActive(drawerNavRef.current);
-  }, [location.pathname, collapsed, mobileNavOpen]);
+  }, [location.pathname, collapsed, mobileNavOpen, navHeight]);
 
   const items = navForRole(user?.role);
   // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the
@@ -532,19 +558,29 @@ function ShellChrome() {
   // rail's divider) and its items are siblings in the <nav>, never inside a
   // per-group box. A sticky row cannot leave its parent, and inside its
   // group's box Messages could not rise above the group's own top — which on
-  // the teacher's list is itself below the fold. The spacing is the old one:
-  // the label's wrapper carries the group's 12px (`pt-3`), the <nav>'s
-  // `space-y-1` the 4px between rows.
-  const navBody = (rail) => (
-    <nav aria-label="Main" className={`space-y-1 pb-4 pt-3 ${rail ? 'px-2' : 'px-3'}`}>
+  // the teacher's list is itself below the fold. The <nav>'s `space-y-1` is
+  // the 4px between rows.
+  //
+  // EVERY BLOCK IS ONE SLOT (fix round follow-up F3): a group's label, or
+  // the rail's divider, takes a whole 44px row (`h-11`) — the label sitting
+  // at its foot, over its items; the divider across its middle — so the list
+  // is a grid of 3rem slots and the sidebar's box can show whole rows only
+  // (`gridHeight`, navScroll.js). The sidebar's <nav> has 4px on top — the
+  // first slot's gap — and nothing below, so the list is a whole number of
+  // slots; the drawer, which is not gridded, keeps its 12px / 16px.
+  const navBody = (rail, inDrawer = false) => (
+    <nav
+      aria-label="Main"
+      className={`space-y-1 ${inDrawer ? 'pb-4 pt-3' : 'pt-1'} ${rail ? 'px-2' : 'px-3'}`}
+    >
       {renderItems(sections.top, rail)}
       {sections.groups.map((group, i) => (
         <Fragment key={group.label || `rest-${i}`}>
-          <div className="pt-3">
+          <div className={`flex h-11 ${rail ? 'items-center px-2' : 'items-end px-3 pb-1.5'}`}>
             {rail ? (
-              <div aria-hidden="true" className="mx-2 mb-2 border-t border-edge" />
+              <div aria-hidden="true" className="w-full border-t border-edge" />
             ) : group.label ? (
-              <div className="px-3 pb-1.5 pt-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-muted">
+              <div className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-fg-muted">
                 {group.label}
               </div>
             ) : null}
@@ -569,9 +605,11 @@ function ShellChrome() {
   // one it already had, so the rail's snap (build 1 fix round) is untouched.
   // Its label shows by RailTooltip only in the rail, where it is "Expand
   // sidebar"; wide, its name is enough. 36px from `sm` up — the sidebar is a
-  // pointer's, from `md`.
+  // pointer's, from `md`. `pb-2` under it since the F3 follow-up: the nav
+  // below starts with only its 4px grid padding, so the row keeps the 12px
+  // between the toggle and Dashboard.
   const collapseToggle = (
-    <div className="flex shrink-0 px-3.5 pt-2">
+    <div className="flex shrink-0 px-3.5 pb-2 pt-2">
       <RailTooltip label="Expand sidebar" enabled={collapsed}>
         <Button
           variant="ghost"
@@ -590,8 +628,8 @@ function ShellChrome() {
   // ::-webkit-scrollbar pseudo-element. `scroll-pb-12` (48px — the pinned
   // Messages row, 44px, and its 4px gap) keeps a link reached by Tab clear of
   // that row instead of scrolled under it.
-  const navBox =
-    'min-h-0 flex-1 overflow-y-auto scroll-pb-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  const navScrolls = 'overflow-y-auto scroll-pb-12 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
+  const navBox = `min-h-0 flex-1 ${navScrolls}`;
 
   return (
     // `data-app-shell` scopes the stable scrollbar gutter to the app's pages
@@ -616,8 +654,16 @@ function ShellChrome() {
       >
         <Brand collapsed={collapsed} />
         {collapseToggle}
-        <div ref={sidebarNavRef} className={navBox}>
-          {navBody(collapsed)}
+        {/* The SLOT takes the space; the box inside it is a whole number of
+            rows tall (`navHeight`, F3) and the rest of the slot stays blank. */}
+        <div ref={sidebarSlotRef} className="min-h-0 flex-1">
+          <div
+            ref={sidebarNavRef}
+            className={`h-full ${navScrolls}`}
+            style={navHeight ? { height: navHeight } : undefined}
+          >
+            {navBody(collapsed)}
+          </div>
         </div>
         {pinned(collapsed)}
         <UserCard user={user} collapsed={collapsed} onLogout={handleLogout} />
@@ -636,7 +682,7 @@ function ShellChrome() {
             />
           </Brand>
           <div ref={drawerNavRef} className={navBox}>
-            {navBody(false)}
+            {navBody(false, true)}
           </div>
           {pinned(false)}
           <UserCard user={user} onLogout={handleLogout} onNavigate={closeDrawer} />

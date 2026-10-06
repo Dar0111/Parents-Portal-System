@@ -70,6 +70,16 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // The composer's draft is the `message` form's only field.
 const MESSAGE_BASE = Object.freeze({ body: '' });
 
+// THE MESSAGE BOX, WHOLLY IN THE WINDOW (fix round 2.1 and follow-up F2,
+// 2026-10-06): if it is not, the smallest page scroll that brings it in
+// (`nearest`); if it is, the page does not move. The ONE place this page
+// scrolls the document — after my own send, and when a thread opens.
+function keepBoxInView(box) {
+  if (!box) return;
+  const rect = box.getBoundingClientRect();
+  if (rect.top < 0 || rect.bottom > window.innerHeight) box.scrollIntoView({ block: 'nearest' });
+}
+
 // What this account kept for the conversation with `otherId`, or ''. Text
 // that is empty after trimming is not a draft (build 1 follow-up): it is
 // neither restored nor announced as "Draft restored".
@@ -147,6 +157,9 @@ export default function MessageThreadPage() {
   const messagesRef = useRef([]);
   const loadedForRef = useRef(null);
   const lastIdRef = useRef(null);
+  // Which thread the list was last positioned for (F2, below): a thread is
+  // "opening" until its list has been put at its newest message once.
+  const positionedForRef = useRef(null);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -242,36 +255,50 @@ export default function MessageThreadPage() {
   // marker up with the bottom of the window, so after a send by Enter the
   // page jumped and the composer under the list left the view. Setting the
   // list's own scrollTop moves only the 28rem list.
+  //
+  // NOTHING IS SCROLLED BEFORE THE LIST IS THERE (fix round follow-up F1,
+  // 2026-10-06). A thread with unread messages awaits read-all and the unread
+  // refresh before its first-load spinner clears, and this effect ran in
+  // between: the list was not mounted, the newest id was recorded anyway, and
+  // when the list did mount nothing scrolled it — the thread opened at its
+  // OLDEST message. So the effect consumes nothing until the list is on
+  // screen holding THIS thread's messages, and `loading` is a dependency so
+  // it runs again the moment the spinner clears.
+  //
+  // OPENING A THREAD SHOWS ITS NEWEST MESSAGES AND THE BOX (F2): the first
+  // time a thread is positioned — on open, and when the route switches to
+  // another thread — the list goes to its newest message and the box is
+  // brought into the window by the smallest page scroll (keepBoxInView).
+  // After that only a NEW newest message scrolls the list, and only my own
+  // send may move the page; an incoming message never does.
   useEffect(() => {
+    const list = listRef.current;
+    if (!list || loading || loadedForRef.current !== otherId) return;
     const lastId = messages[messages.length - 1]?.id ?? null;
-    if (lastId !== lastIdRef.current) {
-      lastIdRef.current = lastId;
-      const list = listRef.current;
-      if (list) list.scrollTop = list.scrollHeight;
-      // My own send, now on screen: the composer gets the focus back (a
-      // click on Send leaves it on the button, which is disabled mid-send),
-      // and `preventScroll` keeps that from moving the page either.
-      //
-      // THE BOX STAYS IN VIEW (fix round, 2026-10-06). While the list is
-      // still under its 28rem cap, each new bubble makes it taller and pushes
-      // the box down; on the owner's laptop (1366×600) it ended at the bottom
-      // edge with one line showing and Send hidden. So after MY send, and only
-      // then: if the box is not wholly inside the window, the smallest page
-      // scroll that brings it in (`nearest`); otherwise the page does not
-      // move. An incoming message never moves the page.
-      if (lastId !== null && lastId === sentIdRef.current) {
-        sentIdRef.current = null;
-        composerRef.current?.focus({ preventScroll: true });
-        const composer = composerRef.current;
-        if (composer) {
-          const box = composer.getBoundingClientRect();
-          if (box.top < 0 || box.bottom > window.innerHeight) {
-            composer.scrollIntoView({ block: 'nearest' });
-          }
-        }
-      }
+    const opening = positionedForRef.current !== otherId;
+    if (!opening && lastId === lastIdRef.current) return;
+    positionedForRef.current = otherId;
+    lastIdRef.current = lastId;
+    list.scrollTop = list.scrollHeight;
+    if (opening) {
+      keepBoxInView(composerRef.current);
+      return;
     }
-  }, [messages]);
+    // My own send, now on screen: the composer gets the focus back (a click
+    // on Send leaves it on the button, which is disabled mid-send), and
+    // `preventScroll` keeps that from moving the page either.
+    //
+    // THE BOX STAYS IN VIEW (fix round, 2026-10-06). While the list is still
+    // under its 28rem cap, each new bubble makes it taller and pushes the box
+    // down; on the owner's laptop (1366×600) it ended at the bottom edge with
+    // one line showing and Send hidden. So after MY send, and only then, the
+    // box is kept in the window (keepBoxInView).
+    if (lastId !== null && lastId === sentIdRef.current) {
+      sentIdRef.current = null;
+      composerRef.current?.focus({ preventScroll: true });
+      keepBoxInView(composerRef.current);
+    }
+  }, [messages, loading, otherId]);
 
   async function loadEarlier() {
     const oldest = messages[0]?.id;

@@ -1465,26 +1465,41 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   rail, where it already was (centred under the seal, in line with the rail's
   icons). Until then it sat at the end of the brand row while wide and
   dropped under the seal in the rail. Its accessible names, the rail's
-  "Expand sidebar" tooltip and its place in the tab order are unchanged; the
-  rail's layout, and so its snap (build 1 fix round), is untouched.
+  "Expand sidebar" tooltip and its place in the tab order are unchanged.
+  Since the F3 follow-up the row has 8px under it (`pb-2`), so the nav below
+  can start on its grid (next bullet but one).
 - **Messages is pinned** (fix round, 2026-10-06): its row is `sticky
   bottom-0` on an opaque `bg-surface` (`data-nav-pinned`, `Shell.jsx`). While
   its own place is below the fold it holds the bottom of the nav box, badge
   and all; scrolled to, it is back in its own place — never duplicated, and
-  the groups, items and order are unchanged. Measured for a 1366×600 window:
-  the nav box is 305px wide / 277px in the rail, and Messages' natural bottom
-  is 429 / 477 / 621px (admin / parent / teacher) wide and 386 / 434 / 578px
-  in the rail, so without the pin it was below the fold for every role.
+  the groups, items and order are unchanged. Measured for a 1366×600 window
+  since F3: the nav box is 288px wide / 240px in the rail (whole slots), and
+  Messages' natural bottom is 432 / 480 / 624px (admin / parent / teacher)
+  in both states, so without the pin it is below the fold for every role.
   **The groups are FLAT in `<nav>`**: each group's label (or the rail's
-  divider) sits in a `pt-3` wrapper and its items are siblings after it,
+  divider) is a block of its own and its items are siblings after it,
   because a sticky row cannot leave its parent box and a per-group box would
   trap Messages inside a group that, on the teacher's list, itself starts
   below the fold. **Do not re-box the groups.** `revealActive` shortens the
   view by the pinned row and its gap (48px) for an active item ABOVE it, and
   never snaps to the stuck row; the nav box's `scroll-pb-12` does the same
-  for a link reached by Tab. While pinned, the row covers the bottom of the
-  row above it — accepted; CSS cannot tell pinned from in place, so no
-  hairline is drawn.
+  for a link reached by Tab.
+- **No row shows cut in half** (fix round follow-up F3, 2026-10-06): the
+  sidebar's nav is a grid of 3rem slots (48px; 54px at Large). Every block
+  is one slot — a 44px row and its 4px gap — and **a group's label or the
+  rail's divider takes a whole 44px block too** (`h-11`: the label at its
+  foot, the divider across its middle); the `<nav>` has 4px on top (the
+  first slot's gap) and nothing below, so the list is a whole number of
+  slots; the pinned row and its gap are exactly one. The box is the largest
+  whole number of slots that fits between the toggle row and Settings
+  (`navScroll.js` `gridHeight`, measured by a ResizeObserver on the slot
+  that holds it and on the `<nav>`; the leftover, under one slot, is blank
+  below it), and `revealActive(box, pitch)` rests at slot starts
+  (`snapToSlot`) — again when the grid's height lands after the first
+  paint. So the top, the bottom, the pinned row's top and the end of the
+  list all fall between rows wherever the app places the list; a scroll the
+  user leaves mid-row is theirs. **Keep every nav block one slot tall.** The
+  drawer below `md` is not gridded and keeps its 12px / 16px padding.
 - **A stable scrollbar gutter on the app's pages only** (UI-6):
   `html:has([data-app-shell])` in `index.css`, so the bell no longer shifts
   between short and long pages. **Not on every `html`** (Condition A): the

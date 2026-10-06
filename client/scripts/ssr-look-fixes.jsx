@@ -52,6 +52,7 @@ import FilterActions from '../src/components/FilterActions.jsx';
 import { shouldSendOnEnter } from '../src/components/enterToSend.js';
 import { navForRole } from '../src/layout/nav.js';
 import { groupNav } from '../src/layout/navGroups.js';
+import { gridHeight, snapToSlot } from '../src/layout/navScroll.js';
 
 let passed = 0;
 let failed = 0;
@@ -273,25 +274,79 @@ assert(parentList.includes("'Active teacher accounts appear here.'") && /title="
 console.log('Finding #11 — the list scrolls itself; the page moves only to bring the box back (source, both thread pages)');
 const scrollsOnlyTheList = (s) =>
   !/scrollIntoView\(\{ block: 'end' \}\)/.test(code(s)) &&
-  /const list = listRef\.current;\s*if \(list\) list\.scrollTop = list\.scrollHeight;/.test(s) &&
+  /const list = listRef\.current;[\s\S]*?\n\s*list\.scrollTop = list\.scrollHeight;/.test(s) &&
   /<div ref=\{listRef\} className="max-h-\[28rem\] space-y-3 overflow-y-auto/.test(s) &&
   !/bottomRef/.test(s);
+// F1 (follow-up, 2026-10-06): the newest-message effect consumes nothing
+// until the list is mounted with THIS thread's messages — the guard comes
+// BEFORE lastIdRef is written, and `loading` is a dependency so the effect
+// runs again when the first-load spinner clears.
+const waitsForTheList = (s) =>
+  /const list = listRef\.current;\s*if \(!list \|\| loading \|\| loadedForRef\.current !== otherId\) return;[\s\S]*?lastIdRef\.current = lastId;/.test(s) &&
+  /\}, \[messages, loading, otherId\]\);/.test(s);
 for (const role of ['teacher', 'parent']) {
   const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
   assert(scrollsOnlyTheList(page), `${role}: no end-of-list scrollIntoView; the 28rem list sets its own scrollTop`);
-  const sendBranch = code(page).slice(code(page).indexOf('if (lastId !== null && lastId === sentIdRef.current) {'));
+  const helper = code(page).slice(code(page).indexOf('function keepBoxInView(box) {'), code(page).indexOf('function keepBoxInView(box) {') + 260);
   assert(
     (code(page).match(/scrollIntoView\(/g) || []).length === 1 &&
-      /^if \(lastId !== null && lastId === sentIdRef\.current\) \{[\s\S]*?if \(box\.top < 0 \|\| box\.bottom > window\.innerHeight\) \{\s*composer\.scrollIntoView\(\{ block: 'nearest' \}\);/.test(sendBranch),
-    `${role}: the page's only scrollIntoView is composer.scrollIntoView({ block: 'nearest' }), inside the my-send branch, under the out-of-view check`
+      /if \(rect\.top < 0 \|\| rect\.bottom > window\.innerHeight\) box\.scrollIntoView\(\{ block: 'nearest' \}\);/.test(helper) &&
+      (code(page).match(/keepBoxInView\(composerRef\.current\);/g) || []).length === 2 &&
+      /if \(opening\) \{\s*keepBoxInView\(composerRef\.current\);\s*return;\s*\}/.test(page) &&
+      /if \(lastId !== null && lastId === sentIdRef\.current\) \{[\s\S]*?keepBoxInView\(composerRef\.current\);/.test(page),
+    `${role}: the page's only scrollIntoView is keepBoxInView's ({ block: 'nearest' }, under the out-of-view check), called only when a thread opens and after MY send`
   );
+  assert(waitsForTheList(page), `${role}: F1 — the newest-message effect waits for the list (mounted, not loading, this thread's messages) before it records anything, and runs again when loading clears`);
+  assert(
+    /const opening = positionedForRef\.current !== otherId;/.test(page) && /positionedForRef\.current = otherId;/.test(page),
+    `${role}: F2 — a thread is "opening" until its list has been positioned once (on open and on a switch to another thread)`
+  );
+  const oldEffect = page.replace(/if \(!list \|\| loading \|\| loadedForRef\.current !== otherId\) return;/, '').replace('}, [messages, loading, otherId]);', '}, [messages]);');
+  assert(!waitsForTheList(oldEffect), `NEGATIVE CONTROL (${role}): without the guard and the loading dependency (the F1 shape), the F1 assertion fails`);
   const focusCalls = page.match(/\.focus\(/g) || [];
   const quietFocus = page.match(/composerRef\.current\?\.focus\(\{ preventScroll: true \}\)/g) || [];
   assert(focusCalls.length === 2 && quietFocus.length === 2 && /<textarea\s+ref=\{composerRef\}/.test(page), `${role}: the composer gets the focus back after a send (and after a failed one) with preventScroll — no other focus call on the page`);
   assert(/sentIdRef\.current = sent\.id;/.test(page) && /if \(lastId !== null && lastId === sentIdRef\.current\) \{/.test(page), `${role}: the refocus waits for MY send to be on screen, not for any message`);
-  const reverted = page.replace('if (list) list.scrollTop = list.scrollHeight;', "bottomRef.current?.scrollIntoView({ block: 'end' });");
+  const reverted = page.replace('list.scrollTop = list.scrollHeight;', "bottomRef.current?.scrollIntoView({ block: 'end' });");
   assert(!scrollsOnlyTheList(reverted), `NEGATIVE CONTROL (${role}): with the old scrollIntoView back, the assertion fails`);
 }
+
+// ------------------------------------------------ F3 (follow-up, 2026-10-06)
+console.log('F3 — no nav row cut in half (driven + source)');
+// The owner's 1366×600 window: the wide box's slot 295px, the rail's 269px;
+// the lists 528 / 624 / 480px (admin / teacher / parent) — 11 / 13 / 10 slots.
+assert(
+  gridHeight(295, 528, 48) === 288 && gridHeight(269, 624, 48) === 240 && gridHeight(600, 528, 48) === null && gridHeight(295, 528, 54) === 270,
+  'gridHeight: the largest whole number of 3rem slots that fits (54px at Large); none when the list fits'
+);
+// Teacher rail, Memos active: row 484–528 (slot 10), box 240, pinned row
+// reserved (view 192), end of the list at 624 − 240 = 384 (on the grid).
+const memos = { pitch: 48, itemTop: 484, itemBottom: 528, viewHeight: 192, max: 384 };
+const down = snapToSlot({ ...memos, scrollTop: 0, next: 528 - 192 });
+const settled = snapToSlot({ ...memos, scrollTop: 359, next: 359 });
+const up = snapToSlot({ pitch: 48, itemTop: 4, itemBottom: 48, viewHeight: 192, max: 384, scrollTop: 336, next: 4 });
+const whole = (s, it) => it.itemTop >= s && it.itemBottom <= s + it.viewHeight;
+assert(down % 48 === 0 && whole(down, memos), `a downward placement rests at a slot start with the active row whole (${down})`);
+assert(settled % 48 === 0 && whole(settled, memos), `a resting place between slots (359, the pre-grid height's) is snapped to one, the row still whole (${settled})`);
+assert(up === 0, 'an upward placement rests at a slot start (Dashboard: 0, not its row top 4)');
+// With the box a whole number of slots and the scroll at a slot start, the
+// pinned row's top (scroll + box − 44) is a row's top: nothing shows above it
+// cut. At a row top instead (the old item-top rounding), 4px of the row show.
+const pinnedTopCut = (s, box) => ((s + box - 44 - 4) % 48 + 48) % 48;
+assert(pinnedTopCut(down, 240) === 0, 'at a slot start the pinned row meets a row boundary');
+assert(pinnedTopCut(436, 240) !== 0, 'NEGATIVE CONTROL: at a row top (the old rounding, 436), the row above the pinned row shows cut');
+const shellF3 = src('src/layout/Shell.jsx');
+assert(
+  /<div className=\{`flex h-11 \$\{rail \? 'items-center px-2' : 'items-end px-3 pb-1\.5'\}`\}>/.test(shellF3) &&
+    /className=\{`space-y-1 \$\{inDrawer \? 'pb-4 pt-3' : 'pt-1'\} /.test(shellF3),
+  "every group label / rail divider takes a whole 44px slot, and the sidebar's <nav> is padded 4px on top only (the drawer keeps 12px / 16px)"
+);
+assert(
+  /setNavHeight\(gridHeight\(slot\.clientHeight, nav\.offsetHeight, rowPitch\(\)\)\)/.test(shellF3) &&
+    /revealActive\(sidebarNavRef\.current, navHeight \? rowPitch\(\) : 0\);/.test(shellF3) &&
+    /\}, \[location\.pathname, collapsed, mobileNavOpen, navHeight\]\);/.test(shellF3),
+  'the sidebar box is sized by gridHeight, and revealActive snaps to its slots — again once the grid height lands'
+);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

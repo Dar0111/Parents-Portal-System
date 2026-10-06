@@ -47,27 +47,91 @@ function pinnedReserve(box, item) {
   return after ? pinned.getBoundingClientRect().height + 4 : 0;
 }
 
-export function revealActive(box) {
+//
+// ON A GRIDDED BOX (`pitch`, fix round follow-up F3) every placement is a
+// SLOT START — a whole multiple of the pitch — and that includes leaving an
+// already-visible item where it is: the box's height can change under the
+// list (the grid is measured after the first paint), and a resting place
+// between slots cuts a row at an edge. A downward move rounds UP (the
+// active row stays wholly above the bottom edge, or the pinned row), an
+// upward one DOWN, and a misaligned resting place to the nearer slot start
+// that keeps the active row whole. The item-top rounding above is the
+// ungridded box's (the drawer's).
+export function snapToSlot({ scrollTop, next, pitch, itemTop, itemBottom, viewHeight, max }) {
+  const clamp = (v) => Math.max(0, Math.min(v, max));
+  const fits = (s) => itemTop >= s - 0.5 && itemBottom <= s + viewHeight + 0.5;
+  let s;
+  if (next > scrollTop) s = Math.ceil((next - 0.5) / pitch) * pitch;
+  else if (next < scrollTop) s = Math.floor((next + 0.5) / pitch) * pitch;
+  else {
+    const down = Math.floor((next + 0.5) / pitch) * pitch;
+    const up = Math.ceil((next - 0.5) / pitch) * pitch;
+    s = fits(down) || !fits(up) ? down : up;
+  }
+  return clamp(s);
+}
+
+export function revealActive(box, pitch = 0) {
   if (!box || box.clientHeight === 0) return;
   const item = box.querySelector('[aria-current="page"]');
   if (!item) return;
   const boxTop = box.getBoundingClientRect().top;
   const contentTop = (el) => el.getBoundingClientRect().top - boxTop + box.scrollTop;
   const rect = item.getBoundingClientRect();
+  const viewHeight = box.clientHeight - pinnedReserve(box, item);
+  const itemTop = contentTop(item);
   let next = nearestScrollTop({
     scrollTop: box.scrollTop,
-    viewHeight: box.clientHeight - pinnedReserve(box, item),
-    itemTop: contentTop(item),
+    viewHeight,
+    itemTop,
     itemHeight: rect.height,
   });
-  if (next > box.scrollTop) {
+  if (pitch > 0) {
+    next = snapToSlot({
+      scrollTop: box.scrollTop,
+      next,
+      pitch,
+      itemTop,
+      itemBottom: itemTop + rect.height,
+      viewHeight,
+      max: box.scrollHeight - box.clientHeight,
+    });
+  } else if (next > box.scrollTop) {
     const links = Array.from(box.querySelectorAll('a[href]')).filter(
       (link) => typeof link.closest !== 'function' || !link.closest('[data-nav-pinned]')
     );
     const tops = links.map(contentTop).filter((top) => top >= next);
     if (tops.length) next = Math.min(...tops);
   }
-  if (next !== box.scrollTop) box.scrollTop = next;
+  if (Math.abs(next - box.scrollTop) > 0.5) box.scrollTop = next;
+}
+
+// NO ROW SHOWS CUT IN HALF (fix round follow-up F3, 2026-10-06). Every
+// block of the sidebar's nav is one SLOT: a 44px row (`h-11` / `min-h-11`)
+// and the 4px gap after it — a group's label or the rail's divider takes a
+// whole slot too (Shell.jsx) — so the list is a grid with a pitch of 3rem
+// (48px at the default text size): the nav's 4px top padding is the first
+// slot's gap, so slot n starts at n × pitch and its row at n × pitch + 4, and
+// with no bottom padding the whole list is a whole number of slots. The
+// pinned Messages row and its gap are exactly one slot. If the box shows a
+// WHOLE number of slots and rests at a slot start, every edge is a boundary:
+// the top, the bottom, the pinned row's top, and the end of the list (a
+// whole number of slots from the top). So the box is given the largest whole
+// number of slots that fits — the leftover, under one slot, is blank space
+// below it — and `revealActive` rests at slot starts (`snapToSlot`, below).
+// A list that fits needs no grid.
+export function gridHeight(slotHeight, contentHeight, pitch) {
+  if (!(slotHeight > 0) || !(pitch > 0)) return null;
+  if (contentHeight <= slotHeight) return null;
+  return Math.max(pitch, Math.floor(slotHeight / pitch) * pitch);
+}
+
+// The pitch in px: 3rem, from the root font size (Settings → Personalization
+// scales it — 48px at 16px, 54px at Large's 18px).
+export function rowPitch() {
+  if (typeof window === 'undefined' || !window.getComputedStyle) return 48;
+  const root = parseFloat(window.getComputedStyle(document.documentElement).fontSize);
+  return 3 * (root > 0 ? root : 16);
 }
 
 // A PORTALLED TOOLTIP MUST NOT OUTLIVE ITS POSITION (UI-8, Condition B).
