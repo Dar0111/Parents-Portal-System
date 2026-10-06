@@ -242,7 +242,7 @@ adding one requires the school to have said otherwise first.
   footer reads "1–50 of 812" with Previous/Next, still rendered when
   everything fits so a list never changes shape as it grows. An empty page
   of a non-empty set (the last pending parent on page 2 approved away) shows
-  the spinner and asks for the last page that exists, in one effect inside
+  the skeleton (§5a-vii) and asks for the last page that exists, in one effect inside
   DataTable, so no page re-implements it. A filter or sort change resets the
   offset to 0 — in the page, which owns the request. Every list endpoint
   pages (`docs/API_REFERENCE.md` §6b); a caller that needs a complete set
@@ -675,6 +675,66 @@ working. Tailwind v4 ships container queries in core — no plugin — and the
 generated rule should be grepped out of the built CSS (`container-type:
 inline-size` plus `@container (width>=36rem)`), because **a variant that
 generates nothing fails silently**, exactly as `h-9.5` did in DV1.
+
+#### 5a-vii. Loading: a skeleton when nothing is on screen, and a re-read keeps what is (build 2, `feat/dashboards-look`, 2026-10-07)
+
+**Skeleton loading, tier 1** — `DataTable`, the dashboard `Card` and the
+report card (`ReportCard.jsx`); the phone's `DataList`, `Card` and
+`ReportCardView` are MOBILE M11 / M23. Tier 2 (the class record, the class
+summary, the roster, the calendar, the detail pages, the thread, Settings and
+About) is deferred, with the `queryKey` below. The owner's decisions of
+2026-10-07, decision 1 as narrowed the same day:
+
+- **A skeleton is a placeholder SHAPED LIKE THE CONTENT** (decision 5) —
+  bars where text will be, a circle where an avatar will be, inside the same
+  frame (`components/Skeleton.jsx`): DataTable's real column headers over
+  five rows (three card-shaped blocks below `sm` for a page with cards, the
+  pager's strip when paged); a dashboard card's figure, lead figure, short
+  list or the System card's facts (`skeleton` prop); the report card's
+  learner row, six learning-area rows and the general-average band (none on
+  a Key Stage 1 card once the mode is known). **The fill is `edge`** in both
+  themes — about 1.27:1 light, 1.2:1 dark on `surface`, decoration only, so
+  WCAG 1.4.11 does not apply, and never on the bare page — with `edge-strong`
+  as the one-line fallback (`FILL`) if the owner's device check finds it
+  faint. **No new token, no new contrast pair.**
+- **When** (decision 6, `hooks/useSkeleton.js`, mirrored): nothing painted
+  for **300 ms** — a fast load never shows one — with the region mounted and
+  the **height reserved** from the first frame (`invisible`, laid out); then
+  the skeleton; gone **the moment loading ends, with no minimum display
+  time**. A failed load shows the existing error and Retry; an empty result
+  the existing empty state. The hook sets state only from its timer.
+- **The shimmer is finite and still under reduced motion.** Tailwind's own
+  `pulse` (opacity), behind `motion-safe:`, **twice** (2 s each — under WCAG
+  2.2.2's five seconds), then the shapes stand: it never runs on without end.
+  It is the ONE loop in the app (§27c).
+- **Accessibility** (decision 7): the region is `role="status"` +
+  `aria-live="polite"` + `aria-busy="true"` with the spinner's own words
+  ("Loading…" unless the caller names the wait) in an sr-only span; the
+  shapes are `aria-hidden`.
+- **A re-read keeps what is on screen, and makes it safe** (decision 1). The
+  dashboard `Card` follows the rule exactly: `useCard` knows its query (its
+  `deps`), so **the same query read again** (`reload`, the phone's focus
+  re-read and pull, a parent's `refresh` counter) keeps the answer —
+  `refreshing`, the content `aria-busy` and `inert` — while **a new query**
+  never shows the old answer, not even for the render before the read starts
+  (`cardView`), and gets the skeleton. The card's own link is not stale and
+  stays live. **`DataTable` cannot tell a same-query re-read from a new
+  query** — it is handed rows and `loading`, never the filters, the learner,
+  the class or the day — so it keeps WHATEVER rows are on screen while it
+  loads: the frame `aria-busy` and `inert` (no stale lock, mark or approve
+  button can be pressed or tabbed to), greyed (`opacity-60`) once the
+  re-read has taken the same 300 ms, and the skeleton only when nothing is
+  on screen (a first load, a page the page itself cleared, C7's stale page).
+  **On a query change the previous rows therefore stay, greyed and inert,
+  until the new ones land** — the skeleton there needs every page to pass a
+  `queryKey` (36 consumers) and is deferred to its own dispatch with tier 2
+  (owner, 2026-10-07; KNOWN_ISSUES). It used to swap the rows for a spinner,
+  which jumped the page on every re-read.
+- **Proved by** `ssr-skeletons` (55: the phase table, `startRead` /
+  `cardView` with a negative control that is the old one-flag view, the
+  region in both phases, DataTable / Card / ReportCard rendered loading,
+  kept, idle and failed) and `proof-skeletons` on the phone. The 300 ms, the
+  pulse, the fill's look and what a screen reader says are the owner's check.
 
 ### 5c. The LRN is half a credential, not an ordinary identifier
 
@@ -1506,6 +1566,22 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   Login page would gain a gutter strip — its right edge measured
   pixel-identical before and after at 1366 wide in both themes, and a global
   rule changed it (the negative control).
+- **The drawer is a modal dialog** (build 2, `feat/dashboards-look`,
+  2026-10-07, the owner's decision 2): `<div role="dialog" aria-modal="true"
+  aria-label="Menu" tabIndex={-1}>`, because it sits over the page, holds the
+  focus and closes on Escape. It was an `<aside>`, which the print rules hide
+  by element name, and `role="dialog"` is not allowed on an `<aside>` — so
+  the div and its wrapper are `print:hidden`. The menu button says
+  `aria-haspopup="dialog"` and `aria-expanded` (`Header.jsx`). **Two defects
+  fixed with it** (decision 4): **Log out from the open drawer closes the
+  drawer first** (`handleDrawerLogout`), so with unsaved work only the
+  "Leave without saving?" dialog's focus trap is active — the drawer's and
+  the dialog's both wrapped Tab, and Escape closed both; and **the drawer
+  closes when the window reaches `md`** (`(min-width: 48rem)`, Tailwind's
+  `md` in the browser's rem), where it was hidden but still mounted and its
+  trap kept every Tab inside a panel nobody could see. Proved in
+  `ssr-look-fixes` (source, each defect with a negative control); a real Tab
+  and a real resize are the owner's browser check.
 - **Width:** `<main>` is `flex-1 min-w-0`, so every page gets the window
   minus 256 or 64px; nothing else sets a width for it (its padding is
   `p-4 sm:p-6 lg:p-8`, `Shell.jsx:619`; the drawer below `md` is `w-72`,
@@ -3362,6 +3438,10 @@ Expo Go. The phone's side is MOBILE_CONVENTIONS M23–M24.
 - **No motion on attendance marking, grade entry, the new-message toast or
   the "Leave without saving?" dialogs — so `Modal` is never animated**
   (`motion.js:24–26`; `components/Modal.jsx:31`; `realtime/MessageToast.jsx:47–48`).
+- **The one loop: the skeleton's pulse** (build 2, the owner's decision 5,
+  2026-10-07) — opacity only, `motion-safe:` only, twice and then still,
+  only while a region has nothing of its content on screen (§5a-vii). No
+  other element may loop.
 
 ### 27d. No in-app Reload
 
@@ -3412,7 +3492,8 @@ on everything. Planned with the `redesign-existing-projects` skill (its
 - **The focus trap** (`components/focusTrap.js`): `Modal` and the web drawer
   take focus once per opening (the effect depends on the open state only),
   wrap Tab, and give focus back to the opener; the drawer closes on Escape and
-  is named "Menu" on its `<aside>`.
+  is named "Menu" — on its `<aside>` until build 2, on its `role="dialog"`
+  div since (§9).
 
 ## 28. Form drafts — kept in the tab, keyed by numbers, gone on logout (`feat/form-drafts`, 2026-10-04)
 

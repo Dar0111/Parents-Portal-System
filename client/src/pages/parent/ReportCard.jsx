@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton, { SkeletonBar } from '../../components/Skeleton';
 import StatusBadge from '../../components/StatusBadge';
 import { cardClass } from '../../components/buttonClass';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
+import { useSkeleton } from '../../hooks/useSkeleton';
 
 // The parent's report card, shaped like the school's printed Learner's
 // Performance Report (DV3, 2026-09-20). PRESENTATIONAL ONLY — it never
@@ -642,6 +643,44 @@ function TermView({
   );
 }
 
+// THE CARD'S SKELETON (build 2, feat/dashboards-look, 2026-10-07): under the
+// real title band, the learner / class / adviser row, then one bar pair per
+// learning area — a name on the left, a value on the right, the shape both
+// the table and the term view share — and the general-average band, which a
+// Key Stage 1 card does not have (when the mode is already known). It replaces
+// the spinner whenever the card loads; painted after 300 ms (useSkeleton).
+const SKELETON_SUBJECTS = ['w-2/5', 'w-1/3', 'w-1/2', 'w-2/5', 'w-1/4', 'w-1/3'];
+
+function ReportSkeleton({ phase, mode }) {
+  return (
+    <Skeleton phase={phase}>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 border-b border-edge px-4 py-4 @min-[36rem]:grid-cols-3">
+        {['col-span-2 @min-[36rem]:col-span-1', '', ''].map((span, i) => (
+          <div key={i} className={span}>
+            <div className="flex h-4 items-center">
+              <SkeletonBar className="h-2.5 w-16" />
+            </div>
+            <div className="mt-0.5 flex h-5 items-center">
+              <SkeletonBar className="h-3 w-3/4" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="space-y-4 px-4 py-4">
+        <ul className="divide-y divide-edge-soft">
+          {SKELETON_SUBJECTS.map((w, i) => (
+            <li key={i} className="flex min-h-11 items-center justify-between gap-3 py-2.5">
+              <SkeletonBar className={`h-3 ${w}`} />
+              <SkeletonBar className="h-3 w-12" />
+            </li>
+          ))}
+        </ul>
+        {mode !== 'descriptive' ? <SkeletonBar round="rounded-xl" className="h-12 w-full" /> : null}
+      </div>
+    </Skeleton>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // THE CARD
 // ---------------------------------------------------------------------------
@@ -729,6 +768,7 @@ export default function ReportCard({
   // exactly as it did when the choice lived in TermView. Derived at render —
   // no effect resets anything.
   const [chosenSegment, setChosenSegment] = useState({ studentId: null, key: null });
+  const skeleton = useSkeleton(Boolean(loading) && !error);
 
   const student = report?.student ?? null;
   const mode = report?.grading_mode ?? 'numerical';
@@ -826,7 +866,7 @@ export default function ReportCard({
     return (
       <div className={frame}>
         {header}
-        <LoadingSpinner className="py-12" />
+        <ReportSkeleton phase={skeleton} mode={report?.grading_mode} />
       </div>
     );
   }

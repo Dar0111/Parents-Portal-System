@@ -404,6 +404,14 @@ concludes.** Adding one requires the school to have said otherwise first.
   set steps back on its own (C7). A filter or sort change resets offset to 0
   (C6) — **in the page, not here.** Every list endpoint pages; **a caller that
   needs a complete set uses `fetchAll`, never the first 50** (C2/C5).
+- **Loading (build 2, 2026-10-07): a SKELETON only when nothing is on
+  screen** (after 300 ms, height reserved, no minimum, the `edge` fill, a
+  two-pulse `motion-safe` shimmer, `role="status"` + `aria-busy`); **rows on
+  screen while loading STAY, `aria-busy` + `inert`, greyed after 300 ms** —
+  so on a query change the old rows wait, greyed (KNOWN ISSUES). The phone's
+  `DataList`, the dashboard `Card` and the report card follow; the `Card`
+  tells a same-query re-read (`refreshing`, kept) from a new query
+  (`loading`, skeleton) through `useCard`. §5a-vii, MOBILE M11 / M23.
 - **Nulls sort last in BOTH directions, and the rule sits OUTSIDE the
   direction multiplier.** Two empties compare equal; `Array#sort` is stable.
   mysql2 returns `DECIMAL` as strings, so the comparator coerces numerically
@@ -699,6 +707,10 @@ of it, and the nav box carries `scroll-pb-12`. Do not re-box the groups.
 **Every nav block is one 3rem slot** (a row and its gap; a group label or
 the rail's divider too), the box shows whole slots and rests at slot
 starts, so no row shows cut — `docs/FRONTEND_CONVENTIONS.md` §9.
+**The drawer is a modal dialog since build 2** (`<div role="dialog"
+aria-modal="true" aria-label="Menu">`, `print:hidden` — not an `<aside>`);
+the menu button carries `aria-haspopup="dialog"` + `aria-expanded`; Log out
+from it closes it before the leave guard asks, and it closes on reaching `md`.
 
 **The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
 image** — the source is a JPG with a white field and no alpha, so the disc
@@ -893,7 +905,8 @@ larger scale was reverted, FR5) and titles step up by class. **One `Button`**
 for ENTRANCES only** — GSAP on the web, `Animated` on the phone, none under
 reduced motion (unknown counts as reduced on the phone) — and **never on
 attendance marking, grade entry, the toast or the leave-guard dialogs**
-(`Modal` never animates). **No Reload control:** the browser's reload on the
+(`Modal` never animates); **the one loop is the skeleton's pulse — twice,
+then still, never under reduced motion** (build 2, §5). **No Reload control:** the browser's reload on the
 web; on the phone pull-to-refresh, OFF on Attendance and the Grades slot
 while anything is unsaved (Attendance also blocks taps and Save during a
 pull); the LiveStatus strip's Refresh is the only refresh button (web: a full
@@ -1439,6 +1452,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
+| **On a query change, `DataTable` / `DataList` show the PREVIOUS rows greyed and inert until the new ones land** — added 2026-10-07 | both components + their 36 consumers | Neither knows the query. The skeleton there is option 1 (a `queryKey` per consumer), deferred with skeleton tier 2 — **do not touch the consumers for it outside that dispatch** |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".

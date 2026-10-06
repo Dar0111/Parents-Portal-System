@@ -459,6 +459,28 @@ pull-to-refresh. **Nothing is sorted on the phone** — a list arrives in the
 order the endpoint chose, and a sort control is a `sort` param, not
 `Array#sort`.
 
+**Loading since build 2 (`feat/dashboards-look`, 2026-10-07; FRONTEND
+§5a-vii).** With NOTHING on screen, `DataList` shows the skeleton — three
+card-shaped blocks in the list's own `cardClass` frame, painted after 300 ms
+(`hooks/useSkeleton.js`, the web's file) — as its `ListEmptyComponent`, so the
+header stays mounted. **With rows on screen it keeps them, as it always did —
+and since build 2 they are SAFE while the list loads:** every card and the
+footer sit in a wrapper that takes no touches (`pointerEvents="none"`) and is
+out of the screen reader's reach (`importantForAccessibility=
+"no-hide-descendants"`, `accessibilityElementsHidden` — the phone's `inert`),
+greyed (opacity 0.6) once the read has taken the same 300 ms. **Until build 2
+those kept cards stayed pressable**: Admin → Students applying a new filter
+left the previous filter's cards on screen, each still opening its student,
+until the new answer arrived (`admin/StudentsScreen.jsx:56–86` keeps its rows
+through `setLoading(true)`) — the owner's question in the build 2 plan,
+answered yes. **The header is not made inert**: its filters must stay usable.
+`DataList` cannot tell a same-query re-read from a new query (it is never
+given the screen's filters), so on a query change the old rows stay, greyed
+and untouchable, until the new ones land; the skeleton there needs a
+`queryKey` from every screen and is deferred with skeleton tier 2
+(KNOWN_ISSUES). `extraData` makes FlatList re-render its cells when loading
+starts or stops.
+
 `components/RecordCard.jsx` renders the web's `renderCard` DATA contract
 (§5a-iii): `avatar`, `title`, `subtitle`, `meta`, `status` + `statusTone`,
 and exactly one interactive element, `onSelect`. That is why a page's card
@@ -1181,6 +1203,25 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   report card keeps its re-read on focus and on a pull (that is how a lock or
   unlock shows) but never twice at once for the same learner. The timeout
   itself is unchanged.
+- **Skeleton loading, tier 1 (build 2, `feat/dashboards-look`, 2026-10-07;
+  FRONTEND §5a-vii).** `components/Skeleton.jsx` on the phone: the `edge`
+  fill (`edge-strong` the one-line fallback, judged on the device), a
+  `progressbar` with the spinner's own label, the shapes hidden from the
+  screen reader and laid out at opacity 0 for the first 300 ms (the height is
+  held). **The pulse is `Animated` on the native driver, opacity 1 → 0.5 → 1
+  over 2 s, TWICE, then still** — never under reduce motion and never while
+  the OS has not answered (unknown means no, as for every motion here). It is
+  the one loop in the app. Used by `DataList` (M11), the dashboard `Card`
+  (`skeleton`: figure, lead, list, facts) and `ReportCardView`.
+- **A dashboard re-read keeps every card's answer** (useCard, the web's file:
+  the same query read again is `refreshing` — the content takes no touches
+  and is marked busy — and a new query starts from nothing). **So a pull now
+  shows the native refresh indicator while the cards re-read**
+  (`refreshing={pulled && rereading}`; it was `refreshing={false}`, and the
+  card spinners were the only feedback), and a focus re-read clears `pulled`
+  and stays quiet. The teacher's attendance banners re-read through useCard's
+  `refresh` counter, not a dep, so a banner keeps its answer instead of
+  dropping to "Checking…" on every return to the dashboard.
 
 ## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
 

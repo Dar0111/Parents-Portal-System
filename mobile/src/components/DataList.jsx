@@ -2,8 +2,10 @@ import { FlatList, RefreshControl, View } from 'react-native';
 import Button from './Button';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
-import LoadingSpinner from './LoadingSpinner';
 import RecordCard from './RecordCard';
+import Skeleton, { SkeletonBar } from './Skeleton';
+import { cardClass } from './buttonStyles';
+import { useSkeleton } from '../hooks/useSkeleton';
 import { useTheme } from '../theme/ThemeProvider';
 
 // THE PHONE'S DataTable (MOBILE_CONVENTIONS M11): presentational, never
@@ -39,6 +41,51 @@ import { useTheme } from '../theme/ThemeProvider';
 // Every state scrolls and takes pull-to-refresh, so a list that came back
 // empty or failed can be asked again the same way (feat/ui-refresh) — except
 // the first load, which has nothing to pull yet.
+//
+// LOADING IS TWO THINGS SINCE BUILD 2 (feat/dashboards-look, 2026-10-07):
+//
+//   NOTHING ON SCREEN gets the SKELETON (components/Skeleton.jsx): three
+//   card-shaped blocks, the list's own cards' frame, painted after 300 ms
+//   (hooks/useSkeleton.js) — as the list's empty content, so the header and
+//   its filters stay the same mounted element.
+//
+//   ROWS ON SCREEN — a re-read, a pull, or a filter applied while the old
+//   rows are still there — KEEPS THEM, and makes them safe. The list always
+//   kept its rows; until build 2 they stayed PRESSABLE while the next answer
+//   was on its way, so a card for a student the new filter had already left
+//   out could still be opened (the owner's question, answered yes). Now each
+//   card and the footer take no touches and are hidden from the screen reader
+//   while the list loads, and after the same 300 ms they are greyed, so a
+//   slow re-read is seen. The header is NOT made inert: its filters must
+//   stay usable while the list loads.
+//
+// THE LIST CANNOT TELL A RE-READ OF THE SAME QUERY FROM A NEW QUERY — a
+// screen hands it rows and `loading`, never its filters. So on a new query
+// the PREVIOUS rows stay, greyed and untouchable, until the new ones land;
+// the skeleton on a query change waits for a `queryKey` from every screen
+// (deferred with skeleton tier 2, owner, 2026-10-07; KNOWN_ISSUES).
+const SKELETON_CARDS = ['w-2/3', 'w-1/2', 'w-3/4'];
+const BUSY_DIM = { opacity: 0.6 };
+
+function ListSkeleton({ phase }) {
+  return (
+    <Skeleton phase={phase}>
+      <View className="gap-3">
+        {SKELETON_CARDS.map((w) => (
+          <View key={w} className={`${cardClass} p-4`}>
+            <View className="h-6 justify-center">
+              <SkeletonBar className={`h-3.5 ${w}`} />
+            </View>
+            <View className="mt-0.5 h-5 justify-center">
+              <SkeletonBar className="h-3 w-1/2" />
+            </View>
+          </View>
+        ))}
+      </View>
+    </Skeleton>
+  );
+}
+
 export default function DataList({
   rows,
   keyField = 'id',
@@ -58,13 +105,25 @@ export default function DataList({
 }) {
   const { tokens } = useTheme();
   const firstLoad = loading && !rows.length;
+  // Rows on screen while the list loads: kept, untouchable, greyed after 300 ms.
+  const busy = loading && rows.length > 0;
+  const skeleton = useSkeleton(firstLoad);
+  const dimmed = useSkeleton(busy) === 'skeleton';
   const pull =
     onRefresh && !firstLoad ? (
       <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />
     ) : undefined;
+  // What makes a kept row safe: no touches, out of the screen reader's reach
+  // (the phone's `inert`), and greyed once the read has taken 300 ms.
+  const keep = {
+    pointerEvents: busy ? 'none' : 'auto',
+    importantForAccessibility: busy ? 'no-hide-descendants' : 'auto',
+    accessibilityElementsHidden: busy,
+    style: dimmed ? BUSY_DIM : undefined,
+  };
 
   let emptyContent;
-  if (firstLoad) emptyContent = <LoadingSpinner className="py-12" />;
+  if (firstLoad) emptyContent = <ListSkeleton phase={skeleton} />;
   else if (error) emptyContent = <ErrorAlert message={error} onRetry={onRetry} />;
   else emptyContent = <EmptyState icon={empty.icon} title={empty.title} message={empty.message} action={empty.action} />;
 
@@ -79,17 +138,24 @@ export default function DataList({
     ) : null;
   const footer =
     footerError || footerMore ? (
-      <View className="mt-4 gap-3">
+      <View className="mt-4 gap-3" {...keep}>
         {footerError}
         {footerMore}
       </View>
     ) : null;
 
+  // `extraData`: a row's own data does not change when the list starts or
+  // stops loading, so FlatList is told to re-render its cells then.
   return (
     <FlatList
       data={rows}
+      extraData={busy ? (dimmed ? 'dimmed' : 'busy') : 'idle'}
       keyExtractor={(row, index) => String(row?.[keyField] ?? index)}
-      renderItem={({ item }) => <RecordCard card={renderCard(item)} />}
+      renderItem={({ item }) => (
+        <View {...keep}>
+          <RecordCard card={renderCard(item)} />
+        </View>
+      )}
       ItemSeparatorComponent={() => <View className="h-3" />}
       ListHeaderComponent={header}
       ListEmptyComponent={emptyContent}

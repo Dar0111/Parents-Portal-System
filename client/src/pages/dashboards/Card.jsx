@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import Skeleton, { SkeletonBar } from '../../components/Skeleton';
+import { useSkeleton } from '../../hooks/useSkeleton';
 
 // The dashboard card (DB2, 2026-09-19). Local to pages/dashboards/ on
 // purpose (Darryl, Q5): it is used ~17 times by three files and nowhere
@@ -60,11 +61,87 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 // header. The admin grid says `items-start`, so there a card takes its
 // CONTENT height; the parent and teacher grids stretch each row (Darryl,
 // 2026-09-30).
+//
+// LOADING AND RE-READING (build 2, feat/dashboards-look, 2026-10-07). The two
+// flags are useCard's and mean different things (decision 1):
+//   `loading` — nothing of this card's query is on screen: its SKELETON, in
+//     the shape of what will arrive (`skeleton`: a figure, the bigger lead
+//     figure, a figure over a short list, or the System card's facts), after
+//     300 ms, with the height reserved from the first frame (Skeleton.jsx).
+//   `refreshing` — the same query read again over its answer: the answer
+//     STAYS, `aria-busy` and inert, so nothing stale inside it can be pressed
+//     while the new one is fetched. The card's own link is not stale — it
+//     opens the same page either way — so it is not part of that.
+const SKELETON_SHAPES = {
+  // Stat: a `text-xl` figure (28px line) over a `text-sm` caption.
+  figure: (
+    <>
+      <div className="flex h-7 items-center">
+        <SkeletonBar className="h-5 w-16" />
+      </div>
+      <div className="mt-1 flex h-5 items-center">
+        <SkeletonBar className="h-3 w-2/3" />
+      </div>
+    </>
+  ),
+  // Stat `large`: the `text-2xl` lead (32px line).
+  lead: (
+    <>
+      <div className="flex h-8 items-center">
+        <SkeletonBar className="h-6 w-16" />
+      </div>
+      <div className="mt-1 flex h-5 items-center">
+        <SkeletonBar className="h-3 w-2/3" />
+      </div>
+    </>
+  ),
+  // A figure over a short list under a hairline (My classes, events, posts).
+  list: (
+    <>
+      <div className="flex h-7 items-center">
+        <SkeletonBar className="h-5 w-24" />
+      </div>
+      <div className="mt-1 flex h-5 items-center">
+        <SkeletonBar className="h-3 w-1/2" />
+      </div>
+      <div className="mt-3 space-y-2 border-t border-edge-soft pt-3">
+        {['w-3/4', 'w-2/3', 'w-1/2'].map((w) => (
+          <div key={w} className="flex h-5 items-center">
+            <SkeletonBar className={`h-3 ${w}`} />
+          </div>
+        ))}
+      </div>
+    </>
+  ),
+  // The admin System card: the backup line, then four label-over-value facts.
+  facts: (
+    <>
+      <div className="flex h-5 items-center">
+        <SkeletonBar className="h-3.5 w-40" />
+      </div>
+      <div className="mt-3 grid gap-x-6 gap-y-4 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+        {['w-20', 'w-16', 'w-28', 'w-20'].map((w, i) => (
+          <div key={i}>
+            <div className="flex h-4 items-center">
+              <SkeletonBar className="h-2.5 w-24" />
+            </div>
+            <div className="mt-0.5 flex h-5 items-center">
+              <SkeletonBar className={`h-3 ${w}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  ),
+};
+
 export default function Card({
   title,
   icon,
   to,
   loading = false,
+  refreshing = false,
+  skeleton = 'figure',
   error = null,
   onRetry = null,
   tone = 'default',
@@ -72,6 +149,7 @@ export default function Card({
   className = '',
   children,
 }) {
+  const phase = useSkeleton(loading);
   // `tone` colours the FRAME, never a verdict (§4). It says "this needs
   // attention", not "this is bad" — amber for a queue with something in it.
   //
@@ -133,11 +211,9 @@ export default function Card({
         </h2>
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1" aria-busy={refreshing || undefined} inert={refreshing || undefined}>
         {loading ? (
-          <div className="py-4">
-            <LoadingSpinner />
-          </div>
+          <Skeleton phase={phase}>{SKELETON_SHAPES[skeleton] || SKELETON_SHAPES.figure}</Skeleton>
         ) : error ? (
           <ErrorAlert message={error} onRetry={onRetry} />
         ) : (

@@ -29,12 +29,16 @@ export default function Header({ title, onOpenMenu, drawerOpen = false }) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-edge bg-surface px-4 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
-        {/* 44px square: the one way into the nav on a phone. */}
+        {/* 44px square: the one way into the nav on a phone. It opens a
+            modal dialog (Shell.jsx's Drawer, since build 2), and says so:
+            `aria-haspopup="dialog"`, and `aria-expanded` while it is open. */}
         <Button
           variant="secondary"
           size="icon"
           icon="fa-bars"
           aria-label="Open menu"
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen}
           onClick={onOpenMenu}
           className="md:hidden"
         />

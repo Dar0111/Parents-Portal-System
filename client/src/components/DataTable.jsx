@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import Avatar from './Avatar';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
-import LoadingSpinner from './LoadingSpinner';
+import Skeleton, { SkeletonBar } from './Skeleton';
 import StatusBadge from './StatusBadge';
 import { buttonClass, cardClass } from './buttonClass';
+import { useSkeleton } from '../hooks/useSkeleton';
 
 // Presentational only — it never fetches. The page owns the request and hands
 // down rows/loading/error, so the same table renders a roster, a grade list,
@@ -35,6 +36,27 @@ import { buttonClass, cardClass } from './buttonClass';
 // Loading / error / empty are rendered INSIDE the table frame rather than left
 // to the page, so no page has to re-implement the three-state dance and none
 // of them can quietly disagree about what "no rows" looks like.
+//
+// LOADING IS TWO THINGS SINCE BUILD 2 (feat/dashboards-look, 2026-10-07):
+//
+//   NOTHING ON SCREEN — the first load, a page the page itself cleared, C7's
+//   stale page — gets the SKELETON (components/Skeleton.jsx): the real header
+//   labels over five placeholder rows (three cards below `sm` when the page
+//   has cards), in this same frame, painted after 300 ms (hooks/useSkeleton).
+//
+//   ROWS ON SCREEN — a re-read — KEEPS THE ROWS, and makes them safe: the
+//   frame is `aria-busy` and `inert`, so a stale lock, mark or approve button
+//   cannot be pressed or reached by Tab while the new rows are on their way,
+//   and after the same 300 ms the rows are greyed so a slow re-read is seen.
+//   It used to swap them for a spinner, which jumped the page every time.
+//
+// THE TABLE CANNOT TELL A RE-READ OF THE SAME QUERY FROM A NEW QUERY — it is
+// handed rows and `loading`, never the filters, the learner, the class or the
+// day. So on a new query the PREVIOUS rows stay, greyed and inert, until the
+// new ones land; the skeleton on a query change needs each page to say which
+// query it shows (a `queryKey` prop, 36 consumers) and is deferred to its own
+// dispatch with skeleton tier 2 (owner, 2026-10-07; KNOWN_ISSUES). A page that
+// clears its rows on a query change gets the skeleton already.
 //
 // ---------------------------------------------------------------------------
 // CARD LAYOUT BELOW `sm` (DV1, 2026-09-20) — opt-in via `renderCard`
@@ -158,6 +180,78 @@ const CARD_SHELL_END = 'last:rounded-b-xl';
 const CARD_INTERACTIVE =
   'transition hover:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent';
 
+// THE SKELETON'S SHAPE (build 2): the table it stands in for — the real
+// column headers, at the sortable header's 44px, over five rows whose bars sit
+// in the same 48px a row of text takes — and, for a page with cards, three
+// card-shaped blocks below `sm`, title and subtitle. The pager's strip is
+// there when the table is paged, so the frame is its finished height.
+const SKELETON_ROWS = 5;
+const SKELETON_CARDS = 3;
+const SKELETON_WIDTHS = ['w-3/4', 'w-1/2', 'w-2/3', 'w-1/3', 'w-5/6'];
+
+function TableSkeleton({ phase, columns, cards, paged }) {
+  return (
+    <Skeleton phase={phase}>
+      {cards ? (
+        <div className="sm:hidden">
+          {Array.from({ length: SKELETON_CARDS }, (_, i) => (
+            <div key={i} className="border-b border-edge-soft px-4 py-3.5 last:border-0">
+              <div className="flex h-6 items-center">
+                <SkeletonBar className={`h-3.5 ${SKELETON_WIDTHS[i % SKELETON_WIDTHS.length]}`} />
+              </div>
+              <div className="mt-0.5 flex h-5 items-center">
+                <SkeletonBar className="h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className={`overflow-x-auto ${cards ? 'hidden sm:block' : ''}`}>
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-edge">
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  scope="col"
+                  style={column.width ? { width: column.width } : undefined}
+                  className={`h-11 whitespace-nowrap bg-surface-subtle px-4 text-xs font-semibold uppercase tracking-wider text-fg-muted first:rounded-tl-xl last:rounded-tr-xl ${
+                    ALIGN[column.align] || ALIGN.left
+                  }`}
+                >
+                  {column.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: SKELETON_ROWS }, (_, row) => (
+              <tr key={row} className="border-b border-edge-soft last:border-0">
+                {columns.map((column, col) => (
+                  <td key={column.key} className="px-4 py-3.5">
+                    <div className={`flex h-5 items-center ${JUSTIFY[column.align] || JUSTIFY.left}`}>
+                      <SkeletonBar className={`h-3 ${SKELETON_WIDTHS[(row + col) % SKELETON_WIDTHS.length]}`} />
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {paged ? (
+        <div className="flex items-center justify-between gap-3 rounded-b-xl border-t border-edge bg-surface-subtle px-4 py-2.5">
+          <SkeletonBar className="h-3 w-32" />
+          <span className="flex gap-2">
+            <SkeletonBar round="rounded-lg" className="h-9 w-24" />
+            <SkeletonBar round="rounded-lg" className="h-9 w-20" />
+          </span>
+        </div>
+      ) : null}
+    </Skeleton>
+  );
+}
+
 function Card({ card, roundEnd }) {
   const shell = roundEnd ? `${CARD_SHELL} ${CARD_SHELL_END}` : CARD_SHELL;
 
@@ -274,6 +368,14 @@ export default function DataTable({
     if (pageIsStale && onPageChange) onPageChange(lastPageOffset(page));
   }, [pageIsStale, onPageChange, page]);
 
+  // BUILD 2 — see the header comment. `kept`: a re-read with rows on screen,
+  // which stay (inert, busy, greyed after 300 ms). `waiting`: nothing of the
+  // list on screen, which gets the skeleton after 300 ms.
+  const kept = loading && sortedRows.length > 0;
+  const waiting = (loading && !kept) || pageIsStale;
+  const skeleton = useSkeleton(waiting);
+  const dimmed = useSkeleton(kept) === 'skeleton';
+
   function nextSort(current, column) {
     if (current?.key !== column.key) return { key: column.key, dir: 'asc' };
     if (current.dir === 'asc') return { key: column.key, dir: 'desc' };
@@ -323,10 +425,10 @@ export default function DataTable({
     );
   }
 
-  if (loading || pageIsStale) {
+  if (waiting) {
     return (
       <div className={frame}>
-        <LoadingSpinner className="py-12" />
+        <TableSkeleton phase={skeleton} columns={columns} cards={Boolean(renderCard)} paged={paged} />
       </div>
     );
   }
@@ -351,8 +453,14 @@ export default function DataTable({
 
   const cards = renderCard ? sortedRows.map((row, index) => ({ key: row[keyField] ?? index, card: renderCard(row) })) : null;
 
+  // A re-read keeps the rows (`kept`): busy and inert at once — nothing in the
+  // frame can be pressed or focused — and greyed once it has taken 300 ms.
   return (
-    <div className={frame}>
+    <div
+      className={dimmed ? `${frame} opacity-60` : frame}
+      aria-busy={kept || undefined}
+      inert={kept || undefined}
+    >
       {cards ? <div className="sm:hidden">{cards.map(({ key, card }) => <Card key={key} card={card} roundEnd={!paged} />)}</div> : null}
 
       {/* ---------------------------------------------------------------

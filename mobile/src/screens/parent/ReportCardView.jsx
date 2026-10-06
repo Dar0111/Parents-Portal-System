@@ -4,12 +4,13 @@ import api from '../../api/client';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import Segmented from '../../components/Segmented';
+import Skeleton, { SkeletonBar } from '../../components/Skeleton';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
+import { useSkeleton } from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
 import { DESCRIPTIVE_LEGEND, NUMERICAL_LEGEND, SEGMENTS, finalCell, initialSegment, readingNoteLines, showGeneralAverage, statusLine, termStatuses } from './reportCard/logic';
@@ -72,8 +73,56 @@ function Legend({ mode }) {
   );
 }
 
+// THE CARD'S SKELETON (build 2, feat/dashboards-look, 2026-10-07), the web's
+// shape on one column: under the real title band, the learner's line and the
+// class / adviser pair, the term picker's track, one name-and-value bar pair
+// per learning area at the row's 48dp, and the general-average box — which a
+// Key Stage 1 card does not have, when the mode is already known. It replaces
+// the spinner whenever the card loads; painted after 300 ms (useSkeleton).
+const SKELETON_SUBJECTS = ['w-2/5', 'w-1/3', 'w-1/2', 'w-2/5', 'w-1/4', 'w-1/3'];
+
+function Fact({ width = 'w-3/4' }) {
+  return (
+    <View className="min-w-0 flex-1">
+      <View className="h-4 justify-center">
+        <SkeletonBar className="h-2.5 w-16" />
+      </View>
+      <View className="mt-0.5 h-5 justify-center">
+        <SkeletonBar className={`h-3 ${width}`} />
+      </View>
+    </View>
+  );
+}
+
+function ReportSkeleton({ phase, mode }) {
+  return (
+    <Skeleton phase={phase}>
+      <View className="gap-3 border-b border-edge px-4 py-4">
+        <Fact width="w-1/2" />
+        <View className="flex-row gap-4">
+          <Fact />
+          <Fact />
+        </View>
+      </View>
+      <View className="p-4">
+        <SkeletonBar round="rounded-lg" className="h-12 w-full" />
+        <View className="mt-3">
+          {SKELETON_SUBJECTS.map((w, i) => (
+            <View key={i} className="flex-row items-center justify-between gap-3 border-b border-edge-soft" style={{ minHeight: 48 }}>
+              <SkeletonBar className={`h-3 ${w}`} />
+              <SkeletonBar className="h-3 w-12" />
+            </View>
+          ))}
+        </View>
+        {mode !== 'descriptive' ? <SkeletonBar round="rounded-xl" className="mt-4 h-12 w-full" /> : null}
+      </View>
+    </Skeleton>
+  );
+}
+
 export default function ReportCardView({ report, loading, error, onRetry, empty, onOpenTerm = null }) {
   const { tokens } = useTheme();
+  const skeleton = useSkeleton(Boolean(loading) && !error);
   const [schoolName, setSchoolName] = useState(null);
   const [adviser, setAdviser] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -162,7 +211,7 @@ export default function ReportCardView({ report, loading, error, onRetry, empty,
 
   let body;
   if (error) body = <View className="p-4"><ErrorAlert message={error} onRetry={onRetry} /></View>;
-  else if (loading) body = <LoadingSpinner className="py-12" />;
+  else if (loading) body = <ReportSkeleton phase={skeleton} mode={report?.grading_mode} />;
   else if (!report || !subjects.length) body = <EmptyState icon={empty.icon} title={empty.title} message={empty.message} />;
   else {
     body = (

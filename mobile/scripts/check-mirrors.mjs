@@ -59,6 +59,8 @@ export const PAIRS = [
   ['src/drafts/draftCore.js', 'drafts/draftCore.js'],
   // build 1 fix round — the newest reply wins (UnreadProvider's re-read).
   ['src/api/tickets.js', 'api/tickets.js'],
+  // build 2 (feat/dashboards-look) — when a skeleton shows: 300 ms, no minimum.
+  ['src/hooks/useSkeleton.js', 'hooks/useSkeleton.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

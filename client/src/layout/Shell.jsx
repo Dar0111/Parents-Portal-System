@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
@@ -330,19 +330,49 @@ export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
 // nothing waits on the tween. CLOSING IS NOT ANIMATED: the drawer unmounts,
 // which is faster than any exit (motion.js).
 //
-// The panel is a bare <aside>, like the sidebar, on purpose — the print rules
-// hide `aside` and `header` by element name.
+// A MODAL DIALOG SINCE BUILD 2 (feat/dashboards-look, 2026-10-07, the owner's
+// decision 2): the panel is `<div role="dialog" aria-modal="true"
+// aria-label="Menu">`, because that is what it is — it sits over the page,
+// holds the focus and closes on Escape — and a screen reader now hears that
+// the page behind it is out of reach. It was a bare <aside>, which the print
+// rules hide by element name; `role="dialog"` is not allowed on an <aside>,
+// so the div carries `print:hidden` instead (the wrapper too, so the backdrop
+// cannot print either). The menu button says `aria-haspopup="dialog"` and
+// `aria-expanded` (Header.jsx).
 //
 // FOCUS STAYS INSIDE (feat/look-fixes, 2026-10-05): the panel takes focus once
 // per opening — the drawer mounts when it opens, so `active` is simply true
 // for its life — Tab wraps inside it, Escape closes it as its close button
 // does, and focus goes back to the menu button when it closes
-// (components/focusTrap.js). The <aside> is named "Menu" (`aria-label`; its
-// own complementary role carries the name).
+// (components/focusTrap.js).
+//
+// IT CLOSES WHEN THE WINDOW REACHES `md` (build 2, the second drawer defect).
+// From 768px up the drawer is `md:hidden` — gone from the screen — but it was
+// still mounted, so its focus trap kept every Tab inside a panel nobody could
+// see, and focus fell out of the page. The media query is the same 48rem as
+// Tailwind's `md` (a media query's rem is the browser's 16px, not the root's,
+// so Large text does not move it). Only a CHANGE is listened for: the menu
+// button that opens the drawer is itself `md:hidden`, so it opens below `md`.
+const DRAWER_GONE = '(min-width: 48rem)';
+
 function Drawer({ onClose, children }) {
   const backdropRef = useRef(null);
   const panelRef = useRef(null);
   useFocusTrap(panelRef, true, { onEscape: onClose });
+
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const wide = window.matchMedia(DRAWER_GONE);
+    const onChange = () => {
+      if (wide.matches) closeRef.current();
+    };
+    wide.addEventListener('change', onChange);
+    return () => wide.removeEventListener('change', onChange);
+  }, []);
 
   useGSAP(() => {
     const backdrop = backdropRef.current;
@@ -356,16 +386,18 @@ function Drawer({ onClose, children }) {
   });
 
   return (
-    <div className="fixed inset-0 z-40 md:hidden">
+    <div className="fixed inset-0 z-40 md:hidden print:hidden">
       <div ref={backdropRef} className="absolute inset-0 bg-backdrop" onClick={onClose} />
-      <aside
+      <div
         ref={panelRef}
-        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
         aria-label="Menu"
-        className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-surface shadow-xl outline-none"
+        tabIndex={-1}
+        className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-surface shadow-xl outline-none print:hidden"
       >
         {children}
-      </aside>
+      </div>
     </div>
   );
 }
@@ -516,6 +548,19 @@ function ShellChrome() {
       logout();
       navigate('/login', { replace: true });
     });
+  }
+
+  // LOG OUT FROM THE OPEN DRAWER CLOSES THE DRAWER FIRST (build 2, the first
+  // drawer defect). With unsaved work, requestLeave opens the page's "Leave
+  // without saving?" dialog — and with the drawer still open that put TWO
+  // focus traps on the page at once, the drawer's and the dialog's, each
+  // wrapping Tab inside its own panel, and Escape closed both. The drawer is
+  // closed in the same click, so only the dialog is left; React runs the
+  // drawer's cleanup (focus back to the menu button) before the dialog's
+  // trap starts, so Stay returns focus to the menu button.
+  function handleDrawerLogout() {
+    closeDrawer();
+    handleLogout();
   }
 
   // GROUPED (feat/ui-polish, 2026-09-30): Dashboard on top, the role's groups
@@ -685,7 +730,7 @@ function ShellChrome() {
             {navBody(false, true)}
           </div>
           {pinned(false)}
-          <UserCard user={user} onLogout={handleLogout} onNavigate={closeDrawer} />
+          <UserCard user={user} onLogout={handleDrawerLogout} onNavigate={closeDrawer} />
         </Drawer>
       ) : null}
 

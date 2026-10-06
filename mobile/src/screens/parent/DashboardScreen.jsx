@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
@@ -353,21 +353,32 @@ export default function DashboardScreen({ navigation }) {
       reload();
   }, [summary.reload, section.reload, month.reload, allTime.reload, letter.reload, posts.reload, events.reload, card.reload, week.reload, latestMessage.reload]);
   const firstFocus = useRef(true);
+  // A PULL SHOWS THE NATIVE REFRESH INDICATOR WHILE THE CARDS RE-READ (build
+  // 2, decision 6): a re-read keeps each card's answer on screen, so the
+  // indicator is what says the pull was heard. A focus re-read clears
+  // `pulled`, so it stays quiet.
+  const [pulled, setPulled] = useState(false);
+  const onPull = useCallback(() => {
+    setPulled(true);
+    reloadAll();
+  }, [reloadAll]);
   useFocusEffect(
     useCallback(() => {
       if (firstFocus.current) {
         firstFocus.current = false;
         return;
       }
+      setPulled(false);
       reloadAll();
     }, [reloadAll])
   );
+  const rereading = [summary, section, month, allTime, letter, posts, events, card, week, latestMessage].some((c) => c.refreshing);
 
   return (
     <ScrollView
       className="flex-1 bg-page"
       contentContainerClassName="gap-4 p-4 pb-10"
-      refreshControl={<RefreshControl refreshing={false} onRefresh={reloadAll} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+      refreshControl={<RefreshControl refreshing={pulled && rereading} onRefresh={onPull} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
       <Text className="text-sm text-fg-body">
         {user?.name ? `Good day, ${user.name}.` : 'Good day.'} Here is how {childName(user) || 'your child'} is doing.
@@ -385,7 +396,9 @@ export default function DashboardScreen({ navigation }) {
           title="Grades"
           icon="fa-chart-simple"
           onOpen={() => navigation.navigate('/parent/grades')}
+          skeleton="list"
           loading={summary.loading}
+          refreshing={summary.refreshing || card.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -420,7 +433,9 @@ export default function DashboardScreen({ navigation }) {
           title="Attendance"
           icon="fa-clipboard-user"
           onOpen={() => navigation.navigate('/parent/attendance')}
+          skeleton="lead"
           loading={month.loading || allTime.loading}
+          refreshing={month.refreshing || allTime.refreshing || week.refreshing}
           error={month.error || allTime.error}
           onRetry={() => {
             month.reload();
@@ -468,6 +483,7 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-comments"
           onOpen={() => navigation.navigate('/parent/messages')}
           loading={latestMessage.loading}
+          refreshing={latestMessage.refreshing}
           error={latestMessage.error}
           onRetry={latestMessage.reload}
         >
@@ -491,6 +507,7 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-envelope-open-text"
           onOpen={() => navigation.navigate('/parent/excuse-letters')}
           loading={letter.loading}
+          refreshing={letter.refreshing}
           error={letter.error}
           onRetry={letter.reload}
         >
@@ -513,7 +530,9 @@ export default function DashboardScreen({ navigation }) {
           title="Announcements & memos"
           icon="fa-bullhorn"
           onOpen={() => navigation.navigate('/parent/announcements')}
+          skeleton="list"
           loading={posts.loading}
+          refreshing={posts.refreshing}
           error={posts.error}
           onRetry={posts.reload}
         >
@@ -546,7 +565,9 @@ export default function DashboardScreen({ navigation }) {
           title="Upcoming events"
           icon="fa-calendar-days"
           onOpen={() => navigation.navigate('/parent/events')}
+          skeleton="list"
           loading={events.loading}
+          refreshing={events.refreshing}
           error={events.error}
           onRetry={events.reload}
         >

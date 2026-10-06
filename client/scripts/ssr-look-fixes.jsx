@@ -30,6 +30,11 @@
 // the list scrolls itself, never the page — each thread page with a negative
 // control (source).
 //
+// BUILD 2 (feat/dashboards-look, 2026-10-07) turns the drawer's <aside>
+// assertion into the modal dialog's, and adds the two drawer defects — closed
+// on crossing `md`, and Log out from the drawer closing it before it asks —
+// each with a negative control, and the menu button's two attributes (source).
+//
 // WHAT IT CANNOT: a real Tab or Escape press, focus returning to the opener,
 // the spinner not blinking while a message arrives, the badge after a real
 // race, the look itself, where the cue actually wraps at a given width, a
@@ -84,10 +89,35 @@ assert(/const opener = document\.activeElement;[\s\S]*container\.focus\(\);/.tes
 assert(/useFocusTrap\(panelRef, open\);/.test(modal), 'Modal calls it with `open`');
 assert(!/panelRef\.current\?\.focus\(\)/.test(modal), "Modal's own effect no longer focuses the panel (the trap does, once, after taking the opener)");
 assert(/\}, \[open\]\);/.test(modal), "Modal's Escape/scroll-lock effect still depends on `open` only");
-const drawer = shell.slice(shell.indexOf('function Drawer('), shell.indexOf('function Drawer(') + 2500);
+const drawer = shell.slice(shell.indexOf('function Drawer('), shell.indexOf('\nexport default function Shell('));
 assert(/useFocusTrap\(panelRef, true, \{ onEscape: onClose \}\);/.test(drawer), 'the web drawer calls it, and Escape closes the drawer as its close button does');
-assert(/tabIndex=\{-1\}/.test(drawer) && /aria-label="Menu"/.test(drawer) && /<aside/.test(drawer), 'the drawer panel takes focus (tabIndex -1) and is named "Menu" on its <aside>');
+// Build 2 (feat/dashboards-look, 2026-10-07, decision 2): the panel is a
+// modal dialog, not an <aside> — and it still never prints.
+const DIALOG = /<div\s+ref=\{panelRef\}\s+role="dialog"\s+aria-modal="true"\s+aria-label="Menu"\s+tabIndex=\{-1\}\s+className="[^"]*\bprint:hidden\b[^"]*"/;
+assert(DIALOG.test(drawer) && !/<aside/.test(drawer), 'the drawer panel is <div role="dialog" aria-modal="true" aria-label="Menu">, takes focus (tabIndex -1), and is print:hidden — no <aside> left in the Drawer');
+assert(/<div className="fixed inset-0 z-40 md:hidden print:hidden">/.test(drawer), '…and its wrapper is print:hidden too, so the backdrop never prints');
+assert(!DIALOG.test(drawer.replace('aria-modal="true"', '')), 'NEGATIVE CONTROL: without aria-modal the dialog assertion fails');
 assert(/event\.key === 'Escape' && escapeRef\.current/.test(trap) && /escapeRef\.current = onEscape;/.test(trap), 'onEscape is read through a ref, so a new close function never re-runs the trap');
+
+console.log('The drawer defects (build 2, decision 4) — source');
+// Defect 2: the drawer kept trapping Tab after the window crossed `md`.
+assert(/const DRAWER_GONE = '\(min-width: 48rem\)';/.test(shell), "the drawer's \"gone\" query is 48rem — Tailwind's `md`, in the browser's rem");
+assert(
+  /const wide = window\.matchMedia\(DRAWER_GONE\);[\s\S]*?if \(wide\.matches\) closeRef\.current\(\);[\s\S]*?wide\.addEventListener\('change', onChange\);[\s\S]*?return \(\) => wide\.removeEventListener\('change', onChange\);/.test(drawer),
+  'crossing `md` closes the drawer (its trap goes with it), and the listener is removed when it closes'
+);
+assert(/closeRef\.current = onClose;/.test(drawer), '…through a ref, so a new close function every render never re-adds the listener');
+// Defect 1: Log out from the open drawer left two focus traps active.
+const DRAWER_LOGOUT = /function handleDrawerLogout\(\) \{\n\s+closeDrawer\(\);\n\s+handleLogout\(\);\n\s+\}/;
+assert(DRAWER_LOGOUT.test(shell), 'Log out from the drawer closes the drawer FIRST, then asks (requestLeave) — one trap, the dialog’s');
+assert(!DRAWER_LOGOUT.test(shell.replace(/(function handleDrawerLogout\(\) \{\n\s+)closeDrawer\(\);\n\s+/, '$1')), 'NEGATIVE CONTROL: without the closeDrawer() line the assertion fails');
+assert(
+  /<UserCard user=\{user\} onLogout=\{handleDrawerLogout\} onNavigate=\{closeDrawer\} \/>/.test(shell) &&
+    /<UserCard user=\{user\} collapsed=\{collapsed\} onLogout=\{handleLogout\} \/>/.test(shell),
+  "the drawer's user card uses it; the sidebar's keeps the plain handleLogout (no drawer to close)"
+);
+const header = src('src/layout/Header.jsx');
+assert(/aria-label="Open menu"\s+aria-haspopup="dialog"\s+aria-expanded=\{drawerOpen\}/.test(header), 'the menu button says aria-haspopup="dialog" and aria-expanded while the drawer is open');
 
 console.log('Latest reply wins — two fake loads out of order (pure)');
 {

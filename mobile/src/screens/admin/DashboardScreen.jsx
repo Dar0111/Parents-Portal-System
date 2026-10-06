@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
@@ -58,15 +58,27 @@ export default function DashboardScreen({ navigation }) {
   // 2026-09-30; the parent and teacher dashboards' pattern since P1). Every
   // later focus re-fetches (M14).
   const firstFocus = useRef(true);
+  // A PULL SHOWS THE NATIVE REFRESH INDICATOR WHILE THE CARDS RE-READ (build
+  // 2, decision 6). Since build 2 a re-read keeps every card's answer on
+  // screen (useCard `refreshing`), so without this a pull showed nothing at
+  // all. `pulled` says the re-read is the pull's; a focus re-read clears it,
+  // so its quiet re-read never shows the indicator.
+  const [pulled, setPulled] = useState(false);
+  const onPull = useCallback(() => {
+    setPulled(true);
+    reloadAll();
+  }, [reloadAll]);
   useFocusEffect(
     useCallback(() => {
       if (firstFocus.current) {
         firstFocus.current = false;
         return;
       }
+      setPulled(false);
       reloadAll();
     }, [reloadAll])
   );
+  const rereading = summary.refreshing || backups.refreshing;
 
   const d = summary.data;
   const pending = d?.pending_parents ?? 0;
@@ -89,7 +101,7 @@ export default function DashboardScreen({ navigation }) {
     <ScrollView
       className="flex-1 bg-page"
       contentContainerClassName="gap-4 p-4 pb-10"
-      refreshControl={<RefreshControl refreshing={false} onRefresh={reloadAll} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+      refreshControl={<RefreshControl refreshing={pulled && rereading} onRefresh={onPull} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
       {/* The hero and the five cards arrive one after another (Reveal), once,
           on mount; the cards all exist from the first render — each owns its
@@ -132,7 +144,9 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-user-clock"
           onOpen={open('pending')}
           tone={pendingTone(pending)}
+          skeleton="lead"
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -145,6 +159,7 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-user-graduate"
           onOpen={open('students')}
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -157,6 +172,7 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-chalkboard-user"
           onOpen={open('teachers')}
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -169,6 +185,7 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-users"
           onOpen={open('parents')}
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -180,7 +197,9 @@ export default function DashboardScreen({ navigation }) {
           title="System"
           icon="fa-server"
           onOpen={open('system')}
+          skeleton="facts"
           loading={summary.loading}
+          refreshing={summary.refreshing || backups.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >

@@ -48,7 +48,10 @@ function openIfBuilt(navigation, path) {
 const BANNER_FRAME = 'rounded-xl border px-4 py-3';
 
 // `tick` is the dashboard's reload count: the banner owns its card, so a
-// focus re-fetch or a pull reaches it by changing this dep, not by a ref.
+// focus re-fetch or a pull reaches it through this, not by a ref. It is
+// useCard's `refresh`, NOT a dep (build 2): a tick re-reads the SAME query, so
+// the banner keeps its answer on screen — busy, taking no touches — instead of
+// dropping back to "Checking…" on every return to the dashboard.
 function AttendanceBanner({ section, today, tick, navigation }) {
   const { tokens } = useTheme();
   const day = useCard(
@@ -56,7 +59,8 @@ function AttendanceBanner({ section, today, tick, navigation }) {
       api.get(`/attendance?grade_level=${section.grade_level}&section=${encodeURIComponent(section.name)}&date=${today}&limit=200`, {
         unwrap: 'attendance',
       }),
-    [section.id, today, tick]
+    [section.id, today],
+    { refresh: tick }
   );
   const className = `Grade ${section.grade_level} - ${section.name}`;
 
@@ -83,7 +87,11 @@ function AttendanceBanner({ section, today, tick, navigation }) {
   const success = state.tone === 'success';
   const open = openIfBuilt(navigation, '/teacher/attendance');
   return (
-    <View className={`${BANNER_FRAME} ${success ? 'border-success-edge bg-success-soft' : 'border-warning-edge bg-warning-soft'}`}>
+    <View
+      className={`${BANNER_FRAME} ${success ? 'border-success-edge bg-success-soft' : 'border-warning-edge bg-warning-soft'}`}
+      pointerEvents={day.refreshing ? 'none' : 'auto'}
+      accessibilityState={day.refreshing ? { busy: true } : undefined}
+    >
       <View className="flex-row items-start gap-3">
         {/* THE GLYPH SAYS WHAT THE COLOUR SAYS: a check once the register is
             complete, the clipboard while there is still something to mark —
@@ -172,21 +180,33 @@ export default function DashboardScreen({ navigation }) {
     setBannerTick((t) => t + 1);
   }, [summary.reload, sections.reload, pending.reload, events.reload]);
   const firstFocus = useRef(true);
+  // A PULL SHOWS THE NATIVE REFRESH INDICATOR WHILE THE CARDS RE-READ (build
+  // 2, decision 6): a re-read keeps each card's answer on screen, so the
+  // indicator is what says the pull was heard. A focus re-read clears
+  // `pulled`, so it stays quiet. The banners re-read on the same tick; the
+  // indicator follows the four cards.
+  const [pulled, setPulled] = useState(false);
+  const onPull = useCallback(() => {
+    setPulled(true);
+    reloadAll();
+  }, [reloadAll]);
   useFocusEffect(
     useCallback(() => {
       if (firstFocus.current) {
         firstFocus.current = false;
         return;
       }
+      setPulled(false);
       reloadAll();
     }, [reloadAll])
   );
+  const rereading = summary.refreshing || sections.refreshing || pending.refreshing || events.refreshing;
 
   return (
     <ScrollView
       className="flex-1 bg-page"
       contentContainerClassName="gap-4 p-4 pb-10"
-      refreshControl={<RefreshControl refreshing={false} onRefresh={reloadAll} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
+      refreshControl={<RefreshControl refreshing={pulled && rereading} onRefresh={onPull} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
       <Text className="text-sm text-fg-body">{user?.name ? `Good day, ${user.name}.` : 'Good day.'}</Text>
 
@@ -207,7 +227,9 @@ export default function DashboardScreen({ navigation }) {
           title="Excuse letters to review"
           icon="fa-envelope-open-text"
           onOpen={openIfBuilt(navigation, '/teacher/excuse-letters')}
+          skeleton="lead"
           loading={pending.loading}
+          refreshing={pending.refreshing}
           error={pending.error}
           onRetry={pending.reload}
           tone={pending.data?.page?.total > 0 ? 'warning' : 'default'}
@@ -222,6 +244,7 @@ export default function DashboardScreen({ navigation }) {
           icon="fa-chart-simple"
           onOpen={openIfBuilt(navigation, '/teacher/grades')}
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -248,7 +271,9 @@ export default function DashboardScreen({ navigation }) {
           title="My classes"
           icon="fa-users-rectangle"
           onOpen={openIfBuilt(navigation, '/teacher/grades')}
+          skeleton="list"
           loading={summary.loading}
+          refreshing={summary.refreshing}
           error={summary.error}
           onRetry={summary.reload}
         >
@@ -283,7 +308,9 @@ export default function DashboardScreen({ navigation }) {
           title="Upcoming events"
           icon="fa-calendar-days"
           onOpen={openIfBuilt(navigation, '/teacher/events')}
+          skeleton="list"
           loading={events.loading}
+          refreshing={events.refreshing}
           error={events.error}
           onRetry={events.reload}
         >
