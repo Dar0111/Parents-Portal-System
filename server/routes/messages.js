@@ -264,7 +264,7 @@ router.get('/contacts', authenticate, async (req, res) => {
          st.student_name,
          st.grade_level AS student_grade_level,
          st.section AS student_section,
-         subj.subject_names AS subject,
+         COALESCE(subj.subject_names, adv.adviser_label) AS subject,
          lm.body AS last_message,
          lm.created_at AS last_message_at,
          (SELECT COUNT(*) FROM messages m2
@@ -281,6 +281,21 @@ router.get('/contacts', authenticate, async (req, res) => {
          JOIN subjects sub ON sub.id = ta.subject_id
          GROUP BY ta.teacher_id
        ) subj ON subj.teacher_id = u.id AND u.role = 'teacher'
+       -- THE ADVISER LABEL (2026-10-06): a teacher with NO subject assignment
+       -- who advises a section is labelled "Adviser of Grade 5 - Masigasig"
+       -- in the subject's place — the teacher dashboard's chip, word for word
+       -- — so the pickers no longer show an adviser-only teacher bare. A
+       -- teacher with subjects keeps the subject list (COALESCE above); one
+       -- with neither stays NULL. Matched on sections.adviser_id alone, as the
+       -- teacher view scope is (utils/teacherScope.js).
+       LEFT JOIN (
+         SELECT sec.adviser_id,
+                GROUP_CONCAT(CONCAT('Adviser of Grade ', sec.grade_level, ' - ', sec.name)
+                             ORDER BY sec.grade_level, sec.name SEPARATOR ', ') AS adviser_label
+         FROM sections sec
+         WHERE sec.adviser_id IS NOT NULL
+         GROUP BY sec.adviser_id
+       ) adv ON adv.adviser_id = u.id AND u.role = 'teacher'
        LEFT JOIN (
          SELECT
            CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END AS other_user_id,

@@ -647,6 +647,28 @@ async function run() {
       'Contacts never include the caller themselves'
     );
 
+    // THE ADVISER LABEL (2026-10-06): a teacher with NO subject assignment who
+    // advises a section is labelled "Adviser of <section>" in the subject's
+    // place (the teacher dashboard's chip); a teacher with subjects keeps the
+    // subject list — teacher1 advises a section AND teaches, so it is the
+    // control. The adviser is the seeded adviser-only account (Grade 5 -
+    // Masigasig, zero assignments), signed in above.
+    const adviserUserId = adviserLogin.data?.user?.id;
+    const adviserRow = adminContactRows.find((c) => c.id === adviserUserId);
+    assert(
+      Number.isInteger(adviserUserId) && adviserRow?.subject === 'Adviser of Grade 5 - Masigasig',
+      'An adviser with no subjects is labelled "Adviser of Grade 5 - Masigasig" where the subject list would be',
+      `got ${JSON.stringify(adviserRow?.subject)}`
+    );
+    const subjectTeacherRow = adminContactRows.find((c) => c.id === teacher1Id);
+    assert(
+      typeof subjectTeacherRow?.subject === 'string' &&
+        subjectTeacherRow.subject.length > 0 &&
+        !subjectTeacherRow.subject.includes('Adviser of'),
+      'A teacher with subjects keeps the subject list, unchanged (the label is only for a teacher with none)',
+      `got ${JSON.stringify(subjectTeacherRow?.subject)}`
+    );
+
     // ?search= filters WITHIN scope; it can never widen it.
     const searched = await request('GET', '/api/messages/contacts?search=zzzznomatch', {
       token: parent1Token,

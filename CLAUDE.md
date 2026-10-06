@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-06, `feat/admin-messages` — the admin's inbox built, not yet device-checked (on `main` `1ef3c00`, where build 1 is merged) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-06, `feat/admin-messages` — the admin's inbox device-checked and re-checked, cleaned up by id (backup 279), merge-ready (on `main` `1ef3c00`, where build 1 is merged) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -696,6 +696,9 @@ under the brand block 14px from the left, in both states; and **Messages is
 on screen at short heights — which is why the groups are FLAT in `<nav>` (a
 per-group box traps a sticky row), `revealActive` keeps the active item clear
 of it, and the nav box carries `scroll-pb-12`. Do not re-box the groups.
+**Every nav block is one 3rem slot** (a row and its gap; a group label or
+the rail's divider too), the box shows whole slots and rests at slot
+starts, so no row shows cut — `docs/FRONTEND_CONVENTIONS.md` §9.
 
 **The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
 image** — the source is a JPG with a white field and no alpha, so the disc
@@ -1669,19 +1672,26 @@ its `docs/CHANGELOG.md` row.
       Go on a Tecno, Android 14; admin, teacher, parent), the fix round and
       the follow-up re-checked the same day, cleaned up by id (backup 278).
       **Merged 2026-10-06 (fast-forward, `1ef3c00`).** Rules: §27f, M23.
-- [ ] **Admin Messages — `feat/admin-messages`**, built 2026-10-06: the
-      admin's inbox (teacher ↔ admin only; SCOPE DECISION 2026-10-05 under
-      ADMIN SCOPE AUDIT), the parent pages and screens reused by role, the
-      hand-off on a parent's thread only, and the Enter page jump fixed.
-      **Not yet device-checked; not merged.** Rules: §6, §10, §26, M9, M22.
+- [x] **Admin Messages — `feat/admin-messages`** (`86d93b7`, fix round
+      `9141390`, follow-up `4255427`, the adviser label + its docs pass),
+      built 2026-10-06: the admin's inbox (teacher ↔ admin only; SCOPE
+      DECISION 2026-10-05 under ADMIN SCOPE AUDIT), the parent pages and
+      screens reused by role, the hand-off on a parent's thread only, the
+      Enter page jump, one toggle place, Messages pinned in the sidebar, no
+      half-cut nav rows, threads opening at the newest message, and an
+      adviser-only teacher labelled "Adviser of …" in the pickers.
+      Device-checked and re-checked 2026-10-06 (web and phone, admin,
+      teacher, parent), cleaned up by id (backup 279). **Merge-ready.**
+      Rules: §6, §9, §10, §26, M9, M22.
 
-**NEXT, in order (owner, 2026-10-05):** admin Messages' device check, then
-merge → build 2 (the dashboards, with
-skeleton loading tier 1) → the `scripts/create-backup-zip.js` fix (before
-the smoke gate; the script is not run until it is fixed) → smoke gate →
-manuscript delta list (the team applies it; it now includes Chapter 5's
-admin Messages text) → professor system check, Fri 2026-10-09. After the
-check: the cloud (Supabase) survey.
+**NEXT, in order (owner, 2026-10-06):** merge admin Messages on the
+owner's word → the `scripts/create-backup-zip.js` fix (before the smoke
+gate; the script is not run until it is fixed) → smoke gate → manuscript
+delta list (the team applies it; it now includes Chapter 5's admin
+Messages text) → professor system check, Fri 2026-10-09. **Build 2** (the
+dashboards, with skeleton loading tier 1) waits for the owner's decision
+once the professor confirms the Friday time. After the check: the cloud
+(Supabase) survey.
 
 ### Stage 6 — Integration
 
@@ -1937,6 +1947,12 @@ school questions:**
 - When you stop, name the reason with one of: BASELINE MISMATCH, SCOPE
   EXPANSION, CONTENT DRIFT, or a specific behavioral reason. "Something is
   wrong" is not a stop reason.
+- **Any view of a seed, suite or proof is MASKED from the FIRST view** —
+  every run of 6+ digits, every email and every phone number, as well as
+  login ids and password lines (2026-10-06). LRNs are parent login ids, some
+  only 7–8 digits, and the pilot will hold real ones; a mask written for one
+  shape printed the others. Never print a login id, LRN, password, email,
+  phone or `.env` value, in tool output too.
 - **Every dispatch report ENDS with `Shell content writes: N`.** N should be
   **0**; any non-zero lists the file and the commit. Added 2026-09-23 after a
   `node -e` append put a block header through the shell and bash ate the

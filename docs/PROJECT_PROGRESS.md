@@ -13,8 +13,9 @@ Technological College, IICT · Final defense expected around November 2026.
 
 **Snapshot, 2026-10-06: `main` at `1ef3c00` (build 1 is merged,
 fast-forward) plus `feat/admin-messages` — the admin's inbox (teacher ↔
-admin only) and the Enter page-jump fix, built on web and phone, NOT yet
-device-checked, not merged.** Table and endpoint
+admin only) with its fix rounds, built on web and phone, device-checked and
+re-checked 2026-10-06, cleaned up by id (backup 279), merge-ready, not
+merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -36,7 +37,7 @@ and only there.
 | The UI refresh — `feat/ui-refresh` (built 2026-10-03, fix rounds and device checks 2026-10-04) | — | ✅ merged 2026-10-04 | ✅ merged 2026-10-04 |
 | Form drafts, Phase 1 — `feat/form-drafts` (built and device-checked 2026-10-04) | — | ✅ merged 2026-10-05 | ✅ merged 2026-10-05 |
 | Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
-| Admin Messages — `feat/admin-messages`: teacher ↔ admin only, and the Enter page-jump fix (built 2026-10-06) | ✅ built | ✅ built, not device-checked | ✅ built, not device-checked |
+| Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merge-ready | ✅ device-checked, merge-ready | ✅ device-checked, merge-ready |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -120,20 +121,20 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-The owner's order (2026-10-05, CLAUDE.md → BUILD ORDER → NEXT):
+The owner's order (2026-10-06, CLAUDE.md → BUILD ORDER → NEXT):
 
-1. **Admin Messages' device check, then merge** — `feat/admin-messages`
-   (built; the owner's decision of 2026-10-05: teacher ↔ admin only, and
-   parents cannot message the admin; the Enter page-jump fix rides along).
-2. **Build 2** — the dashboards, with skeleton loading tier 1.
-3. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
+1. **Merge admin Messages** — `feat/admin-messages`, device-checked and
+   cleaned up, on the owner's word.
+2. **The `scripts/create-backup-zip.js` fix** — before the smoke gate; the
    script is not run until it is fixed.
-4. **Smoke gate** across web and mobile.
-5. **Manuscript delta list** (the team applies it; it now includes
+3. **Smoke gate** across web and mobile.
+4. **Manuscript delta list** (the team applies it; it now includes
    Chapter 5's admin Messages text).
-6. **Professor system check, Fri 2026-10-09.**
+5. **Professor system check, Fri 2026-10-09.**
 
-After the check: the cloud (Supabase) survey.
+**Build 2** (the dashboards, with skeleton loading tier 1) waits for the
+owner's decision once the professor confirms the Friday time. After the
+check: the cloud (Supabase) survey.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications
