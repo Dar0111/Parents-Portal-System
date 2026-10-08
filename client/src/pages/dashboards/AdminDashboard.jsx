@@ -13,6 +13,7 @@ import { buttonClass } from '../../components/buttonClass';
 import CountUp from '../../motion/CountUp';
 import Reveal from '../../motion/Reveal';
 import Card, { Stat } from './Card';
+import HazardSlot from './HazardSlot';
 import ProfileHero from './ProfileHero';
 import { useCard } from './useCard';
 
@@ -46,12 +47,13 @@ import { useCard } from './useCard';
 //
 // THE LAYOUT (build 2, feat/dashboards-look, 2026-10-07 — the owner's Part C):
 // two LEAD cards, each two columns wide — "Waiting for approval" (amber while
-// something waits) and one card holding the three counts — then System across
-// the page. The counts card is THE ONE EXCEPTION to "the whole card is its
-// link" (§12, the owner's decision 3, FRONTEND §15e): Students, Teachers and
-// Parents each open a different list, so the card itself links nowhere and
-// each count is its own link. Teachers and Parents both open Admin → Users —
-// that page takes no role from the address; its role filter is on the page.
+// something waits) and the "Users" card holding the three counts (titled
+// "People" until the fix round, F2) — then System across the page. The Users
+// card is THE ONE EXCEPTION to "the whole card is its link" (§12, the owner's
+// decision 3, FRONTEND §15e): Students, Teachers and Parents each open a
+// different list, so the card itself links nowhere and each count is its own
+// link. Teachers and Parents open Admin → Users already filtered to what they
+// count (F3, see COUNTS).
 
 // Green at or under a week, amber beyond it or never — and NEVER red
 // (spec). A stale backup is a prompt, not a failure: the data is still
@@ -80,12 +82,24 @@ function backupAge(createdAt) {
 const FACT_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted';
 const FACT_VALUE = 'mt-0.5 text-sm font-semibold tabular-nums';
 
-// THE COUNTS CARD'S THREE LINKS (Part C, decision 3). Each count repeats the
-// WHERE of the list it opens (see the note at the top of this file).
+// THE USERS CARD'S THREE LINKS (Part C, decision 3). Each count repeats the
+// WHERE of the list it opens (see the note at the top of this file), and
+// since the build 2 fix round (F3, 2026-10-08) the link CARRIES that WHERE:
+// Admin → Users reads `role` / `status` from the address and opens on that
+// filter, applied. `server/routes/dashboard.js` counts teachers as every
+// teacher account, any status — so Teachers presets the role alone — and
+// parents as role parent + status active — so Parents presets both. Students
+// opens Admin → Students, whose default is already the count's WHERE.
 const COUNTS = [
   { key: 'students', label: 'Students', to: '/admin/students', caption: 'on the roll', value: (t) => t.students },
-  { key: 'teachers', label: 'Teachers', to: '/admin/users', caption: 'teacher accounts', value: (t) => t.teachers },
-  { key: 'parents', label: 'Parents', to: '/admin/users', caption: 'active parent accounts', value: (t) => t.active_parents },
+  { key: 'teachers', label: 'Teachers', to: '/admin/users?role=teacher', caption: 'teacher accounts', value: (t) => t.teachers },
+  {
+    key: 'parents',
+    label: 'Parents',
+    to: '/admin/users?role=parent&status=active',
+    caption: 'active parent accounts',
+    value: (t) => t.active_parents,
+  },
 ];
 
 // Each count is a real <Link>: the label, the number and its caption are its
@@ -145,51 +159,14 @@ export default function AdminDashboard() {
         <ProfileHero user={user} facts={facts} />
       </Reveal>
 
-      {/* The hazard card, and it is deliberately not dismissible: a warning
-          about being locked out of your own system is exactly the warning
-          someone dismisses and then needs. It clears itself the moment
-          either condition stops being true, and it names no account —
-          there is only one it could be about, and a login id must never
-          appear on screen (§5c). */}
-      {d?.hazard?.single_unverified_admin ? (
-        <div className="flex gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
-          <span
-            aria-hidden="true"
-            className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-warning-strong"
-          >
-            <i className="fa-solid fa-triangle-exclamation" />
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-warning-strong">
-              This is the only admin account, and its email is not confirmed
-            </p>
-            {/* ONE LINK, NOT TWO. This card shipped with a "Create a second
-                admin →" link to Admin → Users, and that page cannot do it:
-                POST /api/users/teachers hardcodes role 'teacher' and
-                /parents hardcodes 'parent'. NO endpoint in the API creates an
-                admin — 'admin' appears only as a filter value on GET /users —
-                so the only admin is the seeded one. A link offering an action
-                the code does not have is the §5i failure exactly, and it was
-                worse than a dead end here: it would have sent someone hunting
-                for a control on the one screen where being wrong costs them
-                their way back in. Removed on review, 2026-09-19. Do not
-                re-add it until an endpoint exists. */}
-            <p className="mt-1 max-w-prose text-sm text-fg-body">
-              If this password is lost there is no way back in through the app: resetting your own
-              password needs a confirmed email, and a temporary password can only be issued by a
-              different admin — and a second admin account cannot be created from inside the app.
-              Confirming your email is the fix available here.
-            </p>
-            {/* The neutral button, not the filled one: this page has no
-                primary action, and a warning is not made louder by its link. */}
-            <p className="mt-3">
-              <Link to="/admin/settings/account" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
-                Confirm your email
-              </Link>
-            </p>
-          </div>
-        </div>
-      ) : null}
+      {/* The lockout hazard (HazardSlot.jsx): compact, not dismissible, and
+          its space held from the first frame while the dashboard loads, so
+          it never pushes the cards down (fix round F1, 2026-10-08). */}
+      <HazardSlot
+        hazard={Boolean(d?.hazard?.single_unverified_admin)}
+        loading={summary.loading}
+        emailConfirmed={Boolean(user?.email_verified_at)}
+      />
 
       {/* TWO LEAD CARDS, THEN SYSTEM ACROSS THE PAGE (Part C, 2026-10-07).
           At `lg` the grid is four columns and each lead card takes two, so
@@ -228,7 +205,7 @@ export default function AdminDashboard() {
         {/* NO `to`: the one card that is not its own link (decision 3) —
             its three counts are. */}
         <Card
-          title="People"
+          title="Users"
           icon="fa-users"
           className="sm:col-span-2"
           skeleton="counts"

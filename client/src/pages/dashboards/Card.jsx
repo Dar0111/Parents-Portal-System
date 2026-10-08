@@ -75,6 +75,12 @@ import { useSkeleton } from '../../hooks/useSkeleton';
 //     STAYS, `aria-busy` and inert, so nothing stale inside it can be pressed
 //     while the new one is fetched. The card's own link is not stale — it
 //     opens the same page either way — so it is not part of that.
+//
+// EVERY LIST OF BARS IS KEYED BY POSITION (fix round F8, 2026-10-08). The
+// phone keyed its lines by their width class and the System shape repeats
+// `w-1/2`, so two siblings shared a key (a LogBox "Console Error"). The
+// widths here happen to be unique, but a width is not an identity: the next
+// shape to repeat one would collide the same way.
 const SKELETON_SHAPES = {
   // Stat: a `text-xl` figure (28px line) over a `text-sm` caption.
   figure: (
@@ -108,19 +114,20 @@ const SKELETON_SHAPES = {
         <SkeletonBar className="h-3 w-1/2" />
       </div>
       <div className="mt-3 space-y-2 border-t border-edge-soft pt-3">
-        {['w-3/4', 'w-2/3', 'w-1/2'].map((w) => (
-          <div key={w} className="flex h-5 items-center">
+        {['w-3/4', 'w-2/3', 'w-1/2'].map((w, i) => (
+          <div key={i} className="flex h-5 items-center">
             <SkeletonBar className={`h-3 ${w}`} />
           </div>
         ))}
       </div>
     </>
   ),
-  // The admin People card (Part C): three label-figure-caption counts.
+  // The admin Users card (Part C; "People" until the fix round): three
+  // label-figure-caption counts.
   counts: (
     <div className="grid gap-2 sm:grid-cols-3">
-      {['w-16', 'w-14', 'w-12'].map((w) => (
-        <div key={w} className="min-h-11 px-3 py-2">
+      {['w-16', 'w-14', 'w-12'].map((w, i) => (
+        <div key={i} className="min-h-11 px-3 py-2">
           <div className="flex h-5 items-center">
             <SkeletonBar className={`h-3 ${w}`} />
           </div>

@@ -10,7 +10,12 @@
 // labels without uppercase tracking), and the admin's three count links (each
 // a real link to its own list, with its label, number and caption).
 // What it reads as SOURCE TEXT, said plainly: the three grids — which card
-// spans what, the parent order, the People card with no link of its own.
+// spans what, the parent order, the Users card with no link of its own.
+//
+// THE FIX ROUND (2026-10-08) changed two checks in place, same count: the
+// counts card is "Users" (F2, "People" before), and Teachers and Parents
+// link to Admin → Users with the preset each counts (F3). The new findings
+// are proved in ssr-build2-fixes.
 //
 // WHAT IT CANNOT: the look at each width, the hover, the fill judged by eye —
 // the owner's browser check.
@@ -65,8 +70,8 @@ assert(!/hover:border-edge-strong/.test(plain), 'a card with no link has no hove
 // NEGATIVE CONTROL: build 1's card, as it shipped, fails the look checks.
 const OLD = 'group relative flex flex-col rounded-2xl border shadow-xs border-edge bg-surface p-5 transition-shadow hover:shadow-md';
 assert(/rounded-2xl/.test(OLD) && /shadow/.test(OLD) && !/hover:border-edge-strong/.test(OLD), 'NEGATIVE CONTROL: the old card’s classes (16px, shadow, lift) fail every look check above');
-const counts = render(<Card title="People" icon="fa-users" loading skeleton="counts" />);
-assert(/sm:grid-cols-3/.test(counts) && count(counts, /min-h-11 px-3 py-2/g) === 3, 'the People card’s skeleton is its three counts');
+const counts = render(<Card title="Users" icon="fa-users" loading skeleton="counts" />);
+assert(/sm:grid-cols-3/.test(counts) && count(counts, /min-h-11 px-3 py-2/g) === 3, 'the Users card’s skeleton is its three counts');
 
 console.log('\nThe staff hero (rendered)');
 const facts = [
@@ -102,15 +107,16 @@ assert(!/uppercase/.test(child), 'nothing in the hero is uppercase');
 
 console.log('\nThe admin’s three counts — the one card that is not its own link (rendered)');
 const links = render(<CountLinks totals={{ students: 4, teachers: 3, active_parents: 2 }} />);
-assert(count(links, /<a [^>]*href="\/admin\/students"/g) === 1 && count(links, /<a [^>]*href="\/admin\/users"/g) === 2, 'Students opens Admin → Students; Teachers and Parents open Admin → Users');
+assert(count(links, /<a [^>]*href="\/admin\/students"/g) === 1 && count(links, /<a [^>]*href="\/admin\/users\?role=(?:teacher|parent&amp;status=active)"/g) === 2, 'Students opens Admin → Students; Teachers and Parents open Admin → Users, each with the preset it counts (F3)');
 assert(['Students', 'Teachers', 'Parents'].every((l) => links.includes(`>${l}</span>`)) && ['on the roll', 'teacher accounts', 'active parent accounts'].every((c) => links.includes(c)), 'each link carries its label, its number and its caption — its name');
 assert(count(links, /class="flex min-h-11 [^"]*focus-visible:outline-focus-accent"/g) === 3 && count(links, /rounded-lg/g) === 3, 'each is a 44px target with the control radius and the shared focus outline');
 assert(/>4</.test(links) && />3</.test(links) && />2</.test(links), 'the numbers are the server’s totals');
 
 console.log('\nThe three grids (source)');
 const admin = src('src/pages/dashboards/AdminDashboard.jsx');
-const peopleCard = admin.slice(admin.indexOf('title="People"') - 40, admin.indexOf('<CountLinks totals'));
-assert(peopleCard.length > 0 && !/\bto=/.test(peopleCard) && /className="sm:col-span-2"/.test(peopleCard), 'admin: the People card has NO link of its own and spans two columns');
+const usersAt = admin.indexOf('title="Users"');
+const usersCard = usersAt >= 0 ? admin.slice(usersAt - 40, admin.indexOf('<CountLinks totals')) : '';
+assert(usersCard.length > 0 && !/\bto=/.test(usersCard) && /className="sm:col-span-2"/.test(usersCard), 'admin: the Users card has NO link of its own and spans two columns');
 assert(/title="Waiting for approval"[\s\S]{0,120}className="sm:col-span-2"/.test(admin) && /className="sm:col-span-2 lg:col-span-4"/.test(admin) && /lg:grid-cols-4/.test(admin), 'admin: Waiting for approval leads across two columns; System runs across the page');
 assert(!/\bcompact\b\n/.test(admin) && !/\n\s+compact\n/.test(admin), 'admin: no compact tiles left');
 const teacher = src('src/pages/dashboards/TeacherDashboard.jsx');

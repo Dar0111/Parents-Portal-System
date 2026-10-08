@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import Avatar from '../components/Avatar';
 import Button from '../components/Button';
@@ -10,6 +10,7 @@ import { requestLeave } from './leaveGuard';
 import { navForRole, navTitleForPath } from './nav';
 import { groupNav } from './navGroups';
 import { gridHeight, revealActive, rowPitch } from './navScroll';
+import { shouldScrollToTop } from './scrollOnNavigate';
 import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { settingsTabsForRole } from '../pages/settings/tabs';
 import { PageTitleContext } from './usePageTitle';
@@ -30,6 +31,18 @@ import seal from '../assets/school-seal.png';
 // pair). Keyboard only.
 const FOCUS =
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent';
+
+// A NAV ROW'S OUTLINE IS DRAWN INSIDE IT (fix round F7, 2026-10-08). With
+// FOCUS's 2px offset the ring sat 4px OUTSIDE the row, and the nav box is a
+// scroller (`overflow-y-auto`) with no bottom padding since the slot grid
+// (F3) — so the pinned Messages row, stuck at the box's bottom edge, had the
+// bottom of its ring cut off, expanded and in the rail; so would any row at
+// the very end of the list. Inside the row (-2px, as DataTable's cards draw
+// theirs) the whole ring shows wherever the row sits, and the grid is
+// untouched. Same colour, same width; only the nav rows take it — the user
+// card's links are outside the box and keep FOCUS.
+const NAV_FOCUS =
+  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-accent';
 
 // The school's seal beside the product name, at the top of the sidebar and of
 // the mobile drawer (D3, 2026-09-19). The seal always sits on its own white
@@ -228,7 +241,7 @@ export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
           end={item.to.split('/').length === 2}
           onClick={onNavigate}
           className={({ isActive }) =>
-            `${RAIL_ITEM} ${FOCUS} ${
+            `${RAIL_ITEM} ${NAV_FOCUS} ${
               isActive ? 'bg-brand-soft text-brand' : 'text-fg-body hover:bg-surface-muted hover:text-fg'
             }`
           }
@@ -295,7 +308,7 @@ export function NavItem({ item, onNavigate, badge = 0, collapsed = false }) {
       end={item.to.split('/').length === 2}
       onClick={onNavigate}
       className={({ isActive }) =>
-        `${NAV_ITEM} ${FOCUS} ${
+        `${NAV_ITEM} ${NAV_FOCUS} ${
           isActive
             ? 'bg-brand-soft font-semibold text-brand'
             : 'text-fg-body hover:bg-surface-muted hover:text-fg'
@@ -529,6 +542,23 @@ function ShellChrome() {
     revealActive(sidebarNavRef.current, navHeight ? rowPitch() : 0);
     revealActive(drawerNavRef.current);
   }, [location.pathname, collapsed, mobileNavOpen, navHeight]);
+
+  // A NEW PAGE STARTS AT THE TOP (fix round F5, 2026-10-08): on a PUSH or
+  // REPLACE to another pathname the window goes to the top; Back / Forward
+  // keep the browser's restore, and a query-only change never moves the page
+  // (layout/scrollOnNavigate.js has the rule). A layout effect, so the new
+  // page never paints at the old page's scroll first; `instant`, so a smooth
+  // scroll setting never animates it. The pathname a page was last seen at is
+  // a ref, written here only.
+  const navigationType = useNavigationType();
+  const lastPathRef = useRef(location.pathname);
+  useLayoutEffect(() => {
+    const previousPath = lastPathRef.current;
+    lastPathRef.current = location.pathname;
+    if (shouldScrollToTop({ previousPath, nextPath: location.pathname, navigationType })) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+  }, [location.pathname, navigationType]);
 
   const items = navForRole(user?.role);
   // ShellChrome no longer derives `messagesBuilt`. It existed only to gate the

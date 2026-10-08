@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Avatar from './Avatar';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
-import Skeleton, { SkeletonBar } from './Skeleton';
+import Skeleton, { SkeletonBar, SkeletonCircle } from './Skeleton';
 import StatusBadge from './StatusBadge';
 import { buttonClass, cardClass } from './buttonClass';
 import { useSkeleton } from '../hooks/useSkeleton';
@@ -185,22 +185,35 @@ const CARD_INTERACTIVE =
 // in the same 48px a row of text takes — and, for a page with cards, three
 // card-shaped blocks below `sm`, title and subtitle. The pager's strip is
 // there when the table is paged, so the frame is its finished height.
+//
+// AN AVATAR WHERE THE ROWS HAVE ONE (build 2 fix round F4, 2026-10-08). A
+// page whose FIRST column is a PersonCell, and whose cards carry `avatar`,
+// says so with `skeletonAvatar`; that column's placeholder is then a circle
+// the size of Avatar's `md` (2.375rem) beside its bar, and each card
+// placeholder leads with the same circle — so the row is its real height and
+// the name lands where the bar was. The table cannot know this before a row
+// exists, which is why it is the page's to say. Users and both Students
+// pages say it; the other avatar lists wait for option 1 (KNOWN_ISSUES).
 const SKELETON_ROWS = 5;
 const SKELETON_CARDS = 3;
 const SKELETON_WIDTHS = ['w-3/4', 'w-1/2', 'w-2/3', 'w-1/3', 'w-5/6'];
+const SKELETON_AVATAR = 'h-[2.375rem] w-[2.375rem]';
 
-function TableSkeleton({ phase, columns, cards, paged }) {
+function TableSkeleton({ phase, columns, cards, paged, avatar }) {
   return (
     <Skeleton phase={phase}>
       {cards ? (
         <div className="sm:hidden">
           {Array.from({ length: SKELETON_CARDS }, (_, i) => (
-            <div key={i} className="border-b border-edge-soft px-4 py-3.5 last:border-0">
-              <div className="flex h-6 items-center">
-                <SkeletonBar className={`h-3.5 ${SKELETON_WIDTHS[i % SKELETON_WIDTHS.length]}`} />
-              </div>
-              <div className="mt-0.5 flex h-5 items-center">
-                <SkeletonBar className="h-3 w-1/2" />
+            <div key={i} className="flex items-start gap-3 border-b border-edge-soft px-4 py-3.5 last:border-0">
+              {avatar ? <SkeletonCircle className={SKELETON_AVATAR} /> : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex h-6 items-center">
+                  <SkeletonBar className={`h-3.5 ${SKELETON_WIDTHS[i % SKELETON_WIDTHS.length]}`} />
+                </div>
+                <div className="mt-0.5 flex h-5 items-center">
+                  <SkeletonBar className="h-3 w-1/2" />
+                </div>
               </div>
             </div>
           ))}
@@ -229,9 +242,16 @@ function TableSkeleton({ phase, columns, cards, paged }) {
               <tr key={row} className="border-b border-edge-soft last:border-0">
                 {columns.map((column, col) => (
                   <td key={column.key} className="px-4 py-3.5">
-                    <div className={`flex h-5 items-center ${JUSTIFY[column.align] || JUSTIFY.left}`}>
-                      <SkeletonBar className={`h-3 ${SKELETON_WIDTHS[(row + col) % SKELETON_WIDTHS.length]}`} />
-                    </div>
+                    {avatar && col === 0 ? (
+                      <div className="flex items-center gap-3">
+                        <SkeletonCircle className={SKELETON_AVATAR} />
+                        <SkeletonBar className={`h-3 ${SKELETON_WIDTHS[row % SKELETON_WIDTHS.length]}`} />
+                      </div>
+                    ) : (
+                      <div className={`flex h-5 items-center ${JUSTIFY[column.align] || JUSTIFY.left}`}>
+                        <SkeletonBar className={`h-3 ${SKELETON_WIDTHS[(row + col) % SKELETON_WIDTHS.length]}`} />
+                      </div>
+                    )}
                   </td>
                 ))}
               </tr>
@@ -328,6 +348,9 @@ export default function DataTable({
   onSortChange,
   // Card mode below `sm`. Omitted = today's behaviour, table at every width.
   renderCard = null,
+  // The first column and the cards lead with an avatar: the skeleton draws a
+  // circle there too (fix round F4; see TableSkeleton).
+  skeletonAvatar = false,
 }) {
   const paged = Boolean(page);
   const [localSort, setLocalSort] = useState(null);
@@ -428,7 +451,13 @@ export default function DataTable({
   if (waiting) {
     return (
       <div className={frame}>
-        <TableSkeleton phase={skeleton} columns={columns} cards={Boolean(renderCard)} paged={paged} />
+        <TableSkeleton
+          phase={skeleton}
+          columns={columns}
+          cards={Boolean(renderCard)}
+          paged={paged}
+          avatar={skeletonAvatar}
+        />
       </div>
     );
   }

@@ -11,7 +11,10 @@
 //     control that is the old one-flag view;
 //   - components/Skeleton.jsx RENDERED in both phases — role, live region,
 //     busy, the sr-only label, hidden shapes; unpainted during the wait,
-//     the finite `motion-safe` pulse once painted;
+//     painted after it (since the fix round, F6, the shimmer is a SWEEP in
+//     index.css switched on by `data-skeleton="painted"` — its stylesheet
+//     rules are proved in ssr-build2-fixes; here, that the region and every
+//     bar carry the hooks it needs and the old pulse is gone);
 //   - DataTable RENDERED: nothing on screen → the skeleton with the real
 //     headers (cards below `sm`, the pager strip when paged, C7's stale page
 //     too); rows on screen while loading → the SAME rows, the frame
@@ -24,7 +27,7 @@
 // from its timer, the newest-ticket guard in useCard, DataTable's `kept`
 // rule and its 300 ms grey, the web/phone mirror of useSkeleton.
 //
-// WHAT IT CANNOT: the real 300 ms on a device, the pulse itself, the fill's
+// WHAT IT CANNOT: the real 300 ms on a device, the sweep itself, the fill's
 // look in either theme, and what a screen reader says — the owner's check.
 // Under renderToStaticMarkup no effect runs, so a rendered skeleton is always
 // in its 'wait' phase; the painted phase is rendered by passing the phase.
@@ -114,12 +117,17 @@ console.log('\nThe skeleton region (rendered, components/Skeleton.jsx)');
       <SkeletonBar className="h-3 w-1/2" />
     </Skeleton>
   );
-  assert(/<div aria-hidden="true" data-skeleton="painted" class="motion-safe:animate-pulse" style="animation-iteration-count:2">/.test(painted), 'painted: the pulse, only under motion-safe (static under reduced motion), and only TWICE — never on without end', painted.slice(0, 260));
+  // Changed in place by the fix round (F6, 2026-10-08), same count: the
+  // painted region switches the index.css SWEEP on by its attribute — no
+  // pulse class, no inline iteration count — and every bar is a
+  // `skeleton-bone` (the sweep's three passes and its reduced-motion guard
+  // are asserted on the built stylesheet in ssr-build2-fixes).
+  assert(/<div aria-hidden="true" data-skeleton="painted">/.test(painted) && !/animate-pulse|animation-iteration-count/.test(painted), 'painted: the region carries `data-skeleton="painted"`, which switches the sweep on; the old pulse is gone', painted.slice(0, 260));
   assert(painted.includes('<span class="sr-only">Loading the report card…</span>'), 'a caller may name the wait');
-  assert(/<span class="block rounded-md bg-edge h-3 w-1\/2"><\/span>/.test(painted), 'a bar is the `edge` token with a tag’s corner — no new token');
+  assert(/<span class="skeleton-bone block rounded-md bg-edge h-3 w-1\/2"><\/span>/.test(painted), 'a bar is a `skeleton-bone` in the `edge` token with a tag’s corner — no new token');
   const skeletonSrc = src('src/components/Skeleton.jsx');
   assert(/const FILL = 'bg-edge';/.test(skeletonSrc) && !/\bbg-(slate|gray|zinc|neutral|stone)-\d/.test(skeletonSrc), 'one FILL constant, a token (edge-strong is the one-line fallback)');
-  assert(!/(^|[\s'"`])animate-/m.test(skeletonSrc.replace(/motion-safe:animate-pulse/g, '')), 'no animation class without `motion-safe:`');
+  assert(!/(^|[\s'"`])animate-/m.test(skeletonSrc), 'no animation class in the component — the only motion is the stylesheet\'s guarded sweep');
 }
 
 console.log('\nDataTable — nothing on screen gets the skeleton (rendered)');

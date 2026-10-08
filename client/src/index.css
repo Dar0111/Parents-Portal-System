@@ -590,6 +590,65 @@ html.text-large {
 }
 
 /* -----------------------------------------------------------------------------
+   THE SKELETON SWEEP (build 2 fix round F6, 2026-10-08)
+   -----------------------------------------------------------------------------
+   The owner picked a sweep over build 2's opacity pulse: a light band passing
+   across the placeholder bars (`components/Skeleton.jsx`). Every bar and
+   circle carries `.skeleton-bone`; the band runs only inside a region whose
+   `data-skeleton` is `painted` — never during the 300 ms wait.
+
+   ONE BAND, NOT ONE PER BAR. The gradient is `background-attachment: fixed`,
+   so its position is measured against the window, not the bar: every bar
+   shows the slice of the SAME band that crosses it, and the gaps between bars
+   (the card's own surface) never show it at all. A browser that ignores
+   `fixed` (some phone browsers) falls back to a band per bar, which still
+   reads as a sweep.
+
+   THE BAND IS A TOKEN, NO NEW ONE: `surface` over the `edge` bars in light
+   (white over zinc-200), `edge-strong` in dark (zinc-700 over zinc-800) — a
+   LIGHT band in both themes, decoration only.
+
+   FINITE, AND NONE UNDER REDUCED MOTION: three passes of 1.5 s (4.5 s, under
+   WCAG 2.2.2's five seconds), then the bars stand still (the animation's
+   start position is off the left edge, so nothing is left over). The whole
+   rule sits inside `prefers-reduced-motion: no-preference`; with `reduce`
+   the bars are plain `edge`. Transform-free and layout-free: only the
+   background moves. The one loop in the app (FRONTEND_CONVENTIONS §27c). */
+@keyframes skeleton-sweep {
+  from {
+    background-position: -24rem 0;
+  }
+  to {
+    background-position: 100vw 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-skeleton='painted'] .skeleton-bone {
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--surface) 80%, transparent),
+      transparent
+    );
+    background-size: 24rem 100%;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-position: -24rem 0;
+    animation: skeleton-sweep 1.5s ease-in-out 3;
+  }
+
+  [data-theme='dark'] [data-skeleton='painted'] .skeleton-bone {
+    background-image: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--edge-strong) 90%, transparent),
+      transparent
+    );
+  }
+}
+
+/* -----------------------------------------------------------------------------
    PRINT (UI-D, 2026-09-25)
    -----------------------------------------------------------------------------
    There was no print CSS at all before this block — not one `print:` variant,
@@ -614,8 +673,11 @@ html.text-large {
    the duration of the print instead — one mechanism, one copy of the values. */
 @media print {
   /* The Shell's chrome, by landmark. `Shell.jsx` renders <aside> for the
-     sidebar and its mobile drawer, <header> for the top bar (which owns the
-     notification panel); <main> holds the routed page. Bare element
+     sidebar, <header> for the top bar (which owns the notification panel);
+     <main> holds the routed page. The mobile drawer was an <aside> too until
+     build 2 (2026-10-07): it is a `<div role="dialog">` now, which an <aside>
+     may not be, so it — and its backdrop — carry `print:hidden` instead of
+     relying on this selector. Bare element
      selectors, NOT `body > * > aside` — the Shell nests them below `#root`
      and a depth-specific selector would silently match nothing. The only
      other <aside> and <header> in the client are on Login and the dev

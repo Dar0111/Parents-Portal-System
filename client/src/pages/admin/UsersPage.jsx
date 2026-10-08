@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
@@ -102,6 +103,29 @@ const FACT_LABEL = 'text-xs font-semibold uppercase tracking-wider text-fg-muted
 const ROLE_FILTERS = ['', 'parent', 'teacher', 'admin'];
 const STATUS_FILTERS = ['', 'pending', 'active', 'rejected', 'inactive'];
 
+// A PRESET FROM THE ADDRESS (build 2 fix round F3, 2026-10-08). The admin
+// dashboard's Teachers and Parents counts link here as `?role=teacher` and
+// `?role=parent&status=active` — the WHERE each number counts — and the page
+// opens on that filter, APPLIED: the first request is already filtered, the
+// controls show the preset, and nothing reads "Changes not applied". Only a
+// known role and a known status are read; anything else is ignored, and
+// nothing else ever comes from the address — never a login id or an LRN
+// (§5c). Read once, when the page mounts; Apply and Reset take the preset
+// back out of the address (a replace), so a reload never brings back a
+// filter the admin has since changed.
+function presetFromSearch(searchParams) {
+  const role = searchParams.get('role');
+  const status = searchParams.get('status');
+  const preset = {
+    role: role && ROLE_FILTERS.includes(role) ? role : '',
+    status: status && STATUS_FILTERS.includes(status) ? status : '',
+    search: '',
+  };
+  return preset.role || preset.status ? preset : null;
+}
+
+const NO_FILTERS = { role: '', status: '', search: '' };
+
 function displayRole(role) {
   if (typeof role !== 'string' || !role) return '';
   return role.charAt(0).toUpperCase() + role.slice(1);
@@ -144,10 +168,14 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [role, setRole] = useState('');
-  const [status, setStatus] = useState('');
+  // The preset (above) seeds the draft AND the applied filters, so they start
+  // equal — applied, not pending.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [preset] = useState(() => presetFromSearch(searchParams) || NO_FILTERS);
+  const [role, setRole] = useState(preset.role);
+  const [status, setStatus] = useState(preset.status);
   const [search, setSearch] = useState('');
-  const [applied, setApplied] = useState({ role: '', status: '', search: '' });
+  const [applied, setApplied] = useState(preset);
   // Assembled once, trimmed as the commit trims it (item 5). `status` here is
   // the FILTER, not the FormStatus strip — the naming collision this file's
   // header already warns about.
@@ -292,6 +320,7 @@ export default function UsersPage() {
     setLoading(true);
     setOffset(0);
     setApplied(draftFilters);
+    clearPreset();
   }
 
   function resetFilters() {
@@ -300,7 +329,15 @@ export default function UsersPage() {
     setSearch('');
     setLoading(true);
     setOffset(0);
-    setApplied({ role: '', status: '', search: '' });
+    setApplied(NO_FILTERS);
+    clearPreset();
+  }
+
+  // The preset leaves the address once the admin applies or resets filters
+  // of their own (see presetFromSearch). A replace, and a change of the query
+  // only — the page does not move (Shell's scroll rule, F5).
+  function clearPreset() {
+    if (searchParams.has('role') || searchParams.has('status')) setSearchParams({}, { replace: true });
   }
 
   const canReset = Boolean(applied.role || applied.status || applied.search);
@@ -832,6 +869,7 @@ export default function UsersPage() {
             columns={pendingColumns}
             rows={pending}
             loading={loading}
+            skeletonAvatar
             page={pendingPage}
             onPageChange={setPendingOffset}
             sort={pendingSort}
@@ -923,6 +961,7 @@ export default function UsersPage() {
             columns={userColumns}
             rows={users}
             loading={loading}
+            skeletonAvatar
             page={page}
             onPageChange={setOffset}
             sort={sort}

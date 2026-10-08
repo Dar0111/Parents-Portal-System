@@ -554,6 +554,9 @@ export default function StudentsPage() {
           <FormStatus status={status.list} />
 
           <DataTable
+            // The Student column and the card both lead with an avatar, so
+            // the skeleton does too (fix round F4).
+            skeletonAvatar
             // A real primary action: the detail page. The card is one <Link>,
             // which is why the LRN column does not come along — a card shows
             // what identifies the learner, and the name plus the class does

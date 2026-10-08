@@ -338,6 +338,9 @@ export default function StudentsPage() {
         <FormStatus status={status.list} />
 
         <DataTable
+          // The Student column and the card both lead with an avatar, so the
+          // skeleton does too (fix round F4).
+          skeletonAvatar
           // Same primary action as the teacher roster, same reason the LRN is
           // not on the card (§5c) even though the table column keeps it — the
           // table is a desk screen, the card is a phone.
