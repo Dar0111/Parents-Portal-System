@@ -14,7 +14,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import Card, { Stat } from '../dashboards/Card';
 import ProfileHero from '../dashboards/ProfileHero';
 import { useCard } from '../dashboards/useCard';
-import { backupAge, CARD_LINKS, countRows, pendingLead, pendingTone, showLockoutHazard } from './dashboard/logic';
+import { backupAge, CARD_LINKS, countRows, hazardSlot, pendingLead, pendingTone } from './dashboard/logic';
 
 // THE ADMIN DASHBOARD (§12) — the web's AdminDashboard.jsx in one column. One
 // request per card; every count is the server's (`GET /dashboard`) and each
@@ -30,10 +30,56 @@ import { backupAge, CARD_LINKS, countRows, pendingLead, pendingTone, showLockout
 // signed-in admin, today's date, and the school year and term — the last two
 // from the SAME /dashboard read the cards use, so they appear when it has
 // answered and not before. No request was added for it.
-// THE PEOPLE CARD (build 2, Part C, decision 3): the web's three counts in
-// one card, each its own link — announced as a link with its label, number
-// and caption, 48dp at least, Android's ripple for the press (M20) — because
-// the three open different lists. A count whose list is not built is static.
+//
+// THE LOCKOUT HAZARD NOTICE (fix round F1, 2026-10-08), the web's
+// HazardSlot.jsx on the phone: compact — the warning, then "Why this matters"
+// (the long explanation, word for word, behind it) and "Confirm your email",
+// one tap away — and its space HELD while the dashboard loads, so its arrival
+// never pushes the cards down. `hazardSlot` (dashboard/logic.js) says where
+// it stands: the notice on the server's flag; while loading with THIS admin's
+// email unconfirmed, the same notice laid out at opacity 0, untouchable and
+// hidden from the screen reader; otherwise nothing. Not dismissible, names no
+// account, amber, never red.
+const HAZARD_TITLE = 'This is the only admin account, and its email is not confirmed';
+const HAZARD_EXPLANATION =
+  'If this password is lost there is no way back in through the app: resetting your own password needs a confirmed email, and a temporary password can only be issued by a different admin — and a second admin account cannot be created from inside the app. Confirming your email is the fix available here.';
+
+function HazardNotice({ reserved, onConfirm }) {
+  const { tokens } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View
+      className="rounded-xl border border-warning-edge bg-warning-soft px-4 py-3"
+      style={reserved ? { opacity: 0 } : undefined}
+      pointerEvents={reserved ? 'none' : 'auto'}
+      importantForAccessibility={reserved ? 'no-hide-descendants' : 'auto'}
+      accessibilityElementsHidden={reserved}
+    >
+      <View className="flex-row items-start gap-3">
+        <Icon name="fa-triangle-exclamation" size={15} color={tokens['warning-strong']} style={{ marginTop: 3 }} />
+        <Text className="min-w-0 flex-1 text-sm font-semibold text-warning-strong">{HAZARD_TITLE}</Text>
+      </View>
+      {/* The neutral button, not the filled one: this screen has no primary
+          action, and a warning is not made louder by its link. Still
+          announced as a link — it opens Account information. */}
+      <View className="mt-3 flex-row flex-wrap gap-2">
+        <Button variant="ghost" size="sm" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)}>
+          Why this matters
+        </Button>
+        <Button variant="secondary" size="sm" accessibilityRole="link" onPress={onConfirm}>
+          Confirm your email
+        </Button>
+      </View>
+      {open ? <Text className="mt-2 text-sm text-fg-body">{HAZARD_EXPLANATION}</Text> : null}
+    </View>
+  );
+}
+
+// THE USERS CARD (build 2, Part C, decision 3; "People" until the fix round,
+// F2): the web's three counts in one card, each its own link — announced as
+// a link with its label, number and caption, 48dp at least, Android's ripple
+// for the press (M20) — because the three open different lists. A count whose
+// list is not built is static.
 function CountLink({ row, onOpen }) {
   const { tokens } = useTheme();
   const body = (
@@ -122,6 +168,14 @@ export default function DashboardScreen({ navigation }) {
   const age = backupAge(backups.data?.created_at);
   const backupWarn = Boolean(backups.error) || age.tone !== 'success';
   const open = (key) => (isBuilt(CARD_LINKS[key]) ? () => navigation.navigate(CARD_LINKS[key]) : null);
+  // A count with a preset (fix round F3) opens Users already filtered. The
+  // `key` is the moment of the press, so tapping the same count again
+  // re-applies its preset even though Users, a drawer screen, stayed mounted.
+  const openCount = (row) =>
+    isBuilt(row.link)
+      ? () => navigation.navigate(row.link, row.preset ? { preset: { ...row.preset, key: Date.now() } } : undefined)
+      : null;
+  const hazard = hazardSlot(d, { loading: summary.loading, emailConfirmed: Boolean(user?.email_verified_at) });
 
   // The hero's facts, in the web's words. The date is the phone's own day;
   // the other two are `d`, so they are simply absent until /dashboard has
@@ -147,35 +201,11 @@ export default function DashboardScreen({ navigation }) {
         <ProfileHero user={user} facts={facts} />
       </Reveal>
 
-      {showLockoutHazard(d) ? (
-        <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
-          <Icon name="fa-triangle-exclamation" size={15} color={tokens['warning-strong']} style={{ marginTop: 3 }} />
-          <View className="min-w-0 flex-1">
-            <Text className="text-sm font-semibold text-warning-strong">This is the only admin account, and its email is not confirmed</Text>
-            <Text className="mt-1 text-sm text-fg-body">
-              If this password is lost there is no way back in through the app: resetting your own password needs a confirmed email, and a temporary password can
-              only be issued by a different admin — and a second admin account cannot be created from inside the app. Confirming your email is the fix available
-              here.
-            </Text>
-            {/* The neutral button, not the filled one: this screen has no
-                primary action, and a warning is not made louder by its link.
-                Still announced as a link — it opens Account information. */}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-3 self-start"
-              accessibilityRole="link"
-              onPress={() => navigation.navigate('AccountInfo')}
-            >
-              Confirm your email
-            </Button>
-          </View>
-        </View>
-      ) : null}
+      {hazard !== 'none' ? <HazardNotice reserved={hazard === 'reserve'} onConfirm={() => navigation.navigate('AccountInfo')} /> : null}
 
       {/* The approval queue is the LEAD card (f2, Part C): FIRST, and the
           bigger number — on one column, that is what emphasis can be. Then
-          the People card with the three counts, then System — the web's
+          the Users card with the three counts, then System — the web's
           order (Part C, 2026-10-07). */}
       <Reveal index={1}>
         <Card
@@ -196,7 +226,7 @@ export default function DashboardScreen({ navigation }) {
         {/* NO `onOpen`: the one card that is not its own press target
             (decision 3) — its three counts are. */}
         <Card
-          title="People"
+          title="Users"
           icon="fa-users"
           skeleton="counts"
           loading={summary.loading}
@@ -207,7 +237,7 @@ export default function DashboardScreen({ navigation }) {
           {d ? (
             <View className="gap-1">
               {countRows(d.totals).map((row) => (
-                <CountLink key={row.key} row={row} onOpen={open(row.key)} />
+                <CountLink key={row.key} row={row} onOpen={openCount(row)} />
               ))}
             </View>
           ) : null}

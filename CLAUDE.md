@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-07, `feat/dashboards-look` — build 2 built (skeletons, re-reads, the drawer dialog, Part C), NOT yet device-checked (on `main` `1692103`, where the source-zip fix is merged) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-09, `feat/dashboards-look` — build 2 device-checked by the owner (2026-10-08) and its fix round F1–F8 built, NOT yet re-checked, not merged (on `main` `1692103`) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -180,7 +180,7 @@ is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
 `src/components/` + `src/format/` (copies) + `src/drafts/` + `src/theme/` (generated tokens)
-+ `scripts/` (three checks, twenty proofs) — STAGE 5 MOBILE CONVENTIONS below.
++ `scripts/` (three checks and the proofs, counted in `docs/TESTING.md`) — STAGE 5 MOBILE CONVENTIONS below.
 
 #### File rules that bite
 
@@ -406,7 +406,8 @@ concludes.** Adding one requires the school to have said otherwise first.
   needs a complete set uses `fetchAll`, never the first 50** (C2/C5).
 - **Loading (build 2, 2026-10-07): a SKELETON only when nothing is on
   screen** (after 300 ms, height reserved, no minimum, the `edge` fill, a
-  two-pulse `motion-safe` shimmer, `role="status"` + `aria-busy`); **rows on
+  three-pass light SWEEP — none under reduced motion — `role="status"` +
+  `aria-busy`; an avatar circle where the page passes `skeletonAvatar`); **rows on
   screen while loading STAY, `aria-busy` + `inert`, greyed after 300 ms** —
   so on a query change the old rows wait, greyed (KNOWN ISSUES). The phone's
   `DataList`, the dashboard `Card` and the report card follow; the `Card`
@@ -711,6 +712,10 @@ starts, so no row shows cut — `docs/FRONTEND_CONVENTIONS.md` §9.
 aria-modal="true" aria-label="Menu">`, `print:hidden` — not an `<aside>`);
 the menu button carries `aria-haspopup="dialog"` + `aria-expanded`; Log out
 from it closes it before the leave guard asks, and it closes on reaching `md`.
+**Since the fix round (2026-10-08):** a PUSH or REPLACE to another pathname
+scrolls the window to the top — never on Back/Forward or a query-only
+change (`layout/scrollOnNavigate.js`); nav rows draw their focus ring
+INSIDE the row (`-outline-offset-2`), so the nav box cannot cut it.
 
 **The seal always sits on a `bg-seal-bg` disc, with `rounded-full` on the
 image** — the source is a JPG with a white field and no alpha, so the disc
@@ -808,8 +813,11 @@ temporary-password endpoint is admin-only and refuses your own id (§5i).
   that worked. `pages/dashboards/useCard.js` is the hook; `onRetry`
   refetches that card alone. `allSettled` INSIDE one card is fine. **The
   whole card is its link; no "Open →"** (§15e) — **one exception, the
-  admin's People card (build 2): its three counts are each a link.** Part C
-  (2026-10-07) is the look and the lead cards: §15e, M23.
+  admin's Users card (build 2): its three counts are each a link**, and
+  Teachers / Parents open Admin → Users already filtered to what they count
+  (role teacher; role parent + active). Part C (2026-10-07) is the look and
+  the lead cards: §15e, M23. The admin lockout notice is compact and holds
+  its space while the dashboard loads (`HazardSlot.jsx`, fix round F1).
 - **No dashboard card is red.** `Card`'s `danger` tone is defined and
   deliberately unused. Red means something HAS failed, and the only thing
   that can fail is a request — which `ErrorAlert` already renders inside the
@@ -907,8 +915,8 @@ larger scale was reverted, FR5) and titles step up by class. **One `Button`**
 for ENTRANCES only** — GSAP on the web, `Animated` on the phone, none under
 reduced motion (unknown counts as reduced on the phone) — and **never on
 attendance marking, grade entry, the toast or the leave-guard dialogs**
-(`Modal` never animates); **the one loop is the skeleton's pulse — twice,
-then still, never under reduced motion** (build 2, §5). **No Reload control:** the browser's reload on the
+(`Modal` never animates); **the one loop is the skeleton's sweep — three
+passes, then still, never under reduced motion** (build 2, §5). **No Reload control:** the browser's reload on the
 web; on the phone pull-to-refresh, OFF on Attendance and the Grades slot
 while anything is unsaved (Attendance also blocks taps and Save during a
 pull); the LiveStatus strip's Refresh is the only refresh button (web: a full
@@ -1455,6 +1463,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
 | **On a query change, `DataTable` / `DataList` show the PREVIOUS rows greyed and inert until the new ones land** — added 2026-10-07 | both components + their 36 consumers | Neither knows the query. The skeleton there is option 1 (a `queryKey` per consumer), deferred with skeleton tier 2 — **do not touch the consumers for it outside that dispatch** |
+| **Ten avatar lists' skeletons have no avatar circle** — added 2026-10-08 | admin Attendance, teacher Attendance records, teacher Excuse Letters, both Messages — web and phone | `skeletonAvatar` was added to Users and both Students only (the 6-file limit); the ten go to the option 1 dispatch. Cosmetic |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1687,15 +1696,18 @@ its `docs/CHANGELOG.md` row.
       dashboards' look and lead cards, the admin's People card). Decision 1
       narrowed by the owner's scope answer (KNOWN ISSUES: the query-change
       skeleton is option 1, deferred). Rules: §5a-vii, §9, §15e, M11, M23.
-      **NOT yet device-checked; not merged.**
+      **Device-checked by the owner 2026-10-08; the fix round F1–F8**
+      (the compact lockout notice holding its space, "Users", the
+      Teachers / Parents presets, avatar circles, a new page at the top,
+      the sweep, the inside nav ring, positional keys) **built 2026-10-09,
+      NOT yet re-checked; not merged.**
 
-**NEXT, in order (as the owner's dispatches stand, 2026-10-07):** the
-owner's device check of build 2, then merge `feat/dashboards-look` → the
-privacy build (`feat/privacy`, plan approved, waiting for this merge) →
-smoke gate → manuscript delta list (the team applies it; it now includes
-Chapter 5's admin Messages text) → professor system check, Fri
-2026-10-09. Later: option 1 (`queryKey`) with skeleton tier 2; after the
-check, the cloud (Supabase) survey.
+**NEXT, in order (the owner, 2026-10-08):** the owner's re-check of the fix
+round, then merge `feat/dashboards-look` → the privacy build (`feat/privacy`,
+the owner pastes its PLAN APPROVED) → a shared Messages component (own
+branch) → skeleton tier 2 + option 1 if time → **smoke gate by Thu
+2026-10-15** → **professor system check, Fri 2026-10-16**. The manuscript
+delta list stays with the team. After the check: the cloud (Supabase) survey.
 
 ### Stage 6 — Integration
 

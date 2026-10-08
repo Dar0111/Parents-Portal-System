@@ -32,6 +32,7 @@
     "proof:form-drafts": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-form-drafts.mjs",
     "proof:look-fixes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-look-fixes.mjs",
     "proof:skeletons": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-skeletons.mjs",
+    "proof:build2-fixes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-build2-fixes.mjs",
     "tone:write": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-message-tone.mjs"
   },
   "dependencies": {

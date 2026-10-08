@@ -1209,11 +1209,30 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   fill (`edge-strong` the one-line fallback, judged on the device), a
   `progressbar` with the spinner's own label, the shapes hidden from the
   screen reader and laid out at opacity 0 for the first 300 ms (the height is
-  held). **The pulse is `Animated` on the native driver, opacity 1 → 0.5 → 1
-  over 2 s, TWICE, then still** — never under reduce motion and never while
-  the OS has not answered (unknown means no, as for every motion here). It is
-  the one loop in the app. Used by `DataList` (M11), the dashboard `Card`
-  (`skeleton`: figure, lead, list, facts) and `ReportCardView`.
+  held). **The shimmer is a SWEEP since the fix round (F6, 2026-10-08; an
+  opacity pulse, twice, before):** the web's one light band crossing the
+  bars, built from what is installed — React Native has no fixed
+  backgrounds and no mask without a new package. The region holds one
+  `Animated.Value`, the band's left edge in its own coordinates, run from
+  off the left edge to the region's width, **three passes of 1.5 s on the
+  native driver**, then still; each bar measures where it sits in the
+  region (`measureLayout`), clips to its own corners, and moves its copy of
+  the band by `x − its left` (`Animated.subtract`) — so the slices line up
+  into one band and the gaps stay clean. The band is a `react-native-svg`
+  gradient (installed for the icons), `surface` in the light theme and
+  `edge-strong` in the dark one, from the theme's tokens. **None under
+  reduce motion, or before the OS has answered** (unknown means no, as for
+  every motion here). It is the one loop in the app. Used by `DataList`
+  (M11), the dashboard `Card` (`skeleton`: figure, lead, list, counts,
+  facts) and `ReportCardView`. **Every list of bars is keyed by position
+  (F8):** `Lines` keyed its bars by width class and the System shape passes
+  `w-1/2` twice — two siblings with one key, LogBox's "Console Error" on the
+  owner's phone; the counts shape and DataList's skeleton cards were keyed
+  the same way. **An avatar circle (F4):** a screen whose cards carry
+  `avatar` passes `skeletonAvatar` to `DataList`, and each card placeholder
+  leads with a 38dp circle (RecordCard's Avatar) — Admin → Users and both
+  Students screens; the other avatar lists wait for option 1
+  (KNOWN_ISSUES).
 - **A dashboard re-read keeps every card's answer** (useCard, the web's file:
   the same query read again is `refreshing` — the content takes no touches
   and is marked busy — and a new query starts from nothing). **So a pull now
@@ -1233,13 +1252,28 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   joined by " · "** — no pills, no fact icons. The parent hero is `rounded-xl`
   and its labels lose their uppercase tracking (`HERO_LABEL`; the Attendance
   card's "Last 7 days" keeps the eyebrow). **Admin:** Waiting for approval,
-  then **one People card with three counts, each its own link** (`countRows`
-  in `admin/dashboard/logic.js`, a `Pressable` with `accessibilityRole="link"`,
-  48dp, the ripple — the one card that is not itself pressable, decision 3),
-  then System. **Parent:** the web's order — Grades, Attendance, Messages,
-  Excuse letters, Upcoming events, then **Announcements & memos last, as a
-  list** (one row per post, a hairline between). Teacher: unchanged but for
-  the look.
+  then **one Users card ("People" until the fix round, F2) with three
+  counts, each its own link** (`countRows` in `admin/dashboard/logic.js`, a
+  `Pressable` with `accessibilityRole="link"`, 48dp, the ripple — the one
+  card that is not itself pressable, decision 3), then System. **Parent:**
+  the web's order — Grades, Attendance, Messages, Excuse letters, Upcoming
+  events, then **Announcements & memos last, as a list** (one row per post,
+  a hairline between). Teacher: unchanged but for the look.
+- **The admin dashboard after the fix round (2026-10-08; FRONTEND §15e).**
+  **F1 — the lockout notice is compact and holds its space:** the warning,
+  then "Why this matters" (`accessibilityState` expanded; the explanation
+  word for word behind it) and "Confirm your email" (announced as a link)
+  on a row under it, as the phone's attendance banner puts its button;
+  `hazardSlot` decides — the notice on the server's flag; while the
+  dashboard loads with the session's `email_verified_at` empty, the same
+  notice at opacity 0, untouchable and hidden from the screen reader; else
+  nothing. **F3 — Teachers and Parents open Users already filtered:** the
+  press navigates with `preset: { role, status, key }` (Teachers: Role =
+  Teacher, any status; Parents: Parent + Active — the server's counts),
+  the key the moment of the press; Users, a drawer screen that stays
+  mounted, takes a NEW preset DURING RENDER into the draft and the applied
+  filters (`presetFilters`: only a role and a status it offers), so the
+  focus read is already filtered and nothing shows as unapplied.
 
 ## M24. The status bar is PAINTED — never a style-only status bar (re-check fix, 2026-10-04)
 

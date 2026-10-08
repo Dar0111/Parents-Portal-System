@@ -20,6 +20,11 @@ import Icon from '../../icons';
 import { useNotifications } from '../../realtime/NotificationProvider';
 import { useTheme } from '../../theme/ThemeProvider';
 import { canResetUsers, directoryEmpty, displayRole, EMPTY_FILTERS, maskLoginId, ROLE_FILTERS, rowActions, STATUS_FILTERS, statusMessage, userListParams } from './users/logic';
+import { presetFilters } from './dashboard/logic';
+
+// The filter values a preset may name — this screen's own lists.
+const PRESET_ROLES = ROLE_FILTERS.map((f) => f.key);
+const PRESET_STATUSES = STATUS_FILTERS.map((f) => f.key);
 import TempPasswordModal from './users/TempPasswordModal';
 
 // ADMIN → USERS — the web's UsersPage.jsx as one scrolling list with two
@@ -76,6 +81,31 @@ export default function UsersScreen({ navigation, route }) {
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
   const [applied, setApplied] = useState(EMPTY_FILTERS);
+
+  // A PRESET FROM THE DASHBOARD (fix round F3, 2026-10-08). The admin
+  // dashboard's Teachers and Parents counts navigate here with
+  // `params.preset` — `{ role, status, key }`, the WHERE each count counts —
+  // and the directory opens on it, APPLIED: the draft and the applied
+  // filters both take it, so the first read is already filtered and nothing
+  // shows as unapplied. This is a drawer screen and stays mounted, so the
+  // preset is taken DURING RENDER whenever a new one arrives (its `key` is
+  // the moment of the press), before the focus effect reads — React's own
+  // pattern for state that follows a prop, no effect, no second request.
+  // Only a role and a status this screen offers are taken (`presetFilters`);
+  // the filters stay the admin's own to change or reset afterwards.
+  const preset = route?.params?.preset || null;
+  const [presetSeen, setPresetSeen] = useState(null);
+  if (preset && preset.key !== presetSeen) {
+    setPresetSeen(preset.key);
+    const next = presetFilters(preset, PRESET_ROLES, PRESET_STATUSES);
+    if (next) {
+      setRole(next.role);
+      setStatus(next.status);
+      setSearch('');
+      setApplied(next);
+    }
+  }
+
   const draftFilters = { role, status, search: search.trim() };
   const dirty = isDirty(draftFilters, applied);
 
@@ -289,6 +319,7 @@ export default function UsersScreen({ navigation, route }) {
     <>
       <DataList
         rows={users}
+        skeletonAvatar
         renderCard={(row) => {
           const a = rowActions(row, me?.id);
           const busy = statusSavingId === row.id;

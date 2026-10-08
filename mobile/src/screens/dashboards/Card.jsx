@@ -43,11 +43,16 @@ const TONES = {
 //     its answer: the answer STAYS, its content takes no touches and is
 //     marked busy. The card's own press is not stale — it opens the same
 //     screen either way — so it is not part of that.
+//
+// EVERY LIST OF BARS IS KEYED BY POSITION (fix round F8, 2026-10-08). `Lines`
+// keyed each bar by its width class, and the System shape passes `w-1/2`
+// twice — two siblings with one key, LogBox's "Console Error" on the owner's
+// phone. A width is not an identity; the position in a fixed list is.
 function Lines({ widths }) {
   return (
     <View className="mt-3 gap-2 border-t border-edge-soft pt-3">
-      {widths.map((w) => (
-        <View key={w} className="h-5 justify-center">
+      {widths.map((w, i) => (
+        <View key={i} className="h-5 justify-center">
           <SkeletonBar className={`h-3 ${w}`} />
         </View>
       ))}
@@ -77,11 +82,12 @@ const SKELETON_SHAPES = {
       <Lines widths={['w-3/4', 'w-2/3', 'w-1/2']} />
     </>
   ),
-  // The admin People card (Part C): three label-figure-caption counts.
+  // The admin Users card (Part C; "People" until the fix round): three
+  // label-figure-caption counts.
   counts: () => (
     <View className="gap-1">
-      {['w-16', 'w-14', 'w-12'].map((w) => (
-        <View key={w} className="px-3 py-2" style={{ minHeight: 48 }}>
+      {['w-16', 'w-14', 'w-12'].map((w, i) => (
+        <View key={i} className="px-3 py-2" style={{ minHeight: 48 }}>
           <View className="h-5 justify-center">
             <SkeletonBar className={`h-3 ${w}`} />
           </View>

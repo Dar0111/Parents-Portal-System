@@ -694,19 +694,37 @@ About) is deferred, with the `queryKey` below. The owner's decisions of
   learner row, six learning-area rows and the general-average band (none on
   a Key Stage 1 card once the mode is known). **The fill is `edge`** in both
   themes — about 1.27:1 light, 1.2:1 dark on `surface`, decoration only, so
-  WCAG 1.4.11 does not apply, and never on the bare page — with `edge-strong`
-  as the one-line fallback (`FILL`) if the owner's device check finds it
-  faint. **No new token, no new contrast pair.**
+  WCAG 1.4.11 does not apply, and never on the bare page — passed by the
+  owner on the device in both themes (2026-10-08); `edge-strong` stays the
+  one-line fallback (`FILL`). **No new token, no new contrast pair.**
+- **An avatar circle where the rows have one** (fix round F4, 2026-10-08):
+  a page whose FIRST column is a `PersonCell` and whose cards carry `avatar`
+  passes `skeletonAvatar`, and the skeleton then draws a circle of Avatar's
+  `md` size (2.375rem) beside the first column's bar and at the head of each
+  card placeholder — the row is its real height. The table cannot know this
+  before a row exists, so it is the page's to say: Admin → Users (both
+  tables) and both Students pages say it. **The other avatar lists** (admin
+  Attendance, teacher Attendance records, teacher Excuse Letters, both
+  Messages pages) wait for option 1, which edits every consumer anyway
+  (KNOWN_ISSUES).
 - **When** (decision 6, `hooks/useSkeleton.js`, mirrored): nothing painted
   for **300 ms** — a fast load never shows one — with the region mounted and
   the **height reserved** from the first frame (`invisible`, laid out); then
   the skeleton; gone **the moment loading ends, with no minimum display
   time**. A failed load shows the existing error and Retry; an empty result
   the existing empty state. The hook sets state only from its timer.
-- **The shimmer is finite and still under reduced motion.** Tailwind's own
-  `pulse` (opacity), behind `motion-safe:`, **twice** (2 s each — under WCAG
-  2.2.2's five seconds), then the shapes stand: it never runs on without end.
-  It is the ONE loop in the app (§27c).
+- **The shimmer is a SWEEP, finite, and none under reduced motion** (fix
+  round F6, 2026-10-08 — the owner picked it over build 2's opacity pulse).
+  One light band crosses the region left to right: every bar and circle is
+  a `.skeleton-bone`, and `index.css` gives them, only inside a region whose
+  `data-skeleton` is `painted`, a gradient band with `background-attachment:
+  fixed` — so each bar shows its slice of the SAME band and the gaps between
+  bars never show it (a browser that ignores `fixed` falls back to a band
+  per bar). The band is `surface` in the light theme and `edge-strong` in the
+  dark one — a light band in both, no new token. **Three passes of 1.5 s**
+  (4.5 s, under WCAG 2.2.2's five seconds), then the bars stand still; the
+  whole rule sits inside `prefers-reduced-motion: no-preference`. Only the
+  background moves. It is the ONE loop in the app (§27c).
 - **Accessibility** (decision 7): the region is `role="status"` +
   `aria-live="polite"` + `aria-busy="true"` with the spinner's own words
   ("Loading…" unless the caller names the wait) in an sr-only span; the
@@ -733,8 +751,10 @@ About) is deferred, with the `queryKey` below. The owner's decisions of
 - **Proved by** `ssr-skeletons` (55: the phase table, `startRead` /
   `cardView` with a negative control that is the old one-flag view, the
   region in both phases, DataTable / Card / ReportCard rendered loading,
-  kept, idle and failed) and `proof-skeletons` on the phone. The 300 ms, the
-  pulse, the fill's look and what a screen reader says are the owner's check.
+  kept, idle and failed) and `proof-skeletons` on the phone; the avatar
+  circle and the sweep's built rules by `ssr-build2-fixes` (fix round). The
+  300 ms, the sweep moving, the fill's look and what a screen reader says
+  are the owner's check.
 
 ### 5c. The LRN is half a credential, not an ordinary identifier
 
@@ -1566,6 +1586,29 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   Login page would gain a gutter strip — its right edge measured
   pixel-identical before and after at 1366 wide in both themes, and a global
   rule changed it (the negative control).
+- **A new page starts at the top** (fix round F5, 2026-10-08). The document
+  is the only scroller and React Router leaves it alone, so a page opened
+  from the sidebar or a link kept the previous page's scroll (the dashboard
+  scrolled down, then Students opened at its bottom). `Shell` now asks
+  `layout/scrollOnNavigate.js` `shouldScrollToTop` in a layout effect on
+  every location change and scrolls the window to the top (`behavior:
+  'instant'`) only when **the pathname changed on a `PUSH` or `REPLACE`**.
+  **Back / Forward (`POP`) keep the browser's restore; a query-only change
+  never scrolls** (a filter, a pinned `?term=`, Admin → Users' preset
+  leaving the address). Messages keeps its own positioning — a thread opens
+  at its newest message and brings the box into view after its messages
+  load, later than this. Proved by `ssr-build2-fixes`, which imports the
+  rule and never reads source; a real scroll is the browser check.
+- **A nav row draws its focus ring inside the row** (fix round F7,
+  2026-10-08). The sidebar links used the shared 2px-offset ring, 4px
+  OUTSIDE the row, and the nav box is a scroller with no bottom padding
+  since the slot grid (F3) — so the pinned Messages row, stuck at the box's
+  bottom edge, had the bottom of its ring cut off, expanded and in the rail
+  (the same for any row at the very end of the list). Nav rows now use
+  `-outline-offset-2` (`NAV_FOCUS`, as DataTable's cards draw theirs): same
+  colour and width, the whole ring inside the row wherever it sits, the
+  grid untouched. The user card's links sit outside the box and keep the
+  outside ring.
 - **The drawer is a modal dialog** (build 2, `feat/dashboards-look`,
   2026-10-07, the owner's decision 2): `<div role="dialog" aria-modal="true"
   aria-label="Menu" tabIndex={-1}>`, because it sits over the page, holds the
@@ -2138,17 +2181,26 @@ All three roles, web and phone. **No "Open →" row.**
 - **Phone: the card is a `Pressable`, `accessibilityRole="link"`**, press
   feedback a plain style function on a Pressable with no `className` (the
   frame sits on the View inside). Not pressable in error, as on the web.
-- **THE ONE EXCEPTION: the admin's People card** (build 2, the owner's
-  decision 3, 2026-10-07). Students, Teachers and Parents share one card and
-  open DIFFERENT lists, so the card has no `to` (phone: no `onOpen`) and
-  **each count is its own link** — a real `<Link>` (phone: a `Pressable`,
+- **THE ONE EXCEPTION: the admin's Users card** (build 2, the owner's
+  decision 3, 2026-10-07; titled "People" until the fix round, F2,
+  2026-10-08). Students, Teachers and Parents share one card and open
+  DIFFERENT lists, so the card has no `to` (phone: no `onOpen`) and **each
+  count is its own link** — a real `<Link>` (phone: a `Pressable`,
   `accessibilityRole="link"`) named by its label, number and caption, a
   44px / 48dp target with the control radius, a hover tint and the shared
-  focus outline, a chevron. Students opens Admin → Students; **Teachers and
-  Parents both open Admin → Users**, which takes no role from the address
-  (its role filter is on the page). `AdminDashboard.jsx` `CountLinks`;
-  phone `countRows` in `admin/dashboard/logic.js`. Any other card that
-  wants several destinations is a new decision, not this exception.
+  focus outline, a chevron. Students opens Admin → Students. **Since the fix
+  round (F3) Teachers and Parents open Admin → Users already filtered to
+  what each counts** — `server/routes/dashboard.js` counts every teacher
+  account, any status, and active parents — so Teachers is
+  `?role=teacher` and Parents `?role=parent&status=active` (phone: a
+  `preset` navigation param with the press's moment as its key). Users
+  opens on the preset APPLIED — the first read filtered, the controls
+  showing it, no "Changes not applied" — reads only a role and a status it
+  offers (never a search, a login id or an LRN, §5c), and the preset leaves
+  the address on Apply or Reset. `AdminDashboard.jsx` `CountLinks`; phone
+  `countRows` / `presetFilters` in `admin/dashboard/logic.js`. Any other
+  card that wants several destinations is a new decision, not this
+  exception.
 - **Every card opens on a number or the next action, as `Stat`.** A count is
   printed at 0 once there is anything to count; none keeps the card's empty
   copy. Key Stage 1 still has no count (§12), and there is still no partial
@@ -2168,10 +2220,21 @@ All three roles, web and phone. **No "Open →" row.**
 - **LEAD CARDS (Part C) — the 69bae24 parent layout, recorded here as final
   on 2026-09-30, is superseded by the owner's decision of 2026-10-07:**
   - **Admin** (`sm:2 / lg:4`): **"Waiting for approval" leads, two columns**
-    (amber while something waits, `Stat large`), then **the People card, two
+    (amber while something waits, `Stat large`), then **the Users card, two
     columns** — the two share the first row at `lg` — then **System across
-    the page** (`sm:col-span-2 lg:col-span-4`). The hazard notice stays above
-    the grid. No `compact` tiles.
+    the page** (`sm:col-span-2 lg:col-span-4`). No `compact` tiles. **The
+    lockout notice stays above the grid, COMPACT since the fix round (F1,
+    2026-10-08)** — `pages/dashboards/HazardSlot.jsx`, on the teacher
+    banner's pattern: the warning on one line with "Why this matters" (the
+    long explanation, word for word, behind a button with `aria-expanded`)
+    and "Confirm your email" on the right, wrapping under the text at
+    390px. **Its space is held from the first frame:** while the dashboard
+    loads and the session's `email_verified_at` is empty, the same notice is
+    laid out invisible (`aria-hidden`, `inert`), so the server's flag shows
+    it in place instead of pushing the cards down; a confirmed email holds
+    nothing (the warning cannot be true). The one jump left is a second
+    active admin inserted straight into the database. Still shown only on
+    `hazard.single_unverified_admin`, not dismissible, naming no account.
   - **Teacher** (`sm:2 / lg:3`): unchanged — **"Excuse letters to review"
     leads**, first, `sm:col-span-2`, `Stat large`; no width leaves a hole.
   - **Parent** (`sm:2 / lg:3`): **Grades leads, two columns, beside
@@ -3459,10 +3522,11 @@ Expo Go. The phone's side is MOBILE_CONVENTIONS M23–M24.
 - **No motion on attendance marking, grade entry, the new-message toast or
   the "Leave without saving?" dialogs — so `Modal` is never animated**
   (`motion.js:24–26`; `components/Modal.jsx:31`; `realtime/MessageToast.jsx:47–48`).
-- **The one loop: the skeleton's pulse** (build 2, the owner's decision 5,
-  2026-10-07) — opacity only, `motion-safe:` only, twice and then still,
-  only while a region has nothing of its content on screen (§5a-vii). No
-  other element may loop.
+- **The one loop: the skeleton's sweep** (build 2, the owner's decision 5,
+  2026-10-07; a pulse until the fix round, F6, 2026-10-08) — one light band
+  across the bars, the background only, never under reduced motion, three
+  passes and then still, only while a region has nothing of its content on
+  screen (§5a-vii). No other element may loop.
 
 ### 27d. No in-app Reload
 

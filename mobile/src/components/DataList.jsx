@@ -3,7 +3,7 @@ import Button from './Button';
 import EmptyState from './EmptyState';
 import ErrorAlert from './ErrorAlert';
 import RecordCard from './RecordCard';
-import Skeleton, { SkeletonBar } from './Skeleton';
+import Skeleton, { SkeletonBar, SkeletonCircle } from './Skeleton';
 import { cardClass } from './buttonStyles';
 import { useSkeleton } from '../hooks/useSkeleton';
 import { useTheme } from '../theme/ThemeProvider';
@@ -64,20 +64,31 @@ import { useTheme } from '../theme/ThemeProvider';
 // the PREVIOUS rows stay, greyed and untouchable, until the new ones land;
 // the skeleton on a query change waits for a `queryKey` from every screen
 // (deferred with skeleton tier 2, owner, 2026-10-07; KNOWN_ISSUES).
+//
+// AN AVATAR WHERE THE CARDS HAVE ONE (fix round F4, 2026-10-08): a screen
+// whose cards carry `avatar` says so with `skeletonAvatar`, and each card
+// placeholder leads with a circle of RecordCard's Avatar size (38dp) — the
+// web DataTable's rule. The list cannot know before a row exists. Users and
+// both Students screens say it; the other avatar lists wait for option 1
+// (KNOWN_ISSUES).
 const SKELETON_CARDS = ['w-2/3', 'w-1/2', 'w-3/4'];
+const SKELETON_AVATAR = 38;
 const BUSY_DIM = { opacity: 0.6 };
 
-function ListSkeleton({ phase }) {
+function ListSkeleton({ phase, avatar }) {
   return (
     <Skeleton phase={phase}>
       <View className="gap-3">
-        {SKELETON_CARDS.map((w) => (
-          <View key={w} className={`${cardClass} p-4`}>
-            <View className="h-6 justify-center">
-              <SkeletonBar className={`h-3.5 ${w}`} />
-            </View>
-            <View className="mt-0.5 h-5 justify-center">
-              <SkeletonBar className="h-3 w-1/2" />
+        {SKELETON_CARDS.map((w, i) => (
+          <View key={i} className={`${cardClass} flex-row items-start gap-3 p-4`}>
+            {avatar ? <SkeletonCircle size={SKELETON_AVATAR} /> : null}
+            <View className="min-w-0 flex-1">
+              <View className="h-6 justify-center">
+                <SkeletonBar className={`h-3.5 ${w}`} />
+              </View>
+              <View className="mt-0.5 h-5 justify-center">
+                <SkeletonBar className="h-3 w-1/2" />
+              </View>
             </View>
           </View>
         ))}
@@ -102,6 +113,8 @@ export default function DataList({
   empty = {},
   header = null,
   contentContainerStyle,
+  // The cards lead with an avatar: the skeleton's cards do too (F4).
+  skeletonAvatar = false,
 }) {
   const { tokens } = useTheme();
   const firstLoad = loading && !rows.length;
@@ -123,7 +136,7 @@ export default function DataList({
   };
 
   let emptyContent;
-  if (firstLoad) emptyContent = <ListSkeleton phase={skeleton} />;
+  if (firstLoad) emptyContent = <ListSkeleton phase={skeleton} avatar={skeletonAvatar} />;
   else if (error) emptyContent = <ErrorAlert message={error} onRetry={onRetry} />;
   else emptyContent = <EmptyState icon={empty.icon} title={empty.title} message={empty.message} action={empty.action} />;
 

@@ -6,15 +6,16 @@
 // web's file byte for byte (lint:mirrors) — and useCard.js's `startRead` /
 // `cardView`, with a negative control that is the old one-flag view.
 // What it reads as SOURCE TEXT, said plainly: Skeleton.jsx (the progressbar
-// and its label, hidden shapes, opacity 0 during the wait, the native-driver
-// pulse twice and never under reduced motion), DataList (the skeleton only
+// and its label, hidden shapes, opacity 0 during the wait, and — since the
+// fix round, F6 — the native-driver SWEEP, three passes, never under reduced
+// motion; the sweep's band per bar is proved in proof-build2-fixes), DataList (the skeleton only
 // with nothing on screen; kept rows take no touches, leave the screen
 // reader, and grey after 300 ms; the header stays live), the dashboard Card,
 // the three dashboards' pull indicator, the teacher banners' `refresh`, and
 // the report card. React Native does not render under Node, so nothing here
 // is rendered.
 //
-// WHAT IT CANNOT: the 300 ms, the pulse, the fill on the device, TalkBack,
+// WHAT IT CANNOT: the 300 ms, the sweep, the fill on the device, TalkBack,
 // a real pull — the owner's phone check (M7). Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-skeletons.mjs
 import fs from 'node:fs';
@@ -63,15 +64,17 @@ assert(oldView(startRead(loaded, '[3]')).loading === true, 'NEGATIVE CONTROL: th
 console.log('the skeleton region (source)');
 const skeleton = src('components/Skeleton.jsx');
 assert(/accessibilityRole="progressbar" accessibilityLabel=\{label\}/.test(skeleton) && /label = 'Loading…'/.test(skeleton), 'a progressbar with the spinner’s own label, as LoadingSpinner is (decision 7)');
-assert(/importantForAccessibility="no-hide-descendants" accessibilityElementsHidden/.test(skeleton), 'the shapes are hidden from the screen reader');
-assert(/<View style=\{\{ opacity: painted \? 1 : 0 \}\}>\{children\}<\/View>/.test(skeleton), 'during the wait the shapes are laid out at opacity 0 — the height is held, nothing is painted');
-assert(/const shimmer = painted && motion;/.test(skeleton) && /const motion = useMotionAllowed\(\);/.test(skeleton), 'the pulse runs only when motion is allowed — never under reduce motion, never while the OS has not answered');
-assert(/const SHIMMER_ITERATIONS = 2;/.test(skeleton) && /\{ iterations: SHIMMER_ITERATIONS \}/.test(skeleton) && /useNativeDriver: true/.test(skeleton), 'twice, on the native driver, opacity only — never on without end');
+assert(/importantForAccessibility="no-hide-descendants"\s+accessibilityElementsHidden/.test(skeleton), 'the shapes are hidden from the screen reader');
+// Three checks changed in place by the fix round (F6, 2026-10-08), same
+// count: the pulse became a sweep.
+assert(/style=\{\{ opacity: painted \? 1 : 0 \}\}/.test(skeleton), 'during the wait the shapes are laid out at opacity 0 — the height is held, nothing is painted');
+assert(/const sweeping = painted && motion;/.test(skeleton) && /const motion = useMotionAllowed\(\);/.test(skeleton), 'the sweep runs only when motion is allowed — never under reduce motion, never while the OS has not answered');
+assert(/const PASSES = 3;/.test(skeleton) && /\{ iterations: PASSES \}/.test(skeleton) && /useNativeDriver: true/.test(skeleton), 'three passes, on the native driver — never on without end');
 assert(/const FILL = 'bg-edge';/.test(skeleton), 'the `edge` token — no new token');
 
 console.log('DataList (source)');
 const list = src('components/DataList.jsx');
-assert(/if \(firstLoad\) emptyContent = <ListSkeleton phase=\{skeleton\} \/>;/.test(list) && !/LoadingSpinner/.test(list), 'nothing on screen: the skeleton, as the list’s empty content (the header stays mounted)');
+assert(/if \(firstLoad\) emptyContent = <ListSkeleton phase=\{skeleton\}(?: avatar=\{skeletonAvatar\})? \/>;/.test(list) && !/LoadingSpinner/.test(list), 'nothing on screen: the skeleton, as the list’s empty content (the header stays mounted)');
 assert(/const busy = loading && rows\.length > 0;/.test(list), 'rows on screen while loading are KEPT');
 const KEEP = /pointerEvents: busy \? 'none' : 'auto',\n\s+importantForAccessibility: busy \? 'no-hide-descendants' : 'auto',\n\s+accessibilityElementsHidden: busy,\n\s+style: dimmed \? BUSY_DIM : undefined,/;
 assert(KEEP.test(list), '…and made safe: no touches, out of the screen reader’s reach, greyed once dimmed');

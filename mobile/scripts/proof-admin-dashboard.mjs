@@ -2,7 +2,7 @@
 // `admin/dashboard/logic.js`: the backup card's tone and words by CALENDAR
 // day in Manila with the clock pinned, never red; every card opening an
 // admin route and none opening the web-only Backup & Restore; the lockout
-// hazard; the waiting card's tone; and since build 2 (Part C) the People
+// hazard; the waiting card's tone; and since build 2 (Part C) the Users ("People" until the fix round)
 // card's three counts (`countRows`). What it cannot: the cards render — the
 // phone (M7). Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-admin-dashboard.mjs
@@ -43,7 +43,7 @@ const links = Object.values(CARD_LINKS);
 assert(links.every((l) => l.startsWith('/admin')) && !links.includes('/admin/backups'), `every link — the waiting card, the three counts, System — an admin route, none to Backup & Restore (${links.join(', ')})`);
 assert(CARD_LINKS.system === '/admin/settings' && CARD_LINKS.pending === '/admin/users', 'System opens Settings; the waiting count opens Users');
 
-console.log('the People card — three counts, each its own link (build 2, Part C)');
+console.log('the Users card — three counts, each its own link (build 2, Part C)');
 const rows = countRows({ students: 4, teachers: 3, active_parents: 2 });
 assert(rows.map((r) => r.key).join(',') === 'students,teachers,parents' && rows.map((r) => r.label).join(',') === 'Students,Teachers,Parents', 'Students, Teachers, Parents — in the web’s order and words');
 assert(rows[0].link === '/admin/students' && rows[1].link === '/admin/users' && rows[2].link === '/admin/users', 'each opens the list whose WHERE it repeats: Students → Students, Teachers and Parents → Users');

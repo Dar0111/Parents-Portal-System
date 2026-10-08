@@ -176,6 +176,7 @@ export default function StudentsScreen({ navigation }) {
   return (
     <DataList
       rows={students}
+      skeletonAvatar
       renderCard={(row) => {
         const next = row.status === 'active' ? 'inactive' : 'active';
         const busy = savingId === row.id;
