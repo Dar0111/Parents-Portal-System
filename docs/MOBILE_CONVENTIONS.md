@@ -1390,6 +1390,10 @@ phone differs.
   `checkbox` with its `checked` state; the box is a View in the app's tokens
   (`bg-primary` / `border-edge-strong`), the mark `fa-check` — no new colour,
   no new icon. The third tick names the child by first name, never the LRN.
+  **The words are the web's, word for word** (FRONTEND §29a, the fix round's
+  PF4): the three tick sentences, "I agree and continue", and "Sign out"
+  under "Declining ends portal use only; your child’s school records stay as
+  they are."
 - **The exit is `refresh()`** — no navigate: the re-read brings
   `policy_pending` back false and RootNavigator renders Home. A `409` (a
   version changed meanwhile) reloads the documents and clears the ticks. A
@@ -1403,6 +1407,13 @@ phone differs.
   StudentDetail screens, the record one card, as on the web (§29e) — and with
   them the birthday `DateField` and the gender `Segmented` on those screens.
   The parent's own number stays on the enrol screen's parent phase.
+- **Edit student's LRN, Grade level and Section look read-only** (the fix
+  round, PF5): they were already `editable={false}` but drawn like fields you
+  can type in. Both StudentDetail screens now give them the web's disabled
+  look — `surface-subtle` behind `fg-muted` text, as an inline style so it
+  wins over FormField's `bg-surface text-fg` whatever the stylesheet order —
+  and `accessibilityState={{ disabled: true }}`. The server refuses a class
+  change anyway; the phone check owns how it looks.
 
 **Proof:** `scripts/proof-privacy.mjs` (TESTING → Mobile proofs) — the
 mirrored tab list driven; the root order (with a swapped-gates control), the

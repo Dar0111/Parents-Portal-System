@@ -82,7 +82,7 @@ assert(
   'Accept works only with all three ticked'
 );
 assert(
-  /I accept both on behalf of my child\{childName \? `, \$\{childName\}` : ''\}\./.test(consent) &&
+  /As the parent or legal guardian of \{childName \|\| 'my child'\}, I consent, on my child’s behalf,/.test(consent) &&
     /const childName = user\?\.student_first_name \? String\(user\.student_first_name\) : null;/.test(consent),
   "the third tick names the child by FIRST NAME from /auth/me"
 );
@@ -95,13 +95,33 @@ assert(
 );
 assert(/if \(err\?\.response\?\.status === 409\) reload\(\);/.test(consent), 'a 409 (a document changed meanwhile) reloads the documents and clears the ticks');
 assert(/await refresh\(\);/.test(consent) && !/navigation\.navigate|navigate\(/.test(consent), 'the exit is the re-read — RootNavigator routes home, the screen navigates nowhere');
-assert(/<Pressable onPress=\{logout\}[^>]*>\n\s+<Text[^>]*>Sign out instead<\/Text>/.test(consent), 'Sign out is always there');
+assert(/<Pressable onPress=\{logout\}[^>]*>\n\s+<Text[^>]*>Sign out<\/Text>/.test(consent), 'Sign out is always there');
 assert(
   /import Skeleton, \{ SkeletonBar \} from '\.\.\/components\/Skeleton';/.test(consent) && /const phase = useSkeleton\(loading\);/.test(consent),
   "loading is Build 2's skeleton"
 );
 
 console.log('\nSettings → Security & policy (source)');
+// THE WORDS (fix round PF4): the draft the principal will approve, the web's
+// word for word. Whitespace is folded, because a JSX line may wrap.
+const flat = consent.replace(/\s+/g, ' ');
+assert(
+  flat.includes("I have read and accept the {titleOf('privacy_notice') || 'Data Privacy Notice'}.") &&
+    flat.includes("I have read and agree to the {titleOf('terms_of_use') || 'Terms of Use'}.") &&
+    flat.includes(
+      "As the parent or legal guardian of {childName || 'my child'}, I consent, on my child’s behalf, to the processing of my child’s personal data for the purposes in the notice."
+    ),
+  'the three ticks say the principal’s draft, word for word'
+);
+assert(/'I agree and continue'/.test(consent) && !/Accept and continue/.test(consent), 'the button says "I agree and continue"');
+const declineThenSignOut = (text) => {
+  const at = text.indexOf('Declining ends portal use only; your child’s school records stay as they are.');
+  const out = text.search(/onPress=\{logout\}[^>]*>\s*<Text[^>]*>Sign out<\/Text>/);
+  return at > 0 && out > at;
+};
+assert(declineThenSignOut(flat), 'the line about declining sits above a plain "Sign out"');
+assert(!declineThenSignOut(flat.replace('Declining ends', 'Leaving ends')), 'control: without that line, the same check fails');
+
 const security = src('screens/settings/SecurityPolicyScreen.jsx');
 assert(/Accepted on \$\{timestampDay\(at, \{ style: 'long' \}\)\}/.test(security) && /import \{ timestampDay \} from '\.\.\/\.\.\/format\/date';/.test(security), 'the accepted date is the mirrored Manila-day formatter, never computed here');
 assert(/required \? \(at \? /.test(security) && /: ' · Not accepted yet'\) : ''/.test(security), 'a parent sees a date or "Not accepted yet"; staff see neither');

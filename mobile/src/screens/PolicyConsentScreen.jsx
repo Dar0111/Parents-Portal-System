@@ -29,12 +29,15 @@ import { useTheme } from '../theme/ThemeProvider';
 // refuses would only fail.
 //
 // THREE TICKS, ALL REQUIRED, checked again by the server: the notice, the
-// terms, and "on behalf of my child, <first name>" — the FIRST NAME from
-// /auth/me, never the LRN (§5c). The accept sends the versions this screen
+// terms, and the parent's consent for their child — "As the parent or legal
+// guardian of <first name>, …" — the FIRST NAME from /auth/me, never the LRN
+// (§5c). The wording is the web's, word for word: the draft the principal
+// will approve (fix round PF4). The accept sends the versions this screen
 // SHOWED; a version that changed meanwhile is a 409, and the screen reloads the
 // documents and clears the ticks. The exit is the re-read: `refresh()` brings
 // `policy_pending` back false from the SERVER and RootNavigator routes home.
-// Sign out is always there and changes nothing.
+// Sign out is always there and changes nothing; the line above it says
+// declining leaves the child's school records as they are.
 //
 // THE FRAME IS THE SIGN-IN FAMILY'S, as on ForcedPasswordChangeScreen; LOADING
 // is Build 2's skeleton (components/Skeleton + hooks/useSkeleton, unchanged).
@@ -205,15 +208,16 @@ export default function PolicyConsentScreen() {
                       I have read and accept the {titleOf('privacy_notice') || 'Data Privacy Notice'}.
                     </Tick>
                     <Tick checked={ticked.terms_of_use} onToggle={toggle('terms_of_use')} disabled={saving}>
-                      I have read and accept the {titleOf('terms_of_use') || 'Terms of Use'}.
+                      I have read and agree to the {titleOf('terms_of_use') || 'Terms of Use'}.
                     </Tick>
                     <Tick checked={ticked.child} onToggle={toggle('child')} disabled={saving}>
-                      I accept both on behalf of my child{childName ? `, ${childName}` : ''}.
+                      As the parent or legal guardian of {childName || 'my child'}, I consent, on my child’s behalf, to the
+                      processing of my child’s personal data for the purposes in the notice.
                     </Tick>
                   </View>
 
                   <Button variant="primary" size="lg" full loading={saving} disabled={!ready} onPress={accept}>
-                    {saving ? 'Saving…' : 'Accept and continue'}
+                    {saving ? 'Saving…' : 'I agree and continue'}
                   </Button>
                   <FormStatus status={status} />
                 </View>
@@ -222,9 +226,12 @@ export default function PolicyConsentScreen() {
           </Reveal>
 
           {/* Always there, and it changes nothing: the next sign-in asks again. */}
-          <View className="mt-2 items-center">
+          <View className="mt-4 items-center">
+            <Text className="text-center text-sm text-fg-muted">
+              Declining ends portal use only; your child’s school records stay as they are.
+            </Text>
             <Pressable onPress={logout} accessibilityRole="button" className="flex-row items-center" style={{ minHeight: 48 }}>
-              <Text className="text-sm font-semibold text-brand">Sign out instead</Text>
+              <Text className="text-sm font-semibold text-brand">Sign out</Text>
             </Pressable>
           </View>
         </View>

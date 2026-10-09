@@ -27,11 +27,14 @@ import seal from '../assets/school-seal.png';
 // password first, exactly as the server orders them.
 //
 // THREE TICKS, ALL REQUIRED, and the server checks them again: the notice, the
-// terms, and "on behalf of my child, <first name>" — the child's FIRST NAME
-// from /auth/me, never the LRN (§5c). The accept sends the versions this page
-// SHOWED; a version that changed meanwhile is a 409, the page reloads the
-// documents and the parent reads them again. Sign out is always there and
-// changes nothing — the flag is still set at the next sign-in.
+// terms, and the parent's consent for their child — "As the parent or legal
+// guardian of <first name>, …" — the child's FIRST NAME from /auth/me, never
+// the LRN (§5c). The wording is the draft the principal will approve (fix
+// round PF4). The accept sends the versions this page SHOWED; a version that
+// changed meanwhile is a 409, the page reloads the documents and the parent
+// reads them again. Sign out is always there and changes nothing — the flag
+// is still set at the next sign-in, and the line above it says declining
+// leaves the child's school records as they are.
 //
 // LOADING is Build 2's skeleton (components/Skeleton + hooks/useSkeleton,
 // unchanged): nothing for 300 ms, then the shapes of the two documents.
@@ -162,7 +165,8 @@ export default function PolicyConsent() {
         </Reveal>
 
         {/* Always there, and it changes nothing: the next sign-in asks again. */}
-        <p className="mt-4 text-center text-sm">
+        <div className="mt-4 text-center text-sm">
+          <p className="text-fg-muted">Declining ends portal use only; your child&rsquo;s school records stay as they are.</p>
           <button
             type="button"
             onClick={() => {
@@ -171,9 +175,9 @@ export default function PolicyConsent() {
             }}
             className={`${linkClass} inline-flex min-h-11 items-center`}
           >
-            Sign out instead
+            Sign out
           </button>
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -268,7 +272,7 @@ export function ConsentBody({
                 onChange={onTick('terms_of_use')}
                 disabled={saving}
               />
-              <span>I have read and accept the {titleOf('terms_of_use') || 'Terms of Use'}.</span>
+              <span>I have read and agree to the {titleOf('terms_of_use') || 'Terms of Use'}.</span>
             </label>
             <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-fg-body [overflow-wrap:anywhere]">
               <input
@@ -278,12 +282,15 @@ export function ConsentBody({
                 onChange={onTick('child')}
                 disabled={saving}
               />
-              <span>I accept both on behalf of my child{childName ? `, ${childName}` : ''}.</span>
+              <span>
+                As the parent or legal guardian of {childName || 'my child'}, I consent, on my child&rsquo;s behalf, to the
+                processing of my child&rsquo;s personal data for the purposes in the notice.
+              </span>
             </label>
           </fieldset>
 
           <Button variant="primary" size="lg" full type="submit" loading={saving} disabled={!ready}>
-            {saving ? 'Saving…' : 'Accept and continue'}
+            {saving ? 'Saving…' : 'I agree and continue'}
           </Button>
           <FormStatus status={status} />
         </form>

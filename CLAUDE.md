@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-10, `feat/privacy` — the privacy build (§29, M26) built in two commits, NOT device-checked, not merged (on `main` `9ed8793`, build 2 merged 2026-10-09) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-10, `feat/privacy` — the privacy build (§29, M26): two commits, the owner's device check passed, then a fix round; not merged (on `main` `9ed8793`, build 2 merged 2026-10-09) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -956,8 +956,10 @@ MOBILE M25.
 Data Privacy Notice and Terms of Use reaches only `/auth/me`,
 `/auth/change-password` and `/api/policy/*`** (`403
 POLICY_ACCEPTANCE_REQUIRED`), AFTER the forced change; clients route on
-`policy_pending`, never the 403. Three ticks, the child by first name, never
-the LRN; a stale version is 409. **The text (`server/policy/`) is a
+`policy_pending`, never the 403. Three ticks in the principal's draft words
+(§29a), the child by first name, never the LRN; a stale version is 409. **The
+socket refuses the same two gates, and a restore re-runs the privacy step
+itself** (fix round). **The text (`server/policy/`) is a
 placeholder; staff acceptance is deferred.** New teachers and parents change
 the password someone else typed. **Sign-in: 5 failures in a row / 100 per IP
 in 15 min → 429, an unknown id the same.** The learner's birthday, gender,
@@ -1460,7 +1462,7 @@ gate in full on its `POST /api/users/parents` row.
 
 | Issue | Where | Note |
 |---|---|---|
-| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**25** since the privacy build, 2026-10-10 — and such a dump needs `db:migrate:privacy` too, row below; 23 from `assessment_slots` on 2026-09-22, 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
+| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**25** since the privacy build, 2026-10-10 — the restore re-creates its two tables itself since the fix round; 23 from `assessment_slots` on 2026-09-22, 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
@@ -1483,8 +1485,6 @@ gate in full on its `POST /api/users/parents` row.
 | **On a query change, `DataTable` / `DataList` show the PREVIOUS rows greyed and inert until the new ones land** — added 2026-10-07 | both components + their 36 consumers | Neither knows the query. The skeleton there is option 1 (a `queryKey` per consumer), deferred with skeleton tier 2 — **do not touch the consumers for it outside that dispatch** |
 | **Ten avatar lists' skeletons have no avatar circle** — added 2026-10-08 | admin Attendance, teacher Attendance records, teacher Excuse Letters, both Messages — web and phone | `skeletonAvatar` was added to Users and both Students only (the 6-file limit); the ten go to the option 1 dispatch. Cosmetic |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
-| **Restoring a pre-2026-10-10 backup drops the two privacy tables (every signed-in request 503s) and brings back the four learner values** — added 2026-10-10 | restore | **Afterwards: `npm run db:migrate:privacy`** |
-| **The socket handshake checks only that the account is active** — added 2026-10-10 | `server/socket.js` | Not the forced change or consent; neither app connects before both (M26) |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1691,13 +1691,13 @@ and 2 and admin Messages — each device-checked and merged (build 2 last,
 decision). The block: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 moved from
 CLAUDE.md on 2026-10-10".
 
-- [ ] **The privacy build — `feat/privacy`** (two commits), built 2026-10-10:
-      the consent gate, your own first password, sign-in limits, four
-      learner fields not collected (§29, M26). **NOT device-checked; not
-      merged.**
+- [ ] **The privacy build — `feat/privacy`** (two commits + a fix round),
+      2026-10-10: the consent gate, your own first password, sign-in limits,
+      four learner fields not collected (§29, M26). **The owner's device
+      check passed; the fix round (PF1–PF5) is not re-checked; not merged.**
 
-**NEXT, in order (the owner, 2026-10-08):** the owner's check of
-`feat/privacy`, then merge it → a shared Messages component (own
+**NEXT, in order (the owner, 2026-10-08):** the owner's re-check of
+`feat/privacy`, the cleanup of the check's test data, then merge it → a shared Messages component (own
 branch) → skeleton tier 2 + option 1 if time → **smoke gate by Thu
 2026-10-15** → **professor system check, Fri 2026-10-16**. The manuscript
 delta list stays with the team. After the check: the cloud (Supabase) survey.

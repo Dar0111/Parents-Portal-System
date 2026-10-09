@@ -58,10 +58,14 @@ const LEARNER_FIELDS_SET = `
   SELECT COUNT(*) AS n FROM students
    WHERE birthday IS NOT NULL OR gender IS NOT NULL OR address IS NOT NULL OR contact_number IS NOT NULL`;
 
+// In the CONNECTION'S OWN database, not DB_NAME (fix round PF1): the restore
+// route runs this step on the shared pool and test:privacy on a disposable
+// schema, and each must look in the database it is about to change.
 async function tableExists(conn, name) {
+  const [[{ db }]] = await conn.query('SELECT DATABASE() AS db');
   const [rows] = await conn.query(
     'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? LIMIT 1',
-    [DB_NAME, name]
+    [db, name]
   );
   return rows.length > 0;
 }
@@ -116,11 +120,30 @@ async function main() {
       await printState(conn);
       return;
     }
+    await migratePrivacy(conn);
+    console.log('');
+    await printState(conn);
+  } finally {
+    await conn.end();
+  }
+}
 
+// THE STEP ITSELF (fix round PF1, 2026-10-10), exported so the command above
+// and the restore route (routes/backups.js) run the SAME code: restoring a
+// backup taken before this build drops both tables, and every signed-in
+// request 503s until they are back. Idempotent — on a database that has them
+// it creates nothing and clears 0 rows. Takes a connection or a pool; a pool
+// lends ONE connection for the whole step, so every statement runs in the
+// same session. Returns counts and table names only, never a value.
+async function migratePrivacy(db) {
+  const conn = typeof db.getConnection === 'function' ? await db.getConnection() : db;
+  const created = [];
+  try {
     if (await tableExists(conn, 'policy_acceptances')) {
       console.log('policy_acceptances: already present');
     } else {
       await conn.query(CREATE_POLICY_ACCEPTANCES);
+      created.push('policy_acceptances');
       console.log('policy_acceptances: created');
     }
 
@@ -128,6 +151,7 @@ async function main() {
       console.log('login_attempts: already present');
     } else {
       await conn.query(CREATE_LOGIN_ATTEMPTS);
+      created.push('login_attempts');
       console.log('login_attempts: created');
     }
 
@@ -142,14 +166,15 @@ async function main() {
     );
     if (Number(after) !== 0) throw new Error(`${after} learner(s) still hold a value`);
 
-    console.log('');
-    await printState(conn);
+    return { created, cleared: Number(result.affectedRows) || 0 };
   } finally {
-    await conn.end();
+    if (conn !== db) conn.release();
   }
 }
 
-main().catch((error) => {
+if (require.main === module) main().catch((error) => {
   console.error('Migration failed:', error.message);
   process.exit(1);
 });
+
+module.exports = { migratePrivacy };

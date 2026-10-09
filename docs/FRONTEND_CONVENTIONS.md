@@ -3728,12 +3728,28 @@ on a 403 (§2).
   shape, for its reasons (a sidebar of refused pages lies; wrapping it loops).
   The page does its own guards: signed out → `/login`, the forced change →
   `/change-password`, not pending → the role home.
-- **Three ticks, all required**: the notice, the terms, and **"I accept both
-  on behalf of my child, <first name>"** — the child's FIRST NAME from
-  `/auth/me` (`student_first_name`), **never the LRN** (§5c). Accept stays
-  disabled until all three are ticked; the server checks the third again
-  (`on_behalf_of_child: true`). **Sign out is always there** and changes
-  nothing.
+- **Three ticks, all required, in the words of the draft the principal will
+  approve** (the fix round, PF4, 2026-10-10): "I have read and accept the Data
+  Privacy Notice." · "I have read and agree to the Terms of Use." · **"As the
+  parent or legal guardian of <first name>, I consent, on my child's behalf,
+  to the processing of my child's personal data for the purposes in the
+  notice."** — the child's FIRST NAME from `/auth/me` (`student_first_name`;
+  "my child" when there is none), **never the LRN** (§5c). The button is
+  **"I agree and continue"**, disabled until all three are ticked; the server
+  checks the third again (`on_behalf_of_child: true`). **"Sign out" is always
+  there**, under the line "Declining ends portal use only; your child's school
+  records stay as they are." — and changes nothing. The apostrophes render as
+  the app's typographic ’ (as in "school’s" above them); the words are the
+  owner's. The phone says the same, word for word (MOBILE M26).
+- **The socket refuses the same two gates** (the fix round, PF2):
+  `server/socket.js` checks the forced change, then a parent's acceptance, in
+  `middleware/auth.js`'s order, and answers `connect_error` with the 403's
+  sentence and `data.code`. No client connects before both are past — the
+  socket lives in Shell — so this is the backstop for a direct client.
+- **A restore brings the gate's tables back** (the fix round, PF1): the
+  restore route runs the same step as `npm run db:migrate:privacy` after the
+  pool reset, so restoring a backup from before this build no longer leaves
+  every signed-in request a 503 (KNOWN_ISSUES, closed).
 - **The accept sends the versions the screen SHOWED.** A version that changed
   while the screen was open is a `409`; the page shows the message, reloads
   the documents and clears the ticks. Never a silent acceptance of words the

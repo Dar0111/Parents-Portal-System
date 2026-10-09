@@ -20,6 +20,12 @@
  * for those few seconds every sign-in from this machine answers 429 — run it
  * on its own, like every other suite, never beside another.
  *
+ * FIX ROUND (2026-10-10). The socket handshake refuses the same two gates, in
+ * the same order, and connects once both are clear (PF2). The restore's
+ * privacy step runs on a DISPOSABLE schema — a scratch database made and
+ * dropped here, holding a pre-privacy shape — never a real restore and never
+ * the live tables (PF1); the route's wiring is read as source, with a control.
+ *
  * Usage: npm run test:privacy
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
@@ -30,6 +36,9 @@ const { loginKey, MAX_PER_ACCOUNT, MAX_PER_IP, TOO_MANY } = require('../utils/lo
 
 const BASE = process.env.API_BASE || 'http://localhost:5000';
 const POLICY_DIR = path.join(__dirname, '..', 'policy');
+
+const { io: ioClient } = require('socket.io-client');
+const { migratePrivacy } = require('./migrate-privacy');
 
 let passed = 0;
 let failed = 0;
@@ -64,6 +73,21 @@ async function request(method, urlPath, { token, body } = {}) {
 
 async function login(loginId, password) {
   return request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
+}
+
+// One handshake: connected, or refused with Socket.io's message and `data`.
+function trySocket(token) {
+  return new Promise((resolve) => {
+    const socket = ioClient(BASE, { auth: { token }, reconnection: false, timeout: 5000 });
+    socket.on('connect', () => {
+      socket.close();
+      resolve({ connected: true });
+    });
+    socket.on('connect_error', (err) => {
+      socket.close();
+      resolve({ connected: false, message: err.message, code: err.data?.code });
+    });
+  });
 }
 
 async function withDb(fn) {
@@ -120,6 +144,8 @@ async function run() {
     const adminLogin = await login(admin.loginId, admin.password);
     requireFixture(adminLogin.status === 200, 'admin signs in', adminLogin);
     const adminToken = adminLogin.data.token;
+    const adminSock = await trySocket(adminToken);
+    assert(adminSock.connected, 'socket: the admin (neither gate applies) connects — the helper can say yes');
 
     // --- The documents ---------------------------------------------------
     console.log('The documents');
@@ -166,6 +192,13 @@ async function run() {
     requireFixture(mkTeacher.status === 201, 'admin creates the fixture teacher', mkTeacher);
     created.teacherId = mkTeacher.data.user.id;
     const tFirst = await login(teacherLoginId, firstPw);
+    const tSockFirst = await trySocket(tFirst.data?.token);
+    assert(
+      !tSockFirst.connected &&
+        tSockFirst.code === 'MUST_CHANGE_PASSWORD' &&
+        tSockFirst.message === 'You must change your password before continuing.',
+      'socket: refused while the first password is unchanged — the HTTP 403 sentence and code'
+    );
     assert(tFirst.status === 200 && tFirst.data?.user?.must_change_password === 1, 'it signs in with must_change_password = 1');
     const tBlocked = await request('GET', '/api/students', { token: tFirst.data?.token });
     assert(tBlocked.status === 403 && tBlocked.data?.code === 'MUST_CHANGE_PASSWORD', 'everything else is 403 MUST_CHANGE_PASSWORD');
@@ -177,6 +210,8 @@ async function run() {
     });
     requireFixture(tChange.status === 200 && tChange.data?.token, 'the teacher changes the password', tChange);
     const teacherToken = tChange.data.token;
+    const tSockOwn = await trySocket(teacherToken);
+    assert(tSockOwn.connected, 'socket: connects once the teacher has changed the password');
     const tOpen = await request('GET', '/api/students', { token: teacherToken });
     assert(tOpen.status === 200, 'after the change, the replacement token works');
     const tOld = await login(teacherLoginId, firstPw);
@@ -259,6 +294,11 @@ async function run() {
     requireFixture(approve.status === 200, 'the admin approves it', approve);
 
     const pFirst = await login(childLrn, firstPw);
+    const pSockFirst = await trySocket(pFirst.data?.token);
+    assert(
+      !pSockFirst.connected && pSockFirst.code === 'MUST_CHANGE_PASSWORD',
+      'socket: a new parent with both gates is refused for the password FIRST'
+    );
     assert(
       pFirst.status === 200 && pFirst.data?.user?.must_change_password === 1 && pFirst.data?.user?.policy_pending === true,
       'the parent signs in with must_change_password = 1 and policy_pending = true'
@@ -271,6 +311,13 @@ async function run() {
     });
     requireFixture(pChange.status === 200 && pChange.data?.token, 'the parent changes the password', pChange);
     const parentToken = pChange.data.token;
+    const pSockPending = await trySocket(parentToken);
+    assert(
+      !pSockPending.connected &&
+        pSockPending.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
+        pSockPending.message === 'Please accept the Data Privacy Notice and the Terms of Use before continuing.',
+      'socket: after the change, refused until the notice and terms are accepted — the HTTP 403 sentence and code'
+    );
 
     const gated = await request('GET', `/api/students/${created.studentId}`, { token: parentToken });
     assert(
@@ -317,6 +364,8 @@ async function run() {
       body: { versions: current, on_behalf_of_child: true },
     });
     assert(accept.status === 200 && accept.data?.policy_pending === false, 'all three ticks and the current versions: 200, no longer pending');
+    const pSockOpen = await trySocket(parentToken);
+    assert(pSockOpen.connected, 'socket: connects once the parent has accepted both');
     const [rows] = await withDb((conn) =>
       conn.query('SELECT document, version, student_id FROM policy_acceptances WHERE user_id = ? ORDER BY document', [created.parentId])
     );
@@ -351,12 +400,94 @@ async function run() {
     );
     const reopened = await request('GET', `/api/students/${created.studentId}`, { token: parentToken });
     const reMe = await request('GET', '/api/auth/me', { token: parentToken });
+    const pSockReopened = await trySocket(parentToken);
+    assert(
+      !pSockReopened.connected && pSockReopened.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'socket: refused again once a document is no longer accepted'
+    );
     assert(
       reopened.status === 403 && reopened.data?.code === 'POLICY_ACCEPTANCE_REQUIRED' && reMe.data?.user?.policy_pending === true,
       'without the current Terms of Use (as after a version bump), the gate closes again'
     );
     const reAccept = await request('POST', '/api/policy/accept', { token: parentToken, body: { versions: current, on_behalf_of_child: true } });
     assert(reAccept.status === 200 && reAccept.data?.policy_pending === false, 'and accepting again reopens it');
+
+    const pSockBack = await trySocket(parentToken);
+    assert(pSockBack.connected, 'socket: connects again after the new acceptance');
+
+    // --- After a restore: the privacy step, on a disposable schema ---------
+    // A restore of a backup from before this build leaves a database with
+    // neither table and the four learner values back. That shape is built
+    // here in a scratch database and the step the restore route runs is
+    // called on it directly; the scratch database is dropped in the finally.
+    console.log('\n-- After a restore: the privacy step (disposable schema) --');
+    const liveDb = process.env.DB_NAME || 'parents_portal';
+    const scratch = `pp_privacy_scratch_${tail}`;
+    const PRIVACY_TABLES = "TABLE_NAME IN ('policy_acceptances', 'login_attempts')";
+    try {
+      await withDb(async (conn) => {
+        await conn.query(`CREATE DATABASE \`${scratch}\``);
+        await conn.query(`CREATE TABLE \`${scratch}\`.users LIKE \`${liveDb}\`.users`);
+        await conn.query(`CREATE TABLE \`${scratch}\`.students LIKE \`${liveDb}\`.students`);
+        await conn.query(
+          `INSERT INTO \`${scratch}\`.students
+             (lrn, first_name, last_name, grade_level, section, birthday, gender, address, contact_number)
+           VALUES ('0', 'Scratch', 'Learner', 1, 'Scratch', '2015-01-01', 'female', 'Scratch', '0')`
+        );
+      });
+      const tablesIn = async (schema) => {
+        const [[{ n }]] = await withDb((conn) =>
+          conn.query(`SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ${PRIVACY_TABLES}`, [schema])
+        );
+        return Number(n);
+      };
+      assert((await tablesIn(scratch)) === 0 && (await tablesIn(liveDb)) === 2, 'control: the scratch schema has neither table, the live one has both');
+
+      const onScratch = () =>
+        withDb(async (conn) => {
+          await conn.query(`USE \`${scratch}\``);
+          return migratePrivacy(conn);
+        });
+      const first = await onScratch();
+      assert(
+        first.created.join(',') === 'policy_acceptances,login_attempts' && first.cleared === 1,
+        'the step creates both tables and clears the learner values a pre-privacy restore brings back'
+      );
+      const [[{ fks }]] = await withDb((conn) =>
+        conn.query('SELECT COUNT(*) AS fks FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ?', [scratch])
+      );
+      const [[{ none_held: noneHeld }]] = await withDb((conn) =>
+        conn.query(
+          `SELECT (birthday IS NULL AND gender IS NULL AND address IS NULL AND contact_number IS NULL) AS none_held
+             FROM \`${scratch}\`.students LIMIT 1`
+        )
+      );
+      assert(
+        (await tablesIn(scratch)) === 2 && Number(fks) === 2 && Number(noneHeld) === 1,
+        'afterwards the scratch schema has both tables (with their two foreign keys) and the four fields are empty'
+      );
+      const second = await onScratch();
+      assert(second.created.length === 0 && second.cleared === 0, 'a second run creates nothing and clears 0 rows (idempotent)');
+      assert((await tablesIn(liveDb)) === 2, 'the live database still has both tables');
+    } finally {
+      await withDb((conn) => conn.query(`DROP DATABASE IF EXISTS \`${scratch}\``));
+    }
+    const [[{ n: scratchLeft }]] = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS n FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?', [scratch])
+    );
+    assert(Number(scratchLeft) === 0, 'the scratch schema is dropped');
+
+    // The wiring, read as SOURCE (a real restore drops the live database): the
+    // restore route runs the step after the pool reset, before the session cutoff.
+    const backupsSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'backups.js'), 'utf8');
+    const wired = (text) => {
+      const reset = text.indexOf('await pool.resetPool()');
+      const step = text.indexOf('await migratePrivacy(pool)');
+      const cutoff = text.indexOf('INSERT INTO auth_security_state');
+      return text.includes("require('../scripts/migrate-privacy')") && reset > 0 && step > reset && cutoff > step;
+    };
+    assert(wired(backupsSrc), 'the restore route runs the step after the pool reset and before the session cutoff');
+    assert(!wired(backupsSrc.replace('await migratePrivacy(pool)', '')), 'control: without the call, that check fails');
 
     // --- Sign-in limits ---------------------------------------------------
     console.log('\nSign-in limits');

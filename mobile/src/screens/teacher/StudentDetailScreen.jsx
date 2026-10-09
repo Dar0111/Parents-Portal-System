@@ -91,6 +91,11 @@ export default function StudentDetailScreen({ navigation, route }) {
   // An RN Modal is its own window, outside ScreenFrame — it pads the bottom
   // inset itself, or edge-to-edge Android puts the nav bar over Save.
   const insets = useSafeAreaInsets();
+  // The web's disabled field (`disabled:bg-surface-subtle disabled:text-fg-muted`,
+  // fix round PF5): the LRN and the class cannot be changed here, so they must
+  // not look like fields you can type in. Inline, so it wins over FormField's
+  // `bg-surface text-fg` whatever the stylesheet order.
+  const readOnlyStyle = { backgroundColor: tokens['surface-subtle'], color: tokens['fg-muted'] };
 
   const [student, setStudent] = useState(null);
   const [parentAccount, setParentAccount] = useState(null);
@@ -335,11 +340,17 @@ export default function StudentDetailScreen({ navigation, route }) {
             </Text>
             {editError ? <ErrorAlert message={editError} /> : null}
             <View className={`${cardClass} gap-4 p-4`}>
-              <FormField label="LRN" value={student.lrn} editable={false} />
+              <FormField label="LRN" value={student.lrn} editable={false} accessibilityState={{ disabled: true }} style={readOnlyStyle} />
               <FormField label="First name" required value={draft.first_name} onChangeText={setField('first_name')} />
               <FormField label="Last name" required value={draft.last_name} onChangeText={setField('last_name')} />
-              <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
-              <FormField label="Section" value={student.section} editable={false} />
+              <FormField
+                label="Grade level"
+                value={`Grade ${student.grade_level}`}
+                editable={false}
+                accessibilityState={{ disabled: true }}
+                style={readOnlyStyle}
+              />
+              <FormField label="Section" value={student.section} editable={false} accessibilityState={{ disabled: true }} style={readOnlyStyle} />
               {/* §5i: the fact plus the reason; no transfer route is named. */}
               <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
             </View>

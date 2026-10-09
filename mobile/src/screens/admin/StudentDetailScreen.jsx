@@ -73,6 +73,11 @@ export default function StudentDetailScreen({ navigation, route }) {
   const id = route.params.id;
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
+  // The web's disabled field (`disabled:bg-surface-subtle disabled:text-fg-muted`,
+  // fix round PF5): the LRN and the class cannot be changed here, so they must
+  // not look like fields you can type in. Inline, so it wins over FormField's
+  // `bg-surface text-fg` whatever the stylesheet order.
+  const readOnlyStyle = { backgroundColor: tokens['surface-subtle'], color: tokens['fg-muted'] };
   const [student, setStudent] = useState(null);
   const [parentAccount, setParentAccount] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -234,11 +239,17 @@ export default function StudentDetailScreen({ navigation, route }) {
             </Text>
             <FormStatus status={editStatus} />
             <View className={`${cardClass} gap-4 p-4`}>
-              <FormField label="LRN" value={student.lrn} editable={false} />
+              <FormField label="LRN" value={student.lrn} editable={false} accessibilityState={{ disabled: true }} style={readOnlyStyle} />
               <FormField label="First name" required value={draft.first_name} onChangeText={set('first_name')} />
               <FormField label="Last name" required value={draft.last_name} onChangeText={set('last_name')} />
-              <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
-              <FormField label="Section" value={student.section} editable={false} />
+              <FormField
+                label="Grade level"
+                value={`Grade ${student.grade_level}`}
+                editable={false}
+                accessibilityState={{ disabled: true }}
+                style={readOnlyStyle}
+              />
+              <FormField label="Section" value={student.section} editable={false} accessibilityState={{ disabled: true }} style={readOnlyStyle} />
               <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
             </View>
             {/* The label still changes while the write is in flight; `loading`

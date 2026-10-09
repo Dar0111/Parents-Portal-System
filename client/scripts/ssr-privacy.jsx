@@ -100,14 +100,19 @@ console.log('\nThe consent screen (rendered)');
   const boxes = fresh.match(/type="checkbox"/g) || [];
   assert(boxes.length === 3, 'three tick boxes', `found ${boxes.length}`);
   assert(/I have read and accept the Data Privacy Notice\./.test(fresh), 'tick 1: the Data Privacy Notice');
-  assert(/I have read and accept the Terms of Use\./.test(fresh), 'tick 2: the Terms of Use');
-  assert(/I accept both on behalf of my child, Tala\./.test(fresh), "tick 3: on behalf of my child, by FIRST NAME");
+  assert(/I have read and agree to the Terms of Use\./.test(fresh), 'tick 2: the Terms of Use');
+  assert(
+    /As the parent or legal guardian of Tala, I consent, on my child’s behalf, to the processing of my child’s personal data for the purposes in the notice\./.test(
+      fresh
+    ),
+    'tick 3: the parent consents for the child, named by FIRST NAME (the principal’s draft wording)'
+);
   assert(submitDisabled(fresh), 'nothing ticked: Accept is disabled');
   for (const missing of ['privacy_notice', 'terms_of_use', 'child']) {
     assert(submitDisabled(consent({ ticked: { ...ALL, [missing]: false } })), `without the "${missing}" tick: still disabled`);
   }
   const allTicked = consent({ ticked: ALL });
-  assert(!submitDisabled(allTicked) && /Accept and continue/.test(allTicked), 'all three ticked: Accept works');
+  assert(!submitDisabled(allTicked) && /I agree and continue/.test(allTicked), 'all three ticked: “I agree and continue” works');
 
   assert(
     DOCUMENTS.every((d) => fresh.includes(d.title) && fresh.includes(`Version ${d.version}`)),
@@ -123,7 +128,17 @@ console.log('\nThe consent screen (rendered)');
   );
   assert(!/\d{12}/.test(fresh), 'no LRN-shaped number anywhere on the screen');
   assert(/\d{12}/.test(consent({ childName: '123456789012' })), 'control: the same check catches twelve digits when they are there');
-  assert(/I accept both on behalf of my child\./.test(consent({ childName: null })), 'no first name on the session: "on behalf of my child." — never a blank');
+  assert(/As the parent or legal guardian of my child, I consent,/.test(consent({ childName: null })), 'no first name on the session: "guardian of my child" — never a blank');
+  // The page around the card, read as SOURCE (the page needs a signed-in
+  // session): the line about declining, above a plain "Sign out".
+  const page = src('src/pages/PolicyConsent.jsx');
+  const DECLINING = 'Declining ends portal use only; your child&rsquo;s school records stay as they are.';
+  const signOutBlock = (text) =>
+    text.indexOf(DECLINING) > 0 &&
+    text.indexOf(DECLINING) < text.search(/>\s*Sign out\s*</) &&
+    !/Sign out instead/.test(text);
+  assert(signOutBlock(page), 'the page: "Declining ends portal use only; …" above a plain "Sign out"');
+  assert(!signOutBlock(page.replace('Declining ends', 'Leaving ends')), 'control: without that line, the same check fails');
   const saving = consent({ ticked: ALL, saving: true });
   assert(/Saving…/.test(saving) && (saving.match(/type="checkbox"[^>]*disabled=""/g) || []).length === 3, 'while saving: the ticks are locked and the button says so');
 }

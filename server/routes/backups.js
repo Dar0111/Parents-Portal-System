@@ -9,6 +9,7 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { comparePassword } = require('../utils/password');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { migratePrivacy } = require('../scripts/migrate-privacy');
 
 const router = express.Router();
 
@@ -639,6 +640,25 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
     console.error('Pool reset after restore failed:', error);
   }
 
+  // THE PRIVACY TABLES COME BACK WITH THE RESTORE (fix round PF1, 2026-10-10).
+  // A backup taken before the privacy build has neither policy_acceptances nor
+  // login_attempts, and middleware/auth.js reads the first on every signed-in
+  // request — without it every one is a 503. This is the same idempotent step
+  // as `npm run db:migrate:privacy`, on the fresh pool: after a newer backup it
+  // creates nothing and clears 0 rows; after an older one it also clears the
+  // four learner values that backup brings back (decision 6). A failure does
+  // not undo the restore — the reply says what to run.
+  let privacyStepFailed = false;
+  try {
+    await migratePrivacy(pool);
+  } catch (error) {
+    privacyStepFailed = true;
+    console.error('Privacy step after restore failed — run npm run db:migrate:privacy:', error);
+  }
+  const privacyNote = privacyStepFailed
+    ? ' The privacy tables could not be brought up to date — run `npm run db:migrate:privacy` on the server before anyone signs in.'
+    : '';
+
   // Every currently-active JWT may now point at a user_id that no longer
   // means the same person. Everyone logs in again — that is the expected
   // outcome of this operation, not a bug.
@@ -671,7 +691,7 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
       success: true,
       message:
         'Database restored, but marking sessions invalid failed — see server logs. Treat all existing ' +
-        'sessions as suspect until auth_security_state.token_valid_after is confirmed set.',
+        'sessions as suspect until auth_security_state.token_valid_after is confirmed set.' + privacyNote,
       restored_from: { id: backup.id, filename: backup.filename },
       safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
     });
@@ -679,7 +699,7 @@ router.post('/:id/restore', authenticate, authorize('admin'), async (req, res) =
 
   return res.json({
     success: true,
-    message: 'Database restored. All sessions are now invalid — everyone, including you, must log in again.',
+    message: 'Database restored. All sessions are now invalid — everyone, including you, must log in again.' + privacyNote,
     restored_from: { id: backup.id, filename: backup.filename },
     safety_backup: { id: safetyBackup.id, filename: safetyBackup.filename },
     activity_logs_wiped: wipedActivityLogCount,
