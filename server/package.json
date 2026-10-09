@@ -15,6 +15,7 @@
     "db:migrate:subject-display-order": "node scripts/migrate-subject-display-order.js",
     "db:migrate:fixture-learner": "node scripts/migrate-fixture-learner.js",
     "db:migrate:contact-verification": "node scripts/migrate-contact-verification.js",
+    "db:migrate:privacy": "node scripts/migrate-privacy.js",
     "sms:probe": "node scripts/probe-sms-gateway.js",
     "proof:backups": "node scripts/proof-backup-loop.js",
     "test:sms-transport": "node scripts/test-sms-transport.js",
@@ -43,6 +44,7 @@
     "test:recovery": "node scripts/test-recovery-flows.js",
     "test:profile-photo": "node scripts/test-profile-photo.js",
     "test:cors-origins": "node scripts/test-cors-origins.js",
+    "test:privacy": "node scripts/test-privacy-flows.js",
     "verify:grading-seed": "node scripts/verify-grading-seed.js"
   },
   "dependencies": {

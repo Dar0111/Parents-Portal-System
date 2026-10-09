@@ -285,14 +285,16 @@ INSERT INTO sections (name, grade_level, school_year) VALUES
 -- created_by will be set after teacher is seeded (see setup-db.js)
 -- ---------------------------------------------------------------------------
 
-INSERT INTO students (lrn, first_name, last_name, grade_level, section, birthday, gender, address, status) VALUES
-  ('13567454', 'Marwin', 'Conde', 6, 'Malikhain', '2014-03-15', 'male', 'Pateros, Metro Manila', 'active'),
-  ('1234567', 'Jea Mae', 'Bargaso', 5, 'Masigasig', '2015-07-22', 'female', 'Pateros, Metro Manila', 'active'),
+-- No birthday, gender, address or contact number: not collected since the
+-- privacy build (2026-10-10, decision 6).
+INSERT INTO students (lrn, first_name, last_name, grade_level, section, status) VALUES
+  ('13567454', 'Marwin', 'Conde', 6, 'Malikhain', 'active'),
+  ('1234567', 'Jea Mae', 'Bargaso', 5, 'Masigasig', 'active'),
   -- Grade 1 descriptive-path fixture (demo 2026-09-18). Fictional name,
   -- not a real learner. Section is Mabait, NOT Matipid: test-grades-flows.js
   -- creates a throwaway Grade 1 student in Matipid every run and deletes it,
   -- so the demo student must not share that section.
-  ('1090001', 'Nino', 'Alcantara', 1, 'Mabait', '2019-08-12', 'male', 'Pateros, Metro Manila', 'active'),
+  ('1090001', 'Nino', 'Alcantara', 1, 'Mabait', 'active'),
   -- THE BROWSER-FIXTURE LEARNER (pre-Stage-5 #3b, 2026-09-25). Nobody's
   -- test target: every suite that needs a Grade 6 - Malikhain learner uses
   -- Marwin, so browser-check fixtures (grades, attendance, letters) go on

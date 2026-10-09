@@ -34,6 +34,10 @@ const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 500
 const AVATAR_DIR = path.join(__dirname, '..', 'uploads', 'avatars');
 const NAME = /^[0-9a-f]{32}\.jpg$/;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 function assert(condition, label, detail = '') {
@@ -125,6 +129,7 @@ async function run() {
     const adminToken = admin.data?.token;
     const teacherToken = teacher.data?.token;
     const parentToken = parent.data?.token;
+    await policy.accept(parentToken);
     assert(adminToken && teacherToken && parentToken, 'Admin, TCH-001 and Marwin’s parent log in');
     assert(startParentPic === null, 'Marwin’s parent starts with no photo (the seeded baseline)');
 
@@ -299,6 +304,7 @@ async function run() {
     });
     assert(leaks.length === 0, 'no description carries a login id, an id or a file name', `${leaks.length} leaked`);
   } finally {
+    await policy.cleanup();
     // Cleanup by what this run touched, then proof that nothing is left.
     await db.query('UPDATE users SET profile_pic = ? WHERE id = ?', [startParentPic, parentRow.id]);
     await db.query('UPDATE users SET profile_pic = ? WHERE id = ?', [startTeacherPic, teacherRow.id]);

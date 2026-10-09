@@ -29,6 +29,10 @@ const MAIL_DIR = path.join(__dirname, '..', 'tmp', 'mail');
 // SMS_TRANSPORT=file too, for the same reason — no endpoint returns a code.
 const SMS_DIR = path.join(__dirname, '..', 'tmp', 'sms');
 
+// A teacher this run creates skips the first-sign-in password change
+// (scripts/policyFixture.js, feat/privacy); test:auth proves that change.
+const { clearForcedChange } = require('./policyFixture');
+
 let passed = 0;
 let failed = 0;
 class FixtureFailure extends Error {}
@@ -137,6 +141,7 @@ async function main() {
     });
     requireFixture(mk.status === 201, 'admin creates the throwaway teacher', why(mk));
     created.users.push(mk.data.user.id);
+    await clearForcedChange(mk.data.user.id);
     created.loginIds.push(TEACHER_ID);
 
     const t = await login(TEACHER_ID, TEACHER_PW);
@@ -374,6 +379,7 @@ async function main() {
     });
     requireFixture(mk2.status === 201, 'admin creates the SMS fixture teacher (no email)', why(mk2));
     created.users.push(mk2.data.user.id);
+    await clearForcedChange(mk2.data.user.id);
     created.loginIds.push(SMS_ID);
     assert(mk2.data.user.contact_number === '09170000123', 'a number typed as +63 is stored as 09…', mk2.data.user.contact_number);
     assert(mk2.data.user.contact_verified_at == null, 'a new number is not confirmed');

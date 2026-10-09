@@ -63,10 +63,13 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
       return res.status(409).json({ success: false, message: 'Login ID already exists.' });
     }
 
+    // must_change_password = 1 (feat/privacy, 2026-10-10; the owner's answer
+    // 4): the admin typed this password, so the teacher chooses their own at
+    // the first sign-in — the same gate an admin temporary password uses.
     const hashed = await hashPassword(password);
     const [result] = await pool.query(
-      `INSERT INTO users (login_id, password, role, status, name, email, contact_number, created_by)
-       VALUES (?, ?, 'teacher', 'active', ?, ?, ?, ?)`,
+      `INSERT INTO users (login_id, password, role, status, name, email, contact_number, must_change_password, created_by)
+       VALUES (?, ?, 'teacher', 'active', ?, ?, ?, 1, ?)`,
       [trimmedLoginId, hashed, name, emailCheck.value, contact.value, req.user.id]
     );
 
@@ -167,10 +170,13 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
       return res.status(409).json({ success: false, message: 'A parent account is already linked to this student.' });
     }
 
+    // must_change_password = 1 (feat/privacy, 2026-10-10; the owner's answer
+    // 4): the adviser typed this password, so the parent chooses their own at
+    // the first sign-in, before the consent screen.
     const hashed = await hashPassword(password);
     const [result] = await pool.query(
-      `INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, created_by)
-       VALUES (?, ?, 'parent', 'pending', ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, must_change_password, created_by)
+       VALUES (?, ?, 'parent', 'pending', ?, ?, ?, ?, 1, ?)`,
       [loginId, hashed, name, emailCheck.value, contact.value, student.id, req.user.id]
     );
 

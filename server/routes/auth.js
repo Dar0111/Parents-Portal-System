@@ -12,6 +12,8 @@ const codes = require('../utils/authCodes');
 const mailer = require('../utils/mailer');
 const sms = require('../utils/smsTransport');
 const photos = require('../utils/profilePhoto');
+const throttle = require('../utils/loginThrottle');
+const policy = require('../utils/policy');
 
 const router = express.Router();
 
@@ -33,8 +35,21 @@ function mintToken(payload, tokenVersion) {
   return signToken({ ...payload, v: Number(tokenVersion || 0) });
 }
 
-function withAccountFlags(sanitized, row) {
-  return { ...sanitized, must_change_password: row.must_change_password ? 1 : 0 };
+// `policy_pending` (feat/privacy, 2026-10-10): true for a parent who has not
+// accepted the CURRENT Data Privacy Notice and Terms of Use. The client routes
+// on it to the consent screen, as it routes on must_change_password — never
+// on the 403 (§2).
+function withAccountFlags(sanitized, row, acceptedCount) {
+  return {
+    ...sanitized,
+    must_change_password: row.must_change_password ? 1 : 0,
+    policy_pending: policy.isPending(row.role, acceptedCount),
+  };
+}
+
+async function acceptedCountFor(row) {
+  if (!policy.mustAccept(row.role)) return 0;
+  return Object.keys(await policy.currentAcceptances(row.id)).length;
 }
 
 async function fetchUserByLoginId(loginId) {
@@ -59,16 +74,32 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = await fetchUserByLoginId(String(login_id).trim());
+    const typed = String(login_id).trim();
 
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Invalid login credentials.' });
+    // SIGN-IN LIMITS (utils/loginThrottle.js): checked BEFORE the password,
+    // so a locked account refuses even the right one until the window
+    // passes. Keyed on the TYPED id, so an unknown id locks exactly like a
+    // real one, and the 429 names neither which limit nor whether the
+    // account exists.
+    const key = throttle.loginKey(typed);
+    const ip = req.ip || null;
+    if (await throttle.isLimited(key, ip)) {
+      return res.status(429).json({ success: false, message: throttle.TOO_MANY });
     }
 
-    const valid = await comparePassword(password, user.password);
+    const user = await fetchUserByLoginId(typed);
+    const valid = user ? await comparePassword(password, user.password) : false;
     if (!valid) {
+      await throttle.recordFailure(key, ip);
+      // The user id only, never the login id or an LRN (§5c). An id that
+      // matches no account has no user to name, so it is counted above and
+      // not logged.
+      if (user) await logActivity(user.id, 'login_failed', 'Sign-in failed');
       return res.status(401).json({ success: false, message: 'Invalid login credentials.' });
     }
+
+    // The right password: this account's failure count starts again.
+    await throttle.clearAccount(key);
 
     if (user.status === 'pending') {
       return res.status(403).json({
@@ -109,7 +140,7 @@ router.post('/login', async (req, res) => {
     return res.json({
       success: true,
       token,
-      user: withAccountFlags(sanitizeUser(user), user),
+      user: withAccountFlags(sanitizeUser(user), user, await acceptedCountFor(user)),
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -124,7 +155,7 @@ router.get('/me', authenticate, async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
-    return res.json({ success: true, user: withAccountFlags(sanitizeUser(user), user) });
+    return res.json({ success: true, user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted) });
   } catch (error) {
     // Reachable only if the database dies between the middleware's read and
     // this one; when it does, say so the way the middleware and /api/health
@@ -331,7 +362,11 @@ router.put('/photo', authenticate, async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
-    return res.json({ success: true, message: 'Profile photo updated.', user: withAccountFlags(sanitizeUser(user), user) });
+    return res.json({
+      success: true,
+      message: 'Profile photo updated.',
+      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted),
+    });
   } catch (error) {
     // A file written but never recorded is removed, not left as an orphan.
     if (written) await photos.removePhotoFile(written);
@@ -357,7 +392,7 @@ router.delete('/photo', authenticate, async (req, res) => {
     return res.json({
       success: true,
       message: current?.profile_pic ? 'Profile photo removed.' : 'There was no profile photo to remove.',
-      user: withAccountFlags(sanitizeUser(user), user),
+      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted),
     });
   } catch (error) {
     if (isDbUnavailable(error)) return sendDbUnavailable(res, 'Remove photo', error);

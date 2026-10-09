@@ -14,6 +14,12 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally. A teacher this run creates skips the first-sign-in
+// password change (scripts/policyFixture.js, feat/privacy).
+const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
+const policy = createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -73,6 +79,7 @@ async function run() {
 
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
+  await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login');
 
   const mysql = require('mysql2/promise');
@@ -233,6 +240,7 @@ async function run() {
     });
     assert(createThrowaway.status === 201, 'Created throwaway teacher for edit/status tests');
     const throwawayId = createThrowaway.data?.user?.id;
+    if (throwawayId) await clearForcedChange(throwawayId);
 
     // --- PUT: forbidden fields, validation, happy path ---
     console.log('\nPUT (edit):');
@@ -627,6 +635,7 @@ async function run() {
       'GET /users?role=teacher: every row matches and total is the filtered count'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

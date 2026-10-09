@@ -5,65 +5,46 @@ const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { validateLrn } = require('../utils/lrnRule');
-const { validateContact } = require('../utils/contactRule');
-const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { readListParams, pageMeta } = require('../utils/pagination');
 
 const router = express.Router();
-
-const GENDERS = ['male', 'female'];
-
-// "YYYY-MM-DD" names a day that exists (no 2020-02-30). UTC round-trip, so
-// the server's time zone cannot shift the day.
-function isRealDate(day) {
-  const [y, m, d] = day.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-}
 
 function isValidGradeLevel(value) {
   const n = Number(value);
   return Number.isInteger(n) && n >= 1 && n <= 6;
 }
 
-// The optional student fields, validated in the route so a bad value is a
-// 400 naming its field — not MySQL rejecting the DATE/ENUM/VARCHAR as a 500
-// (2026-09-18). Each key is checked only when present in the body; `values`
-// carries what to store (contact digits-only, empty strings as NULL).
-function validateStudentOptionals({ birthday, gender, contact_number }) {
-  const values = {};
-  if (birthday !== undefined) {
-    if (birthday === null || birthday === '') {
-      values.birthday = null;
-    } else {
-      const day = String(birthday).trim();
-      // isValidDateFormat checks the SHAPE only ("2020-02-30" passes it);
-      // the round-trip below rejects a day that does not exist, which MySQL
-      // would otherwise refuse as a 500.
-      if (!isValidDateFormat(day) || !isRealDate(day)) {
-        return { error: 'birthday must be a valid date in YYYY-MM-DD format.', field: 'birthday' };
-      }
-      if (day > todayLocalDateString()) {
-        return { error: 'birthday cannot be in the future.', field: 'birthday' };
-      }
-      values.birthday = day;
+// NO LONGER COLLECTED (feat/privacy, 2026-10-10, the owner's decision 6). The
+// learner's birthday, gender, address and contact number were stored and
+// shown on the student record, and no feature ever used them. POST and PUT
+// refuse a VALUE for any of them — 400 naming the field, so a caller learns
+// the field is gone instead of believing it was saved — and ignore a key
+// that is null or empty, so a client echoing an old row is not broken. The
+// columns stay (NULL-able); db:migrate:privacy cleared what was stored.
+const RETIRED_FIELDS = [
+  ['birthday', 'birthday'],
+  ['gender', 'gender'],
+  ['address', 'address'],
+  ['contact_number', 'contact number'],
+];
+
+function refuseRetiredFields(body) {
+  for (const [field, label] of RETIRED_FIELDS) {
+    const value = body?.[field];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return { error: `The learner's ${label} is no longer collected.`, field };
     }
   }
-  if (gender !== undefined) {
-    if (gender === null || gender === '') {
-      values.gender = null;
-    } else if (!GENDERS.includes(String(gender))) {
-      return { error: `gender must be one of: ${GENDERS.join(', ')}.`, field: 'gender' };
-    } else {
-      values.gender = String(gender);
-    }
-  }
-  if (contact_number !== undefined) {
-    const contact = validateContact(contact_number);
-    if (contact.error) return { error: contact.error, field: 'contact_number' };
-    values.contact_number = contact.value;
-  }
-  return { error: null, values };
+  return null;
+}
+
+// Every student row this router returns leaves the four out, so a value
+// brought back by restoring a pre-privacy backup is still never served.
+function publicStudent(row) {
+  if (!row) return row;
+  const copy = { ...row };
+  for (const [field] of RETIRED_FIELDS) delete copy[field];
+  return copy;
 }
 
 // The parent account linked to a student, for GET /:id (teacher and admin
@@ -173,7 +154,7 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM students s ${where}`, params);
     const [rows] = await pool.query(
       `SELECT DISTINCT s.id, s.lrn, s.first_name, s.last_name, s.grade_level, s.section,
-              s.birthday, s.gender, s.address, s.contact_number, s.status, s.created_at
+              s.status, s.created_at
        FROM students s
        ${where}
        ${list.orderBy}
@@ -204,7 +185,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
       if (!rows.length) {
         return res.status(404).json({ success: false, message: 'Student not found.' });
       }
-      return res.json({ success: true, student: rows[0] });
+      return res.json({ success: true, student: publicStudent(rows[0]) });
     }
 
     if (req.user.role === 'teacher') {
@@ -218,7 +199,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
       if (!rows.length) {
         return res.status(404).json({ success: false, message: 'Student not found.' });
       }
-      return res.json({ success: true, student: rows[0], parent_account: await parentAccountFor(id) });
+      return res.json({ success: true, student: publicStudent(rows[0]), parent_account: await parentAccountFor(id) });
     }
 
     // admin
@@ -226,7 +207,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
-    return res.json({ success: true, student: rows[0], parent_account: await parentAccountFor(id) });
+    return res.json({ success: true, student: publicStudent(rows[0]), parent_account: await parentAccountFor(id) });
   } catch (error) {
     console.error('Get student error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch student.' });
@@ -235,7 +216,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
 
 // POST /api/students — create. Teachers are scoped to their own assignments.
 router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) => {
-  const { lrn, first_name, last_name, grade_level, section, birthday, gender, address, contact_number } = req.body;
+  const { lrn, first_name, last_name, grade_level, section } = req.body;
 
   if (!lrn || !first_name || !last_name || grade_level === undefined || !section) {
     return res.status(400).json({
@@ -265,9 +246,9 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     return res.status(400).json({ success: false, message: lrnError, field: 'lrn' });
   }
 
-  const optionals = validateStudentOptionals({ birthday, gender, contact_number });
-  if (optionals.error) {
-    return res.status(400).json({ success: false, message: optionals.error, field: optionals.field });
+  const retired = refuseRetiredFields(req.body);
+  if (retired) {
+    return res.status(400).json({ success: false, message: retired.error, field: retired.field });
   }
 
   try {
@@ -329,21 +310,9 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     }
 
     const [result] = await pool.query(
-      `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, birthday, gender, address, contact_number, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        trimmedLrn,
-        first_name,
-        last_name,
-        gradeLevelNum,
-        trimmedSection,
-        sectionRow.id,
-        optionals.values.birthday ?? null,
-        optionals.values.gender ?? null,
-        address || null,
-        optionals.values.contact_number ?? null,
-        req.user.id,
-      ]
+      `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [trimmedLrn, first_name, last_name, gradeLevelNum, trimmedSection, sectionRow.id, req.user.id]
     );
 
     const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [result.insertId]);
@@ -358,7 +327,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     return res.status(201).json({
       success: true,
       message: 'Student created.',
-      student: rows[0],
+      student: publicStudent(rows[0]),
     });
   } catch (error) {
     console.error('Create student error:', error);
@@ -373,7 +342,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     return res.status(400).json({ success: false, message: 'Invalid student id.' });
   }
 
-  const { first_name, last_name, grade_level, section, birthday, gender, address, contact_number } = req.body;
+  const { first_name, last_name, grade_level, section } = req.body;
 
   if (grade_level !== undefined && !isValidGradeLevel(grade_level)) {
     return res.status(400).json({ success: false, message: 'grade_level must be between 1 and 6.' });
@@ -383,11 +352,9 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     return res.status(400).json({ success: false, message: 'section must not be empty.' });
   }
 
-  // Only the keys present in the body are checked; an omitted key keeps the
-  // stored value below.
-  const optionals = validateStudentOptionals({ birthday, gender, contact_number });
-  if (optionals.error) {
-    return res.status(400).json({ success: false, message: optionals.error, field: optionals.field });
+  const retired = refuseRetiredFields(req.body);
+  if (retired) {
+    return res.status(400).json({ success: false, message: retired.error, field: retired.field });
   }
 
   try {
@@ -432,16 +399,12 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       last_name: last_name !== undefined ? last_name : existing.last_name,
       grade_level: grade_level !== undefined ? Number(grade_level) : existing.grade_level,
       section: section !== undefined ? String(section).trim() : existing.section,
-      birthday: birthday !== undefined ? optionals.values.birthday : existing.birthday,
-      gender: gender !== undefined ? optionals.values.gender : existing.gender,
-      address: address !== undefined ? address || null : existing.address,
-      contact_number: contact_number !== undefined ? optionals.values.contact_number : existing.contact_number,
     };
 
     // Class change is refused, not applied. Attendance authority keys on
     // students.section_id; rewriting the VARCHAR pair (or the FK) would move
     // who may record without a school answer. Omitted class fields copy from
-    // existing, so a contact-only PUT still matches and succeeds.
+    // existing, so a name-only PUT still matches and succeeds.
     // isValidGradeLevel already rejected grade_level: 0 above — different
     // cause, different message; do not collapse that check into this one.
     if (
@@ -458,7 +421,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     // the exact write this handler exists to refuse). Same sections lookup
     // POST / uses. A miss leaves NULL so a student whose VARCHAR matches no
     // sections row stays editable; a 400 here would make that row permanently
-    // uneditable, because resolve runs even on a contact-only body.
+    // uneditable, because resolve runs even on a name-only body.
     let sectionIdToWrite = existing.section_id;
     if (sectionIdToWrite == null) {
       const schoolYear = await currentAcademicYear();
@@ -478,27 +441,15 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     await pool.query(
       `UPDATE students
        SET first_name = ?, last_name = ?, grade_level = ?, section = ?,
-           birthday = ?, gender = ?, address = ?, contact_number = ?,
            section_id = ?
        WHERE id = ?`,
-      [
-        updated.first_name,
-        updated.last_name,
-        updated.grade_level,
-        updated.section,
-        updated.birthday,
-        updated.gender,
-        updated.address,
-        updated.contact_number,
-        sectionIdToWrite,
-        id,
-      ]
+      [updated.first_name, updated.last_name, updated.grade_level, updated.section, sectionIdToWrite, id]
     );
 
     const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
     await logActivity(req.user.id, 'update_student', `Updated student #${id}`);
 
-    return res.json({ success: true, message: 'Student updated.', student: rows[0] });
+    return res.json({ success: true, message: 'Student updated.', student: publicStudent(rows[0]) });
   } catch (error) {
     console.error('Update student error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update student.' });
@@ -540,12 +491,12 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
       return res.json({
         success: true,
         message: `Student is already ${status}. Nothing was changed.`,
-        student: updated[0],
+        student: publicStudent(updated[0]),
       });
     }
 
     await logActivity(req.user.id, 'update_student_status', `Set student #${id} to ${status}`);
-    return res.json({ success: true, message: 'Student status updated.', student: updated[0] });
+    return res.json({ success: true, message: 'Student status updated.', student: publicStudent(updated[0]) });
   } catch (error) {
     console.error('Update student status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update student status.' });

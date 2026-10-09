@@ -35,6 +35,10 @@ const jwt = require('jsonwebtoken');
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -113,6 +117,7 @@ async function run() {
 
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
+  await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login');
 
   const mysql = require('mysql2/promise');
@@ -419,6 +424,7 @@ async function run() {
       'Putting the original cutoff back restores every token issued after it (this run\'s tokens)'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

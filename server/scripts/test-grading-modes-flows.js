@@ -12,6 +12,10 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go before it exits (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -68,6 +72,7 @@ async function run() {
 
   const parentLogin = await login('1090001', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
+  await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login (Grade 1)');
 
   const noAuth = await request('GET', '/api/grading-modes?grade_level=1');
@@ -128,10 +133,12 @@ async function run() {
   );
 
   console.log(`\n${passed} passed, ${failed} failed\n`);
+  await policy.cleanup();
   process.exit(failed ? 1 : 0);
 }
 
-run().catch((err) => {
+run().catch(async (err) => {
+  await policy.cleanup().catch(() => {});
   console.error(err);
   process.exit(1);
 });

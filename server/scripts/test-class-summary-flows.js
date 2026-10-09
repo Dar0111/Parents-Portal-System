@@ -42,6 +42,10 @@ const dbConfig = {
   database: process.env.DB_NAME || 'parents_portal',
 };
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -184,6 +188,7 @@ async function main() {
     const parentLogin = await login('13567454', 'Parent@2026');
     requireFixture(parentLogin.status === 200, "a parent logged in", why(parentLogin));
     const parentToken = parentLogin.data.token;
+    await policy.accept(parentToken);
 
     // TCH-002 really does hold zero assignments — asserted, not assumed,
     // because the whole point of this suite evaporates if the seed changes.
@@ -552,6 +557,7 @@ async function main() {
       'still no general_average key on the Grade 1 final view'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

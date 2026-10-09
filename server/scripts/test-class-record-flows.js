@@ -61,6 +61,10 @@ const dbConfig = {
   database: process.env.DB_NAME || 'parents_portal',
 };
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -180,6 +184,7 @@ async function main() {
     const parentLogin = await login('13567454', 'Parent@2026');
     requireFixture(parentLogin.status === 200, "Marwin's parent logs in", why(parentLogin));
     const parentToken = parentLogin.data.token;
+    await policy.accept(parentToken);
 
     // The throwaway class: Grade 1 - Matipid. Grade 1 so the DESCRIPTIVE
     // path is exercised by the same grid as everything else — the letter is
@@ -1220,6 +1225,7 @@ async function main() {
       `while his raw Total still shows what IS recorded (got ${benAfterClear.ww_total})`
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
     console.log(`\n${passed} passed, ${failed} failed\n`);
     process.exit(failed > 0 ? 1 : 0);

@@ -13,6 +13,13 @@ const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./t
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally. The teacher this run uses for the parents gate skips the
+// first-sign-in password change; the forced change itself is proved end to end
+// below on fresh accounts (scripts/policyFixture.js, feat/privacy).
+const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
+const policy = createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -296,6 +303,7 @@ async function run() {
     // just succeeded. Falls back to the old one so this file still runs on a
     // build without A1.
     const parentTokenNow = seededStillWorks.data?.token || parentToken;
+    await policy.accept(parentTokenNow);
 
     // --- Own contact number (parent Settings) ---
     // Seeded parent 13567454 is 09170000003. Restore via a direct UPDATE in
@@ -392,6 +400,7 @@ async function run() {
     });
     assert(createTeacher.status === 201 && createTeacher.data?.user?.status === 'active', 'Admin creates teacher (active)');
     if (createTeacher.status === 201) createdLoginIds.push(newTeacherId);
+    if (createTeacher.status === 201) await clearForcedChange(createTeacher.data.user.id);
 
     // --- Password rule on POST /teachers (utils/passwordRule.js): at least 8
     // characters AND at least one number. Each refusal names field "password"
@@ -655,7 +664,90 @@ async function run() {
         `${assignedNotAdviser.status} ${JSON.stringify(assignedNotAdviser.data)}` === unknownLrnResponse,
       `POST /parents: a teacher assigned to the class but not its adviser is the same 403 as an unknown LRN (assign ${assignMinted.status}, login ${mintedLogin.status}, create ${assignedNotAdviser.status})`
     );
+
+    // --- The forced change, end to end (feat/privacy, 2026-10-10; the
+    // owner's answer 4). A teacher the admin creates and a parent an adviser
+    // creates must change the password someone else typed before anything
+    // else, and a parent then meets the consent gate. Fresh accounts with
+    // passwords made here at run time, so nothing above is reused.
+    console.log('\nForced change on new accounts (privacy build):');
+    const firstPw = `Fc${String(runId).slice(-6)}x1`;
+    const ownPw = `Own${String(runId).slice(-6)}y2`;
+
+    const fcTeacherLogin = `TFC${String(runId).slice(-8)}`;
+    const fcCreate = await request('POST', '/api/users/teachers', {
+      token: adminToken,
+      body: { login_id: fcTeacherLogin, password: firstPw, name: 'Forced Change Teacher' },
+    });
+    if (fcCreate.status === 201) createdLoginIds.push(fcTeacherLogin);
+    const fcFirst = await login(fcTeacherLogin, firstPw);
+    assert(
+      fcCreate.status === 201 && fcFirst.status === 200 && fcFirst.data?.user?.must_change_password === 1,
+      'a teacher the admin creates signs in with must_change_password = 1'
+    );
+    const fcBlocked = await request('GET', '/api/students', { token: fcFirst.data?.token });
+    assert(
+      fcBlocked.status === 403 && fcBlocked.data?.code === 'MUST_CHANGE_PASSWORD',
+      'until it is changed, any other endpoint is 403 MUST_CHANGE_PASSWORD'
+    );
+    const fcChange = await request('PUT', '/api/auth/change-password', {
+      token: fcFirst.data?.token,
+      body: { current_password: firstPw, new_password: ownPw },
+    });
+    const fcOpen = await request('GET', '/api/students', { token: fcChange.data?.token });
+    const fcMe = await request('GET', '/api/auth/me', { token: fcChange.data?.token });
+    assert(
+      fcChange.status === 200 && fcOpen.status === 200 && fcMe.data?.user?.must_change_password === 0,
+      'after the change the replacement token works and the flag is cleared'
+    );
+    assert(fcMe.data?.user?.policy_pending === false, 'a teacher has no consent step in this build (staff acceptance is deferred)');
+
+    const fcLrn = String(runId + 5).slice(-12);
+    await insertTestStudent(fcLrn, 'Forced', 'Change', 6, 'Malikhain');
+    createdLrns.push(fcLrn);
+    const fcParent = await request('POST', '/api/users/parents', {
+      token: teacherToken,
+      body: { lrn: fcLrn, password: firstPw, name: 'Forced Change Guardian' },
+    });
+    const fcParentId = fcParent.data?.user?.id;
+    const fcChildId = fcParent.data?.user?.student_id;
+    if (fcParent.status === 201) {
+      createdLoginIds.push(fcLrn);
+      createdParentUserIds.push(fcParentId);
+    }
+    const fcApprove = await request('PUT', `/api/users/parents/${fcParentId}/approve`, { token: adminToken });
+    const fcParentFirst = await login(fcLrn, firstPw);
+    assert(
+      fcParent.status === 201 &&
+        fcApprove.status === 200 &&
+        fcParentFirst.status === 200 &&
+        fcParentFirst.data?.user?.must_change_password === 1 &&
+        fcParentFirst.data?.user?.policy_pending === true,
+      'a parent an adviser creates signs in with must_change_password = 1 and policy_pending = true'
+    );
+    const fcEarlyAccept = await request('POST', '/api/policy/accept', {
+      token: fcParentFirst.data?.token,
+      body: { versions: {}, on_behalf_of_child: true },
+    });
+    assert(
+      fcEarlyAccept.status === 403 && fcEarlyAccept.data?.code === 'MUST_CHANGE_PASSWORD',
+      'the forced change comes FIRST: even /api/policy/accept is refused until it is done'
+    );
+    const fcParentChange = await request('PUT', '/api/auth/change-password', {
+      token: fcParentFirst.data?.token,
+      body: { current_password: firstPw, new_password: ownPw },
+    });
+    const fcParentToken = fcParentChange.data?.token;
+    const fcGated = await request('GET', `/api/students/${fcChildId}`, { token: fcParentToken });
+    assert(
+      fcParentChange.status === 200 && fcGated.status === 403 && fcGated.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'after the change, the consent gate is next: the child record is 403 POLICY_ACCEPTANCE_REQUIRED'
+    );
+    await policy.accept(fcParentToken);
+    const fcChild = await request('GET', `/api/students/${fcChildId}`, { token: fcParentToken });
+    assert(fcChild.status === 200 && fcChild.data?.student?.id === fcChildId, 'after accepting, the parent reads their child');
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

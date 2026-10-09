@@ -80,6 +80,10 @@ CREATE TABLE students (
   grade_level TINYINT UNSIGNED NOT NULL CHECK (grade_level BETWEEN 1 AND 6),
   section VARCHAR(50) NOT NULL,
   section_id INT UNSIGNED DEFAULT NULL,
+  -- NO LONGER COLLECTED (feat/privacy, 2026-10-10, decision 6). The four
+  -- columns stay, NULL-able, so no dump or migration has to change shape;
+  -- POST/PUT /api/students refuse a value, and db:migrate:privacy cleared
+  -- the stored ones. Nothing in the portal ever used them.
   birthday DATE DEFAULT NULL,
   gender ENUM('male', 'female') DEFAULT NULL,
   address TEXT DEFAULT NULL,
@@ -556,6 +560,40 @@ CREATE TABLE auth_codes (
   INDEX idx_auth_codes_ip (request_ip, created_at)
 ) ENGINE=InnoDB;
 
+-- The privacy build (feat/privacy, 2026-10-10). A parent accepts the Data
+-- Privacy Notice and the Terms of Use, for themselves and on behalf of their
+-- child, before using the portal (middleware/auth.js enforces it). One row per
+-- (user, document, version): a new version in server/policy/versions.json is
+-- a new row, never an UPDATE, so every acceptance ever given stays on record.
+-- student_id is the child the parent accepted for — the account's own
+-- users.student_id at that moment.
+CREATE TABLE policy_acceptances (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  document ENUM('privacy_notice','terms_of_use') NOT NULL,
+  version VARCHAR(32) NOT NULL,
+  student_id INT UNSIGNED DEFAULT NULL,
+  accepted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_policy_once (user_id, document, version)
+) ENGINE=InnoDB;
+
+-- Sign-in limits (feat/privacy, 2026-10-10; utils/loginThrottle.js). One row
+-- per FAILED sign-in. login_key is an HMAC of the typed login id under the
+-- server's secret — never the login id itself, because a parent's login id IS
+-- the child's LRN — so an unknown id is counted exactly like a real one.
+-- `cleared` is set on that key's rows by a successful sign-in: the per-account
+-- limit counts only uncleared rows, the per-IP limit counts every row.
+-- Rows older than a day are pruned on the next failure.
+CREATE TABLE login_attempts (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  login_key CHAR(64) NOT NULL,
+  ip VARCHAR(45) DEFAULT NULL,
+  cleared TINYINT(1) NOT NULL DEFAULT 0,
+  attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_login_attempts_key (login_key, attempted_at),
+  INDEX idx_login_attempts_ip (ip, attempted_at)
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------------
 -- Foreign keys (added after all tables exist)
 -- ---------------------------------------------------------------------------
@@ -635,3 +673,7 @@ ALTER TABLE notifications
 
 ALTER TABLE auth_codes
   ADD CONSTRAINT fk_auth_codes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE policy_acceptances
+  ADD CONSTRAINT fk_policy_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_policy_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL;

@@ -55,9 +55,11 @@ const LEARNER = {
   last_name: 'Halimbawa',
   grade_level: 6,
   section: 'Malikhain',
-  birthday: '2014-05-05',
-  gender: 'female',
-  address: 'Pateros, Metro Manila',
+  // Not collected since the privacy build (2026-10-10, decision 6): the
+  // INSERT below writes NULL for all three.
+  birthday: null,
+  gender: null,
+  address: null,
 };
 const PARENT = {
   name: 'Ligaya Halimbawa',

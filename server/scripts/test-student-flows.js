@@ -12,6 +12,21 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally. A teacher this run creates skips the first-sign-in
+// password change (scripts/policyFixture.js, feat/privacy).
+const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
+const policy = createPolicyFixture();
+
+// The four learner fields the portal no longer collects (the privacy build,
+// decision 6), each with a value the old rules accepted.
+const RETIRED_VALUES = [
+  ['birthday', '2015-08-29'],
+  ['gender', 'female'],
+  ['address', 'Pateros, Metro Manila'],
+  ['contact_number', '09171234567'],
+];
+
 let passed = 0;
 let failed = 0;
 
@@ -85,6 +100,7 @@ async function run() {
   // but inside TCH-002's ADVISER scope.
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
+  await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login (Marwin, Grade 6 - Mabini)');
 
   const meParent = await request('GET', '/api/auth/me', { token: parentToken });
@@ -137,7 +153,6 @@ async function run() {
     const uniqueSuffix = String(Date.now()).slice(-11);
     const inScopeLrn = `6${uniqueSuffix}`;
 
-    const inScopeBirthday = '2015-08-29';
     const createInScope = await request('POST', '/api/students', {
       token: teacherToken,
       body: {
@@ -146,7 +161,6 @@ async function run() {
         last_name: 'Student',
         grade_level: 6,
         section: 'Malikhain',
-        birthday: inScopeBirthday,
       },
     });
     assert(createInScope.status === 201, 'Teacher creates student inside own assignment (Grade 6 - Malikhain)');
@@ -156,13 +170,11 @@ async function run() {
       createInScope.data?.student?.section_id != null,
       `in-scope Malikhain create stores non-null section_id (got ${createInScope.data?.student?.section_id})`
     );
-    // Same class of regression as attendance.date/events.event_date —
-    // a DATE column round-tripping through
-    // mysql2 without dateStrings: ['DATE'] would come back shifted a
-    // calendar day at UTC+8.
+    // Not collected since the privacy build (2026-10-10, decision 6): a
+    // learner's record carries none of the four retired fields.
     assert(
-      createInScope.data?.student?.birthday === inScopeBirthday,
-      `birthday round-trips exactly as sent (sent ${inScopeBirthday}, got ${createInScope.data?.student?.birthday})`
+      ['birthday', 'gender', 'address', 'contact_number'].every((k) => !(k in (createInScope.data?.student || {}))),
+      'POST /students: the response carries no birthday, gender, address or contact number'
     );
 
     const createOutOfScope = await request('POST', '/api/students', {
@@ -207,6 +219,7 @@ async function run() {
       body: { login_id: mintedLoginId, password: 'Teacher@2026', name: 'Assigned Only Teacher' },
     });
     const mintedTeacherId = mintTeacher.data?.user?.id;
+    if (mintedTeacherId) await clearForcedChange(mintedTeacherId);
     if (mintTeacher.status === 201 && mintedTeacherId) createdTeacherIds.push(mintedTeacherId);
     const g6Subjects = await request('GET', '/api/subjects?grade_level=6', { token: adminToken });
     const assignMinted = await request('POST', '/api/assignments', {
@@ -258,38 +271,29 @@ async function run() {
       body: { lrn: 'Test Student', first_name: 'Text', last_name: 'Lrn', grade_level: 6, section: 'Malikhain' },
     });
     assert(spacedLrn.status === 400 && spacedLrn.data?.field === 'lrn', 'POST /students: "Test Student" (12 chars, not digits) is 400, field "lrn"');
-    const badDay = await request('POST', '/api/students', {
-      token: adminToken,
-      body: { lrn: `4${uniqueSuffix}`, first_name: 'Bad', last_name: 'Day', grade_level: 6, section: 'Malikhain', birthday: '2020-02-30' },
-    });
-    assert(badDay.status === 400 && badDay.data?.field === 'birthday', 'POST /students: 2020-02-30 is 400, field "birthday" (a day that does not exist)');
-    const futureDay = await request('POST', '/api/students', {
-      token: adminToken,
-      body: { lrn: `4${uniqueSuffix}`, first_name: 'Future', last_name: 'Day', grade_level: 6, section: 'Malikhain', birthday: '2999-01-01' },
-    });
-    assert(futureDay.status === 400 && futureDay.data?.field === 'birthday', 'POST /students: a future birthday is 400, field "birthday"');
-    const badGender = await request('POST', '/api/students', {
-      token: adminToken,
-      body: { lrn: `4${uniqueSuffix}`, first_name: 'Bad', last_name: 'Gender', grade_level: 6, section: 'Malikhain', gender: 'other' },
-    });
-    assert(badGender.status === 400 && badGender.data?.field === 'gender', 'POST /students: gender outside the ENUM is 400, field "gender"');
-    const badContact = await request('POST', '/api/students', {
-      token: adminToken,
-      body: { lrn: `4${uniqueSuffix}`, first_name: 'Bad', last_name: 'Contact', grade_level: 6, section: 'Malikhain', contact_number: 'Test' },
-    });
-    assert(badContact.status === 400 && badContact.data?.field === 'contact_number', 'POST /students: contact "Test" is 400, field "contact_number"');
+    // Decision 6 (the privacy build, 2026-10-10): a VALUE for any of the four
+    // retired fields is 400 naming it, and nothing is created.
+    for (const [field, value] of RETIRED_VALUES) {
+      const refused = await request('POST', '/api/students', {
+        token: adminToken,
+        body: { lrn: `4${uniqueSuffix}`, first_name: 'Retired', last_name: 'Field', grade_level: 6, section: 'Malikhain', [field]: value },
+      });
+      assert(
+        refused.status === 400 && refused.data?.field === field && /no longer collected/.test(refused.data?.message || ''),
+        `POST /students: a ${field} value is 400, field "${field}" — no longer collected`
+      );
+    }
     const notCreated = await request('GET', `/api/students?search=${'4' + uniqueSuffix}`, { token: adminToken });
     assert(notCreated.status === 200 && (notCreated.data?.students || []).length === 0, 'POST /students: the refused bodies created nothing');
-    const spacedContact = await request('POST', '/api/students', {
+    // ...while a null or empty retired key is IGNORED, so a client echoing an
+    // old row back is not broken.
+    const emptyRetired = await request('POST', '/api/students', {
       token: adminToken,
-      body: { lrn: `4${uniqueSuffix}`, first_name: 'Spaced', last_name: 'Contact', grade_level: 6, section: 'Malikhain', contact_number: '0917 123 4567' },
+      body: { lrn: `4${uniqueSuffix}`, first_name: 'Empty', last_name: 'Retired', grade_level: 6, section: 'Malikhain', birthday: '', gender: null, address: '  ', contact_number: null },
     });
-    assert(
-      spacedContact.status === 201 && spacedContact.data?.student?.contact_number === '09171234567',
-      'POST /students: "0917 123 4567" is accepted and stored as 09171234567'
-    );
-    const spacedContactId = spacedContact.data?.student?.id;
-    if (spacedContact.status === 201 && spacedContactId) createdStudentIds.push(spacedContactId);
+    assert(emptyRetired.status === 201, 'POST /students: null or empty retired keys are ignored — 201');
+    const emptyRetiredId = emptyRetired.data?.student?.id;
+    if (emptyRetired.status === 201 && emptyRetiredId) createdStudentIds.push(emptyRetiredId);
 
     const createBadGrade = await request('POST', '/api/students', {
       token: adminToken,
@@ -401,51 +405,29 @@ async function run() {
 
     const teacherUpdateInScope = await request('PUT', `/api/students/${inScopeId}`, {
       token: teacherToken,
-      body: { contact_number: '09171234567' },
+      body: { last_name: 'Edited' },
     });
     assert(teacherUpdateInScope.status === 200, 'Teacher updates in-scope student');
     assert(
       teacherUpdateInScope.data?.student?.section_id === createInScope.data?.student?.section_id,
-      'Contact-only PUT leaves a non-null section_id unchanged'
-    );
-    // birthday omitted from the PUT body — falls back to existing.birthday,
-    // already a plain string post-fix, so it must survive unchanged.
-    assert(
-      teacherUpdateInScope.data?.student?.birthday === inScopeBirthday,
-      `birthday is unchanged after a PUT that omits it (still ${inScopeBirthday}, got ${teacherUpdateInScope.data?.student?.birthday})`
+      'A last-name-only PUT leaves a non-null section_id unchanged'
     );
 
-    // --- The optional-field rules on PUT (2026-09-18): same checks as POST,
-    // only for keys present in the body; refusals name the field and save
-    // nothing (the contact set just above must survive each one).
-    const putDashedContact = await request('PUT', `/api/students/${inScopeId}`, {
-      token: teacherToken,
-      body: { contact_number: '0917-123-4568' },
-    });
-    assert(
-      putDashedContact.status === 200 && putDashedContact.data?.student?.contact_number === '09171234568',
-      'PUT /students: "0917-123-4568" is accepted and stored as 09171234568'
-    );
-    const putBadContact = await request('PUT', `/api/students/${inScopeId}`, {
-      token: teacherToken,
-      body: { contact_number: 'Test' },
-    });
-    assert(putBadContact.status === 400 && putBadContact.data?.field === 'contact_number', 'PUT /students: contact "Test" is 400, field "contact_number"');
-    const putBadDay = await request('PUT', `/api/students/${inScopeId}`, {
-      token: teacherToken,
-      body: { birthday: '2020-02-30' },
-    });
-    assert(putBadDay.status === 400 && putBadDay.data?.field === 'birthday', 'PUT /students: 2020-02-30 is 400, field "birthday"');
-    const putBadGender = await request('PUT', `/api/students/${inScopeId}`, {
-      token: teacherToken,
-      body: { gender: 'other' },
-    });
-    assert(putBadGender.status === 400 && putBadGender.data?.field === 'gender', 'PUT /students: gender outside the ENUM is 400, field "gender"');
+    // --- Decision 6 on PUT (the privacy build, 2026-10-10): a value for a
+    // retired field is 400 naming it and saves nothing — the last name set
+    // just above must survive each one.
+    for (const [field, value] of RETIRED_VALUES) {
+      const refused = await request('PUT', `/api/students/${inScopeId}`, {
+        token: teacherToken,
+        body: { last_name: 'Refused', [field]: value },
+      });
+      assert(refused.status === 400 && refused.data?.field === field, `PUT /students: a ${field} value is 400, field "${field}"`);
+    }
     const afterRefusals = await request('GET', `/api/students/${inScopeId}`, { token: teacherToken });
     assert(
-      afterRefusals.data?.student?.contact_number === '09171234568' &&
-        afterRefusals.data?.student?.birthday === inScopeBirthday,
-      'PUT /students: the refused bodies changed nothing'
+      afterRefusals.data?.student?.last_name === 'Edited' &&
+        ['birthday', 'gender', 'address', 'contact_number'].every((k) => !(k in (afterRefusals.data?.student || {}))),
+      'PUT /students: the refused bodies changed nothing, and GET /:id carries none of the four'
     );
     // parent_account on GET /:id (2026-09-18): null here — no parent was
     // created for this fixture; the linked case is asserted in test:auth.
@@ -456,7 +438,7 @@ async function run() {
 
     const teacherUpdateOutOfScope = await request('PUT', `/api/students/${jeaId}`, {
       token: teacherToken,
-      body: { contact_number: '09170000000' },
+      body: { last_name: 'Edited' },
     });
     assert(teacherUpdateOutOfScope.status === 404, 'Teacher updating out-of-scope student returns 404');
 
@@ -466,22 +448,22 @@ async function run() {
     // re-read so the value asserted is the stored one (§5b).
     const adviserUpdateOwnSection = await request('PUT', `/api/students/${adviserCreatedId}`, {
       token: adviserToken,
-      body: { contact_number: '09170000000' },
+      body: { last_name: 'Adviser Edit' },
     });
     assert(
-      adviserUpdateOwnSection.status === 200 && adviserUpdateOwnSection.data?.student?.contact_number === '09170000000',
+      adviserUpdateOwnSection.status === 200 && adviserUpdateOwnSection.data?.student?.last_name === 'Adviser Edit',
       `Adviser-only teacher edits a learner in their advisory section — 200 (got ${adviserUpdateOwnSection.status})`
     );
     const adviserEditReRead = await request('GET', `/api/students/${adviserCreatedId}`, { token: adviserToken });
     assert(
-      adviserEditReRead.data?.student?.contact_number === '09170000000',
+      adviserEditReRead.data?.student?.last_name === 'Adviser Edit',
       'and the edit is what GET /:id returns afterwards'
     );
 
     // Outside BOTH scopes stays 404 — indistinguishable from a nonexistent id.
     const adviserUpdateOutside = await request('PUT', `/api/students/${marwinId}`, {
       token: adviserToken,
-      body: { contact_number: '09170000000' },
+      body: { last_name: 'Edited' },
     });
     assert(
       adviserUpdateOutside.status === 404,
@@ -505,7 +487,7 @@ async function run() {
     const inScopeSectionId = createInScope.data?.student?.section_id;
     const matchingClassPut = await request('PUT', `/api/students/${inScopeId}`, {
       token: adminToken,
-      body: { grade_level: 6, section: 'Malikhain', contact_number: '09179990001' },
+      body: { grade_level: 6, section: 'Malikhain', last_name: 'Matching' },
     });
     assert(matchingClassPut.status === 200, 'Matching class PUT succeeds');
     assert(
@@ -514,7 +496,7 @@ async function run() {
       'Matching class PUT leaves grade_level and section unchanged'
     );
     assert(
-      matchingClassPut.data?.student?.contact_number === '09179990001',
+      matchingClassPut.data?.student?.last_name === 'Matching',
       'Matching class PUT still saves other fields'
     );
     assert(
@@ -525,7 +507,7 @@ async function run() {
     const beforeGradeChange = matchingClassPut.data?.student;
     const changeGradeLevel = await request('PUT', `/api/students/${inScopeId}`, {
       token: adminToken,
-      body: { grade_level: 5, contact_number: '09179990099' },
+      body: { grade_level: 5, last_name: 'Refused' },
     });
     assert(changeGradeLevel.status === 400, 'Differing grade_level is 400, not applied');
     assert(
@@ -537,13 +519,13 @@ async function run() {
       Number(afterGradeChange.data?.student?.grade_level) === 6 &&
         afterGradeChange.data?.student?.section === 'Malikhain' &&
         afterGradeChange.data?.student?.section_id === inScopeSectionId &&
-        afterGradeChange.data?.student?.contact_number === beforeGradeChange?.contact_number,
+        afterGradeChange.data?.student?.last_name === beforeGradeChange?.last_name,
       'Refused grade_level change leaves VARCHAR, section_id, and other fields untouched'
     );
 
     const changeSection = await request('PUT', `/api/students/${inScopeId}`, {
       token: adminToken,
-      body: { section: 'Masigasig', contact_number: '09179990099' },
+      body: { section: 'Masigasig', last_name: 'Refused' },
     });
     assert(changeSection.status === 400, 'Differing section is 400, not applied');
     assert(
@@ -555,7 +537,7 @@ async function run() {
       Number(afterSectionChange.data?.student?.grade_level) === 6 &&
         afterSectionChange.data?.student?.section === 'Malikhain' &&
         afterSectionChange.data?.student?.section_id === inScopeSectionId &&
-        afterSectionChange.data?.student?.contact_number === beforeGradeChange?.contact_number,
+        afterSectionChange.data?.student?.last_name === beforeGradeChange?.last_name,
       'Refused section change leaves VARCHAR, section_id, and other fields untouched'
     );
 
@@ -605,14 +587,14 @@ async function run() {
 
     const resolveMiss = await request('PUT', `/api/students/${unmatchedNullId}`, {
       token: adminToken,
-      body: { grade_level: 6, section: 'Mabini', contact_number: '09178880001' },
+      body: { grade_level: 6, section: 'Mabini', last_name: 'Resolve Miss' },
     });
     assert(
       resolveMiss.status === 200,
       'Matching PUT whose VARCHAR matches no sections row still succeeds (does not 400 the rest of the form)'
     );
     assert(
-      resolveMiss.data?.student?.contact_number === '09178880001',
+      resolveMiss.data?.student?.last_name === 'Resolve Miss',
       'Resolve miss still saves other fields'
     );
     assert(
@@ -752,6 +734,7 @@ async function run() {
       'GET /students?search=Conde: every row matches and total is the filtered count'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

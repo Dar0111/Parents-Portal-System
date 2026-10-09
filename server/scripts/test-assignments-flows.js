@@ -19,6 +19,10 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -88,6 +92,7 @@ async function run() {
 
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
+  await policy.accept(parentToken);
   assert(parentLogin.status === 200 && parentToken, 'Parent login');
 
   const mysql = require('mysql2/promise');
@@ -478,6 +483,7 @@ async function run() {
       'GET /assignments as a teacher: every row is theirs and total is the scoped count'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

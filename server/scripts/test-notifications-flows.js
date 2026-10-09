@@ -63,6 +63,12 @@ function nextCountsSignal(socket, ms = 3000) {
   });
 }
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally. Parents this run creates skip the first-sign-in
+// password change (scripts/policyFixture.js, feat/privacy).
+const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
+const policy = createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -271,10 +277,12 @@ async function main() {
     const pm = await login('13567454', 'Parent@2026');
     requireFixture(pm.status === 200, "Marwin's parent account logs in (Grade 6 Malikhain)", why(pm));
     parentMarwin = { token: pm.data.token, ...pm.data.user };
+    await policy.accept(parentMarwin.token);
 
     const pn = await login('1090001', 'Parent@2026');
     requireFixture(pn.status === 200, "Nino's parent account logs in (Grade 1 Mabait)", why(pn));
     parentNino = { token: pn.data.token, ...pn.data.user };
+    await policy.accept(parentNino.token);
 
     // -----------------------------------------------------------------------
     console.log('\nSchool-wide announcement — audience and Amendment A1');
@@ -557,6 +565,7 @@ async function main() {
     });
     requireFixture(newParentRes.status === 201, 'TCH-001 creates the pending parent account', why(newParentRes));
     const newParentId = newParentRes.data.user.id;
+    await clearForcedChange(newParentId);
     created.users.push(newParentId);
     notificationItems.push(['user', newParentId]);
 
@@ -608,6 +617,7 @@ async function main() {
     const newParentLogin = await login('990000000101', 'Parent@2026');
     requireFixture(newParentLogin.status === 200, 'the approved fixture parent logs in', why(newParentLogin));
     const fixtureParent = { token: newParentLogin.data.token, ...newParentLogin.data.user };
+    await policy.accept(fixtureParent.token);
 
     const ww = await request('POST', `/api/grades/${gradeId}/components`, {
       token: admin.token,
@@ -703,6 +713,7 @@ async function main() {
     });
     requireFixture(g1ParentRes.status === 201, 'TCH-003 creates the Grade 1 parent account', why(g1ParentRes));
     const g1ParentId = g1ParentRes.data.user.id;
+    await clearForcedChange(g1ParentId);
     created.users.push(g1ParentId);
     notificationItems.push(['user', g1ParentId]);
 
@@ -712,6 +723,7 @@ async function main() {
     const g1Login = await login('990000000102', 'Parent@2026');
     requireFixture(g1Login.status === 200, 'the Grade 1 parent logs in', why(g1Login));
     const g1Parent = { token: g1Login.data.token, ...g1Login.data.user };
+    await policy.accept(g1Parent.token);
 
     const g1SubjRes = await request('GET', '/api/subjects?grade_level=1&limit=200', { token: admin.token });
     requireFixture(g1SubjRes.status === 200 && g1SubjRes.data.subjects.length > 0, 'Grade 1 subjects load', why(g1SubjRes));
@@ -835,6 +847,7 @@ async function main() {
     });
     requireFixture(g2ParentRes.status === 201, 'its parent account', why(g2ParentRes));
     const g2ParentId = g2ParentRes.data.user.id;
+    await clearForcedChange(g2ParentId);
     created.users.push(g2ParentId);
     notificationItems.push(['user', g2ParentId]);
     requireFixture(
@@ -844,6 +857,7 @@ async function main() {
     const g2Login = await login('990000000103', 'Parent@2026');
     requireFixture(g2Login.status === 200, 'the second parent logs in', why(g2Login));
     const g2Parent = { token: g2Login.data.token, ...g2Login.data.user };
+    await policy.accept(g2Parent.token);
 
     const classKey = {
       subject_id: g1Subject.id,
@@ -1070,6 +1084,7 @@ async function main() {
       failed += 1;
     }
   } finally {
+    await policy.cleanup();
     // -------------------------------------------------------------------
     console.log('\nCleanup');
     // -------------------------------------------------------------------

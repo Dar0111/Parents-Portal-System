@@ -30,6 +30,10 @@ const pool = require('../config/db');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally (scripts/policyFixture.js, feat/privacy).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -130,10 +134,12 @@ async function run() {
   const marwinParent = await login('13567454', 'Parent@2026');
   requireFixture(marwinParent.status === 200, "Marwin's parent can log in");
   const marwinToken = marwinParent.data.token;
+  await policy.accept(marwinToken);
 
   const ninoParent = await login('1090001', 'Parent@2026');
   requireFixture(ninoParent.status === 200, "Nino's parent (Grade 1, descriptive) can log in");
   const ninoToken = ninoParent.data.token;
+  await policy.accept(ninoToken);
 
   // --- shape ----------------------------------------------------------
   console.log('\nShape and role branching');
@@ -485,6 +491,7 @@ async function main() {
   } finally {
     // Runs even on a throw. A process.exit() inside run() would skip it,
     // which is why run() returns a count instead of exiting.
+    await policy.cleanup();
     await cleanup();
   }
   process.exit(failures || process.exitCode ? 1 : 0);

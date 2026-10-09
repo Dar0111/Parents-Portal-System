@@ -1,6 +1,15 @@
 const pool = require('../config/db');
 const { verifyToken } = require('../utils/jwt');
 const { sendDbUnavailable } = require('../utils/dbUnavailable');
+const policy = require('../utils/policy');
+
+// The paths a parent may reach before accepting the Data Privacy Notice and
+// the Terms of Use: read itself, change its password (the forced change comes
+// FIRST), and the policy endpoints themselves.
+function policyGateAllows(req) {
+  const full = `${req.baseUrl || ''}${req.path || ''}`;
+  return full === '/api/auth/me' || full === '/api/auth/change-password' || full.startsWith('/api/policy');
+}
 
 async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
@@ -40,11 +49,15 @@ async function authenticate(req, res, next) {
       });
     }
 
+    // policy_accepted: how many CURRENT policy documents this user has
+    // accepted, as a subquery on the same read (no extra round trip).
+    const accepted = policy.acceptedCountSql('users.id');
     const [rows] = await pool.query(
       `SELECT id, login_id, role, status, name, email, contact_number, profile_pic, student_id,
-              email_verified_at, password_changed_at, token_version, must_change_password
+              email_verified_at, password_changed_at, token_version, must_change_password,
+              ${accepted.sql} AS policy_accepted
        FROM users WHERE id = ? LIMIT 1`,
-      [decoded.id]
+      [...accepted.params, decoded.id]
     );
 
     if (!rows.length) {
@@ -109,6 +122,21 @@ async function authenticate(req, res, next) {
           code: 'MUST_CHANGE_PASSWORD',
         });
       }
+    }
+
+    // THE CONSENT GATE (feat/privacy, 2026-10-10; the owner's answer 1). A
+    // parent who has not accepted the CURRENT Data Privacy Notice and Terms
+    // of Use can read itself, change its password and reach /api/policy —
+    // nothing else. Server-enforced, so the API refuses without consent
+    // whatever calls it; the same backstop shape as the forced change above,
+    // and checked AFTER it, so the forced change always comes first. The
+    // client routes on /auth/me's `policy_pending`, never on this 403 (§2).
+    if (policy.isPending(user.role, user.policy_accepted) && !policyGateAllows(req)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please accept the Data Privacy Notice and the Terms of Use before continuing.',
+        code: 'POLICY_ACCEPTANCE_REQUIRED',
+      });
     }
 
     req.user = user;

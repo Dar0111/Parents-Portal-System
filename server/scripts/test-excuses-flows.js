@@ -23,6 +23,12 @@ const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./t
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally. A teacher this run creates skips the first-sign-in
+// password change (scripts/policyFixture.js, feat/privacy).
+const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
+const policy = createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -112,6 +118,7 @@ async function run() {
 
   const parentLogin = await login('13567454', 'Parent@2026');
   const parentToken = parentLogin.data?.token;
+  await policy.accept(parentToken);
   const parentId = parentLogin.data?.user?.id;
   assert(parentLogin.status === 200 && parentToken, 'Parent login (Marwin, Grade 6 - Malikhain)');
 
@@ -216,6 +223,7 @@ async function run() {
     );
     const outsideParentLogin = await login(outsideLoginId, 'Parent@2026');
     const outsideParentToken = outsideParentLogin.data?.token;
+    await policy.accept(outsideParentToken);
     assert(
       Boolean(outsideStudentRow?.id) && outsideParentLogin.status === 200,
       'Fixture: an active parent/student outside TCH-001\'s scope, inserted by SQL, can log in'
@@ -271,6 +279,7 @@ async function run() {
 
     const unlinkedLogin = await login(UNLINKED_LOGIN_ID, UNLINKED_PASSWORD);
     const unlinkedToken = unlinkedLogin.data?.token;
+    await policy.accept(unlinkedToken);
     assert(
       unlinkedLogin.status === 200 && unlinkedToken && Number.isInteger(unlinkedParentId),
       'Fixture: throwaway unlinked parent (TEST-UNLINKED-1, student_id NULL) logs in'
@@ -507,6 +516,7 @@ async function run() {
       body: { login_id: reviewerLoginId, password: 'Teacher@2026', name: 'Non-Adviser Fixture Teacher' },
     });
     const nonAdviserTeacherId = createNonAdviserTeacher.data?.user?.id;
+    if (nonAdviserTeacherId) await clearForcedChange(nonAdviserTeacherId);
     createdLoginIds.push(reviewerLoginId); // fk_assignments_teacher ON DELETE CASCADE removes the assignment row too
     await withDb((conn) =>
       conn.query(
@@ -829,6 +839,7 @@ async function run() {
       'GET /excuse-letters?status=Pending: every row matches and total is the filtered count'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 

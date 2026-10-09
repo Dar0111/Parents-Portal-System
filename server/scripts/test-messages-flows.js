@@ -18,6 +18,12 @@ const { io: ioClient } = require('socket.io-client');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// go in the finally. A teacher this run creates skips the first-sign-in
+// password change (scripts/policyFixture.js, feat/privacy).
+const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
+const policy = createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -105,6 +111,7 @@ async function run() {
 
   const parent1Login = await login('13567454', 'Parent@2026');
   const parent1Token = parent1Login.data?.token;
+  await policy.accept(parent1Token);
   const parent1Id = parent1Login.data?.user?.id;
   assert(parent1Login.status === 200 && parent1Token, 'Parent login (Marwin, Grade 6 - Mabini)');
 
@@ -162,6 +169,7 @@ async function run() {
       body: { login_id: teacher2LoginId, password: 'Teacher@2026', name: 'Unassigned Teacher' },
     });
     const teacher2Id = createTeacher2.data?.user?.id;
+    if (teacher2Id) await clearForcedChange(teacher2Id);
     const teacher2Login = await login(teacher2LoginId, 'Teacher@2026');
     const teacher2Token = teacher2Login.data?.token;
     assert(
@@ -807,6 +815,7 @@ async function run() {
       'GET /with/:id refuses offset, sort and a non-numeric before with 400'
     );
   } finally {
+    await policy.cleanup();
     await cleanup();
   }
 
