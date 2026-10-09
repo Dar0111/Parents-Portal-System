@@ -157,6 +157,50 @@ SELECT login_id, role, status, name FROM users;
 
 ---
 
+## Phone sa hotspot
+
+Ang ayos na gumana sa telepono (Expo Go) gamit ang hotspot ng telepono.
+**Walang IP na nakasulat dito** — nagbabago ang IP sa bawat hotspot, kaya
+`ipconfig` ang laging pinagkukunan. Ang buong Mobile setup ay nasa
+[`README.md`](../README.md).
+
+1. **Hotspot ON** sa telepono.
+2. **Ang laptop ay sumali sa hotspot** na iyon.
+3. **I-off ang "Connect automatically"** sa bawat ibang Wi-Fi na naaalala ng
+   laptop, para hindi ito lumipat.
+4. **`ipconfig`** sa laptop: ang **IPv4** ay ang laptop, ang **Default
+   Gateway** ay ang telepono. Pareho dapat ang unang tatlong numero nila.
+5. **`mobile\.env`:** ang host ng `EXPO_PUBLIC_API_URL` = ang IPv4.
+6. **`server\.env`:** ang host ng **pangalawang** entry ng `CORS_ORIGIN` =
+   ang IPv4, at ang host ng `SMS_GATEWAY_URL` = ang Default Gateway.
+7. **Windows network profile → Private** para sa hotspot.
+8. **I-restart ang API.**
+9. **BAGONG cmd window**, sa `mobile\`:
+   ```bat
+   set REACT_NATIVE_PACKAGER_HOSTNAME=<IPv4>
+   npx expo start --clear
+   ```
+   Sa PowerShell: `$env:REACT_NATIVE_PACKAGER_HOSTNAME="<IPv4>"`. Sa Git
+   Bash: `export REACT_NATIVE_PACKAGER_HOSTNAME=<IPv4>`. Bago dapat ang
+   window, para walang lumang value na naiwan.
+10. **Ang Metro line ay dapat `exp://<IPv4>:8081`.** Kapag iba ang host,
+    bumalik sa step 9.
+11. **Sa Chrome ng telepono:** `http://<IPv4>:8081/status` → dapat
+    `packager-status:running`.
+12. **Isara nang buo ang Expo Go** (hindi lang i-minimize), buksan ulit, at
+    i-scan ang QR.
+13. **Sa System card ng admin dashboard:** "Live connection: Connected".
+
+**Dalawang paalala:**
+
+- **Kapag walang load ang telepono** (walang internet ang hotspot), puwedeng
+  lumipat ang Windows sa ibang Wi-Fi na may internet — kaya mahalaga ang
+  step 3.
+- **`npx expo start --offline`** — nagsisimula ang Expo kahit walang
+  internet.
+
+---
+
 ## Project path
 
 ```

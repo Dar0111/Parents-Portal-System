@@ -11,12 +11,13 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-07: `main` at `1692103` (the source-zip fix merged,
+**Snapshot, 2026-10-09: `main` at `1692103` (the source-zip fix merged,
 fast-forward, after the owner's first run made
 `Parents_Portal_source_2026-10-07_1692103.zip`) plus `feat/dashboards-look`
-— build 2, two commits: skeleton loading tier 1, re-reads that keep what is
-on screen, the web drawer as a dialog, and the dashboards' Part C — built,
-NOT yet device-checked, not merged.** Table and endpoint
+— build 2: skeleton loading tier 1, re-reads that keep what is on screen,
+the web drawer as a dialog, and the dashboards' Part C, device-checked by the
+owner 2026-10-08; its fix round F1–F8 built and re-checked by the owner
+2026-10-09 — MERGE-READY, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -40,7 +41,7 @@ and only there.
 | Build 1 — `feat/look-fixes`: the flagged screens, the button and chip shapes, four small fixes (built and device-checked 2026-10-05) | — | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
 | Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
 | The source-code zip — `fix/source-zip`: `git archive` of HEAD, tracked files only (the owner's first run 2026-10-07) | ✅ merged 2026-10-07 (a root script, not the server) | — | — |
-| Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07) | — | 🟡 built, not yet device-checked, not merged | 🟡 built, not yet device-checked, not merged |
+| Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07, device-checked 2026-10-08), and its fix round F1–F8 (built and re-checked 2026-10-09) | — | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -123,22 +124,22 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-As the owner's dispatches stand (2026-10-07, CLAUDE.md → BUILD ORDER →
+As the owner's dispatches stand (2026-10-09, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The owner's device check of build 2** (`feat/dashboards-look`: the
-   skeletons and the fill, a re-read keeping its rows, the drawer dialog,
-   the dashboards' Part C, web and phone), then merge it.
-2. **The privacy build** (`feat/privacy`, plan approved, waiting for build 2's
-   merge).
-3. **Smoke gate** across web and mobile.
-4. **Manuscript delta list** (the team applies it; it now includes
-   Chapter 5's admin Messages text).
-5. **Professor system check, Fri 2026-10-09.**
+1. **Merge build 2** (`feat/dashboards-look`, merge-ready) on the owner's
+   word.
+2. **The privacy build** (`feat/privacy`; the owner pastes its PLAN
+   APPROVED).
+3. **A shared Messages component** (its own branch).
+4. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the 36 list
+   consumers, so a query change shows the skeleton, and the avatar circle on
+   the ten lists that lack it.
+5. **Smoke gate** across web and mobile, **by Thu 2026-10-15**.
+6. **Professor system check, Fri 2026-10-16.**
 
-Later: option 1 — a `queryKey` on the 36 list consumers, so a query change
-shows the skeleton — with skeleton tier 2. After the check: the cloud
-(Supabase) survey.
+The manuscript delta list stays with the team (it includes Chapter 5's
+admin Messages text). After the check: the cloud (Supabase) survey.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications

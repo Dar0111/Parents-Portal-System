@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-09, `feat/dashboards-look` — build 2 device-checked by the owner (2026-10-08) and its fix round F1–F8 built, NOT yet re-checked, not merged (on `main` `1692103`) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-09, `feat/dashboards-look` — build 2 device-checked by the owner (2026-10-08), its fix round F1–F8 re-checked (2026-10-09): MERGE-READY, not merged (on `main` `1692103`) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1687,23 +1687,24 @@ its `docs/CHANGELOG.md` row.
       `Parents_Portal_source_2026-10-07_1692103.zip`). Rules: §26–§28,
       §27f, M22–M25. Each entry verbatim: `docs/ARCHIVE.md` → "BUILD ORDER →
       Stage 5 entries moved from CLAUDE.md on 2026-10-07".
-- [ ] **Build 2 — `feat/dashboards-look`** (two commits), built 2026-10-07:
+- [x] **Build 2 — `feat/dashboards-look`** (two commits), built 2026-10-07:
       skeleton loading tier 1 (DataTable, DataList, the dashboard Card, the
-      report card; 300 ms, no minimum, a two-pulse shimmer), re-reads that
+      report card; 300 ms, no minimum, a three-pass sweep), re-reads that
       keep what is on screen (busy and inert; the Card tells a same-query
       re-read from a new query; a phone pull shows its indicator), the web
       drawer as a modal dialog with its two defects fixed, and Part C (the
-      dashboards' look and lead cards, the admin's People card). Decision 1
+      dashboards' look and lead cards, the admin's Users card). Decision 1
       narrowed by the owner's scope answer (KNOWN ISSUES: the query-change
       skeleton is option 1, deferred). Rules: §5a-vii, §9, §15e, M11, M23.
       **Device-checked by the owner 2026-10-08; the fix round F1–F8**
       (the compact lockout notice holding its space, "Users", the
       Teachers / Parents presets, avatar circles, a new page at the top,
-      the sweep, the inside nav ring, positional keys) **built 2026-10-09,
-      NOT yet re-checked; not merged.**
+      the sweep, the inside nav ring, positional keys) **built 2026-10-09
+      (two commits), re-checked by the owner the same day: MERGE-READY; not
+      merged.** Device gaps: `docs/TESTING.md`.
 
-**NEXT, in order (the owner, 2026-10-08):** the owner's re-check of the fix
-round, then merge `feat/dashboards-look` → the privacy build (`feat/privacy`,
+**NEXT, in order (the owner, 2026-10-08):** merge `feat/dashboards-look` on
+the owner's word → the privacy build (`feat/privacy`,
 the owner pastes its PLAN APPROVED) → a shared Messages component (own
 branch) → skeleton tier 2 + option 1 if time → **smoke gate by Thu
 2026-10-15** → **professor system check, Fri 2026-10-16**. The manuscript

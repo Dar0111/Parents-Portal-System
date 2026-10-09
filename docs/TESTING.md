@@ -190,6 +190,26 @@ single-digit counts, so a changing width was never on screen — any figure
 that crosses 9 → 10 shows it. **The pulse's stop is moot** (F6): the pulse
 was replaced by the sweep; the sweep's three passes are the new check.
 
+**Re-check — the build 2 fix round (the owner, 2026-10-09): PASS on the
+device, web and phone** — F1 (the compact notice; no jump at desktop width,
+at 390px, or on the phone), F2, F3 (the web presets; the phone presets,
+including a re-tap after a manual filter change), F4 (the circles, web), F5
+(a new page opens at the top; Back restores the scroll), F6 (the sweep,
+web), F7 (the Messages focus ring), F8 (no LogBox). **Not device-checked,
+kept here until seen:** the kept rows' `inert` (the web's ~2 s throttled
+hold was too short to time a click in; the phone's LAN is too fast); the
+phone's skeleton circle and sweep (the LAN is too fast); and Messages
+opening at the newest message after F5 (the database holds 0 messages; the
+smoke gate covers it). **The proof behind the kept rows' `inert`:**
+`ssr-skeletons.jsx` renders a kept `DataTable` and asserts its frame carries
+`aria-busy="true"` AND `inert`, and that an idle one carries neither
+(rendered); `proof-skeletons.mjs` asserts `DataList`'s keep props —
+`pointerEvents: 'none'`, `importantForAccessibility: 'no-hide-descendants'`,
+`accessibilityElementsHidden` — and that every card sits inside the keep
+wrapper, with a negative control (source). The phone has no `inert`;
+`pointerEvents: 'none'` is its equivalent. Neither proof can press a row
+during a real hold — that stays the device gap above.
+
 ### `ssr-dates.jsx` runs TWICE, under two timezones
 
 ```bash
