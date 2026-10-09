@@ -7,17 +7,13 @@ import extractError from '../../api/extractError';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
-import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
-import { contactError, contactRuleHint } from '../../format/contactRule';
-import { longDate, todayLocalDateString } from '../../format/date';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -33,20 +29,17 @@ import { useTheme } from '../../theme/ThemeProvider';
 //
 // THE LAYOUT (feat/ui-refresh, 2026-10-03) is the web's: a HEADER CARD — the
 // learner in the title face with their initials (a learner has no photo,
-// §25), the class and the status badge, and Edit — and TWO FACT CARDS by what
-// the fact is for: who the learner is, and whether a parent account is
-// linked to them; and how to reach the family. Edit is the neutral button:
-// nothing on this screen is a filled action, the record is mostly read.
+// §25), the class and the status badge, and Edit — and ONE FACT CARD (two
+// until the privacy build, 2026-10-10): who the learner is and whether a
+// parent account is linked. The learner's birthday, gender, address and
+// contact number — and the Contact details card — are gone: no longer
+// collected (decision 6). Edit is the neutral button: nothing on this screen
+// is a filled action, the record is mostly read.
 //
 // PULL TO REFRESH is load() — the same GET every focus already makes. The
 // record stays on screen under the pull spinner; the edit sheet is a Modal
 // over the screen, so no pull can start while it is open.
-const EMPTY_EDIT = { first_name: '', last_name: '', birthday: '', gender: '', address: '', contact_number: '' };
-const GENDERS = [
-  { key: '', label: 'Not recorded' },
-  { key: 'male', label: 'Male' },
-  { key: 'female', label: 'Female' },
-];
+const EMPTY_EDIT = { first_name: '', last_name: '' };
 
 function titleCase(value) {
   return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
@@ -80,7 +73,6 @@ export default function StudentDetailScreen({ navigation, route }) {
   const id = route.params.id;
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
-  const today = todayLocalDateString();
   const [student, setStudent] = useState(null);
   const [parentAccount, setParentAccount] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +83,6 @@ export default function StudentDetailScreen({ navigation, route }) {
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState(EMPTY_EDIT);
   const [editStatus, setEditStatus] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
   useLayoutEffect(() => {
@@ -122,7 +113,6 @@ export default function StudentDetailScreen({ navigation, route }) {
   );
 
   const set = (key) => (value) => {
-    setFieldErrors((prev) => ({ ...prev, [key]: null }));
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -130,13 +120,8 @@ export default function StudentDetailScreen({ navigation, route }) {
     setDraft({
       first_name: student.first_name || '',
       last_name: student.last_name || '',
-      birthday: student.birthday || '',
-      gender: student.gender || '',
-      address: student.address || '',
-      contact_number: student.contact_number || '',
     });
     setEditStatus(null);
-    setFieldErrors({});
     setStatus(null);
     setEditOpen(true);
   }
@@ -153,11 +138,6 @@ export default function StudentDetailScreen({ navigation, route }) {
       setEditStatus(fail('First name and last name are required.'));
       return;
     }
-    const contact = contactError(draft.contact_number);
-    if (contact) {
-      setFieldErrors({ contact_number: contact });
-      return;
-    }
     setSaving(true);
     try {
       const { student: updated, message } = await api.put(
@@ -165,10 +145,6 @@ export default function StudentDetailScreen({ navigation, route }) {
         {
           first_name: draft.first_name.trim(),
           last_name: draft.last_name.trim(),
-          birthday: draft.birthday.trim(),
-          gender: draft.gender,
-          address: draft.address.trim(),
-          contact_number: draft.contact_number.trim(),
         },
         { unwrap: ['student', 'message'] }
       );
@@ -176,9 +152,7 @@ export default function StudentDetailScreen({ navigation, route }) {
       setStatus(ok(message));
       setEditOpen(false);
     } catch (err) {
-      const field = err?.response?.data?.field;
-      if (field) setFieldErrors({ [field]: extractError(err) });
-      else setEditStatus(fail(extractError(err)));
+      setEditStatus(fail(extractError(err)));
     } finally {
       setSaving(false);
     }
@@ -245,20 +219,11 @@ export default function StudentDetailScreen({ navigation, route }) {
 
       {/* Same fields as the teacher view, plus the linked parent account —
           which it is, not a button: POST /users/parents is teacher-only.
-          "None" = no account yet. `birthday` is a DATE column: `longDate` is
-          string surgery on the literal (§5a-iv). */}
+          "None" = no account yet. */}
       <View className={`${cardClass} gap-4 p-4`}>
         <CardTitle icon="fa-id-card">Student details</CardTitle>
         <Field label="LRN" value={student.lrn} />
-        <Field label="Birthday" value={student.birthday ? longDate(student.birthday) : null} />
-        <Field label="Gender" value={titleCase(student.gender)} />
         <Field label="Parent account" value={parentAccount ? titleCase(parentAccount.status) : null} empty="None" />
-      </View>
-
-      <View className={`${cardClass} gap-4 p-4`}>
-        <CardTitle icon="fa-address-book">Contact details</CardTitle>
-        <Field label="Contact number" value={student.contact_number} />
-        <Field label="Address" value={student.address} />
       </View>
 
       <Modal visible={editOpen} animationType="slide" onRequestClose={closeEdit} presentationStyle="pageSheet">
@@ -275,10 +240,6 @@ export default function StudentDetailScreen({ navigation, route }) {
               <FormField label="Grade level" value={`Grade ${student.grade_level}`} editable={false} />
               <FormField label="Section" value={student.section} editable={false} />
               <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
-              <DateField label="Birthday" value={draft.birthday} onChange={set('birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
-              <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={draft.gender} onChange={set('gender')} options={GENDERS} />} />
-              <FormField label="Address" value={draft.address} onChangeText={set('address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
-              <FormField label="Contact number" value={draft.contact_number} onChangeText={set('contact_number')} maxLength={20} keyboardType="phone-pad" hint={contactRuleHint()} error={fieldErrors.contact_number} />
             </View>
             {/* The label still changes while the write is in flight; `loading`
                 is the old `disabled={saving}` plus its spinner. */}

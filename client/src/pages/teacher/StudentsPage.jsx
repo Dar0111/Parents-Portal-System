@@ -56,15 +56,13 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // sits BESIDE the entrance wrapper, never inside it: Modal renders inline,
 // and a wrapper mid-tween carries a transform (motion/motion.js).
 
+// No birthday, gender, address or contact number for the LEARNER: not collected
+// since the privacy build (2026-10-10, decision 6) — the server refuses a value.
 const EMPTY_ENROLL = {
   lrn: '',
   first_name: '',
   last_name: '',
   classKey: '',
-  birthday: '',
-  gender: '',
-  address: '',
-  contact_number: '',
 };
 
 const EMPTY_PARENT = {
@@ -129,8 +127,9 @@ export default function StudentsPage() {
   const [phase, setPhase] = useState('enroll');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
-  // Field-level refusals — the client rule's (LRN, contact) or the server's
-  // 400 with a `field` key (lrn, contact_number, birthday, gender) — render
+  // Field-level refusals — the client rule's (the LRN, the parent's contact)
+  // or the server's 400 with a `field` key (lrn; the parent's password,
+  // email, contact_number) — render
   // under their input with a red border (§7c); everything else stays in the
   // form-level strip above. Cleared per field as it changes.
   const [fieldErrors, setFieldErrors] = useState({});
@@ -302,15 +301,11 @@ export default function StudentsPage() {
       setFormError('LRN, first name, last name, and class are required.');
       return;
     }
-    // The client's copies of the LRN and contact rules (format/lrnRule.js,
-    // format/contactRule.js); the server enforces the same on POST /students
-    // and answers 400 with a `field` key.
-    const clientErrors = {
-      lrn: lrnError(enroll.lrn),
-      contact_number: contactError(enroll.contact_number),
-    };
-    if (clientErrors.lrn || clientErrors.contact_number) {
-      setFieldErrors(clientErrors);
+    // The client's copy of the LRN rule (format/lrnRule.js); the server
+    // enforces the same on POST /students and answers 400 with a `field` key.
+    const lrnProblem = lrnError(enroll.lrn);
+    if (lrnProblem) {
+      setFieldErrors({ lrn: lrnProblem });
       return;
     }
     setPhase('confirm-enroll');
@@ -330,10 +325,6 @@ export default function StudentsPage() {
         grade_level: parsed.grade_level,
         section: parsed.section,
       };
-      if (enroll.birthday) body.birthday = enroll.birthday;
-      if (enroll.gender) body.gender = enroll.gender;
-      if (enroll.address.trim()) body.address = enroll.address.trim();
-      if (enroll.contact_number.trim()) body.contact_number = enroll.contact_number.trim();
 
       const student = await api.post('/students', body, { unwrap: 'student' });
       setEnrolled(student);
@@ -708,51 +699,6 @@ export default function StudentsPage() {
                 </option>
               ))}
             </FormField>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                label="Birthday"
-                type="date"
-                value={enroll.birthday}
-                onChange={(e) => {
-                  setFieldErrors((prev) => ({ ...prev, birthday: null }));
-                  setEnroll((prev) => ({ ...prev, birthday: e.target.value }));
-                }}
-                error={fieldErrors.birthday}
-              />
-              <FormField
-                label="Gender"
-                as="select"
-                value={enroll.gender}
-                onChange={(e) => {
-                  setFieldErrors((prev) => ({ ...prev, gender: null }));
-                  setEnroll((prev) => ({ ...prev, gender: e.target.value }));
-                }}
-                error={fieldErrors.gender}
-              >
-                <option value="">Not recorded</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </FormField>
-            </div>
-            <FormField
-              label="Address"
-              as="textarea"
-              rows={2}
-              value={enroll.address}
-              onChange={(e) => setEnroll((prev) => ({ ...prev, address: e.target.value }))}
-            />
-            <FormField
-              label="Contact number"
-              value={enroll.contact_number}
-              onChange={(e) => {
-                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
-                setEnroll((prev) => ({ ...prev, contact_number: e.target.value }));
-              }}
-              maxLength={20}
-              inputMode="tel"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
-            />
           </form>
         ) : null}
 

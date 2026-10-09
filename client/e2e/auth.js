@@ -105,6 +105,82 @@ async function waitFor(name, url, attempts = 20, gapMs = 500) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// THE CONSENT GATE (feat/privacy, 2026-10-10). A parent who has not accepted
+// the Data Privacy Notice and the Terms of Use lands on /consent, not on
+// /parent, and the API refuses everything else — so both parent accounts
+// accept through the REAL endpoint before any test signs in (one more `login`
+// row each, the only new write). globalSetup RETURNS the teardown, which
+// Playwright runs after the last test: it deletes exactly the acceptance rows
+// this run added — by id, against a snapshot taken first — so a seeded parent
+// is asked again at the next real sign-in. Prints nothing about the accounts.
+
+// The database, through the SERVER's own driver and .env (the client package
+// has neither). Read, never printed.
+async function withServerDb(fn) {
+  const { createRequire } = await import('node:module');
+  const serverDir = new URL('../../server/', import.meta.url);
+  const require = createRequire(new URL('package.json', serverDir));
+  require('dotenv').config({ path: new URL('.env', serverDir) });
+  const mysql = require('mysql2/promise');
+  const conn = await mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'parents_portal',
+  });
+  try {
+    return await fn(conn);
+  } finally {
+    await conn.end();
+  }
+}
+
+async function acceptanceIds(userIds) {
+  return withServerDb(async (conn) => {
+    const [rows] = await conn.query('SELECT id FROM policy_acceptances WHERE user_id IN (?)', [userIds]);
+    return rows.map((r) => r.id);
+  });
+}
+
+async function acceptForParents() {
+  const accounts = [];
+  for (const role of ['parent', 'parent2']) {
+    const { login_id, password } = credentialsFor(role);
+    const res = await fetch(`${API_ORIGIN}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login_id, password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.token) throw new Error(`Consent setup: the ${role} account did not sign in (HTTP ${res.status}).`);
+    accounts.push({ role, token: body.token, id: body.user.id, pending: body.user.policy_pending === true });
+  }
+  const userIds = [...new Set(accounts.map((a) => a.id))];
+  const before = new Set(await acceptanceIds(userIds));
+
+  for (const a of accounts) {
+    if (!a.pending) continue;
+    const auth = { Authorization: `Bearer ${a.token}`, 'Content-Type': 'application/json' };
+    const docs = await (await fetch(`${API_ORIGIN}/api/policy`, { headers: auth })).json();
+    const versions = Object.fromEntries((docs.documents || []).map((d) => [d.document, d.version]));
+    const res = await fetch(`${API_ORIGIN}/api/policy/accept`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ versions, on_behalf_of_child: true }),
+    });
+    if (!res.ok) throw new Error(`Consent setup: the ${a.role} account's accept answered HTTP ${res.status}.`);
+  }
+
+  return async function removeThisRunsAcceptances() {
+    const added = (await acceptanceIds(userIds)).filter((id) => !before.has(id));
+    if (added.length) {
+      await withServerDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id IN (?)', [added]));
+    }
+  };
+}
+
 export default async function globalSetup() {
   // TWO SERVERS, TWO HOSTS, AND THE RULE IS NOT THE SAME FOR BOTH. Measured
   // 2026-09-24 with netstat, after the first run failed against a Vite that
@@ -126,6 +202,11 @@ export default async function globalSetup() {
   // one CORS origin and `http://[::1]:3000` is not it.
   await waitFor('The API', `${API_ORIGIN}/api/health`);
   await waitFor('The Vite dev server', APP_ORIGIN);
+
+  // Both parents accept first; the returned function is the global teardown
+  // that removes what this accepted (see acceptForParents above). Nothing runs
+  // after this return — the note below records a warm-up that was removed.
+  return acceptForParents();
 
   // NO WARM-UP HERE, AND THE ATTEMPT IS WORTH RECORDING (UI-C1a).
   //

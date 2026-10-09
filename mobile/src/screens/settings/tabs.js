@@ -10,14 +10,18 @@
 const ACCOUNT = { to: '', label: 'Account information', icon: 'fa-id-card' };
 const PASSWORD = { to: 'password', label: 'Change password', icon: 'fa-key' };
 const PERSONALIZATION = { to: 'personalization', label: 'Personalization', icon: 'fa-sliders' };
+// The Data Privacy Notice and the Terms of Use, and when this user accepted
+// each (feat/privacy, 2026-10-10) — every role.
+const SECURITY = { to: 'security', label: 'Security & policy', icon: 'fa-shield-halved' };
 
 const TABS_BY_ROLE = {
-  teacher: [ACCOUNT, PASSWORD, PERSONALIZATION],
-  parent: [ACCOUNT, PASSWORD, PERSONALIZATION],
+  teacher: [ACCOUNT, PASSWORD, SECURITY, PERSONALIZATION],
+  parent: [ACCOUNT, PASSWORD, SECURITY, PERSONALIZATION],
   admin: [
     { to: '', label: 'School settings', icon: 'fa-school' },
     { ...ACCOUNT, to: 'account' },
     PASSWORD,
+    SECURITY,
     PERSONALIZATION,
   ],
 };

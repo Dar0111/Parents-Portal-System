@@ -29,7 +29,7 @@ matches `GET /api/memos` having no scope clause.
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 23 tables |
+| Database | `parents_portal` — 25 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -46,8 +46,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 94** handlers defined in
-> `server/routes/`, and the API answers **95 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 97** handlers defined in
+> `server/routes/`, and the API answers **98 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 > Count history: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-10-02",
 > and the CHANGELOG rows.
@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-09, `feat/dashboards-look` — build 2 device-checked by the owner (2026-10-08), its fix round F1–F8 re-checked (2026-10-09): MERGE-READY, not merged (on `main` `1692103`) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-10, `feat/privacy` — the privacy build (§29, M26) built in two commits, NOT device-checked, not merged (on `main` `9ed8793`, build 2 merged 2026-10-09) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -112,8 +112,8 @@ Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
 2026-10-05** (that section's SCOPE DECISION 2026-10-05), and **About is last on every
 role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
-item**. **23 tables, 94 handlers + `/api/health`**
-(2026-09-30). 20 of 23 sections have no adviser and
+item**. **25 tables, 97 handlers + `/api/health`**
+(2026-10-10). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
@@ -131,7 +131,7 @@ After a clean `npm run db:setup`:
 | `teacher_assignments` | 8 — 3 for TCH-001 (G6 Mathematics/English/Filipino in Malikhain) and 5 for TCH-003 (every Grade 1 subject in Mabait). TCH-002 still has zero; that is the point of the account. |
 | `sections` with a real `adviser_id` | 3 of 23 — Malikhain → TCH-001, Masigasig → TCH-002, Mabait → TCH-003. The other 20 stay NULL until an admin assigns them. |
 | `grades` | 5 — Nino's partial descriptive card (Mathematics terms 1–3 A/B/C, Reading and Literacy terms 1–2 D/E). `grade_components` and `assessment_slots` are both 0. **These five are LEGACY rows** — letters typed before the rule, with no scores behind them, so they keep their letter and show no Final. Correct, not stale; do not "fix" them. |
-| `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages` | 0 |
+| `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages`, `policy_acceptances`, `login_attempts` | 0 (no parent has accepted, §29) |
 
 HTTP suites that create rows delete them in a `finally` block and must
 return the database to this table, not to a remembered older snapshot.
@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **eight migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-seven test files); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `database/`
+`scripts/` (setup, **nine migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-eight test files, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -950,6 +950,20 @@ over a saved announcement draft asks first, and the posted announcement
 clears that thread's draft. Full text: `docs/FRONTEND_CONVENTIONS.md` §28,
 MOBILE M25.
 
+### 29. Privacy — consent first, your own first password, sign-in limits, four fields gone
+
+**feat/privacy, 2026-10-10.** **A parent who has not accepted the CURRENT
+Data Privacy Notice and Terms of Use reaches only `/auth/me`,
+`/auth/change-password` and `/api/policy/*`** (`403
+POLICY_ACCEPTANCE_REQUIRED`), AFTER the forced change; clients route on
+`policy_pending`, never the 403. Three ticks, the child by first name, never
+the LRN; a stale version is 409. **The text (`server/policy/`) is a
+placeholder; staff acceptance is deferred.** New teachers and parents change
+the password someone else typed. **Sign-in: 5 failures in a row / 100 per IP
+in 15 min → 429, an unknown id the same.** The learner's birthday, gender,
+address and contact number are not collected. Full text: FRONTEND §29, MOBILE
+M26, API_REFERENCE §5b.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, recorded so they cannot be re-derived:
@@ -972,7 +986,7 @@ each dispatch's number is also on its CHANGELOG row.
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin; M23–M24 the UI refresh; M25 form drafts
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin; M23–M24 the UI refresh; M25 form drafts; M26 privacy
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
@@ -983,7 +997,7 @@ cleanup, M13 Grades one slot at a time, M14 the roster and where
 `popTo` back to the drawer, M17 sensitive actions and the shown-once
 password, M18 the admin's lists, M20 the drawer grouped and foldable (`pp.navGroups`, the
 active group always open), M21 the photo picker (library only, no camera), M23 the refresh on the phone
-(faces, `Text`, `Button`, motion, pull-to-refresh), M24 the status bar, M25 form drafts — stated only there**). Darryl's decisions of 2026-09-27
+(faces, `Text`, `Button`, motion, pull-to-refresh), M24 the status bar, M25 form drafts, M26 privacy — stated only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -1063,6 +1077,10 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   AsyncStorage through the pure `drafts/deviceDrafts.js`; the hook writes
   nothing until the stored draft has been read; Discard and the hand-off
   question are system `Alert`s; no "continue draft" after a kill. (M25)
+- **Consent is a RootNavigator branch after the forced change, and the
+  realtime providers mount only past BOTH** (`policy_pending` → ONLY
+  `PolicyConsent`); each tick is a 48dp checkbox row; the exit is
+  `refresh()`. (M26)
 - **One LiveStatus strip per signed-in screen, below the header, and one
   bottom frame** — the drawer's and the stack's `screenLayout` add both;
   Home and Main take a bare layout. (M9)
@@ -1442,7 +1460,7 @@ gate in full on its `POST /api/users/parents` row.
 
 | Issue | Where | Note |
 |---|---|---|
-| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**23** since `assessment_slots` landed 2026-09-22; it was 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
+| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**25** since the privacy build, 2026-10-10 — and such a dump needs `db:migrate:privacy` too, row below; 23 from `assessment_slots` on 2026-09-22, 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
@@ -1461,9 +1479,12 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
-| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo. After the change both need another way to sign in (an env var, never a value in a file). **Never print the value** |
+| **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
 | **On a query change, `DataTable` / `DataList` show the PREVIOUS rows greyed and inert until the new ones land** — added 2026-10-07 | both components + their 36 consumers | Neither knows the query. The skeleton there is option 1 (a `queryKey` per consumer), deferred with skeleton tier 2 — **do not touch the consumers for it outside that dispatch** |
 | **Ten avatar lists' skeletons have no avatar circle** — added 2026-10-08 | admin Attendance, teacher Attendance records, teacher Excuse Letters, both Messages — web and phone | `skeletonAvatar` was added to Users and both Students only (the 6-file limit); the ten go to the option 1 dispatch. Cosmetic |
+| **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
+| **Restoring a pre-2026-10-10 backup drops the two privacy tables (every signed-in request 503s) and brings back the four learner values** — added 2026-10-10 | restore | **Afterwards: `npm run db:migrate:privacy`** |
+| **The socket handshake checks only that the account is active** — added 2026-10-10 | `server/socket.js` | Not the forced change or consent; neither app connects before both (M26) |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1661,51 +1682,22 @@ word for word:**
   is the latest term whose start is ≤ today, else Term 1** (the December
   break is Term 2).
 
-### Stage 5 — Mobile (Expo)
+### Stage 5 — Mobile (Expo) ✅ CLOSED 2026-10-09
 
-**Plan approved 2026-09-27; Parent → Teacher → Admin, one branch per step.**
-Each item's full text is verbatim in `docs/ARCHIVE.md` → "BUILD ORDER →
-Stage 5 as it stood in CLAUDE.md until 2026-09-30"; each phone check is on
-its `docs/CHANGELOG.md` row.
+Every role's screens, then the polish, the UI refresh, form drafts, builds 1
+and 2 and admin Messages — each device-checked and merged (build 2 last,
+`9ed8793`). Rules: M9–M26. **Notifications stay in-app only, via Socket.io**
+(no `expo-notifications`, no `push_token` column; push would be a separate
+decision). The block: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 moved from
+CLAUDE.md on 2026-10-10".
 
-- [x] **Setup, navigation, login + role routing** — `feat/mobile-scaffold`, 2026-09-27.
-- [x] **Parent screens** — `feat/mobile-parent`, 2026-09-27. Rules: M9–M12.
-- [x] **Teacher screens** — `feat/mobile-teacher`, 2026-09-28. Rules: M13–M15.
-- [x] **Admin screens** — `feat/mobile-admin`, 2026-09-29 (Backup & Restore
-      web only). Rules: M16–M18. **Every role's screens are built.**
-- [x] **`fix/mobile-popto`, SMS transport, server reliability** — merged
-      2026-09-29 → 30 (SMS before reliability by Darryl's decision).
-- [x] **UI polish — `feat/ui-polish`, merged 2026-09-30 (`c610bd8`).**
-- [x] **Docs pass + CLAUDE.md trim — `docs/stage5`** (merged, `5e09c09`).
-- [x] **Notifications — in-app only, via Socket.io** (Darryl, 2026-09-27):
-      no `expo-notifications`, no `push_token` column; remote push would be
-      a separate decision.
-- [x] **UI refresh, form drafts, build 1, admin Messages, the source-zip
-      fix** — each device-checked or first-run by the owner and merged
-      fast-forward, 2026-10-04 → 10-07 (`ee36b97`, `28fee18`, `1ef3c00`,
-      `2f2dbb7`, `1692103`; the owner's zip:
-      `Parents_Portal_source_2026-10-07_1692103.zip`). Rules: §26–§28,
-      §27f, M22–M25. Each entry verbatim: `docs/ARCHIVE.md` → "BUILD ORDER →
-      Stage 5 entries moved from CLAUDE.md on 2026-10-07".
-- [x] **Build 2 — `feat/dashboards-look`** (two commits), built 2026-10-07:
-      skeleton loading tier 1 (DataTable, DataList, the dashboard Card, the
-      report card; 300 ms, no minimum, a three-pass sweep), re-reads that
-      keep what is on screen (busy and inert; the Card tells a same-query
-      re-read from a new query; a phone pull shows its indicator), the web
-      drawer as a modal dialog with its two defects fixed, and Part C (the
-      dashboards' look and lead cards, the admin's Users card). Decision 1
-      narrowed by the owner's scope answer (KNOWN ISSUES: the query-change
-      skeleton is option 1, deferred). Rules: §5a-vii, §9, §15e, M11, M23.
-      **Device-checked by the owner 2026-10-08; the fix round F1–F8**
-      (the compact lockout notice holding its space, "Users", the
-      Teachers / Parents presets, avatar circles, a new page at the top,
-      the sweep, the inside nav ring, positional keys) **built 2026-10-09
-      (two commits), re-checked by the owner the same day: MERGE-READY; not
-      merged.** Device gaps: `docs/TESTING.md`.
+- [ ] **The privacy build — `feat/privacy`** (two commits), built 2026-10-10:
+      the consent gate, your own first password, sign-in limits, four
+      learner fields not collected (§29, M26). **NOT device-checked; not
+      merged.**
 
-**NEXT, in order (the owner, 2026-10-08):** merge `feat/dashboards-look` on
-the owner's word → the privacy build (`feat/privacy`,
-the owner pastes its PLAN APPROVED) → a shared Messages component (own
+**NEXT, in order (the owner, 2026-10-08):** the owner's check of
+`feat/privacy`, then merge it → a shared Messages component (own
 branch) → skeleton tier 2 + option 1 if time → **smoke gate by Thu
 2026-10-15** → **professor system check, Fri 2026-10-16**. The manuscript
 delta list stays with the team. After the check: the cloud (Supabase) survey.
@@ -1969,7 +1961,10 @@ school questions:**
   login ids and password lines (2026-10-06). LRNs are parent login ids, some
   only 7–8 digits, and the pilot will hold real ones; a mask written for one
   shape printed the others. Never print a login id, LRN, password, email,
-  phone or `.env` value, in tool output too.
+  phone or `.env` value, in tool output too. **Since 2026-10-10: any view of
+  suites, seeds or scripts masks EVERY string literal except API paths, from
+  the first view** — two dispatches in a row printed seeded credentials (an
+  old scratchpad script; a suite's `login('…', '…')` call).
 - **Every dispatch report ENDS with `Shell content writes: N`.** N should be
   **0**; any non-zero lists the file and the commit. Added 2026-09-23 after a
   `node -e` append put a block header through the shell and bash ate the

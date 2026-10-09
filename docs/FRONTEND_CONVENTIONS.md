@@ -796,8 +796,10 @@ storage, comparison, transmission, or matching.
   on `status.trim().toLowerCase()`, and the `status` prop the caller passed —
   which came straight from the API and may go straight back to it — is never
   mutated.
-- `StudentDetailPage` capitalises `gender` at the point of render. The stored
-  value stays `male`.
+- `StudentDetailPage` capitalised `gender` at the point of render (the stored
+  value stayed `male`) until the privacy build removed the field
+  (2026-10-10, §29e); the admin page's parent-account status is the example
+  now — `pending` stored, "Pending" shown.
 - Casing is applied **at the value, not inside a generic field renderer** —
   capitalising an address or an LRN would be wrong, so only fields whose
   stored form is lowercase by schema get it.
@@ -3701,4 +3703,95 @@ side in Expo Go (Tecno, Android 14).
 
 **Proof:** `client/scripts/ssr-form-drafts.jsx` (TESTING). **Not in this
 branch:** the web spinner's focus loss (decision 11).
+
+---
+
+## 29. Privacy — consent before use, your own first password, sign-in limits, four fields not collected (`feat/privacy`, 2026-10-10)
+
+The owner's answers 1–7 to the privacy PLAN (2026-10-07/10). The learner's
+grades and LRN are sensitive personal information under the Data Privacy Act,
+and consent for a minor's data comes from the parent or guardian. Four parts;
+the server enforces every one of them, and the clients route on fields, never
+on a 403 (§2).
+
+### 29a. The consent gate — server-enforced, after the forced change
+
+- **A parent** who has not accepted the CURRENT Data Privacy Notice AND Terms
+  of Use can read itself (`/auth/me`), change its password and reach
+  `/api/policy/*` — nothing else (`403 POLICY_ACCEPTANCE_REQUIRED`,
+  API_REFERENCE §5b). **The forced password change comes FIRST**, on the
+  server and in both clients. Staff are never gated in this build: **staff
+  acceptance is deferred** (the owner's answer 3; KNOWN_ISSUES).
+- **`policy_pending` on `/auth/me` is what the client routes on.**
+  `ProtectedRoute` sends a pending parent to **`/consent`**, a top-level route
+  outside Shell and outside every ProtectedRoute — the forced-change screen's
+  shape, for its reasons (a sidebar of refused pages lies; wrapping it loops).
+  The page does its own guards: signed out → `/login`, the forced change →
+  `/change-password`, not pending → the role home.
+- **Three ticks, all required**: the notice, the terms, and **"I accept both
+  on behalf of my child, <first name>"** — the child's FIRST NAME from
+  `/auth/me` (`student_first_name`), **never the LRN** (§5c). Accept stays
+  disabled until all three are ticked; the server checks the third again
+  (`on_behalf_of_child: true`). **Sign out is always there** and changes
+  nothing.
+- **The accept sends the versions the screen SHOWED.** A version that changed
+  while the screen was open is a `409`; the page shows the message, reloads
+  the documents and clears the ticks. Never a silent acceptance of words the
+  parent did not see.
+- **The exit is the re-read**: `refresh()` brings `policy_pending` back false
+  from the server and the page routes home. A new version of either document
+  sets it true again for every parent — accepting is per version.
+
+### 29b. The text ships with the app — and is a placeholder
+
+`server/policy/privacy-notice.md`, `terms-of-use.md` and `versions.json`
+(the owner's answer 2): git keeps every version's exact wording, a new
+version is a deliberate release (edit, bump, restart the API), and nothing can
+change quietly without a bump. **Both documents are "Draft — awaiting the
+school's approval"** and hold no legal text; the owner supplies the approved
+text (KNOWN_ISSUES). The client renders the text as paragraphs split on blank
+lines, inside a focusable, labelled scroll region (`role="region"`,
+`tabIndex=0`) so a keyboard can scroll it.
+
+### 29c. Settings → Security & policy — every role
+
+A tab after Change password (`settings/tabs.js`, mirrored; `fa-shield-halved`):
+both documents and their versions, and **for a parent the date each was
+accepted** — the server's `accepted_at` shown as the MANILA calendar day
+(`timestampDay`, never computed here). Staff see the documents and that
+parents accept them — never a "Not accepted" that reads as something they owe.
+`SettingsLayout`'s old "DO NOT add Security & policy" note is replaced.
+
+### 29d. Your own first password, and the sign-in limits
+
+- **New teachers (`POST /users/teachers`) and new parents
+  (`POST /users/parents`) are created with `must_change_password = 1`** (the
+  owner's answer 4): whoever typed the password, the account holder picks
+  their own at the first sign-in, on the existing forced-change screen (§11).
+- **Sign-in limits** (the owner's answers 5 and 2, `utils/loginThrottle.js`):
+  5 failures **in a row** per account within 15 minutes, 100 per IP (a whole
+  school network can share one address in the cloud); a correct password
+  clears the account's count, never the IP's. **An unknown login id locks the
+  same way, with the same bodies** — a 429 must not become the LRN oracle the
+  one "Invalid login credentials." reply refuses to be. `login_attempts` holds
+  an HMAC of the typed id, never the id; failures are `login_failed` with the
+  user id only. The Login page shows the server's 429 sentence through
+  `extractError` — no client change.
+
+### 29e. Four learner fields are no longer collected (decision 6)
+
+The learner's **birthday, gender, address and contact number** — stored, shown
+on the student record, used by no feature. Gone from the enrol wizard
+(`teacher/StudentsPage`) and both student records (admin and teacher): the
+record is one card, LRN (and the parent account's status for the admin); the
+Contact details card is gone. The server refuses a value (400 by field) and
+ignores a null or empty key; `db:migrate:privacy` cleared what was stored;
+the columns stay. **The PARENT's own contact number is not one of them** — it
+belongs to the guardian's account and stays in the wizard.
+
+**Proof:** `client/scripts/ssr-privacy.jsx` (TESTING) — rendered: the consent
+body in every state and the Security & policy view for a parent and for staff;
+source, with controls, only where a render cannot reach: the gate's order, the
+routes, the retired fields. **The browser check owns** a real redirect, a real
+accept and the 300 ms clock.
 

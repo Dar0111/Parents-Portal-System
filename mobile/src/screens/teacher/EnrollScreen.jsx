@@ -4,7 +4,6 @@ import api from '../../api/client';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
-import DateField from '../../components/DateField';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
@@ -12,7 +11,6 @@ import PasswordField from '../../components/PasswordField';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
 import { contactError, contactRuleHint } from '../../format/contactRule';
-import { todayLocalDateString } from '../../format/date';
 import { lrnError, lrnRuleHint } from '../../format/lrnRule';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import Icon from '../../icons';
@@ -33,9 +31,11 @@ import { useTheme } from '../../theme/ThemeProvider';
 // POST /users/parents is gated on the ADVISER of the learner's section (403
 // otherwise, and an unknown LRN is that same 403, never a 404). The LRN it
 // sends is the one the enrol just created, or the record's own — locked, never
-// typed here. The LRN and contact pre-checks are the client's copies of the
-// server's rules; the server decides and its 400 names the `field`, which
-// renders under that input (§7c).
+// typed here. The LRN and (the parent's) contact pre-checks are the client's
+// copies of the server's rules; the server decides and its 400 names the
+// `field`, which renders under that input (§7c). The LEARNER has no birthday,
+// gender, address or contact number since the privacy build (2026-10-10,
+// decision 6) — not collected, and the server refuses a value.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-02) is the web's wizard: each form is a
 // card, and every phase ends in the same pair — the neutral way out, then the
@@ -45,14 +45,8 @@ import { useTheme } from '../../theme/ThemeProvider';
 // by the time it shows; opened from a record nothing has been written yet, so
 // that sentence stays plain. NO ENTRANCE MOTION: a phase swaps in place, and
 // nothing may delay the sentence that names the decision.
-const EMPTY_ENROLL = { lrn: '', first_name: '', last_name: '', classKey: '', birthday: '', gender: '', address: '', contact_number: '' };
+const EMPTY_ENROLL = { lrn: '', first_name: '', last_name: '', classKey: '' };
 const EMPTY_PARENT = { name: '', password: '', confirmPassword: '', email: '', contact_number: '' };
-
-const GENDERS = [
-  { key: '', label: 'Not recorded' },
-  { key: 'male', label: 'Male' },
-  { key: 'female', label: 'Female' },
-];
 
 function parseClassKey(classKey) {
   const i = String(classKey).indexOf('|');
@@ -78,7 +72,6 @@ function ConfirmNotice({ children }) {
 export default function EnrollScreen({ navigation, route }) {
   const classOptions = route?.params?.classOptions || [];
   const fromRecord = route?.params?.student || null;
-  const today = todayLocalDateString();
   const { tokens } = useTheme();
 
   const [phase, setPhase] = useState(fromRecord ? 'parent' : 'enroll');
@@ -111,9 +104,9 @@ export default function EnrollScreen({ navigation, route }) {
       setFormError('LRN, first name, last name, and class are required.');
       return;
     }
-    const clientErrors = { lrn: lrnError(enroll.lrn), contact_number: contactError(enroll.contact_number) };
-    if (clientErrors.lrn || clientErrors.contact_number) {
-      setFieldErrors(clientErrors);
+    const lrnProblem = lrnError(enroll.lrn);
+    if (lrnProblem) {
+      setFieldErrors({ lrn: lrnProblem });
       return;
     }
     setPhase('confirm-enroll');
@@ -132,10 +125,6 @@ export default function EnrollScreen({ navigation, route }) {
         grade_level: parsed.grade_level,
         section: parsed.section,
       };
-      if (enroll.birthday) body.birthday = enroll.birthday;
-      if (enroll.gender) body.gender = enroll.gender;
-      if (enroll.address.trim()) body.address = enroll.address.trim();
-      if (enroll.contact_number.trim()) body.contact_number = enroll.contact_number.trim();
       const student = await api.post('/students', body, { unwrap: 'student' });
       setEnrolled(student);
       setPhase('parent');
@@ -225,18 +214,6 @@ export default function EnrollScreen({ navigation, route }) {
                 render={() => (
                   <Segmented label="Class" value={enroll.classKey} onChange={setField(setEnroll, 'classKey')} options={classOptions.map((opt) => ({ key: opt.key, label: opt.label }))} />
                 )}
-              />
-              <DateField label="Birthday" value={enroll.birthday} onChange={setField(setEnroll, 'birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
-              <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={enroll.gender} onChange={setField(setEnroll, 'gender')} options={GENDERS} />} />
-              <FormField label="Address" value={enroll.address} onChangeText={setField(setEnroll, 'address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
-              <FormField
-                label="Contact number"
-                value={enroll.contact_number}
-                onChangeText={setField(setEnroll, 'contact_number')}
-                maxLength={20}
-                keyboardType="phone-pad"
-                hint={contactRuleHint()}
-                error={fieldErrors.contact_number}
               />
             </View>
             <View className="flex-row flex-wrap justify-end gap-2">

@@ -14,6 +14,7 @@ import ConnectionScreen from '../screens/dev/ConnectionScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import LoginScreen from '../screens/LoginScreen';
+import PolicyConsentScreen from '../screens/PolicyConsentScreen';
 import { useFontsSettled } from '../theme/fonts';
 import { useTheme } from '../theme/ThemeProvider';
 import AppShell, { ScreenFrame } from './AppShell';
@@ -26,6 +27,8 @@ import { isBuilt } from './routes';
 //   authError          AuthUnavailable, token kept, Try again (§22)
 //   !user              the auth stack: Login, Forgot password, About (public)
 //   must_change_password   ONLY the forced-change screen (§11)
+//   policy_pending     ONLY the consent screen (feat/privacy, M26) — after
+//                      the forced change, as the server orders them
 //   otherwise          AppShell — the drawer and the detail stack, inside
 //                      the three realtime providers
 //
@@ -129,7 +132,10 @@ export default function RootNavigator() {
     },
   };
 
-  const signedIn = Boolean(user) && !user.must_change_password;
+  // Signed in for the providers' purposes only once BOTH gates are past: a
+  // socket and two count requests for a session the server still refuses
+  // (`MUST_CHANGE_PASSWORD`, `POLICY_ACCEPTANCE_REQUIRED`) would only fail.
+  const signedIn = Boolean(user) && !user.must_change_password && !user.policy_pending;
 
   const tree = (
     <NavigationContainer theme={navTheme}>
@@ -148,6 +154,8 @@ export default function RootNavigator() {
           </>
         ) : user.must_change_password ? (
           <Stack.Screen name="ForcedPasswordChange" component={ForcedPasswordChangeScreen} />
+        ) : user.policy_pending ? (
+          <Stack.Screen name="PolicyConsent" component={PolicyConsentScreen} />
         ) : (
           <>
             <Stack.Screen name="Home" component={AppShell} layout={bareLayout} />

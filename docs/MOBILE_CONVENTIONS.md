@@ -693,10 +693,11 @@ focused. Found on Records, the screen that reads what Attendance writes.
 - **A date is `components/DateField.jsx`** (SCOPE EXPANSION, approved): a
   YYYY-MM-DD string in and out, built from the picker's LOCAL parts, never
   `toISOString()`; `maximumDate` mirrors a server rule. **The birthday rule
-  is the server's and only the server's: a valid date, not in the future**
-  (`validateStudentOptionals`); the web sets no limit either, so today is
+  was the server's and only the server's: a valid date, not in the future**
+  (`validateStudentOptionals`); the web set no limit either, so today was
   accepted on both — no age rule was invented (first-half finding,
-  2026-09-28).
+  2026-09-28). **The birthday is not collected since the privacy build
+  (2026-10-10, M26)** — the field and the rule are gone.
 - **`RecordCard` renders `actions` only on a static card**, as data
   (`[{ label, onPress, tone }]`), so the verbatim card builders pass through
   whatever the screen hands them. Edit / Delete are author-only; Delete is a
@@ -1365,3 +1366,47 @@ Where the phone differs:
 **Proof:** `scripts/proof-form-drafts.mjs` (TESTING → Mobile proofs). The
 phone check (M7) owns the debounce, AppState, a killed app and both Alerts —
 **device-checked 2026-10-04 in Expo Go on a Tecno, Android 14.**
+
+---
+
+## M26. Privacy on the phone — the web's rules, as a root branch and a Settings row (`feat/privacy`, 2026-10-10)
+
+The rules are FRONTEND §29 and API_REFERENCE §5b; this states only where the
+phone differs.
+
+- **The consent screen is a RootNavigator branch, not a redirect.** The order
+  is the web's and the server's: `!user` → the auth stack;
+  `must_change_password` → ONLY `ForcedPasswordChange`; **`policy_pending` →
+  ONLY `PolicyConsent`**; otherwise Home. An unmounted `Stack.Screen` cannot be
+  reached, so the gate is structural (M4).
+- **No realtime providers until BOTH gates are past.**
+  `signedIn = user && !must_change_password && !policy_pending` — the socket
+  and the two count providers wrap only a signed-in tree: a socket and two
+  count requests for a session the server refuses would only fail. (The web
+  gets the same for free: its socket lives in Shell, and `/consent` is outside
+  Shell.)
+- **The screen is the sign-in family's frame** (ForcedPasswordChangeScreen's
+  band and card). **Each tick is a whole 48dp row**, announced as a
+  `checkbox` with its `checked` state; the box is a View in the app's tokens
+  (`bg-primary` / `border-edge-strong`), the mark `fa-check` — no new colour,
+  no new icon. The third tick names the child by first name, never the LRN.
+- **The exit is `refresh()`** — no navigate: the re-read brings
+  `policy_pending` back false and RootNavigator renders Home. A `409` (a
+  version changed meanwhile) reloads the documents and clears the ticks. A
+  one-time decision has no pull-to-refresh; a failed read has Try again.
+- **Settings → Security & policy is a pushed screen** (`SecurityPolicy`,
+  registered in AppShell, opened from the row by its label like the others):
+  the documents, their versions, and a parent's accepted dates as the Manila
+  day (`format/date.js`, a mirror). **Pull-to-refresh keeps what is on
+  screen** (M23); a first load is Build 2's skeleton.
+- **The four learner fields are gone** from `teacher/EnrollScreen` and both
+  StudentDetail screens, the record one card, as on the web (§29e) — and with
+  them the birthday `DateField` and the gender `Segmented` on those screens.
+  The parent's own number stays on the enrol screen's parent phase.
+
+**Proof:** `scripts/proof-privacy.mjs` (TESTING → Mobile proofs) — the
+mirrored tab list driven; the root order (with a swapped-gates control), the
+providers' condition, the screen's ticks and exit, the settings screen and the
+retired fields read as source. **The phone check (M7) owns** a real sign-in
+landing on the consent screen, a real tick and accept, and the skeleton's
+300 ms.

@@ -65,6 +65,7 @@ import TeacherStudentsScreen from '../screens/teacher/StudentsScreen';
 import AccountInfoScreen from '../screens/settings/AccountInfoScreen';
 import ChangePasswordScreen from '../screens/settings/ChangePasswordScreen';
 import PersonalizationScreen from '../screens/settings/PersonalizationScreen';
+import SecurityPolicyScreen from '../screens/settings/SecurityPolicyScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import { TITLE_FONT } from '../theme/fonts';
 import { useTheme } from '../theme/ThemeProvider';
@@ -287,6 +288,7 @@ export default function AppShell() {
       <Stack.Screen name="AccountInfo" component={AccountInfoScreen} options={{ title: 'Account information' }} />
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} options={{ title: 'Change password' }} />
       <Stack.Screen name="Personalization" component={PersonalizationScreen} options={{ title: 'Personalization' }} />
+      <Stack.Screen name="SecurityPolicy" component={SecurityPolicyScreen} options={{ title: 'Security & policy' }} />
       {/* The parent's detail screens. Modal presentation for the two that
           the web opened as dialogs (the breakdown, compose); a push for the
           reading views and the thread. */}

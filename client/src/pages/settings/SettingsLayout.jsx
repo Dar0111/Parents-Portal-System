@@ -19,10 +19,12 @@ import { settingsTabsForRole } from './tabs';
 // navTitleForPath matches `startsWith(item.to + '/')` so the header stays
 // "Settings", and the sidebar NavLink has `end` false at depth three.
 //
-// DO NOT add tabs for Notifications (comes with the notifications dispatch)
-// or Security & policy (waits for a Data Privacy Notice, which does not
-// exist) — and do not show them disabled. A dimmed tab advertises a page that
-// was decided against (§6's reasoning for the admin nav).
+// SECURITY & POLICY IS A TAB SINCE feat/privacy (2026-10-10), every role: the
+// Data Privacy Notice and the Terms of Use, and the date this user accepted
+// each (SecurityPolicySection). DO NOT add a Notifications tab (comes with the
+// notifications dispatch), and never show a tab disabled — a dimmed tab
+// advertises a page that was decided against (§6's reasoning for the admin
+// nav).
 //
 // Narrow screens: below `lg` the tab card stacks ABOVE the panel as a
 // full-width list — same NavLinks, no second component.

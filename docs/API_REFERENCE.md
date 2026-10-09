@@ -2,13 +2,15 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**94 handlers** across 15 route files, documented as **18 endpoint tables
+**97 handlers** across 16 route files, documented as **19 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **95 endpoints** (both +3 on 2026-09-30: `PUT` and
+`server.js` = **98 endpoints** (both +3 on 2026-10-10: `GET /api/policy`,
+`GET /api/policy/status`, `POST /api/policy/accept`, feat/privacy; both +3 on 2026-09-30: `PUT` and
 `DELETE /api/auth/photo`, `DELETE /api/users/:id/photo`, feat/profile-photos;
-both +2 on 2026-09-29: `POST /api/auth/verify-contact/request` and `/confirm`, feat/sms-transport; both +1 on 2026-09-26: `GET /api/settings/public`). That 18 counts MARKDOWN TABLES IN THIS
-FILE — it is not a database-table count, and the database has **23**.
+both +2 on 2026-09-29: `POST /api/auth/verify-contact/request` and `/confirm`, feat/sms-transport; both +1 on 2026-09-26: `GET /api/settings/public`). That 19 counts MARKDOWN TABLES IN THIS
+FILE — it is not a database-table count, and the database has **25** (since
+2026-10-10: `policy_acceptances` and `login_attempts`).
 Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
 retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
 figures went 86 → 85 → 87 in one day; see Verification at the bottom for the
@@ -257,10 +259,10 @@ another teacher is `403`, not `404`. Anti-enumeration does not apply —
 `GET /api/messages/contacts` already lists every teacher this caller may
 see, by name. A 404 would hide nothing and cost clarity. Do not "fix" it.
 
-### 5b. Two whole-session refusals every endpoint can return (R1, 2026-09-19)
+### 5b. Three whole-session refusals every endpoint can return (R1, 2026-09-19; the third since feat/privacy, 2026-10-10)
 
-Both come from `middleware/auth.js`, before any handler runs, so they are
-not listed per row.
+All three come from `middleware/auth.js`, before any handler runs, so they
+are not listed per row.
 
 - **`401` "Your password was changed. Please log in again."** — the token's
   `v` claim does not equal the account's `users.token_version`. **That
@@ -279,6 +281,20 @@ not listed per row.
   signal**: §2 of CLAUDE.md's frontend conventions says a 403 never
   redirects, and the web client routes on the `must_change_password` field
   it already has from `/auth/me`. Do not add a client branch on this code.
+  **Set at creation since 2026-10-10** for a teacher the admin creates and a
+  parent an adviser creates — whoever typed the password, the account holder
+  picks their own.
+- **`403` `{ message: "Please accept the Data Privacy Notice and the Terms of
+  Use before continuing.", code: "POLICY_ACCEPTANCE_REQUIRED" }`** (the
+  consent gate, feat/privacy, 2026-10-10) — a **parent** who has not accepted
+  the CURRENT version of both documents (`server/policy/versions.json`).
+  Only `GET /api/auth/me`, `PUT /api/auth/change-password` and `/api/policy/*`
+  are allowed through, and it is checked AFTER the forced change, so a parent
+  with both flags meets `MUST_CHANGE_PASSWORD` first. The same backstop shape:
+  the clients route on `/auth/me`'s `policy_pending`, never on this 403. Staff
+  are never gated in this build (staff acceptance is deferred). The count is a
+  subquery on the users read the middleware already makes — no extra round
+  trip.
 
 The **global** cutoff (`auth_security_state.token_valid_after`, set only by
 a restore) is unchanged and still a timestamp — it revokes everything at
@@ -490,14 +506,14 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 94 handlers (95 with `GET /api/health`).
+the bottom must equal 97 handlers (98 with `GET /api/health`).
 
 ### Auth (12) — `/api/auth`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
-| POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field) |
-| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500` |
+| POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field). **Sign-in limits since 2026-10-10** (`server/utils/loginThrottle.js`): **5 failures in a row on one typed login id within 15 minutes, or 100 failures from one IP**, then `429` "Too many sign-in attempts. Please wait 15 minutes, then try again." — checked BEFORE the password, so a locked account refuses the right one too; a correct password clears that account's count (never the IP's). **An unknown login id is counted and locked exactly like a real one**, with the same `401` and the same `429` byte for byte. A failure on a real account is logged `login_failed` with the user id only; `login_attempts` stores an HMAC of the typed id (keyed on `JWT_SECRET`), never the id. `user` carries `policy_pending` |
+| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500`. **`policy_pending`** (since 2026-10-10): `true` for a parent who has not accepted the current Data Privacy Notice and Terms of Use — what the clients route on; always `false` for staff. `student_first_name` is what the consent screen names the child by (never the LRN) |
 | PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
 | PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule — since 2026-09-29 `09XXXXXXXXX`, `+639XXXXXXXXX` or `639XXXXXXXXX` after spaces and dashes are stripped, always STORED as `09XXXXXXXXX`, `server/utils/contactRule.js`; a refusal is `400` "Contact number must be a Philippine mobile number: 09XXXXXXXXX, +639XXXXXXXXX or 639XXXXXXXXX (for example 0917 123 4567)." with `field: "contact_number"`). **A CHANGED number clears `contact_verified_at` and burns pending `contact_verification` codes; the same number re-typed in another form is not a change** — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
 | POST | `/forgot-password` | **public** | `login_id`* | message only — **`202` on every path**, see below |
@@ -617,8 +633,8 @@ a demo arrangement; `docs/KNOWN_ISSUES.md`).
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
-| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — `09…`, `+639…` or `639…`, spaces/dashes stripped, stored as `09XXXXXXXXX` since 2026-09-29 — `400` with `field: "contact_number"`; **`email` follows the email rule since 2026-09-25** — `server/utils/emailRule.js`, `400` "Email must look like name@example.com." with `field: "email"`, stored trimmed) | `user` |
-| POST | `/parents` | `teacher(adviser)` — **the ADVISER of the student's section only** (`sections.adviser_id` on `s.section_id`, since pre-Stage-5 #4, 2026-09-25; from 2026-09-18 to then it was the wider assigned-OR-adviser read predicate, which let a subject teacher create the account — never the school's process). Order: password rule → contact rule → **email rule** → ONE query resolving the LRN and the scope together → the two duplicate `409`s → hash + insert. An unknown LRN and an out-of-scope student are the same `403` "Only the adviser of this student's section can create the parent account." (no `404` exists on this route since 2026-09-19), and because the scope check runs before the `409`s, an out-of-scope teacher posting the LRN of a child who already has a parent gets that same `403`, never a `409`. A learner whose `section_id` is NULL has no adviser and therefore no possible parent account through this route. Nothing is created on any refusal | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email` (optional; **the email rule** — `server/utils/emailRule.js`: trimmed, one `@`, no whitespace, a dotted domain, ASCII, ≤ 100 — `400` "Email must look like name@example.com." with `field: "email"`, checked before the student lookup too), `contact_number` (optional; the contact rule — `400` with `field: "contact_number"`, checked before the student lookup too) | `user` |
+| POST | `/teachers` | `admin` | `login_id`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` "Password must be at least 8 characters and include at least one number." with `field: "password"`, since 2026-09-18), `name`*, `email`, `contact_number` (optional; the contact rule — `09…`, `+639…` or `639…`, spaces/dashes stripped, stored as `09XXXXXXXXX` since 2026-09-29 — `400` with `field: "contact_number"`; **`email` follows the email rule since 2026-09-25** — `server/utils/emailRule.js`, `400` "Email must look like name@example.com." with `field: "email"`, stored trimmed). **Created with `must_change_password = 1` since 2026-10-10** — the teacher picks their own password at the first sign-in (§5b) | `user` |
+| POST | `/parents` | `teacher(adviser)` — **the ADVISER of the student's section only** (`sections.adviser_id` on `s.section_id`, since pre-Stage-5 #4, 2026-09-25; from 2026-09-18 to then it was the wider assigned-OR-adviser read predicate, which let a subject teacher create the account — never the school's process). Order: password rule → contact rule → **email rule** → ONE query resolving the LRN and the scope together → the two duplicate `409`s → hash + insert. An unknown LRN and an out-of-scope student are the same `403` "Only the adviser of this student's section can create the parent account." (no `404` exists on this route since 2026-09-19), and because the scope check runs before the `409`s, an out-of-scope teacher posting the LRN of a child who already has a parent gets that same `403`, never a `409`. A learner whose `section_id` is NULL has no adviser and therefore no possible parent account through this route. Nothing is created on any refusal. **Created `pending` with `must_change_password = 1` since 2026-10-10** — after approval the parent picks their own password at the first sign-in, then meets the consent gate (§5b) | `lrn`*, `password`* (the password rule — at least 8 characters AND at least one number — `400` with `field: "password"`, checked before the student lookup so a weak password never reveals whether an LRN exists; since 2026-09-18), `name`*, `email` (optional; **the email rule** — `server/utils/emailRule.js`: trimmed, one `@`, no whitespace, a dotted domain, ASCII, ≤ 100 — `400` "Email must look like name@example.com." with `field: "email"`, checked before the student lookup too), `contact_number` (optional; the contact rule — `400` with `field: "contact_number"`, checked before the student lookup too) | `user` |
 | GET | `/parents/pending` | `admin` | — | `parents` |
 | PUT | `/parents/:id/approve` | `admin` | — | `user` |
 | PUT | `/parents/:id/reject` | `admin` | `reason`* | message only |
@@ -635,8 +651,8 @@ a demo arrangement; `docs/KNOWN_ISSUES.md`).
 |---|---|---|---|---|---|
 | GET | `/` | `teacher(wide)`, `admin` | query: `grade_level`, `section`, `status`, `search` | `students` | `status`: `active` \| `inactive` \| `all`; absent = active-only; anything else (a typo, an empty value) → `400` "status must be one of: active, inactive, all." (2026-09-15; a typo used to fall through to active-only) |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `student` + `parent_account` (teacher and admin only, since 2026-09-18: `{ id, status } \| null` for the one parent account linked to the student; absent on the parent's own read) | `404` out-of-scope |
-| POST | `/` | `teacher(adviser)` of the **target** section (pre-Stage-5 #4), `admin` | `lrn`* (exactly 12 digits since 2026-09-18 — `server/utils/lrnRule.js`, checked before the duplicate lookup, `400` with `field: "lrn"`; seeded/older rows keep shorter LRNs), `first_name`*, `last_name`*, `grade_level`*, `section`*, `birthday` (a real `YYYY-MM-DD`, not in the future — `400`, `field: "birthday"`), `gender` (`male`/`female` — `400`, `field: "gender"`), `address`, `contact_number` (the contact rule — `400`, `field: "contact_number"`, stored digits-only) | `student` | **Who may enrol (pre-Stage-5 #4, 2026-09-25): a teacher must be `sections.adviser_id` of the TARGET section** — the adviser keeps the class list; a subject teacher assigned there does not enrol. **Admin is kept**: 20 of 23 sections have no adviser and no screen assigns one, so an admin POST is the only way a learner reaches them. **Order:** duplicate LRN `409` → `academic_year` unset `409` → section resolved (`400` "No section named…" to every role — names are reference data) → **gate `403`** "Only the adviser of Grade N - Section can enrol a learner into it." → insert with `section_id`. The scope label above is therefore `teacher(adviser of target)`, not `wide` |
-| PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section`, `birthday`, `gender`, `address`, `contact_number` (any subset; since 2026-09-18 `birthday`, `gender` and `contact_number` are validated exactly as on POST when present — `400` naming the field, nothing saved; the LRN is never changed here) | `student` | **Edit scope is assigned OR adviser since pre-Stage-5 #4** — the two legs of the read predicate, written out in the handler rather than imported, so the adviser who enrolled a learner can correct the record; outside both legs is `404`, exactly as `GET /:id` answers the same teacher (the former "can view but not edit" `403` no longer exists). Differing `grade_level`/`section` → `400` (whole request refused). Matching class may set `section_id` when it is NULL (same resolve as POST); unmatched resolve does not fail the PUT |
+| POST | `/` | `teacher(adviser)` of the **target** section (pre-Stage-5 #4), `admin` | `lrn`* (exactly 12 digits since 2026-09-18 — `server/utils/lrnRule.js`, checked before the duplicate lookup, `400` with `field: "lrn"`; seeded/older rows keep shorter LRNs), `first_name`*, `last_name`*, `grade_level`*, `section`*. **`birthday`, `gender`, `address` and `contact_number` are NOT COLLECTED since 2026-10-10** (feat/privacy, decision 6): a VALUE for any of them is `400` "The learner's birthday is no longer collected." (… gender / address / contact number) with `field` naming it; a key that is `null` or empty is ignored, so a client echoing an old row is not broken. The columns stay, NULL; no `student` response carries the four | `student` | **Who may enrol (pre-Stage-5 #4, 2026-09-25): a teacher must be `sections.adviser_id` of the TARGET section** — the adviser keeps the class list; a subject teacher assigned there does not enrol. **Admin is kept**: 20 of 23 sections have no adviser and no screen assigns one, so an admin POST is the only way a learner reaches them. **Order:** duplicate LRN `409` → `academic_year` unset `409` → section resolved (`400` "No section named…" to every role — names are reference data) → **gate `403`** "Only the adviser of Grade N - Section can enrol a learner into it." → insert with `section_id`. The scope label above is therefore `teacher(adviser of target)`, not `wide` |
+| PUT | `/:id` | `teacher(wide)`, `admin` | `first_name`, `last_name`, `grade_level`, `section` (any subset; the LRN is never changed here). **The four retired fields are refused exactly as on POST since 2026-10-10** — a value is `400` naming the field and nothing is saved; null or empty is ignored | `student` | **Edit scope is assigned OR adviser since pre-Stage-5 #4** — the two legs of the read predicate, written out in the handler rather than imported, so the adviser who enrolled a learner can correct the record; outside both legs is `404`, exactly as `GET /:id` answers the same teacher (the former "can view but not edit" `403` no longer exists). Differing `grade_level`/`section` → `400` (whole request refused). Matching class may set `section_id` when it is NULL (same resolve as POST); unmatched resolve does not fail the PUT |
 | PATCH | `/:id/status` | `admin` | `status`* (`active`\|`inactive`) | `student` | already that status → `200` "Student is already <status>. Nothing was changed.", no log entry (2026-09-15) |
 
 ### Sections (3) — `/api/sections`
@@ -1258,6 +1274,21 @@ page depends on it — and the caller asks for what it needs.
 
 ---
 
+### Policy (3) — `/api/policy`
+
+The consent gate's own endpoints (feat/privacy, 2026-10-10). All three are
+reachable while the gate is shut (§5b) — after the forced change. **The text
+ships with the app**: `server/policy/privacy-notice.md`, `terms-of-use.md` and
+`versions.json`, read once when the server starts — a new text is an edit, a
+version bump and a restart. Both are still the placeholder ("Draft — awaiting
+the school's approval"; KNOWN ISSUES).
+
+| Method | Path | Roles | Request body | Response key |
+|---|---|---|---|---|
+| GET | `/` | any authenticated | — | `documents` — `[{ document, title, version, text }]`, the Data Privacy Notice then the Terms of Use |
+| GET | `/status` | any authenticated | — | `required` (does this role accept — parents only in this build), `policy_pending`, `acceptances` — `[{ document, title, version, accepted_at }]` for the CURRENT versions, `accepted_at` null until accepted |
+| POST | `/accept` | `parent` (staff → `403` "Access denied.") | `versions`* — `{ privacy_notice, terms_of_use }`, the versions the screen SHOWED; `on_behalf_of_child`* — `true` | `policy_pending` + `acceptances` + message "Thank you. You can now use the portal." — a missing version is `400` "Tick the box to accept the …" with `field` naming the document; no `on_behalf_of_child: true` is `400` with `field: "on_behalf_of_child"`; **a version other than the current one is `409`** "The … has changed since this page opened. Read the new version, then accept again." — never a silent acceptance of words not shown. One `policy_acceptances` row per document (user, version, the account's `student_id`, time); a version already accepted is a no-op `200` (a double tap). Logged `accept_policy` with the documents and versions only |
+
 ## Verification
 
 **Recounted from the code on 2026-09-19 (R3), because this table had drifted
@@ -1292,21 +1323,23 @@ the same as `router`.
 | Messages | 6 | `messages.js` |
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
-| **Total** | **94** | |
+| Policy | 3 | `policy.js` |
+| **Total** | **97** | |
 
-12+11+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1 = **94 handlers in `server/routes/`**
-(recounted from the code 2026-09-30, feat/profile-photos: +2 auth
-`PUT`/`DELETE /photo`, +1 users `DELETE /:id/photo`; 91 on 2026-09-29, when
+12+11+5+3+1+3+13+1+6+4+4+4+6+5+5+6+4+1+3 = **97 handlers in `server/routes/`**
+(recounted from the code 2026-10-10, feat/privacy: +3 policy; 94 on
+2026-09-30, feat/profile-photos: +2 auth `PUT`/`DELETE /photo`, +1 users
+`DELETE /:id/photo`; 91 on 2026-09-29, when
 the Total row had said 87 while the sum said 89). Plus `GET /api/health`,
-mounted directly in `server.js` = **95** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+mounted directly in `server.js` = **98** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than
 Contributions' eight — then the class record's `GET` and `PUT` landed, then
 the class summary's `GET`.
 
-**State which number you mean.** 94 is handlers in route files; 95 is every
+**State which number you mean.** 97 is handlers in route files; 98 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files). Re-run the existence diff after a dispatch that adds or removes an endpoint.

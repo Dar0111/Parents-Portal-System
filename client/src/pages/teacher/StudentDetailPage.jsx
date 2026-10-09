@@ -7,7 +7,6 @@ import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonClass';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import { longDate } from '../../format/date';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -48,24 +47,17 @@ import { useAuth } from '../../auth/AuthContext';
 //
 // THE PAGE'S SHAPE (feat/ui-refresh, 2026-10-02): a header card — who the
 // learner is, the class and status, and the record's actions — then the
-// facts in two cards. ONE entrance wrapper holds every state (spinner,
+// facts in one card (two until the privacy build, 2026-10-10). ONE entrance wrapper holds every state (spinner,
 // refusal, error, record), so a re-read swaps what is inside it and never
 // replays the entrance. Both Modals sit BESIDE that wrapper, never inside it: Modal
 // renders inline, and a wrapper mid-tween carries a transform
 // (motion/motion.js).
 
-// DISPLAY CASING ONLY — see CLAUDE.md convention 5d. Applied at the value, not
-// inside Field: capitalising an address or an LRN would be wrong, so only the
-// fields whose stored form is lowercase by schema get it.
-// TWIN: client/src/components/StatusBadge.jsx has an identical helper.
-// Duplicated at two on purpose (dateFormat.js was extracted at the third
-// occurrence); a third occurrence moves both to client/src/format/text.js.
-function titleCase(value) {
-  return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
+// (This page's display-casing helper went with the gender field in the privacy
+// build, 2026-10-10: nothing here shows a lowercase-stored value any more.)
 
-// `valueClass` is for a value made of digits (the LRN, a phone number):
-// tabular figures. It is not applied to "Not recorded".
+// `valueClass` is for a value made of digits (the LRN): tabular figures. It
+// is not applied to "Not recorded".
 function Field({ label, value, valueClass = '' }) {
   return (
     <div className="min-w-0">
@@ -103,14 +95,13 @@ function assignmentMatchesStudent(row, student) {
   );
 }
 
+// The learner's name only. Birthday, gender, address and contact number are
+// not collected since the privacy build (2026-10-10, decision 6) — the
+// server refuses a value for any of them.
 function draftFrom(row) {
   return {
     first_name: row.first_name || '',
     last_name: row.last_name || '',
-    birthday: row.birthday || '',
-    gender: row.gender || '',
-    address: row.address || '',
-    contact_number: row.contact_number || '',
   };
 }
 
@@ -125,10 +116,6 @@ const EMPTY_PARENT = {
 const EMPTY_EDIT = {
   first_name: '',
   last_name: '',
-  birthday: '',
-  gender: '',
-  address: '',
-  contact_number: '',
 };
 
 export default function StudentDetailPage() {
@@ -138,9 +125,10 @@ export default function StudentDetailPage() {
   // null = no parent account yet; { id, status } = one exists (one per
   // student is LOCKED). load() is the only writer (§5b).
   const [parentAccount, setParentAccount] = useState(null);
-  // Field-level refusals in either modal — the client rule's (contact) or the
-  // server's 400 with a `field` key (contact_number, birthday, gender,
-  // password) — render under their input with a red border (§7c). Cleared
+  // Field-level refusals in the create-parent modal — the client rule's (the
+  // parent's contact) or the server's 400 with a `field` key (the parent's
+  // contact_number, email, password) — render under their input with a red
+  // border (§7c). Cleared
   // when a modal opens or closes and per field as it changes.
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -355,11 +343,6 @@ export default function StudentDetailPage() {
       setEditError('First name and last name are required.');
       return;
     }
-    const contactProblem = contactError(draft.contact_number);
-    if (contactProblem) {
-      setFieldErrors({ contact_number: contactProblem });
-      return;
-    }
     setSavingEdit(true);
     setStatus({});
     try {
@@ -370,10 +353,6 @@ export default function StudentDetailPage() {
         {
           first_name: draft.first_name.trim(),
           last_name: draft.last_name.trim(),
-          birthday: draft.birthday.trim(),
-          gender: draft.gender,
-          address: draft.address.trim(),
-          contact_number: draft.contact_number.trim(),
         },
         { unwrap: ['student', 'message'] }
       );
@@ -384,9 +363,7 @@ export default function StudentDetailPage() {
       setEditOpen(false);
       setDraft(EMPTY_EDIT);
     } catch (err) {
-      const field = err?.response?.data?.field;
-      if (field) setFieldErrors({ [field]: extractError(err) });
-      else setEditError(extractError(err));
+      setEditError(extractError(err));
     } finally {
       setSavingEdit(false);
     }
@@ -512,35 +489,19 @@ export default function StudentDetailPage() {
             user id, and provenance rather than student information), and
             created_at/updated_at (record bookkeeping, not the student).
 
-            TWO CARDS, by what the fact is for: who the learner is, and how
-            to reach the family. */}
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className={`${cardClass} space-y-4 p-5`}>
-            <CardTitle icon="fa-id-card">Student details</CardTitle>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <Field label="LRN" value={student.lrn} valueClass="tabular-nums" />
-              {/* THE READ-ONLY FIELD ONLY (UI-C1b). `birthday` is a DATE column,
-                  so it arrives as the literal "2013-04-07" and `longDate` is
-                  string surgery on it (§5a-iv); a null falls through unchanged
-                  and `Field` still renders "Not recorded". The EDIT control below
-                  is an <input type="date"> and keeps the raw YYYY-MM-DD, which is
-                  the only value that element accepts. */}
-              <Field label="Birthday" value={longDate(student.birthday)} />
-              {/* Status is NOT repeated here — the badge in the header above
-                  already carries it, is scannable, and matches how status reads on
-                  the list. Repeating it in the definition list read as duplication
-                  rather than as two facts. */}
-              <Field label="Gender" value={titleCase(student.gender)} />
-            </dl>
-          </div>
-
-          <div className={`${cardClass} space-y-4 p-5`}>
-            <CardTitle icon="fa-address-book">Contact details</CardTitle>
-            <dl className="grid gap-4">
-              <Field label="Contact number" value={student.contact_number} valueClass="tabular-nums" />
-              <Field label="Address" value={student.address} />
-            </dl>
-          </div>
+            ONE CARD since the privacy build (2026-10-10, decision 6): the
+            learner's birthday, gender, address and contact number — and the
+            Contact details card — are gone: no longer collected. The
+            guardian's own contact details live on the parent account. */}
+        <div className={`${cardClass} space-y-4 p-5`}>
+          <CardTitle icon="fa-id-card">Student details</CardTitle>
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <Field label="LRN" value={student.lrn} valueClass="tabular-nums" />
+            {/* Status is NOT repeated here — the badge in the header above
+                already carries it, is scannable, and matches how status reads on
+                the list. Repeating it in the definition list read as duplication
+                rather than as two facts. */}
+          </dl>
         </div>
       </>
     );
@@ -610,51 +571,6 @@ export default function StudentDetailPage() {
               A student's class cannot be changed here. The system does not support moving a
               student between classes.
             </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField
-                label="Birthday"
-                type="date"
-                value={draft.birthday}
-                onChange={(e) => {
-                  setFieldErrors((prev) => ({ ...prev, birthday: null }));
-                  setDraft((prev) => ({ ...prev, birthday: e.target.value }));
-                }}
-                error={fieldErrors.birthday}
-              />
-              <FormField
-                label="Gender"
-                as="select"
-                value={draft.gender}
-                onChange={(e) => {
-                  setFieldErrors((prev) => ({ ...prev, gender: null }));
-                  setDraft((prev) => ({ ...prev, gender: e.target.value }));
-                }}
-                error={fieldErrors.gender}
-              >
-                <option value="">Not recorded</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </FormField>
-            </div>
-            <FormField
-              label="Address"
-              as="textarea"
-              rows={2}
-              value={draft.address}
-              onChange={(e) => setDraft((prev) => ({ ...prev, address: e.target.value }))}
-            />
-            <FormField
-              label="Contact number"
-              value={draft.contact_number}
-              onChange={(e) => {
-                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
-                setDraft((prev) => ({ ...prev, contact_number: e.target.value }));
-              }}
-              maxLength={20}
-              inputMode="tel"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
-            />
           </form>
         </div>
       </Modal>

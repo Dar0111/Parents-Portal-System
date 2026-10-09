@@ -44,6 +44,16 @@ export default function ProtectedRoute({ allowedRoles, children }) {
     return <Navigate to="/change-password" replace />;
   }
 
+  // THE CONSENT GATE (feat/privacy, 2026-10-10; FRONTEND §29) — a parent who
+  // has not accepted the current Data Privacy Notice and Terms of Use reaches
+  // one screen, /consent, AFTER the forced change above (the server orders
+  // them the same way). Routed on `user.policy_pending` from /auth/me, never
+  // on the server's `POLICY_ACCEPTANCE_REQUIRED` 403 (§2). /consent is
+  // top-level, outside every ProtectedRoute, so there is no loop.
+  if (user.policy_pending) {
+    return <Navigate to="/consent" replace />;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to={roleHome(user.role)} replace />;
   }

@@ -8,17 +8,13 @@ import { useAuth } from '../../auth/AuthContext';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
-import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import Segmented from '../../components/Segmented';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
-import { contactError, contactRuleHint } from '../../format/contactRule';
-import { longDate, todayLocalDateString } from '../../format/date';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -41,25 +37,16 @@ import { useTheme } from '../../theme/ThemeProvider';
 // THE LAYOUT (feat/ui-refresh, 2026-10-02) is the web's: a HEADER CARD — the
 // learner in the title face with their initials (a learner has no photo,
 // §25), the class and the status badge, then its actions and the notes that
-// say what this teacher may not do here — and TWO FACT CARDS by what the fact
-// is for: who the learner is, and how to reach the family. Create parent
-// account is the screen's one filled action.
+// say what this teacher may not do here — and ONE FACT CARD (two until the
+// privacy build, 2026-10-10): who the learner is. The learner's birthday,
+// gender, address and contact number — and the Contact details card — are
+// gone: no longer collected (decision 6). Create parent account is the
+// screen's one filled action.
 //
 // PULL TO REFRESH is load() — the same GET the screen opens with; the record
 // stays on screen under the pull spinner (only the first load, and the
 // re-read after Create parent, show the whole-screen spinner).
-const EMPTY_EDIT = { first_name: '', last_name: '', birthday: '', gender: '', address: '', contact_number: '' };
-const GENDERS = [
-  { key: '', label: 'Not recorded' },
-  { key: 'male', label: 'Male' },
-  { key: 'female', label: 'Female' },
-];
-
-// Display casing only (§5d): the two fields whose stored form is lowercase
-// by schema; never an address, never an LRN.
-function titleCase(value) {
-  return typeof value === 'string' && value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
+const EMPTY_EDIT = { first_name: '', last_name: '' };
 
 function Field({ label, value }) {
   return (
@@ -93,10 +80,6 @@ function draftFrom(row) {
   return {
     first_name: row.first_name || '',
     last_name: row.last_name || '',
-    birthday: row.birthday || '',
-    gender: row.gender || '',
-    address: row.address || '',
-    contact_number: row.contact_number || '',
   };
 }
 
@@ -108,7 +91,6 @@ export default function StudentDetailScreen({ navigation, route }) {
   // An RN Modal is its own window, outside ScreenFrame — it pads the bottom
   // inset itself, or edge-to-edge Android puts the nav bar over Save.
   const insets = useSafeAreaInsets();
-  const today = todayLocalDateString();
 
   const [student, setStudent] = useState(null);
   const [parentAccount, setParentAccount] = useState(null);
@@ -123,7 +105,6 @@ export default function StudentDetailScreen({ navigation, route }) {
   const [editOpen, setEditOpen] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
   const [draft, setDraft] = useState(EMPTY_EDIT);
 
   useLayoutEffect(() => {
@@ -207,7 +188,6 @@ export default function StudentDetailScreen({ navigation, route }) {
     if (!student) return;
     setDraft(draftFrom(student));
     setEditError(null);
-    setFieldErrors({});
     setStatus(null);
     setEditOpen(true);
   }
@@ -216,13 +196,11 @@ export default function StudentDetailScreen({ navigation, route }) {
     if (savingEdit) return;
     setEditOpen(false);
     setEditError(null);
-    setFieldErrors({});
     setDraft(EMPTY_EDIT);
   }
 
   function setField(field) {
     return (value) => {
-      setFieldErrors((prev) => ({ ...prev, [field]: null }));
       setDraft((prev) => ({ ...prev, [field]: value }));
     };
   }
@@ -234,11 +212,6 @@ export default function StudentDetailScreen({ navigation, route }) {
       setEditError('First name and last name are required.');
       return;
     }
-    const contactProblem = contactError(draft.contact_number);
-    if (contactProblem) {
-      setFieldErrors({ contact_number: contactProblem });
-      return;
-    }
     setSavingEdit(true);
     try {
       // Omit grade_level, section, lrn, status: a class change is refused
@@ -248,10 +221,6 @@ export default function StudentDetailScreen({ navigation, route }) {
         {
           first_name: draft.first_name.trim(),
           last_name: draft.last_name.trim(),
-          birthday: draft.birthday.trim(),
-          gender: draft.gender,
-          address: draft.address.trim(),
-          contact_number: draft.contact_number.trim(),
         },
         { unwrap: ['student', 'message'] }
       );
@@ -260,9 +229,7 @@ export default function StudentDetailScreen({ navigation, route }) {
       setEditOpen(false);
       setDraft(EMPTY_EDIT);
     } catch (err) {
-      const field = err?.response?.data?.field;
-      if (field) setFieldErrors({ [field]: extractError(err) });
-      else setEditError(extractError(err));
+      setEditError(extractError(err));
     } finally {
       setSavingEdit(false);
     }
@@ -353,21 +320,11 @@ export default function StudentDetailScreen({ navigation, route }) {
         </View>
       </Reveal>
 
-      {/* What a teacher needs to identify a learner and contact their
-          guardian; section_id, created_by and the timestamps are omitted
-          as on the web. `birthday` is a DATE column: `longDate` is string
-          surgery on the literal (§5a-iv). */}
+      {/* What a teacher needs to identify a learner; section_id, created_by
+          and the timestamps are omitted as on the web. */}
       <View className={`${cardClass} gap-4 p-4`}>
         <CardTitle icon="fa-id-card">Student details</CardTitle>
         <Field label="LRN" value={student.lrn} />
-        <Field label="Birthday" value={student.birthday ? longDate(student.birthday) : null} />
-        <Field label="Gender" value={titleCase(student.gender)} />
-      </View>
-
-      <View className={`${cardClass} gap-4 p-4`}>
-        <CardTitle icon="fa-address-book">Contact details</CardTitle>
-        <Field label="Contact number" value={student.contact_number} />
-        <Field label="Address" value={student.address} />
       </View>
 
       <Modal visible={editOpen} animationType="slide" onRequestClose={closeEdit} presentationStyle="pageSheet">
@@ -385,18 +342,6 @@ export default function StudentDetailScreen({ navigation, route }) {
               <FormField label="Section" value={student.section} editable={false} />
               {/* §5i: the fact plus the reason; no transfer route is named. */}
               <Text className="text-sm text-fg-muted">A student's class cannot be changed here. The system does not support moving a student between classes.</Text>
-              <DateField label="Birthday" value={draft.birthday} onChange={setField('birthday')} maximumDate={today} clearable error={fieldErrors.birthday} />
-              <FormField label="Gender" error={fieldErrors.gender} render={() => <Segmented label="Gender" value={draft.gender} onChange={setField('gender')} options={GENDERS} />} />
-              <FormField label="Address" value={draft.address} onChangeText={setField('address')} multiline numberOfLines={2} textAlignVertical="top" className="min-h-20" />
-              <FormField
-                label="Contact number"
-                value={draft.contact_number}
-                onChangeText={setField('contact_number')}
-                maxLength={20}
-                keyboardType="phone-pad"
-                hint={contactRuleHint()}
-                error={fieldErrors.contact_number}
-              />
             </View>
             {/* The label still changes while the write is in flight; `loading`
                 adds the spinner and the busy state. */}

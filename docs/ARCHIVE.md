@@ -7409,3 +7409,56 @@ CLAUDE.md keeps one line and this pointer.
       (`docs/TESTING.md`). **The owner's first run, 2026-10-07:
       `Parents_Portal_source_2026-10-07_1692103.zip`; the old Desktop zip
       deleted. Merged 2026-10-07 (fast-forward, `1692103`).**
+
+## BUILD ORDER → Stage 5 moved from CLAUDE.md on 2026-10-10 (feat/privacy, the REFILL RULE)
+
+CLAUDE.md reached 138,247 bytes on disk in the privacy build's docs pass
+(`feat/privacy`), over the 135,000 the dispatch named, and Stage 5 was
+complete — build 2, its last item, was merged fast-forward on 2026-10-09
+(`9ed8793`) after the owner's re-check. So the whole Stage 5 block left under
+the REFILL RULE, verbatim as it stood that day (build 2's entry still reads
+"MERGE-READY; not merged" — it was written before the merge dispatch, which
+edited no docs). CLAUDE.md keeps a closed line, the one standing decision
+(notifications in-app only) and this pointer.
+
+### Stage 5 — Mobile (Expo)
+
+**Plan approved 2026-09-27; Parent → Teacher → Admin, one branch per step.**
+Each item's full text is verbatim in `docs/ARCHIVE.md` → "BUILD ORDER →
+Stage 5 as it stood in CLAUDE.md until 2026-09-30"; each phone check is on
+its `docs/CHANGELOG.md` row.
+
+- [x] **Setup, navigation, login + role routing** — `feat/mobile-scaffold`, 2026-09-27.
+- [x] **Parent screens** — `feat/mobile-parent`, 2026-09-27. Rules: M9–M12.
+- [x] **Teacher screens** — `feat/mobile-teacher`, 2026-09-28. Rules: M13–M15.
+- [x] **Admin screens** — `feat/mobile-admin`, 2026-09-29 (Backup & Restore
+      web only). Rules: M16–M18. **Every role's screens are built.**
+- [x] **`fix/mobile-popto`, SMS transport, server reliability** — merged
+      2026-09-29 → 30 (SMS before reliability by Darryl's decision).
+- [x] **UI polish — `feat/ui-polish`, merged 2026-09-30 (`c610bd8`).**
+- [x] **Docs pass + CLAUDE.md trim — `docs/stage5`** (merged, `5e09c09`).
+- [x] **Notifications — in-app only, via Socket.io** (Darryl, 2026-09-27):
+      no `expo-notifications`, no `push_token` column; remote push would be
+      a separate decision.
+- [x] **UI refresh, form drafts, build 1, admin Messages, the source-zip
+      fix** — each device-checked or first-run by the owner and merged
+      fast-forward, 2026-10-04 → 10-07 (`ee36b97`, `28fee18`, `1ef3c00`,
+      `2f2dbb7`, `1692103`; the owner's zip:
+      `Parents_Portal_source_2026-10-07_1692103.zip`). Rules: §26–§28,
+      §27f, M22–M25. Each entry verbatim: `docs/ARCHIVE.md` → "BUILD ORDER →
+      Stage 5 entries moved from CLAUDE.md on 2026-10-07".
+- [x] **Build 2 — `feat/dashboards-look`** (two commits), built 2026-10-07:
+      skeleton loading tier 1 (DataTable, DataList, the dashboard Card, the
+      report card; 300 ms, no minimum, a three-pass sweep), re-reads that
+      keep what is on screen (busy and inert; the Card tells a same-query
+      re-read from a new query; a phone pull shows its indicator), the web
+      drawer as a modal dialog with its two defects fixed, and Part C (the
+      dashboards' look and lead cards, the admin's Users card). Decision 1
+      narrowed by the owner's scope answer (KNOWN ISSUES: the query-change
+      skeleton is option 1, deferred). Rules: §5a-vii, §9, §15e, M11, M23.
+      **Device-checked by the owner 2026-10-08; the fix round F1–F8**
+      (the compact lockout notice holding its space, "Users", the
+      Teachers / Parents presets, avatar circles, a new page at the top,
+      the sweep, the inside nav ring, positional keys) **built 2026-10-09
+      (two commits), re-checked by the owner the same day: MERGE-READY; not
+      merged.** Device gaps: `docs/TESTING.md`.

@@ -7,6 +7,7 @@ import Shell from './layout/Shell';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ForcedPasswordChange from './pages/ForcedPasswordChange';
+import PolicyConsent from './pages/PolicyConsent';
 import AboutPage from './pages/AboutPage';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import AdminUsers from './pages/admin/UsersPage';
@@ -44,6 +45,7 @@ import AccountInfoSection from './pages/settings/AccountInfoSection';
 import ChangePasswordSection from './pages/settings/ChangePasswordSection';
 import PersonalizationSection from './pages/settings/PersonalizationSection';
 import SchoolSettingsSection from './pages/settings/SchoolSettingsSection';
+import SecurityPolicySection from './pages/settings/SecurityPolicySection';
 import UiGallery from './pages/dev/UiGallery';
 
 function RootRedirect() {
@@ -76,6 +78,10 @@ export default function App() {
               own signed-in / flag-still-set checks. Outside every role
               prefix because all three roles land on the same screen. */}
           <Route path="/change-password" element={<ForcedPasswordChange />} />
+          {/* The consent screen (feat/privacy): the same shape as the forced
+              change — top-level, no Shell, no ProtectedRoute (which sends
+              people here on `policy_pending`). The page does its own guards. */}
+          <Route path="/consent" element={<PolicyConsent />} />
           {/* Public: the school's own details and the DepEd VMV, reachable
               from the login screen. No Shell, no ProtectedRoute; it reads
               GET /settings/public, the one unauthenticated settings read.
@@ -102,6 +108,7 @@ export default function App() {
               <Route index element={<SchoolSettingsSection />} />
               <Route path="account" element={<AccountInfoSection />} />
               <Route path="password" element={<ChangePasswordSection />} />
+              <Route path="security" element={<SecurityPolicySection />} />
               <Route path="personalization" element={<PersonalizationSection />} />
             </Route>
             <Route path="attendance" element={<AdminAttendance />} />
@@ -154,6 +161,7 @@ export default function App() {
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<AccountInfoSection />} />
               <Route path="password" element={<ChangePasswordSection />} />
+              <Route path="security" element={<SecurityPolicySection />} />
               <Route path="personalization" element={<PersonalizationSection />} />
             </Route>
             <Route path="about" element={<AboutPage />} />
@@ -179,6 +187,7 @@ export default function App() {
             <Route path="settings" element={<SettingsLayout />}>
               <Route index element={<AccountInfoSection />} />
               <Route path="password" element={<ChangePasswordSection />} />
+              <Route path="security" element={<SecurityPolicySection />} />
               <Route path="personalization" element={<PersonalizationSection />} />
             </Route>
             <Route path="about" element={<AboutPage />} />

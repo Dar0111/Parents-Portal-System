@@ -25,6 +25,7 @@ const SCREEN_BY_LABEL = {
   'School settings': 'SchoolSettings',
   'Account information': 'AccountInfo',
   'Change password': 'ChangePassword',
+  'Security & policy': 'SecurityPolicy',
   Personalization: 'Personalization',
 };
 
