@@ -474,12 +474,17 @@ left the previous filter's cards on screen, each still opening its student,
 until the new answer arrived (`admin/StudentsScreen.jsx:56–86` keeps its rows
 through `setLoading(true)`) — the owner's question in the build 2 plan,
 answered yes. **The header is not made inert**: its filters must stay usable.
-`DataList` cannot tell a same-query re-read from a new query (it is never
-given the screen's filters), so on a query change the old rows stay, greyed
-and untouchable, until the new ones land; the skeleton there needs a
-`queryKey` from every screen and is deferred with skeleton tier 2
-(KNOWN_ISSUES). `extraData` makes FlatList re-render its cells when loading
-starts or stops.
+`DataList` is never given the screen's filters, so on its own it cannot tell
+a same-query re-read from a new query. **A screen whose query can change
+passes `queryKey`** (option 1, `feat/skeleton-querykey`, 2026-10-11; the
+web's rule, `hooks/useSkeleton.js` mirrored) — its load's dependency array:
+the same key keeps the cards (a pull, a reconnect re-read, "Show more"
+appending); a new filter, range or kind hands FlatList no rows, so its
+empty content — the skeleton — shows from the render the key changes in,
+never the old cards (an error still shows first). In the component the prop
+is `handedRows` and `rows` is what the list shows. 10 screens pass one; the
+7 lists that load with no query pass none. `extraData` makes FlatList
+re-render its cells when loading starts or stops.
 
 `components/RecordCard.jsx` renders the web's `renderCard` DATA contract
 (§5a-iii): `avatar`, `title`, `subtitle`, `meta`, `status` + `statusTone`,
@@ -1231,9 +1236,9 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   owner's phone; the counts shape and DataList's skeleton cards were keyed
   the same way. **An avatar circle (F4):** a screen whose cards carry
   `avatar` passes `skeletonAvatar` to `DataList`, and each card placeholder
-  leads with a 38dp circle (RecordCard's Avatar) — Admin → Users and both
-  Students screens; the other avatar lists wait for option 1
-  (KNOWN_ISSUES).
+  leads with a 38dp circle (RecordCard's Avatar) — Admin → Users, both
+  Students screens and, since option 1, admin Attendance, teacher Attendance
+  records, teacher Excuse Letters and both Messages screens.
 - **A dashboard re-read keeps every card's answer** (useCard, the web's file:
   the same query read again is `refreshing` — the content takes no touches
   and is marked busy — and a new query starts from nothing). **So a pull now

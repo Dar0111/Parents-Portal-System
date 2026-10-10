@@ -11,13 +11,12 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-11: `main` at `456bba8` (the privacy build merged
-fast-forward on 2026-10-11 after the owner's re-check) plus
-`feat/shared-messages` — one Messages thread and one conversations page for
-every role on the web, a browser test that locks where a thread opens, the
-phone thread's positioning fix, and two fix rounds (the top bar's ←, a whole
-row opens a conversation) — device-checked, re-checked, its data cleaned
-up; merge-ready, not merged.** Table and endpoint
+**Snapshot, 2026-10-11: `main` at `ea96ecf` (shared Messages merged
+fast-forward on 2026-10-11 after the owner's re-checks; privacy before it)
+plus `feat/skeleton-querykey` — option 1: a `queryKey` so a filter, page or
+sort change shows the skeleton instead of the previous rows greyed, on 19
+web tables and 10 phone lists, and the avatar circle on the nine lists that
+lacked it — built, NOT device-checked, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -43,7 +42,8 @@ and only there.
 | The source-code zip — `fix/source-zip`: `git archive` of HEAD, tracked files only (the owner's first run 2026-10-07) | ✅ merged 2026-10-07 (a root script, not the server) | — | — |
 | Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07, device-checked 2026-10-08), and its fix round F1–F8 (built and re-checked 2026-10-09) | — | ✅ merged 2026-10-09 | ✅ merged 2026-10-09 |
 | The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built, device-checked, fix round PF1–PF5 and re-checked 2026-10-10) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
-| Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11); two fix rounds — the top bar's ← as the way back (the page's own link removed), a whole row opens a conversation; device-checked and re-checked 2026-10-11, data cleaned up (backup 291) | — (untouched) | 🟡 device-checked, merge-ready, not merged | 🟡 device-checked (the thread screen only), merge-ready, not merged |
+| Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11); two fix rounds — the top bar's ← as the way back (the page's own link removed), a whole row opens a conversation; device-checked and re-checked 2026-10-11, data cleaned up (backup 291) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the thread screen) |
+| Skeleton option 1 — `feat/skeleton-querykey`: the `queryKey` rule (a new query shows the skeleton, the same query keeps the rows), the keys on every list whose query can change, the avatar circle on the nine lists that lacked it (built 2026-10-11) | — (untouched) | 🟡 built, not device-checked, not merged | 🟡 built, not device-checked, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -130,19 +130,18 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The merge of `feat/shared-messages`**, on the owner's word — it is
-   device-checked, re-checked and cleaned up. The phone consent screen's new
-   words still get their quick look (`docs/TESTING.md`).
-2. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the list
-   consumers (the two web Messages lists are one page now), so a query
-   change shows the skeleton, and the avatar circle on the ten lists that
-   lack it.
-3. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a
+1. **The owner's device check of `feat/skeleton-querykey`**, then the merge
+   on the owner's word. The phone consent screen's new words still get their
+   quick look (`docs/TESTING.md`).
+2. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a
    real restore after a fresh backup, and SMS.
-4. **Professor system check, Fri 2026-10-16.**
+3. **Professor system check, Fri 2026-10-16.**
 
 The manuscript delta list stays with the team (it includes Chapter 5's
-admin Messages text). After the check: the cloud (Supabase) survey.
+admin Messages text). After the check: **skeleton tier 2** (the class
+record, the class summary, the roster, the calendar, the detail pages, the
+thread, Settings and About — web, then phone), and the cloud (Supabase)
+survey.
 
 Then Stage 6 (integration, the deployment decision, demo data and
 rehearsal; the standalone APK per `docs/APK_READY_PLAN.md`). Notifications

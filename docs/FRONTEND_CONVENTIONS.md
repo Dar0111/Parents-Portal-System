@@ -682,8 +682,10 @@ generates nothing fails silently**, exactly as `h-9.5` did in DV1.
 report card (`ReportCard.jsx`); the phone's `DataList`, `Card` and
 `ReportCardView` are MOBILE M11 / M23. Tier 2 (the class record, the class
 summary, the roster, the calendar, the detail pages, the thread, Settings and
-About) is deferred, with the `queryKey` below. The owner's decisions of
-2026-10-07, decision 1 as narrowed the same day:
+About) is deferred until after the Fri 2026-10-16 professor check — web,
+then phone; the `queryKey` below is built (option 1, `feat/skeleton-querykey`,
+2026-10-11). The owner's decisions of 2026-10-07, decision 1 as narrowed the
+same day:
 
 - **A skeleton is a placeholder SHAPED LIKE THE CONTENT** (decision 5) —
   bars where text will be, a circle where an avatar will be, inside the same
@@ -703,10 +705,11 @@ About) is deferred, with the `queryKey` below. The owner's decisions of
   `md` size (2.375rem) beside the first column's bar and at the head of each
   card placeholder — the row is its real height. The table cannot know this
   before a row exists, so it is the page's to say: Admin → Users (both
-  tables) and both Students pages say it. **The other avatar lists** (admin
-  Attendance, teacher Attendance records, teacher Excuse Letters, both
-  Messages pages) wait for option 1, which edits every consumer anyway
-  (KNOWN_ISSUES).
+  tables), both Students pages and Messages say it. **`skeletonAvatar="cards"`**
+  (option 1) puts the circle on the card placeholders only, for a list whose
+  cards lead with an avatar but whose table does not (its first column is a
+  date, or a name with no circle): admin Attendance, teacher Attendance
+  records, teacher Excuse Letters.
 - **When** (decision 6, `hooks/useSkeleton.js`, mirrored): nothing painted
   for **300 ms** — a fast load never shows one — with the region mounted and
   the **height reserved** from the first frame (`invisible`, laid out); then
@@ -743,18 +746,29 @@ About) is deferred, with the `queryKey` below. The owner's decisions of
   button can be pressed or tabbed to), greyed (`opacity-60`) once the
   re-read has taken the same 300 ms, and the skeleton only when nothing is
   on screen (a first load, a page the page itself cleared, C7's stale page).
-  **On a query change the previous rows therefore stay, greyed and inert,
-  until the new ones land** — the skeleton there needs every page to pass a
-  `queryKey` (36 consumers) and is deferred to its own dispatch with tier 2
-  (owner, 2026-10-07; KNOWN_ISSUES). It used to swap the rows for a spinner,
-  which jumped the page on every re-read.
+  **A page whose query can change passes `queryKey`** (option 1,
+  `feat/skeleton-querykey`, 2026-10-11) — its load's dependency array:
+  filters, sort, offset, learner, class, day — and the rows then belong to
+  the key they arrived under (`hooks/useSkeleton.js` `useQueryRows`,
+  mirrored): the same key loading again keeps them as above (a socket
+  re-read, a Retry); **a new key shows the skeleton from the render the key
+  changes in, and never the old rows**; a load that ends with the SAME array
+  (an empty result after an empty one) still counts as this query's answer,
+  so the skeleton never stays on. No key: exactly as before, and the hook
+  sets no state. 17 web pages (19 tables) pass one; parent Excuse Letters
+  filters on the client and needs none; Admin → Users reads its two tables
+  in one load and keys each by its own part of it. A keyed page passes a
+  stable rows array (its state or a memo). It used to swap the rows for a
+  spinner, which jumped the page on every re-read.
 - **Proved by** `ssr-skeletons` (55: the phase table, `startRead` /
   `cardView` with a negative control that is the old one-flag view, the
   region in both phases, DataTable / Card / ReportCard rendered loading,
   kept, idle and failed) and `proof-skeletons` on the phone; the avatar
-  circle and the sweep's built rules by `ssr-build2-fixes` (fix round). The
-  300 ms, the sweep moving, the fill's look and what a screen reader says
-  are the owner's check.
+  circle and the sweep's built rules by `ssr-build2-fixes` (fix round); the
+  `queryKey` rule, the cards-only circle and every consumer's key by
+  `ssr-query-key` (20) and `proof-query-key` (16). The 300 ms, the sweep
+  moving, the fill's look, a real filter change and what a screen reader
+  says are the owner's check.
 
 ### 5c. The LRN is half a credential, not an ordinary identifier
 

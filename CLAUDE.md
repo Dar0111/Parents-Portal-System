@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `feat/shared-messages` — one Messages component on the web (§30) and the phone thread fix (M27): device-checked, two fix rounds re-checked, the check's data cleaned up; merge-ready, not merged (on `main` `456bba8`, privacy merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/skeleton-querykey` — option 1, the `queryKey` rule and nine avatar circles (§5): built, not device-checked, not merged (on `main` `ea96ecf`, shared Messages merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -409,7 +409,10 @@ concludes.** Adding one requires the school to have said otherwise first.
   three-pass light SWEEP — none under reduced motion — `role="status"` +
   `aria-busy`; an avatar circle where the page passes `skeletonAvatar`); **rows on
   screen while loading STAY, `aria-busy` + `inert`, greyed after 300 ms** —
-  so on a query change the old rows wait, greyed (KNOWN ISSUES). The phone's
+  and a list whose query can change passes `queryKey`, its load's
+  dependencies (option 1, `hooks/useSkeleton.js`): a new key shows the
+  skeleton, never the old rows; `skeletonAvatar="cards"` circles the cards
+  only. The phone's
   `DataList`, the dashboard `Card` and the report card follow; the `Card`
   tells a same-query re-read (`refreshing`, kept) from a new query
   (`loading`, skeleton) through `useCard`. §5a-vii, MOBILE M11 / M23.
@@ -1494,8 +1497,6 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
-| **On a query change, `DataTable` / `DataList` show the PREVIOUS rows greyed and inert until the new ones land** — added 2026-10-07 | both components + their 36 consumers | Neither knows the query. The skeleton there is option 1 (a `queryKey` per consumer), deferred with skeleton tier 2 — **do not touch the consumers for it outside that dispatch** |
-| **Ten avatar lists' skeletons have no avatar circle** — added 2026-10-08 | admin Attendance, teacher Attendance records, teacher Excuse Letters, both Messages — web and phone | `skeletonAvatar` was added to Users and both Students only (the 6-file limit); the ten go to the option 1 dispatch. Cosmetic |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 | **The socket handshake ignores `token_version` and the restore cutoff** — added 2026-10-10 | `server/socket.js` | A token REST answers `401` can still open a socket until it expires. Fix after the professor check |
 | **The phone teacher picker's empty Teachers / Admin groups say "match that search" with no search** — added 2026-10-11 | `mobile/src/screens/teacher/NewMessageScreen.jsx` | Small (§5f); the web follows the cause since §30. Not fixed in feat/shared-messages |
@@ -1710,18 +1711,23 @@ CLAUDE.md on 2026-10-10".
       four learner fields not collected (§29, M26). **Device-checked, fixed
       (PF1–PF5), re-checked, its data cleaned up; merged 2026-10-11
       (`456bba8`).**
-- [ ] **Shared Messages — `feat/shared-messages`** (2026-10-11): one thread
+- [x] **Shared Messages — `feat/shared-messages`** (2026-10-11): one thread
       and one conversations page for every role on the web (§30), its browser
       test, and the phone thread's positioning fix (M27); two fix rounds —
       the top bar's ← as the way back, a whole row opens a conversation.
-      **Device-checked, re-checked, its data cleaned up; merge-ready, not
-      merged.**
+      **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
+      (`ea96ecf`).**
+- [ ] **Skeleton option 1 — `feat/skeleton-querykey`** (2026-10-11): the
+      `queryKey` rule on DataTable / DataList, the keys on 19 web tables and
+      10 phone lists, nine avatar circles (§5, M11). **Built; not
+      device-checked; not merged.**
 
-**NEXT, in order (the owner, 2026-10-11):** merge `feat/shared-messages`
-on the owner's word → skeleton tier 2 + option 1 if time → **smoke gate by Thu 2026-10-15** (a real
+**NEXT, in order (the owner, 2026-10-11):** the owner's device check of
+`feat/skeleton-querykey`, then merge → **smoke gate by Thu 2026-10-15** (a real
 restore after a fresh backup, and SMS) → **professor system check, Fri
 2026-10-16**. The manuscript
-delta list stays with the team. After the check: the cloud (Supabase) survey.
+delta list stays with the team. After the check: skeleton tier 2 (web, then
+phone), then the cloud (Supabase) survey.
 
 ### Stage 6 — Integration
 
