@@ -6,7 +6,9 @@
 //   without `back`; then, SOURCE TEXT said plainly, the wiring a render cannot
 //   show: the thread hands the bar its own `listPath` through usePageBack, no
 //   other file calls it, only the thread routes render the thread, and Shell
-//   carries the value from its provider to Header.
+//   carries the value from its provider to Header. Since fix round 2 the ←
+//   is THE way back: handed over before the loading return, and the thread
+//   page has no "All conversations" link of its own (W1.9).
 // W2 — a whole row opens the conversation: DataTable is rendered with and
 //   without `onRowClick`; the row's handler (`openRowOnClick`, read from
 //   DataTable.jsx) is RUN on fake clicks — on a cell, on Open, on the icon
@@ -133,17 +135,24 @@ proved(
 
 // ---------------------------------------------------------------------------
 console.log('W1 — only the thread pages hand the bar a way back (source text)');
+// Fix round 2: the ← is THE way back, so it must be there in every state of
+// the thread — handed over at the component's top level (two-space indent,
+// never inside a branch) and BEFORE the loading return, which is also the
+// state a 403 leaves standing.
+const CALL = "  usePageBack(listPath, 'All conversations');";
 const onlyThreadCalls = (map) => {
   const who = callers(map, /\busePageBack\(/).filter((f) => f !== 'layout/usePageBack.js');
   const thread = map[THREAD] || '';
-  return same(who, [THREAD]) && /usePageBack\(listPath, 'All conversations'\);/.test(thread) && /to=\{listPath\}/.test(thread);
+  const call = thread.indexOf(`\n${CALL}\n`);
+  return same(who, [THREAD]) && call > 0 && call < thread.indexOf('if (loading) return');
 };
 proved(
-  'W1.5 usePageBack is called by MessageThread alone, with the listPath its own link uses',
+  'W1.5 usePageBack is called by MessageThread alone, with its listPath, before the loading return (loading and 403 keep the ←)',
   onlyThreadCalls,
   files,
   withFile(LIST, `${files[LIST]}\n// usePageBack(base, 'All conversations');\n`),
-  withFile(THREAD, files[THREAD].replace("usePageBack(listPath, 'All conversations');", "usePageBack('/parent/messages', 'All conversations');"))
+  withFile(THREAD, files[THREAD].replace("usePageBack(listPath, 'All conversations');", "usePageBack('/parent/messages', 'All conversations');")),
+  withFile(THREAD, files[THREAD].replace(`\n${CALL}\n`, '\n').replace('if (loading) return', `if (loading) return null;\n${CALL}\n  if (loading) return`))
 );
 const threadOnlyOnRoutes = (map) => {
   const importers = callers(map, /from '(\.\.\/messages|\.)\/MessageThread'/).filter((f) => f !== THREAD);
@@ -178,6 +187,27 @@ proved(
   files['layout/usePageBack.js'],
   files['layout/usePageBack.js'].replace('return () => setBack(null);', ''),
   files['layout/usePageBack.js'].replace('useLayoutEffect(() => {', 'useEffect(() => {')
+);
+// Fix round 2: the thread page (the shared thread and both wrappers, CODE
+// only — comments may say what is gone) has no link of its own: no <Link>, no
+// `to={listPath}`, no arrow, and "All conversations" only as the ←'s name.
+const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const noOwnLink = (map) => {
+  const code = [THREAD, ...WRAPPERS].map((f) => stripComments(map[f] || '')).join('\n');
+  return (
+    !/<Link\b/.test(code) &&
+    !/to=\{listPath\}/.test(code) &&
+    !/fa-arrow-left/.test(code) &&
+    (code.match(/All conversations/g) || []).length === 1 &&
+    code.includes(CALL)
+  );
+};
+proved(
+  'W1.9 the thread page renders no "All conversations" link of its own — the ← is the way back',
+  noOwnLink,
+  files,
+  withFile(THREAD, `${files[THREAD]}\nconst back = <Link to={listPath}><i className="fa-solid fa-arrow-left" />All conversations</Link>;\n`),
+  withFile(WRAPPERS[1], `${files[WRAPPERS[1]]}\nconst back = <Link to="/teacher/messages">All conversations</Link>;\n`)
 );
 
 // ---------------------------------------------------------------------------

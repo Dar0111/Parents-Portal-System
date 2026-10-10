@@ -283,7 +283,16 @@ assert(!/['`]\/parent\/messages\//.test(parentList) && (parentList.match(/`\$\{b
 // fills each with the contacts of that role.
 assert(/const GROUPS = Object\.freeze\(\[\{ role: 'teacher', label: 'Teachers' \}\]\);/.test(parentList) && /rows: filteredContacts\.filter\(\(c\) => c\.role === group\.role\)/.test(parentList) && !/role: 'admin'/.test(parentList), 'the picker is ONE group, Teachers — no Admin group for either role');
 const parentThread = src('src/pages/parent/MessageThreadPage.jsx') + src('src/pages/messages/MessageThread.jsx'); // wrapper + shared thread
-assert(/listPath=\{user\?\.role === 'admin' \? '\/admin\/messages' : '\/parent\/messages'\}/.test(parentThread) && /to=\{listPath\}/.test(parentThread), "the thread's back link follows the role too");
+// Since fix round 2 the way back is the top bar's ←, handed `listPath` by the
+// thread (the link above the card is gone). Control: a fixed path fails.
+const roleBack = (s) =>
+  /listPath=\{user\?\.role === 'admin' \? '\/admin\/messages' : '\/parent\/messages'\}/.test(s) &&
+  /usePageBack\(listPath, 'All conversations'\);/.test(s);
+assert(
+  roleBack(parentThread) &&
+    !roleBack(parentThread.replace("usePageBack(listPath, 'All conversations');", "usePageBack('/parent/messages', 'All conversations');")),
+  "the thread's way back (the top bar's ←) follows the role too; a fixed path fails"
+);
 // CODE, not comments: a `//` line may say what the page does not do.
 const code = (s) => s.replace(/^\s*\/\/.*$/gm, '');
 assert(!/fa-bullhorn|Announce to|\/teacher\/announcements/.test(code(parentThread)), 'the parent/admin thread has no "Announce to a class"');
@@ -291,12 +300,15 @@ assert(!/fa-bullhorn|Announce to|\/teacher\/announcements/.test(code(parentThrea
 console.log('Admin Messages — the teacher hand-off only on a parent thread (source)');
 const teacherThread = src('src/pages/teacher/MessageThreadPage.jsx') + src('src/pages/messages/MessageThread.jsx'); // wrapper + shared thread
 assert(/const otherIsParent = \(other\?\.role \|\| contactRow\?\.role\) === 'parent';/.test(teacherThread), "the rule: the other person's role from a named message, else from the contacts row, must be parent");
-const HANDOFF = /\{otherIsParent \? \(\s*<Button\s+icon="fa-bullhorn"/;
-const HINT = /\{otherIsParent \? <p className="text-xs text-fg-muted sm:text-right">\{announceHint\}<\/p> : null\}/;
+// Since fix round 2 one gate covers the whole row (no way back shares it any
+// more): AnnounceRow returns null unless the other person is a parent, and
+// the button and its hint both come after that return.
+const HANDOFF = /if \(!otherIsParent\) return null;[\s\S]*?<Button\s+icon="fa-bullhorn"/;
+const HINT = /if \(!otherIsParent\) return null;[\s\S]*?<p className="text-xs text-fg-muted sm:text-right">\{announceHint\}<\/p>/;
 assert(HANDOFF.test(teacherThread) && HINT.test(teacherThread), 'the button AND its hint render only under that rule');
 assert((teacherThread.match(/>\{announceHint\}</g) || []).length === 1 && (teacherThread.match(/icon="fa-bullhorn"/g) || []).length === 1, '…and neither appears anywhere else on the page');
-const ungated = teacherThread.replace(/\{otherIsParent \? \(\s*<Button/, '{true ? (<Button');
-assert(!HANDOFF.test(ungated), 'NEGATIVE CONTROL: with the button ungated, the hand-off assertion fails');
+const ungated = teacherThread.replace('if (!otherIsParent) return null;', '');
+assert(!HANDOFF.test(ungated) && !HINT.test(ungated), 'NEGATIVE CONTROL: with the row ungated, the hand-off assertion fails');
 
 console.log('Admin Messages — the five copy changes (source)');
 const routesMessages = src('../server/routes/messages.js');

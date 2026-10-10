@@ -3832,8 +3832,8 @@ the 403 that replaces the composer, the header and the bubbles.
 
 | Prop | What the wrappers pass |
 |---|---|
-| `listPath` | parent page: `/admin/messages` for the admin, `/parent/messages` for a parent; teacher page: `/teacher/messages` |
-| `renderTop` | optional, `({ back, otherId, other, draft }) => node` — lays out the row above the card around `back` (the "All conversations" link). Only the teacher passes it: "Announce to a class", on a PARENT's thread only, with its hint; its `GET /messages/contacts` read stays in the teacher's page and starts with the page, beside the thread's own read |
+| `listPath` | where the top bar's ← goes — parent page: `/admin/messages` for the admin, `/parent/messages` for a parent; teacher page: `/teacher/messages` |
+| `renderTop` | optional, `({ otherId, other, draft }) => node \| null` — the row above the card (no `back` since fix round 2). Only the teacher passes it: "Announce to a class" with its hint, on a PARENT's thread only — null on any other, so no row and no gap; the button right from `sm` like its hint, left below. Its `GET /messages/contacts` read stays in the teacher's page and starts with the page, beside the thread's own read |
 
 **The positioning rules it carries, unchanged** (§9 and the 2026-10-06
 follow-up): nothing is consumed until the list is mounted, not loading and
@@ -3851,9 +3851,12 @@ hands the top bar its `listPath` through `usePageBack`
 `Header.jsx` shows a **←** before the title, as the phone's thread
 header does: a real link, the shared ghost icon button (44px), named "All
 conversations". Only a page that calls the hook gets one — today the thread
-alone — so every other bar is unchanged and keeps its 4rem. The link above
-the card stays. A layout effect sets and clears it, so it never shows for a
-frame on the next page.
+alone — so every other bar is unchanged and keeps its 4rem. A layout effect
+sets and clears it, so it never shows for a frame on the next page.
+**Since fix round 2 (the owner's re-check) the ← is THE way back:** the
+thread's own "← All conversations" above the card was a duplicate and is
+gone, every role and width; the hook is called before the loading return,
+so the ← is there while the thread loads and after a 403.
 
 ### 30b. `pages/messages/ConversationsPage.jsx` — the list and the picker
 
@@ -3908,9 +3911,10 @@ Below `sm` the card was already one link (§5a-iii).
   the run-book.
 - The source-text proofs read **the wrapper and the shared file together**:
   `ssr-look-fixes`, `ssr-form-drafts`, `ssr-enter-to-send`, `ssr-dv1b-a`.
-- `scripts/ssr-messages-nav.jsx` (the fix round, 19 checks, each with a
-  negative control): the bar rendered with and without `back`, and only the
-  thread handing one over; the rows with and without `onRowClick`, the row's
+- `scripts/ssr-messages-nav.jsx` (the fix rounds, 20 checks, each with a
+  negative control): the bar rendered with and without `back`, only the
+  thread handing one over (before its loading return), and the thread page
+  with no "All conversations" link of its own; the rows with and without `onRowClick`, the row's
   handler RUN on fake clicks (a cell, Open, the icon inside Open, a link, a
   text drag), and only this page passing it, to Open's own path. It cannot
   run the effect that sets the ←, or a real click — the device check.

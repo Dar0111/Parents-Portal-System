@@ -6,7 +6,9 @@ import MessageThread from '../messages/MessageThread';
 
 // One conversation, the teacher's. The thread itself is the shared component
 // (feat/shared-messages, FRONTEND §30); what is the teacher's alone is the row
-// above it: the way back, and "Announce to a class".
+// above it: "Announce to a class", on a parent's thread only. The way back is
+// the top bar's ← (fix round 2), so a teacher's or the admin's thread has no
+// row above the card at all.
 //
 // ANNOUNCE TO A CLASS sits on this thread, not the list. The list has no draft
 // and no section — a button there would be a second door into the empty compose
@@ -35,9 +37,9 @@ import MessageThread from '../messages/MessageThread';
 // Do not reconstruct the class by matching student_name to GET /students — two
 // students can share a name.
 
-// The way back, and the way out to an announcement, with the sentence that
-// says what that button does NOT do kept directly under it.
-function AnnounceRow({ back, otherId, other, draft, contactRow }) {
+// The way out to an announcement, with the sentence that says what that
+// button does NOT do kept directly under it.
+function AnnounceRow({ otherId, other, draft, contactRow }) {
   const navigate = useNavigate();
   // "ANNOUNCE TO A CLASS" IS FOR A PARENT'S THREAD ONLY (2026-10-05). It
   // exists to stop a teacher answering one parent by hand when the whole
@@ -46,7 +48,12 @@ function AnnounceRow({ back, otherId, other, draft, contactRow }) {
   // other person, else from their contacts row; while neither has loaded the
   // button stays away rather than flashing on a thread that is not a
   // parent's.
+  //
+  // ONE GATE FOR THE WHOLE ROW (fix round 2, 2026-10-11): with the way back
+  // moved to the top bar, the button and its hint are all this row holds, so
+  // anywhere else it renders nothing — no empty row, no gap above the card.
   const otherIsParent = (other?.role || contactRow?.role) === 'parent';
+  if (!otherIsParent) return null;
   const announceClass =
     contactRow?.student_name && contactRow.student_grade_level != null && contactRow.student_section
       ? {
@@ -61,35 +68,33 @@ function AnnounceRow({ back, otherId, other, draft, contactRow }) {
     ? `Opens an announcement to ${announceClass.label}, already selected. Every parent in that section will see it. This conversation will not.`
     : 'Opens a class announcement. Every parent in the section you pick will see it. This conversation will not.';
 
+  // The button alone in its row: on the right from `sm`, on the left below
+  // it — where a phone already showed it, wrapped under the old link.
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        {back}
-        {otherIsParent ? (
-          <Button
-            icon="fa-bullhorn"
-            title={announceHint}
-            onClick={() =>
-              navigate('/teacher/announcements', {
-                state: {
-                  compose: announceClass
-                    ? { content: draft.trim(), target: announceClass.key, fromThread: otherId }
-                    : { content: draft.trim(), fromThread: otherId },
-                },
-              })
-            }
-          >
-            {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
-          </Button>
-        ) : null}
+      <div className="flex sm:justify-end">
+        <Button
+          icon="fa-bullhorn"
+          title={announceHint}
+          onClick={() =>
+            navigate('/teacher/announcements', {
+              state: {
+                compose: announceClass
+                  ? { content: draft.trim(), target: announceClass.key, fromThread: otherId }
+                  : { content: draft.trim(), fromThread: otherId },
+              },
+            })
+          }
+        >
+          {announceClass ? `Announce to ${announceClass.label}` : 'Announce to a class'}
+        </Button>
       </div>
       {/* Visible, not only the title tooltip: hover does not exist on touch,
           and "This conversation will not" is the sentence that stops a
           teacher believing they replied to the parent (§3's rule). Under
-          the button it explains: right-aligned from `sm`, where the button
-          sits on the right; left-aligned on a phone, where the button has
-          wrapped to the left. It goes with the button. */}
-      {otherIsParent ? <p className="text-xs text-fg-muted sm:text-right">{announceHint}</p> : null}
+          the button it explains, aligned with it: right from `sm`, left on a
+          phone. It goes with the button. */}
+      <p className="text-xs text-fg-muted sm:text-right">{announceHint}</p>
     </div>
   );
 }

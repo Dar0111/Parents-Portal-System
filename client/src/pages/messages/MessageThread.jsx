@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import { dateTime } from '../../format/date';
@@ -25,11 +25,11 @@ import { usePageBack } from '../../layout/usePageBack';
 // two copies of this file — the parent's (also the admin's since 2026-10-05)
 // and the teacher's — kept equal by hand; each is now a small wrapper that
 // passes what differs:
-//   - `listPath`  — where "All conversations" goes, and the top bar's ←;
-//   - `renderTop` — optional: lays out the row above the card around `back`
-//     (that link). The teacher's wrapper puts "Announce to a class" there, on
-//     a parent's thread only. It receives { back, otherId, other, draft } —
-//     `other` is { name, role } from a message that names them, or null.
+//   - `listPath`  — where the top bar's ← goes (the role's list);
+//   - `renderTop` — optional: the row above the card, or null for none. The
+//     teacher's wrapper puts "Announce to a class" there, on a parent's
+//     thread only. It receives { otherId, other, draft } — `other` is
+//     { name, role } from a message that names them, or null.
 // Everything else is here, once: the reads, read-all and the badge refresh,
 // the socket, where the list and the page scroll, Load earlier, the send
 // guard, Enter, the draft and the 403. scripts/loop-messages-thread.mjs drives
@@ -177,9 +177,12 @@ export default function MessageThread({ listPath, renderTop }) {
 
   usePageTitle(other?.name || pickedName || 'Conversation');
   // THE WAY BACK THAT NEVER SCROLLS AWAY (fix round W1, 2026-10-11): the
-  // thread opens at its newest message with the box in view, so on a long
-  // thread the link below sits above the window. The top bar shows a ← to
-  // the same `listPath` (layout/usePageBack.js); the link below stays.
+  // thread opens at its newest message with the box in view, so a link above
+  // the card sat above the window on a long thread. The top bar shows a ← to
+  // `listPath` instead (layout/usePageBack.js) — THE way back since fix round
+  // 2, which removed that link as a duplicate. Called before the loading
+  // return and unconditionally, so the ← is there while the thread loads and
+  // when a 403 has replaced the composer.
   usePageBack(listPath, 'All conversations');
 
   const load = useCallback(async () => {
@@ -366,23 +369,13 @@ export default function MessageThread({ listPath, renderTop }) {
 
   if (loading) return <LoadingSpinner className="py-16" label="Loading conversation…" />;
 
-  // A 44px-tall target with the shared keyboard outline; the arrow is
-  // decoration.
-  const back = (
-    <Link
-      to={listPath}
-      className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-accent"
-    >
-      <span aria-hidden="true" className="flex items-center justify-center">
-        <i className="fa-solid fa-arrow-left" />
-      </span>
-      All conversations
-    </Link>
-  );
-
+  // NO LINK OF ITS OWN ABOVE THE CARD (fix round 2, 2026-10-11): the top
+  // bar's ← is the way back on every thread, so "← All conversations" here
+  // was a duplicate and is gone. Nothing renders above the card unless the
+  // wrapper's `renderTop` gives something — no empty row, no gap.
   return (
     <div className="space-y-4">
-      {renderTop ? renderTop({ back, otherId, other, draft }) : back}
+      {renderTop ? renderTop({ otherId, other, draft }) : null}
 
       {error ? <ErrorAlert message={error} onRetry={load} /> : null}
 
