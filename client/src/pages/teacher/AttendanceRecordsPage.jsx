@@ -375,6 +375,8 @@ export default function AttendanceRecordsPage() {
           columns={columns}
           rows={rows}
           loading={loading}
+          queryKey={[section, showingMine, applied, offset, sort]}
+          skeletonAvatar="cards"
           error={error}
           onRetry={load}
           page={page}

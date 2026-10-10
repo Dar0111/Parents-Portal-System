@@ -306,5 +306,110 @@ proved(
   hook.replace('SKELETON_DELAY_MS = 300', 'SKELETON_DELAY_MS = 0')
 );
 
+// ---------------------------------------------------------------------------
+// The consumers (commit 2): every web list whose query can change passes a
+// key, and the key is its load's dependency array — so the key changes exactly
+// when the load runs for another query, and a key part that never reloads
+// (which would leave the skeleton on) cannot slip in.
+console.log('The web consumers — source text');
+const PAGES = path.resolve('src/pages');
+const pageFiles = Object.fromEntries(
+  fs
+    .readdirSync(PAGES, { recursive: true })
+    .map((f) => String(f).split(path.sep).join('/'))
+    .filter((f) => /\.jsx?$/.test(f) && !f.startsWith('dev/'))
+    .map((f) => [f, fs.readFileSync(path.join(PAGES, f), 'utf8').replace(/\r\n/g, '\n')])
+);
+const KEYED = [
+  'messages/ConversationsPage.jsx',
+  'parent/AnnouncementsPage.jsx',
+  'parent/EventsPage.jsx',
+  'parent/MemosPage.jsx',
+  'teacher/AnnouncementsPage.jsx',
+  'teacher/AttendancePage.jsx',
+  'teacher/AttendanceRecordsPage.jsx',
+  'teacher/EventsPage.jsx',
+  'teacher/ExcuseLettersPage.jsx',
+  'teacher/MemosPage.jsx',
+  'teacher/StudentsPage.jsx',
+  'admin/AnnouncementsPage.jsx',
+  'admin/AttendancePage.jsx',
+  'admin/BackupsPage.jsx',
+  'admin/GradesPage.jsx',
+  'admin/StudentsPage.jsx',
+  'admin/UsersPage.jsx',
+].sort();
+const parts = (list) => list.split(',').map((s) => s.trim()).filter(Boolean).sort();
+const keysIn = (text) => [...text.matchAll(/queryKey=\{\[([^\]]*)\]\}/g)].map((m) => ({ parts: parts(m[1]), at: m.index }));
+const depsIn = (text) => [...text.matchAll(/\n\s*\}, \[([^\]]*)\]\);/g)].map((m) => parts(m[1]));
+const sameSet = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+// UsersPage reads both of its tables in ONE load: each table's key is its own
+// part of that load's dependencies, and the two together are all of them.
+const SPLIT = { 'admin/UsersPage.jsx': 'applied, offset, sort, pendingOffset, pendingSort' };
+const keyedFiles = (map) => Object.keys(map).filter((f) => /queryKey=/.test(map[f])).sort();
+const keysMatchLoads = (map) =>
+  KEYED.every((f) => {
+    const text = map[f] || '';
+    const keys = keysIn(text);
+    if (!keys.length) return false;
+    if (SPLIT[f]) {
+      const union = keys.flatMap((k) => k.parts).sort();
+      return sameSet(union, parts(SPLIT[f])) && new Set(union).size === union.length && depsIn(text).some((d) => sameSet(d, union));
+    }
+    return keys.every((k) => depsIn(text).some((d) => sameSet(d, k.parts)));
+  });
+proved(
+  'C1 exactly the 17 web files whose query can change pass a queryKey',
+  (map) => sameSet(keyedFiles(map), KEYED),
+  pageFiles,
+  { ...pageFiles, 'parent/ExcuseLettersPage.jsx': `${pageFiles['parent/ExcuseLettersPage.jsx']}\n// queryKey={[status]}\n` },
+  { ...pageFiles, 'teacher/MemosPage.jsx': pageFiles['teacher/MemosPage.jsx'].replace('queryKey={[offset, sort]}', '') }
+);
+proved(
+  'C2 every key is its load’s dependency array (19 tables; UsersPage splits its one load between its two tables)',
+  keysMatchLoads,
+  pageFiles,
+  { ...pageFiles, 'admin/StudentsPage.jsx': pageFiles['admin/StudentsPage.jsx'].replace('queryKey={[applied, offset, sort]}', 'queryKey={[applied, offset]}') },
+  { ...pageFiles, 'parent/EventsPage.jsx': pageFiles['parent/EventsPage.jsx'].replace('queryKey={[range, offset, effectiveSort]}', 'queryKey={[range, offset, effectiveSort, today]}') },
+  { ...pageFiles, 'admin/UsersPage.jsx': pageFiles['admin/UsersPage.jsx'].replace('queryKey={[pendingOffset, pendingSort]}', 'queryKey={[applied, offset, sort, pendingOffset, pendingSort]}') }
+);
+const tableCount = (map) => KEYED.reduce((n, f) => n + keysIn(map[f] || '').length, 0);
+proved(
+  'C3 19 keyed tables in the 17 files (two each on Users and admin Announcements)',
+  (map) => tableCount(map) === 19,
+  pageFiles,
+  { ...pageFiles, 'admin/AnnouncementsPage.jsx': pageFiles['admin/AnnouncementsPage.jsx'].replace('queryKey={[memoOffset, memoSort, userId]}', '') }
+);
+// A keyed table's rows are a STABLE array — the page's state or a memo — never
+// one built during render (it would "arrive" on every render).
+const stableRows = (map) =>
+  KEYED.every((f) => {
+    const text = map[f] || '';
+    return keysIn(text).every(({ at }) => {
+      const element = text.slice(text.lastIndexOf('<DataTable', at), at);
+      const name = (element.match(/rows=\{(\w+)\}/g) || []).pop()?.match(/rows=\{(\w+)\}/)?.[1];
+      if (!name) return false;
+      return new RegExp(`const \\[${name}, set\\w+\\] = useState\\(`).test(text) || new RegExp(`const ${name} = useMemo\\(`).test(text);
+    });
+  });
+proved(
+  'C4 every keyed table is handed a stable rows array — the page’s state or a memo',
+  stableRows,
+  pageFiles,
+  { ...pageFiles, 'admin/BackupsPage.jsx': pageFiles['admin/BackupsPage.jsx'].replace('rows={backups}', 'rows={backups.slice()}') }
+);
+const avatars = (map) =>
+  /queryKey=\{\[offset, sort\]\}\n\s+skeletonAvatar\n/.test(map['messages/ConversationsPage.jsx']) &&
+  ['admin/AttendancePage.jsx', 'teacher/AttendanceRecordsPage.jsx', 'teacher/ExcuseLettersPage.jsx'].every((f) =>
+    /skeletonAvatar="cards"/.test(map[f])
+  );
+proved(
+  'C5 the four web avatar lists: Messages (circle on the cards and in the first column), and "cards" on admin Attendance, teacher Attendance records and teacher Excuse Letters',
+  avatars,
+  pageFiles,
+  { ...pageFiles, 'teacher/ExcuseLettersPage.jsx': pageFiles['teacher/ExcuseLettersPage.jsx'].replace('skeletonAvatar="cards"', '') },
+  { ...pageFiles, 'admin/AttendancePage.jsx': pageFiles['admin/AttendancePage.jsx'].replace('skeletonAvatar="cards"', 'skeletonAvatar') }
+);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

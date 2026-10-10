@@ -487,6 +487,7 @@ export default function AdminGradesPage() {
                   rows={subjects}
                   keyField="subject_id"
                   loading={reportLoading}
+                  queryKey={[studentId]}
                   error={reportError}
                   onRetry={loadReport}
                   emptyIcon="fa-book"

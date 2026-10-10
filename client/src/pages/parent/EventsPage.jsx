@@ -229,6 +229,7 @@ export default function ParentEventsPage() {
             columns={columns}
             rows={rows}
             loading={loading}
+            queryKey={[range, offset, effectiveSort]}
             error={error}
             onRetry={load}
             page={page}

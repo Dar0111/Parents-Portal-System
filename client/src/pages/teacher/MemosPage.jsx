@@ -130,6 +130,7 @@ export default function MemosPage() {
           columns={columns}
           rows={rows}
           loading={loading}
+          queryKey={[offset, sort]}
           error={error}
           onRetry={load}
           page={page}

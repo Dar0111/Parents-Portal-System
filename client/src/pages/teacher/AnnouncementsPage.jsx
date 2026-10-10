@@ -614,6 +614,7 @@ export default function AnnouncementsPage() {
             columns={columns}
             rows={rows}
             loading={loading}
+            queryKey={[applied, offset, sort, userId, arrivedWithHandoff]}
             error={error}
             onRetry={load}
             page={page}

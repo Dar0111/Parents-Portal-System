@@ -357,6 +357,8 @@ export default function AdminAttendancePage() {
               columns={columns}
               rows={rows}
               loading={loading}
+              queryKey={[applied, hasScope, offset, sort]}
+              skeletonAvatar="cards"
               error={error}
               onRetry={load}
               page={page}

@@ -485,6 +485,7 @@ export default function AdminBackupsPage() {
             columns={columns}
             rows={backups}
             loading={loading}
+            queryKey={[offset, sort]}
             error={error}
             onRetry={load}
             page={page}

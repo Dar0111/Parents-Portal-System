@@ -422,6 +422,8 @@ export default function ExcuseLettersPage() {
             columns={columns}
             rows={letters}
             loading={loading}
+            queryKey={[applied, offset, sort]}
+            skeletonAvatar="cards"
             error={error}
             onRetry={load}
             page={page}

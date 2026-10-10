@@ -869,6 +869,10 @@ export default function UsersPage() {
             columns={pendingColumns}
             rows={pending}
             loading={loading}
+            // ONE load reads both tables; each table's key is the part of it
+            // that decides its own rows, so paging the directory keeps this
+            // queue (option 1).
+            queryKey={[pendingOffset, pendingSort]}
             skeletonAvatar
             page={pendingPage}
             onPageChange={setPendingOffset}
@@ -961,6 +965,7 @@ export default function UsersPage() {
             columns={userColumns}
             rows={users}
             loading={loading}
+            queryKey={[applied, offset, sort]}
             skeletonAvatar
             page={page}
             onPageChange={setOffset}

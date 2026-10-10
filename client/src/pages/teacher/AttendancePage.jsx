@@ -603,6 +603,7 @@ export default function AttendancePage() {
             columns={columns}
             rows={roster}
             loading={rosterLoading}
+            queryKey={[section, date]}
             error={rosterError}
             onRetry={loadRoster}
             emptyIcon="fa-user-graduate"

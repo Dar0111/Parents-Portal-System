@@ -740,6 +740,7 @@ export default function AdminAnnouncementsPage() {
             columns={announcementColumns}
             rows={announcements}
             loading={annLoading}
+            queryKey={[filter, annOffset, annSort, userId]}
             error={annError}
             onRetry={loadAnnouncements}
             page={annPage}
@@ -806,6 +807,7 @@ export default function AdminAnnouncementsPage() {
             columns={memoColumns}
             rows={memos}
             loading={memoLoading}
+            queryKey={[memoOffset, memoSort, userId]}
             error={memoError}
             onRetry={loadMemos}
             page={memoPage}

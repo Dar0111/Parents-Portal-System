@@ -354,6 +354,7 @@ export default function StudentsPage() {
           columns={columns}
           rows={students}
           loading={loading}
+          queryKey={[applied, offset, sort]}
           error={error}
           onRetry={load}
           page={page}

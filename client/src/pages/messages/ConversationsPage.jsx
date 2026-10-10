@@ -260,6 +260,11 @@ export default function ConversationsPage({ base, groups, searchPlaceholder, sea
             rows={conversations}
             keyField="other_user_id"
             loading={loading}
+            // A new page or sort is a new query (the skeleton, with the
+            // avatar circle the rows lead with); a message arriving re-reads
+            // the same one and keeps the rows (option 1).
+            queryKey={[offset, sort]}
+            skeletonAvatar
             error={error}
             onRetry={load}
             page={page}

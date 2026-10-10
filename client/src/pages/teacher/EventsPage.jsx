@@ -468,6 +468,7 @@ export default function EventsPage() {
             columns={columns}
             rows={rows}
             loading={loading}
+            queryKey={[applied, offset, sort, userId]}
             error={error}
             onRetry={load}
             page={page}
