@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `feat/skeleton-querykey` — option 1, the `queryKey` rule and nine avatar circles (§5): built, not device-checked, not merged (on `main` `ea96ecf`, shared Messages merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/skeleton-querykey` — option 1, the `queryKey` rule and nine avatar circles (§5): device-checked on the web; merge-ready, not merged (on `main` `ea96ecf`, shared Messages merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1719,11 +1719,11 @@ CLAUDE.md on 2026-10-10".
       (`ea96ecf`).**
 - [ ] **Skeleton option 1 — `feat/skeleton-querykey`** (2026-10-11): the
       `queryKey` rule on DataTable / DataList, the keys on 19 web tables and
-      10 phone lists, nine avatar circles (§5, M11). **Built; not
-      device-checked; not merged.**
+      10 phone lists, nine avatar circles (§5, M11). **Device-checked on
+      the web (the phone's LAN too fast); merge-ready, not merged.**
 
-**NEXT, in order (the owner, 2026-10-11):** the owner's device check of
-`feat/skeleton-querykey`, then merge → **smoke gate by Thu 2026-10-15** (a real
+**NEXT, in order (the owner, 2026-10-11):** merge `feat/skeleton-querykey`
+on the owner's word → **smoke gate by Thu 2026-10-15** (a real
 restore after a fresh backup, and SMS) → **professor system check, Fri
 2026-10-16**. The manuscript
 delta list stays with the team. After the check: skeleton tier 2 (web, then

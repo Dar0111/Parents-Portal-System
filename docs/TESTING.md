@@ -258,6 +258,25 @@ two users, its learner, every `policy_acceptances` row and the admin's
 unread `parent_pending` notification for the test parent; the audit rows
 and `login_attempts` kept (CHANGELOG).
 
+**Device check — skeleton option 1, `feat/skeleton-querykey` (the owner,
+2026-10-11): PASS on the web.** Chrome's 3G preset, moving only by in-app
+links and filters, no seeding — today's data. Admin → Students: a Grade
+filter and a sort each show the skeleton, not the old rows greyed (rows 1–2);
+Admin → Users: a Role filter shows the Users table's skeleton, then the 3
+teachers (3); admin Attendance and Messages, both empty: the skeleton — no
+circles in the Attendance table, circles in the Messages first column — then
+the empty state, nothing left on (4–5); admin Attendance at 390px: skeleton
+cards with circles (6); the Grade 6 adviser: Students search "Tala" →
+skeleton → 1 row, and an Attendance date change → the roster's skeleton →
+the roster (7–9); no throttling: no skeleton flash (10). **Not
+device-checked, kept here until seen:** the phone (the LAN is too fast —
+build 2's gap); a Next page (no list has a second page with today's data);
+the Messages list's sort (no conversations). `ssr-query-key` and
+`proof-query-key` cover them in source and in the rule. **Seen, not in
+scope:** teacher Attendance's "Loading your sections…" spinner — tier 2,
+after the Fri 2026-10-16 check. No data was written, so there is nothing to
+clean up.
+
 ### `ssr-dates.jsx` runs TWICE, under two timezones
 
 ```bash
