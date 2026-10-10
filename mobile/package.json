@@ -35,6 +35,7 @@
     "proof:build2-fixes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-build2-fixes.mjs",
     "proof:privacy": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-privacy.mjs",
     "proof:message-thread": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-message-thread.mjs",
+    "proof:query-key": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-query-key.mjs",
     "tone:write": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-message-tone.mjs"
   },
   "dependencies": {

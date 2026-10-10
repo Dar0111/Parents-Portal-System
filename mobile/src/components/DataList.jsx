@@ -5,7 +5,7 @@ import ErrorAlert from './ErrorAlert';
 import RecordCard from './RecordCard';
 import Skeleton, { SkeletonBar, SkeletonCircle } from './Skeleton';
 import { cardClass } from './buttonStyles';
-import { useSkeleton } from '../hooks/useSkeleton';
+import { useQueryRows, useSkeleton } from '../hooks/useSkeleton';
 import { useTheme } from '../theme/ThemeProvider';
 
 // THE PHONE'S DataTable (MOBILE_CONVENTIONS M11): presentational, never
@@ -59,21 +59,30 @@ import { useTheme } from '../theme/ThemeProvider';
 //   slow re-read is seen. The header is NOT made inert: its filters must
 //   stay usable while the list loads.
 //
-// THE LIST CANNOT TELL A RE-READ OF THE SAME QUERY FROM A NEW QUERY — a
-// screen hands it rows and `loading`, never its filters. So on a new query
-// the PREVIOUS rows stay, greyed and untouchable, until the new ones land;
-// the skeleton on a query change waits for a `queryKey` from every screen
-// (deferred with skeleton tier 2, owner, 2026-10-07; KNOWN_ISSUES).
+// A RE-READ OR A NEW QUERY — `queryKey` (option 1, feat/skeleton-querykey,
+// 2026-10-11; the web DataTable's rule). A screen hands the list rows and
+// `loading`, never its filters, so on its own the list keeps WHATEVER rows are
+// on screen while it loads. A screen whose query can change passes `queryKey`
+// — the values its load reads — and the rows then belong to the key they
+// arrived under (hooks/useSkeleton.js, `useQueryRows`, mirrored): the SAME key
+// loading again keeps them (a pull, a reconnect re-read, "Show more"
+// appending); a NEW key means nothing of that query is on screen, so the list
+// shows its skeleton — from the render the key changes in — and never the old
+// cards. No `queryKey`: exactly as before. A keyed screen passes a stable rows
+// array (its state).
 //
 // AN AVATAR WHERE THE CARDS HAVE ONE (fix round F4, 2026-10-08): a screen
 // whose cards carry `avatar` says so with `skeletonAvatar`, and each card
 // placeholder leads with a circle of RecordCard's Avatar size (38dp) — the
-// web DataTable's rule. The list cannot know before a row exists. Users and
-// both Students screens say it; the other avatar lists wait for option 1
-// (KNOWN_ISSUES).
+// web DataTable's rule. The list cannot know before a row exists. Users, both
+// Students screens, admin Attendance, teacher Attendance records, teacher
+// Excuse Letters and both Messages screens say it.
 const SKELETON_CARDS = ['w-2/3', 'w-1/2', 'w-3/4'];
 const SKELETON_AVATAR = 38;
 const BUSY_DIM = { opacity: 0.6 };
+// The list's data while its rows are another query's: none, so FlatList
+// shows its empty content — the skeleton.
+const NO_ROWS = [];
 
 function ListSkeleton({ phase, avatar }) {
   return (
@@ -115,11 +124,18 @@ export default function DataList({
   contentContainerStyle,
   // The cards lead with an avatar: the skeleton's cards do too (F4).
   skeletonAvatar = false,
+  // Which query the screen shows — the values its load reads (option 1; see
+  // above). Omitted = whatever rows are on screen are current.
+  queryKey = undefined,
 }) {
   const { tokens } = useTheme();
-  const firstLoad = loading && !rows.length;
+  // OPTION 1: rows another query left on screen are not shown; the skeleton
+  // stands in until this query's rows arrive (an error still shows first).
+  const rowsCurrent = useQueryRows(rows, loading, queryKey);
+  const shown = rowsCurrent ? rows : NO_ROWS;
+  const firstLoad = (loading || (!rowsCurrent && !error)) && !shown.length;
   // Rows on screen while the list loads: kept, untouchable, greyed after 300 ms.
-  const busy = loading && rows.length > 0;
+  const busy = loading && shown.length > 0;
   const skeleton = useSkeleton(firstLoad);
   const dimmed = useSkeleton(busy) === 'skeleton';
   const pull =
@@ -142,9 +158,9 @@ export default function DataList({
 
   // With rows on screen: the error (a failed "Show more" or re-read) and its
   // Retry, then "Show more" while there is more.
-  const footerError = rows.length && error ? <ErrorAlert message={error} onRetry={onRetry} /> : null;
+  const footerError = shown.length && error ? <ErrorAlert message={error} onRetry={onRetry} /> : null;
   const footerMore =
-    rows.length && hasMore ? (
+    shown.length && hasMore ? (
       <Button variant="secondary" full loading={loadingMore} onPress={onLoadMore}>
         {loadingMore ? 'Loading…' : loadMoreLabel}
       </Button>
@@ -161,7 +177,7 @@ export default function DataList({
   // stops loading, so FlatList is told to re-render its cells then.
   return (
     <FlatList
-      data={rows}
+      data={shown}
       extraData={busy ? (dimmed ? 'dimmed' : 'busy') : 'idle'}
       keyExtractor={(row, index) => String(row?.[keyField] ?? index)}
       renderItem={({ item }) => (

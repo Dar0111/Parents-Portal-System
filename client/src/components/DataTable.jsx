@@ -6,7 +6,7 @@ import ErrorAlert from './ErrorAlert';
 import Skeleton, { SkeletonBar, SkeletonCircle } from './Skeleton';
 import StatusBadge from './StatusBadge';
 import { buttonClass, cardClass } from './buttonClass';
-import { useSkeleton } from '../hooks/useSkeleton';
+import { useQueryRows, useSkeleton } from '../hooks/useSkeleton';
 
 // Presentational only — it never fetches. The page owns the request and hands
 // down rows/loading/error, so the same table renders a roster, a grade list,
@@ -50,13 +50,18 @@ import { useSkeleton } from '../hooks/useSkeleton';
 //   and after the same 300 ms the rows are greyed so a slow re-read is seen.
 //   It used to swap them for a spinner, which jumped the page every time.
 //
-// THE TABLE CANNOT TELL A RE-READ OF THE SAME QUERY FROM A NEW QUERY — it is
-// handed rows and `loading`, never the filters, the learner, the class or the
-// day. So on a new query the PREVIOUS rows stay, greyed and inert, until the
-// new ones land; the skeleton on a query change needs each page to say which
-// query it shows (a `queryKey` prop, 36 consumers) and is deferred to its own
-// dispatch with skeleton tier 2 (owner, 2026-10-07; KNOWN_ISSUES). A page that
-// clears its rows on a query change gets the skeleton already.
+// A RE-READ OR A NEW QUERY — `queryKey` (option 1, feat/skeleton-querykey,
+// 2026-10-11). The table is handed rows and `loading`, never the filters, the
+// learner, the class or the day, so on its own it keeps WHATEVER rows are on
+// screen while it loads. A page whose query can change passes `queryKey` —
+// the values its load reads (filters, sort, offset, learner, class, day) — and
+// the rows then belong to the key they arrived under (hooks/useSkeleton.js,
+// `useQueryRows`): the SAME key loading again keeps them (a socket re-read, a
+// Retry); a NEW key means nothing of that query is on screen, so the skeleton
+// shows — from the render the key changes in, before the read starts — and
+// the old rows never do. A page with no `queryKey` behaves exactly as before.
+// A keyed page passes a stable rows array (its state), never a new one per
+// render.
 //
 // ---------------------------------------------------------------------------
 // CARD LAYOUT BELOW `sm` (DV1, 2026-09-20) — opt-in via `renderCard`
@@ -218,21 +223,27 @@ const CARD_INTERACTIVE =
 // the size of Avatar's `md` (2.375rem) beside its bar, and each card
 // placeholder leads with the same circle — so the row is its real height and
 // the name lands where the bar was. The table cannot know this before a row
-// exists, which is why it is the page's to say. Users and both Students
-// pages say it; the other avatar lists wait for option 1 (KNOWN_ISSUES).
+// exists, which is why it is the page's to say. Users, both Students pages and
+// Messages say it.
+//
+// THE CARDS ONLY — `skeletonAvatar="cards"` (feat/skeleton-querykey): a page
+// whose cards lead with an avatar but whose table does not (its first column
+// is a date, or a name with no circle) — admin Attendance, teacher Attendance
+// records, teacher Excuse Letters. The circle goes on the card placeholders
+// and never into the table's first column.
 const SKELETON_ROWS = 5;
 const SKELETON_CARDS = 3;
 const SKELETON_WIDTHS = ['w-3/4', 'w-1/2', 'w-2/3', 'w-1/3', 'w-5/6'];
 const SKELETON_AVATAR = 'h-[2.375rem] w-[2.375rem]';
 
-function TableSkeleton({ phase, columns, cards, paged, avatar }) {
+function TableSkeleton({ phase, columns, cards, paged, cardAvatar, tableAvatar }) {
   return (
     <Skeleton phase={phase}>
       {cards ? (
         <div className="sm:hidden">
           {Array.from({ length: SKELETON_CARDS }, (_, i) => (
             <div key={i} className="flex items-start gap-3 border-b border-edge-soft px-4 py-3.5 last:border-0">
-              {avatar ? <SkeletonCircle className={SKELETON_AVATAR} /> : null}
+              {cardAvatar ? <SkeletonCircle className={SKELETON_AVATAR} /> : null}
               <div className="min-w-0 flex-1">
                 <div className="flex h-6 items-center">
                   <SkeletonBar className={`h-3.5 ${SKELETON_WIDTHS[i % SKELETON_WIDTHS.length]}`} />
@@ -268,7 +279,7 @@ function TableSkeleton({ phase, columns, cards, paged, avatar }) {
               <tr key={row} className="border-b border-edge-soft last:border-0">
                 {columns.map((column, col) => (
                   <td key={column.key} className="px-4 py-3.5">
-                    {avatar && col === 0 ? (
+                    {tableAvatar && col === 0 ? (
                       <div className="flex items-center gap-3">
                         <SkeletonCircle className={SKELETON_AVATAR} />
                         <SkeletonBar className={`h-3 ${SKELETON_WIDTHS[row % SKELETON_WIDTHS.length]}`} />
@@ -375,8 +386,12 @@ export default function DataTable({
   // Card mode below `sm`. Omitted = today's behaviour, table at every width.
   renderCard = null,
   // The first column and the cards lead with an avatar: the skeleton draws a
-  // circle there too (fix round F4; see TableSkeleton).
+  // circle there too (fix round F4; see TableSkeleton). "cards": the cards
+  // only.
   skeletonAvatar = false,
+  // Which query the page shows — the values its load reads (option 1; see
+  // the header comment). Omitted = whatever rows are on screen are current.
+  queryKey = undefined,
   // A click anywhere on a body row opens it, for a pointer (fix round W2;
   // see the header comment). Omitted = rows are not clickable.
   onRowClick = null,
@@ -422,9 +437,12 @@ export default function DataTable({
 
   // BUILD 2 — see the header comment. `kept`: a re-read with rows on screen,
   // which stay (inert, busy, greyed after 300 ms). `waiting`: nothing of the
-  // list on screen, which gets the skeleton after 300 ms.
-  const kept = loading && sortedRows.length > 0;
-  const waiting = (loading && !kept) || pageIsStale;
+  // list on screen, which gets the skeleton after 300 ms. OPTION 1: rows
+  // another query left on screen (`rowsCurrent` false) are never kept and
+  // never shown — the skeleton stands in until this query's rows arrive.
+  const rowsCurrent = useQueryRows(rows, loading, queryKey);
+  const kept = loading && rowsCurrent && sortedRows.length > 0;
+  const waiting = (loading && !kept) || pageIsStale || !rowsCurrent;
   const skeleton = useSkeleton(waiting);
   const dimmed = useSkeleton(kept) === 'skeleton';
 
@@ -485,7 +503,8 @@ export default function DataTable({
           columns={columns}
           cards={Boolean(renderCard)}
           paged={paged}
-          avatar={skeletonAvatar}
+          cardAvatar={skeletonAvatar === true || skeletonAvatar === 'cards'}
+          tableAvatar={skeletonAvatar === true}
         />
       </div>
     );

@@ -165,7 +165,7 @@ console.log('\nDataTable — a re-read keeps the rows, and nothing in them can b
   const idle = render(<DataTable columns={columns} rows={rows} />);
   assert(!/inert|aria-busy/.test(idle), 'idle, the frame carries neither — the table is exactly as before');
   const table = src('src/components/DataTable.jsx');
-  assert(/const kept = loading && sortedRows\.length > 0;/.test(table) && /const dimmed = useSkeleton\(kept\) === 'skeleton';/.test(table) && /dimmed \? `\$\{frame\} opacity-60` : frame/.test(table), 'greyed only once a kept re-read has taken 300 ms (source)');
+  assert(/const kept = loading && rowsCurrent && sortedRows\.length > 0;/.test(table) && /const dimmed = useSkeleton\(kept\) === 'skeleton';/.test(table) && /dimmed \? `\$\{frame\} opacity-60` : frame/.test(table), 'greyed only once a kept re-read has taken 300 ms (source)');
   assert(!/LoadingSpinner/.test(table) && !/if \(loading \|\| pageIsStale\)/.test(table), 'the spinner branch that swapped the rows away is gone (source)');
 }
 

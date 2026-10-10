@@ -50,4 +50,44 @@ export function useSkeleton(loading, delayMs = SKELETON_DELAY_MS) {
   return skeletonPhase({ loading: active, elapsedMs: elapsed && active === seen ? delayMs : 0, delayMs });
 }
 
+// WHICH QUERY THE ROWS ON SCREEN BELONG TO (feat/skeleton-querykey,
+// 2026-10-11 — option 1). A list is handed rows and `loading`, never the
+// page's filters, so on its own it cannot tell a re-read of the same query
+// (keep the rows) from a NEW query (nothing of it is on screen yet: the
+// skeleton). A page that passes a `queryKey` — the values its load reads:
+// filters, sort, offset, learner, class, day — lets it. The rows belong to the
+// key that was current when they ARRIVED (a new array) or when a load ENDED
+// (they are its answer, even when the page handed back the same array — an
+// empty result after an empty result). Until then a new key means the rows on
+// screen are another query's. No `queryKey`: every row is current, exactly as
+// before, and the hook never sets state.
+//
+// PURE — the record after this render, from the last one (`seen`, null on the
+// first render). `queryKey` is already a string here, or undefined.
+export function nextRowsQuery(seen, { rows, loading, queryKey }) {
+  const arrived = seen === null || rows !== seen.rows || (seen.loading && !loading);
+  return { rows, loading, rowsKey: arrived ? queryKey : seen.rowsKey };
+}
+
+// PURE — are the rows on screen the current query's?
+export function rowsAreCurrent(record, queryKey) {
+  return queryKey === undefined || record.rowsKey === queryKey;
+}
+
+// The hook over the two. `queryKey` is any JSON value (an array of the load's
+// inputs) and is compared as its JSON. The record is state, updated during
+// render — React's pattern for remembering the previous render, as above. A
+// keyed list must pass a STABLE rows array (state or a memo): a new array on
+// every render would arrive on every render.
+export function useQueryRows(rows, loading, queryKey) {
+  const key = queryKey === undefined ? undefined : JSON.stringify(queryKey);
+  const [seen, setSeen] = useState(null);
+  if (key === undefined) return true;
+  const next = nextRowsQuery(seen, { rows, loading: Boolean(loading), queryKey: key });
+  if (seen === null || next.rows !== seen.rows || next.loading !== seen.loading || next.rowsKey !== seen.rowsKey) {
+    setSeen(next);
+  }
+  return rowsAreCurrent(next, key);
+}
+
 export default useSkeleton;
