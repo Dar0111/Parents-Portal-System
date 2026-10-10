@@ -3843,6 +3843,18 @@ list at its newest message and brings the box in by the smallest page scroll
 only my own send may move the page. Shell's new-page scroll runs at the
 navigation, before the thread has loaded, so the thread has the last word.
 
+**The way back never scrolls away (fix round W1, 2026-10-11, the owner's
+device check).** Opening at the newest message with the box in view leaves
+"All conversations" above the window on a long thread, so the thread also
+hands the top bar its `listPath` through `usePageBack`
+(`layout/usePageBack.js`, provided by Shell like the title), and
+`Header.jsx` shows a **←** before the title, as the phone's thread
+header does: a real link, the shared ghost icon button (44px), named "All
+conversations". Only a page that calls the hook gets one — today the thread
+alone — so every other bar is unchanged and keeps its 4rem. The link above
+the card stays. A layout effect sets and clears it, so it never shows for a
+frame on the next page.
+
 ### 30b. `pages/messages/ConversationsPage.jsx` — the list and the picker
 
 Owns: `GET /messages/conversations` paged and sorted (C1/C6), the socket
@@ -3872,6 +3884,15 @@ one. **The look is the existing one, chosen per difference:** picker rows
 `text-sm`, the picker's `space-y-4` (both phone pickers' look), and the
 title's `[&_h2]:break-words` (the parent page's guard).
 
+**The whole row opens the conversation (fix round W2, 2026-10-11).**
+`DataTable`'s `onRowClick(row)` — opt-in, off by default, passed by this page
+alone — sends a click anywhere on a table row where Open goes, with the
+pointer cursor. **Open is unchanged** and stays the keyboard and
+screen-reader path: the row gets no tabindex, role or name. A click on a link
+or button inside the row is that control's (`openRowOnClick` ignores it), so
+Open navigates once; a drag that selected text in the row does not open it.
+Below `sm` the card was already one link (§5a-iii).
+
 ### 30c. What proves it
 
 - `scripts/loop-messages-thread.mjs` — **the REAL thread pages in headless
@@ -3887,6 +3908,12 @@ title's `[&_h2]:break-words` (the parent page's guard).
   the run-book.
 - The source-text proofs read **the wrapper and the shared file together**:
   `ssr-look-fixes`, `ssr-form-drafts`, `ssr-enter-to-send`, `ssr-dv1b-a`.
+- `scripts/ssr-messages-nav.jsx` (the fix round, 19 checks, each with a
+  negative control): the bar rendered with and without `back`, and only the
+  thread handing one over; the rows with and without `onRowClick`, the row's
+  handler RUN on fake clicks (a cell, Open, the icon inside Open, a link, a
+  text drag), and only this page passing it, to Open's own path. It cannot
+  run the effect that sets the ←, or a real click — the device check.
 - **Not proved here:** a real socket, a real send, the picker's Modal in a
   browser — the owner's device check (TESTING).
 

@@ -21,11 +21,19 @@
 // THE TITLE IS THE PAGE'S ONLY <h1>, in the title face. No routed page
 // renders another (the smoke run fails a page with two); a page's own
 // headings start at <h2>.
+//
+// `back` — A ← BEFORE THE TITLE, ON A PAGE THAT HANDS ONE OVER (fix round
+// W1, 2026-10-11): { to, label } from usePageBack.js, which only the
+// Messages thread calls, so every other page's bar is exactly what it was.
+// A real link (it can open in a new tab), the shared ghost icon button —
+// 44px, inside the bar's 4rem — with its label as the accessible name.
 
+import { Link } from 'react-router-dom';
 import Button from '../components/Button';
 import NotificationBell from '../components/NotificationBell';
+import { buttonClass } from '../components/buttonClass';
 
-export default function Header({ title, onOpenMenu, drawerOpen = false }) {
+export default function Header({ title, onOpenMenu, drawerOpen = false, back = null }) {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-edge bg-surface px-4 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
@@ -42,6 +50,13 @@ export default function Header({ title, onOpenMenu, drawerOpen = false }) {
           onClick={onOpenMenu}
           className="md:hidden"
         />
+        {back ? (
+          <Link to={back.to} aria-label={back.label} className={buttonClass({ variant: 'ghost', size: 'icon' })}>
+            <span aria-hidden="true" className="flex items-center justify-center">
+              <i className="fa-solid fa-arrow-left" />
+            </span>
+          </Link>
+        ) : null}
         <h1 className="truncate font-serif text-lg font-bold text-fg sm:text-xl">{title}</h1>
       </div>
 

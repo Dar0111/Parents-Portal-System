@@ -251,6 +251,11 @@ export default function ConversationsPage({ base, groups, searchPlaceholder, sea
                 Number(row.unread_count) > 0 ? ` · ${row.unread_count} unread` : ''
               }`,
             })}
+            // THE WHOLE ROW OPENS IT TOO (fix round W2, 2026-10-11): a click
+            // anywhere on a table row goes where its Open goes. Open stays
+            // exactly as it is — the keyboard and screen-reader path — and a
+            // click on it is its own, so it navigates once (DataTable).
+            onRowClick={(row) => navigate(`${base}/${row.other_user_id}`)}
             columns={columns}
             rows={conversations}
             keyField="other_user_id"

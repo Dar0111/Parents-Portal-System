@@ -278,7 +278,7 @@ const adminBlock = app.slice(app.indexOf('path="/admin"'), app.indexOf('path="/t
 assert(/<Route path="messages" element=\{<ParentMessages \/>\} \/>/.test(adminBlock) && /<Route path="messages\/:userId" element=\{<ParentMessageThread \/>\} \/>/.test(adminBlock), 'the /admin layout route renders the parent Messages list and thread');
 const parentList = src('src/pages/parent/MessagesPage.jsx') + src('src/pages/messages/ConversationsPage.jsx'); // wrapper + shared page (feat/shared-messages)
 assert(/const isAdmin = user\?\.role === 'admin';/.test(parentList) && /const base = isAdmin \? '\/admin\/messages' : '\/parent\/messages';/.test(parentList), 'the list page takes its base path from the signed-in role');
-assert(!/['`]\/parent\/messages\//.test(parentList) && (parentList.match(/`\$\{base\}\//g) || []).length === 3, '…every thread link uses it — the Open button, the card and the picker — and none names /parent/messages/');
+assert(!/['`]\/parent\/messages\//.test(parentList) && (parentList.match(/`\$\{base\}\//g) || []).length === 4, '…every thread link uses it — the Open button, the card, the row (fix round W2) and the picker — and none names /parent/messages/');
 // Since feat/shared-messages the wrapper names its groups and the shared page
 // fills each with the contacts of that role.
 assert(/const GROUPS = Object\.freeze\(\[\{ role: 'teacher', label: 'Teachers' \}\]\);/.test(parentList) && /rows: filteredContacts\.filter\(\(c\) => c\.role === group\.role\)/.test(parentList) && !/role: 'admin'/.test(parentList), 'the picker is ONE group, Teachers — no Admin group for either role');

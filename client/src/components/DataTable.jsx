@@ -89,7 +89,22 @@ import { useSkeleton } from '../hooks/useSkeleton';
 // be.
 //
 // The table is unchanged in this respect: rows stay non-interactive <tr>s and
-// actions stay real buttons in the Actions cell.
+// actions stay real buttons in the Actions cell — unless the page passes
+// `onRowClick` (below), which the Messages lists alone do.
+//
+// ---------------------------------------------------------------------------
+// THE WHOLE ROW, FOR A POINTER (fix round W2, 2026-10-11) — opt-in via
+// `onRowClick(row)`
+// ---------------------------------------------------------------------------
+// Omitted (every list but Messages): nothing changes. Given: a click anywhere
+// on a body row calls it, and the row shows the pointer cursor. It is a
+// SHORTCUT for the row's own action, which stays a real button in its cell
+// and stays the keyboard and screen-reader path — the row gets no tabindex,
+// no role and no name, so nothing new is announced or reached by Tab. A click
+// on a link or a button inside the row is THAT control's and the row does
+// nothing, so Open navigates once; a drag that selected text in the row is a
+// copy, not an open. The cards below `sm` need none of this: a card with `to`
+// is already one link.
 
 const ALIGN = {
   left: 'text-left',
@@ -124,6 +139,17 @@ function compare(a, b) {
   if (!Number.isNaN(numA) && !Number.isNaN(numB)) return numA - numB;
 
   return String(a).localeCompare(String(b));
+}
+
+// A body row, and the controls whose clicks are their own (see `onRowClick`
+// in the header comment).
+const ROW_CLASS = 'border-b border-edge-soft transition-colors last:border-0 hover:bg-surface-subtle';
+const ROW_CONTROLS = 'a, button, input, select, textarea, label, summary';
+
+function openRowOnClick(event, row, onRowClick) {
+  if (event.target.closest(ROW_CONTROLS)) return;
+  if (window.getSelection()?.toString()) return;
+  onRowClick(row);
 }
 
 // The offset of the last page that holds at least one row.
@@ -351,6 +377,9 @@ export default function DataTable({
   // The first column and the cards lead with an avatar: the skeleton draws a
   // circle there too (fix round F4; see TableSkeleton).
   skeletonAvatar = false,
+  // A click anywhere on a body row opens it, for a pointer (fix round W2;
+  // see the header comment). Omitted = rows are not clickable.
+  onRowClick = null,
 }) {
   const paged = Boolean(page);
   const [localSort, setLocalSort] = useState(null);
@@ -593,7 +622,8 @@ export default function DataTable({
             {sortedRows.map((row, index) => (
               <tr
                 key={row[keyField] ?? index}
-                className="border-b border-edge-soft transition-colors last:border-0 hover:bg-surface-subtle"
+                onClick={onRowClick ? (event) => openRowOnClick(event, row, onRowClick) : undefined}
+                className={onRowClick ? `${ROW_CLASS} cursor-pointer` : ROW_CLASS}
               >
                 {columns.map((column) => (
                   <td

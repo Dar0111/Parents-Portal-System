@@ -14,6 +14,7 @@ import { shouldScrollToTop } from './scrollOnNavigate';
 import { readSidebarCollapsed, saveSidebarCollapsed } from './sidebarPref';
 import { settingsTabsForRole } from '../pages/settings/tabs';
 import { PageTitleContext } from './usePageTitle';
+import { PageBackContext } from './usePageBack';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider, { useUnread } from '../realtime/UnreadProvider';
 import LiveStatus from '../realtime/LiveStatus';
@@ -489,6 +490,11 @@ function ShellChrome() {
   // it is itself providing.
   const [customTitle, setCustomTitle] = useState(null);
   const titleContext = useMemo(() => ({ setTitle: setCustomTitle }), []);
+  // The top bar's ← (fix round W1, 2026-10-11): { to, label } from a page
+  // that calls usePageBack — the Messages thread alone — else null and the
+  // bar has none. Owned here like the title, for the same reason.
+  const [back, setBack] = useState(null);
+  const backContext = useMemo(() => ({ setBack }), []);
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const closeDrawer = () => setMobileNavOpen(false);
@@ -767,6 +773,7 @@ function ShellChrome() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Header
           title={title}
+          back={back}
           onOpenMenu={() => setMobileNavOpen(true)}
           drawerOpen={mobileNavOpen}
         />
@@ -807,7 +814,9 @@ function ShellChrome() {
               onRefresh={() => window.location.reload()}
           />
           <PageTitleContext.Provider value={titleContext}>
-            <Outlet />
+            <PageBackContext.Provider value={backContext}>
+              <Outlet />
+            </PageBackContext.Provider>
           </PageTitleContext.Provider>
         </main>
       </div>

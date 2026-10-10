@@ -18,13 +18,14 @@ import { useDraftAutosave } from '../../drafts/useDraft';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { usePageTitle } from '../../layout/usePageTitle';
+import { usePageBack } from '../../layout/usePageBack';
 
 // ONE CONVERSATION, FOR EVERY ROLE (feat/shared-messages, 2026-10-11;
 // FRONTEND §30). The admin's, the parent's and the teacher's thread pages were
 // two copies of this file — the parent's (also the admin's since 2026-10-05)
 // and the teacher's — kept equal by hand; each is now a small wrapper that
 // passes what differs:
-//   - `listPath`  — where "All conversations" goes;
+//   - `listPath`  — where "All conversations" goes, and the top bar's ←;
 //   - `renderTop` — optional: lays out the row above the card around `back`
 //     (that link). The teacher's wrapper puts "Announce to a class" there, on
 //     a parent's thread only. It receives { back, otherId, other, draft } —
@@ -175,6 +176,11 @@ export default function MessageThread({ listPath, renderTop }) {
   const pickedName = typeof location.state?.name === 'string' && location.state.name ? location.state.name : null;
 
   usePageTitle(other?.name || pickedName || 'Conversation');
+  // THE WAY BACK THAT NEVER SCROLLS AWAY (fix round W1, 2026-10-11): the
+  // thread opens at its newest message with the box in view, so on a long
+  // thread the link below sits above the window. The top bar shows a ← to
+  // the same `listPath` (layout/usePageBack.js); the link below stays.
+  usePageBack(listPath, 'All conversations');
 
   const load = useCallback(async () => {
     // THE SPINNER IS FOR A THREAD'S FIRST LOAD ONLY (feat/look-fixes): this
