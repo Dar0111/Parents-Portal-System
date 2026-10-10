@@ -10,8 +10,8 @@
 //
 //   messages/:userId   — IT WRITES ON LOAD. Both thread pages call
 //                        PATCH /messages/read-all/:otherId when any message
-//                        is unread (parent/MessageThreadPage.jsx:83,
-//                        teacher/MessageThreadPage.jsx:121). A read-only
+//                        is unread (pages/messages/MessageThread.jsx, the one
+//                        thread every role's page renders). A read-only
 //                        smoke run may not visit it. If detail routes are
 //                        ever added, THIS ONE STAYS OUT or is declared a
 //                        writer.

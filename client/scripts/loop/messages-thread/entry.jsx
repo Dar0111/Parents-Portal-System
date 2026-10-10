@@ -3,7 +3,8 @@
 // The REAL thread page each role's route renders — App.jsx sends
 // /admin/messages/:userId and /parent/messages/:userId to
 // pages/parent/MessageThreadPage.jsx and /teacher/messages/:userId to
-// pages/teacher/MessageThreadPage.jsx — inside a MemoryRouter and a stand-in
+// pages/teacher/MessageThreadPage.jsx, each a wrapper around
+// pages/messages/MessageThread.jsx since commit 2 — inside a MemoryRouter and a stand-in
 // for Shell's frame: the 16rem sidebar, the 64px sticky header and <main>'s
 // padding, their class lists copied from Shell.jsx and Header.jsx (the runner
 // checks they are still there). The fonts and the stylesheet are main.jsx's,

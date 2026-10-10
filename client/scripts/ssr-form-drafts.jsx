@@ -281,7 +281,8 @@ const hookSrc = fs.readFileSync(path.resolve('src/drafts/useDraft.js'), 'utf8').
 assert(/if \(!p\) return;\s*if \(isBlankDraft\(p\.form, p\.values\)\) clearDraft\(p\);\s*else saveDraft\(p\);/.test(hookSrc), 'the web hook clears the key instead of saving a blank form (every write goes through flush)');
 assert(/if \(stored && isBlankDraft\(form, stored\.values\)\) clearDraft\(\{ userId, form, context \}\);\s*else closeDraft\(\{ userId, form, context \}\);/.test(hookSrc), 'closing a form removes a blank draft kept from before, instead of keeping it closed');
 for (const who of ['teacher', 'parent']) {
-  const page = fs.readFileSync(path.resolve(`src/pages/${who}/MessageThreadPage.jsx`), 'utf8');
+  // The role's wrapper and the shared thread it renders (feat/shared-messages).
+  const page = fs.readFileSync(path.resolve(`src/pages/${who}/MessageThreadPage.jsx`), 'utf8') + fs.readFileSync(path.resolve('src/pages/messages/MessageThread.jsx'), 'utf8');
   assert(/const body = record \? record\.values\.body : '';\s*return typeof body === 'string' && body\.trim\(\) \? body : '';/.test(page), `${who} thread: a blank kept message is neither restored nor announced as "Draft restored"`);
 }
 

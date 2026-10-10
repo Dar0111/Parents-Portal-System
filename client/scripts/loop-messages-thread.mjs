@@ -7,8 +7,8 @@
 //   (b) the message box is in the window when a thread opens (F2);
 //   and "Load earlier messages" keeps the reader's place — the list moves to
 //   the end only when the newest message changes.
-// Before feat/shared-messages moves the thread into one component, so the
-// refactor has to keep all three.
+// Written before feat/shared-messages moved the thread into one component
+// (commit 1, against the two old pages), so the refactor had to keep all three.
 //
 // HOW: Vite builds scripts/loop/messages-thread/entry.jsx — the REAL thread
 // pages, with the api, auth, socket and unread modules swapped for the
@@ -50,9 +50,11 @@ const COMPOSER = 'textarea[aria-label="Write a message"]';
 // The four modules the stand-ins replace.
 const MOCKED = ['src/api/axios.js', 'src/auth/AuthContext.jsx', 'src/realtime/SocketProvider.jsx', 'src/realtime/UnreadProvider.jsx'];
 
-// Where the thread's positioning lives today. Each control must change each of
-// these exactly once.
-const THREAD_FILES = ['src/pages/parent/MessageThreadPage.jsx', 'src/pages/teacher/MessageThreadPage.jsx'];
+// Where the thread's positioning lives. Each control must change each of these
+// exactly once. Commit 1 named the two thread pages; since the refactor
+// (commit 2) every role's page is a wrapper around the one shared component,
+// so a control changes that file and nothing else.
+const THREAD_FILES = ['src/pages/messages/MessageThread.jsx'];
 
 // Shell's frame, as entry.jsx copies it: each class list must still be in its
 // source, or the stand-in has drifted from the app.

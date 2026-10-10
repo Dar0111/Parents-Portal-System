@@ -105,7 +105,8 @@ assert(sendNew.prevented && sendNew.submitted, 'a plain Enter with text: prevent
 
 console.log('Source text — both thread pages (read as files, not rendered)');
 for (const who of ['teacher', 'parent']) {
-  const src = fs.readFileSync(path.resolve(`src/pages/${who}/MessageThreadPage.jsx`), 'utf8');
+  // The role's wrapper and the shared thread it renders (feat/shared-messages).
+  const src = fs.readFileSync(path.resolve(`src/pages/${who}/MessageThreadPage.jsx`), 'utf8') + fs.readFileSync(path.resolve('src/pages/messages/MessageThread.jsx'), 'utf8');
   const wired =
     /import \{ enterKeyAction \} from '\.\.\/\.\.\/components\/enterToSend';/.test(src) &&
     /onKeyDown=\{\(e\) => \{[\s\S]*?const action = enterKeyAction\(e, \{ sending, draft \}\);\s*if \(!action\) return;\s*e\.preventDefault\(\);\s*if \(action === 'send'\) e\.currentTarget\.form\?\.requestSubmit\(\);/.test(src);

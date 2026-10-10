@@ -154,17 +154,20 @@ assert(/if \(loadTickets\.isLatest\(ticket\)\) setLoading\(false\);/.test(record
 
 console.log('The web message thread — spinner and title (source, both pages)');
 for (const role of ['teacher', 'parent']) {
-  const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
+  const page = src(`src/pages/${role}/MessageThreadPage.jsx`) + src('src/pages/messages/MessageThread.jsx'); // the role's wrapper and the shared thread (feat/shared-messages)
   const load = page.slice(page.indexOf('const load = useCallback'), page.indexOf('const load = useCallback') + 2400);
   assert(/setLoading\(loadedForRef\.current !== otherId \|\| messagesRef\.current\.length === 0\);/.test(load) && !/setLoading\(true\)/.test(load), `${role}: the spinner only on a thread's first load or while it is empty`);
   assert(/if \(loadedForRef\.current !== otherId\) setMessages\(\[\]\);/.test(load), `${role}: a failed re-read keeps the list`);
   assert(/\(m\.sender_id === otherId && m\.sender_name\) \|\| \(m\.receiver_id === otherId && m\.receiver_name\)/.test(page), `${role}: the other person comes only from a message that carries their name`);
   assert(/usePageTitle\(other\?\.name \|\| pickedName \|\| 'Conversation'\);/.test(page) && /location\.state\?\.name/.test(page), `${role}: a new thread is titled with the picked person's name`);
-  const list = src(`src/pages/${role}/MessagesPage.jsx`);
+  const list = src(`src/pages/${role}/MessagesPage.jsx`) + src('src/pages/messages/ConversationsPage.jsx'); // the role's wrapper and the shared page
+  if (role === 'teacher') assert(/base="\/teacher\/messages"/.test(list), 'teacher → Messages: the shared page is handed /teacher/messages as its base');
   // The parent page's links take their base from the role since 2026-10-05
   // (the admin's inbox is the same page), so its picker navigates to
-  // `${base}/<id>`; the teacher's still names its own path.
-  const pickerBase = role === 'teacher' ? '/teacher/messages' : '\\$\\{base\\}';
+  // `${base}/<id>`; the teacher's named its own path until feat/shared-messages.
+  // Since feat/shared-messages both roles' pickers are the one shared page,
+  // navigating through `${base}` (the teacher's wrapper passes its path).
+  const pickerBase ='\\$\\{base\\}';
   assert(new RegExp(`navigate\\(\`${pickerBase}/\\$\\{c\\.id\\}\`, \\{ state: \\{ name: c\\.name \\} \\}\\)`).test(list), `${role}: the New-message picker hands the contact's name over in router state (never the URL)`);
 }
 
@@ -215,7 +218,7 @@ assert(reportCardSrc.includes(`'${C1}'`) && !reportCardSrc.includes('The final l
 
 console.log('Fix rounds 3 and 5 — the thread heading and the send guard (source + a model)');
 for (const role of ['teacher', 'parent']) {
-  const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
+  const page = src(`src/pages/${role}/MessageThreadPage.jsx`) + src('src/pages/messages/MessageThread.jsx'); // the role's wrapper and the shared thread (feat/shared-messages)
   assert(/<Avatar name=\{other\?\.name \|\| pickedName\} \/>/.test(page) && /\{other\?\.name \|\| pickedName \|\| 'Conversation'\}<\/h2>/.test(page), `${role}: the thread card's avatar and heading fall back to the picked name, as the title does`);
   const at = page.indexOf('async function send(event)');
   const sendFn = page.slice(at, at + 1600);
@@ -273,31 +276,33 @@ console.log('Admin Messages — the routes, the base path, one group (source)');
 const app = src('src/App.jsx');
 const adminBlock = app.slice(app.indexOf('path="/admin"'), app.indexOf('path="/teacher"'));
 assert(/<Route path="messages" element=\{<ParentMessages \/>\} \/>/.test(adminBlock) && /<Route path="messages\/:userId" element=\{<ParentMessageThread \/>\} \/>/.test(adminBlock), 'the /admin layout route renders the parent Messages list and thread');
-const parentList = src('src/pages/parent/MessagesPage.jsx');
+const parentList = src('src/pages/parent/MessagesPage.jsx') + src('src/pages/messages/ConversationsPage.jsx'); // wrapper + shared page (feat/shared-messages)
 assert(/const isAdmin = user\?\.role === 'admin';/.test(parentList) && /const base = isAdmin \? '\/admin\/messages' : '\/parent\/messages';/.test(parentList), 'the list page takes its base path from the signed-in role');
 assert(!/['`]\/parent\/messages\//.test(parentList) && (parentList.match(/`\$\{base\}\//g) || []).length === 3, '…every thread link uses it — the Open button, the card and the picker — and none names /parent/messages/');
-assert(/\[\{ role: 'teacher', label: 'Teachers', rows: filteredContacts\.filter\(\(c\) => c\.role === 'teacher'\) \}\]/.test(parentList) && !/role: 'admin'/.test(parentList), 'the picker is ONE group, Teachers — no Admin group for either role');
-const parentThread = src('src/pages/parent/MessageThreadPage.jsx');
-assert(/to=\{user\?\.role === 'admin' \? '\/admin\/messages' : '\/parent\/messages'\}/.test(parentThread), "the thread's back link follows the role too");
+// Since feat/shared-messages the wrapper names its groups and the shared page
+// fills each with the contacts of that role.
+assert(/const GROUPS = Object\.freeze\(\[\{ role: 'teacher', label: 'Teachers' \}\]\);/.test(parentList) && /rows: filteredContacts\.filter\(\(c\) => c\.role === group\.role\)/.test(parentList) && !/role: 'admin'/.test(parentList), 'the picker is ONE group, Teachers — no Admin group for either role');
+const parentThread = src('src/pages/parent/MessageThreadPage.jsx') + src('src/pages/messages/MessageThread.jsx'); // wrapper + shared thread
+assert(/listPath=\{user\?\.role === 'admin' \? '\/admin\/messages' : '\/parent\/messages'\}/.test(parentThread) && /to=\{listPath\}/.test(parentThread), "the thread's back link follows the role too");
 // CODE, not comments: a `//` line may say what the page does not do.
 const code = (s) => s.replace(/^\s*\/\/.*$/gm, '');
 assert(!/fa-bullhorn|Announce to|\/teacher\/announcements/.test(code(parentThread)), 'the parent/admin thread has no "Announce to a class"');
 
 console.log('Admin Messages — the teacher hand-off only on a parent thread (source)');
-const teacherThread = src('src/pages/teacher/MessageThreadPage.jsx');
+const teacherThread = src('src/pages/teacher/MessageThreadPage.jsx') + src('src/pages/messages/MessageThread.jsx'); // wrapper + shared thread
 assert(/const otherIsParent = \(other\?\.role \|\| contactRow\?\.role\) === 'parent';/.test(teacherThread), "the rule: the other person's role from a named message, else from the contacts row, must be parent");
 const HANDOFF = /\{otherIsParent \? \(\s*<Button\s+icon="fa-bullhorn"/;
 const HINT = /\{otherIsParent \? <p className="text-xs text-fg-muted sm:text-right">\{announceHint\}<\/p> : null\}/;
 assert(HANDOFF.test(teacherThread) && HINT.test(teacherThread), 'the button AND its hint render only under that rule');
 assert((teacherThread.match(/>\{announceHint\}</g) || []).length === 1 && (teacherThread.match(/icon="fa-bullhorn"/g) || []).length === 1, '…and neither appears anywhere else on the page');
-const ungated = teacherThread.replace('{otherIsParent ? (\n            <Button', '{true ? (\n            <Button');
+const ungated = teacherThread.replace(/\{otherIsParent \? \(\s*<Button/, '{true ? (<Button');
 assert(!HANDOFF.test(ungated), 'NEGATIVE CONTROL: with the button ungated, the hand-off assertion fails');
 
 console.log('Admin Messages — the five copy changes (source)');
 const routesMessages = src('../server/routes/messages.js');
 assert(routesMessages.includes("message: 'Parents may only message their child\\'s teachers.'"), 'copy 1: "Parents may only message their child\'s teachers."');
 assert(routesMessages.includes("message: 'The admin may only message teachers.'"), 'copy 2: "The admin may only message teachers."');
-assert(/placeholder="Teacher name"/.test(parentList) && !/Teacher or admin name/.test(parentList), 'copy 3: the picker placeholder is "Teacher name"');
+assert(/searchPlaceholder="Teacher name"/.test(parentList) && /placeholder=\{searchPlaceholder\}/.test(parentList) && !/Teacher or admin name/.test(parentList), 'copy 3: the picker placeholder is "Teacher name"');
 assert(parentList.includes(`"You can message your child's teachers once your account is linked to a student."`) && !/and the school admin/.test(parentList), "copy 4: the parent's empty picker names teachers only");
 assert(parentList.includes("'Active teacher accounts appear here.'") && /title="No one to message yet"/.test(parentList), "copy 5: the admin's empty picker, under the existing title");
 
@@ -315,7 +320,7 @@ const waitsForTheList = (s) =>
   /const list = listRef\.current;\s*if \(!list \|\| loading \|\| loadedForRef\.current !== otherId\) return;[\s\S]*?lastIdRef\.current = lastId;/.test(s) &&
   /\}, \[messages, loading, otherId\]\);/.test(s);
 for (const role of ['teacher', 'parent']) {
-  const page = src(`src/pages/${role}/MessageThreadPage.jsx`);
+  const page = src(`src/pages/${role}/MessageThreadPage.jsx`) + src('src/pages/messages/MessageThread.jsx'); // the role's wrapper and the shared thread (feat/shared-messages)
   assert(scrollsOnlyTheList(page), `${role}: no end-of-list scrollIntoView; the 28rem list sets its own scrollTop`);
   const helper = code(page).slice(code(page).indexOf('function keepBoxInView(box) {'), code(page).indexOf('function keepBoxInView(box) {') + 260);
   assert(

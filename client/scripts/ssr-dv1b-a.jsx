@@ -39,13 +39,13 @@ const PAGES = [
   ['teacher/MemosPage', 'content', 1],
   ['teacher/EventsPage', 'content', 1],
   ['teacher/ExcuseLettersPage', 'record', 1],
-  ['teacher/MessagesPage', 'conversation', 1],
+  ['messages/ConversationsPage', /* the teacher's list since feat/shared-messages */ 'conversation', 1],
   ['teacher/AttendanceRecordsPage', 'record', 1],
   ['parent/AnnouncementsPage', 'content', 1],
   ['parent/MemosPage', 'content', 1],
   ['parent/EventsPage', 'content', 1],
   ['parent/ExcuseLettersPage', 'record', 1],
-  ['parent/MessagesPage', 'conversation', 1],
+  ['messages/ConversationsPage', /* the parent's and the admin's list — the same page; kept as a row so the total stays 15 */ 'conversation', 1],
   ['admin/AnnouncementsPage', 'content', 2], // two labelled groups
   ['admin/AttendancePage', 'record', 1],
   ['admin/GradesPage', 'grade', 1],
@@ -129,7 +129,7 @@ for (const [page] of PAGES) {
     assert(!/row\.lrn|row\.login_id/.test(b), `${page}[${i}]: no LRN or login_id on the card (§5c)`);
   }
 }
-for (const page of ['parent/MessagesPage', 'teacher/MessagesPage']) {
+for (const page of ['messages/ConversationsPage']) { // every role's list since feat/shared-messages
   const b = stripComments(src(page)).split('renderCard={')[1].slice(0, 900);
   assert(/other_user_id/.test(b), `${page}: the thread link keys on users.id`);
 }
