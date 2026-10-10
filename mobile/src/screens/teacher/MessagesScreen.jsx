@@ -75,6 +75,7 @@ export default function MessagesScreen({ navigation }) {
     <DataList
       rows={rows}
       keyField="other_user_id"
+      skeletonAvatar
       renderCard={(row) => ({
         onSelect: () => navigation.navigate('MessageThread', { otherId: row.other_user_id, name: row.other_user_name }),
         avatar: row.other_user_name,

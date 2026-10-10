@@ -320,6 +320,7 @@ export default function UsersScreen({ navigation, route }) {
       <DataList
         rows={users}
         skeletonAvatar
+        queryKey={[applied]}
         renderCard={(row) => {
           const a = rowActions(row, me?.id);
           const busy = statusSavingId === row.id;

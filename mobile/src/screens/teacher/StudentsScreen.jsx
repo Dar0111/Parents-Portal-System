@@ -208,6 +208,7 @@ export default function StudentsScreen({ navigation, route }) {
     <DataList
       rows={students}
       skeletonAvatar
+      queryKey={[applied]}
       renderCard={(row) => ({
         onSelect: () => navigation.navigate('StudentDetail', { id: row.id }),
         avatar: `${row.first_name} ${row.last_name}`,

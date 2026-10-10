@@ -185,6 +185,8 @@ export default function ExcuseLettersScreen({ navigation, route }) {
   return (
     <DataList
       rows={letters}
+      queryKey={[applied]}
+      skeletonAvatar
       renderCard={(row) => teacherLetterCard(row, { canReview, onOpen: openLetter })}
       loading={loading}
       error={error}

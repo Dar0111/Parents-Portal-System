@@ -157,6 +157,7 @@ export default function AnnouncementsScreen({ navigation, route }) {
   return (
     <DataList
       rows={rows}
+      queryKey={[applied]}
       renderCard={(row) =>
         teacherAnnouncementCard(row, {
           actions:

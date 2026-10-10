@@ -107,7 +107,7 @@ function ListSkeleton({ phase, avatar }) {
 }
 
 export default function DataList({
-  rows,
+  rows: handedRows,
   keyField = 'id',
   renderCard,
   loading = false,
@@ -129,13 +129,15 @@ export default function DataList({
   queryKey = undefined,
 }) {
   const { tokens } = useTheme();
-  // OPTION 1: rows another query left on screen are not shown; the skeleton
-  // stands in until this query's rows arrive (an error still shows first).
-  const rowsCurrent = useQueryRows(rows, loading, queryKey);
-  const shown = rowsCurrent ? rows : NO_ROWS;
-  const firstLoad = (loading || (!rowsCurrent && !error)) && !shown.length;
+  // OPTION 1: rows another query left on screen are not this list's rows —
+  // `rows` below is what the list shows, none while the screen's rows belong
+  // to another query, so the skeleton stands in until this query's arrive (an
+  // error still shows first). Everything after this reads `rows`.
+  const rowsCurrent = useQueryRows(handedRows, loading, queryKey);
+  const rows = rowsCurrent ? handedRows : NO_ROWS;
+  const firstLoad = (loading || (!rowsCurrent && !error)) && !rows.length;
   // Rows on screen while the list loads: kept, untouchable, greyed after 300 ms.
-  const busy = loading && shown.length > 0;
+  const busy = loading && rows.length > 0;
   const skeleton = useSkeleton(firstLoad);
   const dimmed = useSkeleton(busy) === 'skeleton';
   const pull =
@@ -158,9 +160,9 @@ export default function DataList({
 
   // With rows on screen: the error (a failed "Show more" or re-read) and its
   // Retry, then "Show more" while there is more.
-  const footerError = shown.length && error ? <ErrorAlert message={error} onRetry={onRetry} /> : null;
+  const footerError = rows.length && error ? <ErrorAlert message={error} onRetry={onRetry} /> : null;
   const footerMore =
-    shown.length && hasMore ? (
+    rows.length && hasMore ? (
       <Button variant="secondary" full loading={loadingMore} onPress={onLoadMore}>
         {loadingMore ? 'Loading…' : loadMoreLabel}
       </Button>
@@ -177,7 +179,7 @@ export default function DataList({
   // stops loading, so FlatList is told to re-render its cells then.
   return (
     <FlatList
-      data={shown}
+      data={rows}
       extraData={busy ? (dimmed ? 'dimmed' : 'busy') : 'idle'}
       keyExtractor={(row, index) => String(row?.[keyField] ?? index)}
       renderItem={({ item }) => (

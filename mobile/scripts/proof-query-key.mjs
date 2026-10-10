@@ -186,20 +186,23 @@ proved(
 // ---------------------------------------------------------------------------
 console.log('DataList — source text');
 const list = src('components/DataList.jsx');
+// The prop is `handedRows`; `rows` is what the list shows — none while the
+// screen's rows are another query's — and everything after it reads `rows`.
 const listWired = (s) =>
-  /const rowsCurrent = useQueryRows\(rows, loading, queryKey\);/.test(s) &&
-  /const shown = rowsCurrent \? rows : NO_ROWS;/.test(s) &&
-  /data=\{shown\}/.test(s) &&
-  !/data=\{rows\}/.test(s) &&
+  /rows: handedRows,/.test(s) &&
+  /const rowsCurrent = useQueryRows\(handedRows, loading, queryKey\);/.test(s) &&
+  /const rows = rowsCurrent \? handedRows : NO_ROWS;/.test(s) &&
+  /data=\{rows\}/.test(s) &&
+  (s.match(/handedRows/g) || []).length === 3 &&
   /queryKey = undefined,/.test(s);
 proved(
   'L1 the cards another query left are not handed to FlatList — its empty content, the skeleton, stands in',
   listWired,
   list,
-  list.replace('data={shown}', 'data={rows}'),
-  list.replace('const shown = rowsCurrent ? rows : NO_ROWS;', 'const shown = rows;')
+  list.replace('data={rows}', 'data={handedRows}'),
+  list.replace('const rows = rowsCurrent ? handedRows : NO_ROWS;', 'const rows = handedRows;')
 );
-const firstLoad = (s) => /const firstLoad = \(loading \|\| \(!rowsCurrent && !error\)\) && !shown\.length;/.test(s);
+const firstLoad = (s) => /const firstLoad = \(loading \|\| \(!rowsCurrent && !error\)\) && !rows\.length;/.test(s);
 proved(
   'L2 the skeleton while not current — but an error still shows first',
   firstLoad,
@@ -208,15 +211,15 @@ proved(
   list.replace('(loading || (!rowsCurrent && !error))', 'loading')
 );
 const counts = (s) =>
-  /const busy = loading && shown\.length > 0;/.test(s) &&
-  /const footerError = shown\.length && error/.test(s) &&
-  /shown\.length && hasMore \?/.test(s) &&
-  !/rows\.length/.test(s);
+  /const busy = loading && rows\.length > 0;/.test(s) &&
+  /const footerError = rows\.length && error/.test(s) &&
+  /rows\.length && hasMore \?/.test(s) &&
+  !/handedRows\.length/.test(s);
 proved(
   'L3 kept cards, the footer error and "Show more" count only this query’s cards',
   counts,
   list,
-  list.replace('const busy = loading && shown.length > 0;', 'const busy = loading && rows.length > 0;')
+  list.replace('const busy = loading && rows.length > 0;', 'const busy = loading && handedRows.length > 0;')
 );
 const order = (s) => {
   const skeleton = s.indexOf('if (firstLoad) emptyContent');
@@ -229,6 +232,102 @@ proved(
   order,
   list,
   list.replace('else emptyContent = <EmptyState', 'else emptyContent = null; const _x = <EmptyState')
+);
+
+// ---------------------------------------------------------------------------
+// The screens (commit 3): every list whose query can change passes a key, and
+// the key is its load's dependency array — so it changes exactly when the load
+// runs for another query; a pull and "Show more" keep it.
+console.log('The phone screens — source text');
+const SCREENS = path.join(SRC, 'screens');
+const screens = Object.fromEntries(
+  fs
+    .readdirSync(SCREENS, { recursive: true })
+    .map((f) => String(f).split(path.sep).join('/'))
+    .filter((f) => /\.jsx?$/.test(f) && !f.startsWith('dev/'))
+    .map((f) => [f, fs.readFileSync(path.join(SCREENS, f), 'utf8').replace(/\r\n/g, '\n')])
+);
+const KEYED = [
+  'admin/AnnouncementsScreen.jsx',
+  'admin/AttendanceScreen.jsx',
+  'admin/StudentsScreen.jsx',
+  'admin/UsersScreen.jsx',
+  'parent/EventsScreen.jsx',
+  'teacher/AnnouncementsScreen.jsx',
+  'teacher/AttendanceRecordsScreen.jsx',
+  'teacher/EventsScreen.jsx',
+  'teacher/ExcuseLettersScreen.jsx',
+  'teacher/StudentsScreen.jsx',
+].sort();
+// The lists that load with no query at all: nothing changes, so no key.
+const NO_QUERY = [
+  'NotificationsScreen.jsx',
+  'parent/AnnouncementsScreen.jsx',
+  'parent/ExcuseLettersScreen.jsx',
+  'parent/MemosScreen.jsx',
+  'parent/MessagesScreen.jsx',
+  'teacher/MemosScreen.jsx',
+  'teacher/MessagesScreen.jsx',
+].sort();
+const parts = (list) => list.split(',').map((s) => s.trim()).filter(Boolean).sort();
+const keysIn = (text) => [...text.matchAll(/queryKey=\{\[([^\]]*)\]\}/g)].map((m) => ({ parts: parts(m[1]), at: m.index }));
+// The load's dependencies: `useCallback(async …, [deps])` on its own line.
+const loadDeps = (text) => {
+  const m = text.match(/const load = useCallback\([\s\S]*?\n\s+\[([^\]]*)\]\n\s+\);/);
+  return m ? parts(m[1]) : null;
+};
+const sameSet = (a, b) => Boolean(a) && Boolean(b) && a.length === b.length && a.every((x, i) => x === b[i]);
+const listsIn = (map) => Object.keys(map).filter((f) => /<DataList\b/.test(map[f])).sort();
+const keyedIn = (map) => Object.keys(map).filter((f) => /queryKey=/.test(map[f])).sort();
+proved(
+  'S1 exactly the 10 screens whose query can change pass a queryKey; the other 7 lists pass none',
+  (map) => sameSet(keyedIn(map), KEYED) && sameSet(listsIn(map), [...KEYED, ...NO_QUERY].sort()),
+  screens,
+  { ...screens, 'teacher/MemosScreen.jsx': screens['teacher/MemosScreen.jsx'].replace('<DataList\n      rows={rows}', '<DataList\n      rows={rows}\n      queryKey={[]}') },
+  { ...screens, 'admin/UsersScreen.jsx': screens['admin/UsersScreen.jsx'].replace('queryKey={[applied]}', '') }
+);
+const keysMatchLoads = (map) =>
+  KEYED.every((f) => {
+    const keys = keysIn(map[f] || '');
+    return keys.length === 1 && sameSet(keys[0].parts, loadDeps(map[f]));
+  });
+proved(
+  'S2 every key is its load’s dependency array',
+  keysMatchLoads,
+  screens,
+  { ...screens, 'admin/AttendanceScreen.jsx': screens['admin/AttendanceScreen.jsx'].replace('queryKey={[applied, hasScope]}', 'queryKey={[applied]}') },
+  { ...screens, 'parent/EventsScreen.jsx': screens['parent/EventsScreen.jsx'].replace('queryKey={[range]}', 'queryKey={[range, offset]}') }
+);
+const stableRows = (map) =>
+  KEYED.every((f) => {
+    const text = map[f] || '';
+    const { at } = keysIn(text)[0] || {};
+    if (at === undefined) return false;
+    const element = text.slice(text.lastIndexOf('<DataList', at), at);
+    const name = element.match(/rows=\{(\w+)\}/)?.[1];
+    return Boolean(name) && new RegExp(`const \\[${name}, set\\w+\\] = useState\\(`).test(text);
+  });
+proved(
+  'S3 every keyed list is handed a stable rows array — the screen’s state',
+  stableRows,
+  screens,
+  { ...screens, 'teacher/EventsScreen.jsx': screens['teacher/EventsScreen.jsx'].replace('<DataList\n      rows={rows}', '<DataList\n      rows={rows.slice()}') }
+);
+const AVATARS = [
+  'admin/AttendanceScreen.jsx',
+  'admin/StudentsScreen.jsx',
+  'admin/UsersScreen.jsx',
+  'parent/MessagesScreen.jsx',
+  'teacher/AttendanceRecordsScreen.jsx',
+  'teacher/ExcuseLettersScreen.jsx',
+  'teacher/MessagesScreen.jsx',
+  'teacher/StudentsScreen.jsx',
+];
+proved(
+  'S4 every avatar list draws the circle in its skeleton — the five added here and F4’s three',
+  (map) => sameSet(Object.keys(map).filter((f) => /<DataList\b[\s\S]*?\n\s+skeletonAvatar\n/.test(map[f])).sort(), AVATARS),
+  screens,
+  { ...screens, 'parent/MessagesScreen.jsx': screens['parent/MessagesScreen.jsx'].replace('\n      skeletonAvatar\n', '\n') }
 );
 
 console.log(`\nproof-query-key: ${passed}/${passed + failed}`);

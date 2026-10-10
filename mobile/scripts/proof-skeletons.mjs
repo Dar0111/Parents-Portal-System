@@ -75,7 +75,7 @@ assert(/const FILL = 'bg-edge';/.test(skeleton), 'the `edge` token — no new to
 console.log('DataList (source)');
 const list = src('components/DataList.jsx');
 assert(/if \(firstLoad\) emptyContent = <ListSkeleton phase=\{skeleton\}(?: avatar=\{skeletonAvatar\})? \/>;/.test(list) && !/LoadingSpinner/.test(list), 'nothing on screen: the skeleton, as the list’s empty content (the header stays mounted)');
-assert(/const busy = loading && shown\.length > 0;/.test(list), 'rows on screen while loading are KEPT');
+assert(/const busy = loading && rows\.length > 0;/.test(list), 'rows on screen while loading are KEPT');
 const KEEP = /pointerEvents: busy \? 'none' : 'auto',\n\s+importantForAccessibility: busy \? 'no-hide-descendants' : 'auto',\n\s+accessibilityElementsHidden: busy,\n\s+style: dimmed \? BUSY_DIM : undefined,/;
 assert(KEEP.test(list), '…and made safe: no touches, out of the screen reader’s reach, greyed once dimmed');
 assert(/const dimmed = useSkeleton\(busy\) === 'skeleton';/.test(list) && /const BUSY_DIM = \{ opacity: 0\.6 \};/.test(list), 'greyed only after the same 300 ms — a fast re-read does not flash');

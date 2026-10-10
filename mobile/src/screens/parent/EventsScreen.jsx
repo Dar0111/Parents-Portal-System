@@ -99,6 +99,7 @@ export default function EventsScreen({ navigation }) {
   return (
     <DataList
       rows={rows}
+      queryKey={[range]}
       renderCard={(row) => ({
         onSelect: () => navigation.navigate('PostRead', { kind: 'event', row }),
         title: row.title,

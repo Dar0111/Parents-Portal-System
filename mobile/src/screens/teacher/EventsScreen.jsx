@@ -180,6 +180,7 @@ export default function EventsScreen({ navigation, route }) {
   return (
     <DataList
       rows={rows}
+      queryKey={[applied]}
       renderCard={(row) =>
         teacherEventCard(row, {
           actions:

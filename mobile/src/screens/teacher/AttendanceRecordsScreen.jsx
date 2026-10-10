@@ -208,6 +208,8 @@ export default function AttendanceRecordsScreen({ navigation }) {
   return (
     <DataList
       rows={rows}
+      queryKey={[section, showingMine, applied]}
+      skeletonAvatar
       renderCard={(row) => ({
         avatar: `${row.first_name} ${row.last_name}`,
         title: `${row.last_name}, ${row.first_name}`,

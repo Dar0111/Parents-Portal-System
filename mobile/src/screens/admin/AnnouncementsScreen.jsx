@@ -234,6 +234,7 @@ export default function AnnouncementsScreen({ navigation, route }) {
   return (
     <DataList
       rows={rows}
+      queryKey={[kind, filter]}
       renderCard={(row) => {
         const actions = [];
         if (!isAnn || canEditAnnouncement(row, me?.id)) actions.push({ label: 'Edit', onPress: () => navigation.navigate('PostCompose', { kind: isAnn ? 'announcement' : 'memo', editing: row }) });
