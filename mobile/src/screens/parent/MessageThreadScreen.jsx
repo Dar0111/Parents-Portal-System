@@ -117,6 +117,12 @@ export default function MessageThreadScreen({ navigation, route }) {
   const scrollRef = useRef(null);
   const messagesRef = useRef([]);
   const loadedForRef = useRef(null);
+  // Where the list was last put at its end (feat/shared-messages): the newest
+  // message's id then, and the thread it belonged to. The pending move is a
+  // ref so a later render that decides NOT to move cannot cancel it.
+  const lastIdRef = useRef(null);
+  const positionedForRef = useRef(null);
+  const toEndTimerRef = useRef(null);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -186,7 +192,10 @@ export default function MessageThreadScreen({ navigation, route }) {
       }
     } catch (err) {
       setError(extractError(err));
-      setMessages([]);
+      // A failed RE-READ keeps the messages (the error shows above them, with
+      // its Try again); only a thread that never loaded is left empty — the
+      // web's rule (feat/shared-messages).
+      if (loadedForRef.current !== otherId) setMessages([]);
     } finally {
       setLoading(false);
     }
@@ -204,10 +213,32 @@ export default function MessageThreadScreen({ navigation, route }) {
     [subscribe, otherId, load]
   );
 
+  // THE LIST GOES TO ITS END ONLY WHEN THE NEWEST MESSAGE CHANGES, AND NEVER
+  // BEFORE IT IS ON SCREEN (feat/shared-messages, 2026-10-11; the web's rule,
+  // FRONTEND §30). It used to move 50 ms after ANY change in the number of
+  // messages, which did two wrong things:
+  //   - a thread with unread messages keeps the full-screen spinner up while
+  //     read-all and the badge refresh are awaited, so the move often fired
+  //     with no list mounted, and nothing moved it once the list appeared —
+  //     the thread opened at its OLDEST message (the web's F1, 2026-10-06);
+  //   - "Load earlier messages" adds rows, so it threw the reader to the end.
+  // Now nothing is consumed until the list is mounted and holds THIS thread's
+  // messages; the first time it does (open, or another thread on the reused
+  // screen) the list goes to the end, and after that only a new newest
+  // message — one that arrived, or my own send — moves it.
   useEffect(() => {
-    const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50);
-    return () => clearTimeout(t);
-  }, [messages.length]);
+    if (loading || loadedForRef.current !== otherId || !scrollRef.current) return;
+    const lastId = messages[messages.length - 1]?.id ?? null;
+    const opening = positionedForRef.current !== otherId;
+    if (!opening && lastId === lastIdRef.current) return;
+    positionedForRef.current = otherId;
+    lastIdRef.current = lastId;
+    // 50 ms, as before: the new rows are laid out first.
+    clearTimeout(toEndTimerRef.current);
+    toEndTimerRef.current = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50);
+  }, [messages, loading, otherId]);
+
+  useEffect(() => () => clearTimeout(toEndTimerRef.current), []);
 
   // The pull's own handler: `load()` as it is, with a busy flag around it for
   // the pull spinner alone.
