@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-10, `feat/privacy` — the privacy build (§29, M26): two commits and a fix round, device-checked and re-checked, the check's data cleaned up; merge-ready, not merged (on `main` `9ed8793`, build 2 merged 2026-10-09) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/shared-messages` — one Messages component on the web (§30) and the phone thread fix (M27): device-checked, two fix rounds re-checked, the check's data cleaned up; merge-ready, not merged (on `main` `456bba8`, privacy merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1712,12 +1712,13 @@ CLAUDE.md on 2026-10-10".
       (`456bba8`).**
 - [ ] **Shared Messages — `feat/shared-messages`** (2026-10-11): one thread
       and one conversations page for every role on the web (§30), its browser
-      test, and the phone thread's positioning fix (M27). **Built; not
-      device-checked; not merged.**
+      test, and the phone thread's positioning fix (M27); two fix rounds —
+      the top bar's ← as the way back, a whole row opens a conversation.
+      **Device-checked, re-checked, its data cleaned up; merge-ready, not
+      merged.**
 
-**NEXT, in order (the owner, 2026-10-11):** the owner's device check of
-`feat/shared-messages`, its data cleaned up by id, then merge → skeleton
-tier 2 + option 1 if time → **smoke gate by Thu 2026-10-15** (a real
+**NEXT, in order (the owner, 2026-10-11):** merge `feat/shared-messages`
+on the owner's word → skeleton tier 2 + option 1 if time → **smoke gate by Thu 2026-10-15** (a real
 restore after a fresh backup, and SMS) → **professor system check, Fri
 2026-10-16**. The manuscript
 delta list stays with the team. After the check: the cloud (Supabase) survey.

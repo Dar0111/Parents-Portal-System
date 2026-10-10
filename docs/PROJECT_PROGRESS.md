@@ -14,9 +14,10 @@ Technological College, IICT · Final defense expected around November 2026.
 **Snapshot, 2026-10-11: `main` at `456bba8` (the privacy build merged
 fast-forward on 2026-10-11 after the owner's re-check) plus
 `feat/shared-messages` — one Messages thread and one conversations page for
-every role on the web, a browser test that locks where a thread opens, and
-the phone thread's positioning fix — built, NOT device-checked, not
-merged.** Table and endpoint
+every role on the web, a browser test that locks where a thread opens, the
+phone thread's positioning fix, and two fix rounds (the top bar's ←, a whole
+row opens a conversation) — device-checked, re-checked, its data cleaned
+up; merge-ready, not merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -42,7 +43,7 @@ and only there.
 | The source-code zip — `fix/source-zip`: `git archive` of HEAD, tracked files only (the owner's first run 2026-10-07) | ✅ merged 2026-10-07 (a root script, not the server) | — | — |
 | Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07, device-checked 2026-10-08), and its fix round F1–F8 (built and re-checked 2026-10-09) | — | ✅ merged 2026-10-09 | ✅ merged 2026-10-09 |
 | The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built, device-checked, fix round PF1–PF5 and re-checked 2026-10-10) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
-| Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11) | — (untouched) | 🟡 built, not device-checked, not merged | 🟡 built (the thread screen only), not device-checked, not merged |
+| Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11); two fix rounds — the top bar's ← as the way back (the page's own link removed), a whole row opens a conversation; device-checked and re-checked 2026-10-11, data cleaned up (backup 291) | — (untouched) | 🟡 device-checked, merge-ready, not merged | 🟡 device-checked (the thread screen only), merge-ready, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -129,9 +130,9 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The owner's device check of `feat/shared-messages`**, its data
-   cleaned up by id, then the merge. The phone consent screen's new words
-   still get their quick look (`docs/TESTING.md`).
+1. **The merge of `feat/shared-messages`**, on the owner's word — it is
+   device-checked, re-checked and cleaned up. The phone consent screen's new
+   words still get their quick look (`docs/TESTING.md`).
 2. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the list
    consumers (the two web Messages lists are one page now), so a query
    change shows the skeleton, and the avatar circle on the ten lists that
