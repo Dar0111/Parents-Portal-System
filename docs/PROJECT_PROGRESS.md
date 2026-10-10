@@ -11,11 +11,11 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-10: `main` at `9ed8793` (build 2 merged fast-forward on
-2026-10-09 after the owner's re-check) plus `feat/privacy` — the consent
-gate, your own first password, sign-in limits, and four learner fields no
-longer collected — two commits and a fix round, device-checked and
-re-checked by the owner, the check's test data cleaned up: merge-ready, not
+**Snapshot, 2026-10-11: `main` at `456bba8` (the privacy build merged
+fast-forward on 2026-10-11 after the owner's re-check) plus
+`feat/shared-messages` — one Messages thread and one conversations page for
+every role on the web, a browser test that locks where a thread opens, and
+the phone thread's positioning fix — built, NOT device-checked, not
 merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -41,7 +41,8 @@ and only there.
 | Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
 | The source-code zip — `fix/source-zip`: `git archive` of HEAD, tracked files only (the owner's first run 2026-10-07) | ✅ merged 2026-10-07 (a root script, not the server) | — | — |
 | Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07, device-checked 2026-10-08), and its fix round F1–F8 (built and re-checked 2026-10-09) | — | ✅ merged 2026-10-09 | ✅ merged 2026-10-09 |
-| The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built, device-checked, fix round PF1–PF5 and re-checked 2026-10-10) | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged |
+| The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built, device-checked, fix round PF1–PF5 and re-checked 2026-10-10) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
+| Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11) | — (untouched) | 🟡 built, not device-checked, not merged | 🟡 built (the thread screen only), not device-checked, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -74,7 +75,7 @@ A module with tables and no handlers is not started; there are none.
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
 | Excuse letters | `excuse_letters` | 6 | `test:excuses` | Teacher → Excuse Letters (review); Parent → Excuse Letters |
-| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); Admin → Messages (teachers only); the new-message toast on every screen of a role with Messages, web and phone |
+| Messages + Socket.io | `messages` | 6 | `test:messages` | Teacher and Parent → Messages + thread (Enter sends on the web); Admin → Messages (teachers only); the new-message toast on every screen of a role with Messages, web and phone. On `feat/shared-messages` every web surface is one of two shared components (`pages/messages/`), and `scripts/loop-messages-thread.mjs` drives the thread in Chromium |
 | Notifications | `notifications` | 4 | `test:notifications` | the bell and the sidebar badges, every role |
 | Settings + school calendar | `system_settings` | 5 | `test:settings`, `test:school-calendar` | Admin → Settings; About (every role, and public from the login page) |
 | Dashboard | — | 1 | `test:dashboard` | one dashboard per role |
@@ -125,18 +126,16 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-As the owner's dispatches stand (2026-10-10, CLAUDE.md → BUILD ORDER →
+As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-**`feat/privacy` is merge-ready** — the device check, the fix round and the
-re-check passed, the check's test data is cleaned up; it merges on the
-owner's word. The phone consent screen's new words get a quick look
-(`docs/TESTING.md`). Then:
-
-1. **A shared Messages component** (its own branch).
-2. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the 36 list
-   consumers, so a query change shows the skeleton, and the avatar circle on
-   the ten lists that lack it.
+1. **The owner's device check of `feat/shared-messages`**, its data
+   cleaned up by id, then the merge. The phone consent screen's new words
+   still get their quick look (`docs/TESTING.md`).
+2. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the list
+   consumers (the two web Messages lists are one page now), so a query
+   change shows the skeleton, and the avatar circle on the ten lists that
+   lack it.
 3. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a
    real restore after a fresh backup, and SMS.
 4. **Professor system check, Fri 2026-10-16.**
@@ -163,7 +162,9 @@ holding anything typed (all three accepted); the parent calendar's faint
 "Today" ring (the `focus-ring` token, under 3:1); staff acceptance of the
 notice and terms (deferred to after the check); the socket handshake not
 checking password-change revocation or the restore cutoff (after the
-check). Closed by the privacy fix round: the handshake's forced-change and
+check); the phone teacher picker's empty Teachers / Admin groups saying
+"match that search" with no search (small; the web follows the cause since
+feat/shared-messages). Closed by the privacy fix round: the handshake's forced-change and
 consent gates, and a restore re-running the privacy step itself.
 
 ---

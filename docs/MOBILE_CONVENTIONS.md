@@ -1421,3 +1421,44 @@ providers' condition, the screen's ticks and exit, the settings screen and the
 retired fields read as source. **The phone check (M7) owns** a real sign-in
 landing on the consent screen, a real tick and accept, and the skeleton's
 300 ms.
+
+## M27. The phone thread keeps the web's three positioning rules (`feat/shared-messages`, 2026-10-11)
+
+The phone already had ONE thread screen for every role
+(`screens/parent/MessageThreadScreen.jsx`, pushed as `MessageThread` from
+each role's list and picker); the web's became one on the same branch
+(FRONTEND §30). What differed was where the list sat, found by reading the
+code, not on a device:
+
+- **A thread with unread messages opens at its NEWEST message, however long
+  read-all and the badge refresh take.** The list used to move 50 ms after
+  any change in the NUMBER of messages; read-all is awaited while the
+  full-screen spinner is still up, so the move often fired with no list
+  mounted and nothing moved it once the list appeared — the web's F1 of
+  2026-10-06. Now the move consumes nothing until the list is mounted and
+  holds THIS thread's messages (`loading` is a dependency), and the first time
+  it does — on open, or another thread on the reused screen — the list goes
+  to its end.
+- **"Load earlier messages" keeps the reader's place.** After the first
+  positioning the list goes to its end only when the newest message changes —
+  one that arrived, or my own send. Load earlier prepends, so it no longer
+  throws the reader to the end. The pending move is a ref, so a later render
+  that decides NOT to move cannot cancel one already scheduled.
+- **A failed re-read keeps the messages**; only a thread that never loaded is
+  left empty — the web's rule since feat/look-fixes.
+- **What does not apply on the phone:** the web's "box in view" rule — the
+  composer is a fixed bar under the list (`KeyboardAvoidingView`), always on
+  screen.
+- **Nothing else changed:** the composer, "Announce to a class", the device
+  draft, pull to refresh (it is `load()`, and an unchanged newest message
+  does not move the list), the 403.
+
+**Proof:** `scripts/proof-message-thread.mjs` (TESTING → Mobile proofs) —
+source text (M7), each rule with its negative control: the old effect, the
+guard removed, the newest-id check removed, the old catch. **The phone check
+owns** a real thread opening at its newest message, a real Load earlier, and
+a re-read failing on the hotspot.
+
+**Not changed here, a KNOWN_ISSUES row:** the phone teacher picker's empty
+groups still say "match that search" with no search for Teachers and Admin;
+the web's picker follows the cause since §30b.

@@ -1599,8 +1599,11 @@ over (it was `sm` until feat/ui-polish). Do not add a second scroll container to
   never scrolls** (a filter, a pinned `?term=`, Admin → Users' preset
   leaving the address). Messages keeps its own positioning — a thread opens
   at its newest message and brings the box into view after its messages
-  load, later than this. Proved by `ssr-build2-fixes`, which imports the
-  rule and never reads source; a real scroll is the browser check.
+  load, later than this; since feat/shared-messages that is ONE component,
+  `pages/messages/MessageThread.jsx` (§30), and
+  `scripts/loop-messages-thread.mjs` drives it in Chromium. Proved by
+  `ssr-build2-fixes`, which imports the rule and never reads source; a real
+  scroll is the browser check.
 - **A nav row draws its focus ring inside the row** (fix round F7,
   2026-10-08). The sidebar links used the shared 2px-offset ring, 4px
   OUTSIDE the row, and the nav box is a scroller with no bottom padding
@@ -3810,4 +3813,83 @@ body in every state and the Security & policy view for a parent and for staff;
 source, with controls, only where a render cannot reach: the gate's order, the
 routes, the retired fields. **The browser check owns** a real redirect, a real
 accept and the 300 ms clock.
+
+## 30. One Messages component — the thread and the list, every role (`feat/shared-messages`, 2026-10-11)
+
+**The rule: every web Messages surface is one of two shared components, and a
+role's page is a small wrapper that passes only what the code already made
+role-specific.** Before this branch the admin's and the parent's pages were
+one pair of files and the teacher's another, kept equal by hand — every fix
+(#11, the send guard, F1, F2) was written twice and proved twice. A third
+copy was the trigger the parent thread's own header named.
+
+### 30a. `pages/messages/MessageThread.jsx` — the conversation
+
+Owns, once: the reads on a cursor (C3), read-all and the unread refresh
+(§10), the socket, **where the list and the page scroll** (below), Load
+earlier, the one-send-at-a-time ref, Enter to send (§26), the draft (§28),
+the 403 that replaces the composer, the header and the bubbles.
+
+| Prop | What the wrappers pass |
+|---|---|
+| `listPath` | parent page: `/admin/messages` for the admin, `/parent/messages` for a parent; teacher page: `/teacher/messages` |
+| `renderTop` | optional, `({ back, otherId, other, draft }) => node` — lays out the row above the card around `back` (the "All conversations" link). Only the teacher passes it: "Announce to a class", on a PARENT's thread only, with its hint; its `GET /messages/contacts` read stays in the teacher's page and starts with the page, beside the thread's own read |
+
+**The positioning rules it carries, unchanged** (§9 and the 2026-10-06
+follow-up): nothing is consumed until the list is mounted, not loading and
+holding THIS thread's messages; the first positioning of a thread puts the
+list at its newest message and brings the box in by the smallest page scroll
+(`keepBoxInView`); after that only a NEW newest message moves the list, and
+only my own send may move the page. Shell's new-page scroll runs at the
+navigation, before the thread has loaded, so the thread has the last word.
+
+### 30b. `pages/messages/ConversationsPage.jsx` — the list and the picker
+
+Owns: `GET /messages/conversations` paged and sorted (C1/C6), the socket
+re-read, DataTable with its conversation card (§16), the New-message picker
+(`fetchAll` over contacts, C2) and its search.
+
+| Prop | Parent page (admin and parent) | Teacher page |
+|---|---|---|
+| `base` | `/admin/messages` or `/parent/messages` by role | `/teacher/messages` |
+| `groups` | Teachers | Parents, Teachers, Admin |
+| `searchPlaceholder` / `searchFields` | "Teacher name" / name + subject | "Contact name or student name" / name + learner |
+| `noContactsMessage` | the admin's or the parent's sentence, by role | the teacher's |
+| `renderContact` | — (name and subject; the adviser label rides in `subject`) | parent rows lead with the learner |
+
+**Who may be messaged stays the server's** — `GET /messages/contacts` is
+the inverse of `canMessage()`; the page only GROUPS what came back. The
+locked pairings (teacher ↔ admin, admin → teachers only, no parent ↔ admin)
+are therefore unchanged by construction.
+
+**An empty picker group says why (§5f; the owner's decision of
+2026-10-11):** with a search applied, "No <group> match that search."; with
+none, the group's own sentence — Parents' "No parents yet. A parent appears
+here once an admin approves their account.", otherwise "No <group> to
+message.". Before, the teacher's Teachers and Admin groups said "match that
+search" with no search, and its Parents group said "No parents yet" during
+one. **The look is the existing one, chosen per difference:** picker rows
+`text-sm`, the picker's `space-y-4` (both phone pickers' look), and the
+title's `[&_h2]:break-words` (the parent page's guard).
+
+### 30c. What proves it
+
+- `scripts/loop-messages-thread.mjs` — **the REAL thread pages in headless
+  Chromium**, 1366×600, inside a stand-in for Shell's frame (its class lists
+  checked against `Shell.jsx` and `Header.jsx`), the api / auth / socket /
+  unread modules swapped for fixtures by a Vite plugin, served by
+  Playwright's request interception: no server, no database, no sign-in.
+  Per role: (a) opens at the newest message with 6 unread and with none, (b)
+  the box in the window, read-all once or never, and "Load earlier" keeping
+  the place. Controls A (the pre-fix effect), B (no `keepBoxInView` on open)
+  and C (the newest-id check removed), made in memory and required to change
+  the shared file exactly once, must each turn their check red. TESTING has
+  the run-book.
+- The source-text proofs read **the wrapper and the shared file together**:
+  `ssr-look-fixes`, `ssr-form-drafts`, `ssr-enter-to-send`, `ssr-dv1b-a`.
+- **Not proved here:** a real socket, a real send, the picker's Modal in a
+  browser — the owner's device check (TESTING).
+
+The phone's one thread screen already served every role; it follows the
+same three positioning rules since this branch (MOBILE M27).
 

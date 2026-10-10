@@ -966,6 +966,18 @@ in 15 min → 429, an unknown id the same.** The learner's birthday, gender,
 address and contact number are not collected. Full text: FRONTEND §29, MOBILE
 M26, API_REFERENCE §5b.
 
+### 30. One Messages component — every web surface is one of two shared pages
+
+**feat/shared-messages, 2026-10-11.** The thread is
+`pages/messages/MessageThread.jsx`, the list and New-message picker
+`pages/messages/ConversationsPage.jsx`; a role's page is a wrapper passing only
+what the code made role-specific (the list path, the teacher's Announce row;
+the picker's groups, search and copy). **Who may be messaged stays the
+server's** (contacts). An empty picker group says why (§5f).
+`scripts/loop-messages-thread.mjs` runs the real thread in Chromium, with
+controls. The phone thread keeps the same positioning rules (M27). Full text:
+FRONTEND §30, MOBILE M27.
+
 ### Corrections — three claims retired here
 
 Circulated in planning, **wrong**, recorded so they cannot be re-derived:
@@ -1486,6 +1498,7 @@ gate in full on its `POST /api/users/parents` row.
 | **Ten avatar lists' skeletons have no avatar circle** — added 2026-10-08 | admin Attendance, teacher Attendance records, teacher Excuse Letters, both Messages — web and phone | `skeletonAvatar` was added to Users and both Students only (the 6-file limit); the ten go to the option 1 dispatch. Cosmetic |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 | **The socket handshake ignores `token_version` and the restore cutoff** — added 2026-10-10 | `server/socket.js` | A token REST answers `401` can still open a socket until it expires. Fix after the professor check |
+| **The phone teacher picker's empty Teachers / Admin groups say "match that search" with no search** — added 2026-10-11 | `mobile/src/screens/teacher/NewMessageScreen.jsx` | Small (§5f); the web follows the cause since §30. Not fixed in feat/shared-messages |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1695,13 +1708,18 @@ CLAUDE.md on 2026-10-10".
 - [x] **The privacy build — `feat/privacy`** (two commits + a fix round),
       2026-10-10: the consent gate, your own first password, sign-in limits,
       four learner fields not collected (§29, M26). **Device-checked, fixed
-      (PF1–PF5), re-checked, its data cleaned up: merge-ready, not merged.**
+      (PF1–PF5), re-checked, its data cleaned up; merged 2026-10-11
+      (`456bba8`).**
+- [ ] **Shared Messages — `feat/shared-messages`** (2026-10-11): one thread
+      and one conversations page for every role on the web (§30), its browser
+      test, and the phone thread's positioning fix (M27). **Built; not
+      device-checked; not merged.**
 
-**NEXT, in order (the owner, 2026-10-08):** merge `feat/privacy` on the
-owner's word → a shared Messages component (own
-branch) → skeleton tier 2 + option 1 if time → **smoke gate by Thu
-2026-10-15** (a real restore after a fresh backup, and SMS) →
-**professor system check, Fri 2026-10-16**. The manuscript
+**NEXT, in order (the owner, 2026-10-11):** the owner's device check of
+`feat/shared-messages`, its data cleaned up by id, then merge → skeleton
+tier 2 + option 1 if time → **smoke gate by Thu 2026-10-15** (a real
+restore after a fresh backup, and SMS) → **professor system check, Fri
+2026-10-16**. The manuscript
 delta list stays with the team. After the check: the cloud (Supabase) survey.
 
 ### Stage 6 — Integration
