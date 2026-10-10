@@ -339,6 +339,27 @@ shape appears; a fourth should import it. Proved by `test:auth-middleware`
   Verified once, at connection time, via `io.use()` — not re-checked
   per event. A deactivated account's socket is rejected at the handshake
   and never gets to send or receive anything.
+- **The handshake's refusals, in order** (`server/socket.js`; the last two
+  since the privacy fix round, 2026-10-10). Each reaches the client as
+  `connect_error` with the message below; the two gates also carry the
+  HTTP 403's code in `err.data.code`, in `middleware/auth.js`'s order and
+  with its sentences (§5b):
+
+  | Order | `err.message` | `err.data.code` | Cause |
+  |---|---|---|---|
+  | 1 | `Authentication required.` | — | no `auth.token` |
+  | 2 | `Account is not active.` | — | no `users` row, or `status` ≠ `active` |
+  | 3 | `You must change your password before continuing.` | `MUST_CHANGE_PASSWORD` | `users.must_change_password` is set |
+  | 4 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | a **parent** without the CURRENT version of both documents accepted; staff are never gated |
+  | — | `Invalid or expired token.` | — | anything that throws: a bad or expired token, **and a database error** (the handshake has no 503) |
+
+  A refused handshake is not retried; both apps connect afresh once
+  `/auth/me` says both gates are clear (FRONTEND §29a, MOBILE M26).
+  `test:privacy` proves each refusal and the connect after it. **Not
+  checked at the handshake:** the token's `v` against `users.token_version`
+  (§5b) and its `iat` against the restore cutoff — so a token the REST API
+  answers `401` can still open a socket until it expires (KNOWN_ISSUES,
+  open).
 - No client-emitted events exist. This is receive-only from the
   client's perspective.
 - On connect, the server automatically joins the socket to a room named

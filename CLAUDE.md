@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-10, `feat/privacy` — the privacy build (§29, M26): two commits, the owner's device check passed, then a fix round; not merged (on `main` `9ed8793`, build 2 merged 2026-10-09) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-10, `feat/privacy` — the privacy build (§29, M26): two commits and a fix round, device-checked and re-checked, the check's data cleaned up; merge-ready, not merged (on `main` `9ed8793`, build 2 merged 2026-10-09) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1485,6 +1485,7 @@ gate in full on its `POST /api/users/parents` row.
 | **On a query change, `DataTable` / `DataList` show the PREVIOUS rows greyed and inert until the new ones land** — added 2026-10-07 | both components + their 36 consumers | Neither knows the query. The skeleton there is option 1 (a `queryKey` per consumer), deferred with skeleton tier 2 — **do not touch the consumers for it outside that dispatch** |
 | **Ten avatar lists' skeletons have no avatar circle** — added 2026-10-08 | admin Attendance, teacher Attendance records, teacher Excuse Letters, both Messages — web and phone | `skeletonAvatar` was added to Users and both Students only (the 6-file limit); the ten go to the option 1 dispatch. Cosmetic |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
+| **The socket handshake ignores `token_version` and the restore cutoff** — added 2026-10-10 | `server/socket.js` | A token REST answers `401` can still open a socket until it expires. Fix after the professor check |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1691,15 +1692,16 @@ and 2 and admin Messages — each device-checked and merged (build 2 last,
 decision). The block: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 moved from
 CLAUDE.md on 2026-10-10".
 
-- [ ] **The privacy build — `feat/privacy`** (two commits + a fix round),
+- [x] **The privacy build — `feat/privacy`** (two commits + a fix round),
       2026-10-10: the consent gate, your own first password, sign-in limits,
-      four learner fields not collected (§29, M26). **The owner's device
-      check passed; the fix round (PF1–PF5) is not re-checked; not merged.**
+      four learner fields not collected (§29, M26). **Device-checked, fixed
+      (PF1–PF5), re-checked, its data cleaned up: merge-ready, not merged.**
 
-**NEXT, in order (the owner, 2026-10-08):** the owner's re-check of
-`feat/privacy`, the cleanup of the check's test data, then merge it → a shared Messages component (own
+**NEXT, in order (the owner, 2026-10-08):** merge `feat/privacy` on the
+owner's word → a shared Messages component (own
 branch) → skeleton tier 2 + option 1 if time → **smoke gate by Thu
-2026-10-15** → **professor system check, Fri 2026-10-16**. The manuscript
+2026-10-15** (a real restore after a fresh backup, and SMS) →
+**professor system check, Fri 2026-10-16**. The manuscript
 delta list stays with the team. After the check: the cloud (Supabase) survey.
 
 ### Stage 6 — Integration

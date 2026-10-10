@@ -235,6 +235,26 @@ wrapper, with a negative control (source). The phone has no `inert`;
 `pointerEvents: 'none'` is its equivalent. Neither proof can press a row
 during a real hold — that stays the device gap above.
 
+**Device check, fix round and re-check — the privacy build (the owner,
+2026-10-10).** **The device check PASSED on web and phone** (the consent
+gate, the sign-in limits, the forced first password for a new teacher and a
+new parent, the four learner fields gone, Security & policy) and asked for
+the fix round (PF1–PF5, `3fce899`). **The re-check PASSED on the device:**
+the consent screen's new words on the web (three ticks, "I agree and
+continue", the "Declining…" line above Sign out); accepting lands on the
+dashboard; the phone's Edit student shows LRN, Grade level and Section
+read-only and greyed; the API starts from a fresh terminal with no
+`CORS_ORIGIN` warning (PF3 confirmed: the old terminal's environment).
+**Not device-checked, kept here until seen:** the PHONE consent screen's new
+words (the parent used had already accepted on the web — a quick look after
+the cleanup, with a parent who has not accepted; every seeded parent has
+not, since the cleanup); and a REAL restore (PF1 is proved on a disposable
+schema by `test:privacy`, never by a restore — the smoke gate runs one,
+after a fresh backup). **Cleanup by id** (backup 289 first): the check's
+two users, its learner, every `policy_acceptances` row and the admin's
+unread `parent_pending` notification for the test parent; the audit rows
+and `login_attempts` kept (CHANGELOG).
+
 ### `ssr-dates.jsx` runs TWICE, under two timezones
 
 ```bash

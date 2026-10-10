@@ -14,7 +14,9 @@ Technological College, IICT · Final defense expected around November 2026.
 **Snapshot, 2026-10-10: `main` at `9ed8793` (build 2 merged fast-forward on
 2026-10-09 after the owner's re-check) plus `feat/privacy` — the consent
 gate, your own first password, sign-in limits, and four learner fields no
-longer collected — two commits, built, NOT device-checked, not merged.** Table and endpoint
+longer collected — two commits and a fix round, device-checked and
+re-checked by the owner, the check's test data cleaned up: merge-ready, not
+merged.** Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
 and only there.
@@ -39,7 +41,7 @@ and only there.
 | Admin Messages — `feat/admin-messages`: teacher ↔ admin only, the Enter page-jump fix, the sidebar's toggle place and pinned Messages, threads opening at the newest message, the adviser label (built and device-checked 2026-10-06) | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 | ✅ merged 2026-10-06 |
 | The source-code zip — `fix/source-zip`: `git archive` of HEAD, tracked files only (the owner's first run 2026-10-07) | ✅ merged 2026-10-07 (a root script, not the server) | — | — |
 | Build 2 — `feat/dashboards-look`: skeleton loading tier 1, re-reads that keep what is on screen, the drawer as a dialog, the dashboards' Part C (built 2026-10-07, device-checked 2026-10-08), and its fix round F1–F8 (built and re-checked 2026-10-09) | — | ✅ merged 2026-10-09 | ✅ merged 2026-10-09 |
-| The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built 2026-10-10) | 🟡 built, not merged | 🟡 built, not device-checked, not merged | 🟡 built, not device-checked, not merged |
+| The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built, device-checked, fix round PF1–PF5 and re-checked 2026-10-10) | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -63,7 +65,7 @@ A module with tables and no handlers is not started; there are none.
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
 | Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 12 | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
-| Privacy — consent (feat/privacy, not merged) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (parents, after the forced change); Settings → Security & policy (every role). The notice and terms are placeholders |
+| Privacy — consent (feat/privacy, merge-ready, not merged) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (parents, after the forced change); Settings → Security & policy (every role). The notice and terms are placeholders |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
@@ -126,16 +128,18 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-10, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The owner's check of the privacy build** (`feat/privacy`: the consent
-   screen web and phone, Security & policy, a new account's first sign-in,
-   the enrol wizard and student records without the four fields), then
-   merge it.
-2. **A shared Messages component** (its own branch).
-3. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the 36 list
+**`feat/privacy` is merge-ready** — the device check, the fix round and the
+re-check passed, the check's test data is cleaned up; it merges on the
+owner's word. The phone consent screen's new words get a quick look
+(`docs/TESTING.md`). Then:
+
+1. **A shared Messages component** (its own branch).
+2. **Skeleton tier 2 + option 1, if time** — a `queryKey` on the 36 list
    consumers, so a query change shows the skeleton, and the avatar circle on
    the ten lists that lack it.
-4. **Smoke gate** across web and mobile, **by Thu 2026-10-15**.
-5. **Professor system check, Fri 2026-10-16.**
+3. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a
+   real restore after a fresh backup, and SMS.
+4. **Professor system check, Fri 2026-10-16.**
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). After the check: the cloud (Supabase) survey.
@@ -158,8 +162,9 @@ device, the phone not reopening a form after a kill, and a draft's free text
 holding anything typed (all three accepted); the parent calendar's faint
 "Today" ring (the `focus-ring` token, under 3:1); staff acceptance of the
 notice and terms (deferred to after the check); the socket handshake not
-checking the forced change or consent (low); a pre-privacy backup's restore
-needing `db:migrate:privacy` afterwards.
+checking password-change revocation or the restore cutoff (after the
+check). Closed by the privacy fix round: the handshake's forced-change and
+consent gates, and a restore re-running the privacy step itself.
 
 ---
 
