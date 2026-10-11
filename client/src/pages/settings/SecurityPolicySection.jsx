@@ -9,9 +9,11 @@ import { timestampDay } from '../../format/date';
 
 // SETTINGS → SECURITY & POLICY (feat/privacy, 2026-10-10; FRONTEND §29) —
 // every role. The current Data Privacy Notice and Terms of Use, and the date
-// THIS user accepted each. Only parents accept in this build (staff acceptance
-// is deferred, KNOWN_ISSUES), so staff see the documents and that parents
-// accept them — never a "Not accepted" that reads as something they owe.
+// THIS user accepted each. Every role accepts since feat/staff-acceptance
+// (2026-10-11), so the server's `required` is true for staff too and they see
+// their own dates; the `required: false` branch (the documents, and that
+// parents accept them — never a "Not accepted" that reads as something owed)
+// stays for a role that ever accepts nothing.
 //
 // The dates are the server's (`GET /api/policy/status`), shown as the Manila
 // calendar day (format/date.js) — never computed here.

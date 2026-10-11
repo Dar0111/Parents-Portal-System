@@ -36,6 +36,13 @@ import seal from '../assets/school-seal.png';
 // is still set at the next sign-in, and the line above it says declining
 // leaves the child's school records as they are.
 //
+// STAFF TOO (feat/staff-acceptance, 2026-10-11; the owner's decisions):
+// teachers and the admin meet the same screen with TWO ticks — the parent's
+// first two, word for word — and no child tick; the accept sends no
+// `on_behalf_of_child`, and the line above Sign out is the owner's sentence
+// for staff (DeclineLine below). A parent's screen, ticks and words are
+// unchanged.
+//
 // LOADING is Build 2's skeleton (components/Skeleton + hooks/useSkeleton,
 // unchanged): nothing for 300 ms, then the shapes of the two documents.
 
@@ -96,8 +103,9 @@ export default function PolicyConsent() {
   // the server says it is cleared.
   if (!user.policy_pending) return <Navigate to={roleHome(user.role)} replace />;
 
+  const isParent = user.role === 'parent';
   const childName = user.student_first_name ? String(user.student_first_name) : null;
-  const ready = Boolean(documents) && ticked.privacy_notice && ticked.terms_of_use && ticked.child;
+  const ready = allTicked(documents, ticked, isParent);
 
   function reload() {
     setDocuments(null);
@@ -113,7 +121,9 @@ export default function PolicyConsent() {
     setSaving(true);
     try {
       const versions = Object.fromEntries(documents.map((d) => [d.document, d.version]));
-      await api.post('/policy/accept', { versions, on_behalf_of_child: true }, { unwrap: 'policy_pending' });
+      // The third tick is a parent's alone; staff send the versions only.
+      const body = isParent ? { versions, on_behalf_of_child: true } : { versions };
+      await api.post('/policy/accept', body, { unwrap: 'policy_pending' });
       // The flag comes back cleared from the SERVER, never assumed here.
       const me = await refresh();
       navigate(roleHome(me.role), { replace: true });
@@ -151,6 +161,7 @@ export default function PolicyConsent() {
         <Reveal className={`${cardClass} rounded-3xl p-6`}>
           <ConsentBody
             userName={user.name}
+            isParent={isParent}
             childName={childName}
             documents={documents}
             loadError={loadError}
@@ -164,23 +175,41 @@ export default function PolicyConsent() {
           />
         </Reveal>
 
-        {/* Always there, and it changes nothing: the next sign-in asks again. */}
-        <div className="mt-4 text-center text-sm">
-          <p className="text-fg-muted">Declining ends portal use only; your child&rsquo;s school records stay as they are.</p>
-          <button
-            type="button"
-            onClick={() => {
-              logout();
-              navigate('/login', { replace: true });
-            }}
-            className={`${linkClass} inline-flex min-h-11 items-center`}
-          >
-            Sign out
-          </button>
-        </div>
+        <DeclineLine
+          isParent={isParent}
+          onSignOut={() => {
+            logout();
+            navigate('/login', { replace: true });
+          }}
+        />
       </div>
     </div>
   );
+}
+
+// Always there, and it changes nothing: the next sign-in asks again. Exported
+// so scripts/ssr-privacy.jsx can render both sentences.
+export function DeclineLine({ isParent = true, onSignOut }) {
+  return (
+    <div className="mt-4 text-center text-sm">
+      <p className="text-fg-muted">
+        {isParent ? (
+          <>Declining ends portal use only; your child&rsquo;s school records stay as they are.</>
+        ) : (
+          <>Declining ends portal use only.</>
+        )}
+      </p>
+      <button type="button" onClick={onSignOut} className={`${linkClass} inline-flex min-h-11 items-center`}>
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+// Every tick the screen shows: the notice and the terms for everyone, and the
+// child's for a parent.
+function allTicked(documents, ticked, isParent) {
+  return Boolean(documents) && ticked.privacy_notice && ticked.terms_of_use && (!isParent || ticked.child);
 }
 
 const BOX_CLASS =
@@ -191,6 +220,7 @@ const BOX_CLASS =
 // useSkeleton's while the documents load ('off' once they are here or failed).
 export function ConsentBody({
   userName,
+  isParent = true,
   childName,
   documents,
   loadError,
@@ -202,7 +232,7 @@ export function ConsentBody({
   onSubmit,
   onRetry,
 }) {
-  const ready = Boolean(documents) && ticked.privacy_notice && ticked.terms_of_use && ticked.child;
+  const ready = allTicked(documents, ticked, isParent);
   const titleOf = (doc) => documents?.find((d) => d.document === doc)?.title;
 
   return (
@@ -210,8 +240,14 @@ export function ConsentBody({
       <div className="mb-5">
         <h1 className="font-serif text-2xl font-bold text-fg">Before you continue</h1>
         <p className="mt-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
-          {userName}, please read the school&rsquo;s Data Privacy Notice and Terms of Use, then accept them for
-          yourself and for your child.
+          {isParent ? (
+            <>
+              {userName}, please read the school&rsquo;s Data Privacy Notice and Terms of Use, then accept them for
+              yourself and for your child.
+            </>
+          ) : (
+            <>{userName}, please read the school&rsquo;s Data Privacy Notice and Terms of Use, then accept them.</>
+          )}
         </p>
       </div>
 
@@ -274,19 +310,21 @@ export function ConsentBody({
               />
               <span>I have read and agree to the {titleOf('terms_of_use') || 'Terms of Use'}.</span>
             </label>
-            <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-fg-body [overflow-wrap:anywhere]">
-              <input
-                type="checkbox"
-                className={BOX_CLASS}
-                checked={ticked.child}
-                onChange={onTick('child')}
-                disabled={saving}
-              />
-              <span>
-                As the parent or legal guardian of {childName || 'my child'}, I consent, on my child&rsquo;s behalf, to the
-                processing of my child&rsquo;s personal data for the purposes in the notice.
-              </span>
-            </label>
+            {isParent ? (
+              <label className="flex min-h-11 cursor-pointer items-start gap-3 text-sm text-fg-body [overflow-wrap:anywhere]">
+                <input
+                  type="checkbox"
+                  className={BOX_CLASS}
+                  checked={ticked.child}
+                  onChange={onTick('child')}
+                  disabled={saving}
+                />
+                <span>
+                  As the parent or legal guardian of {childName || 'my child'}, I consent, on my child&rsquo;s behalf, to
+                  the processing of my child&rsquo;s personal data for the purposes in the notice.
+                </span>
+              </label>
+            ) : null}
           </fieldset>
 
           <Button variant="primary" size="lg" full type="submit" loading={saving} disabled={!ready}>

@@ -232,5 +232,59 @@ console.log('\nThe four retired learner fields are gone from the three pages (so
   assert(/parent\.contact_number/.test(wizard), "the PARENT's own contact number stays in the wizard — it is the guardian's, not the learner's");
 }
 
+// STAFF ACCEPT TOO (feat/staff-acceptance, 2026-10-11): teachers and the admin
+// meet the same screen with TWO ticks — the parent's first two, word for word
+// — and no child tick; the line above Sign out is "Declining ends portal use
+// only."; Settings → Security & policy shows their own dates (the server's
+// `required` is true for staff now). CONTROLS: the parent's screen, the
+// parent's decline line and the old staff answer (required: false) each fail
+// the staff check beside it.
+console.log('\nStaff — two ticks, no child tick, their own decline line and dates:');
+{
+  const { DeclineLine } = await import('../src/pages/PolicyConsent.jsx');
+  const plain = (html) => html.replace(/<!-- -->/g, '');
+  const STAFF_TICKS = ['I have read and accept the Data Privacy Notice.', 'I have read and agree to the Terms of Use.'];
+  const isStaffScreen = (html) => {
+    const t = plain(html);
+    return (
+      (t.match(/type="checkbox"/g) || []).length === 2 &&
+      STAFF_TICKS.every((s) => t.includes(s)) &&
+      t.includes('please read the school’s Data Privacy Notice and Terms of Use, then accept them.') &&
+      !/legal guardian|for your child|on my child/.test(t)
+    );
+  };
+  assert(isStaffScreen(consent({ isParent: false })), 'staff: two ticks in the parent\'s first two words, the intro without "for your child", no child tick');
+  assert(!isStaffScreen(consent({})), "negative control: the parent's screen (three ticks, the child sentence) fails the staff check");
+
+  const TWO = { privacy_notice: true, terms_of_use: true, child: false };
+  assert(
+    !submitDisabled(consent({ isParent: false, ticked: TWO })) &&
+      submitDisabled(consent({ isParent: false, ticked: { ...TWO, terms_of_use: false } })),
+    'staff: the two ticks enable "I agree and continue"; one missing keeps it disabled'
+  );
+  assert(submitDisabled(consent({ ticked: TWO })), 'negative control: a parent with the same two ticks stays disabled — the child tick is required');
+
+  const decline = (isParent) => plain(render(<DeclineLine isParent={isParent} onSignOut={() => {}} />));
+  const staffDecline = (html) => /<p[^>]*>Declining ends portal use only\.<\/p>/.test(html) && /Sign out/.test(html);
+  assert(staffDecline(decline(false)), 'staff: the line above Sign out is exactly "Declining ends portal use only."');
+  assert(!staffDecline(decline(true)), "negative control: the parent's line (the child's records) is not the staff line");
+
+  const datesShown = (required, acceptedAt) => {
+    const html = plain(
+      render(
+        <PolicyDocumentsView
+          data={{ documents: DOCUMENTS, status: { required, acceptances: DOCUMENTS.map((d) => ({ document: d.document, accepted_at: acceptedAt })) } }}
+          error={null}
+          phase="off"
+          onRetry={() => {}}
+        />
+      )
+    );
+    return (html.match(/Accepted on /g) || []).length === 2 && !/Parents accept them/.test(html) && /when you accepted each/.test(html);
+  };
+  assert(datesShown(true, '2026-10-11T07:31:15.000Z'), 'Security & policy, as the server now answers staff (required): both documents dated, never "Parents accept them"');
+  assert(!datesShown(false, null), 'negative control: the old staff answer (required: false) shows no dates');
+}
+
 console.log(`\n${passed}/${passed + failed} passed`);
 process.exit(failed ? 1 : 0);
