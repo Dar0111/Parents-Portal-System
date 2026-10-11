@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `fix/socket-handshake` — the handshake asks what the REST API asks and names a database error (API_REFERENCE §6); the phone teacher picker's empty groups say why: gated, not device-checked, not merged (on `main` `450b792`, skeleton option 1 merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `fix/socket-handshake` — the handshake asks what the REST API asks and names a database error (API_REFERENCE §6); the phone teacher picker's empty groups say why; the strip waits for a real failure (§5g): device-checked, merge-ready, not merged (on `main` `450b792`, skeleton option 1 merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1725,13 +1725,15 @@ CLAUDE.md on 2026-10-10".
       (2026-10-11): the restore cutoff and the token's version as REST
       checks them, "Database unreachable." for a database error
       (API_REFERENCE §6); the phone teacher picker's empty groups follow the
-      web (§5f). **Gated; not device-checked, not merged.**
+      web (§5f); fix round R4, the strip waits for a real failure (§5g).
+      **Device-checked, re-checked, its data cleaned up; merge-ready, not
+      merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** four branches, each from
-the previous merge with its own device check, all before the smoke gate —
-`fix/socket-handshake` → `feat/staff-acceptance` (teachers and the admin
-accept the Notice and the Terms; two ticks, no child tick) →
-`feat/skeleton-tier2-web` → `feat/skeleton-tier2-phone` → **smoke gate Thu
+**NEXT, in order (the owner's plan, 2026-10-11):** merge
+`fix/socket-handshake` on the owner's word → `feat/staff-acceptance`
+(teachers and the admin accept the Notice and the Terms; two ticks, no
+child tick) → `feat/skeleton-tier2-web` → `feat/skeleton-tier2-phone`, each
+from the previous merge with its own device check → **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the
 team. After the check: the cloud (Supabase) migration planning only.
