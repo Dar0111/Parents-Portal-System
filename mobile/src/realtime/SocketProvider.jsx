@@ -1,9 +1,10 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import { AppState } from 'react-native';
 import { io } from 'socket.io-client';
 import { SOCKET_ORIGIN } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import * as tokenStore from '../auth/tokenStore';
+import { FIRST_CONNECT_GRACE_MS, INITIAL_LIVE_STATE, nextLiveState } from './liveState';
 
 // THE ONE SOCKET, on the phone (MOBILE_CONVENTIONS M10). Same contract as
 // client/src/realtime/SocketProvider.jsx — the server authenticates the
@@ -21,8 +22,14 @@ import * as tokenStore from '../auth/tokenStore';
 //   3. A reconnect may have MISSED a `notification_counts`. `subscribeConnect`
 //      lets the two count providers refetch on every connect — a refetch,
 //      never a count computed here (§10).
+//
+// `paused` — what LiveStatus shows the strip on — means a real failure: a
+// failed attempt, a lost connection, or no first connect within the grace
+// (realtime/liveState.js, mirrored; the R4 fix round). Never the moment
+// before the first connect.
 const SocketContext = createContext({
   connected: false,
+  paused: false,
   subscribe: () => () => {},
   subscribeNotifications: () => () => {},
   subscribeConnect: () => () => {},
@@ -35,7 +42,7 @@ export function useSocket() {
 
 export default function SocketProvider({ children }) {
   const { user } = useAuth();
-  const [connected, setConnected] = useState(false);
+  const [liveState, dispatchLive] = useReducer(nextLiveState, INITIAL_LIVE_STATE);
   const listenersRef = useRef(new Set());
   const notifListenersRef = useRef(new Set());
   const connectListenersRef = useRef(new Set());
@@ -43,7 +50,17 @@ export default function SocketProvider({ children }) {
 
   useEffect(() => {
     if (!user?.id) return undefined;
-    if (!tokenStore.get()) return undefined;
+
+    // The first connect gets FIRST_CONNECT_GRACE_MS before the strip shows;
+    // a failed attempt or a lost connection shows it at once.
+    const grace = setTimeout(() => dispatchLive('grace'), FIRST_CONNECT_GRACE_MS);
+
+    if (!tokenStore.get()) {
+      return () => {
+        clearTimeout(grace);
+        dispatchLive('reset');
+      };
+    }
 
     const socket = io(SOCKET_ORIGIN, {
       auth: (cb) => cb({ token: tokenStore.get() }),
@@ -52,11 +69,11 @@ export default function SocketProvider({ children }) {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      setConnected(true);
+      dispatchLive('connect');
       for (const fn of connectListenersRef.current) fn();
     });
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('connect_error', () => setConnected(false));
+    socket.on('disconnect', () => dispatchLive('disconnect'));
+    socket.on('connect_error', () => dispatchLive('connect_error'));
 
     socket.on('new_message', (message) => {
       for (const fn of listenersRef.current) fn(message);
@@ -71,17 +88,22 @@ export default function SocketProvider({ children }) {
     });
 
     return () => {
+      clearTimeout(grace);
       appState.remove();
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
-      setConnected(false);
+      dispatchLive('reset');
     };
   }, [user?.id]);
+
+  const connected = liveState === 'live';
+  const paused = liveState === 'paused';
 
   const value = useMemo(
     () => ({
       connected,
+      paused,
       subscribe(fn) {
         listenersRef.current.add(fn);
         return () => listenersRef.current.delete(fn);
@@ -99,7 +121,7 @@ export default function SocketProvider({ children }) {
         if (socket && !socket.connected) socket.connect();
       },
     }),
-    [connected]
+    [connected, paused]
   );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;

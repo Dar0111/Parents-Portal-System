@@ -541,9 +541,11 @@ reset may sit in the empty state.**
 
 ### 5g. When a live channel fails, say so — never fake liveness
 
-`SocketProvider` exposes `connected`; `LiveStatus` renders a persistent
+`SocketProvider` exposes `connected` and `paused`; `LiveStatus` renders a persistent
 *"Live updates paused — new updates will not appear on their own"* strip
-with a Refresh action, and nothing while healthy. **No polling fallback.**
+with a Refresh action **on `paused` — a failed attempt, a lost connection,
+or no first connect within 3 s** (`realtime/liveState.js`, mirrored; R4,
+2026-10-11) — and nothing while healthy or still connecting. **No polling fallback.**
 The socket is a latency optimisation, not the delivery path —
 `POST /api/messages` persists before it emits, and an emit into an empty room
 is a no-op. **The notice must appear wherever anything depending on the

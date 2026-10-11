@@ -5,11 +5,14 @@ import { useSocket } from './SocketProvider';
 // disguise it.
 //
 // Renders nothing while connected — a permanent "connected" badge is noise, and
-// the useful signal is the exception.
+// the useful signal is the exception. Nothing, too, while the FIRST connect is
+// still under way: `paused` means a failed attempt, a lost connection or no
+// connect within the grace (realtime/liveState.js, the R4 fix round), so a
+// reload no longer flashes the strip.
 export default function LiveStatus({ onRefresh }) {
-  const { connected } = useSocket();
+  const { paused } = useSocket();
 
-  if (connected) return null;
+  if (!paused) return null;
 
   return (
     // `data-print="hide"` (UI-D-2). UI-D-1 hid the Shell's chrome by

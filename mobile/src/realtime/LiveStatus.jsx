@@ -8,8 +8,11 @@ import { useUnread } from './UnreadProvider';
 
 // The visible half of §5g: when the live channel is down, SAY SO and offer
 // a refresh. Never fake liveness, never poll. Renders nothing while
-// connected. Mounted by AppShell's `screenLayout`, so it sits above every
-// screen's content — the badges and the bell are on every screen.
+// connected, and nothing while the FIRST connect is still under way:
+// `paused` means a failed attempt, a lost connection or no connect within
+// the grace (realtime/liveState.js, the R4 fix round). Mounted by AppShell's
+// `screenLayout`, so it sits above every screen's content — the badges and
+// the bell are on every screen.
 //
 // REFRESH RECONNECTS AND REFETCHES BOTH COUNTS (Darryl, branch 2 decision 4)
 // rather than reloading a page the phone does not have; each list screen
@@ -20,12 +23,12 @@ import { useUnread } from './UnreadProvider';
 // frame, not to the screen under it. Refresh is a 44dp target — the height
 // is a plain style object in dp (M19), never a style function (M20).
 export default function LiveStatus() {
-  const { connected, reconnect } = useSocket();
+  const { paused, reconnect } = useSocket();
   const { refresh: refreshNotifications } = useNotifications();
   const { refresh: refreshUnread } = useUnread();
   const { tokens } = useTheme();
 
-  if (connected) return null;
+  if (!paused) return null;
 
   function onRefresh() {
     reconnect();

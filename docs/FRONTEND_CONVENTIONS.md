@@ -995,6 +995,19 @@ real-time surface inherits it.
   *"Live updates paused — new messages will not appear on their own"* strip with
   a Refresh action, and renders **nothing** while healthy (a permanent
   "connected" badge is noise; the exception is the signal).
+- **The strip waits for a real failure (the fix/socket-handshake fix round,
+  R4, 2026-10-11).** `SocketProvider` also exposes `paused`, from the pure
+  `realtime/liveState.js` (mirrored to the phone): the channel starts
+  CONNECTING, and is PAUSED only after a failed attempt (`connect_error`), a
+  lost connection (`disconnect`), or a first connect that has not arrived
+  within `FIRST_CONNECT_GRACE_MS` (3 s). `LiveStatus` shows the strip on
+  `paused` alone. Before this, `connected` started false and the strip showed
+  from the first render until the first connect — on every reload, web and
+  phone, with nothing failed (the owner's device check; the handshake
+  admitted every attempt). The grace keeps an unreachable server honest: a
+  refused port fails at once, but a host that does not answer would
+  otherwise wait for socket.io's 20 s connect timeout. The words and Refresh
+  are unchanged.
 - **No polling fallback.** Polling every few seconds would burn requests to hide
   a state the user should simply know about, and it converts an honest "this is
   paused" into a dishonest "this is live".

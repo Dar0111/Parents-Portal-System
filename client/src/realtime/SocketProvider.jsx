@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { TOKEN_KEY } from '../api/axios';
 import { SOCKET_ORIGIN } from '../api/apiBase';
 import { useAuth } from '../auth/AuthContext';
+import { FIRST_CONNECT_GRACE_MS, INITIAL_LIVE_STATE, nextLiveState } from './liveState';
 
 // The one Socket.io connection for the whole app.
 //
@@ -29,10 +30,14 @@ import { useAuth } from '../auth/AuthContext';
 // SAY SO and fall back to explicit refresh. We do not poll. Polling would burn
 // requests to disguise a state the user should simply know about, and a
 // channel that looks live while silently delivering nothing is worse in a
-// parent-teacher context than one that admits it is paused.
+// parent-teacher context than one that admits it is paused. `paused` is that
+// signal, and it means a real failure — a failed attempt, a lost connection,
+// or no first connect within the grace (realtime/liveState.js) — never the
+// moment before the first connect.
 
 const SocketContext = createContext({
   connected: false,
+  paused: false,
   subscribe: () => () => {},
   subscribeNotifications: () => () => {},
 });
@@ -43,7 +48,7 @@ export function useSocket() {
 
 export default function SocketProvider({ children }) {
   const { user } = useAuth();
-  const [connected, setConnected] = useState(false);
+  const [liveState, dispatchLive] = useReducer(nextLiveState, INITIAL_LIVE_STATE);
 
   // Listeners are kept in a ref so subscribing does not re-create the socket,
   // and so a page mounting/unmounting never disturbs the connection itself.
@@ -59,8 +64,17 @@ export default function SocketProvider({ children }) {
   useEffect(() => {
     if (!user?.id) return undefined;
 
+    // The first connect gets FIRST_CONNECT_GRACE_MS before the strip shows;
+    // a failed attempt or a lost connection shows it at once.
+    const grace = setTimeout(() => dispatchLive('grace'), FIRST_CONNECT_GRACE_MS);
+
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return undefined;
+    if (!token) {
+      return () => {
+        clearTimeout(grace);
+        dispatchLive('reset');
+      };
+    }
 
     // The HTTP server root, not the /api mount — from the one API-base
     // decision in api/apiBase.js (feat/lan-web), so the socket always talks
@@ -68,9 +82,9 @@ export default function SocketProvider({ children }) {
     const socket = io(SOCKET_ORIGIN, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = socket;
 
-    socket.on('connect', () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
-    socket.on('connect_error', () => setConnected(false));
+    socket.on('connect', () => dispatchLive('connect'));
+    socket.on('disconnect', () => dispatchLive('disconnect'));
+    socket.on('connect_error', () => dispatchLive('connect_error'));
 
     socket.on('new_message', (message) => {
       for (const fn of listenersRef.current) fn(message);
@@ -87,17 +101,24 @@ export default function SocketProvider({ children }) {
 
     return () => {
       // Logout clears `user`, which lands here — the socket is torn down rather
-      // than left open and authenticated after the session ends.
+      // than left open and authenticated after the session ends. Its
+      // listeners go first, so this disconnect is not read as a lost
+      // connection (and StrictMode's first mount leaves no strip behind).
+      clearTimeout(grace);
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
-      setConnected(false);
+      dispatchLive('reset');
     };
   }, [user?.id]);
+
+  const connected = liveState === 'live';
+  const paused = liveState === 'paused';
 
   const value = useMemo(
     () => ({
       connected,
+      paused,
       // Returns an unsubscribe function. Pages use this rather than touching
       // the socket, so no page can accidentally emit or re-listen globally.
       subscribe(fn) {
@@ -111,7 +132,7 @@ export default function SocketProvider({ children }) {
         return () => notifListenersRef.current.delete(fn);
       },
     }),
-    [connected]
+    [connected, paused]
   );
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;

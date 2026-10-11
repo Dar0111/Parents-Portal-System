@@ -264,5 +264,49 @@ const appJson = JSON.parse(fs.readFileSync(path.join(here, '..', 'app.json'), 'u
 const plugins = appJson?.expo?.plugins || [];
 assert(!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'expo-audio'), 'app.json has NO expo-audio config plugin (deliberately not configured)');
 
+// THE LIVE UPDATES STRIP WAITS FOR A REAL FAILURE (fix/socket-handshake fix
+// round, R4, 2026-10-11): the MIRRORED realtime/liveState.js driven directly,
+// and the phone's two hosts read as source. Each check takes a rule
+// { initial, reduce, strip }. CONTROLS: the rule before the fix (the strip
+// whenever the socket was not connected, from the first render), a rule that
+// ignores a lost connection, and the pre-fix LiveStatus guard.
+console.log('\nThe Live updates strip — none before the first connect; shown on a real failure:');
+const live = await import('../src/realtime/liveState.js');
+const runLive = (rule, events) => events.reduce(rule.reduce, rule.initial);
+const FIXED_RULE = { initial: live.INITIAL_LIVE_STATE, reduce: live.nextLiveState, strip: (s) => s === 'paused' };
+const noStripWhilePending = (rule) => !rule.strip(rule.initial) && !rule.strip(runLive(rule, ['connect']));
+const stripOnFailure = (rule) =>
+  rule.strip(runLive(rule, ['connect_error'])) &&
+  rule.strip(runLive(rule, ['connect', 'disconnect'])) &&
+  rule.strip(runLive(rule, ['grace'])) &&
+  !rule.strip(runLive(rule, ['connect', 'disconnect', 'connect'])) &&
+  !rule.strip(runLive(rule, ['connect', 'grace']));
+assert(noStripWhilePending(FIXED_RULE), 'no strip while the first connect is pending, nor once it connects');
+assert(stripOnFailure(FIXED_RULE), 'the strip after a failed attempt, a lost connection (the background drop) or the grace; gone on the reconnect');
+assert(live.FIRST_CONNECT_GRACE_MS >= 1000 && live.FIRST_CONNECT_GRACE_MS <= 5000, 'the grace is a few seconds');
+const BEFORE_FIX_RULE = {
+  initial: 'disconnected',
+  reduce: (s, e) => (e === 'connect' ? 'live' : e === 'grace' ? s : 'disconnected'),
+  strip: (s) => s !== 'live',
+};
+assert(!noStripWhilePending(BEFORE_FIX_RULE), 'negative control: the rule before the fix shows the strip before the first connect');
+const IGNORES_LOSS = { ...FIXED_RULE, reduce: (s, e) => (e === 'disconnect' ? s : live.nextLiveState(s, e)) };
+assert(!stripOnFailure(IGNORES_LOSS), 'negative control: a rule that ignores a lost connection fails the failure check');
+const providerSrc = fs.readFileSync(path.join(here, '..', 'src', 'realtime', 'SocketProvider.jsx'), 'utf8');
+const stripSrc = fs.readFileSync(path.join(here, '..', 'src', 'realtime', 'LiveStatus.jsx'), 'utf8');
+const hostsWired = (p, s) =>
+  /setTimeout\(\(\) => dispatchLive\('grace'\), FIRST_CONNECT_GRACE_MS\)/.test(p) &&
+  /socket\.on\('connect', \(\) => \{\s*dispatchLive\('connect'\);/.test(p) &&
+  ['disconnect', 'connect_error'].every((e) => p.includes(`socket.on('${e}', () => dispatchLive('${e}'))`)) &&
+  /clearTimeout\(grace\)/.test(p) &&
+  /dispatchLive\('reset'\)/.test(p) &&
+  /if \(!paused\) return null;/.test(s) &&
+  !/if \(connected\) return null;/.test(s);
+assert(hostsWired(providerSrc, stripSrc), 'SocketProvider feeds the rule its three events and the grace; LiveStatus shows the strip on paused only');
+assert(
+  !hostsWired(providerSrc, stripSrc.replace('if (!paused) return null;', 'if (connected) return null;')),
+  'negative control: the pre-fix LiveStatus guard fails it'
+);
+
 console.log(`\nproof-message-toast: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);
