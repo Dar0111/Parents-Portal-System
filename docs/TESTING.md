@@ -272,9 +272,9 @@ dashboard; the phone's Edit student shows LRN, Grade level and Section
 read-only and greyed; the API starts from a fresh terminal with no
 `CORS_ORIGIN` warning (PF3 confirmed: the old terminal's environment).
 **Not device-checked, kept here until seen:** the PHONE consent screen's new
-words (the parent used had already accepted on the web — a quick look after
-the cleanup, with a parent who has not accepted; every seeded parent has
-not, since the cleanup); and a REAL restore (PF1 is proved on a disposable
+words — **SEEN 2026-10-11** in the staff-acceptance device check (a parent
+who had not accepted: three ticks, the child named, the parent's decline
+line); and a REAL restore (PF1 is proved on a disposable
 schema by `test:privacy`, never by a restore — the smoke gate runs one,
 after a fresh backup). **Cleanup by id** (backup 289 first): the check's
 two users, its learner, every `policy_acceptances` row and the admin's
@@ -474,6 +474,41 @@ owner's "Socket check"), notifications 0, `policy_acceptances` 0; then
 health `200`, **backup 292** (`201`), and the one row deleted by id
 (`affectedRows` 1); after, messages 0, notifications 0,
 `policy_acceptances` 0. `activity_logs` and `login_attempts` kept.
+
+**Device check — staff acceptance (`feat/staff-acceptance`, the owner,
+2026-10-11). PASSED.** Web, the admin: the two-tick screen — the exact
+sentences, no child tick, "Declining ends portal use only." above Sign out —
+accept → the dashboard, no strip; Security & policy "Accepted on 11 October
+2026" for both documents. Web, Maria Santos: the dashboard, no strip. Phone,
+the admin: the same screen, the button disabled until both are ticked.
+Phone, Maria Santos: accept → home ("Good day, Maria Santos."), no strip;
+Security & policy dated. Phone, a parent (Ashley Geguiera): three ticks,
+"…for yourself and for your child", the child sentence naming Marwin, the
+parent's decline line — **which closes the privacy build's phone
+consent-wording gap.** **Cleanup by id (2026-10-11):** the survey (ids, user
+ids, roles only) found 4 acceptances — **529, 530** (a teacher, user 2) and
+**531, 532** (the admin, user 1) — messages 0, notifications 0; health `200`;
+**backup 302** (`201`, taken while the admin's acceptance still existed — an
+admin without one is gated from `POST /api/backups`); the four rows deleted by
+id in one transaction (`affectedRows` 4); after, messages 0, notifications 0,
+`policy_acceptances` 0. `activity_logs` and `login_attempts` kept.
+
+**The `--watch` restart during a full run (found 2026-10-11).** No suite
+writes under a watched path — the `dev` script watches `server.js`,
+`socket.js`, `routes/`, `utils/`, `middleware/` and `config/` only; the
+suites' file writes go to `server/backups/` (`test:backups`' planted
+`.partial` and its own server on 5002), `server/uploads/avatars/`
+(`test:profile-photo`), `server/tmp/` (`test:recovery`'s mail and SMS files)
+and the OS temp folder (`test:sms-transport`). **But `test:socket-auth`
+restarts the `--watch` API on its own, reproducibly:** run back to back with
+`test:students`, the API's child process restarted (16:20:58) and
+`test:students` met `ECONNREFUSED`; re-run alone, 97/97. The suite READS
+`socket.js` — `readFileSync` for its controls and `require` — and `socket.js`
+is a watched file; on Windows the watcher also reports last-access changes
+(the class behind the `node_modules` row in KNOWN_ISSUES). Nothing changed, by
+the owner's rule for a read rather than a write. **Until it is addressed, run
+`test:socket-auth` last in a full run, or give the API a few seconds after
+it.**
 
 ## Measuring a layout before fixing it (fix/polish, 2026-09-26)
 

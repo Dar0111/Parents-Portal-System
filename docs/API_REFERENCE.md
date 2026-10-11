@@ -358,7 +358,7 @@ shape appears; a fourth should import it. Proved by `test:auth-middleware`
   | 4 | `Account is not active.` | — | no `users` row, or `status` ≠ `active` (for a missing row the HTTP API says `User not found.`; the handshake keeps its sentence) |
   | 5 | `Your password was changed. Please log in again.` | — | token `v` ≠ `users.token_version` (§5b); a missing `v` reads as 0 |
   | 6 | `You must change your password before continuing.` | `MUST_CHANGE_PASSWORD` | `users.must_change_password` is set |
-  | 7 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | a **parent** without the CURRENT version of both documents accepted; staff are never gated |
+  | 7 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | an account without the CURRENT version of both documents accepted — a **parent**, and since feat/staff-acceptance (2026-10-11) **a teacher or the admin** too |
   | — | **`Database unreachable.`** | **`DB_UNAVAILABLE`** | **any throw inside the database block** — the HTTP API's `503`, in the health body's words (`utils/dbUnavailable.js`) |
 
   A refused handshake is not retried; both apps connect afresh once

@@ -17,7 +17,9 @@ skeleton option 1, shared Messages and privacy before it) plus
 `feat/staff-acceptance` — branch 2 of the owner's four before the smoke gate:
 teachers and the admin accept the Data Privacy Notice and the Terms of Use at
 sign-in, server-enforced like the parent gate — two ticks, no child tick,
-their own decline line and dates. Gated; not device-checked, not merged.**
+their own decline line and dates. Device-checked on web and phone (the
+phone consent-wording gap closed with it), its data cleaned up (backup 302);
+merge-ready, not merged.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -47,7 +49,7 @@ and only there.
 | Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11); two fix rounds — the top bar's ← as the way back (the page's own link removed), a whole row opens a conversation; device-checked and re-checked 2026-10-11, data cleaned up (backup 291) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the thread screen) |
 | Skeleton option 1 — `feat/skeleton-querykey`: the `queryKey` rule (a new query shows the skeleton, the same query keeps the rows), the keys on every list whose query can change, the avatar circle on the nine lists that lacked it (built and device-checked on the web 2026-10-11) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (not device-checked: the LAN is too fast to see a skeleton; the proofs cover it) |
 | The socket handshake and the picker copy — `fix/socket-handshake`: the handshake asks what the REST API asks (the restore cutoff, the token's version) and says "Database unreachable." for a database error; the phone teacher picker's empty groups follow the web; fix round R4 — the strip waits for a real failure (a 3 s grace), the admin dashboards' "Live connection" row says "Connecting…" (built, device-checked and re-checked 2026-10-11; data cleaned up, backup 292) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the strip, the dashboard row) | ✅ merged 2026-10-11 (the picker, the strip, the dashboard row) |
-| Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built and gated 2026-10-11) | 🟡 gated, not merged | 🟡 gated, not device-checked, not merged | 🟡 gated, not device-checked, not merged |
+| Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built, gated and device-checked 2026-10-11; data cleaned up, backup 302) | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -134,14 +136,13 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **`feat/staff-acceptance`'s device check, then its merge on the owner's
-   word** (built and gated), then **two more branches, in order, each from
+1. **The merge of `feat/staff-acceptance`, on the owner's word**
+   (device-checked, merge-ready), then **two more branches, in order, each from
    the previous merge and each with its own device check — all before the
    smoke gate** (the owner's plan, 2026-10-11):
    `feat/skeleton-tier2-web` → `feat/skeleton-tier2-phone` (the class
    record, the class summary, the roster, the calendar, the detail pages,
-   the thread, Settings and About). The phone consent screen's new words
-   still get their quick look (`docs/TESTING.md`).
+   the thread, Settings and About).
 2. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a real
    restore after a fresh backup, and SMS.
 3. **Professor system check, Fri 2026-10-16.**

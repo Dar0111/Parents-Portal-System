@@ -7462,3 +7462,36 @@ its `docs/CHANGELOG.md` row.
       the sweep, the inside nav ring, positional keys) **built 2026-10-09
       (two commits), re-checked by the owner the same day: MERGE-READY; not
       merged.** Device gaps: `docs/TESTING.md`.
+
+## BUILD ORDER → Stage 5 items moved from CLAUDE.md on 2026-10-11 (feat/staff-acceptance merge-ready docs, the REFILL RULE)
+
+Four ticked items had gathered under CLAUDE.md's closed Stage 5 heading since
+the 2026-10-10 move — each a branch merged after the close, each
+device-checked. The owner's merge-ready dispatch for `feat/staff-acceptance`
+applied the REFILL RULE ahead of the 138,000-byte trigger (the projection after
+skeleton tier 2 was ~137,700). Verbatim as they stood; their rules stay where
+they live — §29–§30, §5, §5f–§5g, M11, M26–M27, API_REFERENCE §6 — and
+CLAUDE.md keeps one pointer line.
+
+- [x] **The privacy build — `feat/privacy`** (two commits + a fix round),
+      2026-10-10: the consent gate, your own first password, sign-in limits,
+      four learner fields not collected (§29, M26). **Device-checked, fixed
+      (PF1–PF5), re-checked, its data cleaned up; merged 2026-10-11
+      (`456bba8`).**
+- [x] **Shared Messages — `feat/shared-messages`** (2026-10-11): one thread
+      and one conversations page for every role on the web (§30), its browser
+      test, and the phone thread's positioning fix (M27); two fix rounds —
+      the top bar's ← as the way back, a whole row opens a conversation.
+      **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
+      (`ea96ecf`).**
+- [x] **Skeleton option 1 — `feat/skeleton-querykey`** (2026-10-11): the
+      `queryKey` rule on DataTable / DataList, the keys on 19 web tables and
+      10 phone lists, nine avatar circles (§5, M11). **Device-checked on
+      the web (the phone's LAN too fast); merged 2026-10-11 (`450b792`).**
+- [x] **The socket handshake and the picker copy — `fix/socket-handshake`**
+      (2026-10-11): the restore cutoff and the token's version as REST
+      checks them, "Database unreachable." for a database error
+      (API_REFERENCE §6); the phone teacher picker's empty groups follow the
+      web (§5f); fix round R4, the strip waits for a real failure (§5g).
+      **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
+      (`10e277a`).**

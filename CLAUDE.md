@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `feat/staff-acceptance` — teachers and the admin accept the Notice and the Terms (§29): gated, not device-checked, not merged (on `main` `10e277a`, the socket handshake merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/staff-acceptance` — teachers and the admin accept the Notice and the Terms (§29): device-checked, merge-ready, not merged (on `main` `10e277a`, the socket handshake merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1706,34 +1706,18 @@ and 2 and admin Messages — each device-checked and merged (build 2 last,
 decision). The block: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 moved from
 CLAUDE.md on 2026-10-10".
 
-- [x] **The privacy build — `feat/privacy`** (two commits + a fix round),
-      2026-10-10: the consent gate, your own first password, sign-in limits,
-      four learner fields not collected (§29, M26). **Device-checked, fixed
-      (PF1–PF5), re-checked, its data cleaned up; merged 2026-10-11
-      (`456bba8`).**
-- [x] **Shared Messages — `feat/shared-messages`** (2026-10-11): one thread
-      and one conversations page for every role on the web (§30), its browser
-      test, and the phone thread's positioning fix (M27); two fix rounds —
-      the top bar's ← as the way back, a whole row opens a conversation.
-      **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
-      (`ea96ecf`).**
-- [x] **Skeleton option 1 — `feat/skeleton-querykey`** (2026-10-11): the
-      `queryKey` rule on DataTable / DataList, the keys on 19 web tables and
-      10 phone lists, nine avatar circles (§5, M11). **Device-checked on
-      the web (the phone's LAN too fast); merged 2026-10-11 (`450b792`).**
-- [x] **The socket handshake and the picker copy — `fix/socket-handshake`**
-      (2026-10-11): the restore cutoff and the token's version as REST
-      checks them, "Database unreachable." for a database error
-      (API_REFERENCE §6); the phone teacher picker's empty groups follow the
-      web (§5f); fix round R4, the strip waits for a real failure (§5g).
-      **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
-      (`10e277a`).**
+Merged after the close, each device-checked: privacy (`456bba8`), shared
+Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
+(`10e277a`) — items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved
+from CLAUDE.md on 2026-10-11"; rules: §5, §5f–§5g, §29–§30, M11, M26–M27.
+
 - [ ] **Staff acceptance — `feat/staff-acceptance`** (2026-10-11): teachers
       and the admin accept the Notice and the Terms (§29) — two ticks, no
-      child tick. **Gated; not device-checked, not merged.**
+      child tick. **Device-checked (web and phone), its data cleaned up;
+      merge-ready, not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** the device check and
-merge of `feat/staff-acceptance` → `feat/skeleton-tier2-web` →
+**NEXT, in order (the owner's plan, 2026-10-11):** merge
+`feat/staff-acceptance` on the owner's word → `feat/skeleton-tier2-web` →
 `feat/skeleton-tier2-phone`, each
 from the previous merge with its own device check → **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
