@@ -15,6 +15,24 @@ import { cardClass } from './buttonClass';
 // bands, a grid — so the content lands in the space the skeleton held. No new
 // token and no new element: bars, circles and the app's own frames.
 
+// A shape that belongs to a load another region on the page already announces
+// (the fix round, T2): the same wait and sweep switch as the region in
+// components/Skeleton.jsx, but hidden from assistive technology and with no
+// status of its own, so one load is announced once. It takes the frame's own
+// classes, so a sticky bar stays a direct child of its section.
+function Quiet({ phase, className = '', children }) {
+  const painted = phase === 'skeleton';
+  return (
+    <div
+      aria-hidden="true"
+      data-skeleton={painted ? 'painted' : 'wait'}
+      className={[painted ? '' : 'invisible', className].filter(Boolean).join(' ') || undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
 // A label above a control — a filter or a form field.
 function FieldShape({ wide = false }) {
   return (
@@ -106,10 +124,10 @@ export function GridSkeleton({ phase, label, columns = 6, rows = 6 }) {
 }
 
 // A page whose filters and list both wait on one read (its sections).
-export function FilterAndTableSkeleton({ phase, label, fields = 2, columns = 4, gap = 'space-y-3' }) {
+export function FilterAndTableSkeleton({ phase, label, fields = 2, columns = 4 }) {
   return (
     <Skeleton phase={phase} label={label}>
-      <div className={gap}>
+      <div className="space-y-3">
         <FilterCardShape fields={fields} />
         <div className={cardClass}>
           <GridShape columns={columns} rows={5} />
@@ -120,19 +138,134 @@ export function FilterAndTableSkeleton({ phase, label, fields = 2, columns = 4, 
 }
 
 // The phone's roster cards: a learner's name over the four status buttons.
+// Widths are fractions and a four-column grid, so nothing in a card can be
+// wider than the card.
+function RosterCardRows() {
+  return [0, 1, 2, 3].map((i) => (
+    <div key={i} className={`space-y-3 p-4 ${i ? 'border-t border-edge-soft' : ''}`}>
+      <SkeletonBar className="h-4 w-2/3" />
+      <div className="grid grid-cols-4 gap-2">
+        {[0, 1, 2, 3].map((b) => (
+          <SkeletonBar key={b} className="h-11" round="rounded-lg" />
+        ))}
+      </div>
+    </div>
+  ));
+}
+
 export function RosterCardsSkeleton({ phase }) {
   return (
     <Skeleton phase={phase} label="Loading the roster…">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className={`space-y-3 p-4 ${i ? 'border-t border-edge-soft' : ''}`}>
-          <SkeletonBar className="h-4 w-2/3" />
-          <div className="grid grid-cols-4 gap-2">
-            {[0, 1, 2, 3].map((b) => (
-              <SkeletonBar key={b} className="h-11" round="rounded-lg" />
-            ))}
+      <RosterCardRows />
+    </Skeleton>
+  );
+}
+
+// TEACHER → ATTENDANCE (the fix round). The summary card while a register
+// loads: the count, the four status chips, Mark all Present, and from `sm` Save
+// (wrapped, so a bar never carries two display utilities). Quiet: the roster's
+// own region announces the load.
+function RosterSummaryShape() {
+  return (
+    <>
+      <div className="min-w-0 space-y-2">
+        <SkeletonBar className="h-5 w-28" />
+        <div className="flex flex-wrap gap-2">
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonBar key={i} className="h-6 w-20" round="rounded-lg" />
+          ))}
+        </div>
+      </div>
+      <div className="grow" />
+      <SkeletonBar className="h-11 w-40" round="rounded-lg" />
+      <div className="hidden sm:block">
+        <SkeletonBar className="h-11 w-44" round="rounded-lg" />
+      </div>
+    </>
+  );
+}
+
+export function RosterSummarySkeleton({ phase }) {
+  return (
+    <Quiet phase={phase} className={`${cardClass} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`}>
+      <RosterSummaryShape />
+    </Quiet>
+  );
+}
+
+// The note under the roster, in its own frame.
+export function RosterNoteSkeleton({ phase }) {
+  return (
+    <Quiet phase={phase} className="flex items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+      <SkeletonBar className="h-5 w-full max-w-md" />
+    </Quiet>
+  );
+}
+
+// The phone's pinned Save bar: the unsaved line and Save, pinned like the real
+// one (the frame IS the sticky element, a direct child of the section).
+export function RosterSaveBarSkeleton({ phase }) {
+  return (
+    <Quiet
+      phase={phase}
+      className="sticky bottom-0 -mx-4 flex items-center gap-3 border-t border-edge bg-surface px-4 py-3 sm:hidden"
+    >
+      <div className="min-w-0 grow">
+        <SkeletonBar className="h-4 w-32 max-w-full" />
+      </div>
+      <SkeletonBar className="h-11 w-36 shrink-0" round="rounded-lg" />
+    </Quiet>
+  );
+}
+
+// The whole register while the teacher's sections load (T1): the filter card,
+// the Roster heading, the summary card, then the roster in the shape the width
+// shows — the table from `sm`, the cards below it, never a clipped table.
+export function AttendanceRegisterSkeleton({ phase }) {
+  return (
+    <Skeleton phase={phase} label="Loading your sections…">
+      <div className="space-y-6">
+        <FilterCardShape fields={2} />
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <SkeletonBar className="h-6 w-24" />
+            <SkeletonBar className="h-4 w-64 max-w-full" />
+          </div>
+          <div className={`${cardClass} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`}>
+            <RosterSummaryShape />
+          </div>
+          <div className={`${cardClass} hidden sm:block`}>
+            <GridShape columns={5} rows={5} />
+          </div>
+          <div className={`${cardClass} sm:hidden`}>
+            <RosterCardRows />
           </div>
         </div>
-      ))}
+      </div>
+    </Skeleton>
+  );
+}
+
+// PARENT → ATTENDANCE (the fix round, P1). The month's summary card while the
+// month loads — the figure, its caption, the four count tiles, the footnote —
+// so "Nothing recorded" can never show before the month has answered.
+export function MonthSummarySkeleton({ phase }) {
+  return (
+    <Skeleton phase={phase} label="Loading this month's summary…">
+      <SkeletonBar className="mt-3 h-8 w-24" />
+      <SkeletonBar className="mt-1.5 h-4 w-44 max-w-full" />
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between gap-2 rounded-xl border border-edge-soft bg-surface-subtle px-3 py-2.5"
+          >
+            <SkeletonBar className="h-5 w-16" />
+            <SkeletonBar className="h-5 w-6" />
+          </div>
+        ))}
+      </div>
+      <SkeletonBar className="mt-4 h-3 w-56 max-w-full" />
     </Skeleton>
   );
 }

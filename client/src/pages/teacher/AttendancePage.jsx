@@ -10,7 +10,13 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
 import Modal from '../../components/Modal';
-import { FilterAndTableSkeleton, RosterCardsSkeleton } from '../../components/SkeletonShapes';
+import {
+  AttendanceRegisterSkeleton,
+  RosterCardsSkeleton,
+  RosterNoteSkeleton,
+  RosterSaveBarSkeleton,
+  RosterSummarySkeleton,
+} from '../../components/SkeletonShapes';
 import useSkeleton, { useQueryRows } from '../../hooks/useSkeleton';
 import SectionHeader from '../../components/SectionHeader';
 import { longDate, todayLocalDateString } from '../../format/date';
@@ -449,13 +455,21 @@ export default function AttendancePage() {
   const columns = rosterColumns({ recorded, marks, onPick: pick });
 
   // THE SKELETONS (feat/skeleton-tier2-web), above every return. The sections:
-  // the whole page waits on them. The phone's roster cards follow the
-  // DataTable's rule beside them (`queryKey`, §5): a new section or date shows
-  // the skeleton; the same register re-read after a save keeps the cards —
-  // busy and inert while it reads, so a tap cannot be lost to the re-read.
+  // the whole page waits on them, in the register's own shape — cards below
+  // `sm`, the table above (fix round, T1). The roster follows the DataTable's
+  // rule beside it (`queryKey`, §5): a new section or date shows the skeleton;
+  // the same register re-read after a save keeps the cards — busy and inert
+  // while it reads, so a tap cannot be lost to the re-read.
+  //
+  // WAITING IS "THE ROWS ON SCREEN ARE NOT THIS REGISTER'S" (fix round, T2),
+  // not only "loading": a date or section change renders once with the new key
+  // before the load's effect starts, and that render must not show the old
+  // register's counts either. While it waits, everything that is computed from
+  // the old roster — the summary card's counts and chips, both buttons, the
+  // note, the phone's Save bar — is skeleton in place.
   const sectionsPhase = useSkeleton(sections === null);
   const rosterCurrent = useQueryRows(roster, rosterLoading, [section, date]);
-  const rosterWaiting = rosterLoading && (!rosterCurrent || roster.length === 0);
+  const rosterWaiting = !rosterCurrent || (rosterLoading && roster.length === 0);
   const rosterPhase = useSkeleton(rosterWaiting);
 
   // --- render ------------------------------------------------------------
@@ -464,9 +478,7 @@ export default function AttendancePage() {
   }
 
   if (sections === null) {
-    return (
-      <FilterAndTableSkeleton phase={sectionsPhase} label="Loading your sections…" fields={2} columns={5} gap="space-y-6" />
-    );
+    return <AttendanceRegisterSkeleton phase={sectionsPhase} />;
   }
 
   if (!sections.length) {
@@ -551,7 +563,9 @@ export default function AttendancePage() {
           description={date ? `${classLabel} · ${longDate(date)}` : classLabel}
         />
 
-        {roster.length ? (
+        {rosterWaiting ? (
+          <RosterSummarySkeleton phase={rosterPhase} />
+        ) : roster.length ? (
           <div className={`${cardClass} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`}>
             <div className="min-w-0">
               <p className="text-sm font-semibold tabular-nums text-fg">
@@ -647,7 +661,12 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {roster.length ? (
+        {rosterWaiting ? (
+          <>
+            <RosterNoteSkeleton phase={rosterPhase} />
+            <RosterSaveBarSkeleton phase={rosterPhase} />
+          </>
+        ) : roster.length ? (
           <>
             {unsetCount > 0 ? (
               // Unset rows are omitted from the request, never defaulted to

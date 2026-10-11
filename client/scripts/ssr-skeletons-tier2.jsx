@@ -22,6 +22,17 @@
 // return; both detail pages' link inside the loading body, above the shapes;
 // the phone roster's re-read keeping its cards.
 //
+// THE FIX ROUND (the owner's device check, 3G): T1 — the teacher register's
+// sections skeleton is cards below `sm` and the table above, no grid cell at
+// phone width (rendered, control: the old filter-and-table shape); T2 — the
+// roster's waiting rule DRIVEN through `nextRowsQuery` / `rowsAreCurrent` (a
+// date change before its load starts is a wait; Save's re-read is not; control:
+// the old rule), the summary, note and Save-bar shapes rendered quiet, and their
+// wiring; P1 — the parent's month summary card as skeleton while the month
+// loads; P2 — the month's load takes a ticket and applies only the newest
+// reply (source), and two fake loads answering out of order through
+// api/tickets.js (control: without the ticket the older month lands last).
+//
 // WHAT IT CANNOT: the 300 ms, the sweep, a load ending — renderToStaticMarkup
 // renders once and runs no effect, so no page reaches its loaded state here;
 // and the pages that read useAuth cannot render without the real provider.
@@ -34,18 +45,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { createTickets } from '../src/api/tickets';
 import LoadingSpinner from '../src/components/LoadingSpinner';
 import {
   AboutSkeleton,
+  AttendanceRegisterSkeleton,
   CalendarSkeleton,
   FilterAndTableSkeleton,
   GridSkeleton,
+  MonthSummarySkeleton,
   RosterCardsSkeleton,
+  RosterNoteSkeleton,
+  RosterSaveBarSkeleton,
+  RosterSummarySkeleton,
   ScoresSkeleton,
   SettingsSkeleton,
   StudentDetailSkeleton,
   ThreadSkeleton,
 } from '../src/components/SkeletonShapes';
+import { nextRowsQuery, rowsAreCurrent } from '../src/hooks/useSkeleton';
 import Header from '../src/layout/Header';
 import AboutPage, { AboutBody } from '../src/pages/AboutPage';
 import AdminStudentDetailPage from '../src/pages/admin/StudentDetailPage';
@@ -72,13 +90,14 @@ function proved(label, holds, real, ...controls) {
 const src = (p) => fs.readFileSync(path.resolve(p), 'utf8').replace(/\r\n/g, '\n');
 const html = (el, at = '/') => renderToStaticMarkup(<MemoryRouter initialEntries={[at]}>{el}</MemoryRouter>);
 const count = (m, s) => m.split(s).length - 1;
+const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
 // A skeleton region: the status region with the words, the hidden shapes with
 // the sweep's class on their bars, and no spinner glyph and no pulse.
 const region = (label) => (m) =>
   m.includes('role="status"') &&
   m.includes('aria-busy="true"') &&
-  m.includes(`<span class="sr-only">${label}</span>`) &&
+  m.includes(`<span class="sr-only">${label.replace(/'/g, '&#x27;')}</span>`) &&
   m.includes('aria-hidden="true"') &&
   count(m, 'skeleton-bone') >= 3 &&
   !m.includes('fa-spin') &&
@@ -99,6 +118,8 @@ const SHAPES = [
   ['ScoresSkeleton', (p) => <ScoresSkeleton phase={p} />, 'Loading scores…'],
   ['SettingsSkeleton', (p) => <SettingsSkeleton phase={p} />, 'Loading school settings…'],
   ['AboutSkeleton', (p) => <AboutSkeleton phase={p} />, 'Loading school details…'],
+  ['AttendanceRegisterSkeleton', (p) => <AttendanceRegisterSkeleton phase={p} />, 'Loading your sections…'],
+  ['MonthSummarySkeleton', (p) => <MonthSummarySkeleton phase={p} />, 'Loading this month\'s summary…'],
 ];
 for (const [name, el, label] of SHAPES) {
   const shown = html(el('skeleton'));
@@ -237,7 +258,7 @@ const WIRING = [
   ['src/pages/teacher/ClassRecordPage.jsx', 'GridSkeleton', 'recordPhase', 'recordLoading', '{recordLoading ? (', '<table className="print-sheet-table'],
   ['src/pages/teacher/ClassSummaryPage.jsx', 'FilterAndTableSkeleton', 'classesPhase', 'advised === null', 'if (advised === null) {', '<ClassSummaryTable'],
   ['src/pages/teacher/ClassSummaryPage.jsx', 'GridSkeleton', 'sheetPhase', 'loading', ') : loading ? (', '<ClassSummaryTable'],
-  ['src/pages/teacher/AttendancePage.jsx', 'FilterAndTableSkeleton', 'sectionsPhase', 'sections === null', 'if (sections === null) {', '<DataTable'],
+  ['src/pages/teacher/AttendancePage.jsx', 'AttendanceRegisterSkeleton', 'sectionsPhase', 'sections === null', 'if (sections === null) {', '<DataTable'],
   ['src/pages/teacher/AttendancePage.jsx', 'RosterCardsSkeleton', 'rosterPhase', 'rosterWaiting', '{rosterWaiting ? (', '<RosterCards roster='],
   ['src/pages/teacher/AttendanceRecordsPage.jsx', 'FilterAndTableSkeleton', 'sectionsPhase', 'sections === null', 'if (sections === null) {', '<DataTable'],
   ['src/pages/parent/AttendancePage.jsx', 'CalendarSkeleton', 'calendarPhase', 'loading', '{loading ? (', '<AttendanceCalendar'],
@@ -247,7 +268,15 @@ const WIRING = [
   ['src/pages/settings/SchoolSettingsSection.jsx', 'SettingsSkeleton', 'phase', 'loading && !stored', 'if (loading && !stored) return', 'title="School settings"'],
   ['src/pages/AboutPage.jsx', 'AboutSkeleton', 'phase', 'loading && !settings', 'loading && !settings ? (', '<AboutBody settings='],
 ];
-for (const [file, shape, phase, guard, guardText, content] of WIRING) {
+// The fix round's shapes, wired the same way: the parent's month summary
+// (P1) and the three in place of the roster's computed values (T2).
+const FIX_WIRING = [
+  ['src/pages/parent/AttendancePage.jsx', 'MonthSummarySkeleton', 'calendarPhase', 'loading', '{loading ? (', 'Nothing recorded this month.'],
+  ['src/pages/teacher/AttendancePage.jsx', 'RosterSummarySkeleton', 'rosterPhase', 'rosterWaiting', '{rosterWaiting ? (', '{counts.marked} of {counts.total} marked'],
+  ['src/pages/teacher/AttendancePage.jsx', 'RosterNoteSkeleton', 'rosterPhase', 'rosterWaiting', '{rosterWaiting ? (', 'will not be submitted'],
+  ['src/pages/teacher/AttendancePage.jsx', 'RosterSaveBarSkeleton', 'rosterPhase', 'rosterWaiting', '{rosterWaiting ? (', 'No unsaved changes'],
+];
+for (const [file, shape, phase, guard, guardText, content] of [...WIRING, ...FIX_WIRING]) {
   const tag = `<${shape} phase={${phase}}`;
   const wired = (t) => {
     const at = t.indexOf(tag);
@@ -273,16 +302,170 @@ for (const [file, shape, phase, guard, guardText, content] of WIRING) {
 assert(WIRING.length === 13, 'thirteen spinners replaced, on eleven pages', `${WIRING.length} rows`);
 
 const att = files['src/pages/teacher/AttendancePage.jsx'];
+const RULE = 'const rosterWaiting = !rosterCurrent || (rosterLoading && roster.length === 0);';
 proved(
   'the phone roster: a save\'s re-read keeps the cards (busy, inert); the skeleton is for another class or day, or no cards yet',
   (t) =>
     t.includes('useQueryRows(roster, rosterLoading, [section, date])') &&
-    t.includes('rosterLoading && (!rosterCurrent || roster.length === 0)') &&
+    t.includes(RULE) &&
     t.includes('inert={rosterLoading || undefined}'),
   att,
   att.replace('inert={rosterLoading || undefined}', ''),
-  att.replace('(!rosterCurrent || roster.length === 0)', 'true')
+  att.replace(RULE, 'const rosterWaiting = rosterLoading && (!rosterCurrent || roster.length === 0);')
 );
 
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+// ---------------------------------------------------------------------------
+console.log('The fix round — T1, T2, P1, P2');
+
+// T1: the table card shows from `sm` only, the four roster cards below it, and
+// no grid cell sits anywhere a phone shows.
+const GRID_CELL = 'h-8 w-12 shrink-0';
+const phoneSafe = (m) => {
+  const table = m.indexOf(' hidden sm:block"');
+  const cards = m.indexOf(' sm:hidden"');
+  if (table < 0 || cards < table) return false;
+  const tablePart = m.slice(table, cards);
+  const cardsPart = m.slice(cards);
+  return (
+    tablePart.includes(GRID_CELL) &&
+    !cardsPart.includes(GRID_CELL) &&
+    !m.slice(0, table).includes(GRID_CELL) &&
+    count(cardsPart, 'grid grid-cols-4') === 4
+  );
+};
+const registerShown = html(<AttendanceRegisterSkeleton phase="skeleton" />);
+proved(
+  'T1 — the sections skeleton: the table only from `sm`, four roster cards below it, no grid cell at phone width',
+  phoneSafe,
+  registerShown,
+  html(<FilterAndTableSkeleton phase="skeleton" label="Loading your sections…" fields={2} columns={5} />),
+  registerShown.replace(' hidden sm:block"', '"')
+);
+
+// T2: the page's waiting rule driven through the real pure functions. Each
+// step is one render: [rows, loading, the register's key].
+const waitingNow = (current, loading, length) => !current || (loading && length === 0);
+const waitingBefore = (current, loading, length) => loading && (!current || length === 0);
+const everyLoad = (current, loading) => loading;
+function drive(rule) {
+  const first = [{ id: 1 }, { id: 2 }];
+  const next = [{ id: 3 }];
+  const steps = [
+    [[], true, 'day 1'], // the first load
+    [first, false, 'day 1'], // the register on screen
+    [first, false, 'day 2'], // the date changed; its load has not started yet
+    [first, true, 'day 2'], // the new day loading
+    [next, false, 'day 2'], // its answer
+    [next, true, 'day 2'], // Save's re-read of the same register
+    [next, false, 'day 2'], // done
+  ];
+  let seen = null;
+  return steps.map(([rows, loading, key]) => {
+    const queryKey = JSON.stringify([key]);
+    seen = nextRowsQuery(seen, { rows, loading, queryKey });
+    return rule(rowsAreCurrent(seen, queryKey), loading, rows.length);
+  });
+}
+proved(
+  'T2 — waiting: the first load, a date change BEFORE its load starts and while it loads — never the register itself or Save\'s re-read',
+  (rule) => same(drive(rule), [true, false, true, true, false, false, false]),
+  waitingNow,
+  waitingBefore,
+  everyLoad
+);
+const quiet = (m) =>
+  m.startsWith('<div aria-hidden="true" data-skeleton="painted"') &&
+  !m.includes('role="status"') &&
+  !m.includes('invisible') &&
+  count(m, 'skeleton-bone') >= 1;
+const quietWait = (m) => m.startsWith('<div aria-hidden="true" data-skeleton="wait" class="invisible ');
+const summaryShown = html(<RosterSummarySkeleton phase="skeleton" />);
+proved(
+  'T2 — the summary card in place: the count, four chips, Mark all Present, Save from `sm` — quiet, the roster announces',
+  (m) =>
+    quiet(m) &&
+    count(m, 'h-6 w-20') === 4 &&
+    m.includes('h-11 w-40') &&
+    /<div class="hidden sm:block"><span class="[^"]*h-11 w-44/.test(m),
+  summaryShown,
+  html(<RosterCardsSkeleton phase="skeleton" />),
+  summaryShown.replace('h-11 w-40', 'h-11')
+);
+const noteShown = html(<RosterNoteSkeleton phase="skeleton" />);
+const barShown = html(<RosterSaveBarSkeleton phase="skeleton" />);
+proved(
+  'T2 — the note and the phone\'s pinned Save bar in place, quiet; the bar the sticky frame itself',
+  ([note, bar]) =>
+    quiet(note) &&
+    note.includes('bg-surface-subtle') &&
+    quiet(bar) &&
+    /^<div aria-hidden="true" data-skeleton="painted" class="sticky bottom-0 [^"]*sm:hidden"/.test(bar),
+  [noteShown, barShown],
+  [noteShown, html(<RosterCardsSkeleton phase="skeleton" />)],
+  [noteShown, barShown.replace('sticky bottom-0 ', '')]
+);
+proved(
+  'T2 — the three quiet shapes laid out unpainted for the wait',
+  (list) => list.every(quietWait),
+  [
+    html(<RosterSummarySkeleton phase="wait" />),
+    html(<RosterNoteSkeleton phase="wait" />),
+    html(<RosterSaveBarSkeleton phase="wait" />),
+  ],
+  [summaryShown, noteShown, barShown]
+);
+
+// P2: the month's load, read as source — a ticket before it asks; its reply,
+// its error and its end of loading applied only while it is the newest.
+const parentSrc = files['src/pages/parent/AttendancePage.jsx'];
+const latestWins = (t) => {
+  const start = t.indexOf('const load = useCallback(async () => {');
+  const end = t.indexOf('}, [studentId, view, tickets]);', start);
+  const body = start > 0 && end > start ? t.slice(start, end) : '';
+  const take = body.indexOf('const ticket = tickets.take();');
+  const firstAwait = body.indexOf('await ');
+  const guard = body.indexOf('if (!tickets.isLatest(ticket)) return;');
+  return (
+    /import \{ createTickets \} from '\.\.\/\.\.\/api\/tickets'/.test(t) &&
+    t.includes('const [tickets] = useState(createTickets);') &&
+    take > 0 &&
+    take < firstAwait &&
+    guard > firstAwait &&
+    guard < body.indexOf('setSummary(nextSummary);') &&
+    count(body, 'if (!tickets.isLatest(ticket)) return;') === 2 &&
+    body.includes('if (tickets.isLatest(ticket)) setLoading(false);')
+  );
+};
+proved(
+  'P2 — the month\'s load takes a ticket before it asks and applies its reply, error and end only while newest',
+  latestWins,
+  parentSrc,
+  parentSrc.replace('      if (!tickets.isLatest(ticket)) return;\n      setSummary(nextSummary);', '      setSummary(nextSummary);'),
+  parentSrc.replace('if (tickets.isLatest(ticket)) setLoading(false);', 'setLoading(false);')
+);
+
+// P2, driven: October asked first and answering last, September asked second
+// and answering first — the order the owner's slow line produced.
+async function race(guarded) {
+  const tickets = createTickets();
+  const state = { month: null, loading: true };
+  const load = async (month, delay) => {
+    const ticket = tickets.take();
+    state.loading = true;
+    const reply = await new Promise((resolve) => setTimeout(() => resolve(month), delay));
+    if (guarded && !tickets.isLatest(ticket)) return;
+    state.month = reply;
+    if (!guarded || tickets.isLatest(ticket)) state.loading = false;
+  };
+  await Promise.all([load('October', 40), load('September', 10)]);
+  return state;
+}
+Promise.all([race(true), race(false)]).then(([fixed, before]) => {
+  assert(
+    fixed.month === 'September' && fixed.loading === false && before.month === 'October',
+    'P2 — two month loads answering out of order: the newer month stays (control: without the ticket the older lands last and wins)',
+    `with the ticket ${fixed.month}, without ${before.month}`
+  );
+  console.log(`\n${passed} passed, ${failed} failed`);
+  process.exit(failed ? 1 : 0);
+});

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
-import { CalendarSkeleton } from '../../components/SkeletonShapes';
+import { CalendarSkeleton, MonthSummarySkeleton } from '../../components/SkeletonShapes';
 import StatusBadge from '../../components/StatusBadge';
 import useSkeleton from '../../hooks/useSkeleton';
 import { cardClass } from '../../components/buttonClass';
@@ -143,7 +144,17 @@ export default function ParentAttendancePage() {
 
   const monthLabel = `${monthName(view.month)} ${view.year}`;
 
+  // LATEST REPLY WINS (feat/skeleton-tier2-web fix round, P2). A month change
+  // starts a new load while the last month's may still be in flight, and the
+  // two can answer in either order: on a slow line October's reply landed
+  // after September's and put October's counts — and October's rows — under
+  // the September heading. Each load takes a ticket and applies its reply, its
+  // error and its end of loading only while that ticket is the newest
+  // (api/tickets.js, the class record's pattern).
+  const [tickets] = useState(createTickets);
+
   const load = useCallback(async () => {
+    const ticket = tickets.take();
     if (studentId == null) {
       setSummary(EMPTY_SUMMARY);
       setRows([]);
@@ -161,16 +172,18 @@ export default function ParentAttendancePage() {
         api.get(`/attendance/summary/${studentId}`, { unwrap: 'summary', params: { from, to } }),
         fetchAll(`/attendance/student/${studentId}`, { unwrap: 'attendance', params: { from, to } }),
       ]);
+      if (!tickets.isLatest(ticket)) return;
       setSummary(nextSummary);
       setRows(monthRows);
     } catch (err) {
+      if (!tickets.isLatest(ticket)) return;
       setError(extractError(err));
       setSummary(EMPTY_SUMMARY);
       setRows([]);
     } finally {
-      setLoading(false);
+      if (tickets.isLatest(ticket)) setLoading(false);
     }
-  }, [studentId, view]);
+  }, [studentId, view, tickets]);
 
   useEffect(() => {
     load();
@@ -286,8 +299,9 @@ export default function ParentAttendancePage() {
     .filter(Boolean)
     .join(' · ');
 
-  // The month's skeleton (feat/skeleton-tier2-web): `load` runs on a new
-  // learner or month only, so this is always a first load or a new key.
+  // The month's skeletons — the calendar and, since the fix round, the summary
+  // card (feat/skeleton-tier2-web): `load` runs on a new learner or month only,
+  // so this is always a first load or a new key.
   const calendarPhase = useSkeleton(loading);
 
   if (!linked) {
@@ -332,7 +346,13 @@ export default function ParentAttendancePage() {
         <div className="lg:col-start-2 lg:row-start-1 lg:self-start">
           <section className={`${cardClass} p-4 sm:p-5`}>
             <h2 className="font-serif text-base font-bold text-fg">{monthLabel}</h2>
-            {fraction ? (
+            {/* While the month loads (fix round, P1) the card is skeleton under
+                the month's name: what it held belongs to another month, or to
+                nothing yet, and "Nothing recorded" is a claim about the record
+                that only the month's answer can make. */}
+            {loading ? (
+              <MonthSummarySkeleton phase={calendarPhase} />
+            ) : fraction ? (
               <>
                 {/* THE FRACTION, and only the fraction (see the header note).
                     One sentence for a screen reader — "21 of 23" — set as a
