@@ -1398,14 +1398,18 @@ phone differs.
   **The words are the web's, word for word** (FRONTEND §29a, the fix round's
   PF4): the three tick sentences, "I agree and continue", and "Sign out"
   under "Declining ends portal use only; your child’s school records stay as
-  they are."
+  they are." **Staff since feat/staff-acceptance (2026-10-11), as on the web:
+  two ticks, no child tick** — the child's `Tick` is rendered for a parent
+  only, the intro drops "for your child", the accept sends `{ versions }`, and
+  the line above Sign out is "Declining ends portal use only."
 - **The exit is `refresh()`** — no navigate: the re-read brings
   `policy_pending` back false and RootNavigator renders Home. A `409` (a
   version changed meanwhile) reloads the documents and clears the ticks. A
   one-time decision has no pull-to-refresh; a failed read has Try again.
 - **Settings → Security & policy is a pushed screen** (`SecurityPolicy`,
   registered in AppShell, opened from the row by its label like the others):
-  the documents, their versions, and a parent's accepted dates as the Manila
+  the documents, their versions, and the user's own accepted dates (every
+  role since feat/staff-acceptance) as the Manila
   day (`format/date.js`, a mirror). **Pull-to-refresh keeps what is on
   screen** (M23); a first load is Build 2's skeleton.
 - **The four learner fields are gone** from `teacher/EnrollScreen` and both

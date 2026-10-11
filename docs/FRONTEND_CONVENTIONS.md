@@ -3746,12 +3746,12 @@ on a 403 (§2).
 
 ### 29a. The consent gate — server-enforced, after the forced change
 
-- **A parent** who has not accepted the CURRENT Data Privacy Notice AND Terms
-  of Use can read itself (`/auth/me`), change its password and reach
+- **An account** — a parent, and since feat/staff-acceptance (2026-10-11) a
+  teacher or the admin — that has not accepted the CURRENT Data Privacy Notice
+  AND Terms of Use can read itself (`/auth/me`), change its password and reach
   `/api/policy/*` — nothing else (`403 POLICY_ACCEPTANCE_REQUIRED`,
   API_REFERENCE §5b). **The forced password change comes FIRST**, on the
-  server and in both clients. Staff are never gated in this build: **staff
-  acceptance is deferred** (the owner's answer 3; KNOWN_ISSUES).
+  server and in both clients.
 - **`policy_pending` on `/auth/me` is what the client routes on.**
   `ProtectedRoute` sends a pending parent to **`/consent`**, a top-level route
   outside Shell and outside every ProtectedRoute — the forced-change screen's
@@ -3771,8 +3771,16 @@ on a 403 (§2).
   records stay as they are." — and changes nothing. The apostrophes render as
   the app's typographic ’ (as in "school’s" above them); the words are the
   owner's. The phone says the same, word for word (MOBILE M26).
+- **Staff: two ticks, no child tick** (feat/staff-acceptance, 2026-10-11; the
+  owner's decisions). A teacher or the admin sees the same screen with the
+  first two ticks above, word for word, an intro without "for your child",
+  and the same button; the accept sends `{ versions }` only (the server
+  neither requires nor reads `on_behalf_of_child` for staff, and their rows
+  carry no `student_id`). The line above Sign out is **"Declining ends portal
+  use only."** (`DeclineLine`). A parent's screen, ticks and words are
+  unchanged; the phone does the same (MOBILE M26).
 - **The socket refuses the same two gates** (the fix round, PF2):
-  `server/socket.js` checks the forced change, then a parent's acceptance, in
+  `server/socket.js` checks the forced change, then the account's acceptance, in
   `middleware/auth.js`'s order, and answers `connect_error` with the 403's
   sentence and `data.code`. No client connects before both are past — the
   socket lives in Shell — so this is the backstop for a direct client.
@@ -3786,7 +3794,7 @@ on a 403 (§2).
   parent did not see.
 - **The exit is the re-read**: `refresh()` brings `policy_pending` back false
   from the server and the page routes home. A new version of either document
-  sets it true again for every parent — accepting is per version.
+  sets it true again for every account — accepting is per version.
 
 ### 29b. The text ships with the app — and is a placeholder
 
@@ -3802,10 +3810,12 @@ lines, inside a focusable, labelled scroll region (`role="region"`,
 ### 29c. Settings → Security & policy — every role
 
 A tab after Change password (`settings/tabs.js`, mirrored; `fa-shield-halved`):
-both documents and their versions, and **for a parent the date each was
-accepted** — the server's `accepted_at` shown as the MANILA calendar day
-(`timestampDay`, never computed here). Staff see the documents and that
-parents accept them — never a "Not accepted" that reads as something they owe.
+both documents and their versions, and **the date each was accepted** — every
+role since feat/staff-acceptance, because the server's `required` is true for
+staff too — the server's `accepted_at` shown as the MANILA calendar day
+(`timestampDay`, never computed here). The `required: false` branch (the
+documents, and that parents accept them — never a "Not accepted" that reads as
+something owed) stays for a role that ever accepts nothing.
 `SettingsLayout`'s old "DO NOT add Security & policy" note is replaced.
 
 ### 29d. Your own first password, and the sign-in limits

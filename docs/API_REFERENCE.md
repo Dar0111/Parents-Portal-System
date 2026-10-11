@@ -286,15 +286,16 @@ are not listed per row.
   picks their own.
 - **`403` `{ message: "Please accept the Data Privacy Notice and the Terms of
   Use before continuing.", code: "POLICY_ACCEPTANCE_REQUIRED" }`** (the
-  consent gate, feat/privacy, 2026-10-10) — a **parent** who has not accepted
-  the CURRENT version of both documents (`server/policy/versions.json`).
+  consent gate, feat/privacy, 2026-10-10) — an account that has not accepted
+  the CURRENT version of both documents (`server/policy/versions.json`): a
+  **parent**, and since feat/staff-acceptance (2026-10-11) **a teacher or the
+  admin** too — every role, one count, no role branch.
   Only `GET /api/auth/me`, `PUT /api/auth/change-password` and `/api/policy/*`
-  are allowed through, and it is checked AFTER the forced change, so a parent
+  are allowed through, and it is checked AFTER the forced change, so an account
   with both flags meets `MUST_CHANGE_PASSWORD` first. The same backstop shape:
-  the clients route on `/auth/me`'s `policy_pending`, never on this 403. Staff
-  are never gated in this build (staff acceptance is deferred). The count is a
-  subquery on the users read the middleware already makes — no extra round
-  trip.
+  the clients route on `/auth/me`'s `policy_pending`, never on this 403. The
+  count is a subquery on the users read the middleware already makes — no
+  extra round trip.
 
 The **global** cutoff (`auth_security_state.token_valid_after`, set only by
 a restore) is unchanged and still a timestamp — it revokes everything at
@@ -1313,8 +1314,8 @@ the school's approval"; KNOWN ISSUES).
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | GET | `/` | any authenticated | — | `documents` — `[{ document, title, version, text }]`, the Data Privacy Notice then the Terms of Use |
-| GET | `/status` | any authenticated | — | `required` (does this role accept — parents only in this build), `policy_pending`, `acceptances` — `[{ document, title, version, accepted_at }]` for the CURRENT versions, `accepted_at` null until accepted |
-| POST | `/accept` | `parent` (staff → `403` "Access denied.") | `versions`* — `{ privacy_notice, terms_of_use }`, the versions the screen SHOWED; `on_behalf_of_child`* — `true` | `policy_pending` + `acceptances` + message "Thank you. You can now use the portal." — a missing version is `400` "Tick the box to accept the …" with `field` naming the document; no `on_behalf_of_child: true` is `400` with `field: "on_behalf_of_child"`; **a version other than the current one is `409`** "The … has changed since this page opened. Read the new version, then accept again." — never a silent acceptance of words not shown. One `policy_acceptances` row per document (user, version, the account's `student_id`, time); a version already accepted is a no-op `200` (a double tap). Logged `accept_policy` with the documents and versions only |
+| GET | `/status` | any authenticated | — | `required` (does this role accept — every role since feat/staff-acceptance), `policy_pending`, `acceptances` — `[{ document, title, version, accepted_at }]` for the CURRENT versions, `accepted_at` null until accepted |
+| POST | `/accept` | `parent`, `teacher`, `admin` (`policy.ROLES_THAT_ACCEPT`; staff since feat/staff-acceptance, 2026-10-11) | `versions`* — `{ privacy_notice, terms_of_use }`, the versions the screen SHOWED; `on_behalf_of_child`* — `true`, **a parent only** (staff send `{ versions }`; the flag is neither required nor read for them) | `policy_pending` + `acceptances` + message "Thank you. You can now use the portal." — a missing version is `400` "Tick the box to accept the …" with `field` naming the document; a parent with no `on_behalf_of_child: true` is `400` with `field: "on_behalf_of_child"`; **a version other than the current one is `409`** "The … has changed since this page opened. Read the new version, then accept again." — never a silent acceptance of words not shown. One `policy_acceptances` row per document (user, version, time, and the parent's `student_id` — NULL for staff); a version already accepted is a no-op `200` (a double tap). Logged `accept_policy` with the documents and versions only |
 
 ## Verification
 

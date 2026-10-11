@@ -11,14 +11,13 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-11: `main` at `450b792` (skeleton option 1 merged
-fast-forward on 2026-10-11 after the owner's web device check; shared
-Messages and privacy before it) plus `fix/socket-handshake` — branch 1 of
-the owner's four before the smoke gate: the socket handshake checks the
-restore cutoff and the token's version as the REST API does and names a
-database error, the phone teacher picker's empty groups say why, and the
-"Live updates paused" strip waits for a real failure (fix round R4).
-Device-checked, re-checked, its data cleaned up; merge-ready, not merged.**
+**Snapshot, 2026-10-11: `main` at `10e277a` (`fix/socket-handshake` merged
+fast-forward on 2026-10-11 after the owner's device check and re-check;
+skeleton option 1, shared Messages and privacy before it) plus
+`feat/staff-acceptance` — branch 2 of the owner's four before the smoke gate:
+teachers and the admin accept the Data Privacy Notice and the Terms of Use at
+sign-in, server-enforced like the parent gate — two ticks, no child tick,
+their own decline line and dates. Gated; not device-checked, not merged.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -47,7 +46,8 @@ and only there.
 | The privacy build — `feat/privacy`: consent before use (parents), your own first password, sign-in limits, four learner fields no longer collected (built, device-checked, fix round PF1–PF5 and re-checked 2026-10-10) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
 | Shared Messages — `feat/shared-messages`: one thread and one conversations page for every role (web), the browser test for where a thread opens, the phone thread's positioning fix (built 2026-10-11); two fix rounds — the top bar's ← as the way back (the page's own link removed), a whole row opens a conversation; device-checked and re-checked 2026-10-11, data cleaned up (backup 291) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the thread screen) |
 | Skeleton option 1 — `feat/skeleton-querykey`: the `queryKey` rule (a new query shows the skeleton, the same query keeps the rows), the keys on every list whose query can change, the avatar circle on the nine lists that lacked it (built and device-checked on the web 2026-10-11) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (not device-checked: the LAN is too fast to see a skeleton; the proofs cover it) |
-| The socket handshake and the picker copy — `fix/socket-handshake`: the handshake asks what the REST API asks (the restore cutoff, the token's version) and says "Database unreachable." for a database error; the phone teacher picker's empty groups follow the web; fix round R4 — the strip waits for a real failure (a 3 s grace), the admin dashboards' "Live connection" row says "Connecting…" (built, device-checked and re-checked 2026-10-11; data cleaned up, backup 292) | 🟡 merge-ready, not merged | 🟡 merge-ready, not merged (the strip, the dashboard row) | 🟡 merge-ready, not merged (the picker, the strip, the dashboard row) |
+| The socket handshake and the picker copy — `fix/socket-handshake`: the handshake asks what the REST API asks (the restore cutoff, the token's version) and says "Database unreachable." for a database error; the phone teacher picker's empty groups follow the web; fix round R4 — the strip waits for a real failure (a 3 s grace), the admin dashboards' "Live connection" row says "Connecting…" (built, device-checked and re-checked 2026-10-11; data cleaned up, backup 292) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the strip, the dashboard row) | ✅ merged 2026-10-11 (the picker, the strip, the dashboard row) |
+| Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built and gated 2026-10-11) | 🟡 gated, not merged | 🟡 gated, not device-checked, not merged | 🟡 gated, not device-checked, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -71,7 +71,7 @@ A module with tables and no handlers is not started; there are none.
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
 | Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 12 | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
-| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (parents, after the forced change); Settings → Security & policy (every role). The notice and terms are placeholders |
+| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — after the forced change); Settings → Security & policy (every role). The notice and terms are placeholders |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
@@ -134,11 +134,10 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The merge of `fix/socket-handshake`, on the owner's word** (device-
-   checked, merge-ready), then **three more branches, in order, each from
+1. **`feat/staff-acceptance`'s device check, then its merge on the owner's
+   word** (built and gated), then **two more branches, in order, each from
    the previous merge and each with its own device check — all before the
-   smoke gate** (the owner's plan, 2026-10-11): `feat/staff-acceptance` (teachers and the admin accept the Notice and the
-   Terms at sign-in, server-enforced; two ticks, no child tick) →
+   smoke gate** (the owner's plan, 2026-10-11):
    `feat/skeleton-tier2-web` → `feat/skeleton-tier2-phone` (the class
    record, the class summary, the roster, the calendar, the detail pages,
    the thread, Settings and About). The phone consent screen's new words
@@ -167,9 +166,9 @@ following the app's theme (accepted); the seeded admin password (change it
 before the pilot); form drafts stored unencrypted in the tab or on the
 device, the phone not reopening a form after a kill, and a draft's free text
 holding anything typed (all three accepted); the parent calendar's faint
-"Today" ring (the `focus-ring` token, under 3:1); staff acceptance of the
-notice and terms (queued: `feat/staff-acceptance`, branch 2 of the owner's
-plan). Closed by the privacy fix round: the handshake's forced-change and
+"Today" ring (the `focus-ring` token, under 3:1). Closed on
+`feat/staff-acceptance` (built, not merged): staff acceptance of the notice
+and terms. Closed by the privacy fix round: the handshake's forced-change and
 consent gates, and a restore re-running the privacy step itself. Closed on
 `fix/socket-handshake`: the handshake's restore cutoff and version check,
 and the phone teacher picker's empty groups.

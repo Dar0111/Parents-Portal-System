@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `fix/socket-handshake` — the handshake asks what the REST API asks and names a database error (API_REFERENCE §6); the phone teacher picker's empty groups say why; the strip waits for a real failure (§5g): device-checked, merge-ready, not merged (on `main` `450b792`, skeleton option 1 merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/staff-acceptance` — teachers and the admin accept the Notice and the Terms (§29): gated, not device-checked, not merged (on `main` `10e277a`, the socket handshake merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -957,7 +957,7 @@ MOBILE M25.
 
 ### 29. Privacy — consent first, your own first password, sign-in limits, four fields gone
 
-**feat/privacy, 2026-10-10.** **A parent who has not accepted the CURRENT
+**feat/privacy, 2026-10-10.** **An account (staff too since feat/staff-acceptance) that has not accepted the CURRENT
 Data Privacy Notice and Terms of Use reaches only `/auth/me`,
 `/auth/change-password` and `/api/policy/*`** (`403
 POLICY_ACCEPTANCE_REQUIRED`), AFTER the forced change; clients route on
@@ -965,7 +965,7 @@ POLICY_ACCEPTANCE_REQUIRED`), AFTER the forced change; clients route on
 (§29a), the child by first name, never the LRN; a stale version is 409. **The
 socket refuses the same two gates, and a restore re-runs the privacy step
 itself** (fix round). **The text (`server/policy/`) is a
-placeholder; staff acceptance is deferred.** New teachers and parents change
+placeholder; staff tick two boxes, no child tick.** New teachers and parents change
 the password someone else typed. **Sign-in: 5 failures in a row / 100 per IP
 in 15 min → 429, an unknown id the same.** The learner's birthday, gender,
 address and contact number are not collected. Full text: FRONTEND §29, MOBILE
@@ -1499,7 +1499,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
-| **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
+| **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1721,18 +1721,20 @@ CLAUDE.md on 2026-10-10".
       `queryKey` rule on DataTable / DataList, the keys on 19 web tables and
       10 phone lists, nine avatar circles (§5, M11). **Device-checked on
       the web (the phone's LAN too fast); merged 2026-10-11 (`450b792`).**
-- [ ] **The socket handshake and the picker copy — `fix/socket-handshake`**
+- [x] **The socket handshake and the picker copy — `fix/socket-handshake`**
       (2026-10-11): the restore cutoff and the token's version as REST
       checks them, "Database unreachable." for a database error
       (API_REFERENCE §6); the phone teacher picker's empty groups follow the
       web (§5f); fix round R4, the strip waits for a real failure (§5g).
-      **Device-checked, re-checked, its data cleaned up; merge-ready, not
-      merged.**
+      **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
+      (`10e277a`).**
+- [ ] **Staff acceptance — `feat/staff-acceptance`** (2026-10-11): teachers
+      and the admin accept the Notice and the Terms (§29) — two ticks, no
+      child tick. **Gated; not device-checked, not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** merge
-`fix/socket-handshake` on the owner's word → `feat/staff-acceptance`
-(teachers and the admin accept the Notice and the Terms; two ticks, no
-child tick) → `feat/skeleton-tier2-web` → `feat/skeleton-tier2-phone`, each
+**NEXT, in order (the owner's plan, 2026-10-11):** the device check and
+merge of `feat/staff-acceptance` → `feat/skeleton-tier2-web` →
+`feat/skeleton-tier2-phone`, each
 from the previous merge with its own device check → **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the
