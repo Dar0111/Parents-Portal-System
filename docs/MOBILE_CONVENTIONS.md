@@ -1464,6 +1464,10 @@ guard removed, the newest-id check removed, the old catch. **The phone check
 owns** a real thread opening at its newest message, a real Load earlier, and
 a re-read failing on the hotspot.
 
-**Not changed here, a KNOWN_ISSUES row:** the phone teacher picker's empty
-groups still say "match that search" with no search for Teachers and Admin;
-the web's picker follows the cause since §30b.
+**Not changed here; fixed on `fix/socket-handshake` (2026-10-11):** the
+phone teacher picker's empty groups said "match that search" with no search
+for Teachers and Admin. They now follow the web's three branches (§30b):
+with a search, "No <group> match that search."; with none, Parents' own
+sentence, otherwise "No <group> to message." — `proof-look-fixes` evaluates
+the screen's expression, with the pre-fix one as its control (KNOWN_ISSUES,
+closed).

@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `feat/skeleton-querykey` — option 1, the `queryKey` rule and nine avatar circles (§5): device-checked on the web; merge-ready, not merged (on `main` `ea96ecf`, shared Messages merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `fix/socket-handshake` — the handshake asks what the REST API asks and names a database error (API_REFERENCE §6); the phone teacher picker's empty groups say why: gated, not device-checked, not merged (on `main` `450b792`, skeleton option 1 merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1498,8 +1498,6 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS; staff acceptance is DEFERRED** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
-| **The socket handshake ignores `token_version` and the restore cutoff** — added 2026-10-10 | `server/socket.js` | A token REST answers `401` can still open a socket until it expires. Fix after the professor check |
-| **The phone teacher picker's empty Teachers / Admin groups say "match that search" with no search** — added 2026-10-11 | `mobile/src/screens/teacher/NewMessageScreen.jsx` | Small (§5f); the web follows the cause since §30. Not fixed in feat/shared-messages |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1717,17 +1715,24 @@ CLAUDE.md on 2026-10-10".
       the top bar's ← as the way back, a whole row opens a conversation.
       **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
       (`ea96ecf`).**
-- [ ] **Skeleton option 1 — `feat/skeleton-querykey`** (2026-10-11): the
+- [x] **Skeleton option 1 — `feat/skeleton-querykey`** (2026-10-11): the
       `queryKey` rule on DataTable / DataList, the keys on 19 web tables and
       10 phone lists, nine avatar circles (§5, M11). **Device-checked on
-      the web (the phone's LAN too fast); merge-ready, not merged.**
+      the web (the phone's LAN too fast); merged 2026-10-11 (`450b792`).**
+- [ ] **The socket handshake and the picker copy — `fix/socket-handshake`**
+      (2026-10-11): the restore cutoff and the token's version as REST
+      checks them, "Database unreachable." for a database error
+      (API_REFERENCE §6); the phone teacher picker's empty groups follow the
+      web (§5f). **Gated; not device-checked, not merged.**
 
-**NEXT, in order (the owner, 2026-10-11):** merge `feat/skeleton-querykey`
-on the owner's word → **smoke gate by Thu 2026-10-15** (a real
-restore after a fresh backup, and SMS) → **professor system check, Fri
-2026-10-16**. The manuscript
-delta list stays with the team. After the check: skeleton tier 2 (web, then
-phone), then the cloud (Supabase) survey.
+**NEXT, in order (the owner's plan, 2026-10-11):** four branches, each from
+the previous merge with its own device check, all before the smoke gate —
+`fix/socket-handshake` → `feat/staff-acceptance` (teachers and the admin
+accept the Notice and the Terms; two ticks, no child tick) →
+`feat/skeleton-tier2-web` → `feat/skeleton-tier2-phone` → **smoke gate Thu
+2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
+system check, Fri 2026-10-16**. The manuscript delta list stays with the
+team. After the check: the cloud (Supabase) migration planning only.
 
 ### Stage 6 — Integration
 

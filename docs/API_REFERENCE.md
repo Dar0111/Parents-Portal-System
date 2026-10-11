@@ -339,27 +339,33 @@ shape appears; a fourth should import it. Proved by `test:auth-middleware`
   Verified once, at connection time, via `io.use()` — not re-checked
   per event. A deactivated account's socket is rejected at the handshake
   and never gets to send or receive anything.
-- **The handshake's refusals, in order** (`server/socket.js`; the last two
-  since the privacy fix round, 2026-10-10). Each reaches the client as
-  `connect_error` with the message below; the two gates also carry the
-  HTTP 403's code in `err.data.code`, in `middleware/auth.js`'s order and
-  with its sentences (§5b):
+- **The handshake's refusals, in order** (`server/socket.js` →
+  `authenticateHandshake`; the two gates since the privacy fix round,
+  2026-10-10; the restore cutoff, the version and the database refusal since
+  fix/socket-handshake, 2026-10-11). It asks what `middleware/auth.js` asks,
+  in its order and with its sentences (§5b, §5c), and like it verifies the
+  token in one `try` and reads the database in another, so a database
+  failure is never reported as a token failure. Each refusal reaches the
+  client as `connect_error` with the message below; the two gates and the
+  database refusal also carry a code in `err.data.code`:
 
   | Order | `err.message` | `err.data.code` | Cause |
   |---|---|---|---|
   | 1 | `Authentication required.` | — | no `auth.token` |
-  | 2 | `Account is not active.` | — | no `users` row, or `status` ≠ `active` |
-  | 3 | `You must change your password before continuing.` | `MUST_CHANGE_PASSWORD` | `users.must_change_password` is set |
-  | 4 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | a **parent** without the CURRENT version of both documents accepted; staff are never gated |
-  | — | `Invalid or expired token.` | — | anything that throws: a bad or expired token, **and a database error** (the handshake has no 503) |
+  | 2 | `Invalid or expired token.` | — | `verifyToken` threw — malformed, wrong secret, expired. **The pool is never called for this** |
+  | 3 | `Session invalidated by a database restore. Please log in again.` | — | `iat` before `auth_security_state.token_valid_after` |
+  | 4 | `Account is not active.` | — | no `users` row, or `status` ≠ `active` (for a missing row the HTTP API says `User not found.`; the handshake keeps its sentence) |
+  | 5 | `Your password was changed. Please log in again.` | — | token `v` ≠ `users.token_version` (§5b); a missing `v` reads as 0 |
+  | 6 | `You must change your password before continuing.` | `MUST_CHANGE_PASSWORD` | `users.must_change_password` is set |
+  | 7 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | a **parent** without the CURRENT version of both documents accepted; staff are never gated |
+  | — | **`Database unreachable.`** | **`DB_UNAVAILABLE`** | **any throw inside the database block** — the HTTP API's `503`, in the health body's words (`utils/dbUnavailable.js`) |
 
   A refused handshake is not retried; both apps connect afresh once
-  `/auth/me` says both gates are clear (FRONTEND §29a, MOBILE M26).
-  `test:privacy` proves each refusal and the connect after it. **Not
-  checked at the handshake:** the token's `v` against `users.token_version`
-  (§5b) and its `iat` against the restore cutoff — so a token the REST API
-  answers `401` can still open a socket until it expires (KNOWN_ISSUES,
-  open).
+  `/auth/me` says both gates are clear (FRONTEND §29a, MOBILE M26). Neither
+  app branches on the message: both set `connected` false and show the
+  LiveStatus strip (FRONTEND §5g). `test:socket-auth` (35) proves every row
+  on a stubbed pool, beside the HTTP middleware on the same rows, each with a
+  control; `test:privacy` proves the gates and the connect after them.
 - No client-emitted events exist. This is receive-only from the
   client's perspective.
 - On connect, the server automatically joins the socket to a room named
