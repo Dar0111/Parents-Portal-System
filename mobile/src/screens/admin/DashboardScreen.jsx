@@ -125,7 +125,7 @@ function Row({ label, value, tone }) {
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
   const { tokens } = useTheme();
-  const { connected } = useSocket();
+  const { connected, paused } = useSocket();
   const today = todayLocalDateString();
   const summary = useCard(() => api.get('/dashboard', { unwrap: 'dashboard' }), []);
   const backups = useCard(() => api.get('/backups?limit=1', { unwrap: 'backups' }).then((rows) => rows[0] || null), []);
@@ -283,7 +283,8 @@ export default function DashboardScreen({ navigation }) {
               <Row label="School year" value={d.school_year} />
               <Row label="Current term" value={`Term ${d.term}`} />
               <Row label={`Grade records locked (Term ${d.term})`} value={`${d.grade_locks.locked} of ${d.grade_locks.total}`} />
-              <Row label="Live connection" value={connected ? 'Connected' : 'Paused'} tone={connected ? 'success' : 'warning'} />
+              {/* The channel's three states (realtime/liveState.js, R4): never "Paused" while the first connect is under way. */}
+              <Row label="Live connection" value={connected ? 'Connected' : paused ? 'Paused' : 'Connecting…'} tone={connected ? 'success' : paused ? 'warning' : undefined} />
               {/* Web only (Darryl): the phone names the fact and where to act. */}
               <Text className="mt-2 text-xs text-fg-muted">Backup & Restore is on the web version only.</Text>
             </View>

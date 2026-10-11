@@ -308,5 +308,37 @@ assert(
   'negative control: the pre-fix LiveStatus guard fails it'
 );
 
+// THE ADMIN DASHBOARD'S "LIVE CONNECTION" ROW FOLLOWS THE SAME STATE (R4
+// addendum, 2026-10-11): the Row's value and tone, taken from the source and
+// evaluated for connecting, live and paused. CONTROL: the old read of
+// `connected` alone, which says "Paused" while the first connect is under way.
+console.log('\nThe admin dashboard\'s Live connection row — Connecting…, Connected, Paused:');
+const adminDash = fs.readFileSync(path.join(here, '..', 'src', 'screens', 'admin', 'DashboardScreen.jsx'), 'utf8');
+const liveRow = /<Row label="Live connection" value=\{([^}]*)\} tone=\{([^}]*)\} \/>/.exec(adminDash) || [];
+const rowFollowsState = (value, tone) => {
+  try {
+    const say = new Function('connected', 'paused', `return (${value});`);
+    const paint = new Function('connected', 'paused', `return (${tone});`);
+    return (
+      say(false, false) === 'Connecting…' &&
+      paint(false, false) === undefined &&
+      say(true, false) === 'Connected' &&
+      paint(true, false) === 'success' &&
+      say(false, true) === 'Paused' &&
+      paint(false, true) === 'warning'
+    );
+  } catch {
+    return false;
+  }
+};
+assert(
+  /const \{ connected, paused \} = useSocket\(\);/.test(adminDash) && rowFollowsState(liveRow[1] || '', liveRow[2] || ''),
+  'the row says Connecting… (no tone) while connecting, Connected (success) when live, Paused (warning) when paused'
+);
+assert(
+  !rowFollowsState("connected ? 'Connected' : 'Paused'", "connected ? 'success' : 'warning'"),
+  'negative control: the old read of `connected` says Paused while connecting'
+);
+
 console.log(`\nproof-message-toast: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

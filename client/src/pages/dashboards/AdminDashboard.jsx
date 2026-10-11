@@ -129,7 +129,7 @@ export function CountLinks({ totals }) {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const { connected } = useSocket();
+  const { connected, paused } = useSocket();
   const today = todayLocalDateString();
 
   const summary = useCard(() => api.get('/dashboard', { unwrap: 'dashboard' }), []);
@@ -297,8 +297,10 @@ export default function AdminDashboard() {
               </div>
               <div className="min-w-0">
                 <dt className={FACT_LABEL}>Live connection</dt>
-                <dd className={`${FACT_VALUE} ${connected ? 'text-success-strong' : 'text-warning-strong'}`}>
-                  {connected ? 'Connected' : 'Paused'}
+                {/* The channel's three states (realtime/liveState.js, R4):
+                    never "Paused" while the first connect is under way. */}
+                <dd className={`${FACT_VALUE} ${connected ? 'text-success-strong' : paused ? 'text-warning-strong' : 'text-fg'}`}>
+                  {connected ? 'Connected' : paused ? 'Paused' : 'Connecting…'}
                 </dd>
               </div>
             </dl>
