@@ -375,20 +375,27 @@ policy_acceptances **549–550** (the teacher), **551–552** (the parent) and
 row; the theme is stored on the phone). Kept: `activity_logs` and
 `login_attempts`.
 
-**Device check — the web load races, `fix/web-load-races`: PENDING (the
-owner, Chrome's 3G preset).** By hand, each a quick double pick before the
-first answer lands: Teacher → Attendance, two date changes (and two
-sections if you advise two) — the screen ends on the LAST pick's own
-register (heading date, "Saved as", counts, Save vs Update, the note), and
-one Save lands on the date shown; Teacher → Grades, a subject or term
-change — the grid is skeleton until that pick's record arrives, nothing to
-type into meanwhile, then that record; Teacher → Class summary, a class or
-term change and a Try again — the sheet and the adviser line are that
-pick's; Admin → Grades, learner A then B — no learner card, general
-average or Lock until B's card arrives, then B's. Without throttling, no
-flash. **Only the proof covers** the true out-of-order replies: 3G delays
-both reads alike, so the older rarely lands last on demand —
-`ssr-skeletons-tier2` drives each race through `api/tickets.js` (above).
+**Device check — the web load races, `fix/web-load-races` (the owner,
+Chrome's 3G preset, 2026-10-12): PASSED, no findings.** Teacher →
+Attendance: 12 → 9 → 8 October ended on 8 October's own register ("0 of 2
+marked", "Save attendance"); a Save on 12 October showed "Attendance saved
+for 1 student." and Attendance records lists 12 Oct 2026 · Present — the
+record landed on the date shown. Class record: Mathematics Term 2 showed the
+skeleton with no Save bar, then the grid; term switches show the skeleton.
+Class summary: term switches show the sheet skeleton with no adviser line.
+Admin → Grades: one learner → another showed the table skeleton with no
+card left from the first; a Grade 1 learner's A–E letters appear only once
+that learner's report is current. **Covered by the proof only**
+(`ssr-skeletons-tier2`, above): true out-of-order replies (3G delays both
+reads alike), the class summary's Try again, a lock during a race.
+**Cleanup by id** (survey since 01:00: ids, user ids, roles and timestamps
+only): health `200`; **backup 305** (`201`, the admin still accepted); one
+transaction, each row matched on its surveyed values — attendance **386**
+(learner 1, 12 October, Present, 03:19), then policy_acceptances
+**555–556** (the teacher, 02:46) and **557–558** (the admin, 03:21) last.
+Before → after: attendance 1 → 0 (the seeded 0), policy_acceptances 4 → 0,
+messages 0 and notifications 0 throughout. Nothing else changed. Kept:
+`activity_logs` and `login_attempts`.
 
 ### `ssr-dates.jsx` runs TWICE, under two timezones
 

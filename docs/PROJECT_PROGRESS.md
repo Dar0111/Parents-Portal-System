@@ -19,8 +19,9 @@ web follow-up the owner asked for (Q5, widened): a ticket on Teacher →
 Attendance's roster load (a stale date's marks could be saved to the new
 date) and on admin Grades' and the class summary's loads, and the class
 record, the class summary and admin Grades showing only the current pick's
-data — the grid not editable, no lock — until it arrives. Gated; not
-device-checked, not merged.**
+data — the grid not editable, no lock — until it arrives. Device-checked
+on Chrome's 3G preset (no findings), its data cleaned up (backup 305);
+merge-ready, not merged.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -53,7 +54,7 @@ and only there.
 | Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built, gated and device-checked 2026-10-11; data cleaned up, backup 302) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
 | Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round — T1, T2, P1, and P2, a month-load race already on `main`, fixed with the tickets helper — re-checked the same day; data cleaned up, backup 303) | — (untouched) | ✅ merged 2026-10-11 | — (untouched) |
 | Skeleton tier 2, phone — `feat/skeleton-tier2-phone`: seventeen spinners on thirteen screens — sixteen become skeletons shaped like the screen, the slot screen's pull keeps its column; the web's fix round applied (the register's card shape, no old counts while a new day loads, the month card while it loads, tickets on the loads a pick can supersede) and the same gaps on teacher Grades, Class summary and admin Grades; `QuietSkeleton` for pieces beside an announced region (built, gated and device-checked on the Tecno 2026-10-11; data cleaned up, backup 304) | — (untouched) | — (untouched) | ✅ merged 2026-10-12 |
-| The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built and gated 2026-10-12) | — (untouched) | 🟡 built, not device-checked, not merged | — (untouched) |
+| The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built, gated and device-checked on 3G 2026-10-12; data cleaned up, backup 305) | — (untouched) | 🟡 merge-ready, not merged | — (untouched) |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -140,8 +141,8 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-12, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The owner's 3G check of `fix/web-load-races`** (`docs/TESTING.md`) and
-   its merge on the owner's word.
+1. **The merge of `fix/web-load-races`, on the owner's word**
+   (device-checked on 3G, merge-ready).
 2. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a real
    restore after a fresh backup, and SMS.
 3. **Professor system check, Fri 2026-10-16.**

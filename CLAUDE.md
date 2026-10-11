@@ -1717,11 +1717,11 @@ batches); rules: §5, §5f–§5g, §29–§30, M11, M26–M27.
       the roster's load (a stale date's marks could be saved to the new date)
       and on admin Grades' and the class summary's; the class record, the
       class summary and admin Grades show only the current pick's data — the
-      grid not editable, no lock — until it arrives. **Gated; not
-      device-checked, not merged.**
+      grid not editable, no lock — until it arrives. **Device-checked (3G,
+      no findings), its data cleaned up; merge-ready, not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-12):** the 3G check of
-`fix/web-load-races` and its merge → **smoke gate by Thu
+**NEXT, in order (the owner's plan, 2026-10-12):** merge
+`fix/web-load-races` on the owner's word → **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the
 team. After the check: the cloud (Supabase) migration planning only.
