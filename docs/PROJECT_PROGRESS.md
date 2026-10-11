@@ -19,10 +19,11 @@ gate: the thirteen spinners left on eleven web pages are skeletons shaped
 like their content (the thread, the class record and summary, the
 attendance pages, the parent's calendar, both student detail pages, the
 breakdown dialog, School settings, About). Device-checked on the web (3G)
-with four findings; the fix round built and gated (the teacher register's
-phone-width skeleton and its old counts while a new day loads, the parent
-month card while it loads, and a month-load race that was on `main` too);
-re-check pending, not merged.**
+with four findings; the fix round (the teacher register's phone-width
+skeleton and its old counts while a new day loads, the parent month card
+while it loads, and a month-load race that was on `main` too, fixed with
+the tickets helper) re-checked and passed; its data cleaned up (backup
+303); merge-ready, not merged.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -53,7 +54,7 @@ and only there.
 | Skeleton option 1 — `feat/skeleton-querykey`: the `queryKey` rule (a new query shows the skeleton, the same query keeps the rows), the keys on every list whose query can change, the avatar circle on the nine lists that lacked it (built and device-checked on the web 2026-10-11) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (not device-checked: the LAN is too fast to see a skeleton; the proofs cover it) |
 | The socket handshake and the picker copy — `fix/socket-handshake`: the handshake asks what the REST API asks (the restore cutoff, the token's version) and says "Database unreachable." for a database error; the phone teacher picker's empty groups follow the web; fix round R4 — the strip waits for a real failure (a 3 s grace), the admin dashboards' "Live connection" row says "Connecting…" (built, device-checked and re-checked 2026-10-11; data cleaned up, backup 292) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the strip, the dashboard row) | ✅ merged 2026-10-11 (the picker, the strip, the dashboard row) |
 | Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built, gated and device-checked 2026-10-11; data cleaned up, backup 302) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
-| Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round built and gated the same day) | — (untouched) | 🟡 fix round built, re-check pending, not merged | — (untouched; tier 2 on the phone is the next branch) |
+| Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round — T1, T2, P1, and P2, a month-load race already on `main`, fixed with the tickets helper — re-checked the same day; data cleaned up, backup 303) | — (untouched) | 🟡 merge-ready, not merged | — (untouched; tier 2 on the phone is the next branch) |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -140,8 +141,8 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The owner's re-check of `feat/skeleton-tier2-web`'s fix round** (Chrome's
-   3G preset, `docs/TESTING.md`) and its merge on the owner's word, then
+1. **The merge of `feat/skeleton-tier2-web`, on the owner's word**
+   (device-checked and re-checked, merge-ready), then
    **`feat/skeleton-tier2-phone`** from that merge with its own device check
    — before the smoke gate (the owner's plan, 2026-10-11).
 2. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a real

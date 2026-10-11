@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `feat/staff-acceptance` — teachers and the admin accept the Notice and the Terms (§29): device-checked, merge-ready, not merged (on `main` `10e277a`, the socket handshake merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/skeleton-tier2-web` — the thirteen spinners left on eleven web pages are skeletons (§5), plus a fix round (a month-load race that was on `main` too): device-checked, re-checked, merge-ready, not merged (on `main` `5dc868d`, staff acceptance merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1717,12 +1717,12 @@ from CLAUDE.md on 2026-10-11"; rules: §5, §5f–§5g, §29–§30, M11, M26–
       merged 2026-10-11 (`5dc868d`).**
 - [ ] **Skeleton tier 2, web — `feat/skeleton-tier2-web`** (2026-10-11): the
       thirteen spinners left on eleven web pages are skeletons
-      (`components/SkeletonShapes.jsx`, §5). **Gated; not device-checked,
-      not merged.**
+      (`components/SkeletonShapes.jsx`, §5); a fix round. **Device-checked
+      and re-checked (3G), its data cleaned up; merge-ready, not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** the device check of
-`feat/skeleton-tier2-web` (3G preset, TESTING) and its merge →
-`feat/skeleton-tier2-phone`, from that merge with its own device check →
+**NEXT, in order (the owner's plan, 2026-10-11):** merge
+`feat/skeleton-tier2-web` on the owner's word → `feat/skeleton-tier2-phone`,
+from that merge with its own device check →
 **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the

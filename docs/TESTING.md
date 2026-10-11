@@ -325,14 +325,27 @@ month card read September as "1 of 1 · Present 1" when the only recorded day
 is 9 October → a race on `main` too (`parent/AttendancePage.jsx` `load` had no
 newest-reply guard; October's slower reply landed after September's); the
 load now takes a ticket (`api/tickets.js`). `ssr-skeletons-tier2` covers all
-four (above). **Not device-checked, kept here until seen:** the parent's
-breakdown dialog (no grades recorded yet). **Re-check: PENDING** — on the 3G
-preset, Teacher → Attendance at 390px (the sections: cards, nothing clipped)
-and at both widths a date and a section change (no old counts, buttons or
-note while it loads; Save still keeps the cards); Parent → Attendance, a
-first load and a month change both ways (the card skeleton, never "Nothing
-recorded" early), and paging back from October before it loads (September's
-own counts). Without throttling, no flash.
+four (above). **The re-check PASSED (the owner, 3G):** T1 — the phone-width
+register skeleton is card-shaped, nothing clipped; T2 — the summary, the
+buttons, the note and the Save bar are skeleton on a date change at both
+widths, and the after-Save reload is unchanged; P1 — the side card is
+skeleton while a month loads; P2 — going to September while October loads
+shows September's data only, and back to October matches (Late 1 on 9
+October). **Not device-checked, kept here until seen:** the parent's
+breakdown dialog (no grades recorded yet). **Known edge, left by decision:**
+if a month's load FAILS, the side card still says "Nothing recorded this
+month." beside the error. **Cleanup by id** (survey: ids, user ids, roles
+and timestamps only): health `200`; **backup 303** (`201`, taken while the
+admin's acceptance still existed); one transaction, each row matched on its
+surveyed values — message **577** (teacher → parent), attendance **383**
+(learner 1, 9 October, Late), then policy_acceptances **543–544** (the
+teacher), **545–546** (the parent) and **547–548** (the admin) last.
+Before → after: messages 1 → 0, notifications 0 → 0 (neither a message nor
+an attendance save writes one), attendance 1 → 0 (the seeded 0),
+policy_acceptances 6 → 0. Kept: `activity_logs` and `login_attempts`.
+Reported, not this branch's: users 2 and 3 and sections 1, 3 and 23 carry
+an `updated_at` from 15:38–15:39, the staff-acceptance suite runs — values
+at baseline (three sections with an adviser, teachers 2, 5 and 6).
 
 ### `ssr-dates.jsx` runs TWICE, under two timezones
 
