@@ -39,6 +39,12 @@ import { useTheme } from '../theme/ThemeProvider';
 // Sign out is always there and changes nothing; the line above it says
 // declining leaves the child's school records as they are.
 //
+// STAFF TOO (feat/staff-acceptance, 2026-10-11; the owner's decisions), as on
+// the web: teachers and the admin get TWO ticks — the parent's first two, word
+// for word — and no child tick, the accept sends no `on_behalf_of_child`, and
+// the line above Sign out is the owner's sentence for staff. A parent's
+// screen, ticks and words are unchanged.
+//
 // THE FRAME IS THE SIGN-IN FAMILY'S, as on ForcedPasswordChangeScreen; LOADING
 // is Build 2's skeleton (components/Skeleton + hooks/useSkeleton, unchanged).
 // A screen that is a one-time decision has no pull-to-refresh; a failed read
@@ -110,8 +116,10 @@ export default function PolicyConsentScreen() {
 
   const loading = !documents && !loadError;
   const phase = useSkeleton(loading);
+  const isParent = user?.role === 'parent';
   const childName = user?.student_first_name ? String(user.student_first_name) : null;
-  const ready = Boolean(documents) && ticked.privacy_notice && ticked.terms_of_use && ticked.child;
+  // The child's tick is a parent's alone.
+  const ready = Boolean(documents) && ticked.privacy_notice && ticked.terms_of_use && (!isParent || ticked.child);
   const titleOf = (doc) => documents?.find((d) => d.document === doc)?.title;
 
   function reload() {
@@ -131,7 +139,8 @@ export default function PolicyConsentScreen() {
     setSaving(true);
     try {
       const versions = Object.fromEntries(documents.map((d) => [d.document, d.version]));
-      await api.post('/policy/accept', { versions, on_behalf_of_child: true }, { unwrap: 'policy_pending' });
+      const body = isParent ? { versions, on_behalf_of_child: true } : { versions };
+      await api.post('/policy/accept', body, { unwrap: 'policy_pending' });
       // No navigate: the re-read clears `policy_pending` and RootNavigator
       // renders the role home.
       await refresh();
@@ -164,8 +173,9 @@ export default function PolicyConsentScreen() {
                   Before you continue
                 </Text>
                 <Text className="mt-2 text-sm text-fg-muted">
-                  {user?.name}, please read the school’s Data Privacy Notice and Terms of Use, then accept them for
-                  yourself and for your child.
+                  {isParent
+                    ? `${user?.name}, please read the school’s Data Privacy Notice and Terms of Use, then accept them for yourself and for your child.`
+                    : `${user?.name}, please read the school’s Data Privacy Notice and Terms of Use, then accept them.`}
                 </Text>
               </View>
 
@@ -210,10 +220,12 @@ export default function PolicyConsentScreen() {
                     <Tick checked={ticked.terms_of_use} onToggle={toggle('terms_of_use')} disabled={saving}>
                       I have read and agree to the {titleOf('terms_of_use') || 'Terms of Use'}.
                     </Tick>
-                    <Tick checked={ticked.child} onToggle={toggle('child')} disabled={saving}>
-                      As the parent or legal guardian of {childName || 'my child'}, I consent, on my child’s behalf, to the
-                      processing of my child’s personal data for the purposes in the notice.
-                    </Tick>
+                    {isParent ? (
+                      <Tick checked={ticked.child} onToggle={toggle('child')} disabled={saving}>
+                        As the parent or legal guardian of {childName || 'my child'}, I consent, on my child’s behalf, to the
+                        processing of my child’s personal data for the purposes in the notice.
+                      </Tick>
+                    ) : null}
                   </View>
 
                   <Button variant="primary" size="lg" full loading={saving} disabled={!ready} onPress={accept}>
@@ -228,7 +240,9 @@ export default function PolicyConsentScreen() {
           {/* Always there, and it changes nothing: the next sign-in asks again. */}
           <View className="mt-4 items-center">
             <Text className="text-center text-sm text-fg-muted">
-              Declining ends portal use only; your child’s school records stay as they are.
+              {isParent
+                ? 'Declining ends portal use only; your child’s school records stay as they are.'
+                : 'Declining ends portal use only.'}
             </Text>
             <Pressable onPress={logout} accessibilityRole="button" className="flex-row items-center" style={{ minHeight: 48 }}>
               <Text className="text-sm font-semibold text-brand">Sign out</Text>

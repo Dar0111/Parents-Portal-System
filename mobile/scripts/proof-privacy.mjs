@@ -76,10 +76,16 @@ const consent = src('screens/PolicyConsentScreen.jsx');
 assert((consent.match(/<Tick checked=\{ticked\.(privacy_notice|terms_of_use|child)\}/g) || []).length === 3, 'three ticks: the notice, the terms, the child');
 assert(/accessibilityRole="checkbox"\n\s+accessibilityState=\{\{ checked, disabled \}\}/.test(consent), 'each tick is announced as a checkbox with its state');
 assert(/style=\{TICK_ROW\}/.test(consent) && /const TICK_ROW = \{ minHeight: 48 \};/.test(consent), 'each tick row is a 48dp target');
+// Every tick SHOWN (feat/staff-acceptance): all three for a parent; the
+// notice and the terms for staff, who have no child tick.
+const everyTickShown = (text) =>
+  /const isParent = user\?\.role === 'parent';/.test(text) &&
+  /const ready = Boolean\(documents\) && ticked\.privacy_notice && ticked\.terms_of_use && \(!isParent \|\| ticked\.child\);/.test(text) &&
+  /disabled=\{!ready\} onPress=\{accept\}/.test(text);
+assert(everyTickShown(consent), 'Accept works only with every tick shown: all three for a parent, the notice and the terms for staff');
 assert(
-  /const ready = Boolean\(documents\) && ticked\.privacy_notice && ticked\.terms_of_use && ticked\.child;/.test(consent) &&
-    /disabled=\{!ready\} onPress=\{accept\}/.test(consent),
-  'Accept works only with all three ticked'
+  !everyTickShown(consent.replace('(!isParent || ticked.child)', 'ticked.child')),
+  'control: a rule that asks every role for the child tick fails it'
 );
 assert(
   /As the parent or legal guardian of \{childName \|\| 'my child'\}, I consent, on my child’s behalf,/.test(consent) &&
@@ -88,10 +94,16 @@ assert(
 );
 assert(!/login_id|\blrn\b/i.test(consent.replace(/\/\/.*$/gm, '')), 'no login id and no LRN anywhere in the screen\'s code');
 assert(/login_id/i.test('login_id'), 'control: the same pattern finds one');
+// The versions it SHOWED, and the child tick from a parent only — staff send
+// the versions alone (feat/staff-acceptance).
+const sendsWhatItShowed = (text) =>
+  /const body = isParent \? \{ versions, on_behalf_of_child: true \} : \{ versions \};/.test(text) &&
+  /api\.post\('\/policy\/accept', body, \{ unwrap: 'policy_pending' \}\)/.test(text) &&
+  /Object\.fromEntries\(documents\.map\(\(d\) => \[d\.document, d\.version\]\)\)/.test(text);
+assert(sendsWhatItShowed(consent), 'it sends the versions it SHOWED, and the child tick for a parent only');
 assert(
-  /api\.post\('\/policy\/accept', \{ versions, on_behalf_of_child: true \}, \{ unwrap: 'policy_pending' \}\)/.test(consent) &&
-    /Object\.fromEntries\(documents\.map\(\(d\) => \[d\.document, d\.version\]\)\)/.test(consent),
-  'it sends the versions it SHOWED, and the child tick'
+  !sendsWhatItShowed(consent.replace('isParent ? { versions, on_behalf_of_child: true } : { versions }', '{ versions, on_behalf_of_child: true }')),
+  'control: a body that sends the child tick for every role fails it'
 );
 assert(/if \(err\?\.response\?\.status === 409\) reload\(\);/.test(consent), 'a 409 (a document changed meanwhile) reloads the documents and clears the ticks');
 assert(/await refresh\(\);/.test(consent) && !/navigation\.navigate|navigate\(/.test(consent), 'the exit is the re-read — RootNavigator routes home, the screen navigates nowhere');
@@ -141,6 +153,30 @@ assert(
   'control: the pattern catches the old field and the old card'
 );
 assert(/parent\.contact_number/.test(src('screens/teacher/EnrollScreen.jsx')), "the PARENT's own number stays on the enrol screen — the guardian's, not the learner's");
+
+// STAFF ACCEPT TOO (feat/staff-acceptance, 2026-10-11), as on the web: the
+// child's tick is rendered for a parent only, the intro drops "for your child"
+// for staff, and the line above Sign out is the owner's sentence for staff.
+// Source text, said plainly (M7); each check with a control.
+console.log('\nStaff — two ticks, no child tick, their own intro and decline line:');
+const childTickParentOnly = (text) => /\{isParent \? \(\s*<Tick checked=\{ticked\.child\}/.test(text);
+assert(childTickParentOnly(consent), "the child's tick is rendered for a parent only");
+assert(
+  !childTickParentOnly(consent.replace(/\{isParent \? \(\s*(<Tick checked=\{ticked\.child\})/, '{($1')),
+  'control: a child tick rendered for every role fails it'
+);
+assert(
+  flat.includes('please read the school’s Data Privacy Notice and Terms of Use, then accept them.`') &&
+    flat.includes('please read the school’s Data Privacy Notice and Terms of Use, then accept them for yourself and for your child.`'),
+  'the intro: "then accept them." for staff, "…for yourself and for your child." for a parent'
+);
+const staffDecline = (text) =>
+  /isParent \? 'Declining ends portal use only; your child’s school records stay as they are\.' : 'Declining ends portal use only\.'/.test(text);
+assert(staffDecline(flat), 'the line above Sign out: the parent\'s sentence for a parent, exactly "Declining ends portal use only." for staff');
+assert(
+  !staffDecline(flat.replace(" : 'Declining ends portal use only.'", " : 'Declining ends portal use only; your child’s school records stay as they are.'")),
+  "control: staff shown the parent's sentence fails it"
+);
 
 console.log(`\n${passed}/${passed + failed} passed`);
 process.exit(failed ? 1 : 0);
