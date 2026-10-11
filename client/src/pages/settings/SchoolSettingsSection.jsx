@@ -5,8 +5,9 @@ import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
+import { SettingsSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton from '../../hooks/useSkeleton';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { currentTerm, termDates } from '../../format/schoolCalendar';
 
@@ -171,7 +172,10 @@ export default function SchoolSettingsSection() {
     }
   }
 
-  if (loading && !stored) return <LoadingSpinner className="py-16" label="Loading school settings…" />;
+  // The skeleton (feat/skeleton-tier2-web) only while nothing is stored yet: the
+  // re-read after a save keeps the form on screen, as it always did.
+  const phase = useSkeleton(loading && !stored);
+  if (loading && !stored) return <SettingsSkeleton phase={phase} />;
 
   if (!stored) {
     return <ErrorAlert message={error || 'School settings could not be loaded.'} onRetry={load} />;

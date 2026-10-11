@@ -9,8 +9,9 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import { FilterAndTableSkeleton, RosterCardsSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton, { useQueryRows } from '../../hooks/useSkeleton';
 import SectionHeader from '../../components/SectionHeader';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { INITIAL_GUARD, transition as guardTransition } from './classRecord/backGuard';
@@ -447,13 +448,25 @@ export default function AttendancePage() {
 
   const columns = rosterColumns({ recorded, marks, onPick: pick });
 
+  // THE SKELETONS (feat/skeleton-tier2-web), above every return. The sections:
+  // the whole page waits on them. The phone's roster cards follow the
+  // DataTable's rule beside them (`queryKey`, §5): a new section or date shows
+  // the skeleton; the same register re-read after a save keeps the cards —
+  // busy and inert while it reads, so a tap cannot be lost to the re-read.
+  const sectionsPhase = useSkeleton(sections === null);
+  const rosterCurrent = useQueryRows(roster, rosterLoading, [section, date]);
+  const rosterWaiting = rosterLoading && (!rosterCurrent || roster.length === 0);
+  const rosterPhase = useSkeleton(rosterWaiting);
+
   // --- render ------------------------------------------------------------
   if (sectionsError) {
     return <ErrorAlert message={sectionsError} onRetry={() => window.location.reload()} />;
   }
 
   if (sections === null) {
-    return <LoadingSpinner className="py-16" label="Loading your sections…" />;
+    return (
+      <FilterAndTableSkeleton phase={sectionsPhase} label="Loading your sections…" fields={2} columns={5} gap="space-y-6" />
+    );
   }
 
   if (!sections.length) {
@@ -612,9 +625,9 @@ export default function AttendancePage() {
           />
         </div>
 
-        {rosterLoading ? (
+        {rosterWaiting ? (
           <div className={`${cardClass} sm:hidden`}>
-            <LoadingSpinner className="py-10" label="Loading the roster…" />
+            <RosterCardsSkeleton phase={rosterPhase} />
           </div>
         ) : rosterError ? (
           <div className="sm:hidden">
@@ -629,7 +642,9 @@ export default function AttendancePage() {
             />
           </div>
         ) : (
-          <RosterCards roster={roster} marks={marks} recorded={recorded} onPick={pick} />
+          <div className="sm:hidden" aria-busy={rosterLoading || undefined} inert={rosterLoading || undefined}>
+            <RosterCards roster={roster} marks={marks} recorded={recorded} onPick={pick} />
+          </div>
         )}
 
         {roster.length ? (

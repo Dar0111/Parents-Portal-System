@@ -4,8 +4,9 @@ import api from '../api/axios';
 import extractError from '../api/extractError';
 import { cardClass, linkClass } from '../components/buttonClass';
 import ErrorAlert from '../components/ErrorAlert';
-import LoadingSpinner from '../components/LoadingSpinner';
 import SectionHeader from '../components/SectionHeader';
+import { AboutSkeleton } from '../components/SkeletonShapes';
+import useSkeleton from '../hooks/useSkeleton';
 import Reveal from '../motion/Reveal';
 import seal from '../assets/school-seal.png';
 
@@ -380,8 +381,10 @@ export default function AboutPage({ publicView = false }) {
     setAttempt((n) => n + 1);
   }, []);
 
+  // The skeleton (feat/skeleton-tier2-web) only while no details are on screen.
+  const phase = useSkeleton(loading && !settings);
   const body = loading && !settings ? (
-    <LoadingSpinner className="py-16" label="Loading school details…" />
+    <AboutSkeleton phase={phase} />
   ) : !settings ? (
     <ErrorAlert message={error || 'School details could not be loaded.'} onRetry={load} />
   ) : (

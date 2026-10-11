@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { ScoresSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton from '../../hooks/useSkeleton';
 import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import Reveal from '../../motion/Reveal';
@@ -534,6 +535,11 @@ export default function ParentGradesPage() {
             "The school office sets up the subject list for each grade level. Your child's grades appear here once it exists.",
         };
 
+  // The breakdown's skeleton (feat/skeleton-tier2-web). `openTerm` clears
+  // `detail` before every fetch, so a load here is always a new term — never a
+  // re-read of scores already on screen.
+  const detailPhase = useSkeleton(detailLoading);
+
   // THE SORT CONTROLS ARE GONE, and that is the DV3 decision, not an
   // oversight. This page used to sort on Subject and Final Grade. A report
   // card is read beside the paper one, so its order is the school's printed
@@ -585,7 +591,7 @@ export default function ParentGradesPage() {
           title={selected ? `${selected.subjectName} · Term ${selected.term}` : 'Grade'}
           size="lg"
         >
-          {detailLoading ? <LoadingSpinner size="sm" label="Loading scores…" className="py-6" /> : null}
+          {detailLoading ? <ScoresSkeleton phase={detailPhase} /> : null}
           {detailError ? <ErrorAlert message={detailError} onRetry={retryDetail} /> : null}
           {detail ? <BreakdownBody mode={mode} detail={detail} /> : null}
         </Modal>

@@ -8,7 +8,7 @@ import Button from '../../components/Button';
 import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
 import { controlClass } from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { ThreadSkeleton } from '../../components/SkeletonShapes';
 import { cardClass } from '../../components/buttonClass';
 import { enterKeyAction } from '../../components/enterToSend';
 import { useAuth } from '../../auth/AuthContext';
@@ -19,6 +19,7 @@ import { useSocket } from '../../realtime/SocketProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
 import { usePageTitle } from '../../layout/usePageTitle';
 import { usePageBack } from '../../layout/usePageBack';
+import useSkeleton from '../../hooks/useSkeleton';
 
 // ONE CONVERSATION, FOR EVERY ROLE (feat/shared-messages, 2026-10-11;
 // FRONTEND §30). The admin's, the parent's and the teacher's thread pages were
@@ -367,7 +368,16 @@ export default function MessageThread({ listPath, renderTop }) {
     setDraftRestored(false);
   }
 
-  if (loading) return <LoadingSpinner className="py-16" label="Loading conversation…" />;
+  // THE SKELETON, NOT A SPINNER (feat/skeleton-tier2-web, 2026-10-11): the
+  // card's three bands — who, the bubbles, the box — on the same `loading` as
+  // before, so it shows on a thread's first load (or while it is empty) and
+  // never on a re-read, which keeps the list. Nothing for 300 ms, no minimum
+  // (hooks/useSkeleton.js). The top bar's ← is already handed over above, so
+  // the way back is there while it shows; when it clears, the list mounts and
+  // the positioning effect runs on `loading` exactly as it did after the
+  // spinner.
+  const phase = useSkeleton(loading);
+  if (loading) return <ThreadSkeleton phase={phase} />;
 
   // NO LINK OF ITS OWN ABOVE THE CARD (fix round 2, 2026-10-11): the top
   // bar's ← is the way back on every thread, so "← All conversations" here

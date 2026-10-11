@@ -6,7 +6,8 @@ import { cardClass } from '../../components/buttonClass';
 import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormField, { filterSelectClass } from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { FilterAndTableSkeleton, GridSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton from '../../hooks/useSkeleton';
 import ScrollCue from '../../components/ScrollCue';
 import SectionHeader from '../../components/SectionHeader';
 import { timestampDay, todayLocalDateString } from '../../format/date';
@@ -432,6 +433,12 @@ export default function ClassSummaryPage() {
     setParams(next);
   }
 
+  // The two skeletons (feat/skeleton-tier2-web): the classes on the first
+  // read — the picker and the sheet both wait on it — then the sheet on each
+  // class or term, the only times `load` runs. Called above every return.
+  const classesPhase = useSkeleton(advised === null);
+  const sheetPhase = useSkeleton(loading);
+
   // ---- the two states that are not the table ----
   //
   // ONE <Reveal> AT THE ROOT OF EVERY RETURN: the same component in the same
@@ -454,9 +461,7 @@ export default function ClassSummaryPage() {
       <Reveal className="space-y-6">
         <section className="space-y-3">
           <Header />
-          <div className={`${cardClass} p-6`}>
-            <LoadingSpinner label="Loading your classes…" />
-          </div>
+          <FilterAndTableSkeleton phase={classesPhase} label="Loading your classes…" fields={2} columns={9} />
         </section>
       </Reveal>
     );
@@ -593,9 +598,7 @@ export default function ClassSummaryPage() {
               <ErrorAlert message={error} onRetry={load} />
             </div>
           ) : loading ? (
-            <div className="p-6">
-              <LoadingSpinner label="Loading the class summary…" />
-            </div>
+            <GridSkeleton phase={sheetPhase} label="Loading the class summary…" columns={9} />
           ) : learners.length === 0 ? (
             <EmptyState
               icon="fa-user-graduate"

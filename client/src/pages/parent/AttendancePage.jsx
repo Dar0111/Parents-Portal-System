@@ -4,8 +4,9 @@ import extractError from '../../api/extractError';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { CalendarSkeleton } from '../../components/SkeletonShapes';
 import StatusBadge from '../../components/StatusBadge';
+import useSkeleton from '../../hooks/useSkeleton';
 import { cardClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
 import AttendanceCalendar from './AttendanceCalendar';
@@ -285,6 +286,10 @@ export default function ParentAttendancePage() {
     .filter(Boolean)
     .join(' · ');
 
+  // The month's skeleton (feat/skeleton-tier2-web): `load` runs on a new
+  // learner or month only, so this is always a first load or a new key.
+  const calendarPhase = useSkeleton(loading);
+
   if (!linked) {
     return (
       <Reveal className={`${cardClass} flex items-start gap-3 p-5 sm:p-6`}>
@@ -390,7 +395,7 @@ export default function ParentAttendancePage() {
           </div>
 
           {loading ? (
-            <LoadingSpinner className="py-12" />
+            <CalendarSkeleton phase={calendarPhase} />
           ) : (
             <AttendanceCalendar
               year={view.year}

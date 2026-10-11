@@ -8,8 +8,9 @@ import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField, { filterSelectClass } from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import Modal from '../../components/Modal';
+import { GridSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton from '../../hooks/useSkeleton';
 import ScrollCue from '../../components/ScrollCue';
 import { listLabels } from '../../components/scrollCueState';
 import SectionHeader from '../../components/SectionHeader';
@@ -517,6 +518,12 @@ export default function ClassRecordPage() {
   const th = 'bg-surface-subtle px-2 py-2 text-xs font-semibold uppercase tracking-wider text-fg-body';
   const totalTh = `${th} whitespace-nowrap text-right`;
 
+  // The record's skeleton (feat/skeleton-tier2-web): while there is no record
+  // on screen — the assignments, or a load with nothing yet from the server.
+  // A re-read with the record on screen keeps it (`!server`), as before.
+  const recordLoading = assignmentsLoading || (record.loading && !server);
+  const recordPhase = useSkeleton(recordLoading);
+
   // NO ENTRANCE AND NO TWEEN ON THIS PAGE (feat/ui-refresh, motion/motion.js):
   // the root is a plain <div>, never <Reveal>. The grid is typed into cell
   // after cell, its stale cells dim and return on every debounced keystroke,
@@ -590,9 +597,9 @@ export default function ClassRecordPage() {
         </div>
       </div>
 
-      {assignmentsLoading || (record.loading && !server) ? (
+      {recordLoading ? (
         <div className={cardClass}>
-          <LoadingSpinner className="py-16" label="Loading the class record…" />
+          <GridSkeleton phase={recordPhase} label="Loading the class record…" columns={8} />
         </div>
       ) : assignments && assignments.length === 0 ? (
         <div className={cardClass}>

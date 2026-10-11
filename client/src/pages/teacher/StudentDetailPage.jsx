@@ -9,7 +9,8 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { StudentDetailSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton from '../../hooks/useSkeleton';
 import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
@@ -163,6 +164,8 @@ export default function StudentDetailPage() {
   // Falls back to a neutral title until the record loads, so the header never
   // flashes an id or an empty string.
   usePageTitle(student ? `${student.first_name} ${student.last_name}` : 'Student');
+  // The record's skeleton (feat/skeleton-tier2-web): a first load or a new id.
+  const phase = useSkeleton(loading);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -392,7 +395,14 @@ export default function StudentDetailPage() {
   // loading, the anti-enumeration refusal, a failed request, the record.
   let body = null;
   if (loading) {
-    body = <LoadingSpinner className="py-16" label="Loading student…" />;
+    // The way back is on screen while it loads too (feat/skeleton-tier2-web):
+    // the same link every other state leads with, above the record's shapes.
+    body = (
+      <>
+        {backLink}
+        <StudentDetailSkeleton phase={phase} fields={1} />
+      </>
+    );
   } else if (notInScope) {
     body = (
       <>

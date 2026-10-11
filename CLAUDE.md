@@ -1711,15 +1711,19 @@ Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
 (`10e277a`) — items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved
 from CLAUDE.md on 2026-10-11"; rules: §5, §5f–§5g, §29–§30, M11, M26–M27.
 
-- [ ] **Staff acceptance — `feat/staff-acceptance`** (2026-10-11): teachers
+- [x] **Staff acceptance — `feat/staff-acceptance`** (2026-10-11): teachers
       and the admin accept the Notice and the Terms (§29) — two ticks, no
       child tick. **Device-checked (web and phone), its data cleaned up;
-      merge-ready, not merged.**
+      merged 2026-10-11 (`5dc868d`).**
+- [ ] **Skeleton tier 2, web — `feat/skeleton-tier2-web`** (2026-10-11): the
+      thirteen spinners left on eleven web pages are skeletons
+      (`components/SkeletonShapes.jsx`, §5). **Gated; not device-checked,
+      not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** merge
-`feat/staff-acceptance` on the owner's word → `feat/skeleton-tier2-web` →
-`feat/skeleton-tier2-phone`, each
-from the previous merge with its own device check → **smoke gate by Thu
+**NEXT, in order (the owner's plan, 2026-10-11):** the device check of
+`feat/skeleton-tier2-web` (3G preset, TESTING) and its merge →
+`feat/skeleton-tier2-phone`, from that merge with its own device check →
+**smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the
 team. After the check: the cloud (Supabase) migration planning only.

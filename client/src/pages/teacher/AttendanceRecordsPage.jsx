@@ -10,7 +10,8 @@ import { longDate, shortDate } from '../../format/date';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
 import FormField, { filterFieldClass, filterSelectClass } from '../../components/FormField';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { FilterAndTableSkeleton } from '../../components/SkeletonShapes';
+import useSkeleton from '../../hooks/useSkeleton';
 import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { useAuth } from '../../auth/AuthContext';
@@ -272,6 +273,10 @@ export default function AttendanceRecordsPage() {
     </>
   );
 
+  // The sections' skeleton (feat/skeleton-tier2-web): the filters and the
+  // records both wait on that first read. Called above every return.
+  const sectionsPhase = useSkeleton(sections === null);
+
   // ONE <Reveal> AT THE ROOT OF ALL THREE RETURNS (feat/ui-refresh): the same
   // component in the same position, so React keeps the one instance and the
   // entrance plays once — when the page arrives — not again when the sections
@@ -292,9 +297,7 @@ export default function AttendanceRecordsPage() {
       <Reveal className="space-y-6">
         <section className="space-y-3">
           <SectionHeader title="Records" description={hint} />
-          <div className={cardClass}>
-            <LoadingSpinner className="py-16" label="Loading your sections…" />
-          </div>
+          <FilterAndTableSkeleton phase={sectionsPhase} label="Loading your sections…" fields={3} columns={4} />
         </section>
       </Reveal>
     );
