@@ -188,5 +188,29 @@ const ANNOUNCE_GATED = (s) => /\{showAnnounce \? \(\s*<View className="gap-1">\s
 assert(ANNOUNCE_GATED(thread), '…and the button with its hint renders only under it');
 assert(!ANNOUNCE_GATED(thread.replace('{showAnnounce ? (', '{isTeacher ? (')), 'NEGATIVE CONTROL: gated on the role alone (the old rule), the assertion fails');
 
+// THE TEACHER PICKER'S EMPTY GROUPS (fix/socket-handshake, 2026-10-11): the
+// web's three branches (§5f). The sentence is the screen's own expression,
+// taken from the source and evaluated for each group, with and without a
+// search; the control is the expression before the fix, where an empty
+// Teachers or Admin group said "match that search" with no search at all.
+console.log('\nThe teacher picker — an empty group says why, from the search:');
+const teacherPicker = src('screens/teacher/NewMessageScreen.jsx');
+const emptyExpr = (teacherPicker.match(/\{(search\.trim\(\)[\s\S]*?)\}\s*<\/Text>/) || [])[1] || '';
+const sentence = (expr) => new Function('search', 'group', `return (${expr});`);
+const PICKER_GROUPS = [
+  { role: 'parent', label: 'Parents' },
+  { role: 'teacher', label: 'Teachers' },
+  { role: 'admin', label: 'Admin' },
+];
+const followsCause = (say) =>
+  say('', PICKER_GROUPS[0]) === 'No parents yet. A parent appears here once an admin approves their account.' &&
+  say('', PICKER_GROUPS[1]) === 'No teachers to message.' &&
+  say(' ', PICKER_GROUPS[2]) === 'No admin to message.' &&
+  PICKER_GROUPS.every((g) => say('zzz', g) === `No ${g.label.toLowerCase()} match that search.`);
+assert(emptyExpr !== '' && followsCause(sentence(emptyExpr)), 'the teacher picker: a search says "match that search"; none says Parents\' sentence or "No <group> to message."');
+const BEFORE_FIX =
+  "group.role === 'parent' && !search.trim() ? 'No parents yet. A parent appears here once an admin approves their account.' : `No ${group.label.toLowerCase()} match that search.`";
+assert(!followsCause(sentence(BEFORE_FIX)), 'negative control: the expression before the fix fails it');
+
 console.log(`\nproof-look-fixes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

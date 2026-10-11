@@ -19,9 +19,13 @@ import { useTheme } from '../../theme/ThemeProvider';
 // STUDENT: a guardian's own name may mean nothing to a teacher looking for
 // "Tala's parent". Choosing a contact REPLACES this screen with the thread.
 //
-// The empty Parents group names a KNOWN IMPRECISION rather than hiding it:
-// the API cannot tell "this teacher has no students" from "every parent is
-// still pending", so the sentence covers the case it can name.
+// AN EMPTY GROUP SAYS WHY, from the search actually applied (§5f) — the web's
+// three branches (fix/socket-handshake, 2026-10-11): a search that matched no
+// one says so; with none, Parents has its own sentence and every other group
+// says "No <group> to message." The Parents sentence names a KNOWN
+// IMPRECISION rather than hiding it: the API cannot tell "this teacher has no
+// students" from "every parent is still pending", so it covers the case it
+// can name.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-02) is the web picker's: each group is
 // an eyebrow over ONE card of rows, a hairline between them, and a row is one
@@ -123,9 +127,11 @@ export default function NewMessageScreen({ navigation }) {
             {group.rows.length === 0 ? (
               <View className="rounded-xl bg-surface-subtle px-4 py-3">
                 <Text className="text-sm text-fg-muted">
-                  {group.role === 'parent' && !search.trim()
-                    ? 'No parents yet. A parent appears here once an admin approves their account.'
-                    : `No ${group.label.toLowerCase()} match that search.`}
+                  {search.trim()
+                    ? `No ${group.label.toLowerCase()} match that search.`
+                    : group.role === 'parent'
+                      ? 'No parents yet. A parent appears here once an admin approves their account.'
+                      : `No ${group.label.toLowerCase()} to message.`}
                 </Text>
               </View>
             ) : (
