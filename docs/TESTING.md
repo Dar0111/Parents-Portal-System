@@ -347,22 +347,33 @@ Reported, not this branch's: users 2 and 3 and sections 1, 3 and 23 carry
 an `updated_at` from 15:38–15:39, the staff-acceptance suite runs — values
 at baseline (three sections with an adviser, teachers 2, 5 and 6).
 
-**Device check — skeleton tier 2, phone, `feat/skeleton-tier2-phone`:
-PENDING (the owner, the Tecno).** The phone's LAN is too fast to see a
-skeleton (build 2's gap), so this is a NO-REGRESSION check, both themes, cold
-boot: every touched screen opens and its content lands — the thread (at the
-newest message, M27), Teacher → Grades and a slot, Class summary, Teacher →
-Attendance and Attendance records, the parent's calendar, both Student
-details, a grade breakdown (if a grade exists), admin Grades, School settings,
-About signed in and from the sign-in screen; pull-to-refresh on each still
-works and nothing stays stuck. Then the behaviour that CAN be seen: Teacher →
-Attendance, a date and a section change end with that register's own counts,
-button labels and note, and after Save the cards stay (taps are blocked
-until the re-read answers — Q4); the slot screen's pull keeps the column
-(Q3); Teacher → Grades, Class summary and admin Grades, switching subject,
-term, class or learner ends with the new pick's data. **Only the proof
-covers** the shapes, the 300 ms, the sweep and every race (P2 and Q2) —
-`proof:skeletons-tier2` (below).
+**Device check — skeleton tier 2, phone, `feat/skeleton-tier2-phone` (the
+owner, the Tecno, 2026-10-11): PASSED, no findings** — a NO-REGRESSION check
+on all 13 screens, light and dark, since the phone's LAN is too fast to see
+a skeleton (build 2's gap). Teacher: the thread opens at the newest message;
+Grades, a term switch; a slot's pull keeps the column (Q3); Class summary, a
+term switch with the right adviser line; Attendance — 9 October saved → "1
+of 2 marked", 10 and 11 October → "0 of 2 marked" / "Save attendance", back
+to 9 October → "1 of 2 marked" / "Update attendance"; Attendance records;
+Student detail; About with a pull. Parent: the consent screen (three ticks);
+the thread; October → September ("Nothing recorded this month.") → October,
+the month card matching each month. Admin: the consent screen; Grades —
+every learner switch ends on the picked learner's card; Student detail;
+School settings; About. **Covered by the proof only** (`proof:skeletons-tier2`,
+below): the shapes, the 300 ms wait, the sweep, all five races, and the
+breakdown screen (no grades recorded yet). **Known edge, left by decision, on
+BOTH platforms:** if a month's load FAILS, the month card still says "Nothing
+recorded this month." beside the error. **Cleanup by id** (survey since
+23:00: ids, user ids, roles and timestamps only): health `200`; **backup
+304** (`201`, the admin still accepted); one transaction, each row matched on
+its surveyed values — message **578** (teacher 2 → parent 3, 23:44),
+attendance **385** (learner 1, 9 October, Present, 23:46), then
+policy_acceptances **549–550** (the teacher), **551–552** (the parent) and
+**553–554** (the admin) last. Before → after: messages 1 → 0, notifications 0
+→ 0 (none written), attendance 1 → 0 (the seeded 0), policy_acceptances 6 →
+0. Nothing else changed tonight (no user, student, section, grade or setting
+row; the theme is stored on the phone). Kept: `activity_logs` and
+`login_attempts`.
 
 ### `ssr-dates.jsx` runs TWICE, under two timezones
 

@@ -7495,3 +7495,21 @@ CLAUDE.md keeps one pointer line.
       web (§5f); fix round R4, the strip waits for a real failure (§5g).
       **Device-checked, re-checked, its data cleaned up; merged 2026-10-11
       (`10e277a`).**
+
+## BUILD ORDER → Stage 5 items moved from CLAUDE.md on 2026-10-11, second batch (feat/skeleton-tier2-phone merge-ready docs, the REFILL RULE)
+
+Two more ticked items under CLAUDE.md's closed Stage 5 heading, each a branch
+merged after the close and device-checked. Moved by the owner's merge-ready
+dispatch for `feat/skeleton-tier2-phone`; that branch's own item follows it
+here after it merges. Verbatim as they stood; their rules stay where they
+live — §29, §5, M11, M26, `docs/TESTING.md` — and CLAUDE.md's pointer line
+names the merges.
+
+- [x] **Staff acceptance — `feat/staff-acceptance`** (2026-10-11): teachers
+      and the admin accept the Notice and the Terms (§29) — two ticks, no
+      child tick. **Device-checked (web and phone), its data cleaned up;
+      merged 2026-10-11 (`5dc868d`).**
+- [x] **Skeleton tier 2, web — `feat/skeleton-tier2-web`** (2026-10-11): the
+      thirteen spinners left on eleven web pages are skeletons
+      (`components/SkeletonShapes.jsx`, §5); a fix round. **Device-checked
+      and re-checked (3G), its data cleaned up; merged 2026-10-11 (`c8ac275`).**

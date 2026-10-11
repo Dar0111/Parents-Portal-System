@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-11, `feat/skeleton-tier2-web` — the thirteen spinners left on eleven web pages are skeletons (§5), plus a fix round (a month-load race that was on `main` too): device-checked, re-checked, merge-ready, not merged (on `main` `5dc868d`, staff acceptance merged 2026-10-11) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-11, `feat/skeleton-tier2-phone` — the phone's tier-2 spinners are skeletons, with the web's fix round applied and tickets on the loads a pick supersedes (M11): device-checked, merge-ready, not merged (on `main` `c8ac275`, `feat/skeleton-tier2-web` merged 2026-10-11) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1708,26 +1708,21 @@ CLAUDE.md on 2026-10-10".
 
 Merged after the close, each device-checked: privacy (`456bba8`), shared
 Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
-(`10e277a`) — items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved
-from CLAUDE.md on 2026-10-11"; rules: §5, §5f–§5g, §29–§30, M11, M26–M27.
+(`10e277a`), staff acceptance (`5dc868d`), skeleton tier 2 on the web
+(`c8ac275`) — items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved
+from CLAUDE.md on 2026-10-11" (two batches); rules: §5, §5f–§5g, §29–§30,
+M11, M26–M27.
 
-- [x] **Staff acceptance — `feat/staff-acceptance`** (2026-10-11): teachers
-      and the admin accept the Notice and the Terms (§29) — two ticks, no
-      child tick. **Device-checked (web and phone), its data cleaned up;
-      merged 2026-10-11 (`5dc868d`).**
-- [x] **Skeleton tier 2, web — `feat/skeleton-tier2-web`** (2026-10-11): the
-      thirteen spinners left on eleven web pages are skeletons
-      (`components/SkeletonShapes.jsx`, §5); a fix round. **Device-checked
-      and re-checked (3G), its data cleaned up; merged 2026-10-11 (`c8ac275`).**
 - [ ] **Skeleton tier 2, phone — `feat/skeleton-tier2-phone`** (2026-10-11):
       sixteen spinners are skeletons, the slot pull keeps its column; the
       web's fix round applied, and tickets and key checks on teacher Grades,
-      Class summary and admin Grades (M11). **Gated; not device-checked,
-      not merged.**
+      Class summary and admin Grades (M11). **Device-checked on the Tecno
+      (no-regression, no findings), its data cleaned up; merge-ready, not
+      merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** the Tecno check of
-`feat/skeleton-tier2-phone` and its merge → a small web follow-up, a ticket
-on the web roster's load (the owner's Q5) → **smoke gate by Thu
+**NEXT, in order (the owner's plan, 2026-10-11):** merge
+`feat/skeleton-tier2-phone` on the owner's word → a small web follow-up, a
+ticket on the web roster's load (the owner's Q5) → **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the
 team. After the check: the cloud (Supabase) migration planning only.
