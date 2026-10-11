@@ -21,6 +21,7 @@
     "test:sms-transport": "node scripts/test-sms-transport.js",
     "test:auth": "node scripts/test-auth-flows.js",
     "test:auth-middleware": "node scripts/test-auth-middleware.js",
+    "test:socket-auth": "node scripts/test-socket-auth.js",
     "test:students": "node scripts/test-student-flows.js",
     "test:sections": "node scripts/test-sections-flows.js",
     "test:assignments": "node scripts/test-assignments-flows.js",
