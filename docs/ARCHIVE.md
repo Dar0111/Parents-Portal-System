@@ -7513,3 +7513,10 @@ names the merges.
       thirteen spinners left on eleven web pages are skeletons
       (`components/SkeletonShapes.jsx`, §5); a fix round. **Device-checked
       and re-checked (3G), its data cleaned up; merged 2026-10-11 (`c8ac275`).**
+- [x] **Skeleton tier 2, phone — `feat/skeleton-tier2-phone`** (2026-10-11):
+      sixteen spinners are skeletons, the slot pull keeps its column; the
+      web's fix round applied, and tickets and key checks on teacher Grades,
+      Class summary and admin Grades (M11). **Device-checked on the Tecno
+      (no-regression, no findings), its data cleaned up; merged 2026-10-12
+      (`4bfbda0`).** (Moved by `fix/web-load-races`, as this batch's note
+      said it would be after the merge.)

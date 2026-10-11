@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import { cardClass } from '../../components/buttonClass';
 import ErrorAlert from '../../components/ErrorAlert';
 import EmptyState from '../../components/EmptyState';
@@ -379,9 +380,21 @@ export default function ClassSummaryPage() {
     setParams(next, { replace: true });
   }, [params, setParams, pinnedTerm]);
 
+  // LATEST REPLY WINS (fix/web-load-races; api/tickets.js). The effect's own
+  // `cancelled` flag dropped a reply its pick had moved past — but "Try again"
+  // calls `load` directly and threw that cancel away, so a retry still in
+  // flight could land after a newer class or term and put its sheet under the
+  // new pick. Every read takes a ticket instead: its reply, its failure and
+  // its end of loading apply only while it is the newest, whoever started it.
+  // In a ref (lazily created), not state, so the load's dependencies stay
+  // [selected, term].
+  const loadTickets = useRef(null);
+  if (loadTickets.current === null) loadTickets.current = createTickets();
+
   const load = useCallback(() => {
-    if (!selected) return undefined;
-    let cancelled = false;
+    if (!selected) return;
+    const tickets = loadTickets.current;
+    const ticket = tickets.take();
     setLoading(true);
     setError(null);
     const query = new URLSearchParams({
@@ -409,23 +422,22 @@ export default function ClassSummaryPage() {
         ],
       })
       .then((value) => {
-        if (!cancelled) setData(value);
+        if (tickets.isLatest(ticket)) setData(value);
       })
       .catch((err) => {
-        if (!cancelled) {
+        if (tickets.isLatest(ticket)) {
           setError(extractError(err));
           setData(null);
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (tickets.isLatest(ticket)) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [selected, term]);
 
-  useEffect(() => load(), [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   function setParam(name, value) {
     const next = new URLSearchParams(params);
@@ -436,8 +448,23 @@ export default function ClassSummaryPage() {
   // The two skeletons (feat/skeleton-tier2-web): the classes on the first
   // read — the picker and the sheet both wait on it — then the sheet on each
   // class or term, the only times `load` runs. Called above every return.
+  //
+  // WHOSE SHEET IS ON SCREEN (fix/web-load-races, the phone's rule): the
+  // server names the class and term it answered for, so the render between a
+  // class or term change and its load starting — which still held the
+  // previous sheet and its adviser — is told apart without new state. Until
+  // the sheet is this pick's, the sheet is skeleton and nothing reads it.
+  const sheetIsPick = Boolean(
+    data &&
+      selected &&
+      Number(data.section?.grade_level) === Number(selected.grade_level) &&
+      data.section?.name === selected.name &&
+      String(data.term) === String(term)
+  );
+  const sheetWaiting = loading || (!error && !sheetIsPick);
+  const sheet = sheetWaiting ? null : data;
   const classesPhase = useSkeleton(advised === null);
-  const sheetPhase = useSkeleton(loading);
+  const sheetPhase = useSkeleton(sheetWaiting);
 
   // ---- the two states that are not the table ----
   //
@@ -480,7 +507,7 @@ export default function ClassSummaryPage() {
     );
   }
 
-  const learners = data?.learners ?? [];
+  const learners = sheet?.learners ?? [];
 
   return (
     <Reveal className="space-y-6">
@@ -511,13 +538,13 @@ export default function ClassSummaryPage() {
         </p>
         <p className="text-sm">
           Summary of Grades
-          {data?.school_year ? ` · School year ${data.school_year}` : ''}
+          {sheet?.school_year ? ` · School year ${sheet.school_year}` : ''}
           {' · '}
-          {data?.show_final === true ? 'Final' : `Term ${term}`}
+          {sheet?.show_final === true ? 'Final' : `Term ${term}`}
         </p>
         <p className="text-sm">
           {selected ? `Grade ${selected.grade_level} - ${selected.name}` : ''}
-          {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
+          {sheet?.section?.adviser_name ? ` · Adviser: ${sheet.section.adviser_name}` : ''}
         </p>
         {/* The instant is formatted by `format/date.js`, never computed here
             (§5a-iv), and it resolves through Asia/Manila — the date a school
@@ -553,7 +580,7 @@ export default function ClassSummaryPage() {
                 <span className="font-serif text-base font-bold text-fg">
                   Grade {selected.grade_level} - {selected.name}
                 </span>
-                {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
+                {sheet?.section?.adviser_name ? ` · Adviser: ${sheet.section.adviser_name}` : ''}
               </p>
             </div>
           )}
@@ -597,7 +624,7 @@ export default function ClassSummaryPage() {
             <div className="p-4">
               <ErrorAlert message={error} onRetry={load} />
             </div>
-          ) : loading ? (
+          ) : sheetWaiting ? (
             <GridSkeleton phase={sheetPhase} label="Loading the class summary…" columns={9} />
           ) : learners.length === 0 ? (
             <EmptyState
@@ -606,7 +633,7 @@ export default function ClassSummaryPage() {
               message="Learners appear here once they are enrolled in this section."
             />
           ) : (
-            <ClassSummaryTable data={data} />
+            <ClassSummaryTable data={sheet} />
           )}
         </div>
 

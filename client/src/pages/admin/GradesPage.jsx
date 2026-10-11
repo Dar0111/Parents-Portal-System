@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
@@ -160,21 +161,39 @@ export default function AdminGradesPage() {
     // round), the phone's key.
   }, [grade, sectionName, studentsAttempt]);
 
+  // LATEST REPLY WINS (fix/web-load-races; api/tickets.js, the phone's admin
+  // Grades since feat/skeleton-tier2-phone). Picking another learner starts a
+  // new read while the last may be in flight; applied unguarded, the earlier
+  // pick's card could land last — and the subjects table counted its new rows
+  // as this pick's, so Lock acted on that learner's grade under the new name in
+  // the picker. Each read takes a ticket; its reply, its failure and its end
+  // of loading apply only while it is the newest. In a ref (lazily created),
+  // not state, so the load's dependencies stay [studentId] — the table's
+  // queryKey, which ssr-query-key holds equal.
+  const reportTickets = useRef(null);
+  if (reportTickets.current === null) reportTickets.current = createTickets();
+
   const loadReport = useCallback(async () => {
+    const tickets = reportTickets.current;
+    const ticket = tickets.take(); // a read still in flight for the last pick is dropped
     if (!studentId) {
       setReport(null);
       setReportError(null);
+      setReportLoading(false);
       return;
     }
     setReportLoading(true);
     setReportError(null);
     try {
-      setReport(await api.get(`/grades/student/${studentId}`, { unwrap: REPORT_UNWRAP }));
+      const next = await api.get(`/grades/student/${studentId}`, { unwrap: REPORT_UNWRAP });
+      if (!tickets.isLatest(ticket)) return; // a newer read has started
+      setReport(next);
     } catch (err) {
+      if (!tickets.isLatest(ticket)) return;
       setReportError(extractError(err));
       setReport(null);
     } finally {
-      setReportLoading(false);
+      if (tickets.isLatest(ticket)) setReportLoading(false);
     }
   }, [studentId]);
 
@@ -195,6 +214,14 @@ export default function AdminGradesPage() {
   const mode = report?.grading_mode ?? 'numerical';
   const subjects = useMemo(() => report?.subjects ?? [], [report]);
   const student = report?.student ?? null;
+
+  // WHOSE CARD IS ON SCREEN (fix/web-load-races): the card names its learner,
+  // so the previous pick's card is told apart from this pick's without new
+  // state. Until this learner's card arrives, the learner card, the "no grades
+  // yet" line and the general average are not shown (the subjects table shows
+  // its own skeleton by its queryKey), and no lock or unlock can act — a lock
+  // acts only on the current pick's card.
+  const reportIsPick = Boolean(report && studentId && Number(report.student?.id) === Number(studentId));
 
   const noGradesYet =
     subjects.length > 0 && subjects.every((s) => !s.terms[1] && !s.terms[2] && !s.terms[3]);
@@ -217,7 +244,7 @@ export default function AdminGradesPage() {
   }
 
   async function toggleLock() {
-    if (!selectedEntry?.grade_id) return;
+    if (!reportIsPick || !selectedEntry?.grade_id) return;
     const next = !selectedEntry.is_locked;
     setLockSaving(true);
     setStatus({});
@@ -413,7 +440,7 @@ export default function AdminGradesPage() {
                   card. An <h3> — the section's <h2> is "Report card" above,
                   and the page's one <h1> is the top bar's. The initials are
                   the learner's name; a learner has no photo (§25). */}
-              {student ? (
+              {reportIsPick && student ? (
                 <div className={`${cardClass} flex flex-wrap items-center gap-4 p-5`}>
                   <Avatar name={`${student.first_name} ${student.last_name}`} />
                   <div className="min-w-0 flex-1">
@@ -431,7 +458,7 @@ export default function AdminGradesPage() {
                 {/* An all-Pending card is the normal early state, not an empty
                     state: replacing it would hide the subject list (Parent →
                     Grades' reasoning). A line above it instead. */}
-                {noGradesYet ? (
+                {reportIsPick && noGradesYet ? (
                   <p className="text-sm font-semibold text-fg-secondary">
                     No grades have been recorded for this student yet.
                   </p>
@@ -507,7 +534,9 @@ export default function AdminGradesPage() {
                   descriptor. NOT ON A DESCRIPTIVE CARD (feat/look-fixes): Grade
                   1 has no general average at all (§5a-v, the parent card's
                   rule); Grades 2–3 are numerical and keep it. */}
-              {report && subjects.length && mode !== 'descriptive' ? (
+              {/* `reportIsPick` first (fix/web-load-races); the rest is the
+                  descriptive rule as ssr-look-fixes reads it, unchanged. */}
+              {reportIsPick && report && subjects.length && mode !== 'descriptive' ? (
                 <div className={`${cardClass} flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-4`}>
                   <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
                     General Average
@@ -538,7 +567,7 @@ export default function AdminGradesPage() {
             <Button onClick={closeCell} disabled={lockSaving}>
               Close
             </Button>
-            {selectedEntry?.grade_id ? (
+            {reportIsPick && selectedEntry?.grade_id ? (
               <Button
                 variant="primary"
                 icon={selectedEntry.is_locked ? 'fa-lock-open' : 'fa-lock'}

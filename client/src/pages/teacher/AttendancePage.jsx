@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { fetchAll } from '../../api/axios';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonClass';
 import DataTable from '../../components/DataTable';
@@ -232,8 +233,26 @@ export default function AttendancePage() {
   );
 
   // --- roster + existing records for the chosen section/date -------------
+  //
+  // LATEST REPLY WINS (fix/web-load-races; api/tickets.js, the parent
+  // calendar's pattern). A section or date change starts a new read while the
+  // last may still be in flight — today's first read, a quick second pick, a
+  // save's re-read — and the two can answer in either order. Applied
+  // unguarded, the older register landed last under the newer heading, and
+  // useQueryRows counted its new array as this pick's; Save then posted the
+  // CURRENT date with the OLD day's marks, which the server accepts for a
+  // date (same section, same learners). Each read takes a ticket; its reply,
+  // its failure and its end of loading apply only while it is the newest.
+  // The tickets live in a REF (lazily created, React's own pattern), not in
+  // state: a ref is not a dependency, so the load's dependencies stay exactly
+  // [section, date] — the roster's queryKey, which ssr-query-key holds equal.
+  const rosterTickets = useRef(null);
+  if (rosterTickets.current === null) rosterTickets.current = createTickets();
+
   const loadRoster = useCallback(async () => {
     if (!section) return;
+    const tickets = rosterTickets.current;
+    const ticket = tickets.take();
 
     setRosterLoading(true);
     setRosterError(null);
@@ -259,6 +278,7 @@ export default function AttendancePage() {
           params: { grade_level: section.grade_level, section: section.name, date },
         }),
       ]);
+      if (!tickets.isLatest(ticket)) return; // a newer read has started
 
       const existingByStudent = new Map(existing.map((row) => [row.student_id, row.status]));
 
@@ -269,12 +289,13 @@ export default function AttendancePage() {
       setMarks(Object.fromEntries(students.map((s) => [s.id, existingByStudent.get(s.id) || ''])));
       setRecorded(existingByStudent);
     } catch (err) {
+      if (!tickets.isLatest(ticket)) return;
       setRosterError(extractError(err));
       setRoster([]);
       setMarks({});
       setRecorded(new Map());
     } finally {
-      setRosterLoading(false);
+      if (tickets.isLatest(ticket)) setRosterLoading(false);
     }
   }, [section, date]);
 

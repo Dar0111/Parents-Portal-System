@@ -491,6 +491,10 @@ export default function ClassRecordPage() {
 
   async function doSave() {
     setConfirmOpen(false);
+    // Never a save from another pick's record (fix/web-load-races): the grid
+    // and its Save bar are not on screen then, and this says so once more for
+    // a path that could still reach here (`recordIsPick`, below).
+    if (!recordIsPick) return;
     const result = await record.save();
     if (result.nothing) {
       setStatus({ save: ok('Nothing to save — no changes yet.') });
@@ -520,8 +524,26 @@ export default function ClassRecordPage() {
 
   // The record's skeleton (feat/skeleton-tier2-web): while there is no record
   // on screen — the assignments, or a load with nothing yet from the server.
-  // A re-read with the record on screen keeps it (`!server`), as before.
-  const recordLoading = assignmentsLoading || (record.loading && !server);
+  //
+  // WHOSE RECORD IS ON SCREEN (fix/web-load-races, the phone's rule since
+  // feat/skeleton-tier2-phone): the server echoes the subject, class, term and
+  // year it answered for, so a record from the PREVIOUS pick is told apart
+  // without new state. Until this pick's record arrives the grid is skeleton —
+  // not rendered, so nothing can be typed into it and its Save bar is not on
+  // screen. Before this, the previous grid stayed editable after a switch, and
+  // Save posted the NEW pick's key with the OLD record's learners and drafts
+  // (`buildPayload.js` returns `{ ...key, slots, entries }`). A re-read of the
+  // same pick (after a save, Try again) keeps the grid, as before.
+  const recordIsPick = Boolean(
+    server &&
+      classKey &&
+      Number(server.subject?.id) === Number(classKey.subject_id) &&
+      Number(server.grade_level) === Number(classKey.grade_level) &&
+      server.section === classKey.section &&
+      Number(server.term) === Number(classKey.term) &&
+      server.school_year === classKey.school_year
+  );
+  const recordLoading = assignmentsLoading || (Boolean(classKey) && !record.error && !recordIsPick);
   const recordPhase = useSkeleton(recordLoading);
 
   // NO ENTRANCE AND NO TWEEN ON THIS PAGE (feat/ui-refresh, motion/motion.js):
@@ -611,7 +633,7 @@ export default function ClassRecordPage() {
         </div>
       ) : record.error ? (
         <ErrorAlert message={record.error} onRetry={record.reload} />
-      ) : !server ? null : (
+      ) : !recordIsPick ? null : (
         // THE RECORD GROUP — notices, the grid, the save bar and its result,
         // 12px apart. A <div> where a fragment used to be, so the children
         // keep their place in the file and gain a rhythm of their own.
