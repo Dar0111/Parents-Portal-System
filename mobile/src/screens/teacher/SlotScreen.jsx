@@ -6,12 +6,13 @@ import { cardClass } from '../../components/buttonStyles';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
+import { SlotSkeleton } from '../../components/SkeletonShapes';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
 import { INITIAL_GUARD, transition } from './classRecord/backGuard';
@@ -53,11 +54,13 @@ import useSlotRecord from './classRecord/useSlotRecord';
 // is in flight (the save re-reads itself) and while a dry run is — a preview
 // that lands after a fresh read would describe the old one.
 //
-// WHILE A PULL'S READ IS IN FLIGHT THE INPUTS ARE NOT ON SCREEN — the loading
-// state is, as on the first read: load() clears every draft when its reply
-// lands, so a score typed during the request would vanish with nothing said.
-// `refreshing` is set and cleared by the pull's handler alone (never in an
-// effect), so a save's own re-read behaves exactly as it did.
+// WHILE A PULL'S READ IS IN FLIGHT THE COLUMN STAYS ON SCREEN AND TAKES NO
+// TOUCHES (feat/skeleton-tier2-phone, the owner's Q3 — it used to give way to
+// a spinner): a re-read never swaps what is shown for a loading state (§5),
+// and load() clears every draft when its reply lands, so a score typed during
+// the request would vanish with nothing said. The skeleton is for the first
+// read only. `refreshing` is set and cleared by the pull's handler alone
+// (never in an effect), so a save's own re-read behaves exactly as it did.
 //
 // NOTHING HERE MOVES (the refresh's motion rule): no entrance.
 const TITLE = 'Leave without saving?';
@@ -229,6 +232,11 @@ export default function SlotScreen({ navigation, route }) {
     />
   );
 
+  // The first read's skeleton (feat/skeleton-tier2-phone): no record yet, or
+  // its column not yet in it. Above every return.
+  const firstRead = !server || (!isExam && !slot);
+  const phase = useSkeleton(firstRead);
+
   if (record.error) {
     return (
       <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pullControl(!record.dirty && !record.saving)}>
@@ -236,7 +244,7 @@ export default function SlotScreen({ navigation, route }) {
       </ScrollView>
     );
   }
-  if (!server || (!isExam && !slot)) return <LoadingSpinner className="py-16" label="Loading the class record…" />;
+  if (firstRead) return <SlotSkeleton phase={phase} />;
 
   const stale = previewing || Boolean(previewError);
   const groupName = isExam ? (descriptive ? 'Summative' : 'Summative Tests & Term Exam') : slot.type === 'WW' ? 'Written / Oral Works' : 'Performance Tasks';
@@ -260,9 +268,9 @@ export default function SlotScreen({ navigation, route }) {
           description={`${server.subject.name} · Grade ${server.grade_level} - ${server.section} · Term ${server.term} · ${groupName}`}
         />
 
-        {refreshing ? (
-          <LoadingSpinner className="py-12" label="Loading the class record…" />
-        ) : (
+        {/* A PULL KEEPS THE COLUMN (the owner's Q3): on screen, no touches
+            while the read is in flight, the pull's own spinner above it. */}
+        <View pointerEvents={refreshing ? 'none' : 'auto'} className="gap-4">
           <>
             {!canEncode ? (
               <View className="flex-row items-start gap-3 rounded-xl border border-edge bg-surface-subtle px-4 py-3">
@@ -415,7 +423,7 @@ export default function SlotScreen({ navigation, route }) {
             ) : null}
             <FormStatus status={status} />
           </>
-        )}
+        </View>
       </ScrollView>
 
       {/* THE PINNED SAVE BAR. Save all is the screen's one filled button —

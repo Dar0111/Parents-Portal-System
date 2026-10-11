@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import { useAuth } from '../../auth/AuthContext';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import { ClassSummarySkeleton, SummarySheetSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import { currentTerm } from '../../format/schoolCalendar';
 import TermValue from '../../format/TermValue';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -112,33 +114,62 @@ export default function ClassSummaryScreen({ navigation }) {
 
   const selected = useMemo(() => (sections || []).find((s) => s.id === sectionId) || null, [sections, sectionId]);
 
+  // LATEST REPLY WINS (feat/skeleton-tier2-phone, api/tickets.js mirrored): a
+  // class or term change starts a new read while the last may be in flight,
+  // and the older sheet must not land last under the new pick. Each read takes
+  // a ticket; its reply, its failure and its end apply only while it is the
+  // newest.
+  const [tickets] = useState(createTickets);
+
   const load = useCallback(
     async ({ pull = false } = {}) => {
       if (!selected) return;
+      const ticket = tickets.take();
       if (pull) setRefreshing(true);
       else setLoading(true);
       setError(null);
       try {
-        setData(
-          await api.get('/grades/class-summary', {
-            unwrap: SUMMARY_UNWRAP,
-            params: { grade_level: selected.grade_level, section: selected.name, term: String(term) },
-          })
-        );
+        const next = await api.get('/grades/class-summary', {
+          unwrap: SUMMARY_UNWRAP,
+          params: { grade_level: selected.grade_level, section: selected.name, term: String(term) },
+        });
+        if (!tickets.isLatest(ticket)) return;
+        setData(next);
       } catch (err) {
+        if (!tickets.isLatest(ticket)) return;
         setError(extractError(err));
         setData(null);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (tickets.isLatest(ticket)) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [selected, term]
+    [selected, term, tickets]
   );
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // THE SKELETONS (feat/skeleton-tier2-phone), above every return: the
+  // adviser's classes on the first read, then the sheet whenever the sheet on
+  // screen is not this pick's — the server names the class and term it
+  // answered for, so the previous class's sheet (and the render between a
+  // change and its load starting) is told apart without new state — and on
+  // every load that is not a pull (a new pick, or Try again). A pull keeps the
+  // sheet (§5).
+  const sheetIsPick = Boolean(
+    data &&
+      selected &&
+      Number(data.section?.grade_level) === Number(selected.grade_level) &&
+      data.section?.name === selected.name &&
+      String(data.term) === String(term)
+  );
+  const sheetWaiting = loading || (!error && !sheetIsPick);
+  const classesPhase = useSkeleton(sections === null);
+  const sheetPhase = useSkeleton(sheetWaiting);
 
   if (sectionsError) {
     return (
@@ -148,7 +179,7 @@ export default function ClassSummaryScreen({ navigation }) {
       </View>
     );
   }
-  if (sections === null) return <LoadingSpinner className="py-16" label="Loading your classes…" />;
+  if (sections === null) return <ClassSummarySkeleton phase={classesPhase} />;
   if (sections.length === 0) {
     return (
       <View className="flex-1 gap-4 bg-page p-4">
@@ -263,7 +294,9 @@ export default function ClassSummaryScreen({ navigation }) {
                   <Text className="font-serif text-base text-fg">
                     Grade {selected.grade_level} - {selected.name}
                   </Text>
-                  {data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
+                  {/* The adviser is the LOADED sheet's: never the previous
+                      class's name beside this class while it loads. */}
+                  {!sheetWaiting && data?.section?.adviser_name ? ` · Adviser: ${data.section.adviser_name}` : ''}
                 </Text>
               </View>
             ) : null}
@@ -282,8 +315,8 @@ export default function ClassSummaryScreen({ navigation }) {
       </Reveal>
       {error ? (
         <ErrorAlert message={error} onRetry={() => load()} />
-      ) : loading && !data ? (
-        <LoadingSpinner className="py-10" label="Loading the class summary…" />
+      ) : sheetWaiting ? (
+        <SummarySheetSkeleton phase={sheetPhase} />
       ) : learners.length === 0 ? (
         <View className={cardClass}>
           <EmptyState icon="fa-user-graduate" title="No learners in this class yet" message="Learners appear here once they are enrolled in this section." />

@@ -1715,15 +1715,19 @@ from CLAUDE.md on 2026-10-11"; rules: §5, §5f–§5g, §29–§30, M11, M26–
       and the admin accept the Notice and the Terms (§29) — two ticks, no
       child tick. **Device-checked (web and phone), its data cleaned up;
       merged 2026-10-11 (`5dc868d`).**
-- [ ] **Skeleton tier 2, web — `feat/skeleton-tier2-web`** (2026-10-11): the
+- [x] **Skeleton tier 2, web — `feat/skeleton-tier2-web`** (2026-10-11): the
       thirteen spinners left on eleven web pages are skeletons
       (`components/SkeletonShapes.jsx`, §5); a fix round. **Device-checked
-      and re-checked (3G), its data cleaned up; merge-ready, not merged.**
+      and re-checked (3G), its data cleaned up; merged 2026-10-11 (`c8ac275`).**
+- [ ] **Skeleton tier 2, phone — `feat/skeleton-tier2-phone`** (2026-10-11):
+      sixteen spinners are skeletons, the slot pull keeps its column; the
+      web's fix round applied, and tickets and key checks on teacher Grades,
+      Class summary and admin Grades (M11). **Gated; not device-checked,
+      not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-11):** merge
-`feat/skeleton-tier2-web` on the owner's word → `feat/skeleton-tier2-phone`,
-from that merge with its own device check →
-**smoke gate by Thu
+**NEXT, in order (the owner's plan, 2026-10-11):** the Tecno check of
+`feat/skeleton-tier2-phone` and its merge → a small web follow-up, a ticket
+on the web roster's load (the owner's Q5) → **smoke gate by Thu
 2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
 system check, Fri 2026-10-16**. The manuscript delta list stays with the
 team. After the check: the cloud (Supabase) migration planning only.

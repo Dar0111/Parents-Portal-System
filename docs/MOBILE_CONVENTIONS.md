@@ -486,6 +486,17 @@ is `handedRows` and `rows` is what the list shows. 10 screens pass one; the
 7 lists that load with no query pass none. `extraData` makes FlatList
 re-render its cells when loading starts or stops.
 
+**Tier 2 (`feat/skeleton-tier2-phone`, 2026-10-11): the screens that are not a
+`DataList` follow the same rule** — `components/SkeletonShapes.jsx` gives each
+its own shape (the web's tier 2 in the phone's layout), shown only while NONE
+of that screen's content is this pick's: a first load, or a new key told
+apart by the data's own identity (the record's class and term, the sheet's
+class and term, the card's learner) or by `useQueryRows` (the roster); a pull
+keeps the content, touches blocked where a reply would wipe a draft. Pieces
+beside a region that already announces the load are `QuietSkeleton`
+(appended to `components/Skeleton.jsx`). Every load a pick can supersede takes
+a ticket (`api/tickets.js`, mirrored). Proof: `proof:skeletons-tier2`.
+
 `components/RecordCard.jsx` renders the web's `renderCard` DATA contract
 (§5a-iii): `avatar`, `title`, `subtitle`, `meta`, `status` + `statusTone`,
 and exactly one interactive element, `onSelect`. That is why a page's card

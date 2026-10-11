@@ -11,11 +11,12 @@ import DateField from '../../components/DateField';
 import ErrorAlert from '../../components/ErrorAlert';
 import FilterActions from '../../components/FilterActions';
 import { isDirty } from '../../components/filterState';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import { RecordsSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { longDate } from '../../format/date';
+import useSkeleton from '../../hooks/useSkeleton';
 
 // TEACHER → ATTENDANCE RECORDS — the read-only sibling of the encode screen.
 // NEVER SENDS `date` (BUILD ORDER rule): the correction path is Attendance,
@@ -146,6 +147,10 @@ export default function AttendanceRecordsScreen({ navigation }) {
     </>
   );
 
+  // The sections' skeleton (feat/skeleton-tier2-phone): the filters and the
+  // list both wait on that first read. Above every return.
+  const sectionsPhase = useSkeleton(sections === null);
+
   if (sectionsError) {
     return (
       <View className="flex-1 gap-4 bg-page p-4">
@@ -158,7 +163,7 @@ export default function AttendanceRecordsScreen({ navigation }) {
     return (
       <View className="flex-1 gap-4 bg-page p-4">
         <SectionHeader title="Records" description={hint} />
-        <LoadingSpinner className="py-16" label="Loading your sections…" />
+        <RecordsSkeleton phase={sectionsPhase} />
       </View>
     );
   }

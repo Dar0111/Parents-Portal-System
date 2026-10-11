@@ -2,16 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import { useAuth } from '../../auth/AuthContext';
 import Avatar from '../../components/Avatar';
 import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { MonthGridSkeleton, MonthSummarySkeleton } from '../../components/SkeletonShapes';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
 import Icon from '../../icons';
 import { addMonths, longDate, monthBounds, monthName, todayLocalDateString, weekdayName } from '../../format/date';
 import { clampMonthToSchoolYear } from '../../format/schoolCalendar';
+import useSkeleton from '../../hooks/useSkeleton';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
 import AttendanceCalendar from './AttendanceCalendar';
@@ -61,8 +63,17 @@ export default function AttendanceScreen() {
   const [yearTick, setYearTick] = useState(0);
   const monthLabel = `${monthName(view.month)} ${view.year}`;
 
+  // LATEST REPLY WINS (feat/skeleton-tier2-phone; the web's fix round P2,
+  // api/tickets.js mirrored). A month change starts a new read while the last
+  // month's may still be in flight, and the two can answer in either order: on
+  // a slow line the older month's counts and rows would land last, under the
+  // newer month's name. Each read takes a ticket and applies its reply, its
+  // failure and its end only while that ticket is the newest.
+  const [tickets] = useState(createTickets);
+
   const load = useCallback(
     async ({ pull = false } = {}) => {
+      const ticket = tickets.take();
       if (studentId == null) {
         setSummary(EMPTY_SUMMARY);
         setRows([]);
@@ -79,18 +90,22 @@ export default function AttendanceScreen() {
           api.get(`/attendance/summary/${studentId}`, { unwrap: 'summary', params: { from, to } }),
           fetchAll(`/attendance/student/${studentId}`, { unwrap: 'attendance', params: { from, to } }),
         ]);
+        if (!tickets.isLatest(ticket)) return;
         setSummary(nextSummary);
         setRows(monthRows);
       } catch (err) {
+        if (!tickets.isLatest(ticket)) return;
         setError(extractError(err));
         setSummary(EMPTY_SUMMARY);
         setRows([]);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (tickets.isLatest(ticket)) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [studentId, view]
+    [studentId, view, tickets]
   );
 
   useEffect(() => {
@@ -166,6 +181,11 @@ export default function AttendanceScreen() {
     .filter(Boolean)
     .join(' · ');
 
+  // The month's skeletons — the summary card and the grid (feat/skeleton-
+  // tier2-phone): `loading` is set by a non-pull read only, which runs for a
+  // first load or a new month, so it is always a new key. A pull keeps both.
+  const monthPhase = useSkeleton(loading);
+
   if (!linked) {
     return (
       <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4">
@@ -211,7 +231,13 @@ export default function AttendanceScreen() {
 
       <View className={`${cardClass} p-4`}>
         <Text className="font-serif text-base text-fg">{monthLabel}</Text>
-        {fraction ? (
+        {/* While the month loads (the web's fix round P1) the card is skeleton
+            under the month's name: what it held belongs to another month, or
+            to nothing yet, and "Nothing recorded" is a claim only the month's
+            answer can make. */}
+        {loading ? (
+          <MonthSummarySkeleton phase={monthPhase} />
+        ) : fraction ? (
           <>
             {/* THE FRACTION, and only the fraction. One sentence for a screen
                 reader — "21 of 23" — set as a figure and its denominator. */}
@@ -277,7 +303,7 @@ export default function AttendanceScreen() {
           </Pressable>
         </View>
         {loading ? (
-          <LoadingSpinner className="py-12" />
+          <MonthGridSkeleton phase={monthPhase} />
         ) : (
           <AttendanceCalendar
             year={view.year}

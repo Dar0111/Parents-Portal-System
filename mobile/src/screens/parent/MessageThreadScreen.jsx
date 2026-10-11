@@ -7,11 +7,12 @@ import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import DraftNotice from '../../components/DraftNotice';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { ThreadSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { threadContext } from '../../drafts/draftCore';
 import { useDeviceDraft } from '../../drafts/useDraft';
 import { dateTime } from '../../format/date';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useUnread } from '../../realtime/UnreadProvider';
@@ -298,7 +299,12 @@ export default function MessageThreadScreen({ navigation, route }) {
     setDraftRestored(false);
   }
 
-  if (loading) return <LoadingSpinner className="py-16" label="Loading conversation…" />;
+  // THE SKELETON, NOT A SPINNER (feat/skeleton-tier2-phone): the bar, the
+  // bubbles and the box, on the same `loading` — a first load or an empty
+  // thread, never a re-read. The list is not mounted while it shows, so the
+  // positioning effect above waits for it exactly as it waited for the spinner.
+  const phase = useSkeleton(loading);
+  if (loading) return <ThreadSkeleton phase={phase} />;
 
   return (
     // `padding` ON ANDROID TOO (re-check 2 finding, 2026-09-27): with

@@ -12,9 +12,10 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok } from '../../components/FormStatus';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { StudentDetailSkeleton } from '../../components/SkeletonShapes';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -242,7 +243,12 @@ export default function StudentDetailScreen({ navigation, route }) {
 
   // A pull with no record on screen (from the error or not-found state) shows
   // the loading frame too, never a blank screen.
-  if (loading || (refreshing && !student)) return <LoadingSpinner className="py-16" label="Loading student…" />;
+  // The record's skeleton (feat/skeleton-tier2-phone), on the same guard: a
+  // first load, or a pull with no record on screen. The stack header's back
+  // arrow stays above it.
+  const firstRead = loading || (refreshing && !student);
+  const phase = useSkeleton(firstRead);
+  if (firstRead) return <StudentDetailSkeleton phase={phase} fields={1} />;
 
   const pull = <RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />;
 

@@ -5,11 +5,12 @@ import api from '../api/client';
 import extractError from '../api/extractError';
 import { cardClass } from '../components/buttonStyles';
 import ErrorAlert from '../components/ErrorAlert';
-import LoadingSpinner from '../components/LoadingSpinner';
 import ScreenStatusBar from '../components/ScreenStatusBar';
 import SectionHeader from '../components/SectionHeader';
 import Seal from '../components/Seal';
+import { AboutSkeleton } from '../components/SkeletonShapes';
 import Text from '../components/Text';
+import useSkeleton from '../hooks/useSkeleton';
 import Icon from '../icons';
 import Reveal from '../motion/Reveal';
 import { useTheme } from '../theme/ThemeProvider';
@@ -333,14 +334,17 @@ export default function AboutScreen({ navigation, route }) {
     setAttempt((n) => n + 1);
   }, []);
 
-  const body =
-    (loading || refreshing) && !settings ? (
-      <LoadingSpinner className="py-16" label="Loading school details…" />
-    ) : !settings ? (
-      <ErrorAlert message={error || 'School details could not be loaded.'} onRetry={load} />
-    ) : (
-      <AboutBody settings={settings} sections={sections} error={error} onRetry={load} />
-    );
+  // The skeleton (feat/skeleton-tier2-phone) only while no details are on
+  // screen — a pull over the details keeps them.
+  const firstRead = (loading || refreshing) && !settings;
+  const phase = useSkeleton(firstRead);
+  const body = firstRead ? (
+    <AboutSkeleton phase={phase} />
+  ) : !settings ? (
+    <ErrorAlert message={error || 'School details could not be loaded.'} onRetry={load} />
+  ) : (
+    <AboutBody settings={settings} sections={sections} error={error} onRetry={load} />
+  );
 
   return (
     <ScrollView

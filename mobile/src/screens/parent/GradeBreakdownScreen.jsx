@@ -4,13 +4,14 @@ import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
+import { ScoresSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { shortDate } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
 import TermValue from '../../format/TermValue';
+import useSkeleton from '../../hooks/useSkeleton';
 import { useTheme } from '../../theme/ThemeProvider';
 
 // THE GRADE BREAKDOWN — the web's modal, as a modal SCREEN (approved
@@ -187,6 +188,12 @@ export default function GradeBreakdownScreen({ route }) {
     load();
   }, [load]);
 
+  // The scores' skeleton (feat/skeleton-tier2-phone), on the same guard: a
+  // non-pull load clears `detail` first, so it is always a first read; a pull
+  // keeps the scores on screen.
+  const firstRead = loading || (refreshing && !detail);
+  const phase = useSkeleton(firstRead);
+
   return (
     <ScrollView
       className="flex-1 bg-page"
@@ -194,9 +201,9 @@ export default function GradeBreakdownScreen({ route }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ pull: true })} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
       <SectionHeader title="Scores behind this grade" />
-      {loading || (refreshing && !detail) ? (
+      {firstRead ? (
         <View className={`${cardClass} p-5`}>
-          <LoadingSpinner size="sm" label="Loading scores…" />
+          <ScoresSkeleton phase={phase} />
         </View>
       ) : null}
       {error ? <ErrorAlert message={error} onRetry={() => load()} /> : null}

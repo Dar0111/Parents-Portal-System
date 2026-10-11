@@ -8,11 +8,12 @@ import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
+import { SettingsSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { longDate, todayLocalDateString } from '../../format/date';
 import { currentTerm, termDates } from '../../format/schoolCalendar';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
 import { changedDetails, detailsFrom, detailsProblem } from './schoolSettings';
@@ -122,7 +123,10 @@ export default function SchoolSettingsScreen() {
     }
   }
 
-  if (loading && !stored) return <LoadingSpinner className="py-16" label="Loading school settings…" />;
+  // The skeleton (feat/skeleton-tier2-phone) only while nothing is stored yet:
+  // the re-read after a save and a pull keep the form on screen.
+  const phase = useSkeleton(loading && !stored);
+  if (loading && !stored) return <SettingsSkeleton phase={phase} />;
   if (!stored) {
     return (
       <ScrollView className="flex-1 bg-page" contentContainerClassName="p-4" refreshControl={pull}>

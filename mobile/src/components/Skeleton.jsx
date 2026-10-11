@@ -156,3 +156,57 @@ export default function Skeleton({ phase, label = 'Loading…', className = '', 
     </View>
   );
 }
+
+// A QUIET REGION (feat/skeleton-tier2-phone): shapes that belong to a load
+// another region on the screen already announces — Teacher → Attendance's
+// summary, note and Save bar beside the roster's own "Loading the roster…".
+// The same wait and the same sweep as the region above, but no progressbar of
+// its own and hidden from the screen reader, so one load is announced once.
+// It takes the frame's classes itself, so a pinned bar stays where the real
+// one sits. Appended rather than folded into the region above, whose lines a
+// proof reads (proof:skeletons).
+export function QuietSkeleton({ phase, className = '', children }) {
+  const motion = useMotionAllowed();
+  const { tokens, resolved } = useTheme();
+  const painted = phase === 'skeleton';
+  const sweeping = painted && motion;
+  const regionRef = useRef(null);
+  const [width, setWidth] = useState(0);
+  const [x] = useState(() => new Animated.Value(-BAND));
+
+  useEffect(() => {
+    if (!sweeping || !width) {
+      x.setValue(-BAND);
+      return undefined;
+    }
+    const pass = Animated.timing(x, { toValue: width, duration: PASS_MS, easing: Easing.inOut(Easing.quad), useNativeDriver: true });
+    const loop = Animated.loop(pass, { iterations: PASSES });
+    loop.start();
+    return () => loop.stop();
+  }, [sweeping, width, x]);
+
+  const dark = resolved === 'dark';
+  const sweep = useMemo(
+    () => ({
+      x,
+      regionRef,
+      sweeping,
+      band: dark ? tokens['edge-strong'] : tokens.surface,
+      bandOpacity: dark ? '0.9' : '0.8',
+    }),
+    [x, sweeping, dark, tokens]
+  );
+
+  return (
+    <View
+      ref={regionRef}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
+      className={className}
+      style={{ opacity: painted ? 1 : 0 }}
+    >
+      <SweepContext.Provider value={sweep}>{children}</SweepContext.Provider>
+    </View>
+  );
+}

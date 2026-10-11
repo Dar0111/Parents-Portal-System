@@ -3,17 +3,19 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import Avatar from '../../components/Avatar';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok } from '../../components/FormStatus';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import { ReportCardSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useSocket } from '../../realtime/SocketProvider';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -92,7 +94,6 @@ export default function GradesScreen({ navigation, route }) {
   const [studentsAttempt, setStudentsAttempt] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [report, setReport] = useState(null);
-  const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState(null);
   const [status, setStatus] = useState(null);
 
@@ -111,6 +112,12 @@ export default function GradesScreen({ navigation, route }) {
   const studentsFailed = useRef(false);
   const reportInFlight = useRef(null);
   const reportFailed = useRef(false);
+  // LATEST REPLY WINS (feat/skeleton-tier2-phone, api/tickets.js mirrored):
+  // the in-flight check above drops a repeat of the SAME learner's read, but
+  // picking another learner starts a second read at once, and the earlier
+  // pick's card must not land last under the new name. A reply, a failure and
+  // the end of loading apply only while their ticket is the newest.
+  const [reportTickets] = useState(createTickets);
   const { subscribeConnect } = useSocket();
 
   // THE SECTIONS READ SAYS WHEN IT FAILED, AND READS AGAIN (build 1 fix round,
@@ -183,6 +190,7 @@ export default function GradesScreen({ navigation, route }) {
   // learner's card is read at once.
   const loadReport = useCallback(async () => {
     if (!studentId) {
+      reportTickets.take(); // a read still in flight for the last pick is dropped
       reportFailed.current = false;
       setReport(null);
       setReportError(null);
@@ -190,20 +198,24 @@ export default function GradesScreen({ navigation, route }) {
     }
     if (reportInFlight.current === studentId) return;
     reportInFlight.current = studentId;
-    setReportLoading(true);
+    const ticket = reportTickets.take();
     setReportError(null);
     try {
-      setReport(await api.get(`/grades/student/${studentId}`, { unwrap: REPORT_UNWRAP }));
+      const next = await api.get(`/grades/student/${studentId}`, { unwrap: REPORT_UNWRAP });
+      if (!reportTickets.isLatest(ticket)) return;
+      setReport(next);
       reportFailed.current = false;
     } catch (err) {
+      if (!reportTickets.isLatest(ticket)) return;
       reportFailed.current = true;
       setReportError(extractError(err));
       setReport(null);
     } finally {
+      // No loading flag: whether this learner's card is on screen is read off
+      // the card itself (`reportIsPick`, below), so the skeleton needs none.
       if (reportInFlight.current === studentId) reportInFlight.current = null;
-      setReportLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, reportTickets]);
 
   useFocusEffect(
     useCallback(() => {
@@ -283,6 +295,15 @@ export default function GradesScreen({ navigation, route }) {
     navigation.navigate('GradeLock', { subjectName: subject.subject_name, term, mode, entry: subject.terms[term] });
   }
 
+  // THE REPORT CARD'S SKELETON, AND WHOSE CARD IS ON SCREEN (feat/skeleton-
+  // tier2-phone). The card names its learner, so the previous pick's card is
+  // told apart from this pick's without new state: until this learner's card
+  // arrives the body is skeleton — never the last learner's grades under the
+  // new name. The focus and pull re-reads of the SAME learner keep the card.
+  const reportIsPick = Boolean(report && studentId && Number(report.student?.id) === Number(studentId));
+  const reportWaiting = Boolean(studentId) && !reportError && !reportIsPick;
+  const reportPhase = useSkeleton(reportWaiting);
+
   let body;
   // The learner list's own retry (feat/look-fixes): its effect takes
   // `studentsAttempt` as a key, so bumping it reads the list again.
@@ -304,7 +325,7 @@ export default function GradesScreen({ navigation, route }) {
       </View>
     );
   } else if (reportError) body = <ErrorAlert message={reportError} onRetry={loadReport} />;
-  else if (reportLoading && !report) body = <LoadingSpinner className="py-10" />;
+  else if (reportWaiting) body = <ReportCardSkeleton phase={reportPhase} />;
   else if (report && !subjects.length) {
     body = (
       <View className={cardClass}>

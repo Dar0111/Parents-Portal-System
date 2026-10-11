@@ -4,6 +4,7 @@ import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
 import { Alert, BackHandler, FlatList, RefreshControl, ScrollView, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
+import { createTickets } from '../../api/tickets';
 import { useAuth } from '../../auth/AuthContext';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
@@ -11,11 +12,18 @@ import DateField from '../../components/DateField';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import {
+  AttendanceRegisterSkeleton,
+  RosterCardsSkeleton,
+  RosterNoteSkeleton,
+  RosterSaveBarSkeleton,
+  RosterSummarySkeleton,
+} from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { longDate, todayLocalDateString } from '../../format/date';
+import { useQueryRows, useSkeleton } from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
 import { markRestPresent, pickStatus, ROW_STATE_LABEL, rosterCounts, rowState, unsavedCount } from './attendance/roster';
@@ -111,8 +119,16 @@ export default function AttendanceScreen({ navigation }) {
   const section = useMemo(() => (sections || []).find((s) => s.id === sectionId) || null, [sections, sectionId]);
   const className = section ? `Grade ${section.grade_level} - ${section.name}` : '';
 
+  // LATEST REPLY WINS (feat/skeleton-tier2-phone, api/tickets.js mirrored): a
+  // date or section change starts a new read while the last may be in flight,
+  // and the older register must not land last under the new day — its marks
+  // would then be saved for the wrong date. Each read takes a ticket; its
+  // reply, its failure and its end apply only while it is the newest.
+  const [rosterTickets] = useState(createTickets);
+
   const loadRoster = useCallback(async () => {
     if (!section) return;
+    const ticket = rosterTickets.take();
     setRosterLoading(true);
     setRosterError(null);
     setStatus(null);
@@ -122,19 +138,21 @@ export default function AttendanceScreen({ navigation }) {
         fetchAll('/students', { unwrap: 'students', params: { grade_level: section.grade_level, section: section.name, status: 'active' } }),
         fetchAll('/attendance', { unwrap: 'attendance', params: { grade_level: section.grade_level, section: section.name, date } }),
       ]);
+      if (!rosterTickets.isLatest(ticket)) return;
       const existingByStudent = new Map(existing.map((row) => [row.student_id, row.status]));
       setRoster(students);
       setMarks(Object.fromEntries(students.map((s) => [s.id, existingByStudent.get(s.id) || ''])));
       setRecorded(existingByStudent);
     } catch (err) {
+      if (!rosterTickets.isLatest(ticket)) return;
       setRosterError(extractError(err));
       setRoster([]);
       setMarks({});
       setRecorded(new Map());
     } finally {
-      setRosterLoading(false);
+      if (rosterTickets.isLatest(ticket)) setRosterLoading(false);
     }
-  }, [section, date]);
+  }, [section, date, rosterTickets]);
 
   useEffect(() => {
     loadRoster();
@@ -253,6 +271,20 @@ export default function AttendanceScreen({ navigation }) {
     }
   }
 
+  // THE SKELETONS (feat/skeleton-tier2-phone), above every return. The
+  // sections: the whole register waits on them, in its own card shape (the
+  // web's fix round T1). The roster: WAITING IS "THE ROWS ON SCREEN ARE NOT
+  // THIS REGISTER'S" (the web's T2) — from the render where the section or the
+  // date changes, before its read starts — or a first read with nothing on
+  // screen. While it waits, everything computed from the old roster is
+  // skeleton in place: the summary card (counts and Mark all Present), the
+  // cards, the note and the pinned Save bar. Save's re-read and a pull keep
+  // the cards, which take no touches until it answers (the owner's Q4).
+  const sectionsPhase = useSkeleton(sections === null);
+  const rosterCurrent = useQueryRows(roster, rosterLoading, [sectionId, date]);
+  const rosterWaiting = !rosterCurrent || (rosterLoading && roster.length === 0);
+  const rosterPhase = useSkeleton(rosterWaiting);
+
   if (sectionsError) {
     return (
       <View className="flex-1 bg-page p-4">
@@ -260,7 +292,7 @@ export default function AttendanceScreen({ navigation }) {
       </View>
     );
   }
-  if (sections === null) return <LoadingSpinner className="py-16" label="Loading your sections…" />;
+  if (sections === null) return <AttendanceRegisterSkeleton phase={sectionsPhase} />;
   if (!sections.length) {
     return (
       <View className="flex-1 bg-page p-4">
@@ -301,7 +333,9 @@ export default function AttendanceScreen({ navigation }) {
       {/* The description names the register: the class, then the day. */}
       <SectionHeader title="Roster" description={`${className} · ${longDate(date)}`} />
 
-      {roster.length ? (
+      {rosterWaiting ? (
+        <RosterSummarySkeleton phase={rosterPhase} />
+      ) : roster.length ? (
         <View className={`${cardClass} gap-3 p-4`}>
           <View className="flex-row items-center gap-3">
             <Text className="min-w-0 flex-1 text-sm font-semibold text-fg" style={TABULAR}>
@@ -334,11 +368,14 @@ export default function AttendanceScreen({ navigation }) {
 
   return (
     <View className="flex-1 bg-page">
-      {rosterLoading && !roster.length ? (
-        <View className="p-4">
+      {rosterWaiting ? (
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
           {header}
-          <LoadingSpinner className="py-10" label="Loading the roster…" />
-        </View>
+          <RosterCardsSkeleton phase={rosterPhase} />
+          <View className="mt-4">
+            <RosterNoteSkeleton phase={rosterPhase} />
+          </View>
+        </ScrollView>
       ) : rosterError ? (
         <ScrollView contentContainerStyle={{ padding: 16 }} refreshControl={pull}>
           {header}
@@ -353,9 +390,10 @@ export default function AttendanceScreen({ navigation }) {
         </ScrollView>
       ) : (
         // While a pull's read is in flight no mark may be tapped (see the
-        // header): the wrapper, not the list, takes the touch block — a plain
-        // View honours `pointerEvents` on every platform.
-        <View className="flex-1" pointerEvents={refreshing ? 'none' : 'auto'}>
+        // header), nor while a save and its re-read are (the owner's Q4, the
+        // web's inert cards): the wrapper, not the list, takes the touch
+        // block — a plain View honours `pointerEvents` on every platform.
+        <View className="flex-1" pointerEvents={refreshing || saving ? 'none' : 'auto'}>
           <FlatList
             data={roster}
             keyExtractor={(s) => String(s.id)}
@@ -385,7 +423,9 @@ export default function AttendanceScreen({ navigation }) {
         </View>
       )}
 
-      {roster.length ? (
+      {rosterWaiting ? (
+        <RosterSaveBarSkeleton phase={rosterPhase} />
+      ) : roster.length ? (
         // THE PINNED SAVE BAR, outside the list and above the frame's bottom
         // inset, with the unsaved count so Save is never a guess. Save is the
         // screen's one filled button.

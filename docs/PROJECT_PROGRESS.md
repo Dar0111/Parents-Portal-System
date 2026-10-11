@@ -11,19 +11,16 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-11: `main` at `5dc868d` (`feat/staff-acceptance` merged
-fast-forward on 2026-10-11 after the owner's device check; the socket
-handshake, skeleton option 1, shared Messages and privacy before it) plus
-`feat/skeleton-tier2-web` — branch 3 of the owner's four before the smoke
-gate: the thirteen spinners left on eleven web pages are skeletons shaped
-like their content (the thread, the class record and summary, the
-attendance pages, the parent's calendar, both student detail pages, the
-breakdown dialog, School settings, About). Device-checked on the web (3G)
-with four findings; the fix round (the teacher register's phone-width
-skeleton and its old counts while a new day loads, the parent month card
-while it loads, and a month-load race that was on `main` too, fixed with
-the tickets helper) re-checked and passed; its data cleaned up (backup
-303); merge-ready, not merged.**
+**Snapshot, 2026-10-11: `main` at `c8ac275` (`feat/skeleton-tier2-web`
+merged fast-forward on 2026-10-11 after the owner's device check, fix round
+and re-check; staff acceptance, the socket handshake, skeleton option 1,
+shared Messages and privacy before it) plus `feat/skeleton-tier2-phone` —
+branch 4 of the owner's four before the smoke gate: the phone's tier-2
+spinners are skeletons shaped like their screens, with the web's fix round
+applied (the register's own card shape; no old counts while a new day
+loads; the month card while it loads; a ticket on the month's load) and
+the same gaps closed on teacher Grades, Class summary and admin Grades.
+Gated; not device-checked, not merged.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -54,7 +51,8 @@ and only there.
 | Skeleton option 1 — `feat/skeleton-querykey`: the `queryKey` rule (a new query shows the skeleton, the same query keeps the rows), the keys on every list whose query can change, the avatar circle on the nine lists that lacked it (built and device-checked on the web 2026-10-11) | — (untouched) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (not device-checked: the LAN is too fast to see a skeleton; the proofs cover it) |
 | The socket handshake and the picker copy — `fix/socket-handshake`: the handshake asks what the REST API asks (the restore cutoff, the token's version) and says "Database unreachable." for a database error; the phone teacher picker's empty groups follow the web; fix round R4 — the strip waits for a real failure (a 3 s grace), the admin dashboards' "Live connection" row says "Connecting…" (built, device-checked and re-checked 2026-10-11; data cleaned up, backup 292) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 (the strip, the dashboard row) | ✅ merged 2026-10-11 (the picker, the strip, the dashboard row) |
 | Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built, gated and device-checked 2026-10-11; data cleaned up, backup 302) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
-| Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round — T1, T2, P1, and P2, a month-load race already on `main`, fixed with the tickets helper — re-checked the same day; data cleaned up, backup 303) | — (untouched) | 🟡 merge-ready, not merged | — (untouched; tier 2 on the phone is the next branch) |
+| Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round — T1, T2, P1, and P2, a month-load race already on `main`, fixed with the tickets helper — re-checked the same day; data cleaned up, backup 303) | — (untouched) | ✅ merged 2026-10-11 | — (untouched) |
+| Skeleton tier 2, phone — `feat/skeleton-tier2-phone`: seventeen spinners on thirteen screens — sixteen become skeletons shaped like the screen, the slot screen's pull keeps its column; the web's fix round applied (the register's card shape, no old counts while a new day loads, the month card while it loads, tickets on the loads a pick can supersede) and the same gaps on teacher Grades, Class summary and admin Grades; `QuietSkeleton` for pieces beside an announced region (built and gated 2026-10-11) | — (untouched) | — (untouched) | 🟡 built, not device-checked, not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -141,13 +139,16 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-11, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The merge of `feat/skeleton-tier2-web`, on the owner's word**
-   (device-checked and re-checked, merge-ready), then
-   **`feat/skeleton-tier2-phone`** from that merge with its own device check
-   — before the smoke gate (the owner's plan, 2026-10-11).
-2. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a real
+1. **The owner's device check of `feat/skeleton-tier2-phone`** on the Tecno
+   (no-regression — `docs/TESTING.md`) and its merge on the owner's word.
+2. **A small web follow-up after that merge (the owner's Q5):** the web
+   roster's load (`client/src/pages/teacher/AttendancePage.jsx` `loadRoster`)
+   takes no ticket, so a date or section change made while the last roster
+   is in flight can let the older reply land last — on `main` since before
+   this work; the phone's fix is the pattern.
+3. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a real
    restore after a fresh backup, and SMS.
-3. **Professor system check, Fri 2026-10-16.**
+4. **Professor system check, Fri 2026-10-16.**
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). After the check: the cloud (Supabase) migration

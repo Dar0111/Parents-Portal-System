@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../../api/client';
 import extractError from '../../../api/extractError';
+import { createTickets } from '../../../api/tickets';
 import { buildClassRecordPayload } from './buildPayload';
 
 // THE CLASS RECORD'S DATA LAYER ON THE PHONE — the web's
@@ -67,8 +68,17 @@ export default function useSlotRecord(classKey) {
   const key = classKey;
   const keyReady = Boolean(key?.subject_id && key?.grade_level && key?.section && key?.term && key?.school_year);
 
+  // THE LOAD TAKES A TICKET (feat/skeleton-tier2-phone; the web's
+  // useClassRecord since feat/look-fixes, api/tickets.js mirrored): switching
+  // subject, class or term starts a second read before the first answers, and
+  // the older reply must not land last and put the wrong class on screen. A
+  // reply — data, failure, or the end of loading — is applied only while its
+  // ticket is the newest. The preview keeps its own ticket above.
+  const [loadTickets] = useState(createTickets);
+
   const load = useCallback(async () => {
     if (!keyReady) return;
+    const ticket = loadTickets.take();
     setLoading(true);
     setError(null);
     try {
@@ -76,6 +86,7 @@ export default function useSlotRecord(classKey) {
         unwrap: RECORD_UNWRAP,
         params: { subject_id: key.subject_id, grade_level: key.grade_level, section: key.section, term: key.term, school_year: key.school_year },
       });
+      if (!loadTickets.isLatest(ticket)) return; // a newer load has started
       setServer(data);
       // A fresh read is a new truth: drafts and preview describe the old one.
       setDraft({});
@@ -86,12 +97,13 @@ export default function useSlotRecord(classKey) {
       setPreviewSlots(null);
       setPreviewError(null);
     } catch (err) {
+      if (!loadTickets.isLatest(ticket)) return;
       setError(extractError(err));
       setServer(null);
     } finally {
-      setLoading(false);
+      if (loadTickets.isLatest(ticket)) setLoading(false);
     }
-  }, [key, keyReady]);
+  }, [key, keyReady, loadTickets]);
 
   useEffect(() => {
     load();

@@ -6,12 +6,13 @@ import extractError from '../../api/extractError';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
-import LoadingSpinner from '../../components/LoadingSpinner';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
+import { ClassRecordSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import { todayLocalDateString } from '../../format/date';
 import { currentTerm } from '../../format/schoolCalendar';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -188,9 +189,29 @@ export default function GradesScreen({ navigation }) {
     navigation.navigate('ClassRecordSlot', { classKey, target, title });
   }
 
+  // THE SKELETONS, AND WHOSE RECORD IS ON SCREEN (feat/skeleton-tier2-phone).
+  // The server names the class it answered for, so a record from the previous
+  // subject, class or term is told apart from this pick without new state:
+  // until this pick's record arrives the slot list is skeleton — never the
+  // old class's counts under the new pickers, never a row that opens the new
+  // pick from the old one's numbers. The focus re-read of the SAME pick keeps
+  // the list on screen (the record still matches it).
+  const recordIsPick = Boolean(
+    server &&
+      classKey &&
+      Number(server.subject?.id) === Number(classKey.subject_id) &&
+      Number(server.grade_level) === Number(classKey.grade_level) &&
+      server.section === classKey.section &&
+      Number(server.term) === Number(classKey.term) &&
+      server.school_year === classKey.school_year
+  );
+  const classesLoading = assignments === null || settings === null;
+  const classesPhase = useSkeleton(classesLoading);
+  const recordPhase = useSkeleton(!recordIsPick);
+
   let body;
   if (assignmentsError || settingsError) body = <ErrorAlert message={assignmentsError || settingsError} />;
-  else if (assignments === null || settings === null) body = <LoadingSpinner className="py-12" label="Loading your classes…" />;
+  else if (classesLoading) body = <ClassRecordSkeleton phase={classesPhase} label="Loading your classes…" pickers />;
   else if (assignments.length === 0) {
     body = (
       <View className={cardClass}>
@@ -198,7 +219,7 @@ export default function GradesScreen({ navigation }) {
       </View>
     );
   } else if (record.error) body = <ErrorAlert message={record.error} onRetry={reload} />;
-  else if (!server) body = <LoadingSpinner className="py-12" label="Loading the class record…" />;
+  else if (!recordIsPick) body = <ClassRecordSkeleton phase={recordPhase} label="Loading the class record…" />;
   else {
     const weights = server.weights || {};
     body = (

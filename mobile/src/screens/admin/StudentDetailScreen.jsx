@@ -11,9 +11,10 @@ import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { StudentDetailSkeleton } from '../../components/SkeletonShapes';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
+import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -174,7 +175,11 @@ export default function StudentDetailScreen({ navigation, route }) {
     }
   }
 
-  if (loading && !student) return <LoadingSpinner className="py-16" label="Loading student…" />;
+  // The record's skeleton (feat/skeleton-tier2-phone), on the same guard: a
+  // load with no record on screen (a pull keeps the record). The stack
+  // header's back arrow stays above it.
+  const phase = useSkeleton(loading && !student);
+  if (loading && !student) return <StudentDetailSkeleton phase={phase} fields={2} />;
   const pull = <RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />;
   if (notFound) {
     return (
