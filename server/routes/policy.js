@@ -4,10 +4,11 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const policy = require('../utils/policy');
 
-// THE CONSENT GATE'S THREE ENDPOINTS (feat/privacy, 2026-10-10). All three are
-// reachable while the gate is shut — middleware/auth.js lets /api/policy/*
-// through for a parent who has not accepted yet, after the forced password
-// change (that comes first).
+// THE CONSENT GATE'S THREE ENDPOINTS (feat/privacy, 2026-10-10; every role
+// since feat/staff-acceptance, 2026-10-11). All three are reachable while the
+// gate is shut — middleware/auth.js lets /api/policy/* through for an account
+// that has not accepted yet, after the forced password change (that comes
+// first).
 const router = express.Router();
 
 function documentView(d) {
@@ -20,9 +21,8 @@ router.get('/', authenticate, (_req, res) => {
 });
 
 // GET /api/policy/status — this user's acceptance of each CURRENT version.
-// `accepted_at` is null until accepted (and always null for staff in this
-// build: staff acceptance is deferred). `required` says whether this role
-// must accept at all.
+// `accepted_at` is null until accepted. `required` says whether this role
+// must accept at all — every role does since feat/staff-acceptance.
 router.get('/status', authenticate, async (req, res) => {
   try {
     const accepted = await policy.currentAcceptances(req.user.id);
@@ -44,16 +44,20 @@ router.get('/status', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/policy/accept — a parent accepts both documents, for themselves
-// and on behalf of their child, in one request: the three ticks on the
-// consent screen. Body: { versions: { privacy_notice, terms_of_use },
-// on_behalf_of_child: true }.
+// POST /api/policy/accept — both documents in one request. A PARENT accepts
+// for themselves and on behalf of their child: the three ticks on the consent
+// screen, body { versions: { privacy_notice, terms_of_use },
+// on_behalf_of_child: true }. A TEACHER or THE ADMIN accepts for themselves
+// only (feat/staff-acceptance, the owner's decisions): two ticks, body
+// { versions }; `on_behalf_of_child` is neither required nor read for staff,
+// and their rows carry no student_id.
 //
-// The versions must be the CURRENT ones — the text the parent was shown. A
+// The versions must be the CURRENT ones — the text the user was shown. A
 // version that changed while the screen was open is 409, never a silent
 // acceptance of words they did not read.
-router.post('/accept', authenticate, authorize('parent'), async (req, res) => {
+router.post('/accept', authenticate, authorize(...policy.ROLES_THAT_ACCEPT), async (req, res) => {
   const { versions, on_behalf_of_child: onBehalf } = req.body || {};
+  const isParent = req.user.role === 'parent';
 
   for (const d of policy.CURRENT) {
     const sent = versions?.[d.document];
@@ -65,7 +69,7 @@ router.post('/accept', authenticate, authorize('parent'), async (req, res) => {
       });
     }
   }
-  if (onBehalf !== true) {
+  if (isParent && onBehalf !== true) {
     return res.status(400).json({
       success: false,
       message: 'Tick the box to accept on behalf of your child.',
@@ -89,7 +93,7 @@ router.post('/accept', authenticate, authorize('parent'), async (req, res) => {
       // is a no-op that still answers success (a double tap, a second tab).
       const [result] = await pool.query(
         'INSERT IGNORE INTO policy_acceptances (user_id, document, version, student_id) VALUES (?, ?, ?, ?)',
-        [req.user.id, d.document, d.version, req.user.student_id || null]
+        [req.user.id, d.document, d.version, isParent ? req.user.student_id || null : null]
       );
       inserted += result.affectedRows;
     }

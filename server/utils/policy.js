@@ -11,7 +11,7 @@ const pool = require('../config/db');
 // means editing the file, bumping the version, and restarting the API.
 //
 // A NEW VERSION ASKS AGAIN. Acceptance is per (document, version): bump a
-// version and every parent's policy_pending is true until they accept it.
+// version and everyone's policy_pending is true until they accept it.
 //
 // The text today is a placeholder ("Draft — awaiting the school's approval");
 // no legal text is written here (KNOWN_ISSUES).
@@ -42,9 +42,13 @@ function loadDocuments() {
 
 const CURRENT = loadDocuments();
 
-// Only parents accept, in this build. Staff acceptance is deferred (the
-// owner's answer 3); when it comes, this is the one line that widens.
-const ROLES_THAT_ACCEPT = ['parent'];
+// EVERY ROLE ACCEPTS (feat/staff-acceptance, 2026-10-11; the owner's
+// decisions): parents since feat/privacy, and teachers and the admin since this
+// branch — the Notice and the Terms, the same two documents and the same count,
+// so the gate and the socket need no role branch. Only the consent screen and
+// POST /api/policy/accept tell a parent from staff: the third tick, on the
+// child's behalf, is a parent's alone.
+const ROLES_THAT_ACCEPT = ['parent', 'teacher', 'admin'];
 
 function mustAccept(role) {
   return ROLES_THAT_ACCEPT.includes(role);
@@ -75,4 +79,4 @@ async function currentAcceptances(userId) {
   return Object.fromEntries(rows.map((r) => [r.document, r]));
 }
 
-module.exports = { CURRENT, DOCUMENTS, mustAccept, acceptedCountSql, isPending, currentAcceptances };
+module.exports = { CURRENT, DOCUMENTS, ROLES_THAT_ACCEPT, mustAccept, acceptedCountSql, isPending, currentAcceptances };

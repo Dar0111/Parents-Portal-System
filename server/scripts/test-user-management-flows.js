@@ -14,7 +14,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally. A teacher this run creates skips the first-sign-in
 // password change (scripts/policyFixture.js, feat/privacy).
 const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
@@ -70,11 +71,13 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   const adminId = adminLogin.data?.user?.id;
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  await policy.accept(teacherToken);
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login');
 
   const parentLogin = await login('13567454', 'Parent@2026');
@@ -389,6 +392,7 @@ async function run() {
       'Q4: an admin email change burns the code already mailed to the OLD address'
     );
     const staleLogin = await login(throwawayLoginId, 'Teacher@2026');
+    await policy.accept(staleLogin.data?.token);
     const staleConfirm = await request('POST', '/api/auth/verify-email/confirm', {
       token: staleLogin.data?.token,
       body: { code: '246810' },
@@ -455,6 +459,7 @@ async function run() {
 
     const throwawayLoginBefore = await login(throwawayLoginId, 'Teacher@2026');
     const throwawayTokenBefore = throwawayLoginBefore.data?.token;
+    await policy.accept(throwawayTokenBefore);
     assert(throwawayLoginBefore.status === 200 && throwawayTokenBefore, 'Throwaway teacher can log in while active');
 
     const deactivate = await request('PATCH', `/api/users/${throwawayId}/status`, {
@@ -635,8 +640,8 @@ async function run() {
       'GET /users?role=teacher: every row matches and total is the filtered count'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

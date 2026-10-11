@@ -63,7 +63,8 @@ function nextCountsSignal(socket, ms = 3000) {
   });
 }
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally. Parents this run creates skip the first-sign-in
 // password change (scripts/policyFixture.js, feat/privacy).
 const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
@@ -265,14 +266,17 @@ async function main() {
     const adminRes = await login('ADMIN001', 'Admin@2026');
     requireFixture(adminRes.status === 200, 'admin logs in', why(adminRes));
     admin = { token: adminRes.data.token, ...adminRes.data.user };
+    await policy.accept(admin.token);
 
     const t1 = await login('TCH-001', 'Teacher@2026');
     requireFixture(t1.status === 200, 'TCH-001 logs in (Grade 6 Malikhain adviser + subjects)', why(t1));
     tch1 = { token: t1.data.token, ...t1.data.user };
+    await policy.accept(tch1.token);
 
     const t3 = await login('TCH-003', 'Teacher@2026');
     requireFixture(t3.status === 200, 'TCH-003 logs in (Grade 1 Mabait adviser)', why(t3));
     tch3 = { token: t3.data.token, ...t3.data.user };
+    await policy.accept(tch3.token);
 
     const pm = await login('13567454', 'Parent@2026');
     requireFixture(pm.status === 200, "Marwin's parent account logs in (Grade 6 Malikhain)", why(pm));
@@ -1084,7 +1088,6 @@ async function main() {
       failed += 1;
     }
   } finally {
-    await policy.cleanup();
     // -------------------------------------------------------------------
     console.log('\nCleanup');
     // -------------------------------------------------------------------
@@ -1190,6 +1193,10 @@ async function main() {
       console.error('CLEANUP ERROR:', cleanupError.message);
       failed += 1;
     }
+    // This run's acceptances go LAST: the cleanup above signs its requests
+    // with the admin's token, and staff meet the consent gate since
+    // feat/staff-acceptance.
+    await policy.cleanup();
 
     console.log(`\n${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);

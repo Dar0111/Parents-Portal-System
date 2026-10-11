@@ -20,6 +20,10 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
+// Staff sign-ins accept the privacy notice and terms first (feat/staff-
+// acceptance); this run's rows go in the finally (scripts/policyFixture.js).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 
@@ -70,10 +74,12 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   const adviserLogin = await login('TCH-001', 'Teacher@2026');
   const adviserToken = adviserLogin.data?.token;
+  await policy.accept(adviserToken);
   const adviserId = adviserLogin.data?.user?.id;
   assert(adviserLogin.status === 200 && adviserToken, 'Teacher login (TCH-001, adviser of Grade 6 - Malikhain)');
 
@@ -296,6 +302,7 @@ async function run() {
     );
   } finally {
     await cleanup();
+    await policy.cleanup();
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

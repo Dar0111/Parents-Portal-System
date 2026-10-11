@@ -12,7 +12,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally. A teacher this run creates skips the first-sign-in
 // password change (scripts/policyFixture.js, feat/privacy).
 const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
@@ -77,6 +78,7 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 (seeded) is BOTH assigned to Grade 6 - Malikhain (Math/English/
@@ -84,6 +86,7 @@ async function run() {
   // cannot, on its own, distinguish them. That is what TCH-002 below is for.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  await policy.accept(teacherToken);
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Malikhain)');
 
   // TCH-002 is adviser of Grade 5 - Masigasig with ZERO teacher_assignments
@@ -93,6 +96,7 @@ async function run() {
   // that would delete the only account capable of failing these checks.
   const adviserLogin = await login('TCH-002', 'Teacher@2026');
   const adviserToken = adviserLogin.data?.token;
+  await policy.accept(adviserToken);
   assert(adviserLogin.status === 200 && adviserToken, 'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig)');
 
   // Marwin Conde (LRN 13567454) is seeded as Grade 6 - Malikhain — inside TCH-001's scope.
@@ -227,6 +231,7 @@ async function run() {
       body: { teacher_id: mintedTeacherId, subject_id: g6Subjects.data?.subjects?.[0]?.id, grade_level: 6, section: 'Malikhain' },
     });
     const mintedLogin = await login(mintedLoginId, 'Teacher@2026');
+    await policy.accept(mintedLogin.data?.token);
     const assignedNotAdviserCreate = await request('POST', '/api/students', {
       token: mintedLogin.data?.token,
       body: { lrn: `1${uniqueSuffix}`, first_name: 'Refused', last_name: 'Student', grade_level: 6, section: 'Malikhain' },
@@ -734,8 +739,8 @@ async function run() {
       'GET /students?search=Conde: every row matches and total is the filtered count'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

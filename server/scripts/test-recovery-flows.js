@@ -33,6 +33,10 @@ const SMS_DIR = path.join(__dirname, '..', 'tmp', 'sms');
 // (scripts/policyFixture.js, feat/privacy); test:auth proves that change.
 const { clearForcedChange } = require('./policyFixture');
 
+// Staff sign-ins accept the privacy notice and terms first (feat/staff-
+// acceptance); this run's rows go in the finally (scripts/policyFixture.js).
+const policy = require('./policyFixture').createPolicyFixture();
+
 let passed = 0;
 let failed = 0;
 class FixtureFailure extends Error {}
@@ -127,6 +131,7 @@ async function main() {
     const a = await login('ADMIN001', 'Admin@2026');
     requireFixture(a.status === 200, 'admin logs in', why(a));
     admin = { token: a.data.token, ...a.data.user };
+    await policy.accept(admin.token);
 
     // The suite is useless unless the API is running with the file transport.
     const warm = await request('POST', '/api/auth/forgot-password', { body: { login_id: 'ADMIN001' } });
@@ -147,6 +152,7 @@ async function main() {
     const t = await login(TEACHER_ID, TEACHER_PW);
     requireFixture(t.status === 200, 'the fixture teacher logs in', why(t));
     teacher = { token: t.data.token, ...t.data.user };
+    await policy.accept(teacher.token);
 
     // -----------------------------------------------------------------------
     console.log('\nEmail verification');
@@ -386,6 +392,7 @@ async function main() {
     const s1 = await login(SMS_ID, SMS_PW);
     requireFixture(s1.status === 200, 'the SMS fixture logs in', why(s1));
     let smsUser = { token: s1.data.token, id: s1.data.user.id };
+    await policy.accept(smsUser.token);
 
     const beforeUnconf = smsFilesBefore();
     const unconf = await request('POST', '/api/auth/forgot-password', { body: { login_id: SMS_ID } });
@@ -553,6 +560,7 @@ async function main() {
       console.error('CLEANUP ERROR:', e.message);
       failed += 1;
     }
+    await policy.cleanup();
     console.log(`\n${passed} passed, ${failed} failed\n`);
     process.exit(failed ? 1 : 0);
   }

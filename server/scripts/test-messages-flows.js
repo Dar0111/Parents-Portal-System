@@ -18,7 +18,8 @@ const { io: ioClient } = require('socket.io-client');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally. A teacher this run creates skips the first-sign-in
 // password change (scripts/policyFixture.js, feat/privacy).
 const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
@@ -100,12 +101,14 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   const adminId = adminLogin.data?.user?.id;
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 (seeded) is assigned Grade 6 - Mabini only.
   const teacher1Login = await login('TCH-001', 'Teacher@2026');
   const teacher1Token = teacher1Login.data?.token;
+  await policy.accept(teacher1Token);
   const teacher1Id = teacher1Login.data?.user?.id;
   assert(teacher1Login.status === 200 && teacher1Token, 'Teacher (TCH-001) login');
 
@@ -157,6 +160,7 @@ async function run() {
   // the only fixture that can tell "assigned" apart from "adviser".
   const adviserLogin = await login('TCH-002', 'Teacher@2026');
   const adviserToken = adviserLogin.data?.token;
+  await policy.accept(adviserToken);
   assert(
     adviserLogin.status === 200 && adviserToken,
     'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig, no assignments)'
@@ -172,6 +176,7 @@ async function run() {
     if (teacher2Id) await clearForcedChange(teacher2Id);
     const teacher2Login = await login(teacher2LoginId, 'Teacher@2026');
     const teacher2Token = teacher2Login.data?.token;
+    await policy.accept(teacher2Token);
     assert(
       createTeacher2.status === 201 && teacher2Login.status === 200,
       'Fixture: created an unassigned second teacher'
@@ -815,8 +820,8 @@ async function run() {
       'GET /with/:id refuses offset, sort and a non-numeric before with 400'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

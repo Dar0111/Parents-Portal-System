@@ -35,7 +35,8 @@ const jwt = require('jsonwebtoken');
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -107,12 +108,14 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   const adminUser = adminLogin.data?.user;
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
   const iatOld = decodeIat(adminToken);
 
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  await policy.accept(teacherToken);
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login');
 
   const parentLogin = await login('13567454', 'Parent@2026');
@@ -424,8 +427,8 @@ async function run() {
       'Putting the original cutoff back restores every token issued after it (this run\'s tokens)'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

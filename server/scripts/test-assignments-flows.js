@@ -19,8 +19,9 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
-// go in the finally (scripts/policyFixture.js, feat/privacy).
+// Every sign-in accepts the privacy notice and terms first — parents since
+// feat/privacy, staff since feat/staff-acceptance; this run's rows go in the
+// finally (scripts/policyFixture.js).
 const policy = require('./policyFixture').createPolicyFixture();
 
 let passed = 0;
@@ -73,20 +74,24 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   const tch001 = await login('TCH-001', 'Teacher@2026');
   const tch001Token = tch001.data?.token;
+  await policy.accept(tch001Token);
   const tch001Id = tch001.data?.user?.id;
   assert(tch001.status === 200 && tch001Token, 'Teacher login (TCH-001)');
 
   const tch002 = await login('TCH-002', 'Teacher@2026');
   const tch002Token = tch002.data?.token;
+  await policy.accept(tch002Token);
   const tch002Id = tch002.data?.user?.id;
   assert(tch002.status === 200 && tch002Token, 'Teacher login (TCH-002, zero assignments)');
 
   const tch003 = await login('TCH-003', 'Teacher@2026');
   const tch003Token = tch003.data?.token;
+  await policy.accept(tch003Token);
   const tch003Id = tch003.data?.user?.id;
   assert(tch003.status === 200 && tch003Token, 'Teacher login (TCH-003, Grade 1 Mabait)');
 
@@ -483,8 +488,8 @@ async function run() {
       'GET /assignments as a teacher: every row is theirs and total is the scoped count'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

@@ -15,7 +15,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -84,17 +85,20 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 (seeded) is the adviser of Grade 6 - Malikhain.
   const adviserLogin = await login('TCH-001', 'Teacher@2026');
   const adviserToken = adviserLogin.data?.token;
+  await policy.accept(adviserToken);
   assert(adviserLogin.status === 200 && adviserToken, 'Adviser login (TCH-001, Grade 6 - Malikhain)');
 
   // TCH-002 (seeded) is the adviser of Grade 5 - Masigasig — a real, live
   // non-adviser for Grade 6 - Malikhain, not a fabricated third fixture.
   const otherAdviserLogin = await login('TCH-002', 'Teacher@2026');
   const otherAdviserToken = otherAdviserLogin.data?.token;
+  await policy.accept(otherAdviserToken);
   assert(
     otherAdviserLogin.status === 200 && otherAdviserToken,
     'Other adviser login (TCH-002, Grade 5 - Masigasig)'
@@ -105,6 +109,7 @@ async function run() {
   // minted account.
   const thirdTeacherLogin = await login('TCH-003', 'Teacher@2026');
   const thirdTeacherToken = thirdTeacherLogin.data?.token;
+  await policy.accept(thirdTeacherToken);
   assert(thirdTeacherLogin.status === 200 && thirdTeacherToken, 'Third adviser login (TCH-003, Grade 1 - Mabait)');
 
   const parentLogin = await login('13567454', 'Parent@2026');
@@ -603,8 +608,8 @@ async function run() {
       'GET /attendance?status=Present: every row matches and total is the filtered count'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
     // The scoping proof: the sentinel shares a date and a learner with rows
     // the run deleted, and must still be there. Then it goes, by its own id.
     if (sentinelAttendanceId) {

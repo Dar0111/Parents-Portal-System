@@ -142,6 +142,10 @@ const NOW = Math.floor(Date.now() / 1000);
 const STATE_CLEAR = [{ token_valid_after: null }];
 const TEACHER = { id: 7, role: 'teacher', status: 'active', token_version: 0, must_change_password: 0, policy_accepted: 0 };
 const PARENT = { ...TEACHER, id: 9, role: 'parent' };
+// Staff accept too since feat/staff-acceptance: the teacher row is past the
+// consent gate (both documents) — after PARENT is built, so the parent row
+// stays unaccepted; a teacher who has not accepted is its own case below.
+TEACHER.policy_accepted = policy.CURRENT.length;
 
 const good = signToken({ id: TEACHER.id, role: 'teacher', v: 0 });
 const legacy = signToken({ id: TEACHER.id, role: 'teacher' });
@@ -261,10 +265,17 @@ const CASES = [
     control: ['policy.isPending(user.role, user.policy_accepted)', 'policy.isPending(user.role, 0)'],
   },
   {
-    label: 'a teacher (staff are not gated) → admitted, socket.userId set, two reads',
+    label: 'a teacher who accepted both current documents → admitted, socket.userId set, two reads',
     input: { token: good, answers: [STATE_CLEAR, [TEACHER]] },
     check: (r) => admitted(r) && r.userId === TEACHER.id && r.calls === 2,
     control: ['socket.userId = user.id;', 'void 0;'],
+  },
+  {
+    label: 'a teacher without the current notice and terms (staff since feat/staff-acceptance) → POLICY_ACCEPTANCE_REQUIRED, as the HTTP 403',
+    input: { token: good, answers: [STATE_CLEAR, [{ ...TEACHER, policy_accepted: 0 }]] },
+    check: (r, h) =>
+      h.status === 403 && r.message === h.message && r.code === 'POLICY_ACCEPTANCE_REQUIRED' && r.code === h.code,
+    control: ['if (policy.isPending(user.role, user.policy_accepted)) {', IF_FALSE],
   },
 ];
 

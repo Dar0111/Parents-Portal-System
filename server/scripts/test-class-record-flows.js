@@ -61,7 +61,8 @@ const dbConfig = {
   database: process.env.DB_NAME || 'parents_portal',
 };
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -176,10 +177,12 @@ async function main() {
     const adminLogin = await login('ADMIN001', 'Admin@2026');
     requireFixture(adminLogin.status === 200, 'admin logs in', why(adminLogin));
     const adminToken = adminLogin.data.token;
+    await policy.accept(adminToken);
 
     const teacherLogin = await login('TCH-001', 'Teacher@2026');
     requireFixture(teacherLogin.status === 200, 'TCH-001 logs in', why(teacherLogin));
     const teacherToken = teacherLogin.data.token;
+    await policy.accept(teacherToken);
 
     const parentLogin = await login('13567454', 'Parent@2026');
     requireFixture(parentLogin.status === 200, "Marwin's parent logs in", why(parentLogin));
@@ -1225,8 +1228,8 @@ async function main() {
       `while his raw Total still shows what IS recorded (got ${benAfterClear.ww_total})`
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
     console.log(`\n${passed} passed, ${failed} failed\n`);
     process.exit(failed > 0 ? 1 : 0);
   }

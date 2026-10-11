@@ -23,7 +23,8 @@ const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./t
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally. A teacher this run creates skips the first-sign-in
 // password change (scripts/policyFixture.js, feat/privacy).
 const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
@@ -91,6 +92,7 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 (seeded) is assigned Grade 6 - Malikhain, and is that
@@ -98,6 +100,7 @@ async function run() {
   // read-scope, sections.adviser_id for review authority.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  await policy.accept(teacherToken);
   const teacherId = teacherLogin.data?.user?.id;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Malikhain, adviser)');
 
@@ -110,6 +113,7 @@ async function run() {
   // one account capable of failing these checks.
   const adviserLogin = await login('TCH-002', 'Teacher@2026');
   const adviserToken = adviserLogin.data?.token;
+  await policy.accept(adviserToken);
   const adviserId = adviserLogin.data?.user?.id;
   assert(
     adviserLogin.status === 200 && adviserToken,
@@ -526,6 +530,7 @@ async function run() {
     );
     const nonAdviserTeacherLogin = await login(reviewerLoginId, 'Teacher@2026');
     const nonAdviserTeacherToken = nonAdviserTeacherLogin.data?.token;
+    await policy.accept(nonAdviserTeacherToken);
     assert(
       createNonAdviserTeacher.status === 201 && nonAdviserTeacherLogin.status === 200,
       'Fixture: a non-adviser teacher assigned to Malikhain (can read, cannot review)'
@@ -839,8 +844,8 @@ async function run() {
       'GET /excuse-letters?status=Pending: every row matches and total is the filtered count'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

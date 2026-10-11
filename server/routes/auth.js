@@ -35,7 +35,8 @@ function mintToken(payload, tokenVersion) {
   return signToken({ ...payload, v: Number(tokenVersion || 0) });
 }
 
-// `policy_pending` (feat/privacy, 2026-10-10): true for a parent who has not
+// `policy_pending` (feat/privacy, 2026-10-10): true for an account — a parent,
+// and since feat/staff-acceptance a teacher or the admin — that has not
 // accepted the CURRENT Data Privacy Notice and Terms of Use. The client routes
 // on it to the consent screen, as it routes on must_change_password — never
 // on the 403 (§2).

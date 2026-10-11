@@ -34,7 +34,8 @@ const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 500
 const AVATAR_DIR = path.join(__dirname, '..', 'uploads', 'avatars');
 const NAME = /^[0-9a-f]{32}\.jpg$/;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -128,6 +129,8 @@ async function run() {
     const parent = await request('POST', '/api/auth/login', { body: { login_id: PARENT_LOGIN, password: 'Parent@2026' } });
     const adminToken = admin.data?.token;
     const teacherToken = teacher.data?.token;
+    await policy.accept(adminToken);
+    await policy.accept(teacherToken);
     const parentToken = parent.data?.token;
     await policy.accept(parentToken);
     assert(adminToken && teacherToken && parentToken, 'Admin, TCH-001 and Marwin’s parent log in');
@@ -304,7 +307,6 @@ async function run() {
     });
     assert(leaks.length === 0, 'no description carries a login id, an id or a file name', `${leaks.length} leaked`);
   } finally {
-    await policy.cleanup();
     // Cleanup by what this run touched, then proof that nothing is left.
     await db.query('UPDATE users SET profile_pic = ? WHERE id = ?', [startParentPic, parentRow.id]);
     await db.query('UPDATE users SET profile_pic = ? WHERE id = ?', [startTeacherPic, teacherRow.id]);
@@ -320,6 +322,7 @@ async function run() {
     assert(endFiles.size === startFiles.size && [...endFiles].every((f) => startFiles.has(f)), 'ZERO leftover files: uploads/avatars is exactly as it was');
     assert(p.profile_pic === startParentPic && t.profile_pic === startTeacherPic, 'both accounts’ profile_pic are back (NULL on the baseline)');
     assert(Number(remaining) === 0, 'the suite’s message is gone');
+    await policy.cleanup();
     await db.end();
   }
 

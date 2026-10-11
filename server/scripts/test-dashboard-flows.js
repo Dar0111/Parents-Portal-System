@@ -30,7 +30,8 @@ const pool = require('../config/db');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -118,18 +119,22 @@ async function run() {
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   requireFixture(adminLogin.status === 200, 'ADMIN001 can log in');
   const adminToken = adminLogin.data.token;
+  await policy.accept(adminToken);
 
   const tch001 = await login('TCH-001', 'Teacher@2026');
   requireFixture(tch001.status === 200, 'TCH-001 can log in');
   const tch001Token = tch001.data.token;
+  await policy.accept(tch001Token);
 
   const tch002 = await login('TCH-002', 'Teacher@2026');
   requireFixture(tch002.status === 200, 'TCH-002 (adviser, no assignments) can log in');
   const tch002Token = tch002.data.token;
+  await policy.accept(tch002Token);
 
   const tch003 = await login('TCH-003', 'Teacher@2026');
   requireFixture(tch003.status === 200, 'TCH-003 (Grade 1, all five subjects) can log in');
   const tch003Token = tch003.data.token;
+  await policy.accept(tch003Token);
 
   const marwinParent = await login('13567454', 'Parent@2026');
   requireFixture(marwinParent.status === 200, "Marwin's parent can log in");
@@ -491,8 +496,8 @@ async function main() {
   } finally {
     // Runs even on a throw. A process.exit() inside run() would skip it,
     // which is why run() returns a count instead of exiting.
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
   process.exit(failures || process.exitCode ? 1 : 0);
 }

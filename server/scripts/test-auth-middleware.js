@@ -75,6 +75,7 @@ const ACTIVE = {
   password_changed_at: null,
   token_version: 0,
   must_change_password: 0,
+  policy_accepted: 2, // both current documents: staff meet the consent gate since feat/staff-acceptance
 };
 
 async function run({ token, answers, reqPath = '/students' }) {

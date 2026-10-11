@@ -114,6 +114,10 @@ async function waitFor(name, url, attempts = 20, gapMs = 500) {
 // Playwright runs after the last test: it deletes exactly the acceptance rows
 // this run added — by id, against a snapshot taken first — so a seeded parent
 // is asked again at the next real sign-in. Prints nothing about the accounts.
+// STAFF TOO since feat/staff-acceptance (2026-10-11): the three staff smoke
+// accounts accept the same way — the two documents, no child tick — and their
+// rows go in the same teardown, so a seeded teacher or admin meets the consent
+// screen again at the next real sign-in.
 
 // The database, through the SERVER's own driver and .env (the client package
 // has neither). Read, never printed.
@@ -157,6 +161,17 @@ async function acceptForParents() {
     if (!res.ok || !body.token) throw new Error(`Consent setup: the ${role} account did not sign in (HTTP ${res.status}).`);
     accounts.push({ role, token: body.token, id: body.user.id, pending: body.user.policy_pending === true });
   }
+  for (const role of ['admin', 'teacher', 'teacher2']) {
+    const { login_id, password } = credentialsFor(role);
+    const res = await fetch(`${API_ORIGIN}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ login_id, password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.token) throw new Error(`globalSetup: the ${role} smoke account could not sign in (HTTP ${res.status})`);
+    accounts.push({ role, token: body.token, id: body.user.id, pending: body.user.policy_pending === true, staff: true });
+  }
   const userIds = [...new Set(accounts.map((a) => a.id))];
   const before = new Set(await acceptanceIds(userIds));
 
@@ -168,7 +183,7 @@ async function acceptForParents() {
     const res = await fetch(`${API_ORIGIN}/api/policy/accept`, {
       method: 'POST',
       headers: auth,
-      body: JSON.stringify({ versions, on_behalf_of_child: true }),
+      body: JSON.stringify(a.staff ? { versions } : { versions, on_behalf_of_child: true }),
     });
     if (!res.ok) throw new Error(`Consent setup: the ${a.role} account's accept answered HTTP ${res.status}.`);
   }
@@ -203,7 +218,8 @@ export default async function globalSetup() {
   await waitFor('The API', `${API_ORIGIN}/api/health`);
   await waitFor('The Vite dev server', APP_ORIGIN);
 
-  // Both parents accept first; the returned function is the global teardown
+  // Every smoke account accepts first (both parents; the three staff since
+  // feat/staff-acceptance); the returned function is the global teardown
   // that removes what this accepted (see acceptForParents above). Nothing runs
   // after this return — the note below records a warm-up that was removed.
   return acceptForParents();

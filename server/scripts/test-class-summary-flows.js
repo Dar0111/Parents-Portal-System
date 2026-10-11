@@ -42,7 +42,8 @@ const dbConfig = {
   database: process.env.DB_NAME || 'parents_portal',
 };
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -172,18 +173,22 @@ async function main() {
     const adminLogin = await login('ADMIN001', 'Admin@2026');
     requireFixture(adminLogin.status === 200, 'admin logged in', why(adminLogin));
     const adminToken = adminLogin.data.token;
+    await policy.accept(adminToken);
 
     const t2Login = await login('TCH-002', 'Teacher@2026');
     requireFixture(t2Login.status === 200, 'TCH-002 (adviser of Masigasig, zero assignments) logged in', why(t2Login));
     const t2Token = t2Login.data.token;
+    await policy.accept(t2Token);
 
     const t1Login = await login('TCH-001', 'Teacher@2026');
     requireFixture(t1Login.status === 200, 'TCH-001 logged in', why(t1Login));
     const t1Token = t1Login.data.token;
+    await policy.accept(t1Token);
 
     const t3Login = await login('TCH-003', 'Teacher@2026');
     requireFixture(t3Login.status === 200, 'TCH-003 (adviser of Grade 1 - Mabait) logged in', why(t3Login));
     const t3Token = t3Login.data.token;
+    await policy.accept(t3Token);
 
     const parentLogin = await login('13567454', 'Parent@2026');
     requireFixture(parentLogin.status === 200, "a parent logged in", why(parentLogin));
@@ -557,8 +562,8 @@ async function main() {
       'still no general_average key on the Grade 1 final view'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

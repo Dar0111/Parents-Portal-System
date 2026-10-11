@@ -124,8 +124,9 @@ async function authenticate(req, res, next) {
       }
     }
 
-    // THE CONSENT GATE (feat/privacy, 2026-10-10; the owner's answer 1). A
-    // parent who has not accepted the CURRENT Data Privacy Notice and Terms
+    // THE CONSENT GATE (feat/privacy, 2026-10-10; the owner's answer 1; every
+    // role since feat/staff-acceptance, 2026-10-11). An account that has not
+    // accepted the CURRENT Data Privacy Notice and Terms
     // of Use can read itself, change its password and reach /api/policy —
     // nothing else. Server-enforced, so the API refuses without consent
     // whatever calls it; the same backstop shape as the forced change above,

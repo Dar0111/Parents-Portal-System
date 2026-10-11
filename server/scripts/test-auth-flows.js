@@ -13,7 +13,8 @@ const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./t
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally. The teacher this run uses for the parents gate skips the
 // first-sign-in password change; the forced change itself is proved end to end
 // below on fresh accounts (scripts/policyFixture.js, feat/privacy).
@@ -174,6 +175,7 @@ async function run() {
     const adminLogin = await login('ADMIN001', 'Admin@2026');
     assert(adminLogin.status === 200 && adminLogin.data?.token, 'Admin login');
     const adminToken = adminLogin.data?.token;
+    await policy.accept(adminToken);
 
     const teacherLogin = await login('TCH-001', 'Teacher@2026');
     assert(teacherLogin.status === 200 && teacherLogin.data?.user?.role === 'teacher', 'Teacher login');
@@ -182,6 +184,7 @@ async function run() {
       'Teacher login has no lrn key'
     );
     const teacherToken = teacherLogin.data?.token;
+    await policy.accept(teacherToken);
 
     const parentActive = await login('13567454', 'Parent@2026');
     assert(
@@ -653,6 +656,7 @@ async function run() {
       body: { teacher_id: mintedTeacherId, subject_id: g6Subjects.data?.subjects?.[0]?.id, grade_level: 6, section: 'Malikhain' },
     });
     const mintedLogin = await login(newTeacherId, 'Teacher@2026');
+    await policy.accept(mintedLogin.data?.token);
     const assignedNotAdviser = await request('POST', '/api/users/parents', {
       token: mintedLogin.data?.token,
       body: { lrn: rejectLrn, password: 'Parent@2026', name: 'Assigned Guardian' },
@@ -697,10 +701,16 @@ async function run() {
     const fcOpen = await request('GET', '/api/students', { token: fcChange.data?.token });
     const fcMe = await request('GET', '/api/auth/me', { token: fcChange.data?.token });
     assert(
-      fcChange.status === 200 && fcOpen.status === 200 && fcMe.data?.user?.must_change_password === 0,
-      'after the change the replacement token works and the flag is cleared'
+      fcChange.status === 200 &&
+        fcOpen.status === 403 &&
+        fcOpen.data?.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
+        fcMe.data?.user?.must_change_password === 0,
+      'after the change the replacement token works, the flag is cleared, and the consent gate comes next'
     );
-    assert(fcMe.data?.user?.policy_pending === false, 'a teacher has no consent step in this build (staff acceptance is deferred)');
+    assert(fcMe.data?.user?.policy_pending === true, 'a teacher has the consent step too (feat/staff-acceptance): policy_pending after the change');
+    await policy.accept(fcChange.data?.token);
+    const fcOpenAccepted = await request('GET', '/api/students', { token: fcChange.data?.token });
+    assert(fcOpenAccepted.status === 200, 'once the teacher accepts, the same replacement token opens the API');
 
     const fcLrn = String(runId + 5).slice(-12);
     await insertTestStudent(fcLrn, 'Forced', 'Change', 6, 'Malikhain');
@@ -747,8 +757,8 @@ async function run() {
     const fcChild = await request('GET', `/api/students/${fcChildId}`, { token: fcParentToken });
     assert(fcChild.status === 200 && fcChild.data?.student?.id === fcChildId, 'after accepting, the parent reads their child');
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

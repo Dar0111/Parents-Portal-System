@@ -14,7 +14,8 @@ const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./t
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -97,12 +98,14 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   const adminUser = adminLogin.data?.user;
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 (seeded) is assigned Grade 6 - Mabini only.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  await policy.accept(teacherToken);
   const teacherUser = teacherLogin.data?.user;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (Grade 6 - Mabini)');
 
@@ -111,6 +114,7 @@ async function run() {
   // TCH-001 satisfies both, so no test written against it can tell them apart.
   const adviserLogin = await login('TCH-002', 'Teacher@2026');
   const adviserToken = adviserLogin.data?.token;
+  await policy.accept(adviserToken);
   assert(
     adviserLogin.status === 200 && adviserToken,
     'Adviser-only teacher login (TCH-002, Grade 5 - Masigasig, no assignments)'
@@ -615,8 +619,8 @@ async function run() {
     await checkPage('/api/events', teacherToken, 'events', { sort: 'event_date', field: 'event_date' });
     await checkPage('/api/events', parentToken, 'events', { sort: 'title', field: 'title' });
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   // --- Summary ---

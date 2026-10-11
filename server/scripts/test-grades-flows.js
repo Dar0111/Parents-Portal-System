@@ -38,7 +38,8 @@ const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./t
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
-// Parent sign-ins accept the privacy notice and terms first; this run's rows
+// Every sign-in accepts the privacy notice and terms first (parents since
+// feat/privacy, staff since feat/staff-acceptance); this run's rows
 // go in the finally (scripts/policyFixture.js, feat/privacy).
 const policy = require('./policyFixture').createPolicyFixture();
 
@@ -124,6 +125,7 @@ async function run() {
 
   const adminLogin = await login('ADMIN001', 'Admin@2026');
   const adminToken = adminLogin.data?.token;
+  await policy.accept(adminToken);
   assert(adminLogin.status === 200 && adminToken, 'Admin login');
 
   // TCH-001 is assigned Grade 6 - Malikhain for Mathematics/English/Filipino
@@ -131,6 +133,7 @@ async function run() {
   // in the current placeholder subjects seed but has no assignment row.
   const teacherLogin = await login('TCH-001', 'Teacher@2026');
   const teacherToken = teacherLogin.data?.token;
+  await policy.accept(teacherToken);
   const teacherId = teacherLogin.data?.user?.id;
   assert(teacherLogin.status === 200 && teacherToken, 'Teacher login (TCH-001, Grade 6 - Malikhain)');
 
@@ -1779,6 +1782,7 @@ async function run() {
     });
     assert(adviserLogin.status === 200, 'TCH-002 (adviser, zero assignments) logs in');
     const adviserToken = adviserLogin.data?.token;
+    await policy.accept(adviserToken);
 
     const adviserReadsCard = await request('GET', `/api/grades/student/${jeaId}`, { token: adviserToken });
     assert(
@@ -2545,8 +2549,8 @@ async function run() {
       'GET /grades?term=1: every row matches and total is the filtered count'
     );
   } finally {
-    await policy.cleanup();
     await cleanup();
+    await policy.cleanup();
   }
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

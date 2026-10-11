@@ -69,8 +69,9 @@ async function authenticateHandshake(socket, next) {
     }
 
     // THE SAME TWO GATES AS middleware/auth.js, in the same order (fix round
-    // PF2, 2026-10-10): an account that must change its password, then a
-    // parent with the CURRENT notice and terms not accepted, gets no live
+    // PF2, 2026-10-10): an account that must change its password, then an
+    // account (any role since feat/staff-acceptance) with the CURRENT notice
+    // and terms not accepted, gets no live
     // channel — the socket would carry notification counts and message
     // events the HTTP API refuses it. The sentence and the code are the
     // HTTP 403's. Neither app connects before both are done (FRONTEND §29,

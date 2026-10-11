@@ -113,6 +113,37 @@ function adminSignIn() {
   return { loginId: m[1], password: m[2] };
 }
 
+// STAFF ACCEPTANCES THIS RUN ADDS (feat/staff-acceptance, 2026-10-11): ids
+// only, deleted in the finally — an acceptance an account already had is
+// never touched.
+const staffAcceptanceIds = [];
+
+async function acceptanceIdsFor(userId) {
+  const [rows] = await withDb((conn) => conn.query('SELECT id FROM policy_acceptances WHERE user_id = ?', [userId]));
+  return rows.map((r) => r.id);
+}
+
+// A staff account accepts the two current documents — no child tick — when
+// /api/auth/me says it must; the rows it adds go on the list above.
+async function staffAccept(token) {
+  const me = await request('GET', '/api/auth/me', { token });
+  if (!me.data?.user?.policy_pending) return { skipped: true };
+  const docs = await request('GET', '/api/policy', { token });
+  const versions = Object.fromEntries((docs.data?.documents || []).map((d) => [d.document, d.version]));
+  const before = new Set(await acceptanceIdsFor(me.data.user.id));
+  const res = await request('POST', '/api/policy/accept', { token, body: { versions } });
+  for (const id of await acceptanceIdsFor(me.data.user.id)) {
+    if (!before.has(id)) staffAcceptanceIds.push(id);
+  }
+  return { status: res.status, data: res.data };
+}
+
+async function deleteStaffAcceptances() {
+  if (!staffAcceptanceIds.length) return;
+  const ids = staffAcceptanceIds.splice(0);
+  await withDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id IN (?)', [ids]));
+}
+
 function requireFixture(condition, label, res) {
   if (!condition) {
     throw new Error(`fixture failed: ${label}${res ? ` (HTTP ${res.status})` : ''}`);
@@ -144,8 +175,12 @@ async function run() {
     const adminLogin = await login(admin.loginId, admin.password);
     requireFixture(adminLogin.status === 200, 'admin signs in', adminLogin);
     const adminToken = adminLogin.data.token;
+    // Staff accept too (feat/staff-acceptance): the admin does here, if it has
+    // not yet, before its first socket. The gate itself is proved below on
+    // the teacher this run creates, which cannot have accepted already.
+    await staffAccept(adminToken);
     const adminSock = await trySocket(adminToken);
-    assert(adminSock.connected, 'socket: the admin (neither gate applies) connects — the helper can say yes');
+    assert(adminSock.connected, 'socket: the admin, once it has accepted (no forced change), connects — the helper can say yes');
 
     // --- The documents ---------------------------------------------------
     console.log('The documents');
@@ -171,16 +206,19 @@ async function run() {
     const adminStatus = await request('GET', '/api/policy/status', { token: adminToken });
     assert(
       adminStatus.status === 200 &&
-        adminStatus.data?.required === false &&
+        adminStatus.data?.required === true &&
         adminStatus.data?.policy_pending === false &&
-        (adminStatus.data?.acceptances || []).every((a) => a.accepted_at === null),
-      'staff: not required, not pending, nothing accepted (staff acceptance is deferred)'
+        (adminStatus.data?.acceptances || []).every((a) => a.accepted_at),
+      'staff: required, and once accepted not pending, both documents dated (feat/staff-acceptance)'
     );
     const adminAccept = await request('POST', '/api/policy/accept', {
       token: adminToken,
-      body: { versions: current, on_behalf_of_child: true },
+      body: { versions: current },
     });
-    assert(adminAccept.status === 403, 'only a parent can accept in this build — the admin gets 403');
+    assert(
+      adminAccept.status === 200 && adminAccept.data?.policy_pending === false,
+      "the admin may accept with NO child tick (again here: a no-op) — the third tick is a parent's alone"
+    );
 
     // --- A teacher the admin creates: the forced change ------------------
     console.log('\nA new teacher: the forced first-sign-in change');
@@ -210,6 +248,37 @@ async function run() {
     });
     requireFixture(tChange.status === 200 && tChange.data?.token, 'the teacher changes the password', tChange);
     const teacherToken = tChange.data.token;
+    // The consent gate, on a teacher (feat/staff-acceptance): after the forced
+    // change come the notice and terms — the socket refuses, and every route
+    // but /me, /change-password and /api/policy is 403 — then two ticks, no
+    // child tick, two rows with no student_id, and the same token works.
+    const tSockGated = await trySocket(teacherToken);
+    assert(
+      !tSockGated.connected && tSockGated.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'socket: the teacher, after the change but before accepting, is refused POLICY_ACCEPTANCE_REQUIRED'
+    );
+    const tGated = await request('GET', '/api/students', { token: teacherToken });
+    assert(
+      tGated.status === 403 && tGated.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'the teacher meets the consent gate after the forced change: 403 POLICY_ACCEPTANCE_REQUIRED'
+    );
+    const tStatus = await request('GET', '/api/policy/status', { token: teacherToken });
+    assert(
+      tStatus.status === 200 && tStatus.data?.required === true && tStatus.data?.policy_pending === true,
+      '/api/policy/status: a teacher is required, and pending'
+    );
+    const tAccept = await staffAccept(teacherToken);
+    assert(
+      tAccept.status === 200 && tAccept.data?.policy_pending === false,
+      'the teacher accepts the two documents with no child tick'
+    );
+    const [tRows] = await withDb((conn) =>
+      conn.query('SELECT student_id FROM policy_acceptances WHERE user_id = ?', [created.teacherId])
+    );
+    assert(
+      tRows.length === 2 && tRows.every((r) => r.student_id === null),
+      'a staff acceptance stores no student_id — two rows, both null'
+    );
     const tSockOwn = await trySocket(teacherToken);
     assert(tSockOwn.connected, 'socket: connects once the teacher has changed the password');
     const tOpen = await request('GET', '/api/students', { token: teacherToken });
@@ -569,6 +638,7 @@ async function run() {
     );
   } finally {
     await cleanup(created, typedIds);
+    await deleteStaffAcceptances();
   }
 
   const after = await login(adminSignIn().loginId, adminSignIn().password);
