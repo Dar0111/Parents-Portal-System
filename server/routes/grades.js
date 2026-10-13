@@ -2034,6 +2034,231 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
   }
 });
 
+// POST /api/grades/locks — admin only. LOCK OR UNLOCK A WHOLE TERM AT ONCE
+// (fix/grade-locks, 2026-10-13; the owner's Finding 1: locking one learner ×
+// subject × term at a time is impractical across Grades 1–6).
+//
+// Body { lock, term, grade_level?, section?, dry_run? }: no grade level is the
+// whole school; a section needs its grade level. The school year is the
+// `academic_year` setting. `dry_run: true` answers the same counts and
+// changes nothing — the preview the screens show before the one write.
+//
+// THE OWNER'S RULES (2026-10-13):
+//   - ACTIVE learners only, for lock and unlock alike.
+//   - LOCK takes a learner only when EVERY subject of their grade level has a
+//     grade this term (`term_grade`, or `descriptive_grade` for Grade 1 —
+//     the legacy letters count). Anyone else is skipped WHOLE and listed by
+//     name and class with how many subjects are still Pending; nothing of
+//     theirs is locked. The same reason the single lock has no completeness
+//     gate applies the other way here: a bulk action must not finalise a
+//     half-graded learner nobody looked at.
+//   - UNLOCK has no completeness check: every locked row in scope.
+//   - One activity_logs row per applied action that changed something
+//     (scope + counts only — no names, no ids); none for a dry run or a
+//     repeat, as the single lock writes none for "already locked".
+//   - No notifications: a lock is a finalisation boundary, not a publication
+//     event (see recomputeGrade's hook).
+//   - Never an LRN: every SELECT below names its columns.
+//
+// Rows are read FOR UPDATE inside the transaction, so the counts the write
+// acts on are the counts it reports — a preview taken earlier can be stale,
+// and the screens show these numbers, not the preview's.
+router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
+  const { lock, term, grade_level: gradeLevelIn, section: sectionIn, dry_run: dryRunIn } = req.body || {};
+
+  if (typeof lock !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'lock must be true or false.' });
+  }
+  if (!isValidTerm(term)) {
+    return res.status(400).json({ success: false, message: 'term must be 1, 2, or 3.' });
+  }
+  // Strict: a string "true" must never be read as "apply".
+  if (dryRunIn !== undefined && typeof dryRunIn !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'dry_run must be true or false.' });
+  }
+  let gradeLevel = null;
+  if (gradeLevelIn !== undefined && gradeLevelIn !== null && gradeLevelIn !== '') {
+    const n = Number(gradeLevelIn);
+    if (!Number.isInteger(n) || n < 1 || n > 6) {
+      return res.status(400).json({ success: false, message: 'grade_level must be a whole number from 1 to 6.' });
+    }
+    gradeLevel = n;
+  }
+  let section = null;
+  if (sectionIn !== undefined && sectionIn !== null && sectionIn !== '') {
+    if (typeof sectionIn !== 'string' || !sectionIn.trim()) {
+      return res.status(400).json({ success: false, message: 'section must be a section name.' });
+    }
+    if (gradeLevel === null) {
+      return res.status(400).json({ success: false, message: 'A section needs a grade level.' });
+    }
+    section = sectionIn.trim();
+  }
+  const termNum = Number(term);
+  const dryRun = dryRunIn === true;
+
+  let conn;
+  try {
+    const [settingRows] = await pool.query(
+      "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
+    );
+    const schoolYear = settingRows[0]?.setting_value;
+    if (!schoolYear) {
+      return res.status(500).json({ success: false, message: 'academic_year is not configured in system settings.' });
+    }
+    if (section !== null) {
+      const [sectionRows] = await pool.query(
+        'SELECT 1 FROM sections WHERE grade_level = ? AND name = ? AND school_year = ? LIMIT 1',
+        [gradeLevel, section, schoolYear]
+      );
+      if (!sectionRows.length) {
+        return res.status(400).json({
+          success: false,
+          message: `There is no Grade ${gradeLevel} - ${section} section for ${schoolYear}.`,
+        });
+      }
+    }
+
+    // The scope, on the VARCHAR class columns like every other grades reader.
+    const scope = ["st.status = 'active'"];
+    const scopeParams = [];
+    if (gradeLevel !== null) {
+      scope.push('st.grade_level = ?');
+      scopeParams.push(gradeLevel);
+    }
+    if (section !== null) {
+      scope.push('st.section = ?');
+      scopeParams.push(section);
+    }
+    const scopeSql = scope.join(' AND ');
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [learnerRows] = await conn.query(
+      `SELECT st.id, st.first_name, st.last_name, st.grade_level, st.section
+         FROM students st
+        WHERE ${scopeSql}
+        ORDER BY st.grade_level, st.section, st.last_name, st.first_name, st.id`,
+      scopeParams
+    );
+    const [subjectCounts] = await conn.query('SELECT grade_level, COUNT(*) AS n FROM subjects GROUP BY grade_level');
+    const subjectsByGrade = new Map(subjectCounts.map((r) => [Number(r.grade_level), Number(r.n)]));
+    const [gradeRows] = await conn.query(
+      `SELECT g.id, g.student_id, g.subject_id, g.is_locked,
+              (g.term_grade IS NOT NULL OR g.descriptive_grade IS NOT NULL) AS has_value
+         FROM grades g
+         JOIN students st ON st.id = g.student_id
+        WHERE g.term = ? AND g.school_year = ? AND ${scopeSql}
+        ${dryRun ? '' : 'FOR UPDATE'}`,
+      [termNum, schoolYear, ...scopeParams]
+    );
+    const rowsByLearner = new Map();
+    for (const row of gradeRows) {
+      if (!rowsByLearner.has(row.student_id)) rowsByLearner.set(row.student_id, []);
+      rowsByLearner.get(row.student_id).push(row);
+    }
+
+    const targetIds = [];
+    const changedLearners = new Set();
+    const skipped = [];
+    let learnersReady = 0;
+    let recordsAlready = 0;
+    for (const learner of learnerRows) {
+      const rows = rowsByLearner.get(learner.id) || [];
+      if (lock) {
+        const subjects = subjectsByGrade.get(Number(learner.grade_level)) || 0;
+        const graded = new Set(rows.filter((r) => Number(r.has_value) === 1).map((r) => r.subject_id)).size;
+        if (subjects === 0 || graded < subjects) {
+          skipped.push({
+            student_id: learner.id,
+            name: `${learner.last_name}, ${learner.first_name}`,
+            grade_level: Number(learner.grade_level),
+            section: learner.section,
+            pending: subjects - graded,
+            subjects,
+          });
+          continue;
+        }
+        learnersReady += 1;
+        for (const row of rows) {
+          if (Number(row.is_locked) === 1) {
+            recordsAlready += 1;
+          } else {
+            targetIds.push(row.id);
+            changedLearners.add(learner.id);
+          }
+        }
+      } else {
+        for (const row of rows) {
+          if (Number(row.is_locked) === 1) {
+            targetIds.push(row.id);
+            changedLearners.add(learner.id);
+          }
+        }
+      }
+    }
+
+    let recordsChanged = targetIds.length;
+    if (dryRun) {
+      await conn.rollback();
+    } else {
+      if (targetIds.length) {
+        const next = lock ? 1 : 0;
+        const [result] = await conn.query('UPDATE grades SET is_locked = ? WHERE id IN (?) AND is_locked <> ?', [
+          next,
+          targetIds,
+          next,
+        ]);
+        recordsChanged = result.affectedRows;
+      }
+      await conn.commit();
+    }
+
+    const scopeLabel =
+      section !== null ? `Grade ${gradeLevel} - ${section}` : gradeLevel !== null ? `Grade ${gradeLevel}` : 'the whole school';
+    if (!dryRun && recordsChanged > 0) {
+      await logActivity(
+        req.user.id,
+        lock ? 'bulk_grade_lock' : 'bulk_grade_unlock',
+        `${lock ? 'Locked' : 'Unlocked'} ${recordsChanged} grade record(s) for ${changedLearners.size} learner(s) — Term ${termNum}, SY ${schoolYear}, ${scopeLabel}${
+          lock ? `; ${skipped.length} learner(s) skipped` : ''
+        }`
+      );
+    }
+
+    let message = 'Preview only — nothing was changed.';
+    if (!dryRun) {
+      message = recordsChanged > 0 ? `${lock ? 'Locked' : 'Unlocked'} ${recordsChanged} grade record(s).` : 'Nothing changed.';
+    }
+    return res.json({
+      success: true,
+      message,
+      dry_run: dryRun,
+      lock,
+      scope: { school_year: schoolYear, term: termNum, grade_level: gradeLevel, section },
+      learners: learnerRows.length,
+      learners_ready: lock ? learnersReady : null,
+      learners_changed: changedLearners.size,
+      records_changed: recordsChanged,
+      records_already: lock ? recordsAlready : 0,
+      skipped,
+    });
+  } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch {
+        // the 500 below reports the failure
+      }
+    }
+    console.error('Bulk grade lock error:', error.code || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to update grade locks.' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // GET /api/grades/:id — one grade record WITH its full grade_components
 // history (the detail view — see GET / above for why the list omits it).
 // Teacher/admin scope reuses loadAuthorizedGrade's wide view-scope check
