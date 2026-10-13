@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-13, `fix/smoke-round` — the grade locks (1a, 1b) and the smoke gate's F4–F7: gated, not device-checked, not merged (on `main` `afccdd8`, `fix/web-load-races` merged 2026-10-12) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-13, `fix/smoke-round` — the grade locks (1a, 1b) and the smoke gate's F4–F7: device-checked (web and the Android emulator), its data cleaned up; merge-ready, not merged (on `main` `afccdd8`, `fix/web-load-races` merged 2026-10-12) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1070,7 +1070,9 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   phone**, both themes, every field typed, the error path seen once, and a
   check that writes cleans up by id, backup first. **Reload by cold boot
   (force-close, reopen), never by `r` in Metro** — it stuck twice on the
-  hotspot and a result read off it is not a result. Four lint figures per
+  hotspot and a result read off it is not a result. **After a checkout in the
+  tree Metro serves, `npx expo start --clear` first** — a cold boot alone
+  served the old bundle (2026-10-13). Four lint figures per
   dispatch: oxlint, mirrors, tokens, colors. (M7)
 - **Icons are the web's `fa-*` names resolved by `src/icons.js`; an
   unmapped name throws in DEV.** (M8)
@@ -1731,13 +1733,15 @@ M26–M27.
       breakdown names each score "Written Work 1" or the column's own name,
       as the class record's helper promises; F6 — sign-in confirms
       a password reset; F7 — a per-row lock or unlock closes its dialog and
-      keeps the line (FRONTEND §32, MOBILE M29). **Gated; device check
-      PENDING (`docs/GRADE_LOCKS_DEVICE_CHECK.md`); not merged.** F3 was cut
+      keeps the line (FRONTEND §32, MOBILE M29). **Device-checked
+      2026-10-13, every section passed (the bulk dialog's 390px / dark pass
+      not done, the owner's call); data cleaned up (backup 316); merge-ready,
+      not merged** (`docs/GRADE_LOCKS_DEVICE_CHECK.md` §5). F3 was cut
       (KNOWN ISSUES).
 
-**NEXT, in order (the owner's plan, 2026-10-13):** the device check of
-`fix/smoke-round` and its fixture tonight, then its merge on the owner's
-word → **professor system check, Wed 2026-10-14, about 12:00**. The
+**NEXT, in order (the owner's plan, 2026-10-13):** merge `fix/smoke-round`
+on the owner's word → **professor system check, Wed 2026-10-14, about
+12:00**. The
 manuscript delta list stays with the team. After the check: badged pages
 clear on a visit (KNOWN ISSUES), then the cloud (Supabase) migration
 planning only.

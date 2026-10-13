@@ -4023,7 +4023,7 @@ and closed, and the page's wiring as source — with the three report-card
 lines `fix/web-load-races` added (`main`'s `GradesPage.jsx:247`, `:539`,
 `:570`) still verbatim. **Cannot prove** a real preview, a real lock or
 the header line after a close — the owner's device check
-(`docs/GRADE_LOCKS_DEVICE_CHECK.md`, PENDING).
+(`docs/GRADE_LOCKS_DEVICE_CHECK.md` — PASSED 2026-10-13, §5).
 
 ## 32. The smoke gate's fix round — four findings, words and wiring only (`fix/smoke-round`, 2026-10-13)
 

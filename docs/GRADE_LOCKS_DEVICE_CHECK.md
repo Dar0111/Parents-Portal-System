@@ -1,11 +1,11 @@
-# fix/smoke-round — device-check fixture and checklist (PLAN NOTES, NOT RUN)
+# fix/smoke-round — device-check fixture and checklist (RUN 2026-10-13 — PASSED)
 
 Written 2026-10-13 with `fix/grade-locks`, extended the same day for
 `fix/smoke-round` (the grade locks 1a + 1b and the smoke gate's F4–F7; F3 was
-cut — KNOWN ISSUES). **The fixture below has not been run.** It runs only on
-the owner's word, after the owner's main tree has the branch ("switch").
-Nothing in this file is a credential: sign-ins are read at run time and never
-printed.
+cut — KNOWN ISSUES). **Run the same evening, on the owner's word, after the
+owner's main tree had the branch ("switch"); every section passed and the
+data was cleaned up — the result is section 5 at the end.** Nothing in this
+file is a credential: sign-ins are read at run time and never printed.
 
 ## 1. What the check needs
 
@@ -170,7 +170,9 @@ Mathematics, Grade 6 - Malikhain, Term 2:
 **4. Tala's parent — web, then emulator.** The consent screen comes first (the
 restore removed this account's acceptance): accept, then continue — the
 cleanup removes it again for the demo.
-1. **F5, web:** Grades → tap Mathematics, Term 2 → "Written Works": "Written
+1. **F5, web:** Grades → tap Mathematics, Term 2 → the header "89
+   Benchmarking" (the DO 015 s. 2026 descriptor; the dashboard reads "General
+   average 89.00 · Term 2 · Benchmarking") → "Written Works": "Written
    Work 1" 8/10; "Performance Tasks": "Group project" 9/10; "Examinations":
    ST1 8/10 · ST2 9/10 · TE 18/20. Any other subject's Term 2: "Written Work
    1" 8/10, "Performance Task 1" 9/10. (Changed by the owner after section 3:
@@ -213,3 +215,62 @@ cleanup removes it again for the demo.
    updated. You can sign in now." → signing in clears it.
 3. Each reset signs out every session of the admin (the token's version
    changes) — expected.
+
+## 5. Result — 2026-10-13, web Chrome (3000) and the Android emulator (8081)
+
+**Every section PASSED.** The owner ran it; each section was given one at a
+time, and every expected line above was read back exactly unless noted.
+
+- **The switch:** the worktree detached, the main tree switched to
+  `fix/smoke-round` (`55fce07`); the `--watch` API reloaded itself (health
+  200, `POST /api/grades/locks` without a token 401). The pre-fixture survey
+  was taken twice (a lost connection in between) and matched. **Backup 315**
+  (`parents_portal_2026-10-13_193620.sql`), then the fixture: grades
+  5103–5110, slots 2121–2136 (Mathematics PT1 #2124 "Group project"),
+  components 3084–3099, notifications 3047–3054 to Tala's parent (#647); every
+  Term 2 grade WW 80.00 · PT 90.00 · ST PS 87.00 · term grade 89.
+- **1. Admin, web — PASS.** F7 was checked on English Term 2 BEFORE the bulk
+  lock (Lock → the dialog closed, "English, Term 2 locked."; Unlock → closed,
+  "… unlocked."), then the bulk lock. **The 390px / dark-theme pass of the
+  bulk dialog was NOT DONE — the owner's call** (offered in section 6, not
+  taken).
+- **2. Teacher, web — PASS.** Mathematics weights WW 20 · PT 50 · ST 30: Tala
+  ST PS 87.00 → WS 26.10 → Initial 87.10 → Term 89; the 1a refusal and the
+  "Nothing was saved." line exact; Leave and discard kept WW1 at 10.
+- **3. Teacher, emulator — PASS after a restart.** The first look showed the
+  OLD slot-screen copy ("…highest possible: 40 · weight 30%", "EX total
+  35/40"): Metro had been started before the switch and kept the old bundle,
+  and a cold boot alone did not help. `npx expo start --clear` → `a` fixed it
+  (now MOBILE M7, and the checklist header above).
+- **F5 changed by the owner after section 3** (`e49b801`): the breakdown
+  keeps the class record helper's promise — "Written Work 1", a named
+  column's name alone — instead of the grid's codes.
+- **4. Tala's parent, web then emulator — PASS.** The consent screen first;
+  the bell 8; the breakdown's header "89 Benchmarking" (DO 015 s. 2026; the
+  check sheet had said "Very Satisfactory" in chat, wrongly); "Written Work
+  1" 8/10, "Group project" 9/10, ST1 8/10 · ST2 9/10 · TE 18/20; English
+  "Performance Task 1" 9/10; no code anywhere; the same on the phone after the
+  `--clear` restart.
+- **5. Admin, emulator — PASS**, ending unlocked; offline: "Cannot reach the
+  server. …" with the Live updates paused strip.
+- **6. Admin web + teacher web — PASS.** Dashboard 0 of 10; the bulk preview
+  only; with Tala unlocked the teacher's WW1 10 → 15 gave no amber line (live
+  WW total 15, Tala PS 53.33, WS 10.67), not saved. The single-cell lock was
+  not repeated (section 1 covered it).
+- **Cleanup (section 3) — backup 316** (`parents_portal_2026-10-13_231526.sql`),
+  one transaction by id and surveyed values: notifications 8/8, components
+  16/16, grades 8/8 (all unlocked), slots 16/16, the parent's consent rows
+  811–812 (2/2), the check's two failed sign-ins 762–763 (2/2). **Recount:**
+  every table back to the pre-fixture survey and acceptances 765–766 +
+  791–796 intact — except `login_attempts` 20 → 0: the app had already pruned
+  the 20 pre-fixture rows itself (a failed sign-in deletes rows older than 24
+  hours, `utils/loginThrottle.js:61`); only 762–763 were deleted by the
+  cleanup. Tala's parent has no acceptance, so the consent screen shows again.
+- **7. F6, the admin — PASS.** The admin's email confirmed first ("Email
+  confirmed. You can now reset your own password."); the web reset with the
+  SAME password landed on "Password updated. You can sign in now." under "Sign
+  in to continue.", gone on reload; the emulator's the same with a new code.
+  The optional wrong-password check was skipped on purpose.
+- **Final recount (read-only):** only `auth_codes` changed — 0 → 3, all
+  consumed (#252 email verification, #253–254 the two resets), which stay;
+  no failed sign-in; nothing locked; audit rows kept.

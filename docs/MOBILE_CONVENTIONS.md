@@ -1531,7 +1531,7 @@ mirrored words driven, the byte equality with the web's file, and as source
 apply button's condition, `popTo` and no `navigate('Main'`, no LRN, the
 header button, the report card's `reportIsPick` / `reportWaiting` lines
 verbatim, the route. **The phone check owns** a real preview and lock, the
-48dp targets and a tap (`docs/GRADE_LOCKS_DEVICE_CHECK.md`, PENDING).
+48dp targets and a tap (`docs/GRADE_LOCKS_DEVICE_CHECK.md` — PASSED 2026-10-13, §5).
 
 ## M29. The smoke gate's fix round on the phone (`fix/smoke-round`, 2026-10-13)
 
