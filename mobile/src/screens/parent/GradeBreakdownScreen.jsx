@@ -10,6 +10,7 @@ import Text from '../../components/Text';
 import { shortDate } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
+import { componentLabel } from '../../format/componentLabel';
 import TermValue from '../../format/TermValue';
 import useSkeleton from '../../hooks/useSkeleton';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -64,7 +65,9 @@ function ComponentList({ title, rows, empty }) {
           {rows.map((row, i) => (
             <View key={row.id} className={`flex-row items-baseline justify-between gap-3 py-2.5 ${i > 0 ? 'border-t border-edge-soft' : ''}`}>
               <View className="min-w-0 flex-1">
-                <Text className="text-sm text-fg-secondary">{row.label}</Text>
+                {/* The class record's name for the column (F5): "WW1", "WW1 ·
+                    Long quiz" — the web's mirrored componentLabel. */}
+                <Text className="text-sm text-fg-secondary">{componentLabel(row)}</Text>
                 {row.date_recorded ? (
                   <Text className="text-xs text-fg-muted" style={{ fontVariant: ['tabular-nums'] }}>
                     {shortDate(row.date_recorded)}

@@ -314,8 +314,15 @@ export default function SlotScreen({ navigation, route }) {
                 }
               />
               <View className="border-t border-edge-soft pt-3">
+                {/* A SUMMATIVE PART NAMES ITS COMPOSITE, NOT A SUMMED MAXIMUM
+                    (fix/smoke-round, F4): ST PS is ST1 30% + ST2 30% + TE 40%,
+                    each part out of its own maximum, so "highest possible: 80"
+                    read as the basis of a PS it is not. The web prints the
+                    same three weights under its grid. */}
                 <Text className="text-xs text-fg-muted" style={TABULAR}>
-                  {groupName} highest possible: {groupHps?.[group] ?? '—'} · weight {server.weights?.[group] ?? '—'}%
+                  {isExam
+                    ? `${groupName}: ST1 30% + ST2 30% + TE 40% · weight ${server.weights?.[group] ?? '—'}%`
+                    : `${groupName} highest possible: ${groupHps?.[group] ?? '—'} · weight ${server.weights?.[group] ?? '—'}%`}
                 </Text>
               </View>
             </View>
@@ -366,9 +373,14 @@ export default function SlotScreen({ navigation, route }) {
                       {aboveMax ? <Text className="mt-2 text-xs text-warning-fg">Above the highest possible score — saved as typed if it is a bonus.</Text> : null}
                       {/* THE LIVE LINE — every number from the server (§5b). */}
                       <View className={`mt-3 flex-row flex-wrap items-baseline gap-x-2 gap-y-0.5 border-t border-edge-soft pt-3 ${stale ? 'opacity-60' : ''}`}>
+                        {/* A Summative part shows no raw total (F4): "ST PS",
+                            the web's code for the group, then WS. */}
                         <Text className="text-xs text-fg-muted">
-                          {group.toUpperCase()} total {total == null ? '—' : total}
-                          {computed[`${group}_total_max`] != null ? `/${computed[`${group}_total_max`]}` : ''} · PS{' '}
+                          {isExam
+                            ? 'ST PS '
+                            : `${group.toUpperCase()} total ${total == null ? '—' : total}${
+                                computed[`${group}_total_max`] != null ? `/${computed[`${group}_total_max`]}` : ''
+                              } · PS `}
                         </Text>
                         <GradeValue value={computed[`${group}_percentage`]} mode="numerical" className="text-xs" />
                         <Text className="text-xs text-fg-muted"> · WS </Text>

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
@@ -8,6 +9,7 @@ import { takeLogoutReason } from '../auth/tokenStore';
 import Button from '../components/Button';
 import { cardClass } from '../components/buttonStyles';
 import FormField, { controlClassFor } from '../components/FormField';
+import FormStatus, { ok } from '../components/FormStatus';
 import PasswordField from '../components/PasswordField';
 import ScreenStatusBar from '../components/ScreenStatusBar';
 import Seal from '../components/Seal';
@@ -58,7 +60,7 @@ const AUTH_CARD = cardClass.replace('rounded-2xl', 'rounded-3xl');
 
 const BAND_CORNERS = { borderBottomLeftRadius: 24, borderBottomRightRadius: 24 };
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen({ navigation, route }) {
   const { login } = useAuth();
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
@@ -89,9 +91,28 @@ export default function LoginScreen({ navigation }) {
   const [error, setError] = useState(() => takeLogoutReason());
   const [submitting, setSubmitting] = useState(false);
 
+  // A PASSWORD RESET'S CONFIRMATION (fix/smoke-round, F6) — the web's, on
+  // the phone. ForgotPasswordScreen pops back here with the server's own
+  // sentence as `notice`. NOT a state initialiser: popTo returns to this
+  // screen ALREADY MOUNTED under the reset screen, so it is read on focus
+  // and cleared from the params at once (admin GradesScreen's pattern), and
+  // a submit clears it, so it never sits beside a refused sign-in.
+  const [notice, setNotice] = useState('');
+  const incomingNotice = route?.params?.notice;
+  useFocusEffect(
+    useCallback(() => {
+      if (incomingNotice) {
+        setNotice(incomingNotice);
+        setError('');
+        navigation.setParams({ notice: null });
+      }
+    }, [incomingNotice, navigation])
+  );
+
   async function handleSubmit() {
     if (submitting) return;
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
       await login(loginId.trim(), password);
@@ -133,6 +154,10 @@ export default function LoginScreen({ navigation }) {
                 </Text>
                 <Text className="mt-1 text-sm text-fg-muted">Sign in to continue.</Text>
               </View>
+
+              {/* The reset's result, first thing in the card (F6), as on the
+                  web: announced politely, the success tone. */}
+              {notice ? <FormStatus status={ok(notice)} className="mb-4" /> : null}
 
               <View className="gap-4">
                 <FormField

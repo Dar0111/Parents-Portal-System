@@ -38,6 +38,7 @@
     "proof:query-key": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-query-key.mjs",
     "proof:skeletons-tier2": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-skeletons-tier2.mjs",
     "proof:grade-locks": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-grade-locks.mjs",
+    "proof:smoke-round": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-smoke-round.mjs",
     "tone:write": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-message-tone.mjs"
   },
   "dependencies": {

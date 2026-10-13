@@ -87,14 +87,16 @@ export default function ForgotPasswordScreen({ navigation }) {
     setNewError(null);
     setSubmitting(true);
     try {
-      await api.post(
+      const message = await api.post(
         '/auth/reset-password',
         { login_id: loginId.trim(), code: code.trim(), new_password: newPassword },
         { unwrap: 'message' }
       );
       // popTo, not navigate: React Navigation 7 pushes a second Login from
-      // here (M16, fix/mobile-popto).
-      navigation.popTo('Login');
+      // here (M16, fix/mobile-popto). The server's own sentence goes with it
+      // and Login shows it once (fix/smoke-round, F6) — it used to arrive
+      // there with no word that the reset had worked.
+      navigation.popTo('Login', { notice: message });
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'new_password') setNewError(extractError(err));
