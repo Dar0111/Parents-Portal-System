@@ -3961,3 +3961,67 @@ Below `sm` the card was already one link (§5a-iii).
 The phone's one thread screen already served every role; it follows the
 same three positioning rules since this branch (MOBILE M27).
 
+## 31. Grade locks — a whole term at once, and a lock freezes the class's HPS (`fix/grade-locks`, 2026-10-13)
+
+**The owner's Finding 1.** Locking one learner × subject × term at a time is
+impractical across Grades 1–6 (1b), and an HPS change on Teacher → Grades
+rewrote a LOCKED grade's maximum and recomputed it (1a). The server rules
+are `docs/API_REFERENCE.md` → "Lock or unlock a whole term" and the class
+record's refusals; this section is the screens.
+
+### 31a. Admin → Grades — "Lock or unlock a term"
+
+- **One button on the "Report card" header** (`SectionHeader` `actions`)
+  opens `pages/admin/GradeLocksModal.jsx`; its result line renders under that
+  header (`FormStatus`, the page's `status.bulk` key, §7c) after the dialog
+  closes, and the report card on screen re-reads. The one-grade lock modal is
+  unchanged beside it.
+- **The controls:** Action (Lock grades / Unlock grades), Term (today's term
+  from `format/schoolCalendar.js`), Grade ("Whole school" by default, the
+  owner's D2), Section ("Pick a grade first", then "All sections in Grade
+  N"). The sentence under the title says what the server does (§5i): a lock
+  takes only learners with a grade in every subject and lists the rest; an
+  unlock takes every locked grade, complete or not.
+- **Preview, then one write.** Preview is a dry run. **Changing any control
+  clears the preview**, so the primary button can never act on a scope the
+  admin is no longer looking at; the button appears only when the preview
+  has something to do and **names the count** ("Lock 8 grade records");
+  the controls are disabled while a request is out. No further confirmation:
+  the action is reversible by unlock, and the preview IS the deliberate step
+  (§5e).
+- **The result line comes from the APPLIED answer**, not the preview, which
+  can be stale by then; zero changed reads "No grade record changed — the
+  grades changed since the preview. Preview again."
+- **The skipped learners are a plain list, not a `DataTable`** (the owner's
+  D4) — a read-only summary inside a dialog, nothing to sort or open: "Last,
+  First · Grade G - Section · P of S subjects still Pending". **Never an LRN**
+  (§5c) — the server sends none, and the SSR proof renders a control that
+  would.
+- **One status slot inside the dialog** (§7c) — a failed preview, a failed
+  write and the result line share it. **The dialog resets as it CLOSES**,
+  not in an effect on open (oxlint's `set-state-in-effect` would count one).
+- **Every word is `format/gradeLocks.js`**, pure and MIRRORED byte for byte
+  to the phone (`lint:mirrors`): the heading, the preview lines, the skipped
+  row, the button, the result line, the request body and the unwrap list.
+
+### 31b. Teacher → Grades — the HPS freeze needs no client change
+
+A dry run that changes a column's HPS while a learner of the class is locked
+answers `409`; the grid's existing line shows it — "Live totals are out of
+date — Tala Halimbawa has a locked grade for this subject and term — ask an
+admin to unlock before changing a highest possible score." — and Save all
+shows the real save's sentence, which starts "Nothing was saved.". The locked
+learner's row was already disabled (§13). Nothing in `ClassRecordPage.jsx`
+changed; the phone's slot screen behaves the same (MOBILE M28).
+
+### 31c. What proves it
+
+`scripts/ssr-grade-locks.jsx` (TESTING): the mirrored words driven, the
+request body, the unwrap list against the handler's response keys, the
+preview RENDERED with no LRN (a control prints one), the dialog rendered open
+and closed, and the page's wiring as source — with the three report-card
+lines `fix/web-load-races` added (`main`'s `GradesPage.jsx:247`, `:539`,
+`:570`) still verbatim. **Cannot prove** a real preview, a real lock or
+the header line after a close — the owner's device check
+(`docs/GRADE_LOCKS_DEVICE_CHECK.md`, PENDING).
+

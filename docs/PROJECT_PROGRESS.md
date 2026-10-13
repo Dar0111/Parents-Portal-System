@@ -11,17 +11,17 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-12: `main` at `4bfbda0` (`feat/skeleton-tier2-phone`
-merged fast-forward on 2026-10-12 after the owner's Tecno check; skeleton
-tier 2 on the web, staff acceptance, the socket handshake, skeleton option
-1, shared Messages and privacy before it) plus `fix/web-load-races` — the
-web follow-up the owner asked for (Q5, widened): a ticket on Teacher →
-Attendance's roster load (a stale date's marks could be saved to the new
-date) and on admin Grades' and the class summary's loads, and the class
-record, the class summary and admin Grades showing only the current pick's
-data — the grid not editable, no lock — until it arrives. Device-checked
-on Chrome's 3G preset (no findings), its data cleaned up (backup 305);
-merge-ready, not merged.**
+**Snapshot, 2026-10-13: `main` at `afccdd8` (`fix/web-load-races` merged
+fast-forward on 2026-10-12 after the owner's 3G check; skeleton tier 2 on
+the phone and the web, staff acceptance, the socket handshake, skeleton
+option 1, shared Messages and privacy before it) plus `fix/grade-locks` —
+the owner's Finding 1: a locked learner freezes the class's highest
+possible scores (the class record refuses an HPS change, naming every
+locked learner), and Admin → Grades locks or unlocks a whole term on the
+web and the phone (`POST /api/grades/locks`, preview first, the learners
+not yet graded in every subject listed and left unlocked). Gated and its
+suites run; the smoke gate is in progress, and the device check is in its
+fix round; not merged.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -54,7 +54,8 @@ and only there.
 | Staff acceptance — `feat/staff-acceptance`: teachers and the admin accept the Notice and the Terms at sign-in (two ticks, the parent's first two word for word, no child tick, "Declining ends portal use only."), their dates in Security & policy; every suite accepts after each staff sign-in and cleans up last; the smoke harness accepts for the three staff accounts (built, gated and device-checked 2026-10-11; data cleaned up, backup 302) | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 | ✅ merged 2026-10-11 |
 | Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round — T1, T2, P1, and P2, a month-load race already on `main`, fixed with the tickets helper — re-checked the same day; data cleaned up, backup 303) | — (untouched) | ✅ merged 2026-10-11 | — (untouched) |
 | Skeleton tier 2, phone — `feat/skeleton-tier2-phone`: seventeen spinners on thirteen screens — sixteen become skeletons shaped like the screen, the slot screen's pull keeps its column; the web's fix round applied (the register's card shape, no old counts while a new day loads, the month card while it loads, tickets on the loads a pick can supersede) and the same gaps on teacher Grades, Class summary and admin Grades; `QuietSkeleton` for pieces beside an announced region (built, gated and device-checked on the Tecno 2026-10-11; data cleaned up, backup 304) | — (untouched) | — (untouched) | ✅ merged 2026-10-12 |
-| The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built, gated and device-checked on 3G 2026-10-12; data cleaned up, backup 305) | — (untouched) | 🟡 merge-ready, not merged | — (untouched) |
+| The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built, gated and device-checked on 3G 2026-10-12; data cleaned up, backup 305) | — (untouched) | ✅ merged 2026-10-12 | — (untouched) |
+| Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; device check PENDING in the smoke-gate fix round) | 🟡 not merged | 🟡 not merged | 🟡 not merged |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -83,7 +84,7 @@ A module with tables and no handlers is not started; there are none.
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
 | Subjects + assignments | `subjects`, `teacher_assignments` | 1 + 3 | `test:assignments` | none by decision; read by pickers |
-| Grades | `grades`, `grade_components`, `assessment_slots`, `grade_weight_configs`, `transmutation_table`, `grading_mode_configs` | 13 + 1 (`/grading-modes`) | `test:grades`, `test:class-record`, `test:class-summary`, `test:grading-modes`, `test:grade-computation`, `verify:grading-seed` | Teacher → Grades (the class record), Teacher → Class summary + learner card; Parent → Grades (report card + term breakdown); Admin → Grades (lock) |
+| Grades | `grades`, `grade_components`, `assessment_slots`, `grade_weight_configs`, `transmutation_table`, `grading_mode_configs` | 14 + 1 (`/grading-modes`) | `test:grades`, `test:class-record`, `test:class-summary`, `test:grade-locks`, `test:grading-modes`, `test:grade-computation`, `verify:grading-seed` | Teacher → Grades (the class record), Teacher → Class summary + learner card; Parent → Grades (report card + term breakdown); Admin → Grades (lock one grade; lock or unlock a whole term — `fix/grade-locks`) |
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
 | Excuse letters | `excuse_letters` | 6 | `test:excuses` | Teacher → Excuse Letters (review); Parent → Excuse Letters |
@@ -138,13 +139,14 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-As the owner's dispatches stand (2026-10-12, CLAUDE.md → BUILD ORDER →
+As the owner's dispatches stand (2026-10-13, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **The merge of `fix/web-load-races`, on the owner's word**
-   (device-checked on 3G, merge-ready).
-2. **Smoke gate** across web and mobile, **by Thu 2026-10-15** — with a real
-   restore after a fresh backup, and SMS.
+1. **Smoke gate** across web and mobile, **by Thu 2026-10-15** (in
+   progress) — with a real restore after a fresh backup, and SMS.
+2. **Its fix round** — `fix/grade-locks`' device check (the fixture in
+   `docs/GRADE_LOCKS_DEVICE_CHECK.md`, run only on the owner's word), then
+   its merge on the owner's word.
 3. **Professor system check, Fri 2026-10-16.**
 
 The manuscript delta list stays with the team (it includes Chapter 5's

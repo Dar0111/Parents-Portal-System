@@ -1486,3 +1486,40 @@ with a search, "No <group> match that search."; with none, Parents' own
 sentence, otherwise "No <group> to message." — `proof-look-fixes` evaluates
 the screen's expression, with the pre-fix one as its control (KNOWN_ISSUES,
 closed).
+
+## M28. Grade locks on the phone — the web's words, a modal screen, a ticket on the preview (`fix/grade-locks`, 2026-10-13)
+
+FRONTEND §31 governs; this is where the phone differs.
+
+- **A modal stack screen, not a dialog.** Admin → Grades' "Report card"
+  header carries the same "Lock or unlock a term" button; it pushes
+  `GradeLocks` (`screens/admin/GradeLocksScreen.jsx`, AppShell, `presentation:
+  'modal'`, titled "Lock or unlock a term") — the shape the one-grade lock
+  sheet (`GradeLock`) already has (M18).
+- **Segmented controls** for Action, Term, Grade ("Whole school" first) and
+  Section; the Section row appears only after a grade ("Pick a grade to
+  narrow it to one section."), and the sections read shows `ErrorAlert` with
+  Retry if it fails.
+- **A ticket on the preview instead of locked controls.** Changing a choice
+  takes a ticket (the mirrored `api/tickets.js`) and clears the preview, so a
+  preview still in flight for the old choices is dropped; only the WRITE
+  freezes the choices. The apply button, its count and the words are the
+  web's, from the mirrored `format/gradeLocks.js`.
+- **Success returns with `popTo`, never `navigate`** —
+  `navigation.popTo('Main', { screen: '/admin/grades', params: { notice } })`
+  with the result line (A1: `navigate` pushes a second, empty `Main`), the way
+  `GradeLockScreen` does; Admin → Grades shows the notice and clears the
+  param on focus. A failed write stays on the screen with its `ErrorAlert`.
+- **No motion, no pull-to-refresh** — the one read is the sections list,
+  with its Retry. Never an LRN.
+- **Teacher → Grades' slot screen needs no change:** a dry run refused by the
+  HPS freeze shows in its existing "Live totals are out of date — …" line,
+  and Save all shows the real save's "Nothing was saved. …".
+
+**Proof:** `scripts/proof-grade-locks.mjs` (TESTING → Mobile proofs) — the
+mirrored words driven, the byte equality with the web's file, and as source
+(M7): the screen's two posts, the ticket and its two `isLatest` guards, the
+apply button's condition, `popTo` and no `navigate('Main'`, no LRN, the
+header button, the report card's `reportIsPick` / `reportWaiting` lines
+verbatim, the route. **The phone check owns** a real preview and lock, the
+48dp targets and a tap (`docs/GRADE_LOCKS_DEVICE_CHECK.md`, PENDING).

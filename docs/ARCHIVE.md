@@ -7520,3 +7520,12 @@ names the merges.
       (no-regression, no findings), its data cleaned up; merged 2026-10-12
       (`4bfbda0`).** (Moved by `fix/web-load-races`, as this batch's note
       said it would be after the merge.)
+- [x] **The web load races — `fix/web-load-races`** (2026-10-12): a ticket on
+      the roster's load (a stale date's marks could be saved to the new date)
+      and on admin Grades' and the class summary's; the class record, the
+      class summary and admin Grades show only the current pick's data — the
+      grid not editable, no lock — until it arrives. **Device-checked (3G,
+      no findings), its data cleaned up; merged 2026-10-12 (`afccdd8`).**
+      (Moved by `fix/grade-locks` on 2026-10-13 — the owner's approval gave
+      that branch's docs commit this drift: CLAUDE.md still called the item
+      merge-ready and its "Last verified" line named `4bfbda0`.)

@@ -46,8 +46,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 97** handlers defined in
-> `server/routes/`, and the API answers **98 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 98** handlers defined in
+> `server/routes/`, and the API answers **99 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 > Count history: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-10-02",
 > and the CHANGELOG rows.
@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-12, `fix/web-load-races` — tickets on the web loads a pick supersedes, and only the current pick's data on screen: gated, not device-checked, not merged (on `main` `4bfbda0`, `feat/skeleton-tier2-phone` merged 2026-10-12) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-13, `fix/grade-locks` — a locked learner freezes the class's highest possible scores, and Admin → Grades locks or unlocks a whole term: gated, suites run, not device-checked, not merged (on `main` `afccdd8`, `fix/web-load-races` merged 2026-10-12) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -112,8 +112,8 @@ Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
 2026-10-05** (that section's SCOPE DECISION 2026-10-05), and **About is last on every
 role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
-item**. **25 tables, 97 handlers + `/api/health`**
-(2026-10-10). 20 of 23 sections have no adviser and
+item**. **25 tables, 98 handlers + `/api/health`**
+(2026-10-13). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
@@ -175,7 +175,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **nine migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-eight test files, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **nine migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-nine test files, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -1286,6 +1286,13 @@ the rounding fix and Grade 1's computed letters (both 2026-09-22).
   a gate would make every descriptive row permanently unlockable — and no
   extra friction on unlock, which is reversible unlike restore. **`DELETE /:id`
   is admin-only, refuses a locked row, and is deliberately on no screen.**
+- **A locked learner freezes the class's highest possible scores, and a whole
+  term locks at once (`fix/grade-locks`, 2026-10-13).** The class-record `PUT`
+  refuses any HPS set, change or clear with `409` naming every locked learner
+  of the class (a dry run too). `POST /api/grades/locks` (admin) locks only
+  active learners graded in every subject — the rest are listed, never
+  locked — and unlocks with no check; preview first, one audit row, no
+  notifications. FRONTEND §31, MOBILE M28, `docs/API_REFERENCE.md`.
 - **A missing `grading_mode_configs` or `grade_weight_configs` row is `409`
   naming the gap — never a silent default, never `500`.** A transmutation year
   with no rows means "use the Initial Grade directly": **the data's absence
@@ -1709,22 +1716,24 @@ CLAUDE.md on 2026-10-10".
 Merged after the close, each device-checked: privacy (`456bba8`), shared
 Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
 (`10e277a`), staff acceptance (`5dc868d`), skeleton tier 2 on the web
-(`c8ac275`) and on the phone (`4bfbda0`) — items: `docs/ARCHIVE.md` →
-"BUILD ORDER → Stage 5 items moved from CLAUDE.md on 2026-10-11" (two
-batches); rules: §5, §5f–§5g, §29–§30, M11, M26–M27.
+(`c8ac275`) and on the phone (`4bfbda0`), the web load races (`afccdd8`) —
+items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved from
+CLAUDE.md on 2026-10-11" (two batches); rules: §5, §5f–§5g, §29–§30, M11,
+M26–M27.
 
-- [ ] **The web load races — `fix/web-load-races`** (2026-10-12): a ticket on
-      the roster's load (a stale date's marks could be saved to the new date)
-      and on admin Grades' and the class summary's; the class record, the
-      class summary and admin Grades show only the current pick's data — the
-      grid not editable, no lock — until it arrives. **Device-checked (3G,
-      no findings), its data cleaned up; merge-ready, not merged.**
+- [ ] **Grade locks — `fix/grade-locks`** (2026-10-13; the owner's Finding
+      1): 1a — a locked learner freezes the class's highest possible scores
+      (`409` naming them); 1b — Admin → Grades "Lock or unlock a term" on the
+      web and the phone (`POST /api/grades/locks`, preview first, the skipped
+      learners listed). **Gated, suites run; device check PENDING in the
+      smoke-gate fix round (`docs/GRADE_LOCKS_DEVICE_CHECK.md`); not merged.**
 
-**NEXT, in order (the owner's plan, 2026-10-12):** merge
-`fix/web-load-races` on the owner's word → **smoke gate by Thu
-2026-10-15** (a real restore after a fresh backup, and SMS) → **professor
-system check, Fri 2026-10-16**. The manuscript delta list stays with the
-team. After the check: the cloud (Supabase) migration planning only.
+**NEXT, in order (the owner's plan, 2026-10-13):** the **smoke gate by Thu
+2026-10-15** (a real restore after a fresh backup, and SMS) and its fix
+round — `fix/grade-locks`' device check, its fixture on the owner's word,
+then its merge on the owner's word → **professor system check, Fri
+2026-10-16**. The manuscript delta list stays with the team. After the
+check: the cloud (Supabase) migration planning only.
 
 ### Stage 6 — Integration
 
@@ -1814,9 +1823,10 @@ the archived copy still carries the line it replaced. A permanently dimmed
 row advertises a page that was decided against, and `built: false` is defined
 as *unwritten*, never *refused* (§6). Nothing became buildable and no handler
 moved. **Grade lock AND unlock are admin only** — `PATCH /api/grades/:id/lock`
-is `authorize('admin')` and is the only route reaching the server's sole
-`UPDATE grades SET is_locked`; direction is the request's `is_locked`
-boolean and there is no separate unlock path. Written down so a later
+and, since 2026-10-13, the bulk `POST /api/grades/locks` are both
+`authorize('admin')` and are the only routes reaching
+`UPDATE grades SET is_locked`; direction is the request's `is_locked` /
+`lock` boolean and there is no separate unlock path. Written down so a later
 dispatch does not add a teacher-side lock as a convenience.
 
 **SCOPE DECISION, the owner (Darryl), 2026-10-05 — Admin → Messages comes
