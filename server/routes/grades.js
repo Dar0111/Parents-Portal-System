@@ -948,6 +948,20 @@ function examTotals(grade) {
   };
 }
 
+// The refusal when a column's HPS would change while learners of the class
+// are locked (fix/grade-locks, 2026-10-13). Every locked learner by name,
+// "First Last", in name order; more than three shows the first three and
+// "and N more". The wording follows the score refusal's ("Nothing was
+// saved. … locked grade(s) for this subject and term — ask an admin to
+// unlock …"); a dry run drops "Nothing was saved.", since a preview saves
+// nothing anyway. Names only — never an LRN.
+function lockedHpsMessage(learners, dryRun) {
+  const names = learners.map((l) => `${l.first_name} ${l.last_name}`);
+  const shown = names.length > 3 ? `${names.slice(0, 3).join(', ')} and ${names.length - 3} more` : names.join(', ');
+  const verb = names.length === 1 ? 'has a locked grade' : 'have locked grades';
+  return `${dryRun ? '' : 'Nothing was saved. '}${shown} ${verb} for this subject and term — ask an admin to unlock before changing a highest possible score.`;
+}
+
 // GET /api/grades/class-record — the whole grid in one request.
 //
 // READ SCOPE IS VIEW SCOPE (grade+section, any subject), matching GET / and
@@ -1348,6 +1362,41 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     // ---- slots: upsert, and guard the two HPS rules ----
     const existingSlots = await loadSlots(conn, key);
     const slotByKey = new Map(existingSlots.map((s) => [`${s.type}-${s.slot_no}`, s]));
+
+    // A LOCKED LEARNER FREEZES THIS CLASS'S HIGHEST POSSIBLE SCORES
+    // (fix/grade-locks, 2026-10-13; the owner's Finding 1a). Setting, changing
+    // or clearing a column's HPS rewrites the materialised maximum of every
+    // row in it and recomputes the class — and a lock is what makes a
+    // finalised grade immutable, so the save is refused while ANY learner of
+    // the class (any status: a column change would still rewrite their copy)
+    // has a locked row for this subject and term. Checked before the first
+    // write; a dry run reports it too. A rename at the same HPS, an unused
+    // column sent back unchanged, and score-only saves are not affected — the
+    // locked-learner refusal for scores is further down, unchanged.
+    const hpsWouldChange = slots.some((slot) => {
+      const existing = slotByKey.get(`${slot.type}-${Number(slot.slot_no)}`);
+      const nextMax = slot.max_score === undefined || slot.max_score === null ? null : Number(slot.max_score);
+      // Null-safe on purpose: `Number(null ?? NaN)` on both sides would read
+      // an unused column sent back unchanged (null to null) as a change.
+      const currentMax = !existing || existing.max_score === null || existing.max_score === undefined ? null : Number(existing.max_score);
+      return existing ? currentMax !== nextMax : nextMax !== null;
+    });
+    if (hpsWouldChange) {
+      const [lockedLearners] = await conn.query(
+        `SELECT st.first_name, st.last_name
+           FROM grades g
+           JOIN students st ON st.id = g.student_id
+          WHERE st.grade_level = ? AND st.section = ? AND g.subject_id = ? AND g.term = ? AND g.school_year = ?
+            AND g.is_locked = 1
+          ORDER BY st.last_name, st.first_name, st.id`,
+        [key.gradeLevel, key.section, key.subjectId, key.term, key.schoolYear]
+      );
+      if (lockedLearners.length) {
+        await conn.rollback();
+        return res.status(409).json({ success: false, message: lockedHpsMessage(lockedLearners, dryRun) });
+      }
+    }
+
     const touchedSlotIds = new Set();
     // True when the set of USED columns changed in any way — a maximum set,
     // changed or cleared. That is what decides whether the whole class is
@@ -1430,10 +1479,14 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     // who has NOT been marked in it — which is precisely the set that has no
     // component row there and would never be found by looking for one.
     // Clearing an unused slot's maximum is the same move in reverse.
+    //
+    // NEVER A LOCKED ROW (fix/grade-locks): an HPS change is refused above
+    // while one exists, so what reaches here is a re-sent column — and a
+    // locked grade is not recomputed by anything this endpoint does.
     const affected = new Set();
     if (slotSetChanged) {
       const [rows] = await conn.query(
-        'SELECT id FROM grades WHERE subject_id = ? AND term = ? AND school_year = ? AND student_id IN (?)',
+        'SELECT id FROM grades WHERE subject_id = ? AND term = ? AND school_year = ? AND is_locked = 0 AND student_id IN (?)',
         [key.subjectId, key.term, key.schoolYear, students.length ? students.map((s) => s.id) : [0]]
       );
       for (const row of rows) affected.add(row.id);

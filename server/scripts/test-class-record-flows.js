@@ -891,6 +891,160 @@ async function main() {
     // -----------------------------------------------------------------
     console.log('\nPUT /class-record — a locked learner fails the whole save');
     // -----------------------------------------------------------------
+    // A LOCKED LEARNER FREEZES THE CLASS'S HIGHEST POSSIBLE SCORES
+    // (fix/grade-locks, 2026-10-13; the owner's Finding 1a). Setting, changing
+    // or clearing a column's HPS rewrites the materialised maxima of every row
+    // in it and recomputes the class — a locked learner included, until this
+    // fix — so a locked grade could move, or fall back to Pending. Now the
+    // save is refused while ANY learner of the class has a locked row for this
+    // subject and term, naming every one of them; a dry run reports it too,
+    // without "Nothing was saved.". Self-contained: it locks and unlocks its
+    // own rows, so the section below starts exactly as it did before.
+    const hpsBefore = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    requireFixture(hpsBefore.status === 200, 'the class record reads before the HPS cases', why(hpsBefore));
+    const learnerRow = (id) => hpsBefore.data.learners.find((l) => l.student_id === id);
+    // The API's `name` is "Last, First"; the refusal says "First Last".
+    const fullName = (id) => {
+      const [last, first] = learnerRow(id).name.split(', ');
+      return `${first} ${last}`;
+    };
+    const anaFull = fullName(learners[0].id);
+    const coraFull = fullName(learners[2].id);
+    const anaHpsGradeId = learnerRow(learners[0].id).grade_id;
+    const coraHpsGradeId = learnerRow(learners[2].id).grade_id;
+    requireFixture(anaHpsGradeId && coraHpsGradeId, 'Ana and Cora both have a grade row to lock');
+    const coraBeforeHps = learnerRow(learners[2].id);
+    const ww1Now = hpsBefore.data.slots.find((s) => s.id === ww1.id);
+    const changeWw1 = { type: 'WW', slot_no: 1, max_score: Number(ww1Now.max_score) + 5 };
+    const TAIL = 'for this subject and term — ask an admin to unlock before changing a highest possible score.';
+
+    const lockCoraForHps = await request('PATCH', `/api/grades/${coraHpsGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: true },
+    });
+    requireFixture(lockCoraForHps.status === 200, 'Cora is locked for the HPS cases', why(lockCoraForHps));
+
+    const hpsSave = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, slots: [changeWw1] },
+    });
+    assert(hpsSave.status === 409, `changing a used column's HPS while a learner is locked is 409 (got ${hpsSave.status})`);
+    assert(
+      hpsSave.data?.message === `Nothing was saved. ${coraFull} has a locked grade ${TAIL}`,
+      'the refusal names the one locked learner ("has a locked grade") and says to ask an admin to unlock',
+      why(hpsSave)
+    );
+
+    const hpsDry = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, dry_run: true, slots: [changeWw1] },
+    });
+    assert(hpsDry.status === 409, `a dry run of the same change is 409 too (got ${hpsDry.status})`);
+    assert(
+      hpsDry.data?.message === `${coraFull} has a locked grade ${TAIL}`,
+      'the dry run says the same without "Nothing was saved."',
+      why(hpsDry)
+    );
+
+    // A NEW column given an HPS is the same move (it makes the locked
+    // learner's group Pending), so it is refused as well.
+    const newColumn = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, slots: [{ type: 'PT', slot_no: 9, max_score: 10 }] },
+    });
+    assert(
+      newColumn.status === 409 && newColumn.data?.message === `Nothing was saved. ${coraFull} has a locked grade ${TAIL}`,
+      'giving a new column an HPS while a learner is locked is refused with the same message',
+      why(newColumn)
+    );
+
+    // NOTHING WAS WRITTEN: the column keeps its HPS, every materialised copy of
+    // it is untouched, the refused column does not exist, and Cora's locked
+    // grade did not move.
+    const [ww1Row] = await withDb((conn) => conn.query('SELECT max_score FROM assessment_slots WHERE id = ?', [ww1.id]));
+    assert(Number(ww1Row[0].max_score) === Number(ww1Now.max_score), 'the refused change left WW1 at its HPS');
+    const [ww1Copies] = await withDb((conn) =>
+      conn.query('SELECT COUNT(*) AS n FROM grade_components WHERE slot_id = ? AND max_score <> ?', [ww1.id, ww1Now.max_score])
+    );
+    assert(Number(ww1Copies[0].n) === 0, "no learner's WW1 maximum was rewritten (Cora's included)");
+    const [pt9Rows] = await withDb((conn) =>
+      conn.query(
+        'SELECT COUNT(*) AS n FROM assessment_slots WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ? AND type = ? AND slot_no = ?',
+        [classKey.subject_id, classKey.grade_level, classKey.section, classKey.term, classKey.school_year, 'PT', 9]
+      )
+    );
+    assert(Number(pt9Rows[0].n) === 0, 'the refused new column was not created');
+    const hpsAfter = await request('GET', `/api/grades/class-record?${qs}`, { token: adminToken });
+    const coraAfterHps = hpsAfter.data.learners.find((l) => l.student_id === learners[2].id);
+    assert(
+      coraAfterHps.ww_percentage === coraBeforeHps.ww_percentage &&
+        coraAfterHps.pt_percentage === coraBeforeHps.pt_percentage &&
+        coraAfterHps.initial_grade === coraBeforeHps.initial_grade &&
+        coraAfterHps.descriptive_grade === coraBeforeHps.descriptive_grade,
+      "Cora's locked grade did not move"
+    );
+
+    // WHAT IS NOT REFUSED, each as a dry run so nothing here writes: a rename
+    // at the same HPS, an unused column sent back unchanged (null to null is
+    // not a change), and a score-only save for an unlocked learner.
+    const renameDry = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: {
+        ...classKey,
+        dry_run: true,
+        slots: [{ type: 'WW', slot_no: 1, max_score: Number(ww1Now.max_score), name: 'Long test (renamed)' }],
+      },
+    });
+    assert(renameDry.status === 200, `renaming a column at the same HPS is allowed while a learner is locked (got ${renameDry.status})`, why(renameDry));
+    const unusedDry = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, dry_run: true, slots: [{ type: 'WW', slot_no: 3, max_score: null }] },
+    });
+    assert(unusedDry.status === 200, `an unused column sent back unchanged is allowed (got ${unusedDry.status})`, why(unusedDry));
+    const scoreOnlyDry = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, dry_run: true, entries: [{ student_id: learners[0].id, scores: [{ slot_id: ww2.id, score: 8 }] }] },
+    });
+    assert(scoreOnlyDry.status === 200, `a score for an unlocked learner, no HPS change, is allowed (got ${scoreOnlyDry.status})`, why(scoreOnlyDry));
+
+    // TWO LOCKED: both named, in name order, joined with ", ", and the plural.
+    const lockAnaForHps = await request('PATCH', `/api/grades/${anaHpsGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: true },
+    });
+    requireFixture(lockAnaForHps.status === 200, 'Ana is locked as well', why(lockAnaForHps));
+    const twoSave = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, slots: [changeWw1] },
+    });
+    assert(
+      twoSave.status === 409 && twoSave.data?.message === `Nothing was saved. ${anaFull}, ${coraFull} have locked grades ${TAIL}`,
+      'with two locked learners both are named, in name order, with "have locked grades"',
+      why(twoSave)
+    );
+    const twoDry = await request('PUT', '/api/grades/class-record', {
+      token: adminToken,
+      body: { ...classKey, dry_run: true, slots: [changeWw1] },
+    });
+    assert(
+      twoDry.status === 409 && twoDry.data?.message === `${anaFull}, ${coraFull} have locked grades ${TAIL}`,
+      'the two-learner dry run says the same without "Nothing was saved."',
+      why(twoDry)
+    );
+
+    const unlockAnaForHps = await request('PATCH', `/api/grades/${anaHpsGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: false },
+    });
+    const unlockCoraForHps = await request('PATCH', `/api/grades/${coraHpsGradeId}/lock`, {
+      token: adminToken,
+      body: { is_locked: false },
+    });
+    requireFixture(
+      unlockAnaForHps.status === 200 && unlockCoraForHps.status === 200,
+      'Ana and Cora are unlocked again before the section below'
+    );
+
     const coraGradeId = afterDry.data.learners.find((l) => l.student_id === learners[2].id).grade_id;
     const lock = await request('PATCH', `/api/grades/${coraGradeId}/lock`, {
       token: adminToken,
