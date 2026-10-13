@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-13, `fix/smoke-round` — the grade locks (1a, 1b) and the smoke gate's F4–F7: device-checked (web and the Android emulator), its data cleaned up; merge-ready, not merged (on `main` `afccdd8`, `fix/web-load-races` merged 2026-10-12) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-13, `main` `4d28d7f` — `fix/smoke-round` merged fast-forward: the grade locks (1a, 1b) and the smoke gate's F4–F7, device-checked on the web and the Android emulator, data cleaned up (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1719,30 +1719,16 @@ CLAUDE.md on 2026-10-10".
 Merged after the close, each device-checked: privacy (`456bba8`), shared
 Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
 (`10e277a`), staff acceptance (`5dc868d`), skeleton tier 2 on the web
-(`c8ac275`) and on the phone (`4bfbda0`), the web load races (`afccdd8`) —
-items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved from
-CLAUDE.md on 2026-10-11" (two batches); rules: §5, §5f–§5g, §29–§30, M11,
-M26–M27.
+(`c8ac275`) and on the phone (`4bfbda0`), the web load races (`afccdd8`),
+the grade locks and the smoke-gate fix round (`4d28d7f`) — items:
+`docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved from CLAUDE.md on
+2026-10-11" (two batches) and "… item moved … on 2026-10-13"; rules: §5,
+§5f–§5g, §29–§32, M11, M26–M29.
 
-- [ ] **Grade locks and the smoke-gate fix round — `fix/smoke-round`**
-      (2026-10-13; `fix/grade-locks` plus four findings): 1a — a locked
-      learner freezes the class's highest possible scores (`409` naming them);
-      1b — Admin → Grades "Lock or unlock a term", web and phone
-      (`POST /api/grades/locks`); F4 — the class record prints no Summative
-      raw total, ST PS is ST1 30% + ST2 30% + TE 40%; F5 — a parent's
-      breakdown names each score "Written Work 1" or the column's own name,
-      as the class record's helper promises; F6 — sign-in confirms
-      a password reset; F7 — a per-row lock or unlock closes its dialog and
-      keeps the line (FRONTEND §32, MOBILE M29). **Device-checked
-      2026-10-13, every section passed (the bulk dialog's 390px / dark pass
-      not done, the owner's call); data cleaned up (backup 316); merge-ready,
-      not merged** (`docs/GRADE_LOCKS_DEVICE_CHECK.md` §5). F3 was cut
-      (KNOWN ISSUES).
-
-**NEXT, in order (the owner's plan, 2026-10-13):** merge `fix/smoke-round`
-on the owner's word → **professor system check, Wed 2026-10-14, about
-12:00**. The
-manuscript delta list stays with the team. After the check: badged pages
+**NEXT (the owner's plan, 2026-10-13):** **professor system check, Wed
+2026-10-14, about 12:00** — the restore point is backup 317
+(`parents_portal_2026-10-13_233314.sql`). The manuscript delta list stays
+with the team. After the check: badged pages
 clear on a visit (KNOWN ISSUES), then the cloud (Supabase) migration
 planning only.
 

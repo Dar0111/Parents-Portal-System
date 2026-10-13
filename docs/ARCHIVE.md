@@ -7529,3 +7529,27 @@ names the merges.
       (Moved by `fix/grade-locks` on 2026-10-13 — the owner's approval gave
       that branch's docs commit this drift: CLAUDE.md still called the item
       merge-ready and its "Last verified" line named `4bfbda0`.)
+
+## BUILD ORDER → Stage 5 item moved from CLAUDE.md on 2026-10-13 (the `fix/smoke-round` merge, the REFILL RULE)
+
+The ticked item under CLAUDE.md's closed Stage 5 heading, moved by the
+owner's merge dispatch the night `fix/smoke-round` merged fast-forward
+(`afccdd8` → `4d28d7f`). Verbatim as it stood, with its status line brought
+to the merge; its rules stay where they live — FRONTEND §31–§32, MOBILE
+M28–M29, `docs/API_REFERENCE.md`, `docs/TESTING.md` — and CLAUDE.md's pointer
+line names the merge.
+
+- [x] **Grade locks and the smoke-gate fix round — `fix/smoke-round`**
+      (2026-10-13; `fix/grade-locks` plus four findings): 1a — a locked
+      learner freezes the class's highest possible scores (`409` naming them);
+      1b — Admin → Grades "Lock or unlock a term", web and phone
+      (`POST /api/grades/locks`); F4 — the class record prints no Summative
+      raw total, ST PS is ST1 30% + ST2 30% + TE 40%; F5 — a parent's
+      breakdown names each score "Written Work 1" or the column's own name,
+      as the class record's helper promises; F6 — sign-in confirms
+      a password reset; F7 — a per-row lock or unlock closes its dialog and
+      keeps the line (FRONTEND §32, MOBILE M29). **Device-checked
+      2026-10-13, every section passed (the bulk dialog's 390px / dark pass
+      not done, the owner's call); data cleaned up (backup 316); merged
+      2026-10-13 (`4d28d7f`)** (`docs/GRADE_LOCKS_DEVICE_CHECK.md` §5). F3 was
+      cut (KNOWN ISSUES).

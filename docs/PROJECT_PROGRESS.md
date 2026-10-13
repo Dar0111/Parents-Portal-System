@@ -11,21 +11,21 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-13: `main` at `afccdd8` (`fix/web-load-races` merged
-fast-forward on 2026-10-12 after the owner's 3G check; skeleton tier 2 on
-the phone and the web, staff acceptance, the socket handshake, skeleton
-option 1, shared Messages and privacy before it) plus `fix/smoke-round` —
-`fix/grade-locks` (the owner's Finding 1: a locked learner freezes the
-class's highest possible scores, the class record refusing an HPS change
-and naming every locked learner; Admin → Grades locks or unlocks a whole
-term on the web and the phone, `POST /api/grades/locks`, preview first, the
-learners not yet graded in every subject listed and left unlocked) and the
-smoke gate's F4–F7 (the class record's Summative block without a raw total;
-the parent breakdown's score names; sign-in confirming a password reset; a
-per-row lock closing its dialog with its line). Gated, its suites run,
-device-checked on the web and the Android emulator on 2026-10-13 (every
-section passed; data cleaned up, backup 316); merge-ready, not merged. F3 (a
-visit clearing a page's badge) was cut and is a KNOWN ISSUES row.**
+**Snapshot, 2026-10-13: `main` at `4d28d7f` plus the merge's docs commit —
+`fix/smoke-round` merged fast-forward that night after the owner's device
+check on the web and the Android emulator (every section passed; data
+cleaned up, backup 316): `fix/grade-locks` (the owner's Finding 1: a locked
+learner freezes the class's highest possible scores, the class record
+refusing an HPS change and naming every locked learner; Admin → Grades locks
+or unlocks a whole term on the web and the phone, `POST /api/grades/locks`,
+preview first, the learners not yet graded in every subject listed and left
+unlocked) and the smoke gate's F4–F7 (the class record's Summative block
+without a raw total; the parent breakdown's score names; sign-in confirming
+a password reset; a per-row lock closing its dialog with its line). Before
+it: the web load races (2026-10-12), skeleton tier 2 on the phone and the
+web, staff acceptance, the socket handshake, skeleton option 1, shared
+Messages and privacy. F3 (a visit clearing a page's badge) was cut and is a
+KNOWN ISSUES row.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -59,8 +59,8 @@ and only there.
 | Skeleton tier 2, web — `feat/skeleton-tier2-web`: the thirteen spinners left on eleven web pages become skeletons shaped like their content, a re-read keeps what is on screen, the way back stays on screen while one shows (built and gated 2026-10-11; device-checked with four findings, the fix round — T1, T2, P1, and P2, a month-load race already on `main`, fixed with the tickets helper — re-checked the same day; data cleaned up, backup 303) | — (untouched) | ✅ merged 2026-10-11 | — (untouched) |
 | Skeleton tier 2, phone — `feat/skeleton-tier2-phone`: seventeen spinners on thirteen screens — sixteen become skeletons shaped like the screen, the slot screen's pull keeps its column; the web's fix round applied (the register's card shape, no old counts while a new day loads, the month card while it loads, tickets on the loads a pick can supersede) and the same gaps on teacher Grades, Class summary and admin Grades; `QuietSkeleton` for pieces beside an announced region (built, gated and device-checked on the Tecno 2026-10-11; data cleaned up, backup 304) | — (untouched) | — (untouched) | ✅ merged 2026-10-12 |
 | The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built, gated and device-checked on 3G 2026-10-12; data cleaned up, backup 305) | — (untouched) | ✅ merged 2026-10-12 | — (untouched) |
-| Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; carried by `fix/smoke-round`, device-checked 2026-10-13; data cleaned up, backup 316; merge-ready) | 🟡 not merged | 🟡 not merged | 🟡 not merged |
-| The smoke gate's fix round — `fix/smoke-round` (on `fix/grade-locks`): F4 the class record's Summative block without a raw total and a line saying how ST PS is made; F5 the parent breakdown's rows named "Written Work 1" or the column's own name, as the class record's helper promises; F6 sign-in confirming a password reset; F7 a per-row lock or unlock closing its dialog and keeping its line (built and gated 2026-10-13; device-checked the same night on the web and the Android emulator, every section passed, the bulk dialog's 390px / dark pass not done; data cleaned up, backup 316; merge-ready; F3 cut — KNOWN ISSUES) | — (untouched) | 🟡 not merged | 🟡 not merged |
+| Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; carried by `fix/smoke-round`, device-checked 2026-10-13; data cleaned up, backup 316) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
+| The smoke gate's fix round — `fix/smoke-round` (on `fix/grade-locks`): F4 the class record's Summative block without a raw total and a line saying how ST PS is made; F5 the parent breakdown's rows named "Written Work 1" or the column's own name, as the class record's helper promises; F6 sign-in confirming a password reset; F7 a per-row lock or unlock closing its dialog and keeping its line (built and gated 2026-10-13; device-checked the same night on the web and the Android emulator, every section passed, the bulk dialog's 390px / dark pass not done; data cleaned up, backup 316; F3 cut — KNOWN ISSUES) | — (untouched) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -147,10 +147,10 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 As the owner's dispatches stand (2026-10-13, CLAUDE.md → BUILD ORDER →
 NEXT):
 
-1. **Merge `fix/smoke-round` on the owner's word** — device-checked
-   2026-10-13 (`docs/GRADE_LOCKS_DEVICE_CHECK.md` §5), data cleaned up;
-   the main tree already has the branch checked out.
-2. **Professor system check, Wed 2026-10-14, about 12:00.**
+1. **Professor system check, Wed 2026-10-14, about 12:00** — on `main`
+   with `fix/smoke-round` merged (2026-10-13). **The demo restore point is
+   backup 317, `parents_portal_2026-10-13_233314.sql`**, taken right after
+   the merge.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). After the check: badged pages clearing on a visit
