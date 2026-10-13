@@ -14,9 +14,11 @@ import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { cardClass } from '../../components/buttonClass';
 import GradeValue, { GradeLegend } from '../../format/grade';
+import { LOCK_TERM_LABEL } from '../../format/gradeLocks';
 import TermValue from '../../format/TermValue';
 import { usePageTitle } from '../../layout/usePageTitle';
 import Reveal from '../../motion/Reveal';
+import GradeLocksModal from './GradeLocksModal';
 
 // Admin grades — Figure 5 process 1.9 ("show all students grades"). VIEW, plus
 // the LOCK toggle. Darryl decided 2026-09-14.
@@ -24,7 +26,8 @@ import Reveal from '../../motion/Reveal';
 // LOCK — surfaced. PATCH /api/grades/:id/lock is admin-only and has no other
 // path; Teacher → Grades has no lock control (it 403s at middleware for a
 // teacher). Without this page nobody could ever lock a grade. It is a boolean
-// and reversible — one click back.
+// and reversible — one click back. A WHOLE TERM AT ONCE (fix/grade-locks,
+// 2026-10-13): the header's "Lock or unlock a term" opens GradeLocksModal.jsx.
 //
 // WHAT LOCKING DOES, read from routes/grades.js, not assumed:
 // preflightGradeWrite() refuses every score and letter write on a locked row
@@ -107,6 +110,8 @@ export default function AdminGradesPage() {
   // Lock/Unlock button is there); `card` is the confirmation that outlives
   // the modal and belongs above the report card it describes. See FormStatus.
   const [status, setStatus] = useState({});
+  // The bulk lock dialog (fix/grade-locks): a whole term at once.
+  const [locksOpen, setLocksOpen] = useState(false);
 
   // THE SECTIONS READ SAYS WHEN IT FAILED (build 1 fix round, 2026-10-05), as
   // on the phone. It used to swallow a failure into an empty list, so a
@@ -338,7 +343,23 @@ export default function AdminGradesPage() {
         <section className="space-y-3">
           {/* No description: the prompt below already says how to pick, and
               an empty state never has to be repeated by a header. */}
-          <SectionHeader title="Report card" />
+          <SectionHeader
+            title="Report card"
+            actions={
+              <Button
+                icon="fa-lock"
+                onClick={() => {
+                  setStatus({});
+                  setLocksOpen(true);
+                }}
+              >
+                {LOCK_TERM_LABEL}
+              </Button>
+            }
+          />
+          {/* The bulk lock's result (§7c): under the header whose button
+              opened it, once the dialog has closed. */}
+          <FormStatus status={status.bulk} />
 
           {/* THE PICKER CARD. Three selects that act on change — there is no
               Apply here, because each choice narrows the next. */}
@@ -602,6 +623,16 @@ export default function AdminGradesPage() {
           <p className="text-sm text-fg-muted">This term no longer has a grade record.</p>
         )}
       </Modal>
+
+      <GradeLocksModal
+        open={locksOpen}
+        onClose={() => setLocksOpen(false)}
+        sections={sections}
+        onApplied={(line) => {
+          setStatus({ bulk: ok(line) });
+          if (studentId) loadReport();
+        }}
+      />
     </div>
   );
 }
