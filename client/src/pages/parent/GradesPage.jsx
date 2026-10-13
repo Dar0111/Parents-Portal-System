@@ -10,6 +10,7 @@ import Reveal from '../../motion/Reveal';
 import { shortDate } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
+import { componentLabel } from '../../format/componentLabel';
 import TermValue from '../../format/TermValue';
 import ReportCard from './ReportCard';
 import { useAuth } from '../../auth/AuthContext';
@@ -149,7 +150,10 @@ function ComponentList({ title, rows, empty }) {
           {rows.map((row) => (
             <li key={row.id} className="flex items-baseline justify-between gap-3 py-2.5">
               <div className="min-w-0">
-                <p className="break-words text-sm text-fg-secondary">{row.label}</p>
+                {/* The class record's name for the column — "WW1", "WW1 ·
+                    Long quiz" — never the bare `label`, which is NULL for
+                    every score written from the grid (F5, format/componentLabel.js). */}
+                <p className="break-words text-sm text-fg-secondary">{componentLabel(row)}</p>
                 {/* SHORT, not long, and the brief did not name this site:
                     it is a per-row secondary line in a dense list of
                     assessments, which is a table row's shape rather than a
@@ -205,7 +209,8 @@ function ExamList({ grade, mode }) {
   );
 }
 
-function BreakdownBody({ mode, detail }) {
+// Exported for ssr-smoke-round (F5), which renders the breakdown's labels.
+export function BreakdownBody({ mode, detail }) {
   const grade = detail.grade;
   const components = detail.grade_components || [];
   const ww = components.filter((row) => row.type === 'WW');

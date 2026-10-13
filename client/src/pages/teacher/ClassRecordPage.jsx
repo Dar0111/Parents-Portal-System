@@ -742,9 +742,11 @@ export default function ClassRecordPage() {
                   >
                     {groupLabel('Performance Tasks', weights?.pt ?? '—')}
                   </th>
+                  {/* Two summary columns here, not three: ST PS and ST WS.
+                      The group has no raw total (fix/smoke-round, F4). */}
                   <th
                     scope="colgroup"
-                    colSpan={EXAM_FIELDS.length + 3}
+                    colSpan={EXAM_FIELDS.length + 2}
                     data-group={descriptive ? 'Summative' : 'Summative Tests & Term Exam'}
                     className={`${th} border-l border-edge text-left`}
                   >
@@ -848,9 +850,17 @@ export default function ClassRecordPage() {
                     </th>
                   ))}
                   {/* "ST", by decision (2026-09-26) — the group's own codes
-                      are ST1 / ST2 / TE, and ST is the one they share. */}
-                  <th scope="col" className={totalTh}>ST Total</th>
-                  <th scope="col" className={totalTh}>ST PS</th>
+                      are ST1 / ST2 / TE, and ST is the one they share.
+
+                      NO "ST Total" (fix/smoke-round, F4). It printed the raw
+                      sum (59) over the summed maxima (80), which reads as the
+                      basis of ST PS — but ST PS is ST1 30% + ST2 30% + TE 40%,
+                      each part out of its own maximum (73.50, not 59/80 =
+                      73.75). The note under the grid says so. The server
+                      still sends ex_total; nothing here shows it. */}
+                  <th scope="col" className={totalTh} title="ST1 30% + ST2 30% + TE 40%">
+                    ST PS
+                  </th>
                   <th scope="col" className={totalTh}>ST WS</th>
 
                   <th scope="col" className={`${totalTh} border-l border-edge`}>Initial</th>
@@ -877,9 +887,13 @@ export default function ClassRecordPage() {
                       {cols.map((_, i) => (
                         <td key={`hps-${group}-${i}`} className={i === 0 ? 'border-l border-edge' : ''} />
                       ))}
-                      <td className="whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums">
-                        {groupHps?.[group] ?? '—'}
-                      </td>
+                      {/* No summed maximum under the Summative group: it has
+                          no total column (F4). */}
+                      {group === 'ex' ? null : (
+                        <td className="whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums">
+                          {groupHps?.[group] ?? '—'}
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                         {groupHps?.[group] === null || groupHps?.[group] === undefined ? '—' : '100.00'}
                       </td>
@@ -931,13 +945,16 @@ export default function ClassRecordPage() {
                           the class, exactly as the school's own record does
                           it. Repeating it on every line is what made the
                           group three columns wide for no information. */}
-                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-fg-body">
-                        {computed[`${group}_total`] === null || computed[`${group}_total`] === undefined ? (
-                          <GradeValue value={null} mode="numerical" />
-                        ) : (
-                          computed[`${group}_total`]
-                        )}
-                      </td>
+                      {/* The Summative group has no raw total (F4). */}
+                      {group === 'ex' ? null : (
+                        <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-fg-body">
+                          {computed[`${group}_total`] === null || computed[`${group}_total`] === undefined ? (
+                            <GradeValue value={null} mode="numerical" />
+                          ) : (
+                            computed[`${group}_total`]
+                          )}
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
                         <GradeValue value={computed[`${group}_percentage`]} mode="numerical" />
                       </td>
@@ -1028,6 +1045,17 @@ export default function ClassRecordPage() {
               </tbody>
             </table>
           </ScrollCue>
+
+          {/* HOW ST PS IS MADE, in words under the grid (fix/smoke-round, F4)
+              — touch has no hover, so the header's title alone is not enough.
+              DO 015 s. 2026 is cited for Grades 2–6 only: Grade 1's
+              Summative uses the same 30/30/40, but that is the school's rule
+              (GRADING_SPEC §6a), never DepEd's. */}
+          <p className="text-xs text-fg-muted">
+            {descriptive
+              ? 'ST PS = ST1 30% + ST2 30% + TE 40%, each part out of its own highest possible score — not the three scores added together.'
+              : 'ST PS = ST1 30% + ST2 30% + TE 40%, each part out of its own highest possible score (DO 015 s. 2026) — not the three scores added together.'}
+          </p>
 
           {server.learners.length === 0 ? (
             <div className={cardClass}>

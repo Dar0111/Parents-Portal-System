@@ -99,14 +99,19 @@ export default function ForgotPassword() {
     setNewError(null);
     setSubmitting(true);
     try {
-      await api.post(
+      const message = await api.post(
         '/auth/reset-password',
         { login_id: loginId.trim(), code: code.trim(), new_password: newPassword },
         { unwrap: 'message' }
       );
       // Straight to sign-in rather than a success screen with a link: there
       // is nothing else to do here, and the new password is fresh in mind.
-      navigate('/login', { replace: true });
+      // The server's own sentence ("Password updated. You can sign in now.")
+      // travels in the router's state and is shown there once
+      // (fix/smoke-round, F6) — it used to land on sign-in with no word that
+      // anything had worked. State, never the URL: nothing here may go in a
+      // query string (§5c), and this carries no login id anyway.
+      navigate('/login', { replace: true, state: { notice: message } });
     } catch (err) {
       const field = err?.response?.data?.field;
       if (field === 'new_password') setNewError(extractError(err));

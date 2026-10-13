@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roles';
 import extractError from '../api/extractError';
@@ -7,6 +7,7 @@ import api, { takeLogoutReason } from '../api/axios';
 import Button from '../components/Button';
 import { cardClass, linkClass } from '../components/buttonClass';
 import FormField, { controlClassFor } from '../components/FormField';
+import FormStatus, { ok } from '../components/FormStatus';
 import PasswordField from '../components/PasswordField';
 import Reveal from '../motion/Reveal';
 import seal from '../assets/school-seal.png';
@@ -99,6 +100,19 @@ export default function Login() {
   const [error, setError] = useState(() => takeLogoutReason());
   const [submitting, setSubmitting] = useState(false);
 
+  // A PASSWORD RESET'S CONFIRMATION (fix/smoke-round, F6): ForgotPassword
+  // sends the server's own sentence here in the router's state. Read once, in
+  // the initialiser, like the logout reason above; then the history entry is
+  // replaced without it, so a reload or Back shows nothing. A submit clears
+  // it, so it is never on screen beside a refused sign-in.
+  const location = useLocation();
+  const [notice, setNotice] = useState(() =>
+    typeof location.state?.notice === 'string' ? location.state.notice : ''
+  );
+  useEffect(() => {
+    if (location.state?.notice) navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   if (!loading && user) {
     return <Navigate to={roleHome(user.role)} replace />;
   }
@@ -106,6 +120,7 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setNotice('');
     setSubmitting(true);
 
     try {
@@ -202,6 +217,11 @@ export default function Login() {
               <h2 className="font-serif text-2xl font-bold text-fg lg:text-3xl">Welcome back</h2>
               <p className="mt-2 text-sm text-fg-muted lg:text-base">Sign in to continue.</p>
             </div>
+
+            {/* The reset's result, first thing in the card (F6) — the write
+                happened on the page before, so there is no control here to
+                sit under. FormStatus: role="status", the success tone. */}
+            {notice ? <FormStatus status={ok(notice)} className="mb-4" /> : null}
 
             <form onSubmit={handleSubmit} className="space-y-4 [&_input]:min-h-12 [&_input]:text-base">
               {/* FormField shape 4 rather than a new leading-icon prop on

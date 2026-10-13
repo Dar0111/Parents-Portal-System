@@ -255,9 +255,15 @@ export default function AdminGradesPage() {
     setStatus({});
     try {
       await api.patch(`/grades/${selectedEntry.grade_id}/lock`, { is_locked: next }, { unwrap: 'grade' });
-      setStatus({
-        card: ok(`${selected.subjectName}, Term ${selected.term} ${next ? 'locked' : 'unlocked'}.`),
-      });
+      // THE DIALOG CLOSES ON SUCCESS, BOTH WAYS, AND THE LINE STAYS
+      // (fix/smoke-round, F7). It used to stay open with this line behind
+      // it, and every way out ran closeCell, which clears status — so neither
+      // a lock nor an unlock left a word on screen. setSelected(null), never
+      // closeCell, so the line above the report card survives; the phone
+      // (GradeLockScreen) and the bulk dialog already close this way.
+      const line = `${selected.subjectName}, Term ${selected.term} ${next ? 'locked' : 'unlocked'}.`;
+      setSelected(null);
+      setStatus({ card: ok(line) });
       await loadReport();
     } catch (err) {
       setStatus({ lock: fail(extractError(err)) });
