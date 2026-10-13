@@ -150,9 +150,10 @@ function ComponentList({ title, rows, empty }) {
           {rows.map((row) => (
             <li key={row.id} className="flex items-baseline justify-between gap-3 py-2.5">
               <div className="min-w-0">
-                {/* The class record's name for the column — "WW1", "WW1 ·
-                    Long quiz" — never the bare `label`, which is NULL for
-                    every score written from the grid (F5, format/componentLabel.js). */}
+                {/* The column's name as the class record's helper promises —
+                    "Written Work 1", or a named column's own name — never the
+                    bare `label`, which is NULL for every score written from
+                    the grid (F5, format/componentLabel.js). */}
                 <p className="break-words text-sm text-fg-secondary">{componentLabel(row)}</p>
                 {/* SHORT, not long, and the brief did not name this site:
                     it is a per-row secondary line in a dense list of

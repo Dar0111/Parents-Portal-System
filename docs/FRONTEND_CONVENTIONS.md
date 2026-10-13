@@ -4053,14 +4053,21 @@ Display only: the computation is unchanged, and the server still sends
 `ex_total`, `ex_total_max` and `group_hps.ex` (`test:class-record` asserts
 them) — nothing on screen reads them. WW and PT keep their Total columns.
 
-### 32b. A parent's breakdown names each score as the class record does (F5)
+### 32b. A parent's breakdown names each score as the class record promises (F5)
 
-`format/componentLabel.js` (mirrored): a grid row is its column's CODE,
-"WW1", "PT2" — the grid header's own (`SlotHeader.jsx`) — and a named column
-is "WW1 · Long quiz"; a legacy row (no slot) keeps the server's
-`display_label`. The breakdown printed `row.label`, which is NULL for every
-score written from the grid, so its rows had scores and no names. The
-Examinations rows (ST1, ST2, TE) were already right.
+`format/componentLabel.js` (mirrored) keeps the promise the class record's
+own helper makes the teacher — "Left blank, this column is called “Written
+Work 1” here and on the parent's grade breakdown" (`SlotHeader.jsx`, the
+phone's `SlotScreen`): an unnamed column is **"Written Work N" /
+"Performance Task N"**, a named column is **its name alone** ("Group
+project"), a legacy row (no slot) keeps the server's `display_label`. That is
+the server's own `slotDisplayLabel`, and the proof checks the two agree. The
+breakdown printed `row.label`, which is NULL for every score written from the
+grid, so its rows had scores and no names. **The teacher's grid keeps its
+codes** ("PT1", the name under it), and the Examinations rows (ST1, ST2, TE)
+were already right. (The branch first shipped the grid's codes, "WW1" /
+"PT1 · Group project"; the owner changed it after the device check's section
+3, so the helper's sentence stays true.)
 
 ### 32c. Sign-in confirms a password reset (F6)
 

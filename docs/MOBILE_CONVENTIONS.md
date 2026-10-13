@@ -300,6 +300,15 @@ opens no dev menu (Expo Go disables it during load), so "no dev menu" is not
 evidence that the JS crashed; and Metro's "(1 module)" on a warm reload is
 the delta count, not a broken bundle.
 
+**After a BRANCH SWITCH in the main tree, restart Expo with `--clear` —
+a cold boot alone can serve a stale bundle (the owner, `fix/smoke-round`
+device check, 2026-10-13).** Metro had been started before `git switch`; the
+cold-booted app still showed the OLD slot-screen copy ("…highest possible:
+40 · weight 30%", "EX total 35/40"). Ctrl+C → `npx expo start --clear` → `a`
+loaded the branch, and the check passed. So the order after any checkout in
+the tree Metro serves is: stop Metro, `npx expo start --clear`, then the cold
+boot — and a phone result read before that restart is not a result.
+
 **Before RECORDING the phone for a demo, hide Expo Go's floating tools
 button and any phone edge-panel overlay** (Darryl, `feat/ui-polish` check,
 2026-09-30). Both float over the app and cover real controls — the From ×
@@ -1534,7 +1543,10 @@ FRONTEND §32 governs; this is where the phone differs.
   and each learner's live line is "ST PS 87.00 · WS …" — no "EX total x/y".
   Written Works and Performance Tasks keep "WW total 8/10 · PS …".
 - **F5 — the breakdown screen** names each row with the mirrored
-  `format/componentLabel.js` ("WW1", "PT1 · Group project").
+  `format/componentLabel.js` — the name the slot screen's own helper
+  promises ("Left blank, this column is called “Written Work 1” here and on
+  the parent's grade breakdown"): "Written Work 1", or a named column's name
+  alone ("Group project"). The teacher's grid keeps its codes.
 - **F6 — the reset returns with `popTo('Login', { notice })`.** Login is
   already mounted under the reset screen, so a state initialiser would never
   run again: it reads the param on FOCUS (`useFocusEffect`), shows the

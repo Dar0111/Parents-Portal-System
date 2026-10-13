@@ -4,8 +4,11 @@
 //
 // What it proves, each source check with a NEGATIVE CONTROL that must fail:
 //   - F5: the mirrored src/format/componentLabel.js DRIVEN on every row shape
-//     (the web proof holds the same strings) and byte-equal to the web's; the
-//     breakdown screen names a row with it, never the bare row.label;
+//     — the name the class record's helper promises ("Written Work 1", a named
+//     column's own name), never the grid's code; the web proof holds the same
+//     strings and checks them against the server's slotDisplayLabel — and
+//     byte-equal to the web's; the breakdown screen names a row with it,
+//     never the bare row.label;
 //   - F4: the slot screen names the Summative composite (ST1 30% + ST2 30% +
 //     TE 40%) instead of a summed maximum, and a Summative part's live line is
 //     "ST PS …" with no raw total — Written Works and Performance Tasks keep
@@ -37,19 +40,30 @@ function proved(label, holds, real, ...controls) {
 }
 
 // ---------------------------------------------------------------- F5
-console.log('F5 — a breakdown row is named the way the class record names it');
+console.log("F5 — a breakdown row is named the way the class record's helper promises");
 const ww1 = { slot_id: 11, slot_type: 'WW', slot_no: 1, slot_name: null, label: null, display_label: 'Written Work 1' };
-assert(componentLabel(ww1) === 'WW1', 'an unnamed grid column is its code: WW1');
-assert(componentLabel({ ...ww1, slot_type: 'PT', slot_no: 2, display_label: 'Performance Task 2' }) === 'PT2', 'PT2');
-assert(componentLabel({ ...ww1, slot_name: '  Long quiz ', display_label: 'Long quiz' }) === 'WW1 · Long quiz', 'a named column: the code, then the trimmed name');
-assert(componentLabel({ ...ww1, slot_name: '   ' }) === 'WW1', 'a blank name is no name');
+assert(componentLabel(ww1) === 'Written Work 1', 'an unnamed grid column is its full name: Written Work 1');
+assert(componentLabel({ ...ww1, slot_type: 'PT', slot_no: 2, display_label: 'Performance Task 2' }) === 'Performance Task 2', 'Performance Task 2');
+assert(componentLabel({ ...ww1, slot_name: '  Long quiz ', display_label: 'Long quiz' }) === 'Long quiz', 'a named column: its trimmed name alone');
+assert(componentLabel({ ...ww1, slot_name: '   ' }) === 'Written Work 1', 'a blank name is no name');
 assert(
   componentLabel({ slot_id: null, slot_type: null, slot_no: null, slot_name: null, label: 'Quiz 3', display_label: 'Quiz 3' }) === 'Quiz 3',
   'a legacy row (no slot) keeps the label it was written with'
 );
 assert(componentLabel({ slot_id: null, label: null, display_label: 'Written Work' }) === 'Written Work', "a legacy row with no label: the server's display_label");
 assert(componentLabel(null) === '' && componentLabel({}) === '', 'nothing → an empty string');
-assert(componentLabel({ ...ww1, label: 'stale' }) === 'WW1', "a grid row's code wins over any stored label");
+assert(componentLabel({ ...ww1, label: 'stale', display_label: 'stale too' }) === 'Written Work 1', "a grid row's own slot wins over any stored label");
+proved(
+  "never the grid's code: no grid row comes out as WW1 / PT1 or with a code in front of its name",
+  (label) =>
+    [ww1, { ...ww1, slot_type: 'PT', slot_no: 1, slot_name: 'Group project' }, { ...ww1, slot_no: 3 }].every(
+      (r) => !/^(WW|PT)\d+\b/.test(label(r))
+    ),
+  componentLabel,
+  // The code form this branch first shipped, and a named column behind its code.
+  (r) => `${r.slot_type}${r.slot_no}`,
+  (r) => (r.slot_name ? `${r.slot_type}${r.slot_no} · ${r.slot_name}` : `${r.slot_type}${r.slot_no}`)
+);
 const mirror = read('src/format/componentLabel.js');
 const web = fs.readFileSync(path.join(MOBILE, '..', 'client', 'src', 'format', 'componentLabel.js'), 'utf8').replace(/\r\n/g, '\n');
 proved('the module is byte-equal to the web\'s (a mirror)', (s) => s === web, mirror, `${mirror}\n`);

@@ -37,7 +37,7 @@ export const PAIRS = [
   ['src/format/scorePair.js', 'format/scorePair.js'],
   // fix/grade-locks — the bulk lock's words and request, web and phone.
   ['src/format/gradeLocks.js', 'format/gradeLocks.js'],
-  // fix/smoke-round (F5) — a breakdown row's name, the class record's code.
+  // fix/smoke-round (F5) — a breakdown row's name, as the class record's helper promises.
   ['src/format/componentLabel.js', 'format/componentLabel.js'],
   ['src/screens/dashboards/useCard.js', 'pages/dashboards/useCard.js'],
   ['src/screens/parent/excuseLetters/card.jsx', 'pages/parent/excuseLetters/card.jsx'],

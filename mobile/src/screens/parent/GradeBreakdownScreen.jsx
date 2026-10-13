@@ -65,8 +65,9 @@ function ComponentList({ title, rows, empty }) {
           {rows.map((row, i) => (
             <View key={row.id} className={`flex-row items-baseline justify-between gap-3 py-2.5 ${i > 0 ? 'border-t border-edge-soft' : ''}`}>
               <View className="min-w-0 flex-1">
-                {/* The class record's name for the column (F5): "WW1", "WW1 ·
-                    Long quiz" — the web's mirrored componentLabel. */}
+                {/* The column's name as the class record's helper promises
+                    (F5): "Written Work 1", or a named column's own name — the
+                    web's mirrored componentLabel. */}
                 <Text className="text-sm text-fg-secondary">{componentLabel(row)}</Text>
                 {row.date_recorded ? (
                   <Text className="text-xs text-fg-muted" style={{ fontVariant: ['tabular-nums'] }}>

@@ -8,10 +8,12 @@
 //     header row nor a learner's row prints a Summative raw total, ST PS
 //     carries the 30/30/40 title, and the note under the grid is the approved
 //     copy — the DO 015 citation for Grades 2–6 only;
-//   - F5, DRIVEN and RENDERED: format/componentLabel.js on every row shape,
-//     and the parent's breakdown rendered from GET /api/grades/:id's shape —
-//     "WW1", "PT1 · Group project", a legacy row's own label, and the
-//     Examinations rows unchanged;
+//   - F5, DRIVEN and RENDERED: format/componentLabel.js on every row shape —
+//     the name the class record's helper promises ("Written Work 1", a named
+//     column's own name), equal to the SERVER's slotDisplayLabel for every
+//     grid row, and never the grid's code — and the parent's breakdown
+//     rendered from GET /api/grades/:id's shape: "Written Work 1", "Group
+//     project", a legacy row's own label, the Examinations rows unchanged;
 //   - F6, RENDERED: Login shows the reset's sentence (role="status") when the
 //     router's state carries it and nothing without it; ForgotPassword sends
 //     the server's message in that state, never in the URL; and the history
@@ -26,6 +28,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { componentLabel } from '../src/format/componentLabel.js';
 import { BreakdownBody } from '../src/pages/parent/GradesPage.jsx';
 import Login from '../src/pages/Login.jsx';
@@ -100,15 +103,18 @@ proved(
 );
 
 // ---------------------------------------------------------------- F5
-console.log('F5 — a breakdown row is named the way the class record names it');
+console.log("F5 — a breakdown row is named the way the class record's helper promises");
 const ww1 = { slot_id: 11, slot_type: 'WW', slot_no: 1, slot_name: null, label: null, display_label: 'Written Work 1' };
-assert(componentLabel(ww1) === 'WW1', 'an unnamed grid column is its code: WW1');
-assert(componentLabel({ ...ww1, slot_type: 'PT', slot_no: 2, display_label: 'Performance Task 2' }) === 'PT2', 'PT2');
+assert(componentLabel(ww1) === 'Written Work 1', 'an unnamed grid column is its full name: Written Work 1');
 assert(
-  componentLabel({ ...ww1, slot_name: '  Long quiz ', display_label: 'Long quiz' }) === 'WW1 · Long quiz',
-  'a named column: the code, then the trimmed name'
+  componentLabel({ ...ww1, slot_type: 'PT', slot_no: 2, display_label: 'Performance Task 2' }) === 'Performance Task 2',
+  'Performance Task 2'
 );
-assert(componentLabel({ ...ww1, slot_name: '   ' }) === 'WW1', 'a blank name is no name');
+assert(
+  componentLabel({ ...ww1, slot_name: '  Long quiz ', display_label: 'Long quiz' }) === 'Long quiz',
+  'a named column: its trimmed name alone'
+);
+assert(componentLabel({ ...ww1, slot_name: '   ' }) === 'Written Work 1', 'a blank name is no name');
 assert(
   componentLabel({ slot_id: null, slot_type: null, slot_no: null, slot_name: null, label: 'Quiz 3', display_label: 'Quiz 3' }) === 'Quiz 3',
   'a legacy row (no slot) keeps the label it was written with'
@@ -119,8 +125,28 @@ assert(
 );
 assert(componentLabel(null) === '' && componentLabel({}) === '', 'nothing → an empty string, never "undefined"');
 assert(
-  componentLabel({ ...ww1, label: 'stale' }) === 'WW1',
-  "a grid row's code wins over any stored label"
+  componentLabel({ ...ww1, label: 'stale', display_label: 'stale too' }) === 'Written Work 1',
+  "a grid row's own slot wins over any stored label"
+);
+
+// The server's own rule, loaded from server/utils (pure, no requires): the
+// helper's promise holds only while the two agree, on every grid row shape.
+const { slotDisplayLabel } = createRequire(path.resolve('package.json'))('../server/utils/validateScore.js');
+const SHAPES = [
+  ['WW', 1, null],
+  ['WW', 5, ''],
+  ['PT', 3, null],
+  ['PT', 1, 'Group project'],
+  ['WW', 2, '  Long quiz '],
+  ['PT', 2, '   '],
+];
+proved(
+  "equal to the server's slotDisplayLabel for every grid row shape — never the grid's code",
+  (label) => SHAPES.every(([type, no, name]) => label({ slot_id: 9, slot_type: type, slot_no: no, slot_name: name }) === slotDisplayLabel(type, no, name)),
+  componentLabel,
+  // The code form this branch first shipped, and a named column behind its code.
+  (r) => `${r.slot_type}${r.slot_no}`,
+  (r) => (r.slot_name && r.slot_name.trim() ? `${r.slot_type}${r.slot_no} · ${r.slot_name.trim()}` : `${r.slot_type}${r.slot_no}`)
 );
 
 // GET /api/grades/:id — { grade, grade_components, descriptor }, mysql2's
@@ -144,12 +170,21 @@ const detail = {
 };
 const breakdown = renderToStaticMarkup(<BreakdownBody mode="numerical" detail={detail} />);
 proved(
-  'the breakdown RENDERS "WW1", "PT1 · Group project" and the legacy "Quiz 3" beside their scores',
-  (h) => h.includes('>WW1<') && h.includes('>PT1 · Group project<') && h.includes('>Quiz 3<') && h.includes('8/10') && h.includes('9/10'),
+  'the breakdown RENDERS "Written Work 1", "Group project" and the legacy "Quiz 3" beside their scores — no grid code',
+  (h) =>
+    h.includes('>Written Work 1<') &&
+    h.includes('>Group project<') &&
+    h.includes('>Quiz 3<') &&
+    h.includes('8/10') &&
+    h.includes('9/10') &&
+    !/>(WW|PT)\d+</.test(h) &&
+    !h.includes('PT1 · '),
   breakdown,
   // What the parent saw before: the name cell empty.
-  breakdown.replace('>WW1<', '><'),
-  breakdown.replace('>PT1 · Group project<', '><')
+  breakdown.replace('>Written Work 1<', '><'),
+  // The code form this branch first shipped.
+  breakdown.replace('>Written Work 1<', '>WW1<'),
+  breakdown.replace('>Group project<', '>PT1 · Group project<')
 );
 proved(
   'the Examinations rows are unchanged: ST1, ST2, TE',

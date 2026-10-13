@@ -1728,7 +1728,8 @@ M26–M27.
       1b — Admin → Grades "Lock or unlock a term", web and phone
       (`POST /api/grades/locks`); F4 — the class record prints no Summative
       raw total, ST PS is ST1 30% + ST2 30% + TE 40%; F5 — a parent's
-      breakdown names each score "WW1", "PT1 · <name>"; F6 — sign-in confirms
+      breakdown names each score "Written Work 1" or the column's own name,
+      as the class record's helper promises; F6 — sign-in confirms
       a password reset; F7 — a per-row lock or unlock closes its dialog and
       keeps the line (FRONTEND §32, MOBILE M29). **Gated; device check
       PENDING (`docs/GRADE_LOCKS_DEVICE_CHECK.md`); not merged.** F3 was cut

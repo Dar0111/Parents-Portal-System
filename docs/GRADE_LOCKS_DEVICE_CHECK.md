@@ -104,8 +104,11 @@ ids (the 8 `grade_available` rows to Tala's parent). The 8
 
 ## 4. Checklist — given to the owner ONE SECTION AT A TIME
 
-Web: Chrome at 3000, also at 390px, both themes. Phone: the emulator, a cold
-boot after the switch (never `r`).
+Web: Chrome at 3000, also at 390px, both themes. Phone: the emulator —
+**after the switch (or any checkout in the main tree), stop Metro and run
+`npx expo start --clear`, then cold-boot** (never `r`). Learned in section 3:
+Metro started before the switch kept serving the old bundle, and a cold boot
+alone showed the old slot-screen copy (MOBILE M7).
 
 **1. Admin — web**
 1. Admin → Grades: "Lock or unlock a term" beside "Report card".
@@ -167,10 +170,13 @@ Mathematics, Grade 6 - Malikhain, Term 2:
 **4. Tala's parent — web, then emulator.** The consent screen comes first (the
 restore removed this account's acceptance): accept, then continue — the
 cleanup removes it again for the demo.
-1. **F5, web:** Grades → tap Mathematics, Term 2 → "Written Works": "WW1"
-   8/10; "Performance Tasks": "PT1 · Group project" 9/10; "Examinations":
-   ST1 8/10, ST2 9/10, TE 18/20. Any other subject's Term 2: "WW1" 8/10,
-   "PT1" 9/10.
+1. **F5, web:** Grades → tap Mathematics, Term 2 → "Written Works": "Written
+   Work 1" 8/10; "Performance Tasks": "Group project" 9/10; "Examinations":
+   ST1 8/10 · ST2 9/10 · TE 18/20. Any other subject's Term 2: "Written Work
+   1" 8/10, "Performance Task 1" 9/10. (Changed by the owner after section 3:
+   the breakdown keeps the class record helper's promise — "Left blank, this
+   column is called “Written Work 1” here and on the parent's grade
+   breakdown"; the teacher's grid keeps its codes.)
 2. **F5, emulator:** Grades → Mathematics → Term 2 → the same three groups and
    labels.
 
