@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-13, `fix/grade-locks` — a locked learner freezes the class's highest possible scores, and Admin → Grades locks or unlocks a whole term: gated, suites run, not device-checked, not merged (on `main` `afccdd8`, `fix/web-load-races` merged 2026-10-12) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-13, `fix/smoke-round` — the grade locks (1a, 1b) and the smoke gate's F4–F7: gated, not device-checked, not merged (on `main` `afccdd8`, `fix/web-load-races` merged 2026-10-12) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1507,6 +1507,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
+| **Badged pages clear only from the bell; visiting the page does not** — added 2026-10-13 (the smoke gate's F3, cut from `fix/smoke-round`) | `layout/Shell.jsx` + `mobile/src/navigation/DrawerContent.jsx` + `routes/notifications.js` | Every badged page, web and phone. One pass after the professor's check: `PATCH /read-all` with an optional `section`, called by each page after its first load — never client arithmetic (§10) |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1721,19 +1722,24 @@ items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved from
 CLAUDE.md on 2026-10-11" (two batches); rules: §5, §5f–§5g, §29–§30, M11,
 M26–M27.
 
-- [ ] **Grade locks — `fix/grade-locks`** (2026-10-13; the owner's Finding
-      1): 1a — a locked learner freezes the class's highest possible scores
-      (`409` naming them); 1b — Admin → Grades "Lock or unlock a term" on the
-      web and the phone (`POST /api/grades/locks`, preview first, the skipped
-      learners listed). **Gated, suites run; device check PENDING in the
-      smoke-gate fix round (`docs/GRADE_LOCKS_DEVICE_CHECK.md`); not merged.**
+- [ ] **Grade locks and the smoke-gate fix round — `fix/smoke-round`**
+      (2026-10-13; `fix/grade-locks` plus four findings): 1a — a locked
+      learner freezes the class's highest possible scores (`409` naming them);
+      1b — Admin → Grades "Lock or unlock a term", web and phone
+      (`POST /api/grades/locks`); F4 — the class record prints no Summative
+      raw total, ST PS is ST1 30% + ST2 30% + TE 40%; F5 — a parent's
+      breakdown names each score "WW1", "PT1 · <name>"; F6 — sign-in confirms
+      a password reset; F7 — a per-row lock or unlock closes its dialog and
+      keeps the line (FRONTEND §32, MOBILE M29). **Gated; device check
+      PENDING (`docs/GRADE_LOCKS_DEVICE_CHECK.md`); not merged.** F3 was cut
+      (KNOWN ISSUES).
 
-**NEXT, in order (the owner's plan, 2026-10-13):** the **smoke gate by Thu
-2026-10-15** (a real restore after a fresh backup, and SMS) and its fix
-round — `fix/grade-locks`' device check, its fixture on the owner's word,
-then its merge on the owner's word → **professor system check, Fri
-2026-10-16**. The manuscript delta list stays with the team. After the
-check: the cloud (Supabase) migration planning only.
+**NEXT, in order (the owner's plan, 2026-10-13):** the device check of
+`fix/smoke-round` and its fixture tonight, then its merge on the owner's
+word → **professor system check, Wed 2026-10-14, about 12:00**. The
+manuscript delta list stays with the team. After the check: badged pages
+clear on a visit (KNOWN ISSUES), then the cloud (Supabase) migration
+planning only.
 
 ### Stage 6 — Integration
 

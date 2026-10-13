@@ -1523,3 +1523,28 @@ apply button's condition, `popTo` and no `navigate('Main'`, no LRN, the
 header button, the report card's `reportIsPick` / `reportWaiting` lines
 verbatim, the route. **The phone check owns** a real preview and lock, the
 48dp targets and a tap (`docs/GRADE_LOCKS_DEVICE_CHECK.md`, PENDING).
+
+## M29. The smoke gate's fix round on the phone (`fix/smoke-round`, 2026-10-13)
+
+FRONTEND §32 governs; this is where the phone differs.
+
+- **F4 — the slot screen, a Summative part only.** The group line reads
+  "Summative Tests & Term Exam: ST1 30% + ST2 30% + TE 40% · weight N%"
+  ("Summative: …" for Grade 1) instead of a summed highest possible score,
+  and each learner's live line is "ST PS 87.00 · WS …" — no "EX total x/y".
+  Written Works and Performance Tasks keep "WW total 8/10 · PS …".
+- **F5 — the breakdown screen** names each row with the mirrored
+  `format/componentLabel.js` ("WW1", "PT1 · Group project").
+- **F6 — the reset returns with `popTo('Login', { notice })`.** Login is
+  already mounted under the reset screen, so a state initialiser would never
+  run again: it reads the param on FOCUS (`useFocusEffect`), shows the
+  success `FormStatus` first in the card, clears the param at once (admin
+  Grades' notice pattern, M28) and drops it on a sign-in attempt.
+- **F7 needs nothing on the phone:** the lock sheet already pops back with
+  "<Subject>, Term N locked." or "… unlocked." in both directions.
+
+**Proof:** `scripts/proof-smoke-round.mjs` (TESTING → Mobile proofs) — the
+mirrored module driven and byte-equal to the web's, and as source the slot
+screen's two lines, the breakdown's label, the reset's `popTo` and Login's
+focus read, each with a control. **The emulator check owns** what is drawn
+and a real reset.

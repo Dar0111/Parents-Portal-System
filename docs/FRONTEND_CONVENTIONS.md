@@ -4025,3 +4025,68 @@ lines `fix/web-load-races` added (`main`'s `GradesPage.jsx:247`, `:539`,
 the header line after a close — the owner's device check
 (`docs/GRADE_LOCKS_DEVICE_CHECK.md`, PENDING).
 
+## 32. The smoke gate's fix round — four findings, words and wiring only (`fix/smoke-round`, 2026-10-13)
+
+The owner's smoke-gate findings F4–F7, built on `fix/grade-locks` so one
+merge brings both. No server change: every value below was already in the
+API's reply. F3 (a visit should clear a page's badge) was cut for the
+professor's check and is a KNOWN ISSUES row for every badged page.
+
+### 32a. The class record prints no Summative raw total (F4)
+
+ST PS is **ST1 30% + ST2 30% + TE 40%, each part out of its own highest
+possible score** (DO 015 s. 2026; `gradeComputation.exPercentage`). The grid
+used to print "ST Total" (59) under a Highest possible total (80), which
+reads as the basis of a PS it is not — 73.50, not 59/80 = 73.75. Now
+`ClassRecordPage.jsx` has **no ST Total column** (the group spans its three
+fields + 2), the Highest possible row prints nothing under it, ST PS carries
+`title="ST1 30% + ST2 30% + TE 40%"`, and **a line under the grid says it in
+words** — touch has no hover:
+
+- Grades 2–6: "ST PS = ST1 30% + ST2 30% + TE 40%, each part out of its own
+  highest possible score (DO 015 s. 2026) — not the three scores added
+  together."
+- Grade 1: the same **without the citation** — its Summative uses the same
+  weights, but that is the school's rule (GRADING_SPEC §6a), never DepEd's.
+
+Display only: the computation is unchanged, and the server still sends
+`ex_total`, `ex_total_max` and `group_hps.ex` (`test:class-record` asserts
+them) — nothing on screen reads them. WW and PT keep their Total columns.
+
+### 32b. A parent's breakdown names each score as the class record does (F5)
+
+`format/componentLabel.js` (mirrored): a grid row is its column's CODE,
+"WW1", "PT2" — the grid header's own (`SlotHeader.jsx`) — and a named column
+is "WW1 · Long quiz"; a legacy row (no slot) keeps the server's
+`display_label`. The breakdown printed `row.label`, which is NULL for every
+score written from the grid, so its rows had scores and no names. The
+Examinations rows (ST1, ST2, TE) were already right.
+
+### 32c. Sign-in confirms a password reset (F6)
+
+`ForgotPassword` keeps the server's own sentence — "Password updated. You can
+sign in now." — and passes it to `/login` in the **router's state, never the
+URL** (§5c). `Login` reads it once in a state initialiser, shows it as a
+success `FormStatus` first in the card, replaces the history entry without it
+(a reload or Back shows nothing), and a sign-in attempt clears it, so it never
+sits beside a refusal. The reset accepts the current password as the new one
+(the server checks the rule only).
+
+### 32d. A per-row lock or unlock closes its dialog and keeps the line (F7)
+
+Admin → Grades' lock dialog used to stay open after a lock or an unlock with
+"<Subject>, Term N locked." / "… unlocked." set BEHIND it, and every way out
+ran `closeCell`, which clears the status — so neither direction left a word
+on screen. Now `toggleLock`'s success path calls `setSelected(null)` (never
+`closeCell`) and then sets the line above the report card — the same for
+both directions, as the phone's lock sheet and the bulk dialog already
+behaved. A failure still shows inside the dialog.
+
+### 32e. What proves it
+
+`scripts/ssr-smoke-round.jsx` (TESTING): F4 as source (the class record needs
+a live API), F5 driven and RENDERED from `GET /api/grades/:id`'s shape, F6
+RENDERED with and without the router state, F7 as source — each with a
+control. **Cannot prove** a real save, a real reset, a real lock or the dialog
+closing on screen — the device check (`docs/GRADE_LOCKS_DEVICE_CHECK.md`).
+
