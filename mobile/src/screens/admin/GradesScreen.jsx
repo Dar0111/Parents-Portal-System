@@ -5,6 +5,7 @@ import api from '../../api/client';
 import extractError from '../../api/extractError';
 import { createTickets } from '../../api/tickets';
 import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -15,6 +16,7 @@ import { ReportCardSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
+import { LOCK_TERM_LABEL } from '../../format/gradeLocks';
 import useSkeleton from '../../hooks/useSkeleton';
 import Icon from '../../icons';
 import { useSocket } from '../../realtime/SocketProvider';
@@ -31,7 +33,8 @@ import { REPORT_UNWRAP } from '../parent/ReportCardView';
 // is not a button. A locked cell carries the lock mark. DELETE is
 // deliberately not surfaced (KNOWN ISSUES). No verdicts (§4): numbers,
 // letters, Pending and N/A only. Re-reads on focus, so a lock or unlock shows
-// on return from the sheet (M14).
+// on return from the sheet (M14). A WHOLE TERM AT ONCE (fix/grade-locks,
+// 2026-10-13): the header's "Lock or unlock a term" opens GradeLocksScreen.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-03) is the web's: the section's header,
 // the picker in its own card, the learner's header card (initials only — a
@@ -422,7 +425,20 @@ export default function GradesScreen({ navigation, route }) {
       contentContainerClassName="gap-4 p-4 pb-10"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pullToRefresh} tintColor={tokens['fg-muted']} colors={[tokens.brand]} />}
     >
-      <SectionHeader title="Report card" />
+      <SectionHeader
+        title="Report card"
+        actions={
+          <Button
+            icon="fa-lock"
+            onPress={() => {
+              setStatus(null);
+              navigation.navigate('GradeLocks');
+            }}
+          >
+            {LOCK_TERM_LABEL}
+          </Button>
+        }
+      />
 
       {/* THE PICKER CARD. Each choice acts at once and narrows the next —
           there is no Apply here. */}

@@ -35,6 +35,8 @@ export const PAIRS = [
   ['src/format/date.js', 'format/date.js'],
   ['src/format/schoolCalendar.js', 'format/schoolCalendar.js'],
   ['src/format/scorePair.js', 'format/scorePair.js'],
+  // fix/grade-locks — the bulk lock's words and request, web and phone.
+  ['src/format/gradeLocks.js', 'format/gradeLocks.js'],
   ['src/screens/dashboards/useCard.js', 'pages/dashboards/useCard.js'],
   ['src/screens/parent/excuseLetters/card.jsx', 'pages/parent/excuseLetters/card.jsx'],
   // Branch 3 — the teacher screens.

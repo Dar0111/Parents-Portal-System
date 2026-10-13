@@ -32,6 +32,7 @@ import PostReadScreen from '../screens/parent/PostReadScreen';
 import AdminAnnouncementsScreen from '../screens/admin/AnnouncementsScreen';
 import AdminAttendanceScreen from '../screens/admin/AttendanceScreen';
 import AdminGradeLockScreen from '../screens/admin/GradeLockScreen';
+import AdminGradeLocksScreen from '../screens/admin/GradeLocksScreen';
 import AdminGradesScreen from '../screens/admin/GradesScreen';
 import AdminPostComposeScreen from '../screens/admin/PostComposeScreen';
 import AdminStudentDetailScreen from '../screens/admin/StudentDetailScreen';
@@ -342,6 +343,7 @@ export default function AppShell() {
       <Stack.Screen name="SchoolSettings" component={SchoolSettingsScreen} options={{ title: 'School settings' }} />
       <Stack.Screen name="AdminStudentDetail" component={AdminStudentDetailScreen} options={{ title: 'Student' }} />
       <Stack.Screen name="GradeLock" component={AdminGradeLockScreen} options={{ presentation: 'modal', title: 'Lock or unlock' }} />
+      <Stack.Screen name="GradeLocks" component={AdminGradeLocksScreen} options={{ presentation: 'modal', title: 'Lock or unlock a term' }} />
       <Stack.Screen
         name="PostCompose"
         component={AdminPostComposeScreen}
