@@ -2,10 +2,11 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**98 handlers** across 16 route files, documented as **19 endpoint tables
+**100 handlers** across 16 route files, documented as **19 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **99 endpoints** (both +1 on 2026-10-13: `POST /api/grades/locks`,
+`server.js` = **101 endpoints** (both +2 on 2026-10-18: `PUT /api/auth/email`
+and `PUT /api/auth/first-password`, feat/first-signin; both +1 on 2026-10-13: `POST /api/grades/locks`,
 fix/grade-locks; both +3 on 2026-10-10: `GET /api/policy`,
 `GET /api/policy/status`, `POST /api/policy/accept`, feat/privacy; both +3 on 2026-09-30: `PUT` and
 `DELETE /api/auth/photo`, `DELETE /api/users/:id/photo`, feat/profile-photos;
@@ -262,10 +263,20 @@ another teacher is `403`, not `404`. Anti-enumeration does not apply —
 `GET /api/messages/contacts` already lists every teacher this caller may
 see, by name. A 404 would hide nothing and cost clarity. Do not "fix" it.
 
-### 5b. Three whole-session refusals every endpoint can return (R1, 2026-09-19; the third since feat/privacy, 2026-10-10)
+### 5b. Four whole-session refusals every endpoint can return (R1, 2026-09-19; consent since feat/privacy, 2026-10-10; the contact step and the new order since feat/first-signin, 2026-10-18)
 
-All three come from `middleware/auth.js`, before any handler runs, so they
-are not listed per row.
+All four come from `middleware/auth.js`, before any handler runs, so they
+are not listed per row. **The three account gates are one module,
+`server/utils/accountGates.js`, in the owner's order — consent, then the
+contact, then the password — and only the FIRST pending one answers.** Each
+lets through only its own paths, matched on the FULL path
+(`req.baseUrl + req.path`) and the method — the forced change used to match
+the router-relative path, so any router's `/me` passed it. The socket
+handshake refuses with the same module (§6), and `/auth/me` says which step
+is next (`policy_pending`, `contact_pending` + `contact_step`,
+`must_change_password`). **`PUT /api/auth/change-password` passes NO gate**:
+an account in the forced state sets its password through
+`PUT /api/auth/first-password`.
 
 - **`401` "Your password was changed. Please log in again."** — the token's
   `v` claim does not equal the account's `users.token_version`. **That
@@ -277,28 +288,39 @@ are not listed per row.
   every step of a scripted flow lands inside the same second. Two attempts
   failed that way before the counter; the long note is in
   `middleware/auth.js`.
-- **`403` `{ message: "You must change your password before continuing.",
-  code: "MUST_CHANGE_PASSWORD" }`** — `users.must_change_password` is set.
-  Only `PUT /api/auth/change-password` and `GET /api/auth/me` are allowed
-  through. **This 403 is a backstop for direct API callers, not a redirect
-  signal**: §2 of CLAUDE.md's frontend conventions says a 403 never
-  redirects, and the web client routes on the `must_change_password` field
-  it already has from `/auth/me`. Do not add a client branch on this code.
-  **Set at creation since 2026-10-10** for a teacher the admin creates and a
-  parent an adviser creates — whoever typed the password, the account holder
-  picks their own.
-- **`403` `{ message: "Please accept the Data Privacy Notice and the Terms of
+- **1. `403` `{ message: "Please accept the Data Privacy Notice and the Terms of
   Use before continuing.", code: "POLICY_ACCEPTANCE_REQUIRED" }`** (the
   consent gate, feat/privacy, 2026-10-10) — an account that has not accepted
   the CURRENT version of both documents (`server/policy/versions.json`): a
   **parent**, and since feat/staff-acceptance (2026-10-11) **a teacher or the
-  admin** too — every role, one count, no role branch.
-  Only `GET /api/auth/me`, `PUT /api/auth/change-password` and `/api/policy/*`
-  are allowed through, and it is checked AFTER the forced change, so an account
-  with both flags meets `MUST_CHANGE_PASSWORD` first. The same backstop shape:
-  the clients route on `/auth/me`'s `policy_pending`, never on this 403. The
-  count is a subquery on the users read the middleware already makes — no
-  extra round trip.
+  admin** too — every role, one count, no role branch. Only `GET /api/auth/me`
+  and `/api/policy` / `/api/policy/*` are allowed through. **FIRST since
+  feat/first-signin** (it came after the forced change until then). The
+  clients route on `/auth/me`'s `policy_pending`, never on this 403. The count
+  is a subquery on the users read the middleware already makes — no extra
+  round trip.
+- **2. `403` `{ message: "Confirm your Gmail or mobile number before
+  continuing.", code: "CONTACT_VERIFICATION_REQUIRED" }`** (feat/first-signin,
+  2026-10-18) — an account with neither a confirmed email (`email` +
+  `email_verified_at`) nor a confirmed number (`contact_number` +
+  `contact_verified_at`); and an account in the forced-change state that has
+  not confirmed one SINCE THIS SIGN-IN — a confirmation stamp at or after the
+  token's `iat` (both whole seconds; both confirm endpoints re-stamp on every
+  good code), so a temporary password on a confirmed account is confirmed
+  again (decision D2). Allowed through: the two above, plus `PUT /api/auth/email`,
+  `PUT /api/auth/contact` and the four `POST /api/auth/verify-email|verify-contact/request|confirm`.
+  `/auth/me` carries `contact_pending` and `contact_step` (`'add'`,
+  `'reconfirm'`, or null).
+- **3. `403` `{ message: "You must change your password before continuing.",
+  code: "MUST_CHANGE_PASSWORD" }`** — `users.must_change_password` is set
+  (at creation since 2026-10-10 for a teacher the admin creates and a parent
+  an adviser creates; by an admin temporary password). LAST since
+  feat/first-signin. Only `GET /api/auth/me`, `/api/policy/*` and
+  `PUT /api/auth/first-password` are allowed through. **These 403s are a
+  backstop for direct API callers, not a redirect signal**: §2 of CLAUDE.md's
+  frontend conventions says a 403 never redirects, and both clients route on
+  `/auth/me`'s fields through the mirrored `auth/accountSteps.js` `nextStep()`.
+  Do not add a client branch on these codes.
 
 The **global** cutoff (`auth_security_state.token_valid_after`, set only by
 a restore) is unchanged and still a timestamp — it revokes everything at
@@ -318,7 +340,9 @@ another, so a database failure can never be reported as a token failure.
 | `401` | `User not found.` | the token's `id` has no `users` row | logout + `/login` |
 | `401` | `Account is not active.` | `users.status` ≠ `active` | logout + `/login` |
 | `401` | `Your password was changed. Please log in again.` | token `v` ≠ `users.token_version` (§5b) | logout + `/login` |
-| `403` | `You must change your password before continuing.` + `code` | `must_change_password`, off `/me` and `/change-password` (§5b) | routed on the field, never the 403 |
+| `403` | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` + `code` | the first of the three account gates, off its paths (§5b) | routed on the field, never the 403 |
+| `403` | `Confirm your Gmail or mobile number before continuing.` + `code` | the second gate (feat/first-signin), off its paths (§5b) | routed on the field, never the 403 |
+| `403` | `You must change your password before continuing.` + `code` | the third gate, off `/me`, `/api/policy/*` and `PUT /first-password` (§5b) | routed on the field, never the 403 |
 | **`503`** | **`Database unreachable.`** | **any throw inside the database block — the pool's error, MySQL down, a connection lost.** The health endpoint's body, verbatim | **keeps the token**; `AuthUnavailable` + Try again (§22); every other page shows the message in its own `ErrorAlert` |
 
 **`GET /auth/me`** adds one row: a connection-level error in its own read is
@@ -333,7 +357,8 @@ and null. The same file holds the frozen body and `sendDbUnavailable(res,
 context, err)`, which logs the context and sends it. `GET /api/health`
 already answers that body from its own catch and is the third place the
 shape appears; a fourth should import it. Proved by `test:auth-middleware`
-(23) on a stubbed pool.
+(48 since feat/first-signin, the three gates and their paths included) on a
+stubbed pool.
 
 ---
 
@@ -360,14 +385,19 @@ shape appears; a fourth should import it. Proved by `test:auth-middleware`
   | 3 | `Session invalidated by a database restore. Please log in again.` | — | `iat` before `auth_security_state.token_valid_after` |
   | 4 | `Account is not active.` | — | no `users` row, or `status` ≠ `active` (for a missing row the HTTP API says `User not found.`; the handshake keeps its sentence) |
   | 5 | `Your password was changed. Please log in again.` | — | token `v` ≠ `users.token_version` (§5b); a missing `v` reads as 0 |
-  | 6 | `You must change your password before continuing.` | `MUST_CHANGE_PASSWORD` | `users.must_change_password` is set |
-  | 7 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | an account without the CURRENT version of both documents accepted — a **parent**, and since feat/staff-acceptance (2026-10-11) **a teacher or the admin** too |
+  | 6 | `Please accept the Data Privacy Notice and the Terms of Use before continuing.` | `POLICY_ACCEPTANCE_REQUIRED` | an account without the CURRENT version of both documents accepted — a **parent**, and since feat/staff-acceptance (2026-10-11) **a teacher or the admin** too |
+  | 7 | `Confirm your Gmail or mobile number before continuing.` | `CONTACT_VERIFICATION_REQUIRED` | no confirmed email or number, or a forced change not confirmed since this sign-in (§5b; feat/first-signin) |
+  | 8 | `You must change your password before continuing.` | `MUST_CHANGE_PASSWORD` | `users.must_change_password` is set |
+
+  Rows 6–8 are ONE call, `gates.pendingGate(user, decoded.iat)`
+  (`utils/accountGates.js`), so the first pending gate answers, as over HTTP;
+  until feat/first-signin the password came first and consent second.
   | — | **`Database unreachable.`** | **`DB_UNAVAILABLE`** | **any throw inside the database block** — the HTTP API's `503`, in the health body's words (`utils/dbUnavailable.js`) |
 
   A refused handshake is not retried; both apps connect afresh once
-  `/auth/me` says both gates are clear (FRONTEND §29a, MOBILE M26). Neither
+  `/auth/me` says all three steps are done (FRONTEND §29a, MOBILE M26). Neither
   app branches on the message: both set `connected` false and show the
-  LiveStatus strip (FRONTEND §5g). `test:socket-auth` (35) proves every row
+  LiveStatus strip (FRONTEND §5g). `test:socket-auth` (47) proves every row
   on a stubbed pool, beside the HTTP middleware on the same rows, each with a
   control; `test:privacy` proves the gates and the connect after them.
 - No client-emitted events exist. This is receive-only from the
@@ -538,21 +568,23 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 98 handlers (99 with `GET /api/health`).
+the bottom must equal 100 handlers (101 with `GET /api/health`).
 
-### Auth (12) — `/api/auth`
+### Auth (14) — `/api/auth`
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
 | POST | `/login` | public | `login_id`*, `password`* | `token` + `user` (see Gotchas: 403 for pending/rejected/inactive also carries an extra `status` field). **Sign-in limits since 2026-10-10** (`server/utils/loginThrottle.js`): **5 failures in a row on one typed login id within 15 minutes, or 100 failures from one IP**, then `429` "Too many sign-in attempts. Please wait 15 minutes, then try again." — checked BEFORE the password, so a locked account refuses the right one too; a correct password clears that account's count (never the IP's). **An unknown login id is counted and locked exactly like a real one**, with the same `401` and the same `429` byte for byte. A failure on a real account is logged `login_failed` with the user id only; `login_attempts` stores an HMAC of the typed id (keyed on `JWT_SECRET`), never the id. `user` carries `policy_pending` |
-| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500`. **`policy_pending`** (since 2026-10-10): `true` for a parent who has not accepted the current Data Privacy Notice and Terms of Use — what the clients route on; always `false` for staff. `student_first_name` is what the consent screen names the child by (never the LRN) |
-| PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. |
-| PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule — since 2026-09-29 `09XXXXXXXXX`, `+639XXXXXXXXX` or `639XXXXXXXXX` after spaces and dashes are stripped, always STORED as `09XXXXXXXXX`, `server/utils/contactRule.js`; a refusal is `400` "Contact number must be a Philippine mobile number: 09XXXXXXXXX, +639XXXXXXXXX or 639XXXXXXXXX (for example 0917 123 4567)." with `field: "contact_number"`). **A CHANGED number clears `contact_verified_at` and burns pending `contact_verification` codes; the same number re-typed in another form is not a change** — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present | `user` |
-| POST | `/forgot-password` | **public** | `login_id`* | message only — **`202` on every path**, see below |
+| GET | `/me` | any authenticated | — | `user` — a connection-level database error is `503 "Database unreachable."` (§5c, since 2026-09-26), any other failure `500`. **`policy_pending`** (since 2026-10-10): `true` for a parent who has not accepted the current Data Privacy Notice and Terms of Use — what the clients route on; always `false` for staff. `student_first_name` is what the consent screen names the child by (never the LRN). **`contact_pending` + `contact_step`** (since 2026-10-18, feat/first-signin): the contact gate (§5b) — `contact_step` is `'add'` (nothing confirmed), `'reconfirm'` (a forced change on an account with a confirmed contact it has not used this sign-in) or `null`. The login reply carries the same fields |
+| PUT | `/change-password` | any authenticated | `current_password`*, `new_password`* (the password rule: at least 8 characters AND at least one number — `server/utils/passwordRule.js`, since 2026-09-18; was min 6) | message only — a rule failure is `400` "Password must be at least 8 characters and include at least one number." with `field: "new_password"`; wrong `current_password` is `403` "Current password is incorrect." with `field: "current_password"` (was `401` until 2026-09-15; the session is valid, and a 401 made the client log the user out). The rule never runs at login. **No gate lets it through since feat/first-signin** — an account in the forced-change state gets `403 MUST_CHANGE_PASSWORD` (or the earlier gate's 403) and uses `PUT /first-password` |
+| PUT | `/first-password` | any authenticated — **in the forced-change state, contact confirmed SINCE THIS SIGN-IN** (feat/first-signin, 2026-10-18) | `new_password`* (the password rule) — **no current password**: the temporary one was typed at sign-in and the code just confirmed is the second proof | `message` "Password saved." + **`token`** (a replacement, like change-password: the version is bumped and read back). The guard, in order: not in the forced state → `409` "Your password is already set. Change it in Settings."; no confirmation since this sign-in → `403` "Confirm your Gmail or mobile number first." + `code: "CONTACT_VERIFICATION_REQUIRED"`; the rule → `400` with `field: "new_password"`; the password it already has → `400` "Choose a new password, not the temporary one." with `field: "new_password"`; the UPDATE repeats the first check (`AND must_change_password = 1`), so a race is the same `409`. Logged `change_password` "Password set at first sign-in" |
+| PUT | `/email` | any authenticated — your own account (feat/first-signin, 2026-10-18) | `email`* (non-empty; the one email rule, `server/utils/emailRule.js` — `400` "Email must look like name@example.com." with `field: "email"`) | `user` + message "Email address updated." **A CHANGED address clears `email_verified_at` and burns pending email codes**; compared exactly, as `PUT /users/:id` compares it, so a re-cased address is a change. The same address may be on several accounts (a guardian with two children). `name`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status`/`contact_number` are `400` if present. Logged `update_email` with no address |
+| PUT | `/contact` | any authenticated | `contact_number`* (non-empty; the contact rule — since 2026-09-29 `09XXXXXXXXX`, `+639XXXXXXXXX` or `639XXXXXXXXX` after spaces and dashes are stripped, always STORED as `09XXXXXXXXX`, `server/utils/contactRule.js`; a refusal is `400` "Contact number must be a Philippine mobile number: 09XXXXXXXXX, +639XXXXXXXXX or 639XXXXXXXXX (for example 0917 123 4567)." with `field: "contact_number"`). **A CHANGED number clears `contact_verified_at` and burns pending `contact_verification` codes; the same number re-typed in another form is not a change** — `name`/`email`/`login_id`/`lrn`/`role`/`student_id`/`password`/`status` are rejected with `400` if present (`email` goes through `PUT /email`) | `user` |
+| POST | `/forgot-password` | **public** | `login_id`* | message only — **`202` on every path**, see below. **The resend cooldown is SILENT here** (feat/first-signin): within 60 s of the account's last reset code nothing is sent and no row is written, with the same `202`, body and cost |
 | POST | `/reset-password` | **public** | `login_id`*, `code`* (6 digits), `new_password`* (the password rule) | message only |
-| POST | `/verify-email/request` | any authenticated | — | message only (`202` when a code is sent) |
-| POST | `/verify-email/confirm` | any authenticated | `code`* (6 digits) | message only |
-| POST | `/verify-contact/request` | any authenticated | — | message only — `202` "We sent a code to your mobile number."; `200` "This number is already confirmed."; `400` "There is no mobile number on this account. Add one first."; `429` "Too many codes requested. Try again in an hour."; `503` "Could not send the code right now. Try again, or ask the school office." (the text would not send, or SMS is off on this server) |
+| POST | `/verify-email/request` | any authenticated | — | message only — `202` "We sent a code to your email address."; `200` "This email is already confirmed." (**except a forced-change account not confirmed since this sign-in, which is sent a code anyway** — the reconfirm, feat/first-signin); `400` "There is no email on this account. Add your email first."; `429` "Too many codes requested. Try again in an hour, or use your mobile number instead." (the hour; "…in an hour." alone when SMS is off); **`429` "Wait N seconds, then ask for a new code." with `retry_after` (seconds) — the 60-second resend cooldown, checked after the hour**; `503` when the mail would not send |
+| POST | `/verify-email/confirm` | any authenticated | `code`* (6 digits) | message only — `200` "Email confirmed. You can now reset your own password."; `400` "That code is not valid. Request a new one." for every failure, **including a code sent to an address the account no longer holds** (the snapshot check, since feat/first-signin; the stamp is rewritten on every good code) |
+| POST | `/verify-contact/request` | any authenticated | — | message only — `202` "We sent a code to your mobile number."; `200` "This number is already confirmed." (the same reconfirm exception as email); `400` "There is no mobile number on this account. Add one first."; `429` "Too many codes requested. Try again in an hour, or use your Gmail instead."; **`429` "Wait N seconds, then ask for a new code." with `retry_after`**; `503` "Could not send the code right now. Try again, or ask the school office." (the text would not send, or SMS is off on this server) |
 | POST | `/verify-contact/confirm` | any authenticated | `code`* (6 digits) | message only — `200` "Mobile number confirmed. You can now get reset codes by text message."; `400` "That code is not valid. Request a new one." for every failure, including a code sent to a number the account no longer holds |
 | PUT | `/photo` | any authenticated — **your own account only** (no `:id`) | **multipart**, one file in field `photo` — JPEG, PNG or WebP, at most 5 MB | `user` (the `/me` shape) + message "Profile photo updated." — `400` "Choose a photo to upload." (no file), `400` "Choose a JPEG, PNG or WebP image." (anything sharp cannot decode as one of those — the name and declared type are ignored), `413` "The photo must be 5 MB or smaller.", `400` "Send one photo at a time." (a second file or another field). See Profile photos below |
 | DELETE | `/photo` | any authenticated — your own account only | — | `user` + message "Profile photo removed.", or "There was no profile photo to remove." (`200`, a no-op) |
@@ -590,6 +622,18 @@ replacement JWT at the account's new `token_version`. It is **not optional**:
 the write revokes every token the account was carrying, including the
 caller's, so a client that drops it signs its own user out on the next
 request. `client/src/auth/AuthContext.jsx` → `applyToken()` is what stores it.
+**`PUT /first-password` returns one the same way** (feat/first-signin) — the
+web's `ForcedPasswordChange.jsx` and the phone's `ForcedPasswordChangeScreen`
+store it before re-reading `/auth/me`.
+
+**The resend cooldown (feat/first-signin, 2026-10-18):** a new code of one
+purpose for one account only 60 seconds after the newest
+(`utils/authCodes.js` `RESEND_COOLDOWN_SECONDS`, `cooldownRemaining()` —
+counted from the newest row's `created_at` in the database's own clock, so a
+code whose send failed still starts the wait). The verify requests answer it
+honestly (`429` + `retry_after`); forgot-password answers it silently (the
+uniform `202`). The clients count it down ("Resend code in 0:59") from the
+mirrored `hooks/useCooldown.js` and never decide it.
 
 #### The recovery flow, and the four things it deliberately will not tell you
 
@@ -1382,7 +1426,7 @@ the same as `router`.
 
 | Table | Endpoints | Route file |
 |---|---|---|
-| Auth | 12 | `auth.js` |
+| Auth | 14 | `auth.js` |
 | Users | 11 | `users.js` |
 | Students | 5 | `students.js` |
 | Sections | 3 | `sections.js` |
@@ -1401,23 +1445,24 @@ the same as `router`.
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
 | Policy | 3 | `policy.js` |
-| **Total** | **98** | |
+| **Total** | **100** | |
 
-12+11+5+3+1+3+14+1+6+4+4+4+6+5+5+6+4+1+3 = **98 handlers in `server/routes/`**
-(recounted from the code 2026-10-13, fix/grade-locks: +1 grades `POST /locks`;
+14+11+5+3+1+3+14+1+6+4+4+4+6+5+5+6+4+1+3 = **100 handlers in `server/routes/`**
+(recounted from the code 2026-10-18, feat/first-signin: +2 auth `PUT /email`
+and `PUT /first-password`; 98 on 2026-10-13, fix/grade-locks: +1 grades `POST /locks`;
 97 on 2026-10-10, feat/privacy: +3 policy; 94 on
 2026-09-30, feat/profile-photos: +2 auth `PUT`/`DELETE /photo`, +1 users
 `DELETE /:id/photo`; 91 on 2026-09-29, when
 the Total row had said 87 while the sum said 89). Plus `GET /api/health`,
-mounted directly in `server.js` = **99** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+mounted directly in `server.js` = **101** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than
 Contributions' eight — then the class record's `GET` and `PUT` landed, then
 the class summary's `GET`. **14 on 2026-10-13** with the bulk `POST /locks`.
 
-**State which number you mean.** 98 is handlers in route files; 99 is every
+**State which number you mean.** 100 is handlers in route files; 101 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files), and `POST /api/grades/locks` (2026-10-13, fix/grade-locks — recounted from the code the same day: 98 across 16 route files, grades 14). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files), and `POST /api/grades/locks` (2026-10-13, fix/grade-locks — recounted from the code the same day: 98 across 16 route files, grades 14), and `PUT /api/auth/email` + `PUT /api/auth/first-password` (2026-10-18, feat/first-signin — recounted from the code the same day: 100 across 16 route files, auth 14). Re-run the existence diff after a dispatch that adds or removes an endpoint.

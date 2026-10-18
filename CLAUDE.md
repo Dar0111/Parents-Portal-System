@@ -46,8 +46,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 98** handlers defined in
-> `server/routes/`, and the API answers **99 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 100** handlers defined in
+> `server/routes/`, and the API answers **101 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 > Count history: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-10-02",
 > and the CHANGELOG rows.
@@ -112,7 +112,7 @@ Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
 2026-10-05** (that section's SCOPE DECISION 2026-10-05), and **About is last on every
 role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
-item**. **25 tables, 98 handlers + `/api/health`**
+item**. **25 tables, 100 handlers + `/api/health`** (feat/first-signin, 2026-10-18; 98 before)
 (2026-10-13). 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
@@ -792,14 +792,16 @@ has neither; it resumes at §13.** The reasoning and the endpoint detail are
   **`password_changed_at` is audit only** — two attempts to revoke on it
   failed. Do not reintroduce it as the check.
 - **A write that revokes must hand back a replacement, and the client must
-  store it.** `PUT /auth/change-password` returns `token`;
-  `AuthContext.applyToken()` stores it and re-reads `/auth/me`, in that
-  order. A caller that drops it signs its own user out on the success path.
+  store it.** `PUT /auth/change-password` and `PUT /auth/first-password`
+  return `token`; `AuthContext.applyToken()` stores it and re-reads
+  `/auth/me`, in that order. A caller that drops it signs its own user out.
 - **The forced change is routed on the FIELD, never on the 403.**
   `code: 'MUST_CHANGE_PASSWORD'` is a backstop for direct API callers; §2
   says a 403 never redirects, and the client already has
   `user.must_change_password` from `/auth/me`. `/change-password` sits
-  outside `Shell` and outside `ProtectedRoute`.
+  outside `Shell` and outside `ProtectedRoute`. **Since feat/first-signin it
+  is the LAST of the three steps (§29) and writes `PUT /auth/first-password`
+  — no current password; change-password passes no gate.**
 
 **A screen may not tell someone to ask an office they ARE.** Settings →
 Account information names Admin → Users for an admin and the school office
@@ -957,13 +959,17 @@ MOBILE M25.
 
 ### 29. Privacy — consent first, your own first password, sign-in limits, four fields gone
 
-**feat/privacy, 2026-10-10.** **An account (staff too since feat/staff-acceptance) that has not accepted the CURRENT
-Data Privacy Notice and Terms of Use reaches only `/auth/me`,
-`/auth/change-password` and `/api/policy/*`** (`403
-POLICY_ACCEPTANCE_REQUIRED`), AFTER the forced change; clients route on
-`policy_pending`, never the 403. Three ticks in the principal's draft words
+**feat/privacy, 2026-10-10.** **Three steps before the app since
+feat/first-signin (2026-10-18), in this order, one module
+(`utils/accountGates.js`), full paths, the first pending gate only: the CURRENT
+notice and terms (`403 POLICY_ACCEPTANCE_REQUIRED`; staff too); a confirmed
+Gmail or mobile number (`CONTACT_VERIFICATION_REQUIRED` — a forced change
+confirms one again in that session); then your own password
+(`MUST_CHANGE_PASSWORD`, `PUT /auth/first-password`).** Clients route on
+`/auth/me`'s fields through the mirrored `nextStep()`, never the 403s (§29f).
+Three ticks in the principal's draft words
 (§29a), the child by first name, never the LRN; a stale version is 409. **The
-socket refuses the same two gates, and a restore re-runs the privacy step
+socket refuses the same gates, and a restore re-runs the privacy step
 itself** (fix round). **The text (`server/policy/`) is a
 placeholder; staff tick two boxes, no child tick.** New teachers and parents change
 the password someone else typed. **Sign-in: 5 failures in a row / 100 per IP
@@ -1098,10 +1104,10 @@ SVG icons; React Navigation drawer; the seal as icon and splash; a
   AsyncStorage through the pure `drafts/deviceDrafts.js`; the hook writes
   nothing until the stored draft has been read; Discard and the hand-off
   question are system `Alert`s; no "continue draft" after a kill. (M25)
-- **Consent is a RootNavigator branch after the forced change, and the
-  realtime providers mount only past BOTH** (`policy_pending` → ONLY
-  `PolicyConsent`); each tick is a 48dp checkbox row; the exit is
-  `refresh()`. (M26)
+- **Each first-sign-in step is a RootNavigator branch — consent, then
+  ConfirmContact (the Android back button consumed), then the new password —
+  and the realtime providers mount only past all three** (`nextStep()`,
+  mirrored); each tick is a 48dp checkbox row; each exit is `refresh()`. (M26)
 - **One LiveStatus strip per signed-in screen, below the header, and one
   bottom frame** — the drawer's and the stack's `screenLayout` add both;
   Home and Main take a bare layout. (M9)

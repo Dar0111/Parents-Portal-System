@@ -1394,22 +1394,38 @@ phone check (M7) owns the debounce, AppState, a killed app and both Alerts —
 
 ---
 
-## M26. Privacy on the phone — the web's rules, as a root branch and a Settings row (`feat/privacy`, 2026-10-10)
+## M26. Privacy on the phone — the web's rules, as a root branch and a Settings row (`feat/privacy`, 2026-10-10; the three first-sign-in steps since `feat/first-signin`, 2026-10-18)
 
 The rules are FRONTEND §29 and API_REFERENCE §5b; this states only where the
 phone differs.
 
-- **The consent screen is a RootNavigator branch, not a redirect.** The order
-  is the web's and the server's: `!user` → the auth stack;
-  `must_change_password` → ONLY `ForcedPasswordChange`; **`policy_pending` →
-  ONLY `PolicyConsent`**; otherwise Home. An unmounted `Stack.Screen` cannot be
-  reached, so the gate is structural (M4).
-- **No realtime providers until BOTH gates are past.**
-  `signedIn = user && !must_change_password && !policy_pending` — the socket
-  and the two count providers wrap only a signed-in tree: a socket and two
-  count requests for a session the server refuses would only fail. (The web
-  gets the same for free: its socket lives in Shell, and `/consent` is outside
-  Shell.)
+- **Each first-sign-in step is a RootNavigator branch, not a redirect.** The
+  order is the web's and the server's, from the mirrored `nextStep()`
+  (`auth/accountSteps.js`, feat/first-signin, 2026-10-18): `!user` → the auth
+  stack; **consent → ONLY `PolicyConsent`; the contact → ONLY
+  `ConfirmContact`; the password → ONLY `ForcedPasswordChange`**; otherwise
+  Home. (Until feat/first-signin the forced change came first and consent
+  second.) An unmounted `Stack.Screen` cannot be reached, so the gate is
+  structural (M4).
+- **No realtime providers until ALL THREE steps are past.**
+  `signedIn = user && !nextStep(user)` — the socket and the two count
+  providers wrap only a signed-in tree: a socket and two count requests for a
+  session the server refuses would only fail. (The web gets the same for free:
+  its socket lives in Shell, and the three step pages are outside Shell.)
+- **The contact step on the phone** (feat/first-signin; FRONTEND §29f has the
+  rules and the words): `ConfirmContactScreen` — the mirror's `CONTACT_COPY`,
+  `Segmented` for Gmail | Mobile number, a value on file read-only with Change,
+  the sign-in family's frame. **The Android back button is consumed while it
+  is focused** (`BackHandler` inside `useFocusEffect`): it is the only screen
+  mounted, and the default would close the app off the step. Sign out is the
+  one way off. The exit is `refresh()` — RootNavigator mounts the next step.
+  `ForcedPasswordChangeScreen` is rebuilt as the web's: "Set a new password",
+  no temporary-password field, `PUT /auth/first-password`, "Sign out".
+- **Settings keeps its ONE filled button**: the code forms are
+  `components/ContactCodeForm.jsx` (the server's resend clock,
+  `hooks/useCooldown.js`, mirrored) passed the bordered Confirm and the ghost
+  Resend, and Update email's "Save email" is bordered too. Forgot password
+  gains "Resend code in 0:59" on the reset step, started on every 202 alike.
 - **The screen is the sign-in family's frame** (ForcedPasswordChangeScreen's
   band and card). **Each tick is a whole 48dp row**, announced as a
   `checkbox` with its `checked` state; the box is a View in the app's tokens
@@ -1445,11 +1461,13 @@ phone differs.
   change anyway; the phone check owns how it looks.
 
 **Proof:** `scripts/proof-privacy.mjs` (TESTING → Mobile proofs) — the
-mirrored tab list driven; the root order (with a swapped-gates control), the
-providers' condition, the screen's ticks and exit, the settings screen and the
-retired fields read as source. **The phone check (M7) owns** a real sign-in
-landing on the consent screen, a real tick and accept, and the skeleton's
-300 ms.
+mirrored tab list driven; the root order (consent, the contact, the password,
+with a swapped-steps control), the providers' condition, the contact screen's
+back guard and the new-password screen's endpoint, the consent screen's ticks
+and exit, the settings screen and the retired fields read as source; the
+mirrored step words are driven in the web's `ssr-first-signin.jsx`. **The
+phone check (M7) owns** a real sign-in landing on each step, a real code, the
+Android back button, a real tick and accept, and the skeleton's 300 ms.
 
 ## M27. The phone thread keeps the web's three positioning rules (`feat/shared-messages`, 2026-10-11)
 

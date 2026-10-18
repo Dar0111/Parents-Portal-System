@@ -61,6 +61,7 @@ and only there.
 | The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built, gated and device-checked on 3G 2026-10-12; data cleaned up, backup 305) | — (untouched) | ✅ merged 2026-10-12 | — (untouched) |
 | Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; carried by `fix/smoke-round`, device-checked 2026-10-13; data cleaned up, backup 316) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | The smoke gate's fix round — `fix/smoke-round` (on `fix/grade-locks`): F4 the class record's Summative block without a raw total and a line saying how ST PS is made; F5 the parent breakdown's rows named "Written Work 1" or the column's own name, as the class record's helper promises; F6 sign-in confirming a password reset; F7 a per-row lock or unlock closing its dialog and keeping its line (built and gated 2026-10-13; device-checked the same night on the web and the Android emulator, every section passed, the bulk dialog's 390px / dark pass not done; data cleaned up, backup 316; F3 cut — KNOWN ISSUES) | — (untouched) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
+| The first sign-in — `feat/first-signin` (pre-Oct-21 build, branch 1 of 6 in the owner's order): consent → a confirmed Gmail or mobile number → your own password (no temporary-password field, `PUT /auth/first-password`; a temporary password on a confirmed account confirms it again); your own email (`PUT /auth/email`, web and phone Settings); the 60-second resend cooldown on every code, forgot-password included, counted down on both clients (built and gated 2026-10-18; NOT device-checked, NOT merged) | 🔶 built | 🔶 built | 🔶 built |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -83,7 +84,7 @@ A module with tables and no handlers is not started; there are none.
 
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
-| Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 12 | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
+| Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 12 (14 on `feat/first-signin`: `PUT /email`, `PUT /first-password`) | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
 | Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — after the forced change); Settings → Security & policy (every role). The notice and terms are placeholders |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
@@ -144,7 +145,14 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-As the owner's dispatches stand (2026-10-13, CLAUDE.md → BUILD ORDER →
+**In progress (2026-10-18), the owner's pre-Oct-21 order:** `feat/first-signin`
+is built and gated and waits for its device check
+(`docs/FIRST_SIGNIN_DEVICE_CHECK.md`); then `feat/account-create`,
+`feat/password-alert`, `feat/grade-acknowledgement`, `fix/f3-badges`,
+`feat/activity-log`, each on its own check; then `docs/pre-oct21`, the demo
+data and a new restore point. The next professor check is Wed 2026-10-21.
+
+As the owner's dispatches stood (2026-10-13, CLAUDE.md → BUILD ORDER →
 NEXT):
 
 1. **Professor system check, Wed 2026-10-14, about 12:00** — on `main`

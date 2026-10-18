@@ -3736,7 +3736,7 @@ branch:** the web spinner's focus loss (decision 11).
 
 ---
 
-## 29. Privacy — consent before use, your own first password, sign-in limits, four fields not collected (`feat/privacy`, 2026-10-10)
+## 29. Privacy — consent before use, your own first password, sign-in limits, four fields not collected (`feat/privacy`, 2026-10-10; the first sign-in's three steps since `feat/first-signin`, 2026-10-18 — §29f)
 
 The owner's answers 1–7 to the privacy PLAN (2026-10-07/10). The learner's
 grades and LRN are sensitive personal information under the Data Privacy Act,
@@ -3744,20 +3744,21 @@ and consent for a minor's data comes from the parent or guardian. Four parts;
 the server enforces every one of them, and the clients route on fields, never
 on a 403 (§2).
 
-### 29a. The consent gate — server-enforced, after the forced change
+### 29a. The consent gate — server-enforced, the FIRST of the three steps
 
 - **An account** — a parent, and since feat/staff-acceptance (2026-10-11) a
   teacher or the admin — that has not accepted the CURRENT Data Privacy Notice
-  AND Terms of Use can read itself (`/auth/me`), change its password and reach
-  `/api/policy/*` — nothing else (`403 POLICY_ACCEPTANCE_REQUIRED`,
-  API_REFERENCE §5b). **The forced password change comes FIRST**, on the
-  server and in both clients.
+  AND Terms of Use can read itself (`/auth/me`) and reach `/api/policy/*` —
+  nothing else (`403 POLICY_ACCEPTANCE_REQUIRED`, API_REFERENCE §5b).
+  **Consent comes FIRST since feat/first-signin (2026-10-18)** — before the
+  contact step and the new password (§29f); until then the forced password
+  change came first, and change-password passed this gate.
 - **`policy_pending` on `/auth/me` is what the client routes on.**
   `ProtectedRoute` sends a pending parent to **`/consent`**, a top-level route
   outside Shell and outside every ProtectedRoute — the forced-change screen's
   shape, for its reasons (a sidebar of refused pages lies; wrapping it loops).
-  The page does its own guards: signed out → `/login`, the forced change →
-  `/change-password`, not pending → the role home.
+  The page does its own guard: signed out → `/login`, consent not the next
+  step → `entryPath(user)` (the next step's page, or home — §29f).
 - **Three ticks, all required, in the words of the draft the principal will
   approve** (the fix round, PF4, 2026-10-10): "I have read and accept the Data
   Privacy Notice." · "I have read and agree to the Terms of Use." · **"As the
@@ -3779,11 +3780,12 @@ on a 403 (§2).
   carry no `student_id`). The line above Sign out is **"Declining ends portal
   use only."** (`DeclineLine`). A parent's screen, ticks and words are
   unchanged; the phone does the same (MOBILE M26).
-- **The socket refuses the same two gates** (the fix round, PF2):
-  `server/socket.js` checks the forced change, then the account's acceptance, in
-  `middleware/auth.js`'s order, and answers `connect_error` with the 403's
-  sentence and `data.code`. No client connects before both are past — the
-  socket lives in Shell — so this is the backstop for a direct client.
+- **The socket refuses the same gates** (the fix round, PF2; three since
+  feat/first-signin, from the one `utils/accountGates.js` call):
+  `server/socket.js` answers the first pending gate, in `middleware/auth.js`'s
+  order, with the 403's sentence and `data.code` on `connect_error`. No client
+  connects before all of them are past — the socket lives in Shell — so this
+  is the backstop for a direct client.
 - **A restore brings the gate's tables back** (the fix round, PF1): the
   restore route runs the same step as `npm run db:migrate:privacy` after the
   pool reset, so restoring a backup from before this build no longer leaves
@@ -3793,8 +3795,9 @@ on a 403 (§2).
   the documents and clears the ticks. Never a silent acceptance of words the
   parent did not see.
 - **The exit is the re-read**: `refresh()` brings `policy_pending` back false
-  from the server and the page routes home. A new version of either document
-  sets it true again for every account — accepting is per version.
+  from the server and the page goes to `entryPath(me)` — the contact step, the
+  new password, or home. A new version of either document sets it true again
+  for every account — accepting is per version.
 
 ### 29b. The text ships with the app — and is a placeholder
 
@@ -3823,7 +3826,8 @@ something owed) stays for a role that ever accepts nothing.
 - **New teachers (`POST /users/teachers`) and new parents
   (`POST /users/parents`) are created with `must_change_password = 1`** (the
   owner's answer 4): whoever typed the password, the account holder picks
-  their own at the first sign-in, on the existing forced-change screen (§11).
+  their own at the first sign-in — since feat/first-signin after confirming a
+  contact, with no temporary-password field (§29f).
 - **Sign-in limits** (the owner's answers 5 and 2, `utils/loginThrottle.js`):
   5 failures **in a row** per account within 15 minutes, 100 per IP (a whole
   school network can share one address in the cloud); a correct password
@@ -3845,11 +3849,65 @@ ignores a null or empty key; `db:migrate:privacy` cleared what was stored;
 the columns stay. **The PARENT's own contact number is not one of them** — it
 belongs to the guardian's account and stays in the wizard.
 
+### 29f. The first sign-in — consent, a confirmed contact, your own password (`feat/first-signin`, 2026-10-18)
+
+The owner's scope item 2. Every account's way into the app, in the server's
+order (`server/utils/accountGates.js`, API_REFERENCE §5b):
+
+1. **Consent** (§29a) → `/consent`.
+2. **A confirmed Gmail or mobile number** → `/confirm-contact`
+   (`pages/ConfirmContact.jsx`): every account with neither confirmed, and a
+   forced change that has not confirmed one in THIS session — decision D2,
+   "Confirm it’s you".
+3. **The new password** → `/change-password` (`ForcedPasswordChange.jsx`):
+   "Set a new password", New and Confirm only — **no "Temporary password"
+   field** — and "Save password" writes `PUT /auth/first-password`, which the
+   server refuses unless the account is in the forced state AND confirmed a
+   contact since this sign-in.
+
+- **One `nextStep(user)`**, in the mirrored `auth/accountSteps.js`
+  (`policy_pending` → `contact_pending` → `must_change_password`).
+  `ProtectedRoute` redirects to `STEP_PATH[step]` before the role check, and
+  each step page sends anyone not on its step to `entryPath(user)`
+  (`auth/stepPath.js`, web only). The fields, never the 403s (§2).
+- **The contact step's words are the mirror's `CONTACT_COPY`**: "Confirm your
+  contact" / "Choose your Gmail or your mobile number. We’ll send a 6-digit
+  code to it. One is enough — you can add the other later in Settings."; the
+  reconfirm face "Confirm it’s you" / "Before you set a new password, we’ll
+  send a 6-digit code to your confirmed Gmail or mobile number." Gmail and
+  Mobile number are two native radios (the control radius; the choice filled
+  AND heavier, never colour alone). A value on file shows read-only with
+  **Change**, so nobody sends a code to an address they cannot open; a new
+  value is saved first (`PUT /auth/email` or `PUT /auth/contact`, each
+  unconfirming what it changed), then the verify request. "Send code" → "We
+  sent a 6-digit code to <value>." with Change, the 6-digit field, Confirm,
+  and **"Resend code in 0:59"**. **No Back and no Skip** — only Sign out,
+  which changes nothing. "Gmail" is the label; any valid address is accepted
+  (decision D5).
+- **The resend clock is the server's** (60 s: a `429` with `retry_after` on
+  the verify requests, silent on forgot-password). `hooks/useCooldown.js`
+  (mirrored) counts a DEADLINE, so a throttled timer never stretches the wait;
+  `components/ContactCodeForm.jsx` is the code half for the step and Settings
+  alike. Forgot password counts the same minute after EVERY 202 — it must not
+  branch on whether a code went out (§11).
+- **Your own email, Settings → Account information**: "Update email"
+  (`PUT /auth/email`) beside the number. A change is unconfirmed until its
+  code is typed, an admin edit unconfirms it too, and the same address may be
+  on several accounts. Changing the ONLY confirmed contact sends the account
+  back to the step, and the field says so first: "You’ll confirm the new
+  address before you can use the app again." The email is no longer a school
+  record, and no sentence on the page tells you to ask the office for it.
+- **The temporary-password dialog says what happens next** (Admin → Users):
+  "When they next sign in, they confirm their Gmail or mobile number with a
+  code, then choose their own password."
+
 **Proof:** `client/scripts/ssr-privacy.jsx` (TESTING) — rendered: the consent
 body in every state and the Security & policy view for a parent and for staff;
-source, with controls, only where a render cannot reach: the gate's order, the
-routes, the retired fields. **The browser check owns** a real redirect, a real
-accept and the 300 ms clock.
+source, with controls, only where a render cannot reach: the gate's order (the
+mirrored `nextStep()` as plain data since feat/first-signin), the routes, the
+retired fields — and `ssr-first-signin.jsx` for §29f. **The browser check
+owns** a real redirect, a real accept, a real code, the countdown and the
+300 ms clock.
 
 ## 30. One Messages component — the thread and the list, every role (`feat/shared-messages`, 2026-10-11)
 
