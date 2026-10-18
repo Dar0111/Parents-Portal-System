@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import { RESEND_COOLDOWN_SECONDS } from '../../auth/accountSteps';
 import Button from '../../components/Button';
+import ContactCodeForm from '../../components/ContactCodeForm';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import FormField from '../../components/FormField';
 import Avatar from '../../components/Avatar';
@@ -10,6 +12,7 @@ import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import { useAuth } from '../../auth/AuthContext';
 import { contactError, contactRuleHint } from '../../format/contactRule';
+import useCooldown from '../../hooks/useCooldown';
 
 // Settings → Account information, all three roles. Locked identity fields
 // (school records — "ask the office") and the one editable one, the contact
@@ -44,12 +47,15 @@ import { contactError, contactRuleHint } from '../../format/contactRule';
 //   POST /auth/verify-email/request  -> 202, a code goes to the address
 //   POST /auth/verify-email/confirm  -> the code, then email_verified_at
 //
-// THE ADDRESS ITSELF IS NOT EDITABLE HERE and must not become so. It is a
-// school record like the name and the login id — PUT /auth/contact rejects
-// `email` with a 400, and only an admin can change it through
-// PUT /api/users/:id, which clears email_verified_at when it does. So a
-// wrong address is an office trip, and the copy says that rather than
-// offering a field that would 400.
+// YOUR OWN ADDRESS SINCE feat/first-signin (2026-10-18; the owner's scope
+// item 2). It was a school record only an admin could change; now
+// PUT /auth/email sets it here (and at the first-sign-in step), and a change
+// stays unconfirmed until its code is typed — the same as the number below.
+// An admin edit through PUT /api/users/:id still clears the confirmation too.
+// Changing the ONLY confirmed contact sends the account back to the contact
+// step (the server's gate), and the form says so before Save. The two code
+// forms are components/ContactCodeForm.jsx, with the server's 60-second
+// resend clock (hooks/useCooldown.js).
 //
 // WHY IT MATTERS ON THIS SCREEN AT ALL: a confirmed address is the only
 // thing that makes /forgot-password work for this account. Unconfirmed, the
@@ -355,9 +361,9 @@ function ProfilePhoto({ user, refresh, status, setStatus }) {
 }
 
 const ROLE_COPY = {
-  teacher: 'Your name, Teacher ID and email are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.',
-  admin: 'Your name, Admin ID and email are school records. You can update your contact number here and your password under Change password.',
-  parent: "Your name, your child's name, LRN, grade and section are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.",
+  teacher: 'Your name and Teacher ID are school records. Ask the office if something is wrong. You can update your email and contact number here and your password under Change password.',
+  admin: 'Your name and Admin ID are school records. You can update your email and contact number here and your password under Change password.',
+  parent: "Your name, your child's name, LRN, grade and section are school records. Ask the office if something is wrong. You can update your email and contact number here and your password under Change password.",
 };
 
 export default function AccountInfoSection() {
@@ -406,6 +412,22 @@ export default function AccountInfoSection() {
   const [contactCode, setContactCode] = useState('');
   const [contactCodeError, setContactCodeError] = useState(null);
   const [contactBusy, setContactBusy] = useState(false);
+
+  // The server's 60-second resend clock, one per channel (feat/first-signin).
+  const emailClock = useCooldown();
+  const mobileClock = useCooldown();
+
+  // YOUR OWN EMAIL (feat/first-signin): the number's pattern — null follows
+  // the last /auth/me, a string is typing (§5b).
+  const storedEmail = user?.email ?? '';
+  const [emailDraft, setEmailDraft] = useState(null);
+  const emailValue = emailDraft === null ? storedEmail : emailDraft;
+  const emailDirty = emailValue.trim() !== storedEmail.trim();
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailFieldError, setEmailFieldError] = useState(null);
+  // The only confirmed contact is this address: saving a different one sends
+  // the account back to the contact step, and the form says so first (§5i).
+  const emailIsOnlyConfirmed = Boolean(emailVerifiedAt) && !(storedContact && contactVerifiedAt);
 
   // RE-READ /auth/me ON MOUNT (browser check, 2026-09-19). AuthContext holds
   // the row fetched at sign-in and only rewrites it when this page or the
@@ -476,6 +498,42 @@ export default function AccountInfoSection() {
     }
   }
 
+  async function saveEmail(event) {
+    event.preventDefault();
+    setStatus({});
+    setEmailFieldError(null);
+    const next = emailValue.trim();
+    if (!next) {
+      setEmailFieldError('Email must not be empty.');
+      return;
+    }
+    setEmailSaving(true);
+    const wasConfirmed = Boolean(emailVerifiedAt);
+    try {
+      const saved = await api.put('/auth/email', { email: next }, { unwrap: 'user' });
+      setEmailDraft(null);
+      setEmailStep('idle');
+      setEmailCode('');
+      setStatus({
+        emailSave: ok(
+          wasConfirmed && !saved?.email_verified_at
+            ? 'Email address updated. The new address is not confirmed yet — send yourself a code above to confirm it.'
+            : saved?.email_verified_at
+              ? 'Email address updated.'
+              : 'Email address updated. Confirm it with a code above.'
+        ),
+      });
+      // Last: when this was the only confirmed contact, the re-read sends the
+      // account to the contact step (ProtectedRoute), and this page goes.
+      await refresh();
+    } catch (err) {
+      if (err?.response?.data?.field === 'email') setEmailFieldError(extractError(err));
+      else setStatus({ emailSave: fail(extractError(err)) });
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
   async function requestEmailCode() {
     setStatus({});
     setEmailCodeError(null);
@@ -491,11 +549,14 @@ export default function AccountInfoSection() {
         setEmailStep('idle');
       } else {
         setEmailStep('code');
+        emailClock.start(RESEND_COOLDOWN_SECONDS);
       }
       setStatus({ email: ok(message) });
     } catch (err) {
-      // 429 (rate limit) and 503 (mail would not send) both land here with
-      // the server's own sentence, which already tells the user what to do.
+      // 429 (the minute's cooldown, with retry_after, or the hour's limit) and
+      // 503 (mail would not send) land here with the server's own sentence.
+      const wait = Number(err?.response?.data?.retry_after);
+      if (err?.response?.status === 429 && wait > 0) emailClock.start(wait);
       setStatus({ email: fail(extractError(err)) });
     } finally {
       setEmailBusy(false);
@@ -539,11 +600,14 @@ export default function AccountInfoSection() {
         setContactStep('idle');
       } else {
         setContactStep('code');
+        mobileClock.start(RESEND_COOLDOWN_SECONDS);
       }
       setStatus({ mobile: ok(message) });
     } catch (err) {
-      // 400 (no number), 429 (rate limit) and 503 (the text would not send)
-      // all carry the server's own sentence.
+      // 400 (no number), 429 (the minute or the hour) and 503 (the text
+      // would not send) all carry the server's own sentence.
+      const wait = Number(err?.response?.data?.retry_after);
+      if (err?.response?.status === 429 && wait > 0) mobileClock.start(wait);
       setStatus({ mobile: fail(extractError(err)) });
     } finally {
       setContactBusy(false);
@@ -629,19 +693,15 @@ export default function AccountInfoSection() {
                 lands after a confirm or a number change. The admin keeps
                 its own wording — an admin IS the office (§11). */}
             {contactVerifiedAt
-              ? isAdmin
-                ? 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Add an email by editing your account in Admin → Users if you also want one.'
-                : 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Ask the school office if you also want an email added.'
+              ? 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Add an email below if you also want one.'
               : isAdmin
-                ? 'There is no email address on this account. Add one by editing your account in Admin → Users, or confirm a mobile number below — without either, you cannot reset your own password and only another admin can get you back in.'
-                : 'There is no email address on this account. Ask the school office to add one, or confirm a mobile number below — without either, you cannot reset your own password and the office has to do it for you.'}
+                ? 'There is no email address on this account. Add one below, or confirm a mobile number — without either, you cannot reset your own password and only another admin can get you back in.'
+                : 'There is no email address on this account. Add one below, or confirm a mobile number — without either, you cannot reset your own password and the office has to do it for you.'}
           </p>
         ) : emailVerifiedAt ? (
           <p className="text-sm text-fg-muted">
-            This address is confirmed, so you can reset your own password from the sign-in page.{' '}
-            {isAdmin
-              ? 'To change it, edit your account in Admin → Users.'
-              : 'To change the address itself, ask the school office.'}
+            This address is confirmed, so you can reset your own password from the sign-in page. You can change it
+            below; a new address is confirmed with a code.
           </p>
         ) : (
           <>
@@ -661,33 +721,20 @@ export default function AccountInfoSection() {
                   : 'only the school office can get you back in.'}
             </p>
             {emailStep === 'code' ? (
-              <form onSubmit={confirmEmailCode} className="space-y-4">
-                <FormField
-                  label="Six-digit code"
-                  value={emailCode}
-                  onChange={(e) => {
-                    setEmailCodeError(null);
-                    setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6));
-                  }}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  hint={`Sent to ${user.email}. It expires shortly and can be used once.`}
-                  error={emailCodeError}
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={emailBusy || !/^\d{6}$/.test(emailCode)}
-                  >
-                    {emailBusy ? 'Confirming…' : 'Confirm email'}
-                  </Button>
-                  <Button onClick={requestEmailCode} disabled={emailBusy}>
-                    Send a new code
-                  </Button>
-                </div>
-              </form>
+              <ContactCodeForm
+                code={emailCode}
+                onCodeChange={(next) => {
+                  setEmailCodeError(null);
+                  setEmailCode(next);
+                }}
+                error={emailCodeError}
+                hint={`Sent to ${user.email}. It expires in 10 minutes and can be used once.`}
+                busy={emailBusy}
+                onSubmit={confirmEmailCode}
+                onResend={requestEmailCode}
+                remaining={emailClock.remaining}
+                confirmLabel="Confirm email"
+              />
             ) : (
               <Button variant="primary" onClick={requestEmailCode} disabled={emailBusy}>
                 {emailBusy ? 'Sending…' : 'Verify email'}
@@ -716,33 +763,20 @@ export default function AccountInfoSection() {
               text message.
             </p>
             {contactStep === 'code' ? (
-              <form onSubmit={confirmContactCode} className="space-y-4">
-                <FormField
-                  label="Six-digit code"
-                  value={contactCode}
-                  onChange={(e) => {
-                    setContactCodeError(null);
-                    setContactCode(e.target.value.replace(/\D/g, '').slice(0, 6));
-                  }}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  hint={`Sent to ${spacedNumber(storedContact)} by text message. It expires shortly and can be used once.`}
-                  error={contactCodeError}
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={contactBusy || !/^\d{6}$/.test(contactCode)}
-                  >
-                    {contactBusy ? 'Confirming…' : 'Confirm number'}
-                  </Button>
-                  <Button onClick={requestContactCode} disabled={contactBusy}>
-                    Send a new code
-                  </Button>
-                </div>
-              </form>
+              <ContactCodeForm
+                code={contactCode}
+                onCodeChange={(next) => {
+                  setContactCodeError(null);
+                  setContactCode(next);
+                }}
+                error={contactCodeError}
+                hint={`Sent to ${spacedNumber(storedContact)} by text message. It expires in 10 minutes and can be used once.`}
+                busy={contactBusy}
+                onSubmit={confirmContactCode}
+                onResend={requestContactCode}
+                remaining={mobileClock.remaining}
+                confirmLabel="Confirm number"
+              />
             ) : (
               <Button variant="primary" onClick={requestContactCode} disabled={contactBusy}>
                 {contactBusy ? 'Sending…' : 'Text me a code'}
@@ -751,6 +785,36 @@ export default function AccountInfoSection() {
           </>
         )}
         <FormStatus status={status.mobile} />
+      </Block>
+
+      <Block icon="fa-at" title="Update email">
+        <p className="text-sm text-fg-muted">
+          Use an address you can open. A new address is not confirmed until you type the code sent to it.
+        </p>
+        <form onSubmit={saveEmail} className="space-y-4">
+          <FormField
+            label="New email address"
+            type="email"
+            value={emailValue}
+            onChange={(e) => {
+              setEmailFieldError(null);
+              setEmailDraft(e.target.value);
+            }}
+            maxLength={100}
+            inputMode="email"
+            autoComplete="email"
+            hint={
+              emailIsOnlyConfirmed && emailDirty
+                ? 'You’ll confirm the new address before you can use the app again.'
+                : 'For example name@gmail.com.'
+            }
+            error={emailFieldError}
+          />
+          <Button type="submit" variant="primary" disabled={emailSaving || !emailDirty}>
+            {emailSaving ? 'Saving…' : 'Save email'}
+          </Button>
+          <FormStatus status={status.emailSave} />
+        </form>
       </Block>
 
       <Block icon="fa-phone" title="Update contact number">

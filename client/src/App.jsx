@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
 import ForcedPasswordChange from './pages/ForcedPasswordChange';
 import PolicyConsent from './pages/PolicyConsent';
+import ConfirmContact from './pages/ConfirmContact';
 import AboutPage from './pages/AboutPage';
 import AdminDashboard from './pages/dashboards/AdminDashboard';
 import AdminUsers from './pages/admin/UsersPage';
@@ -82,6 +83,10 @@ export default function App() {
               change — top-level, no Shell, no ProtectedRoute (which sends
               people here on `policy_pending`). The page does its own guards. */}
           <Route path="/consent" element={<PolicyConsent />} />
+          {/* The contact step (feat/first-signin): the same shape again —
+              top-level, no Shell, no ProtectedRoute. Between the consent
+              screen and the new password; the page does its own guards. */}
+          <Route path="/confirm-contact" element={<ConfirmContact />} />
           {/* Public: the school's own details and the DepEd VMV, reachable
               from the login screen. No Shell, no ProtectedRoute; it reads
               GET /settings/public, the one unauthenticated settings read.

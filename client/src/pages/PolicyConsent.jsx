@@ -3,7 +3,8 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import extractError from '../api/extractError';
 import { useAuth } from '../auth/AuthContext';
-import { roleHome } from '../auth/roles';
+import { nextStep } from '../auth/accountSteps';
+import { entryPath } from '../auth/stepPath';
 import Button from '../components/Button';
 import { cardClass, linkClass } from '../components/buttonClass';
 import ErrorAlert from '../components/ErrorAlert';
@@ -22,9 +23,11 @@ import seal from '../assets/school-seal.png';
 // Shell (a sidebar full of pages the server refuses with
 // `code: 'POLICY_ACCEPTANCE_REQUIRED'` would lie) and OUTSIDE ProtectedRoute
 // (which is what sends people here — wrapping it would loop). ProtectedRoute
-// routes here on `user.policy_pending` from /auth/me, never on the 403 (§2),
-// and only AFTER the forced change: a parent with both flags changes the
-// password first, exactly as the server orders them.
+// routes here on `user.policy_pending` from /auth/me, never on the 403 (§2).
+// SINCE feat/first-signin (2026-10-18) THIS IS THE FIRST STEP, before the
+// contact step and the new password — the server's order (accountGates.js),
+// read through the mirrored nextStep(); its exit goes to whichever step is
+// next.
 //
 // THREE TICKS, ALL REQUIRED, and the server checks them again: the notice, the
 // terms, and the parent's consent for their child — "As the parent or legal
@@ -67,7 +70,7 @@ export default function PolicyConsent() {
   const [saving, setSaving] = useState(false);
 
   // Only a session that belongs on this screen reads the documents.
-  const onThisScreen = Boolean(user?.policy_pending) && !user?.must_change_password;
+  const onThisScreen = nextStep(user) === 'consent';
 
   useEffect(() => {
     if (!onThisScreen) return undefined;
@@ -97,11 +100,9 @@ export default function PolicyConsent() {
   }
 
   if (!user) return <Navigate to="/login" replace />;
-  // The forced change comes first, as the server orders them.
-  if (user.must_change_password) return <Navigate to="/change-password" replace />;
-  // Nobody reaches this screen without the flag, and nobody stays on it once
-  // the server says it is cleared.
-  if (!user.policy_pending) return <Navigate to={roleHome(user.role)} replace />;
+  // Nobody reaches this screen unless consent is the next step, and nobody
+  // stays on it once the server says it is done.
+  if (!onThisScreen) return <Navigate to={entryPath(user)} replace />;
 
   const isParent = user.role === 'parent';
   const childName = user.student_first_name ? String(user.student_first_name) : null;
@@ -124,9 +125,10 @@ export default function PolicyConsent() {
       // The third tick is a parent's alone; staff send the versions only.
       const body = isParent ? { versions, on_behalf_of_child: true } : { versions };
       await api.post('/policy/accept', body, { unwrap: 'policy_pending' });
-      // The flag comes back cleared from the SERVER, never assumed here.
+      // The flag comes back cleared from the SERVER, never assumed here; the
+      // next step (the contact, the password) or home, by the same rule.
       const me = await refresh();
-      navigate(roleHome(me.role), { replace: true });
+      navigate(entryPath(me), { replace: true });
     } catch (err) {
       setStatus(fail(extractError(err)));
       // A document changed while this page was open: show the new words and

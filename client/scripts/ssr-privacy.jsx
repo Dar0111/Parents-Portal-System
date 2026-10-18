@@ -9,9 +9,11 @@
 // documents rendered are the real server/policy files.
 // PLAIN DATA: the Settings tab lists.
 // SOURCE (and only where a render cannot reach — ProtectedRoute and App need a
-// signed-in AuthProvider, whose context is private): the gate's ORDER (forced
-// change first, then consent), the routes, and the four retired learner
-// fields gone from the three pages. Each source check carries a control.
+// signed-in AuthProvider, whose context is private): the gate's ORDER — since
+// feat/first-signin the mirrored nextStep() (consent, contact, password), as
+// plain data, and ProtectedRoute's one redirect before the role check — the
+// routes, and the four retired learner fields gone from the three pages. Each
+// source check carries a control.
 //
 // What it cannot prove: a real redirect, a real accept, the 300 ms clock —
 // that is the browser check.
@@ -201,12 +203,35 @@ console.log('\nThe gate and the routes (source — a render cannot reach them)')
     return forced > 0 && consent > forced && role > consent;
   };
   const normalised = gate.replace(/\r\n/g, '\n');
-  assert(order(normalised), 'ProtectedRoute: the forced change first, then /consent on policy_pending, then the role check');
+  // feat/first-signin (2026-10-18): the order moved into the mirrored
+  // nextStep() — consent, then the contact, then the password — so the old
+  // snippets this check looked for are gone, and their order with them.
+  assert(!order(normalised), 'ProtectedRoute: the pre-first-signin gates (the forced change first) are gone');
+  const { nextStep } = await import('../src/auth/accountSteps.js');
+  const ALL = { policy_pending: true, contact_pending: true, must_change_password: 1 };
+  assert(
+    nextStep(ALL) === 'consent' &&
+      nextStep({ ...ALL, policy_pending: false }) === 'contact' &&
+      nextStep({ ...ALL, policy_pending: false, contact_pending: false }) === 'password' &&
+      nextStep({ policy_pending: false, contact_pending: false, must_change_password: 0 }) === null,
+    'nextStep (plain data): consent, then the contact, then the password, then the app'
+  );
+  const STEP_LINE = 'const step = nextStep(user);';
+  const ROLE_LINE = 'if (allowedRoles && !allowedRoles.includes(user.role))';
+  const stepBeforeRole = (text) => {
+    const stepAt = text.indexOf(STEP_LINE);
+    const redirectAt = text.search(/if \(step\) \{\s*return <Navigate to=\{STEP_PATH\[step\]\} replace \/>;/);
+    const roleAt = text.indexOf(ROLE_LINE);
+    return stepAt > 0 && redirectAt > stepAt && roleAt > redirectAt;
+  };
+  assert(stepBeforeRole(normalised), 'ProtectedRoute: one nextStep() redirect to the step page, BEFORE the role check');
+  const late = normalised.replace(STEP_LINE, '').replace(ROLE_LINE, `${STEP_LINE}\n  ${ROLE_LINE}`);
+  assert(!stepBeforeRole(late), 'control: the same check fails when the step is read after the role check');
   const swapped = normalised
     .replace('if (user.must_change_password) {', 'if (user.__A__) {')
     .replace('if (user.policy_pending) {', 'if (user.must_change_password) {')
     .replace('if (user.__A__) {', 'if (user.policy_pending) {');
-  assert(!order(swapped), 'control: the same check fails when the two gates are swapped');
+  assert(!order(swapped), 'and no reordering of what is left brings the old gates back');
 
   const app = src('src/App.jsx').replace(/\r\n/g, '\n');
   const consentRoute = app.indexOf('<Route path="/consent" element={<PolicyConsent />} />');

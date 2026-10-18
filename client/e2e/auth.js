@@ -148,6 +148,28 @@ async function acceptanceIds(userIds) {
   });
 }
 
+// One smoke account's contact, confirmed for the run (see THE CONTACT STEP
+// below). Returns what the teardown puts back.
+async function stampContact(account) {
+  return withServerDb(async (conn) => {
+    const [[row]] = await conn.query(
+      'SELECT email, email_verified_at, contact_number, contact_verified_at, NOW() AS since FROM users WHERE id = ?',
+      [account.id]
+    );
+    if (row?.email) {
+      await conn.query('UPDATE users SET email_verified_at = NOW() WHERE id = ?', [account.id]);
+      return { id: account.id, since: row.since, restore: { email_verified_at: row.email_verified_at } };
+    }
+    if (row?.contact_number) {
+      await conn.query('UPDATE users SET contact_verified_at = NOW() WHERE id = ?', [account.id]);
+      return { id: account.id, since: row.since, restore: { contact_verified_at: row.contact_verified_at } };
+    }
+    throw new Error(
+      `The ${account.role} smoke account has no email or mobile number to confirm. Give it one in Settings → Account information, then run again.`
+    );
+  });
+}
+
 async function acceptForParents() {
   const accounts = [];
   for (const role of ['parent', 'parent2']) {
@@ -159,7 +181,13 @@ async function acceptForParents() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.token) throw new Error(`Consent setup: the ${role} account did not sign in (HTTP ${res.status}).`);
-    accounts.push({ role, token: body.token, id: body.user.id, pending: body.user.policy_pending === true });
+    accounts.push({
+      role,
+      token: body.token,
+      id: body.user.id,
+      pending: body.user.policy_pending === true,
+      contactPending: body.user.contact_pending === true,
+    });
   }
   for (const role of ['admin', 'teacher', 'teacher2']) {
     const { login_id, password } = credentialsFor(role);
@@ -170,7 +198,14 @@ async function acceptForParents() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.token) throw new Error(`globalSetup: the ${role} smoke account could not sign in (HTTP ${res.status})`);
-    accounts.push({ role, token: body.token, id: body.user.id, pending: body.user.policy_pending === true, staff: true });
+    accounts.push({
+      role,
+      token: body.token,
+      id: body.user.id,
+      pending: body.user.policy_pending === true,
+      contactPending: body.user.contact_pending === true,
+      staff: true,
+    });
   }
   const userIds = [...new Set(accounts.map((a) => a.id))];
   const before = new Set(await acceptanceIds(userIds));
@@ -188,7 +223,31 @@ async function acceptForParents() {
     if (!res.ok) throw new Error(`Consent setup: the ${a.role} account's accept answered HTTP ${res.status}.`);
   }
 
-  return async function removeThisRunsAcceptances() {
+  // THE CONTACT STEP (feat/first-signin, 2026-10-18): an account with no
+  // confirmed Gmail or mobile number now lands on /confirm-contact and the API
+  // refuses everything else, so each smoke account the sign-in reply calls
+  // `contact_pending` is confirmed for the run by a DIRECT stamp — never a code,
+  // which would send real mail — the same rule as
+  // server/scripts/policyFixture.js: its email if it has one, else its number,
+  // else the run stops naming the ROLE (never a value). The teardown puts every
+  // stamped column back first, then removes the acceptances.
+  const stamped = [];
+  for (const a of accounts) {
+    if (!a.contactPending || stamped.some((s) => s.id === a.id)) continue;
+    stamped.push(await stampContact(a));
+  }
+
+  return async function teardown() {
+    for (const { id, since, restore } of stamped) {
+      const columns = Object.keys(restore);
+      await withServerDb(async (conn) => {
+        await conn.query(`UPDATE users SET ${columns.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`, [
+          ...columns.map((c) => restore[c]),
+          id,
+        ]);
+        await conn.query('DELETE FROM auth_codes WHERE user_id = ? AND created_at >= ?', [id, since]);
+      });
+    }
     const added = (await acceptanceIds(userIds)).filter((id) => !before.has(id));
     if (added.length) {
       await withServerDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id IN (?)', [added]));
@@ -219,9 +278,10 @@ export default async function globalSetup() {
   await waitFor('The Vite dev server', APP_ORIGIN);
 
   // Every smoke account accepts first (both parents; the three staff since
-  // feat/staff-acceptance); the returned function is the global teardown
-  // that removes what this accepted (see acceptForParents above). Nothing runs
-  // after this return — the note below records a warm-up that was removed.
+  // feat/staff-acceptance) and, since feat/first-signin, has its contact
+  // confirmed for the run; the returned function is the global teardown that
+  // puts both back (see acceptForParents above). Nothing runs after this
+  // return — the note below records a warm-up that was removed.
   return acceptForParents();
 
   // NO WARM-UP HERE, AND THE ATTEMPT IS WORTH RECORDING (UI-C1a).

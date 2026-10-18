@@ -1168,8 +1168,9 @@ export default function UsersPage() {
             {tempPassword ? (
               <>
                 <p className="text-sm text-fg-body">
-                  Give this to <span className="font-semibold text-fg">{resetting.name}</span>. They
-                  will be asked to choose their own password the next time they sign in.
+                  Give this to <span className="font-semibold text-fg">{resetting.name}</span>. When
+                  they next sign in, they confirm their Gmail or mobile number with a code, then
+                  choose their own password.
                 </p>
                 {/* The password, selectable, in the fixed-width face it has
                     always been shown in. `break-all`: a long one wraps

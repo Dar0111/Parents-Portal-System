@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import extractError from '../api/extractError';
+import { RESEND_COOLDOWN_SECONDS, resendLabel } from '../auth/accountSteps';
 import Button from '../components/Button';
 import { cardClass, linkClass } from '../components/buttonClass';
 import FormStatus, { ok, fail } from '../components/FormStatus';
 import FormField from '../components/FormField';
 import PasswordField from '../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../components/PasswordChecklist';
+import useCooldown from '../hooks/useCooldown';
 import Reveal from '../motion/Reveal';
 import seal from '../assets/school-seal.png';
 
@@ -49,8 +51,15 @@ import seal from '../assets/school-seal.png';
 // controls and submit as Login — the control height is set from each <form>
 // (`[&_input]:…`) because PasswordField takes no class. The wordmark is a
 // <p>, not a heading: this page's h1 is "Reset your password".
+//
+// RESEND, ON A 60-SECOND CLOCK (feat/first-signin, 2026-10-18). Step two
+// offers "Resend code in 0:59", started on EVERY 202 alike — the server is
+// silent inside the minute (the same 202, nothing sent), so the clock is the
+// only place the wait shows, and it must not depend on whether a code really
+// went out.
 export default function ForgotPassword() {
   const navigate = useNavigate();
+  const clock = useCooldown();
 
   const [step, setStep] = useState('request');
   const [loginId, setLoginId] = useState('');
@@ -85,6 +94,23 @@ export default function ForgotPassword() {
       // whether or not an email went out.
       setSentNotice(message);
       setStep('reset');
+      clock.start(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setStatus(fail(extractError(err)));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // The same request again, for the same Login ID — and the same reply.
+  async function resend() {
+    if (clock.remaining > 0 || submitting) return;
+    setStatus(null);
+    setSubmitting(true);
+    try {
+      const message = await api.post('/auth/forgot-password', { login_id: loginId.trim() }, { unwrap: 'message' });
+      setSentNotice(message);
+      clock.start(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
       setStatus(fail(extractError(err)));
     } finally {
@@ -221,6 +247,9 @@ export default function ForgotPassword() {
                 disabled={!resetReady}
               >
                 {submitting ? 'Saving…' : 'Set new password'}
+              </Button>
+              <Button size="lg" full onClick={resend} disabled={submitting || clock.remaining > 0}>
+                {resendLabel(clock.remaining)}
               </Button>
               <FormStatus status={status} />
               {/* A text button, centred under the submit and 44px tall — the
