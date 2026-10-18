@@ -193,6 +193,10 @@ async function run() {
     );
     assertParentCredentialShape(parentActive.data?.user, 'Parent login carries login_id, JOIN fields, and no lrn');
     const parentToken = parentActive.data?.token;
+    // Consent and the contact step first (feat/first-signin): the consent gate
+    // no longer lets PUT /auth/change-password through, and the password
+    // checks below are about the password, not the gates.
+    await policy.accept(parentToken);
 
     const parentPending = await login('1234567', 'Parent@2026');
     assert(parentPending.status === 403 && parentPending.data?.status === 'pending', 'Pending parent blocked');
@@ -684,33 +688,56 @@ async function run() {
       body: { login_id: fcTeacherLogin, password: firstPw, name: 'Forced Change Teacher' },
     });
     if (fcCreate.status === 201) createdLoginIds.push(fcTeacherLogin);
+    // THE ORDER SINCE feat/first-signin (2026-10-18): consent, then a
+    // confirmed Gmail or mobile number, then the new password through
+    // PUT /auth/first-password. test:privacy walks each step through its own
+    // endpoints; here the fixture's accept() does the first two (it confirms a
+    // placeholder address on this fresh account) and the password is set here.
     const fcFirst = await login(fcTeacherLogin, firstPw);
     assert(
-      fcCreate.status === 201 && fcFirst.status === 200 && fcFirst.data?.user?.must_change_password === 1,
-      'a teacher the admin creates signs in with must_change_password = 1'
+      fcCreate.status === 201 &&
+        fcFirst.status === 200 &&
+        fcFirst.data?.user?.must_change_password === 1 &&
+        fcFirst.data?.user?.policy_pending === true &&
+        fcFirst.data?.user?.contact_pending === true,
+      'a teacher the admin creates signs in with policy_pending, contact_pending and must_change_password = 1'
     );
-    const fcBlocked = await request('GET', '/api/students', { token: fcFirst.data?.token });
+    const fcToken = fcFirst.data?.token;
+    const fcBlocked = await request('GET', '/api/students', { token: fcToken });
     assert(
-      fcBlocked.status === 403 && fcBlocked.data?.code === 'MUST_CHANGE_PASSWORD',
-      'until it is changed, any other endpoint is 403 MUST_CHANGE_PASSWORD'
+      fcBlocked.status === 403 && fcBlocked.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'consent comes first: any other endpoint is 403 POLICY_ACCEPTANCE_REQUIRED'
     );
+    await policy.accept(fcToken);
+    const fcPwGate = await request('GET', '/api/students', { token: fcToken });
     const fcChange = await request('PUT', '/api/auth/change-password', {
-      token: fcFirst.data?.token,
+      token: fcToken,
       body: { current_password: firstPw, new_password: ownPw },
     });
-    const fcOpen = await request('GET', '/api/students', { token: fcChange.data?.token });
-    const fcMe = await request('GET', '/api/auth/me', { token: fcChange.data?.token });
     assert(
-      fcChange.status === 200 &&
-        fcOpen.status === 403 &&
-        fcOpen.data?.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
-        fcMe.data?.user?.must_change_password === 0,
-      'after the change the replacement token works, the flag is cleared, and the consent gate comes next'
+      fcPwGate.status === 403 &&
+        fcPwGate.data?.code === 'MUST_CHANGE_PASSWORD' &&
+        fcChange.status === 403 &&
+        fcChange.data?.code === 'MUST_CHANGE_PASSWORD',
+      'consent and the contact done: 403 MUST_CHANGE_PASSWORD, and PUT /auth/change-password is refused too'
     );
-    assert(fcMe.data?.user?.policy_pending === true, 'a teacher has the consent step too (feat/staff-acceptance): policy_pending after the change');
-    await policy.accept(fcChange.data?.token);
-    const fcOpenAccepted = await request('GET', '/api/students', { token: fcChange.data?.token });
-    assert(fcOpenAccepted.status === 200, 'once the teacher accepts, the same replacement token opens the API');
+    const fcFirstPw = await request('PUT', '/api/auth/first-password', {
+      token: fcToken,
+      body: { new_password: ownPw },
+    });
+    const fcOpen = await request('GET', '/api/students', { token: fcFirstPw.data?.token });
+    const fcMe = await request('GET', '/api/auth/me', { token: fcFirstPw.data?.token });
+    assert(
+      fcFirstPw.status === 200 &&
+        fcFirstPw.data?.message === 'Password saved.' &&
+        fcOpen.status === 200 &&
+        fcMe.data?.user?.must_change_password === 0 &&
+        fcMe.data?.user?.policy_pending === false &&
+        fcMe.data?.user?.contact_pending === false,
+      'PUT /auth/first-password: the replacement token opens the API, and every step reads done'
+    );
+    const fcOldToken = await request('GET', '/api/auth/me', { token: fcToken });
+    assert(fcOldToken.status === 401, 'the sign-in token is revoked by the new password');
 
     const fcLrn = String(runId + 5).slice(-12);
     await insertTestStudent(fcLrn, 'Forced', 'Change', 6, 'Malikhain');
@@ -732,30 +759,35 @@ async function run() {
         fcApprove.status === 200 &&
         fcParentFirst.status === 200 &&
         fcParentFirst.data?.user?.must_change_password === 1 &&
-        fcParentFirst.data?.user?.policy_pending === true,
-      'a parent an adviser creates signs in with must_change_password = 1 and policy_pending = true'
+        fcParentFirst.data?.user?.policy_pending === true &&
+        fcParentFirst.data?.user?.contact_pending === true,
+      'a parent an adviser creates signs in with policy_pending, contact_pending and must_change_password = 1'
     );
     const fcEarlyAccept = await request('POST', '/api/policy/accept', {
       token: fcParentFirst.data?.token,
       body: { versions: {}, on_behalf_of_child: true },
     });
     assert(
-      fcEarlyAccept.status === 403 && fcEarlyAccept.data?.code === 'MUST_CHANGE_PASSWORD',
-      'the forced change comes FIRST: even /api/policy/accept is refused until it is done'
+      fcEarlyAccept.status !== 403,
+      'consent comes FIRST: /api/policy/accept is reached at once (an empty body is refused by the route, never by a gate)',
+      `got ${fcEarlyAccept.status} ${fcEarlyAccept.data?.code || ''}`
     );
-    const fcParentChange = await request('PUT', '/api/auth/change-password', {
-      token: fcParentFirst.data?.token,
-      body: { current_password: firstPw, new_password: ownPw },
-    });
-    const fcParentToken = fcParentChange.data?.token;
+    const fcParentToken = fcParentFirst.data?.token;
+    await policy.accept(fcParentToken);
     const fcGated = await request('GET', `/api/students/${fcChildId}`, { token: fcParentToken });
     assert(
-      fcParentChange.status === 200 && fcGated.status === 403 && fcGated.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
-      'after the change, the consent gate is next: the child record is 403 POLICY_ACCEPTANCE_REQUIRED'
+      fcGated.status === 403 && fcGated.data?.code === 'MUST_CHANGE_PASSWORD',
+      'consent and the contact done, the password is last: the child record is 403 MUST_CHANGE_PASSWORD'
     );
-    await policy.accept(fcParentToken);
-    const fcChild = await request('GET', `/api/students/${fcChildId}`, { token: fcParentToken });
-    assert(fcChild.status === 200 && fcChild.data?.student?.id === fcChildId, 'after accepting, the parent reads their child');
+    const fcParentPw = await request('PUT', '/api/auth/first-password', {
+      token: fcParentToken,
+      body: { new_password: ownPw },
+    });
+    const fcChild = await request('GET', `/api/students/${fcChildId}`, { token: fcParentPw.data?.token });
+    assert(
+      fcParentPw.status === 200 && fcChild.status === 200 && fcChild.data?.student?.id === fcChildId,
+      'after PUT /auth/first-password, the parent reads their child'
+    );
   } finally {
     await cleanup();
     await policy.cleanup();

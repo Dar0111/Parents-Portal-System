@@ -2,14 +2,7 @@ const pool = require('../config/db');
 const { verifyToken } = require('../utils/jwt');
 const { sendDbUnavailable } = require('../utils/dbUnavailable');
 const policy = require('../utils/policy');
-
-// The paths a parent may reach before accepting the Data Privacy Notice and
-// the Terms of Use: read itself, change its password (the forced change comes
-// FIRST), and the policy endpoints themselves.
-function policyGateAllows(req) {
-  const full = `${req.baseUrl || ''}${req.path || ''}`;
-  return full === '/api/auth/me' || full === '/api/auth/change-password' || full.startsWith('/api/policy');
-}
+const gates = require('../utils/accountGates');
 
 async function authenticate(req, res, next) {
   const header = req.headers.authorization || '';
@@ -54,7 +47,7 @@ async function authenticate(req, res, next) {
     const accepted = policy.acceptedCountSql('users.id');
     const [rows] = await pool.query(
       `SELECT id, login_id, role, status, name, email, contact_number, profile_pic, student_id,
-              email_verified_at, password_changed_at, token_version, must_change_password,
+              email_verified_at, contact_verified_at, password_changed_at, token_version, must_change_password,
               ${accepted.sql} AS policy_accepted
        FROM users WHERE id = ? LIMIT 1`,
       [...accepted.params, decoded.id]
@@ -103,44 +96,31 @@ async function authenticate(req, res, next) {
       });
     }
 
-    // FORCED CHANGE. An admin temporary password sets this; the account can
-    // do exactly two things until it is cleared: read itself, and change its
-    // password. Logout needs no exemption — it is client-side only, the
-    // token is simply dropped.
+    // THE THREE ACCOUNT GATES, in the owner's order (feat/first-signin,
+    // 2026-10-18): consent → a confirmed Gmail or mobile number → the forced
+    // password change. utils/accountGates.js holds the order, each gate's
+    // sentence and code, and the paths each lets through — matched on the
+    // FULL path and the method. Only the first pending gate applies.
     //
-    // THIS 403 IS A BACKSTOP, NOT A REDIRECT SIGNAL. Convention 2 says a 403
-    // never redirects, and it still does not: the client routes on
-    // `user.must_change_password` from GET /auth/me, which it already
-    // fetches. This exists for anything calling the API directly.
-    if (user.must_change_password) {
-      const path = req.path || '';
-      const allowed = path === '/change-password' || path === '/me';
-      if (!allowed) {
-        return res.status(403).json({
-          success: false,
-          message: 'You must change your password before continuing.',
-          code: 'MUST_CHANGE_PASSWORD',
-        });
-      }
-    }
-
-    // THE CONSENT GATE (feat/privacy, 2026-10-10; the owner's answer 1; every
-    // role since feat/staff-acceptance, 2026-10-11). An account that has not
-    // accepted the CURRENT Data Privacy Notice and Terms
-    // of Use can read itself, change its password and reach /api/policy —
-    // nothing else. Server-enforced, so the API refuses without consent
-    // whatever calls it; the same backstop shape as the forced change above,
-    // and checked AFTER it, so the forced change always comes first. The
-    // client routes on /auth/me's `policy_pending`, never on this 403 (§2).
-    if (policy.isPending(user.role, user.policy_accepted) && !policyGateAllows(req)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Please accept the Data Privacy Notice and the Terms of Use before continuing.',
-        code: 'POLICY_ACCEPTANCE_REQUIRED',
-      });
+    // Until this branch the forced change came FIRST and matched the
+    // router-relative path (`/me`, `/change-password`), and consent came
+    // second (feat/privacy, 2026-10-10; every role since
+    // feat/staff-acceptance, 2026-10-11).
+    //
+    // THESE 403s ARE A BACKSTOP, NOT A REDIRECT SIGNAL (§2): the clients route
+    // on /auth/me's `policy_pending`, `contact_pending` and
+    // `must_change_password`. Logout needs no exemption — it is client-side
+    // only, the token is simply dropped.
+    const gate = gates.pendingGate(user, decoded.iat);
+    if (gate && !gates.gateAllows(gate, req.method, `${req.baseUrl || ''}${req.path || ''}`)) {
+      return res.status(403).json({ success: false, ...gates.refusal(gate) });
     }
 
     req.user = user;
+    // The sign-in time of THIS token: the contact gate's "since this sign-in"
+    // and PUT /auth/first-password's guard compare the confirmation stamps
+    // against it.
+    req.tokenIat = decoded.iat;
     next();
   } catch (error) {
     // Everything in this block is database work on fixed SQL, so any throw

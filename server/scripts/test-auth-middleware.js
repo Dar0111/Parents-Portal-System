@@ -8,7 +8,9 @@
  * What it proves: a token problem is 401 and never touches the pool; a
  * database problem is 503 with the health endpoint's body and never 401;
  * every session verdict (cutoff, missing, inactive, version) is still 401;
- * the forced-change 403 is untouched; a good session reaches next().
+ * the three account gates (feat/first-signin) answer in their order —
+ * consent, contact, password — on the FULL path and the method; a good
+ * session reaches next().
  *
  * Usage: npm run test:auth-middleware
  */
@@ -67,21 +69,27 @@ const ACTIVE = {
   role: 'teacher',
   status: 'active',
   name: 'Test Teacher',
-  email: null,
+  // A confirmed address (long before any token here), so the contact gate is
+  // clear: only its truthiness and the stamp are read.
+  email: 'stub-address',
   contact_number: null,
   profile_pic: null,
   student_id: null,
-  email_verified_at: null,
+  email_verified_at: new Date(0),
+  contact_verified_at: null,
   password_changed_at: null,
   token_version: 0,
   must_change_password: 0,
   policy_accepted: 2, // both current documents: staff meet the consent gate since feat/staff-acceptance
 };
 
-async function run({ token, answers, reqPath = '/students' }) {
+// `reqPath` is the FULL path (the middleware joins baseUrl and path since
+// feat/first-signin, so baseUrl stays empty here) and `method` is part of the
+// gates' match.
+async function run({ token, answers, reqPath = '/api/students', method = 'GET' }) {
   script.answers = answers;
   script.calls = 0;
-  const req = { headers: token === undefined ? {} : { authorization: `Bearer ${token}` }, path: reqPath };
+  const req = { headers: token === undefined ? {} : { authorization: `Bearer ${token}` }, method, baseUrl: '', path: reqPath };
   const res = {
     statusCode: 200,
     body: null,
@@ -104,6 +112,9 @@ async function run({ token, answers, reqPath = '/students' }) {
 (async () => {
   console.log('\nmiddleware/auth.js unit tests (stubbed pool)\n');
 
+  // A confirmation stamp AFTER the token's sign-in: "confirmed in this
+  // session" for the forced-change cases (utils/accountGates.js).
+  const SINCE = new Date(Date.now() + 60_000);
   const good = signToken({ id: ACTIVE.id, role: 'teacher', v: 0 });
 
   console.log('A database outage is 503, never 401:');
@@ -173,11 +184,11 @@ async function run({ token, answers, reqPath = '/students' }) {
 
   console.log('\nThe forced change and the good path are untouched:');
   {
-    const r = await run({ token: good, answers: [[{ token_valid_after: null }], [{ ...ACTIVE, must_change_password: 1 }]] });
+    const r = await run({ token: good, answers: [[{ token_valid_after: null }], [{ ...ACTIVE, must_change_password: 1, email_verified_at: SINCE }]] });
     assert(r.status === 403 && r.body.code === 'MUST_CHANGE_PASSWORD', 'must_change_password off /me → 403 with the code', `got ${r.status}`);
   }
   {
-    const r = await run({ token: good, answers: [[{ token_valid_after: null }], [{ ...ACTIVE, must_change_password: 1 }]], reqPath: '/me' });
+    const r = await run({ token: good, answers: [[{ token_valid_after: null }], [{ ...ACTIVE, must_change_password: 1, email_verified_at: SINCE }]], reqPath: '/api/auth/me' });
     assert(r.next && r.req.user && r.req.user.must_change_password === 1, 'must_change_password on /me → next()');
   }
   {
@@ -192,6 +203,126 @@ async function run({ token, answers, reqPath = '/students' }) {
     const sqlError = new Error("Unknown column 'nope' in 'field list'");
     sqlError.code = 'ER_BAD_FIELD_ERROR';
     assert(!isDbUnavailable(sqlError) && !isDbUnavailable(new Error('plain')) && !isDbUnavailable(null), 'NEGATIVE CONTROL: a SQL error, a plain Error and null are NOT an outage — those stay 500');
+  }
+
+  console.log('\nThe three account gates (feat/first-signin): consent, then contact, then password, on full paths');
+  const NOTHING_CONFIRMED = { ...ACTIVE, email_verified_at: null, contact_verified_at: null };
+  const gateCase = (row, reqPath, method = 'GET') =>
+    run({ token: good, answers: [[{ token_valid_after: null }], [row]], reqPath, method });
+  {
+    const r = await gateCase({ ...NOTHING_CONFIRMED, policy_accepted: 0, must_change_password: 1 }, '/api/students');
+    assert(
+      r.status === 403 && r.body.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'all three pending: the consent gate answers first',
+      `got ${r.status} ${r.body && r.body.code}`
+    );
+  }
+  {
+    const r = await gateCase({ ...NOTHING_CONFIRMED, policy_accepted: 0 }, '/api/policy/accept', 'POST');
+    const s = await gateCase({ ...NOTHING_CONFIRMED, policy_accepted: 0 }, '/api/policy');
+    assert(r.next && s.next, 'consent pending: /api/policy and /api/policy/* pass');
+  }
+  {
+    const r = await gateCase({ ...NOTHING_CONFIRMED, policy_accepted: 0 }, '/api/policyx');
+    assert(r.status === 403, 'consent pending: a path that only begins with /api/policy is refused');
+  }
+  {
+    const r = await gateCase({ ...NOTHING_CONFIRMED, policy_accepted: 0 }, '/api/auth/email', 'PUT');
+    assert(r.status === 403 && r.body.code === 'POLICY_ACCEPTANCE_REQUIRED', 'consent pending: PUT /auth/email waits for consent');
+  }
+  {
+    const r = await gateCase({ ...NOTHING_CONFIRMED, policy_accepted: 0 }, '/api/auth/change-password', 'PUT');
+    assert(
+      r.status === 403 && r.body.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'consent pending: PUT /auth/change-password is no longer let through'
+    );
+  }
+  {
+    const r = await gateCase(NOTHING_CONFIRMED, '/api/students');
+    assert(
+      r.status === 403 &&
+        r.body.code === 'CONTACT_VERIFICATION_REQUIRED' &&
+        r.body.message === 'Confirm your Gmail or mobile number before continuing.' &&
+        r.body.success === false,
+      'nothing confirmed: 403 CONTACT_VERIFICATION_REQUIRED with its sentence',
+      `got ${r.status} ${JSON.stringify(r.body)}`
+    );
+  }
+  for (const [method, p] of [
+    ['GET', '/api/auth/me'],
+    ['PUT', '/api/auth/email'],
+    ['PUT', '/api/auth/contact'],
+    ['POST', '/api/auth/verify-email/request'],
+    ['POST', '/api/auth/verify-email/confirm'],
+    ['POST', '/api/auth/verify-contact/request'],
+    ['POST', '/api/auth/verify-contact/confirm'],
+    ['GET', '/api/policy'],
+  ]) {
+    const r = await gateCase(NOTHING_CONFIRMED, p, method);
+    assert(r.next, `contact pending: ${method} ${p} passes`, `got ${r.status}`);
+  }
+  {
+    const r = await gateCase(NOTHING_CONFIRMED, '/api/auth/email', 'GET');
+    assert(r.status === 403, 'contact pending: the method is part of the match (GET /api/auth/email refused)');
+  }
+  {
+    const r = await gateCase(NOTHING_CONFIRMED, '/api/auth/first-password', 'PUT');
+    const s = await gateCase(NOTHING_CONFIRMED, '/api/auth/change-password', 'PUT');
+    assert(
+      r.status === 403 && r.body.code === 'CONTACT_VERIFICATION_REQUIRED' && s.status === 403,
+      'contact pending: neither password endpoint passes'
+    );
+  }
+  {
+    const r = await gateCase(
+      { ...NOTHING_CONFIRMED, email: null, contact_number: 'stub-number', contact_verified_at: new Date(0) },
+      '/api/students'
+    );
+    assert(r.next, 'a confirmed mobile number alone clears the contact gate');
+  }
+  {
+    const r = await gateCase({ ...NOTHING_CONFIRMED, email: null, email_verified_at: new Date(0) }, '/api/students');
+    assert(
+      r.status === 403 && r.body.code === 'CONTACT_VERIFICATION_REQUIRED',
+      'a confirmation stamp with no address behind it does not count'
+    );
+  }
+  {
+    const r = await gateCase({ ...ACTIVE, must_change_password: 1 }, '/api/students');
+    assert(
+      r.status === 403 && r.body.code === 'CONTACT_VERIFICATION_REQUIRED',
+      'forced change confirmed only BEFORE this sign-in: the contact gate (confirm it again)'
+    );
+  }
+  {
+    const r = await gateCase({ ...ACTIVE, must_change_password: 1 }, '/api/auth/verify-email/request', 'POST');
+    assert(r.next, 'forced change, reconfirm: the verify request passes');
+  }
+  {
+    const r = await gateCase({ ...ACTIVE, must_change_password: 1, email_verified_at: SINCE }, '/api/auth/first-password', 'PUT');
+    assert(r.next, 'forced change confirmed since this sign-in: PUT /auth/first-password passes');
+  }
+  {
+    const r = await gateCase({ ...ACTIVE, must_change_password: 1, email_verified_at: SINCE }, '/api/auth/change-password', 'PUT');
+    assert(
+      r.status === 403 && r.body.code === 'MUST_CHANGE_PASSWORD',
+      'forced change: PUT /auth/change-password is refused (first-password replaces it)'
+    );
+  }
+  {
+    const r = await gateCase({ ...ACTIVE, must_change_password: 1, email_verified_at: SINCE }, '/api/auth/email', 'PUT');
+    assert(r.status === 403 && r.body.code === 'MUST_CHANGE_PASSWORD', 'password gate: the contact paths are closed again');
+  }
+  {
+    const r = await gateCase({ ...ACTIVE, must_change_password: 1, email_verified_at: SINCE }, '/api/users/me');
+    assert(
+      r.status === 403 && r.body.code === 'MUST_CHANGE_PASSWORD',
+      'full-path matching: /api/users/me is not /api/auth/me (the router-relative hole is closed)'
+    );
+  }
+  {
+    const r = await gateCase(ACTIVE, '/api/students');
+    assert(r.next && typeof r.req.tokenIat === 'number', "a clear session carries the token's iat as req.tokenIat");
   }
 
   console.error = realError;

@@ -21,7 +21,11 @@
  * on its own, like every other suite, never beside another.
  *
  * FIX ROUND (2026-10-10). The socket handshake refuses the same two gates, in
- * the same order, and connects once both are clear (PF2). The restore's
+ * the same order, and connects once both are clear (PF2). Since
+ * feat/first-signin (2026-10-18) there are THREE, in the owner's order —
+ * consent, a confirmed Gmail or mobile number (confirmed here by a code
+ * planted in auth_codes, never sent), then the new password through
+ * PUT /auth/first-password — for the teacher and the parent alike. The restore's
  * privacy step runs on a DISPOSABLE schema — a scratch database made and
  * dropped here, holding a pre-privacy shape — never a real restore and never
  * the live tables (PF1); the route's wiring is read as source, with a control.
@@ -150,6 +154,28 @@ function requireFixture(condition, label, res) {
   }
 }
 
+// THE CONTACT STEP BY A PLANTED CODE (feat/first-signin, 2026-10-18): the
+// account sets an address on the reserved .invalid domain through
+// PUT /auth/email, a code for that address is planted straight into
+// auth_codes — hashed, as the server stores one — and confirmed through the
+// real endpoint. Nothing is ever sent. The planted rows go in the finally.
+const { hashPassword } = require('../utils/password');
+async function confirmByPlantedCode(token, userId, address) {
+  const put = await request('PUT', '/api/auth/email', { token, body: { email: address } });
+  requireFixture(put.status === 200, 'PUT /auth/email sets the address', put);
+  const code = String(100000 + Math.floor(Math.random() * 900000));
+  const hash = await hashPassword(code);
+  await withDb((conn) =>
+    conn.query(
+      `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, expires_at)
+       VALUES (?, 'email_verification', ?, ?, NOW() + INTERVAL 10 MINUTE)`,
+      [userId, hash, address]
+    )
+  );
+  const confirm = await request('POST', '/api/auth/verify-email/confirm', { token, body: { code } });
+  requireFixture(confirm.status === 200, 'the planted code confirms the address', confirm);
+}
+
 async function run() {
   console.log('\nPrivacy flows (feat/privacy)\n');
 
@@ -229,45 +255,46 @@ async function run() {
     });
     requireFixture(mkTeacher.status === 201, 'admin creates the fixture teacher', mkTeacher);
     created.teacherId = mkTeacher.data.user.id;
+    // THE THREE STEPS IN ORDER (feat/first-signin, 2026-10-18): consent, then
+    // a confirmed Gmail or mobile number, then the new password — each
+    // refused, HTTP and socket alike, until it is done.
     const tFirst = await login(teacherLoginId, firstPw);
-    const tSockFirst = await trySocket(tFirst.data?.token);
+    assert(
+      tFirst.status === 200 &&
+        tFirst.data?.user?.must_change_password === 1 &&
+        tFirst.data?.user?.policy_pending === true &&
+        tFirst.data?.user?.contact_pending === true &&
+        tFirst.data?.user?.contact_step === 'add',
+      'it signs in with policy_pending, contact_pending (step "add") and must_change_password = 1'
+    );
+    const firstToken = tFirst.data?.token;
+    const tSockFirst = await trySocket(firstToken);
     assert(
       !tSockFirst.connected &&
-        tSockFirst.code === 'MUST_CHANGE_PASSWORD' &&
-        tSockFirst.message === 'You must change your password before continuing.',
-      'socket: refused while the first password is unchanged — the HTTP 403 sentence and code'
+        tSockFirst.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
+        tSockFirst.message === 'Please accept the Data Privacy Notice and the Terms of Use before continuing.',
+      'socket: all three pending — refused for consent FIRST, the HTTP 403 sentence and code'
     );
-    assert(tFirst.status === 200 && tFirst.data?.user?.must_change_password === 1, 'it signs in with must_change_password = 1');
-    const tBlocked = await request('GET', '/api/students', { token: tFirst.data?.token });
-    assert(tBlocked.status === 403 && tBlocked.data?.code === 'MUST_CHANGE_PASSWORD', 'everything else is 403 MUST_CHANGE_PASSWORD');
-    const tMe = await request('GET', '/api/auth/me', { token: tFirst.data?.token });
-    assert(tMe.status === 200 && tMe.data?.user?.must_change_password === 1, 'GET /api/auth/me still answers, with the flag');
-    const tChange = await request('PUT', '/api/auth/change-password', {
-      token: tFirst.data?.token,
+    const tBlocked = await request('GET', '/api/students', { token: firstToken });
+    assert(tBlocked.status === 403 && tBlocked.data?.code === 'POLICY_ACCEPTANCE_REQUIRED', 'everything else is 403 POLICY_ACCEPTANCE_REQUIRED first');
+    const tMe = await request('GET', '/api/auth/me', { token: firstToken });
+    assert(tMe.status === 200 && tMe.data?.user?.must_change_password === 1, 'GET /api/auth/me still answers, with the flags');
+    const tEarlyChange = await request('PUT', '/api/auth/change-password', {
+      token: firstToken,
       body: { current_password: firstPw, new_password: ownPw },
     });
-    requireFixture(tChange.status === 200 && tChange.data?.token, 'the teacher changes the password', tChange);
-    const teacherToken = tChange.data.token;
-    // The consent gate, on a teacher (feat/staff-acceptance): after the forced
-    // change come the notice and terms — the socket refuses, and every route
-    // but /me, /change-password and /api/policy is 403 — then two ticks, no
-    // child tick, two rows with no student_id, and the same token works.
-    const tSockGated = await trySocket(teacherToken);
     assert(
-      !tSockGated.connected && tSockGated.code === 'POLICY_ACCEPTANCE_REQUIRED',
-      'socket: the teacher, after the change but before accepting, is refused POLICY_ACCEPTANCE_REQUIRED'
+      tEarlyChange.status === 403 && tEarlyChange.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'PUT /auth/change-password is no longer let through the consent gate'
     );
-    const tGated = await request('GET', '/api/students', { token: teacherToken });
-    assert(
-      tGated.status === 403 && tGated.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
-      'the teacher meets the consent gate after the forced change: 403 POLICY_ACCEPTANCE_REQUIRED'
-    );
-    const tStatus = await request('GET', '/api/policy/status', { token: teacherToken });
+    // The consent gate, on a teacher (feat/staff-acceptance): two ticks, no
+    // child tick, two rows with no student_id.
+    const tStatus = await request('GET', '/api/policy/status', { token: firstToken });
     assert(
       tStatus.status === 200 && tStatus.data?.required === true && tStatus.data?.policy_pending === true,
       '/api/policy/status: a teacher is required, and pending'
     );
-    const tAccept = await staffAccept(teacherToken);
+    const tAccept = await staffAccept(firstToken);
     assert(
       tAccept.status === 200 && tAccept.data?.policy_pending === false,
       'the teacher accepts the two documents with no child tick'
@@ -279,10 +306,67 @@ async function run() {
       tRows.length === 2 && tRows.every((r) => r.student_id === null),
       'a staff acceptance stores no student_id — two rows, both null'
     );
+
+    // Then the contact step.
+    const tSockContact = await trySocket(firstToken);
+    const tContactGated = await request('GET', '/api/students', { token: firstToken });
+    assert(
+      !tSockContact.connected &&
+        tSockContact.code === 'CONTACT_VERIFICATION_REQUIRED' &&
+        tContactGated.status === 403 &&
+        tContactGated.data?.code === 'CONTACT_VERIFICATION_REQUIRED',
+      'after consent: the socket and every other route say CONTACT_VERIFICATION_REQUIRED'
+    );
+    const tNoContactYet = await request('PUT', '/api/auth/first-password', { token: firstToken, body: { new_password: ownPw } });
+    assert(
+      tNoContactYet.status === 403 && tNoContactYet.data?.code === 'CONTACT_VERIFICATION_REQUIRED',
+      'PUT /auth/first-password waits for the contact'
+    );
+    await confirmByPlantedCode(firstToken, created.teacherId, `privacy-teacher-${tail}@example.invalid`);
+
+    // Then the password.
+    const tSockPassword = await trySocket(firstToken);
+    assert(
+      !tSockPassword.connected &&
+        tSockPassword.code === 'MUST_CHANGE_PASSWORD' &&
+        tSockPassword.message === 'You must change your password before continuing.',
+      'socket: the contact confirmed, refused while the first password is unchanged — the HTTP 403 sentence and code'
+    );
+    const tPwGated = await request('GET', '/api/students', { token: firstToken });
+    const tPwChange = await request('PUT', '/api/auth/change-password', {
+      token: firstToken,
+      body: { current_password: firstPw, new_password: ownPw },
+    });
+    assert(
+      tPwGated.status === 403 &&
+        tPwGated.data?.code === 'MUST_CHANGE_PASSWORD' &&
+        tPwChange.status === 403 &&
+        tPwChange.data?.code === 'MUST_CHANGE_PASSWORD',
+      'the password step: everything else, PUT /auth/change-password included, is 403 MUST_CHANGE_PASSWORD'
+    );
+    const tSame = await request('PUT', '/api/auth/first-password', { token: firstToken, body: { new_password: firstPw } });
+    assert(
+      tSame.status === 400 &&
+        tSame.data?.field === 'new_password' &&
+        tSame.data?.message === 'Choose a new password, not the temporary one.',
+      'PUT /auth/first-password refuses the password the account already has'
+    );
+    const tWeak = await request('PUT', '/api/auth/first-password', { token: firstToken, body: { new_password: 'short1' } });
+    assert(tWeak.status === 400 && tWeak.data?.field === 'new_password', 'PUT /auth/first-password keeps the rule (8+ characters with a digit)');
+    const tChange = await request('PUT', '/api/auth/first-password', { token: firstToken, body: { new_password: ownPw } });
+    requireFixture(tChange.status === 200 && tChange.data?.token, 'the teacher sets a new password', tChange);
+    const teacherToken = tChange.data.token;
+    const tAgain = await request('PUT', '/api/auth/first-password', { token: teacherToken, body: { new_password: `${ownPw}x` } });
+    assert(
+      tAgain.status === 409 && tAgain.data?.message === 'Your password is already set. Change it in Settings.',
+      'a second PUT /auth/first-password is 409'
+    );
+    const tDead = await request('GET', '/api/auth/me', { token: firstToken });
+    assert(tDead.status === 401, 'the sign-in token is revoked by the new password');
     const tSockOwn = await trySocket(teacherToken);
-    assert(tSockOwn.connected, 'socket: connects once the teacher has changed the password');
+    assert(tSockOwn.connected, 'socket: connects once all three steps are done');
     const tOpen = await request('GET', '/api/students', { token: teacherToken });
-    assert(tOpen.status === 200, 'after the change, the replacement token works');
+    assert(tOpen.status === 200, 'after the new password, the replacement token works');
     const tOld = await login(teacherLoginId, firstPw);
     assert(tOld.status === 401, 'the password the admin typed no longer signs in');
 
@@ -351,7 +435,7 @@ async function run() {
     assert(Number(stored.none_held) === 1, 'and the database row holds none of them');
 
     // --- A parent the adviser creates: forced change, then consent -------
-    console.log('\nA new parent: the forced change first, then the consent gate');
+    console.log('\nA new parent: the consent gate first, then the contact step, then the new password');
     typedIds.add(childLrn);
     const mkParent = await request('POST', '/api/users/parents', {
       token: teacherToken,
@@ -365,27 +449,43 @@ async function run() {
     const pFirst = await login(childLrn, firstPw);
     const pSockFirst = await trySocket(pFirst.data?.token);
     assert(
-      !pSockFirst.connected && pSockFirst.code === 'MUST_CHANGE_PASSWORD',
-      'socket: a new parent with both gates is refused for the password FIRST'
+      !pSockFirst.connected && pSockFirst.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'socket: a new parent with all three steps pending is refused for consent FIRST'
     );
     assert(
-      pFirst.status === 200 && pFirst.data?.user?.must_change_password === 1 && pFirst.data?.user?.policy_pending === true,
-      'the parent signs in with must_change_password = 1 and policy_pending = true'
+      pFirst.status === 200 &&
+        pFirst.data?.user?.must_change_password === 1 &&
+        pFirst.data?.user?.policy_pending === true &&
+        pFirst.data?.user?.contact_pending === true &&
+        pFirst.data?.user?.contact_step === 'add',
+      'the parent signs in with policy_pending, contact_pending (step "add") and must_change_password = 1'
     );
     const pEarly = await request('GET', '/api/policy', { token: pFirst.data?.token });
-    assert(pEarly.status === 403 && pEarly.data?.code === 'MUST_CHANGE_PASSWORD', 'the forced change comes first — even /api/policy waits for it');
-    const pChange = await request('PUT', '/api/auth/change-password', {
+    assert(pEarly.status === 200, 'consent comes first — /api/policy answers before the contact and the password');
+    const pEarlyChange = await request('PUT', '/api/auth/change-password', {
       token: pFirst.data?.token,
       body: { current_password: firstPw, new_password: ownPw },
     });
-    requireFixture(pChange.status === 200 && pChange.data?.token, 'the parent changes the password', pChange);
-    const parentToken = pChange.data.token;
+    const pEarlyFirst = await request('PUT', '/api/auth/first-password', {
+      token: pFirst.data?.token,
+      body: { new_password: ownPw },
+    });
+    assert(
+      pEarlyChange.status === 403 &&
+        pEarlyChange.data?.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
+        pEarlyFirst.status === 403 &&
+        pEarlyFirst.data?.code === 'POLICY_ACCEPTANCE_REQUIRED',
+      'before consent, neither password endpoint is reachable'
+    );
+    // The sign-in token carries consent and the contact step; the new password
+    // replaces it (below), before the socket is expected to connect.
+    let parentToken = pFirst.data.token;
     const pSockPending = await trySocket(parentToken);
     assert(
       !pSockPending.connected &&
         pSockPending.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
         pSockPending.message === 'Please accept the Data Privacy Notice and the Terms of Use before continuing.',
-      'socket: after the change, refused until the notice and terms are accepted — the HTTP 403 sentence and code'
+      'socket: refused until the notice and terms are accepted — the HTTP 403 sentence and code'
     );
 
     const gated = await request('GET', `/api/students/${created.studentId}`, { token: parentToken });
@@ -393,7 +493,7 @@ async function run() {
       gated.status === 403 &&
         gated.data?.code === 'POLICY_ACCEPTANCE_REQUIRED' &&
         !JSON.stringify(gated.data).includes(childLrn),
-      'then the consent gate: the child record is 403 POLICY_ACCEPTANCE_REQUIRED (no LRN in the body)'
+      'the consent gate: the child record is 403 POLICY_ACCEPTANCE_REQUIRED (no LRN in the body)'
     );
     const gatedBell = await request('GET', '/api/notifications', { token: parentToken });
     assert(gatedBell.status === 403 && gatedBell.data?.code === 'POLICY_ACCEPTANCE_REQUIRED', 'every other endpoint is gated too (the bell)');
@@ -433,8 +533,43 @@ async function run() {
       body: { versions: current, on_behalf_of_child: true },
     });
     assert(accept.status === 200 && accept.data?.policy_pending === false, 'all three ticks and the current versions: 200, no longer pending');
+
+    // feat/first-signin: consent done, the contact step is next, then the
+    // password — each refused in turn until it is done.
+    console.log('\nThe contact step, then the new password (feat/first-signin)');
+    const pSockContact = await trySocket(parentToken);
+    const pContactGated = await request('GET', `/api/students/${created.studentId}`, { token: parentToken });
+    assert(
+      !pSockContact.connected &&
+        pSockContact.code === 'CONTACT_VERIFICATION_REQUIRED' &&
+        pContactGated.status === 403 &&
+        pContactGated.data?.code === 'CONTACT_VERIFICATION_REQUIRED' &&
+        pContactGated.data?.message === 'Confirm your Gmail or mobile number before continuing.',
+      'after consent: the socket and the child record are refused CONTACT_VERIFICATION_REQUIRED, with its sentence'
+    );
+    const pMeContact = await request('GET', '/api/auth/me', { token: parentToken });
+    assert(
+      pMeContact.data?.user?.policy_pending === false &&
+        pMeContact.data?.user?.contact_pending === true &&
+        pMeContact.data?.user?.contact_step === 'add',
+      '/api/auth/me: consent done, contact_pending with step "add"'
+    );
+    await confirmByPlantedCode(parentToken, created.parentId, `privacy-parent-${tail}@example.invalid`);
+    const pMePassword = await request('GET', '/api/auth/me', { token: parentToken });
+    const pSockPassword = await trySocket(parentToken);
+    assert(
+      pMePassword.data?.user?.contact_pending === false &&
+        pMePassword.data?.user?.contact_step === null &&
+        pMePassword.data?.user?.must_change_password === 1 &&
+        !pSockPassword.connected &&
+        pSockPassword.code === 'MUST_CHANGE_PASSWORD',
+      'the contact confirmed: the password is the last step — the socket refuses MUST_CHANGE_PASSWORD'
+    );
+    const pNewPw = await request('PUT', '/api/auth/first-password', { token: parentToken, body: { new_password: ownPw } });
+    requireFixture(pNewPw.status === 200 && pNewPw.data?.token, 'the parent sets a new password', pNewPw);
+    parentToken = pNewPw.data.token;
     const pSockOpen = await trySocket(parentToken);
-    assert(pSockOpen.connected, 'socket: connects once the parent has accepted both');
+    assert(pSockOpen.connected, 'socket: connects once consent, the contact step and the new password are done');
     const [rows] = await withDb((conn) =>
       conn.query('SELECT document, version, student_id FROM policy_acceptances WHERE user_id = ? ORDER BY document', [created.parentId])
     );
@@ -637,6 +772,12 @@ async function run() {
       `${MAX_PER_IP} failures from one address: every sign-in from it is 429, the same body`
     );
   } finally {
+    // The codes this run planted (feat/first-signin): auth_codes has no
+    // foreign key, so they do not go with the accounts.
+    const plantedFor = [created.teacherId, created.parentId].filter(Boolean);
+    if (plantedFor.length) {
+      await withDb((conn) => conn.query('DELETE FROM auth_codes WHERE user_id IN (?)', [plantedFor]));
+    }
     await cleanup(created, typedIds);
     await deleteStaffAcceptances();
   }

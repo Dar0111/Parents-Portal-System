@@ -391,8 +391,10 @@ async function run() {
       putOldEmail.status === 200 && putNewEmail.status === 200 && (await liveCodes('email_verification')) === 0,
       'Q4: an admin email change burns the code already mailed to the OLD address'
     );
+    // { contact: false } below (feat/first-signin): the fixture would otherwise
+    // confirm this address itself, and the check is that a stale code does not.
     const staleLogin = await login(throwawayLoginId, 'Teacher@2026');
-    await policy.accept(staleLogin.data?.token);
+    await policy.accept(staleLogin.data?.token, { contact: false });
     const staleConfirm = await request('POST', '/api/auth/verify-email/confirm', {
       token: staleLogin.data?.token,
       body: { code: '246810' },

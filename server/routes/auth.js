@@ -3,7 +3,8 @@ const pool = require('../config/db');
 const { comparePassword, hashPassword } = require('../utils/password');
 const { validateNewPassword } = require('../utils/passwordRule');
 const { validateContact } = require('../utils/contactRule');
-const { signToken } = require('../utils/jwt');
+const { validateEmail } = require('../utils/emailRule');
+const { signToken, verifyToken } = require('../utils/jwt');
 const { authenticate } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { sanitizeUser } = require('../utils/sanitizeUser');
@@ -14,6 +15,7 @@ const sms = require('../utils/smsTransport');
 const photos = require('../utils/profilePhoto');
 const throttle = require('../utils/loginThrottle');
 const policy = require('../utils/policy');
+const gates = require('../utils/accountGates');
 
 const router = express.Router();
 
@@ -40,11 +42,20 @@ function mintToken(payload, tokenVersion) {
 // accepted the CURRENT Data Privacy Notice and Terms of Use. The client routes
 // on it to the consent screen, as it routes on must_change_password — never
 // on the 403 (§2).
-function withAccountFlags(sanitized, row, acceptedCount) {
+//
+// `contact_pending` and `contact_step` (feat/first-signin, 2026-10-18): the
+// second of the three gates (utils/accountGates.js). `contact_step` is 'add'
+// for an account with no confirmed Gmail or mobile number, 'reconfirm' for a
+// forced-change account that has one but has not used it since THIS sign-in
+// (`iat`, the token's), and null when nothing is pending.
+function withAccountFlags(sanitized, row, acceptedCount, iat) {
+  const contact = gates.contactState(row, iat);
   return {
     ...sanitized,
     must_change_password: row.must_change_password ? 1 : 0,
     policy_pending: policy.isPending(row.role, acceptedCount),
+    contact_pending: contact.pending,
+    contact_step: contact.step,
   };
 }
 
@@ -141,7 +152,7 @@ router.post('/login', async (req, res) => {
     return res.json({
       success: true,
       token,
-      user: withAccountFlags(sanitizeUser(user), user, await acceptedCountFor(user)),
+      user: withAccountFlags(sanitizeUser(user), user, await acceptedCountFor(user), verifyToken(token).iat),
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -156,7 +167,10 @@ router.get('/me', authenticate, async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
-    return res.json({ success: true, user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted) });
+    return res.json({
+      success: true,
+      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted, req.tokenIat),
+    });
   } catch (error) {
     // Reachable only if the database dies between the middleware's read and
     // this one; when it does, say so the way the middleware and /api/health
@@ -212,8 +226,10 @@ router.put('/change-password', authenticate, async (req, res) => {
     // timestamp against the token's `iat` and could not work: `iat` has
     // one-second resolution and every step of a scripted flow lands inside
     // the same second. See the long note in middleware/auth.js.
-    // `must_change_password` is cleared because this IS the change that was
-    // demanded.
+    // `must_change_password = 0` is a no-op since feat/first-signin: no gate
+    // lets an account in the forced state reach this endpoint, whose own
+    // replacement is PUT /first-password below. Kept so the row can never be
+    // left flagged by a password the owner chose.
     await pool.query(
       'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
       [hashed, req.user.id]
@@ -244,11 +260,90 @@ router.put('/change-password', authenticate, async (req, res) => {
   }
 });
 
+// PUT /api/auth/first-password  { new_password }  -> { message, token }
+//
+// THE FORCED CHANGE'S OWN ENDPOINT (feat/first-signin, 2026-10-18). A new
+// account, or one an admin gave a temporary password, sets its own password
+// here — with NO current password: the temporary one was typed at sign-in,
+// and the code just confirmed is the second proof. The password gate
+// (utils/accountGates.js) lets only this path through, and only after the
+// contact gate is clear. The guard, in order:
+//
+//   1. the account is in the forced state             else 409
+//   2. it confirmed a contact SINCE THIS SIGN-IN      else 403 CONTACT_VERIFICATION_REQUIRED
+//   3. the password rule (8+ characters, a digit)     else 400, field new_password
+//   4. not the password it already has                else 400, field new_password
+//   5. the UPDATE repeats step 1 (`AND must_change_password = 1`), so two
+//      tabs racing cannot both set it; 0 rows changed is step 1's 409
+//
+// Then the same token rules as change-password: token_version is bumped (every
+// other session ends), the version is READ BACK, and a replacement token goes
+// to this caller, who must store it (AuthContext.applyToken).
+const PASSWORD_ALREADY_SET = {
+  success: false,
+  message: 'Your password is already set. Change it in Settings.',
+};
+
+router.put('/first-password', authenticate, async (req, res) => {
+  const { new_password } = req.body || {};
+
+  if (!req.user.must_change_password) return res.status(409).json(PASSWORD_ALREADY_SET);
+  if (!gates.confirmedSince(req.user, req.tokenIat)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Confirm your Gmail or mobile number first.',
+      code: gates.GATES.contact.code,
+    });
+  }
+
+  const ruleError = validateNewPassword(new_password);
+  if (ruleError) {
+    return res.status(400).json({ success: false, message: ruleError, field: 'new_password' });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    if (await comparePassword(new_password, rows[0].password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Choose a new password, not the temporary one.',
+        field: 'new_password',
+      });
+    }
+
+    const hashed = await hashPassword(new_password);
+    const [upd] = await pool.query(
+      `UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1,
+              must_change_password = 0
+        WHERE id = ? AND must_change_password = 1`,
+      [hashed, req.user.id]
+    );
+    if (upd.affectedRows === 0) return res.status(409).json(PASSWORD_ALREADY_SET);
+
+    await logActivity(req.user.id, 'change_password', 'Password set at first sign-in');
+
+    const [[v]] = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const token = mintToken({ id: req.user.id, role: req.user.role }, v.token_version);
+
+    return res.json({ success: true, message: 'Password saved.', token });
+  } catch (error) {
+    if (isDbUnavailable(error)) return sendDbUnavailable(res, 'First password', error);
+    console.error('First password error:', error.code || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to save the password.' });
+  }
+});
+
 // PUT /api/auth/contact — any authenticated user updates their own
-// contact_number. Identity (name, LRN/login_id, role, student_id, email)
-// is school-owned: sending those fields is 400, same loud-reject as
+// contact_number. Identity (name, LRN/login_id, role, student_id) is
+// school-owned: sending those fields is 400, same loud-reject as
 // PUT /api/users/:id, not a silent ignore. Id comes from req.user
-// (authenticate re-reads the DB row), never the body.
+// (authenticate re-reads the DB row), never the body. `email` is refused HERE
+// too, but since feat/first-signin (2026-10-18) it is no longer the school's:
+// the account holder sets it through PUT /auth/email below, one field per
+// endpoint so each change unconfirms only what it changed.
 const CONTACT_FORBIDDEN_FIELDS = [
   'name',
   'email',
@@ -322,6 +417,71 @@ router.put('/contact', authenticate, async (req, res) => {
   }
 });
 
+// PUT /api/auth/email  { email }  -> { message, user }
+//
+// YOUR OWN EMAIL (feat/first-signin, 2026-10-18; the owner's scope item 2).
+// It was a school record that only an admin could change (PUT /users/:id);
+// now the account holder sets it — at the first-sign-in step and in Settings —
+// and confirms it with a code. The twin of PUT /contact above:
+//
+//   - one field: the identity fields and `contact_number` are a loud 400;
+//   - required and non-empty here, then the one email rule
+//     (utils/emailRule.js), stored trimmed, never re-cased;
+//   - A CHANGE UNCONFIRMS IT and burns every pending email code, so a code
+//     already in the old inbox cannot confirm the new address. Compared
+//     exactly, as PUT /users/:id compares it (`<=>`), so a re-cased address
+//     is a change;
+//   - the same address may sit on more than one account (a guardian with two
+//     children has two accounts — LOCKED DECISIONS), so nothing checks for it.
+//
+// activity_logs gets the action only, never the address.
+const EMAIL_FORBIDDEN_FIELDS = [
+  ...CONTACT_FORBIDDEN_FIELDS.filter((field) => field !== 'email'),
+  'contact_number',
+];
+
+router.put('/email', authenticate, async (req, res) => {
+  const body = req.body || {};
+  const sentForbidden = EMAIL_FORBIDDEN_FIELDS.filter((field) => body[field] !== undefined);
+  if (sentForbidden.length) {
+    return res.status(400).json({
+      success: false,
+      message: `Cannot change ${sentForbidden.join(', ')} through this endpoint.`,
+    });
+  }
+
+  if (body.email === undefined) {
+    return res.status(400).json({ success: false, message: 'email is required.' });
+  }
+  if (!String(body.email).trim()) {
+    return res.status(400).json({ success: false, message: 'email must not be empty.', field: 'email' });
+  }
+  const email = validateEmail(body.email);
+  if (email.error) {
+    return res.status(400).json({ success: false, message: email.error, field: 'email' });
+  }
+
+  try {
+    const [[current]] = await pool.query('SELECT email FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const changed = (current?.email ?? null) !== email.value;
+    if (changed) {
+      await pool.query('UPDATE users SET email = ?, email_verified_at = NULL WHERE id = ?', [email.value, req.user.id]);
+      await codes.burnPending(req.user.id, 'email_verification');
+    }
+    await logActivity(req.user.id, 'update_email', 'Email address updated');
+
+    const user = await fetchUserByLoginId(req.user.login_id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+    return res.json({ success: true, message: 'Email address updated.', user: sanitizeUser(user) });
+  } catch (error) {
+    if (isDbUnavailable(error)) return sendDbUnavailable(res, 'Update email', error);
+    console.error('Update email error:', error.code || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to update the email address.' });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // PROFILE PHOTO — YOUR OWN (feat/profile-photos, 2026-09-30)
 // ---------------------------------------------------------------------------
@@ -366,7 +526,7 @@ router.put('/photo', authenticate, async (req, res) => {
     return res.json({
       success: true,
       message: 'Profile photo updated.',
-      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted),
+      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted, req.tokenIat),
     });
   } catch (error) {
     // A file written but never recorded is removed, not left as an orphan.
@@ -393,7 +553,7 @@ router.delete('/photo', authenticate, async (req, res) => {
     return res.json({
       success: true,
       message: current?.profile_pic ? 'Profile photo removed.' : 'There was no profile photo to remove.',
-      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted),
+      user: withAccountFlags(sanitizeUser(user), user, req.user.policy_accepted, req.tokenIat),
     });
   } catch (error) {
     if (isDbUnavailable(error)) return sendDbUnavailable(res, 'Remove photo', error);
@@ -457,6 +617,16 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     if (await codes.isRateLimited(user.id, 'password_reset', ip)) {
+      await codes.burnTiming();
+      return res.status(202).json(FORGOT_REPLY);
+    }
+
+    // THE RESEND COOLDOWN (feat/first-signin, 2026-10-18), SILENT HERE: inside
+    // 60 seconds of the last code nothing is sent, and the reply and its cost
+    // are the same as a send — a 429 or a "wait N seconds" would say this
+    // login id has a confirmed contact. The clients count the minute down
+    // after every 202 alike.
+    if ((await codes.cooldownRemaining(user.id, 'password_reset')) > 0) {
       await codes.burnTiming();
       return res.status(202).json(FORGOT_REPLY);
     }
@@ -573,6 +743,40 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// THE TWO VERIFY REQUESTS SHARE THESE (feat/first-signin, 2026-10-18).
+//
+// RECONFIRM: an account in the forced-change state that has not confirmed a
+// contact since THIS sign-in is sent a code even for an address or number that
+// is already confirmed — the password gate needs a confirmation made in this
+// session (utils/accountGates.js, PUT /first-password).
+function needsReconfirm(req) {
+  return Boolean(req.user.must_change_password) && !gates.confirmedSince(req.user, req.tokenIat);
+}
+
+// The 60-second resend cooldown, honest here (the caller knows their own
+// contact): a 429 with the seconds left in `retry_after`, which the clients
+// count down. Checked AFTER the hourly limit, so "wait 40 seconds" is never
+// said to an account that would then be refused for the hour.
+function cooldownReply(seconds) {
+  return {
+    success: false,
+    message: `Wait ${seconds} ${seconds === 1 ? 'second' : 'seconds'}, then ask for a new code.`,
+    retry_after: seconds,
+  };
+}
+
+// The hourly limit (3 per account, 10 per IP) is unchanged — decision D3 — and
+// names the other channel, which has a limit of its own. The mobile number is
+// named only when this server can send texts.
+function hourlyReply(otherChannel) {
+  return {
+    success: false,
+    message: otherChannel
+      ? `Too many codes requested. Try again in an hour, or use your ${otherChannel} instead.`
+      : 'Too many codes requested. Try again in an hour.',
+  };
+}
+
 // POST /api/auth/verify-email/request — authenticated, so honesty leaks
 // nothing: this caller already knows their own email.
 router.post('/verify-email/request', authenticate, async (req, res) => {
@@ -582,18 +786,17 @@ router.post('/verify-email/request', authenticate, async (req, res) => {
     if (!row || !row.email) {
       return res.status(400).json({
         success: false,
-        message: 'There is no email on this account. Ask the school office to add one.',
+        message: 'There is no email on this account. Add your email first.',
       });
     }
-    if (row.email_verified_at) {
+    if (row.email_verified_at && !needsReconfirm(req)) {
       return res.json({ success: true, message: 'This email is already confirmed.' });
     }
     if (await codes.isRateLimited(req.user.id, 'email_verification', req.ip)) {
-      return res.status(429).json({
-        success: false,
-        message: 'Too many codes requested. Try again in an hour.',
-      });
+      return res.status(429).json(hourlyReply(sms.isEnabled() ? 'mobile number' : null));
     }
+    const wait = await codes.cooldownRemaining(req.user.id, 'email_verification');
+    if (wait > 0) return res.status(429).json(cooldownReply(wait));
 
     const { code, minutes } = await codes.createCode({
       userId: req.user.id,
@@ -629,11 +832,23 @@ router.post('/verify-email/request', authenticate, async (req, res) => {
 router.post('/verify-email/confirm', authenticate, async (req, res) => {
   const { code } = req.body;
   try {
+    const INVALID = { success: false, message: 'That code is not valid. Request a new one.' };
     const result = await codes.consumeCode({ userId: req.user.id, purpose: 'email_verification', code });
-    if (!result.ok) {
-      return res.status(400).json({ success: false, message: 'That code is not valid. Request a new one.' });
-    }
-    await pool.query('UPDATE users SET email_verified_at = NOW() WHERE id = ?', [req.user.id]);
+    if (!result.ok) return res.status(400).json(INVALID);
+
+    // THE SNAPSHOT CHECK, as verify-contact has had since feat/sms-transport
+    // (feat/first-signin, 2026-10-18 — the address became the user's to
+    // change): the code must have gone to the address the account holds NOW.
+    // PUT /auth/email and PUT /users/:id already burn pending codes on a
+    // change; the UPDATE's own condition refuses one that raced them. The
+    // stamp is ALWAYS rewritten, so a re-confirm counts as "since this
+    // sign-in" (utils/accountGates.js).
+    const [upd] = await pool.query('UPDATE users SET email_verified_at = NOW() WHERE id = ? AND email = ?', [
+      req.user.id,
+      result.emailSnapshot,
+    ]);
+    if (!result.emailSnapshot || upd.affectedRows === 0) return res.status(400).json(INVALID);
+
     await logActivity(req.user.id, 'email_verified', 'Email address confirmed');
     return res.json({ success: true, message: 'Email confirmed. You can now reset your own password.' });
   } catch (error) {
@@ -667,7 +882,7 @@ router.post('/verify-contact/request', authenticate, async (req, res) => {
     if (!row || !row.contact_number) {
       return res.status(400).json({ success: false, message: 'There is no mobile number on this account. Add one first.' });
     }
-    if (row.contact_verified_at) {
+    if (row.contact_verified_at && !needsReconfirm(req)) {
       return res.json({ success: true, message: 'This number is already confirmed.' });
     }
     if (!sms.isEnabled()) {
@@ -675,8 +890,10 @@ router.post('/verify-contact/request', authenticate, async (req, res) => {
       return res.status(503).json(SMS_UNAVAILABLE);
     }
     if (await codes.isRateLimited(req.user.id, 'contact_verification', req.ip)) {
-      return res.status(429).json({ success: false, message: 'Too many codes requested. Try again in an hour.' });
+      return res.status(429).json(hourlyReply('Gmail'));
     }
+    const wait = await codes.cooldownRemaining(req.user.id, 'contact_verification');
+    if (wait > 0) return res.status(429).json(cooldownReply(wait));
 
     const { code, minutes } = await codes.createCode({
       userId: req.user.id,

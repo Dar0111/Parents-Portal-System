@@ -10,8 +10,10 @@
  * DB_UNAVAILABLE, never the token sentence; the restore cutoff and the
  * token's version refuse with the HTTP middleware's OWN sentences — each
  * verdict also runs through middleware/auth.js on the same rows and the two
- * messages are compared; PF2's two gates keep their sentence, code and order;
- * a good session reaches next() with socket.userId set.
+ * messages are compared; the three account gates (consent → contact →
+ * password since feat/first-signin, 2026-10-18; PF2 had two, the forced change
+ * first) keep the HTTP sentence, code and order; a good session reaches
+ * next() with socket.userId set.
  *
  * CONTROLS: every case runs again against socket.js compiled in memory with
  * the one check it depends on removed (or turned), and must FAIL there. A
@@ -119,6 +121,7 @@ async function viaHttp({ token, answers }) {
   script.calls = 0;
   const req = {
     headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+    method: 'GET',
     baseUrl: '/api/students',
     path: '/',
   };
@@ -146,6 +149,12 @@ const PARENT = { ...TEACHER, id: 9, role: 'parent' };
 // consent gate (both documents) — after PARENT is built, so the parent row
 // stays unaccepted; a teacher who has not accepted is its own case below.
 TEACHER.policy_accepted = policy.CURRENT.length;
+// Both rows carry a confirmed address (stamped long ago), so the contact gate
+// (feat/first-signin) is clear unless a case takes it away.
+for (const row of [TEACHER, PARENT]) {
+  Object.assign(row, { email: 'stub-address', email_verified_at: new Date(0), contact_number: null, contact_verified_at: null });
+}
+const UNCONFIRMED = { email_verified_at: null, contact_verified_at: null };
 
 const good = signToken({ id: TEACHER.id, role: 'teacher', v: 0 });
 const legacy = signToken({ id: TEACHER.id, role: 'teacher' });
@@ -154,6 +163,14 @@ const parentToken = signToken({ id: PARENT.id, role: 'parent', v: 0 });
 const expired = signToken({ id: TEACHER.id, role: 'teacher', v: 0, iat: NOW - 400 * 24 * 3600 });
 
 const IF_FALSE = 'if (false) {';
+// The one call that decides every account gate since feat/first-signin
+// (utils/accountGates.js). A control hands it a row with ONE field changed,
+// so each case proves socket.js passes that field — not merely that a gate
+// exists.
+const PENDING_GATE = 'gates.pendingGate(user, decoded.iat)';
+// A confirmation stamp after every token here was signed: "confirmed in this
+// session" for a forced-change row.
+const SINCE = new Date(Date.now() + 60_000);
 const TOKEN_SENTENCE = 'Invalid or expired token.';
 const admitted = (r) => r.message === null && r.nextCalls === 1;
 
@@ -240,29 +257,36 @@ const CASES = [
     control: ['if ((decoded.v || 0) !== Number(user.token_version || 0)) {', IF_FALSE],
   },
   {
-    label: 'PF2 — the forced change → its sentence and MUST_CHANGE_PASSWORD, as the HTTP 403',
-    input: { token: good, answers: [STATE_CLEAR, [{ ...TEACHER, must_change_password: 1 }]] },
+    label: 'a parent past consent who must change the password: MUST_CHANGE_PASSWORD, as over HTTP',
+    // `history` is the label this case carried until feat/first-signin
+    // (2026-10-18) moved consent AHEAD of the forced change; the runner does
+    // not read it. The new order has its own cases at the end of CASES.
+    history: 'PF2 — the forced change → its sentence and MUST_CHANGE_PASSWORD, as the HTTP 403',
+    input: { token: good, answers: [STATE_CLEAR, [{ ...TEACHER, must_change_password: 1, email_verified_at: SINCE }]] },
     check: (r, h) => h.status === 403 && r.message === h.message && r.code === 'MUST_CHANGE_PASSWORD' && r.code === h.code,
-    control: ['if (user.must_change_password) {', IF_FALSE],
+    control: [PENDING_GATE, 'gates.pendingGate({ ...user, must_change_password: 0 }, decoded.iat)'],
   },
   {
     label: 'PF2 — the forced change comes before the consent gate',
-    input: { token: parentToken, answers: [STATE_CLEAR, [{ ...PARENT, must_change_password: 1 }]] },
+    input: {
+      token: parentToken,
+      answers: [STATE_CLEAR, [{ ...PARENT, policy_accepted: policy.CURRENT.length, must_change_password: 1, email_verified_at: SINCE }]],
+    },
     check: (r, h) => r.code === 'MUST_CHANGE_PASSWORD' && r.code === h.code,
-    control: ['if (user.must_change_password) {', IF_FALSE],
+    control: [PENDING_GATE, 'gates.pendingGate({ ...user, must_change_password: 0 }, decoded.iat)'],
   },
   {
     label: 'PF2 — a parent without the current notice and terms → its sentence and POLICY_ACCEPTANCE_REQUIRED, as the HTTP 403',
     input: { token: parentToken, answers: [STATE_CLEAR, [PARENT]] },
     check: (r, h) =>
       h.status === 403 && r.message === h.message && r.code === 'POLICY_ACCEPTANCE_REQUIRED' && r.code === h.code,
-    control: ['if (policy.isPending(user.role, user.policy_accepted)) {', IF_FALSE],
+    control: [PENDING_GATE, `gates.pendingGate({ ...user, policy_accepted: ${policy.CURRENT.length} }, decoded.iat)`],
   },
   {
     label: 'a parent who accepted both current documents → admitted',
     input: { token: parentToken, answers: [STATE_CLEAR, [{ ...PARENT, policy_accepted: policy.CURRENT.length }]] },
     check: (r) => admitted(r) && r.userId === PARENT.id,
-    control: ['policy.isPending(user.role, user.policy_accepted)', 'policy.isPending(user.role, 0)'],
+    control: [PENDING_GATE, 'gates.pendingGate({ ...user, policy_accepted: 0 }, decoded.iat)'],
   },
   {
     label: 'a teacher who accepted both current documents → admitted, socket.userId set, two reads',
@@ -275,7 +299,49 @@ const CASES = [
     input: { token: good, answers: [STATE_CLEAR, [{ ...TEACHER, policy_accepted: 0 }]] },
     check: (r, h) =>
       h.status === 403 && r.message === h.message && r.code === 'POLICY_ACCEPTANCE_REQUIRED' && r.code === h.code,
-    control: ['if (policy.isPending(user.role, user.policy_accepted)) {', IF_FALSE],
+    control: [PENDING_GATE, `gates.pendingGate({ ...user, policy_accepted: ${policy.CURRENT.length} }, decoded.iat)`],
+  },
+  // feat/first-signin (2026-10-18): the contact gate, and the new order —
+  // consent, then contact, then password — each as the HTTP middleware says.
+  {
+    label: 'a teacher with no confirmed Gmail or mobile number: CONTACT_VERIFICATION_REQUIRED, as over HTTP',
+    input: { token: good, answers: [STATE_CLEAR, [{ ...TEACHER, ...UNCONFIRMED }]] },
+    check: (r, h) =>
+      h.status === 403 &&
+      r.message === h.message &&
+      r.code === 'CONTACT_VERIFICATION_REQUIRED' &&
+      r.code === h.code,
+    control: [PENDING_GATE, 'gates.pendingGate({ ...user, email_verified_at: new Date(0) }, decoded.iat)'],
+  },
+  {
+    label: 'a forced change confirmed only before this sign-in: the contact gate again (reconfirm)',
+    input: { token: good, answers: [STATE_CLEAR, [{ ...TEACHER, must_change_password: 1 }]] },
+    check: (r, h) => r.code === 'CONTACT_VERIFICATION_REQUIRED' && r.code === h.code,
+    control: [PENDING_GATE, 'gates.pendingGate({ ...user, must_change_password: 0 }, decoded.iat)'],
+  },
+  {
+    label: 'all three pending: consent answers first, as over HTTP',
+    input: { token: parentToken, answers: [STATE_CLEAR, [{ ...PARENT, ...UNCONFIRMED, must_change_password: 1 }]] },
+    check: (r, h) => r.code === 'POLICY_ACCEPTANCE_REQUIRED' && r.code === h.code && r.message === h.message,
+    control: [PENDING_GATE, `gates.pendingGate({ ...user, policy_accepted: ${policy.CURRENT.length} }, decoded.iat)`],
+  },
+  {
+    label: 'consent done, contact and password pending: the contact gate before the password',
+    input: {
+      token: parentToken,
+      answers: [STATE_CLEAR, [{ ...PARENT, ...UNCONFIRMED, policy_accepted: policy.CURRENT.length, must_change_password: 1 }]],
+    },
+    check: (r, h) => r.code === 'CONTACT_VERIFICATION_REQUIRED' && r.code === h.code,
+    control: [PENDING_GATE, "gates.pendingGate({ ...user, contact_number: 'x', contact_verified_at: new Date() }, decoded.iat)"],
+  },
+  {
+    label: 'a confirmed mobile number alone opens the channel',
+    input: {
+      token: good,
+      answers: [STATE_CLEAR, [{ ...TEACHER, email: null, email_verified_at: null, contact_number: 'stub-number', contact_verified_at: new Date(0) }]],
+    },
+    check: (r) => admitted(r) && r.userId === TEACHER.id,
+    control: [PENDING_GATE, 'gates.pendingGate({ ...user, contact_verified_at: null }, decoded.iat)'],
   },
 ];
 

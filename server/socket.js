@@ -3,6 +3,7 @@ const pool = require('./config/db');
 const { verifyToken } = require('./utils/jwt');
 const { corsOriginsFromEnv } = require('./utils/corsOrigins');
 const policy = require('./utils/policy');
+const gates = require('./utils/accountGates');
 const { DB_UNAVAILABLE_BODY } = require('./utils/dbUnavailable');
 
 // A refused handshake reaches the client as `connect_error`, with `data` beside
@@ -52,7 +53,8 @@ async function authenticateHandshake(socket, next) {
 
     const accepted = policy.acceptedCountSql('users.id');
     const [rows] = await pool.query(
-      `SELECT id, role, status, token_version, must_change_password, ${accepted.sql} AS policy_accepted
+      `SELECT id, role, status, token_version, must_change_password, email, email_verified_at,
+              contact_number, contact_verified_at, ${accepted.sql} AS policy_accepted
        FROM users WHERE id = ? LIMIT 1`,
       [...accepted.params, decoded.id]
     );
@@ -68,25 +70,20 @@ async function authenticateHandshake(socket, next) {
       return next(new Error('Your password was changed. Please log in again.'));
     }
 
-    // THE SAME TWO GATES AS middleware/auth.js, in the same order (fix round
-    // PF2, 2026-10-10): an account that must change its password, then an
-    // account (any role since feat/staff-acceptance) with the CURRENT notice
-    // and terms not accepted, gets no live
-    // channel — the socket would carry notification counts and message
-    // events the HTTP API refuses it. The sentence and the code are the
-    // HTTP 403's. Neither app connects before both are done (FRONTEND §29,
-    // MOBILE M26), and a refused handshake is not retried: the client
-    // connects afresh once /auth/me says both are clear.
-    if (user.must_change_password) {
-      return next(refusal('You must change your password before continuing.', 'MUST_CHANGE_PASSWORD'));
-    }
-    if (policy.isPending(user.role, user.policy_accepted)) {
-      return next(
-        refusal(
-          'Please accept the Data Privacy Notice and the Terms of Use before continuing.',
-          'POLICY_ACCEPTANCE_REQUIRED'
-        )
-      );
+    // THE SAME THREE GATES AS middleware/auth.js, from the same module and in
+    // the same order (feat/first-signin, 2026-10-18): consent, then a
+    // confirmed Gmail or mobile number, then the forced password change. An
+    // account with any of them pending gets no live channel — the socket would
+    // carry notification counts and message events the HTTP API refuses it.
+    // No path is allowed through here: the handshake is not one of the
+    // gates' paths. The sentence and the code are the HTTP 403's, of the
+    // FIRST pending gate. Neither app connects before all three are done
+    // (FRONTEND §29, MOBILE M26), and a refused handshake is not retried: the
+    // client connects afresh once /auth/me says all three are clear.
+    const gate = gates.pendingGate(user, decoded.iat);
+    if (gate) {
+      const { message, code } = gates.refusal(gate);
+      return next(refusal(message, code));
     }
 
     socket.userId = user.id;

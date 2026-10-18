@@ -105,6 +105,18 @@ function newestSmsSince(before) {
 }
 const settle = () => new Promise((r) => setTimeout(r, 400));
 
+// THE RESEND COOLDOWN (feat/first-signin, 2026-10-18): a new code of the same
+// purpose for the same account only 60 seconds after the last. The suite
+// asserts it where it is the subject, and otherwise moves this account's own
+// rows back 61 seconds instead of waiting — still inside the hour, so the
+// hourly limit below still counts them.
+// One purpose at a time: each purpose has its own cooldown.
+async function skipCooldown(userId, purpose) {
+  await withDb((c) =>
+    c.query('UPDATE auth_codes SET created_at = created_at - INTERVAL 61 SECOND WHERE user_id = ? AND purpose = ?', [userId, purpose])
+  );
+}
+
 async function main() {
   console.log(`\nAccount recovery tests against ${BASE}\n`);
 
@@ -149,10 +161,25 @@ async function main() {
     await clearForcedChange(mk.data.user.id);
     created.loginIds.push(TEACHER_ID);
 
+    // A second throwaway with NO email and NO number, never signed in — the
+    // uniform response's "unconfirmed" case (feat/first-signin): the admin was
+    // that case until the policy fixture began confirming the admin's address
+    // for the run.
+    const NO_CONTACT_ID = `TCH-RNC${String(Date.now()).slice(-5)}`;
+    const mkNc = await request('POST', '/api/users/teachers', {
+      token: admin.token,
+      body: { login_id: NO_CONTACT_ID, password: TEACHER_PW, name: 'Recovery No Contact' },
+    });
+    requireFixture(mkNc.status === 201, 'admin creates a teacher with no email and no number', why(mkNc));
+    created.users.push(mkNc.data.user.id);
+    created.loginIds.push(NO_CONTACT_ID);
+
     const t = await login(TEACHER_ID, TEACHER_PW);
     requireFixture(t.status === 200, 'the fixture teacher logs in', why(t));
     teacher = { token: t.data.token, ...t.data.user };
-    await policy.accept(teacher.token);
+    // { contact: false }: this suite confirms the email itself, below; the
+    // contact gate lets the verify endpoints through until it does.
+    await policy.accept(teacher.token, { contact: false });
 
     // -----------------------------------------------------------------------
     console.log('\nEmail verification');
@@ -181,10 +208,11 @@ async function main() {
     const unknown = await request('POST', '/api/auth/forgot-password', { body: { login_id: 'NO-SUCH-ID' } });
     const unverified = await request('POST', '/api/auth/forgot-password', { body: { login_id: 'ADMIN001' } });
     const pendingAcct = await request('POST', '/api/auth/forgot-password', { body: { login_id: '1234567' } });
-    assert(known.status === 202 && unknown.status === 202 && unverified.status === 202 && pendingAcct.status === 202,
-      'known, unknown, unverified and pending all answer 202');
-    assert(known.text === unknown.text && known.text === unverified.text && known.text === pendingAcct.text,
-      'all four bodies are byte-identical', JSON.stringify([known.text, unknown.text, unverified.text, pendingAcct.text]));
+    const noContact = await request('POST', '/api/auth/forgot-password', { body: { login_id: NO_CONTACT_ID } });
+    assert(known.status === 202 && unknown.status === 202 && unverified.status === 202 && pendingAcct.status === 202 && noContact.status === 202,
+      'known, unknown, the admin, pending and a no-contact account all answer 202');
+    assert(known.text === unknown.text && known.text === unverified.text && known.text === pendingAcct.text && known.text === noContact.text,
+      'all five bodies are byte-identical', JSON.stringify([known.text, unknown.text, unverified.text, pendingAcct.text, noContact.text]));
     assert(known.data?.message === 'If this account has a confirmed email or mobile number, we sent a code to it.',
       'the one sentence names both channels and no destination', JSON.stringify(known.data?.message));
     const missing = await request('POST', '/api/auth/forgot-password', { body: {} });
@@ -198,11 +226,23 @@ async function main() {
     // -----------------------------------------------------------------------
     console.log('\nA2 — only the newest code is valid');
     // -----------------------------------------------------------------------
+    await skipCooldown(teacher.id, 'password_reset');
     const beforeA = mailFilesBefore();
     await request('POST', '/api/auth/forgot-password', { body: { login_id: TEACHER_ID } });
     await new Promise((r) => setTimeout(r, 400));
     const firstMail = newestCodeSince(beforeA);
     requireFixture(firstMail != null, 'first reset code sent');
+
+    // THE RESEND COOLDOWN IS SILENT HERE (feat/first-signin): inside 60
+    // seconds nothing is sent, no row is written, and the reply is the one
+    // uniform 202 — a 429 would say this login id has a confirmed contact.
+    const beforeCool = mailFilesBefore();
+    const cooled = await request('POST', '/api/auth/forgot-password', { body: { login_id: TEACHER_ID } });
+    await new Promise((r) => setTimeout(r, 400));
+    assert(cooled.status === 202 && cooled.text === known.text,
+      'a second request inside 60 seconds answers the same 202 and body');
+    assert(newestCodeSince(beforeCool) === null, 'and sends nothing — the resend cooldown');
+    await skipCooldown(teacher.id, 'password_reset');
 
     const beforeB = mailFilesBefore();
     await request('POST', '/api/auth/forgot-password', { body: { login_id: TEACHER_ID } });
@@ -258,6 +298,7 @@ async function main() {
     // this suite hit that by accident and reported a fixture failure; the
     // limiter was right and the test was wrong, so the behaviour is asserted
     // rather than worked around.
+    await skipCooldown(teacher.id, 'password_reset'); // so the hourly limit, not the cooldown, is what refuses
     const beforeLimit = mailFilesBefore();
     const fourth = await request('POST', '/api/auth/forgot-password', { body: { login_id: TEACHER_ID } });
     await new Promise((r) => setTimeout(r, 400));
@@ -349,19 +390,49 @@ async function main() {
     requireFixture(tempLogin.status === 200, 'the account logs in with the temporary password', why(tempLogin));
     const forced = { token: tempLogin.data.token };
 
+    // D2 (feat/first-signin, 2026-10-18): this account's email was confirmed
+    // BEFORE this sign-in, so the forced change confirms it AGAIN first — the
+    // temporary password, then a code — and only then sets the password.
     const blocked = await request('GET', '/api/students?limit=1', { token: forced.token });
-    assert(blocked.status === 403 && blocked.data?.code === 'MUST_CHANGE_PASSWORD',
-      'every other route is 403 MUST_CHANGE_PASSWORD', why(blocked));
+    assert(blocked.status === 403 && blocked.data?.code === 'CONTACT_VERIFICATION_REQUIRED',
+      'a contact confirmed before this sign-in: every other route is 403 CONTACT_VERIFICATION_REQUIRED', why(blocked));
     const meAllowed = await request('GET', '/api/auth/me', { token: forced.token });
     assert(meAllowed.status === 200, 'GET /auth/me is still allowed');
     assert(meAllowed.data.user.must_change_password === 1, 'and it reports must_change_password so the client can route on it');
+    assert(meAllowed.data.user.contact_pending === true && meAllowed.data.user.contact_step === 'reconfirm',
+      'and contact_step "reconfirm" — the account has a confirmed email it has not used this session');
+    const pwTooSoon = await request('PUT', '/api/auth/first-password', { token: forced.token, body: { new_password: `${tempPw}x` } });
+    assert(pwTooSoon.status === 403 && pwTooSoon.data?.code === 'CONTACT_VERIFICATION_REQUIRED',
+      'PUT /auth/first-password waits for the reconfirm', why(pwTooSoon));
+
+    const mbRe = mailFilesBefore();
+    const reReq = await request('POST', '/api/auth/verify-email/request', { token: forced.token });
+    const reMail = newestCodeSince(mbRe);
+    requireFixture(reReq.status === 202 && reMail != null && reMail.to === TEACHER_EMAIL,
+      'the reconfirm request sends a code although the address is already confirmed', why(reReq));
+    const reAgain = await request('POST', '/api/auth/verify-email/request', { token: forced.token });
+    assert(reAgain.status === 429 && Number(reAgain.data?.retry_after) > 0 && Number(reAgain.data?.retry_after) <= 60 &&
+        /^Wait \d+ seconds?, then ask for a new code\.$/.test(reAgain.data?.message || ''),
+      'the resend cooldown, honest here: 429 "Wait N seconds, then ask for a new code." with retry_after', why(reAgain));
+    assert(newestCodeSince(mbRe)?.files?.length === 1, 'and the cooled-down request sent nothing');
+    const reOk = await request('POST', '/api/auth/verify-email/confirm', { token: forced.token, body: { code: reMail.code } });
+    requireFixture(reOk.status === 200, 'the code confirms the address again', why(reOk));
+    const pwGate = await request('GET', '/api/students?limit=1', { token: forced.token });
+    assert(pwGate.status === 403 && pwGate.data?.code === 'MUST_CHANGE_PASSWORD',
+      'confirmed in this session: every other route is now 403 MUST_CHANGE_PASSWORD', why(pwGate));
 
     const FINAL_PW = 'Finally12';
-    const changed = await request('PUT', '/api/auth/change-password', {
+    const viaChange = await request('PUT', '/api/auth/change-password', {
       token: forced.token,
       body: { current_password: tempPw, new_password: FINAL_PW },
     });
-    requireFixture(changed.status === 200, 'change-password is allowed during a forced change', why(changed));
+    assert(viaChange.status === 403 && viaChange.data?.code === 'MUST_CHANGE_PASSWORD',
+      'PUT /auth/change-password is refused during a forced change (first-password replaces it)', why(viaChange));
+    const changed = await request('PUT', '/api/auth/first-password', {
+      token: forced.token,
+      body: { new_password: FINAL_PW },
+    });
+    requireFixture(changed.status === 200, 'PUT /auth/first-password sets it, with no temporary password typed', why(changed));
     assert(Boolean(changed.data.token), 'it returns a REPLACEMENT token, so the caller is not logged out');
 
     const withNew = await request('GET', '/api/students?limit=1', { token: changed.data.token });
@@ -392,7 +463,7 @@ async function main() {
     const s1 = await login(SMS_ID, SMS_PW);
     requireFixture(s1.status === 200, 'the SMS fixture logs in', why(s1));
     let smsUser = { token: s1.data.token, id: s1.data.user.id };
-    await policy.accept(smsUser.token);
+    await policy.accept(smsUser.token, { contact: false });
 
     const beforeUnconf = smsFilesBefore();
     const unconf = await request('POST', '/api/auth/forgot-password', { body: { login_id: SMS_ID } });
@@ -451,6 +522,7 @@ async function main() {
     const vc = await request('POST', '/api/auth/verify-email/confirm', { token: smsUser.token, body: { code: vmail.code } });
     requireFixture(vc.status === 200, 'its email is confirmed', why(vc));
 
+    await skipCooldown(smsUser.id, 'password_reset');
     const bothSms = smsFilesBefore();
     const bothMail = mailFilesBefore();
     const f2 = await request('POST', '/api/auth/forgot-password', { body: { login_id: SMS_ID } });
@@ -473,6 +545,10 @@ async function main() {
     const ch1 = await request('PUT', '/api/auth/contact', { token: smsUser.token, body: { contact_number: '09170000124' } });
     const me3 = await request('GET', '/api/auth/me', { token: smsUser.token });
     assert(ch1.status === 200 && !me3.data?.user?.contact_verified_at, 'a NEW number clears the confirmation');
+    const coolText = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
+    assert(coolText.status === 429 && Number(coolText.data?.retry_after) > 0,
+      'a text code within 60 seconds of the last is 429 with retry_after (the resend cooldown)', why(coolText));
+    await skipCooldown(smsUser.id, 'contact_verification');
     const beforeOld = smsFilesBefore();
     const oreq = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
     const oldText = newestSmsSince(beforeOld);
@@ -485,6 +561,7 @@ async function main() {
     assert(!me4.data?.user?.contact_verified_at, 'and nothing was confirmed');
 
     // Admin number change clears a confirmation too.
+    await skipCooldown(smsUser.id, 'contact_verification');
     const beforeC3 = smsFilesBefore();
     const r3 = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
     const t3 = newestSmsSince(beforeC3);
@@ -499,7 +576,10 @@ async function main() {
     // been issued for this account in the hour.
     const beforeLim = smsFilesBefore();
     const lim = await request('POST', '/api/auth/verify-contact/request', { token: smsUser.token });
-    assert(lim.status === 429 && lim.data.message === 'Too many codes requested. Try again in an hour.', 'the 4th confirmation request in an hour is 429', why(lim));
+    // Decision D3 (feat/first-signin): the limit stays, and its sentence names
+    // the other channel.
+    assert(lim.status === 429 && lim.data.message === 'Too many codes requested. Try again in an hour, or use your Gmail instead.',
+      'the 4th confirmation request in an hour is 429, naming the other channel', why(lim));
     assert(newestSmsSince(beforeLim) === null, 'and sends nothing');
 
     // No number at all.

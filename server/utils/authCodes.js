@@ -25,6 +25,12 @@ const CODE_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
 const MAX_PER_ACCOUNT_PER_HOUR = 3;
 const MAX_PER_IP_PER_HOUR = 10;
+// THE RESEND COOLDOWN (feat/first-signin, 2026-10-18): a new code for the
+// same account and purpose only once the newest one is this old. The clients
+// count it down ("Resend code in 0:59"); this is the server's own copy of the
+// rule, so a script cannot skip it. Counted from the newest row's created_at,
+// so a code whose send failed (and was burned) still starts the wait.
+const RESEND_COOLDOWN_SECONDS = 60;
 
 // crypto.randomInt, not Math.random: this is a credential.
 function generateCode() {
@@ -55,6 +61,20 @@ async function countRecentForIp(ip) {
 async function isRateLimited(userId, purpose, ip) {
   const [perUser, perIp] = await Promise.all([countRecentForUser(userId, purpose), countRecentForIp(ip)]);
   return perUser >= MAX_PER_ACCOUNT_PER_HOUR || perIp >= MAX_PER_IP_PER_HOUR;
+}
+
+// Seconds until another code of this purpose may be sent to this account; 0
+// when it may be sent now (no code yet, or the newest is old enough). Both
+// times are the database's, so the server's clock is not involved.
+async function cooldownRemaining(userId, purpose) {
+  const [rows] = await pool.query(
+    'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age FROM auth_codes WHERE user_id = ? AND purpose = ? ORDER BY id DESC LIMIT 1',
+    [userId, purpose]
+  );
+  if (!rows.length) return 0;
+  const age = Number(rows[0].age);
+  if (!Number.isFinite(age)) return 0;
+  return Math.max(0, Math.min(RESEND_COOLDOWN_SECONDS, RESEND_COOLDOWN_SECONDS - age));
 }
 
 // AMENDMENT A2 (Darryl, 2026-09-19): only the newest code is valid. Issuing a
@@ -139,8 +159,10 @@ module.exports = {
   MAX_ATTEMPTS,
   MAX_PER_ACCOUNT_PER_HOUR,
   MAX_PER_IP_PER_HOUR,
+  RESEND_COOLDOWN_SECONDS,
   generateCode,
   isRateLimited,
+  cooldownRemaining,
   createCode,
   burnPending,
   consumeCode,
