@@ -3,16 +3,19 @@ import * as ImagePicker from 'expo-image-picker';
 import { Alert, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
+import { RESEND_COOLDOWN_SECONDS } from '../../auth/accountSteps';
 import { useAuth } from '../../auth/AuthContext';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
+import ContactCodeForm from '../../components/ContactCodeForm';
 import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import FormStatus, { ok, fail } from '../../components/FormStatus';
 import SectionHeader from '../../components/SectionHeader';
 import Text from '../../components/Text';
 import { contactError, contactRuleHint } from '../../format/contactRule';
+import useCooldown from '../../hooks/useCooldown';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { userCardLines } from '../../navigation/drawerFold';
@@ -37,6 +40,13 @@ import { useTheme } from '../../theme/ThemeProvider';
 // mount effect and every write here already make. It never touches a number
 // being typed or a typed code, so nothing unsaved is lost; a failure is shown
 // under the header rather than swallowed, because this time somebody asked.
+//
+// YOUR OWN EMAIL (feat/first-signin, 2026-10-18), as on the web: Update email
+// writes PUT /auth/email, a change is unconfirmed until its code is typed, and
+// changing the ONLY confirmed contact sends the account back to the contact
+// step (the form says so before Save). Both code forms are
+// components/ContactCodeForm.jsx with the server's 60-second resend clock.
+// Save email is a bordered button: the screen keeps its ONE filled button.
 
 // A locked fact: the label in the eyebrow style, the value under it.
 function Field({ label, value, empty = 'Not recorded', children }) {
@@ -144,11 +154,11 @@ function ContactValue({ value, at }) {
 
 const ROLE_COPY = {
   teacher:
-    'Your name, Teacher ID and email are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.',
+    'Your name and Teacher ID are school records. Ask the office if something is wrong. You can update your email and contact number here and your password under Change password.',
   admin:
-    'Your name, Admin ID and email are school records. You can update your contact number here and your password under Change password.',
+    'Your name and Admin ID are school records. You can update your email and contact number here and your password under Change password.',
   parent:
-    "Your name, your child's name, LRN, grade and section are school records. Ask the office if something is wrong. You can update your contact number here and your password under Change password.",
+    "Your name, your child's name, LRN, grade and section are school records. Ask the office if something is wrong. You can update your email and contact number here and your password under Change password.",
 };
 
 // PROFILE PHOTO (feat/profile-photos, 2026-09-30) — the web's block, on the
@@ -303,6 +313,17 @@ export default function AccountInfoScreen() {
   const [contactCode, setContactCode] = useState('');
   const [contactCodeError, setContactCodeError] = useState(null);
   const [contactBusy, setContactBusy] = useState(false);
+  // The server's 60-second resend clock, one per channel (feat/first-signin).
+  const emailClock = useCooldown();
+  const mobileClock = useCooldown();
+  // YOUR OWN EMAIL (feat/first-signin): the number's pattern (§5b).
+  const storedEmail = user?.email ?? '';
+  const [emailDraft, setEmailDraft] = useState(null);
+  const emailValue = emailDraft === null ? storedEmail : emailDraft;
+  const emailDirty = emailValue.trim() !== storedEmail.trim();
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailFieldError, setEmailFieldError] = useState(null);
+  const emailIsOnlyConfirmed = Boolean(emailVerifiedAt) && !(storedContact && contactVerifiedAt);
 
   const refreshRef = useRef(refresh);
   useEffect(() => {
@@ -333,13 +354,14 @@ export default function AccountInfoScreen() {
   // a state of its own — so the next action's message replaces it. A pull
   // that WORKS leaves every message alone; starting one clears only an earlier
   // pull's failure.
-  const writing = saving || emailBusy || contactBusy || photoBusy;
+  const writing = saving || emailSaving || emailBusy || contactBusy || photoBusy;
   const [refreshing, setRefreshing] = useState(false);
   async function pullToRefresh() {
     if (writing) return;
     setRefreshing(true);
     setStatus((prev) => (prev.refresh ? {} : prev));
     if (!contactDirty) setDraft(null);
+    if (!emailDirty) setEmailDraft(null);
     try {
       await refresh();
     } catch (err) {
@@ -385,6 +407,41 @@ export default function AccountInfoScreen() {
     }
   }
 
+  async function saveEmail() {
+    setStatus({});
+    setEmailFieldError(null);
+    const next = emailValue.trim();
+    if (!next) {
+      setEmailFieldError('Email must not be empty.');
+      return;
+    }
+    setEmailSaving(true);
+    const wasConfirmed = Boolean(emailVerifiedAt);
+    try {
+      const saved = await api.put('/auth/email', { email: next }, { unwrap: 'user' });
+      setEmailDraft(null);
+      setEmailStep('idle');
+      setEmailCode('');
+      setStatus({
+        emailSave: ok(
+          wasConfirmed && !saved?.email_verified_at
+            ? 'Email address updated. The new address is not confirmed yet — send yourself a code above to confirm it.'
+            : saved?.email_verified_at
+              ? 'Email address updated.'
+              : 'Email address updated. Confirm it with a code above.'
+        ),
+      });
+      // Last: when this was the only confirmed contact, the re-read makes
+      // RootNavigator mount the contact step in place of the app.
+      await refresh();
+    } catch (err) {
+      if (err?.response?.data?.field === 'email') setEmailFieldError(extractError(err));
+      else setStatus({ emailSave: fail(extractError(err)) });
+    } finally {
+      setEmailSaving(false);
+    }
+  }
+
   async function requestEmailCode() {
     setStatus({});
     setEmailCodeError(null);
@@ -396,9 +453,12 @@ export default function AccountInfoScreen() {
         setEmailStep('idle');
       } else {
         setEmailStep('code');
+        emailClock.start(RESEND_COOLDOWN_SECONDS);
       }
       setStatus({ email: ok(message) });
     } catch (err) {
+      const wait = Number(err?.response?.data?.retry_after);
+      if (err?.response?.status === 429 && wait > 0) emailClock.start(wait);
       setStatus({ email: fail(extractError(err)) });
     } finally {
       setEmailBusy(false);
@@ -433,9 +493,12 @@ export default function AccountInfoScreen() {
         setContactStep('idle');
       } else {
         setContactStep('code');
+        mobileClock.start(RESEND_COOLDOWN_SECONDS);
       }
       setStatus({ mobile: ok(message) });
     } catch (err) {
+      const wait = Number(err?.response?.data?.retry_after);
+      if (err?.response?.status === 429 && wait > 0) mobileClock.start(wait);
       setStatus({ mobile: fail(extractError(err)) });
     } finally {
       setContactBusy(false);
@@ -534,17 +597,15 @@ export default function AccountInfoScreen() {
             <Text className="text-sm text-fg-muted">
               {/* F1: the web's four sentences, keyed on the stored confirmation. */}
               {contactVerifiedAt
-                ? isAdmin
-                  ? 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Add an email by editing your account in Admin → Users if you also want one.'
-                  : 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Ask the school office if you also want an email added.'
+                ? 'There is no email address on this account. Reset codes can still come to your confirmed mobile number. Add an email below if you also want one.'
                 : isAdmin
-                  ? 'There is no email address on this account. Add one by editing your account in Admin → Users, or confirm a mobile number below — without either, you cannot reset your own password and only another admin can get you back in.'
-                  : 'There is no email address on this account. Ask the school office to add one, or confirm a mobile number below — without either, you cannot reset your own password and the office has to do it for you.'}
+                  ? 'There is no email address on this account. Add one below, or confirm a mobile number — without either, you cannot reset your own password and only another admin can get you back in.'
+                  : 'There is no email address on this account. Add one below, or confirm a mobile number — without either, you cannot reset your own password and the office has to do it for you.'}
             </Text>
           ) : emailVerifiedAt ? (
             <Text className="text-sm text-fg-muted">
-              This address is confirmed, so you can reset your own password from the sign-in page.{' '}
-              {isAdmin ? 'To change it, edit your account in Admin → Users.' : 'To change the address itself, ask the school office.'}
+              This address is confirmed, so you can reset your own password from the sign-in page. You can change it below; a
+              new address is confirmed with a code.
             </Text>
           ) : (
             <>
@@ -559,30 +620,22 @@ export default function AccountInfoScreen() {
                     : 'only the school office can get you back in.'}
               </Text>
               {emailStep === 'code' ? (
-                <View className="gap-3">
-                  <FormField
-                    label="Six-digit code"
-                    value={emailCode}
-                    onChangeText={(text) => {
-                      setEmailCodeError(null);
-                      setEmailCode(text.replace(/\D/g, '').slice(0, 6));
-                    }}
-                    keyboardType="number-pad"
-                    autoComplete="one-time-code"
-                    textContentType="oneTimeCode"
-                    maxLength={6}
-                    hint={`Sent to ${user.email}. It expires shortly and can be used once.`}
-                    error={emailCodeError}
-                  />
-                  <View className="flex-row flex-wrap gap-2">
-                    <Button onPress={confirmEmailCode} disabled={emailBusy || !/^\d{6}$/.test(emailCode)}>
-                      {emailBusy ? 'Confirming…' : 'Confirm email'}
-                    </Button>
-                    <Button variant="ghost" onPress={requestEmailCode} disabled={emailBusy}>
-                      Send a new code
-                    </Button>
-                  </View>
-                </View>
+                <ContactCodeForm
+                  code={emailCode}
+                  onCodeChange={(next) => {
+                    setEmailCodeError(null);
+                    setEmailCode(next);
+                  }}
+                  error={emailCodeError}
+                  hint={`Sent to ${user.email}. It expires in 10 minutes and can be used once.`}
+                  busy={emailBusy}
+                  onSubmit={confirmEmailCode}
+                  onResend={requestEmailCode}
+                  remaining={emailClock.remaining}
+                  confirmLabel="Confirm email"
+                  confirmVariant="secondary"
+                  resendVariant="ghost"
+                />
               ) : (
                 <Button className="self-start" onPress={requestEmailCode} disabled={emailBusy}>
                   {emailBusy ? 'Sending…' : 'Verify email'}
@@ -611,30 +664,22 @@ export default function AccountInfoScreen() {
                 This number is not confirmed yet. Confirming it lets you get password reset codes by text message.
               </Text>
               {contactStep === 'code' ? (
-                <View className="gap-3">
-                  <FormField
-                    label="Six-digit code"
-                    value={contactCode}
-                    onChangeText={(text) => {
-                      setContactCodeError(null);
-                      setContactCode(text.replace(/\D/g, '').slice(0, 6));
-                    }}
-                    keyboardType="number-pad"
-                    autoComplete="one-time-code"
-                    textContentType="oneTimeCode"
-                    maxLength={6}
-                    hint={`Sent to ${spacedNumber(storedContact)} by text message. It expires shortly and can be used once.`}
-                    error={contactCodeError}
-                  />
-                  <View className="flex-row flex-wrap gap-2">
-                    <Button onPress={confirmContactCode} disabled={contactBusy || !/^\d{6}$/.test(contactCode)}>
-                      {contactBusy ? 'Confirming…' : 'Confirm number'}
-                    </Button>
-                    <Button variant="ghost" onPress={requestContactCode} disabled={contactBusy}>
-                      Send a new code
-                    </Button>
-                  </View>
-                </View>
+                <ContactCodeForm
+                  code={contactCode}
+                  onCodeChange={(next) => {
+                    setContactCodeError(null);
+                    setContactCode(next);
+                  }}
+                  error={contactCodeError}
+                  hint={`Sent to ${spacedNumber(storedContact)} by text message. It expires in 10 minutes and can be used once.`}
+                  busy={contactBusy}
+                  onSubmit={confirmContactCode}
+                  onResend={requestContactCode}
+                  remaining={mobileClock.remaining}
+                  confirmLabel="Confirm number"
+                  confirmVariant="secondary"
+                  resendVariant="ghost"
+                />
               ) : (
                 <Button className="self-start" onPress={requestContactCode} disabled={contactBusy}>
                   {contactBusy ? 'Sending…' : 'Text me a code'}
@@ -643,6 +688,37 @@ export default function AccountInfoScreen() {
             </>
           )}
           <FormStatus status={status.mobile} />
+        </View>
+
+        <View className={`${cardClass} gap-3 p-4`}>
+          <SubHeading icon="fa-pen-to-square">Update email</SubHeading>
+          <Text className="text-sm text-fg-muted">
+            Use an address you can open. A new address is not confirmed until you type the code sent to it.
+          </Text>
+          <FormField
+            label="New email address"
+            value={emailValue}
+            onChangeText={(text) => {
+              setEmailFieldError(null);
+              setEmailDraft(text);
+            }}
+            maxLength={100}
+            keyboardType="email-address"
+            autoComplete="email"
+            textContentType="emailAddress"
+            autoCapitalize="none"
+            autoCorrect={false}
+            hint={
+              emailIsOnlyConfirmed && emailDirty
+                ? 'You’ll confirm the new address before you can use the app again.'
+                : 'For example name@gmail.com.'
+            }
+            error={emailFieldError}
+          />
+          <Button full onPress={saveEmail} disabled={emailSaving || !emailDirty}>
+            {emailSaving ? 'Saving…' : 'Save email'}
+          </Button>
+          <FormStatus status={status.emailSave} />
         </View>
 
         <View className={`${cardClass} gap-3 p-4`}>

@@ -100,8 +100,8 @@ export default function TempPasswordModal({ target, onClose, onSet }) {
             <>
               <View className={`${cardClass} gap-4 p-4`}>
                 <Text className="text-sm text-fg-body">
-                  Give this to <Text className="font-semibold text-fg">{target?.name}</Text>. They will be asked to choose their own password the next time they
-                  sign in.
+                  Give this to <Text className="font-semibold text-fg">{target?.name}</Text>. When they next sign in, they confirm their Gmail or mobile number
+                  with a code, then choose their own password.
                 </Text>
                 <View className="rounded-xl border border-edge bg-surface-subtle px-4 py-4">
                   <Text selectable={false} accessibilityLabel="Temporary password" className="text-center font-mono text-lg tracking-wider text-fg">

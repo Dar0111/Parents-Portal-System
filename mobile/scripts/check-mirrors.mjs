@@ -65,6 +65,9 @@ export const PAIRS = [
   ['src/api/tickets.js', 'api/tickets.js'],
   // build 2 (feat/dashboards-look) — when a skeleton shows: 300 ms, no minimum.
   ['src/hooks/useSkeleton.js', 'hooks/useSkeleton.js'],
+  // feat/first-signin — the three steps' order and words, and the resend clock.
+  ['src/auth/accountSteps.js', 'auth/accountSteps.js'],
+  ['src/hooks/useCooldown.js', 'hooks/useCooldown.js'],
   // fix/socket-handshake fix round (R4) — when the Live updates strip shows.
   ['src/realtime/liveState.js', 'realtime/liveState.js'],
 ];

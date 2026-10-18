@@ -56,19 +56,47 @@ assert(
 );
 assert(/'fa-shield-halved': faShieldHalved,/.test(src('icons.js')), 'the icon is mapped (an unmapped name throws in DEV)');
 
-console.log('\nRootNavigator — the forced change, then consent, then home (source)');
+console.log('\nRootNavigator — consent, then the contact, then the password, then home (source; feat/first-signin)');
 const root = src('navigation/RootNavigator.jsx');
+// The pre-first-signin order (the forced change, then consent): gone.
 const ORDER =
   /\) : user\.must_change_password \? \(\n\s+<Stack\.Screen name="ForcedPasswordChange" component=\{ForcedPasswordChangeScreen\} \/>\n\s+\) : user\.policy_pending \? \(\n\s+<Stack\.Screen name="PolicyConsent" component=\{PolicyConsentScreen\} \/>\n\s+\) : \(/;
-assert(ORDER.test(root), 'only the consent screen while policy_pending — and only after the forced change');
+assert(!ORDER.test(root), 'the old order (the forced change first) is gone from RootNavigator');
+// The new one: ONE nextStep() from the mirrored auth/accountSteps.js, each
+// step mounting only its own screen, in the server's order.
+const STEPS_ORDER =
+  /\) : step === 'consent' \? \(\n\s+<Stack\.Screen name="PolicyConsent" component=\{PolicyConsentScreen\} \/>\n\s+\) : step === 'contact' \? \(\n\s+<Stack\.Screen name="ConfirmContact" component=\{ConfirmContactScreen\} \/>\n\s+\) : step === 'password' \? \(\n\s+<Stack\.Screen name="ForcedPasswordChange" component=\{ForcedPasswordChangeScreen\} \/>\n\s+\) : \(/;
+assert(
+  STEPS_ORDER.test(root) && /import \{ nextStep \} from '\.\.\/auth\/accountSteps';/.test(root) && /const step = nextStep\(user\);/.test(root),
+  'only the step screen while a step is left: consent, then ConfirmContact, then the new password'
+);
+const contactFirst = root.replace("step === 'consent' ? (", "step === '__x' ? (").replace("step === 'contact' ? (", "step === 'consent' ? (").replace("step === '__x' ? (", "step === 'contact' ? (");
+assert(!STEPS_ORDER.test(contactFirst), 'control: the same check fails with consent and the contact swapped');
 const swapped = root
   .replace('user.must_change_password ? (', 'user.__A__ ? (')
   .replace('user.policy_pending ? (', 'user.must_change_password ? (')
   .replace('user.__A__ ? (', 'user.policy_pending ? (');
-assert(!ORDER.test(swapped), 'control: the same check fails with the two gates swapped');
+// The pre-first-signin swap finds nothing to move: the lines it swapped are gone.
+assert(swapped === root, 'the old two-gate lines are gone, so the old swap changes nothing');
+const signedInRule = (text) => /const signedIn = Boolean\(user\) && !step;/.test(text) && /if \(!signedIn\) return tree;/.test(text);
+assert(signedInRule(root), 'no socket and no count requests until ALL THREE steps are past (the providers wrap only a signed-in tree)');
 assert(
-  /const signedIn = Boolean\(user\) && !user\.must_change_password && !user\.policy_pending;/.test(root) && /if \(!signedIn\) return tree;/.test(root),
-  'no socket and no count requests until BOTH gates are past (the providers wrap only a signed-in tree)'
+  !signedInRule(root.replace('const signedIn = Boolean(user) && !step;', 'const signedIn = Boolean(user);')),
+  'control: a rule that ignores the steps fails it'
+);
+const backGuard = src('screens/ConfirmContactScreen.jsx');
+assert(
+  /BackHandler\.addEventListener\('hardwareBackPress', \(\) => true\)/.test(backGuard) && /useFocusEffect\(/.test(backGuard),
+  'ConfirmContact consumes the Android back button while focused — it cannot leave the step'
+);
+assert(
+  !/BackHandler/.test(src('screens/ForgotPasswordScreen.jsx')),
+  'control: a screen that may go back (Forgot password) has no such guard'
+);
+assert(
+  /api\.put\('\/auth\/first-password', \{ new_password: newPassword \}/.test(src('screens/ForcedPasswordChangeScreen.jsx')) &&
+    !/change-password|Temporary password/.test(src('screens/ForcedPasswordChangeScreen.jsx')),
+  'the new-password screen writes PUT /auth/first-password, with no temporary-password field'
 );
 
 console.log('\nThe consent screen (source)');

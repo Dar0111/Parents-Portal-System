@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as SplashScreen from 'expo-splash-screen';
+import { nextStep } from '../auth/accountSteps';
 import { useAuth } from '../auth/AuthContext';
 import AuthUnavailable from '../auth/AuthUnavailable';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -10,6 +11,7 @@ import NotificationProvider from '../realtime/NotificationProvider';
 import SocketProvider from '../realtime/SocketProvider';
 import UnreadProvider from '../realtime/UnreadProvider';
 import AboutScreen from '../screens/AboutScreen';
+import ConfirmContactScreen from '../screens/ConfirmContactScreen';
 import ConnectionScreen from '../screens/dev/ConnectionScreen';
 import ForcedPasswordChangeScreen from '../screens/ForcedPasswordChangeScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -26,9 +28,12 @@ import { isBuilt } from './routes';
 //   loading            OUR spinner on bg-page (no login flash — the web's)
 //   authError          AuthUnavailable, token kept, Try again (§22)
 //   !user              the auth stack: Login, Forgot password, About (public)
-//   must_change_password   ONLY the forced-change screen (§11)
-//   policy_pending     ONLY the consent screen (feat/privacy, M26) — after
-//                      the forced change, as the server orders them
+//   a step left        ONLY that step's screen, in the server's order —
+//                      nextStep() from the mirrored auth/accountSteps.js
+//                      (feat/first-signin, 2026-10-18; M26):
+//                        consent   PolicyConsent
+//                        contact   ConfirmContact (a confirmed Gmail or number)
+//                        password  ForcedPasswordChange (the new password)
 //   otherwise          AppShell — the drawer and the detail stack, inside
 //                      the three realtime providers
 //
@@ -132,10 +137,12 @@ export default function RootNavigator() {
     },
   };
 
-  // Signed in for the providers' purposes only once BOTH gates are past: a
-  // socket and two count requests for a session the server still refuses
-  // (`MUST_CHANGE_PASSWORD`, `POLICY_ACCEPTANCE_REQUIRED`) would only fail.
-  const signedIn = Boolean(user) && !user.must_change_password && !user.policy_pending;
+  // Signed in for the providers' purposes only once ALL THREE steps are past:
+  // a socket and two count requests for a session the server still refuses
+  // (`POLICY_ACCEPTANCE_REQUIRED`, `CONTACT_VERIFICATION_REQUIRED`,
+  // `MUST_CHANGE_PASSWORD`) would only fail.
+  const step = nextStep(user);
+  const signedIn = Boolean(user) && !step;
 
   const tree = (
     <NavigationContainer theme={navTheme}>
@@ -152,10 +159,12 @@ export default function RootNavigator() {
             <Stack.Screen name="About" component={AboutScreen} initialParams={{ publicView: true }} />
             {ConnectionScreen ? <Stack.Screen name="Connection" component={ConnectionScreen} /> : null}
           </>
-        ) : user.must_change_password ? (
-          <Stack.Screen name="ForcedPasswordChange" component={ForcedPasswordChangeScreen} />
-        ) : user.policy_pending ? (
+        ) : step === 'consent' ? (
           <Stack.Screen name="PolicyConsent" component={PolicyConsentScreen} />
+        ) : step === 'contact' ? (
+          <Stack.Screen name="ConfirmContact" component={ConfirmContactScreen} />
+        ) : step === 'password' ? (
+          <Stack.Screen name="ForcedPasswordChange" component={ForcedPasswordChangeScreen} />
         ) : (
           <>
             <Stack.Screen name="Home" component={AppShell} layout={bareLayout} />

@@ -21,8 +21,9 @@ import { useTheme } from '../theme/ThemeProvider';
 // parent reads the Data Privacy Notice and the Terms of Use and accepts them —
 // for themselves and on behalf of their child — before using the portal.
 //
-// RootNavigator renders ONLY this screen while `user.policy_pending` is set,
-// AFTER the forced password change (the server orders them the same way) —
+// RootNavigator renders ONLY this screen while `user.policy_pending` is set —
+// the FIRST of the three steps since feat/first-signin (2026-10-18), before
+// the contact step and the new password, as the server orders them —
 // routed on the FIELD from /auth/me, never on the server's
 // `POLICY_ACCEPTANCE_REQUIRED` 403 (§2). No drawer, and the realtime providers
 // are not mounted: a socket and two count requests for a session the server
@@ -35,7 +36,8 @@ import { useTheme } from '../theme/ThemeProvider';
 // will approve (fix round PF4). The accept sends the versions this screen
 // SHOWED; a version that changed meanwhile is a 409, and the screen reloads the
 // documents and clears the ticks. The exit is the re-read: `refresh()` brings
-// `policy_pending` back false from the SERVER and RootNavigator routes home.
+// `policy_pending` back false from the SERVER and RootNavigator mounts the next
+// step (nextStep(), auth/accountSteps.js) or the home.
 // Sign out is always there and changes nothing; the line above it says
 // declining leaves the child's school records as they are.
 //

@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Pressable, ScrollView, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../api/client';
 import extractError from '../api/extractError';
+import { RESEND_COOLDOWN_SECONDS, resendLabel } from '../auth/accountSteps';
 import Button from '../components/Button';
 import { cardClass } from '../components/buttonStyles';
 import FormStatus, { ok, fail } from '../components/FormStatus';
@@ -12,6 +13,7 @@ import PasswordChecklist, { confirmError, passwordFormReady } from '../component
 import ScreenStatusBar from '../components/ScreenStatusBar';
 import Seal from '../components/Seal';
 import Text from '../components/Text';
+import useCooldown from '../hooks/useCooldown';
 import Icon from '../icons';
 import Reveal from '../motion/Reveal';
 import { useTheme } from '../theme/ThemeProvider';
@@ -38,6 +40,10 @@ import { useTheme } from '../theme/ThemeProvider';
 // its entrance never replays.
 //
 // A screen that is only a write form has no pull-to-refresh.
+//
+// RESEND, ON A 60-SECOND CLOCK (feat/first-signin, 2026-10-18), as on the web:
+// started on EVERY 202 alike — the server is silent inside the minute — so it
+// never depends on whether a code really went out.
 
 // The card surface with the sign-in family's larger corner (see LoginScreen).
 const AUTH_CARD = cardClass.replace('rounded-2xl', 'rounded-3xl');
@@ -47,6 +53,7 @@ const BAND_CORNERS = { borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }
 export default function ForgotPasswordScreen({ navigation }) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
+  const clock = useCooldown();
 
   const [step, setStep] = useState('request');
   const [loginId, setLoginId] = useState('');
@@ -74,6 +81,23 @@ export default function ForgotPasswordScreen({ navigation }) {
       const message = await api.post('/auth/forgot-password', { login_id: loginId.trim() }, { unwrap: 'message' });
       setSentNotice(message);
       setStep('reset');
+      clock.start(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setStatus(fail(extractError(err)));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // The same request again, for the same Login ID — and the same reply.
+  async function resend() {
+    if (clock.remaining > 0 || submitting) return;
+    setStatus(null);
+    setSubmitting(true);
+    try {
+      const message = await api.post('/auth/forgot-password', { login_id: loginId.trim() }, { unwrap: 'message' });
+      setSentNotice(message);
+      clock.start(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
       setStatus(fail(extractError(err)));
     } finally {
@@ -208,6 +232,9 @@ export default function ForgotPasswordScreen({ navigation }) {
                     onPress={submitReset}
                   >
                     {submitting ? 'Saving…' : 'Set new password'}
+                  </Button>
+                  <Button size="lg" full disabled={submitting || clock.remaining > 0} onPress={resend}>
+                    {resendLabel(clock.remaining)}
                   </Button>
                   <FormStatus status={status} />
                   {/* A text button, centred under the submit and 44dp tall —
