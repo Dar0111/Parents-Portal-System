@@ -1,0 +1,13 @@
+# The migration package keeps NO record data in git. Snapshots, manifests
+# with per-row detail, local PostgreSQL data directories and secrets live in
+# the sibling folder ../../Parents_Portal-migration-data (MIGRATION_DATA_DIR)
+# or are listed here.
+node_modules/
+out/
+*.local
+*.local.*
+.env
+.env.*
+!.env.example
+*.sql.gz
+*.dump

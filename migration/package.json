@@ -1,0 +1,28 @@
+{
+  "name": "parents-portal-pg-migration",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MySQL -> PostgreSQL migration package for the Parent's Portal: snapshot, schema, transfer, reconciliation, semantics rehearsal. Reads the source read-only; writes only to the data folder and to the designated PostgreSQL target.",
+  "main": "lib/env.js",
+  "scripts": {
+    "inventory:queries": "node scripts/inventory-queries.js",
+    "manifest:backups": "node scripts/backups-manifest.js",
+    "snapshot": "node scripts/snapshot-source.js",
+    "snapshot:restore-check": "node scripts/snapshot-source.js --restore-check",
+    "inspect:source": "node scripts/inspect-source.js",
+    "pg:local": "node scripts/pg-local.js",
+    "pg:schema": "node scripts/apply-schema.js",
+    "transfer": "node scripts/transfer.js",
+    "reconcile": "node scripts/reconcile.js",
+    "semantics": "node scripts/semantics.js",
+    "rehearse": "node scripts/rehearse.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "mysql2": "^3.12.0",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "embedded-postgres": "17.10.0-beta.17"
+  }
+}
