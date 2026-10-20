@@ -991,23 +991,20 @@ FRONTEND §30, MOBILE M27.
 
 ### Corrections — three claims retired here
 
-Circulated in planning, **wrong**, recorded so they cannot be re-derived:
-*"the first screen builds the shared components"* and its ~5h estimate; *"backend
-is 100% complete"*; *"36 screens"* and the ~13-day estimate derived from it.
-**All three estimates are void and are not replaced with a guess.** Say what
-the endpoints table says — **endpoints, not percentages** (UPDATING THIS FILE).
-The real screen figure is stated once, in BUILD ORDER → Stage 4. Full text and
-the counting rule: `docs/FRONTEND_CONVENTIONS.md` → Corrections.
+*"The first screen builds the shared components"* (~5h), *"backend is 100%
+complete"* and *"36 screens"* (~13 days) are **wrong and void, not replaced
+with a guess** — endpoints, not percentages. The screen figure is in BUILD
+ORDER → Stage 4; the counting rule, `docs/FRONTEND_CONVENTIONS.md` →
+Corrections; the paragraph as it stood, `docs/ARCHIVE.md` → "Blocks moved
+from CLAUDE.md on 2026-10-21".
 
 ### MEASURED BUILD TIME — data points, not a rate
 
-Every dispatch since Teacher → Attendance has a dated data point, and none of
-them is a rate: each is agent execution time, not developer-hours; excludes
-planning and review; and everything before the sixth point was measured
-without §5h's render proof inside the clock, so the first five are not
-comparable to anything after. **Do not derive a projection from them.** The
-tables and caveats are verbatim in `docs/ARCHIVE.md` → MEASURED BUILD TIME;
-each dispatch's number is also on its CHANGELOG row.
+Every dispatch since Teacher → Attendance has a dated data point (on its
+CHANGELOG row); none is a rate, and the first five were clocked without §5h's
+render proof. **Do not derive a projection from them.** Tables and caveats:
+`docs/ARCHIVE.md` → MEASURED BUILD TIME; the paragraph as it stood, "Blocks
+moved from CLAUDE.md on 2026-10-21".
 
 ---
 
@@ -1533,14 +1530,12 @@ Announcements and Events deliberately do not** (Actions already says
 mine/theirs, and those pages already carry four columns). Parent content
 modals render it. Do not open a dispatch to "finish" Announcements and
 Events, and do not read the closed KNOWN ISSUES row as "every page shows who
-posted it." Closed here, each dated on its CHANGELOG row: Teacher → Grades
-encode-scope from `GET /assignments` and mode from `GET /grading-modes`
-(2026-09-12); `useTeacherTargets`'s assigned leg from `GET /assignments`
-(2026-09-13; the union is still assigned OR adviser — do not reuse the hook
-for Grades); Contributions compose (removed with Feature 7, 2026-09-13);
-Teacher → Messages "Announce to" naming the section (2026-09-13). **This
-section is not a backlog of one; do not "finish" it. Not on this list:** the
-contacts empty-cause — it stays in KNOWN ISSUES.
+posted it." The four closed items, each dated on its CHANGELOG row, are
+listed in `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-21";
+the one rule among them: `useTeacherTargets`'s union is still assigned OR
+adviser — do not reuse the hook for Grades. **This section is not a backlog
+of one; do not "finish" it. Not on this list:** the contacts empty-cause — it
+stays in KNOWN ISSUES.
 
 ### Parent grade breakdown — BUILT 2026-09-11
 
@@ -1562,15 +1557,12 @@ feature.** No new endpoint, no new nav; `GET /` is still not called.
 - **Do not show:** rank, class average, "Passing", "Need attention",
   `descriptor.remarks`, IG, weights.
 
-**One rule here rested on a reason that has since expired, so it needs a
-deliberate answer rather than an assumption (2026-09-22).** The modal carries
-**no sentence about how the Grade 1 letter is produced** — removed 2026-09-12
-on the grounds that it stated an unconfirmed assumption as fact, with
-"silence is the honest state until the school answers". **The school answered
-on 2026-09-22 and it is built** (§6a), so that justification is gone. The copy
-is still absent, which is fine as a default — but it is now a choice, not the
-only honest option. Do not re-add a hedge or a tooltip; if anything goes back
-it is the confirmed rule, and that is Darryl's call.
+**The Grade 1 letter sentence (2026-09-22):** the modal carries no sentence
+about how the letter is produced; its 2026-09-12 justification expired when
+the school answered (§6a), so the absence is now a choice, not the only honest
+option. **Do not re-add a hedge or a tooltip; if anything goes back it is the
+confirmed rule, and that is Darryl's call.** The paragraph as it stood:
+`docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-21".
 
 Row sources, the modal's wiring and the full text: `docs/ARCHIVE.md` → NOW
 POSSIBLE, and `docs/API_REFERENCE.md` → Grades.
@@ -1804,17 +1796,11 @@ always say **Figure 5** specifically.
 
 ## ADMIN SCOPE AUDIT — nav vs. DFD (2026-09-13). A finding, not a decision.
 
-**Finding, 2026-09-13. Cite Figure 5, never Figure 4.** Four sources gave
-four answers for which admin nav items have a basis in the approved design
-(`nav.js` 13, the p. 70 mockup 5, Figure 5's 11 admin-facing processes,
-`docs/SYSTEM_ARCHITECTURE.md` §4 lists 3 — **do not trust that heading**).
-Figure 5 governs by precedent. With a Figure 5 process: Users (1.1, 1.3),
-Students (1.23), Grades (1.9), Attendance (1.15, view), Announcements (1.18,
-memos partial), Settings (1.25), Backup & Restore (1.27, 1.28). Without one:
-Sections, Excuse Letters, Events, Messages. The API already authorizes admin
-beyond Figure 5 in three places (excuse letters, messages, attendance writes)
-— one pattern, not a defect. 1.10 / 1.12 "Academic Records" stay ambiguous
-between Students and Grades.
+**Finding, 2026-09-13 — cite Figure 5, never Figure 4** (and never
+`docs/SYSTEM_ARCHITECTURE.md` §4's heading): with a Figure 5 process — Users,
+Students, Grades, Attendance, Announcements, Settings, Backup & Restore;
+without one — Sections, Excuse Letters, Events, Messages. The paragraph as it
+stood: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-21".
 
 **SCOPE DECISION, Darryl, 2026-09-13 (his decision, not a team consultation —
 do not blur the two):** build the six with a Figure 5 process (all built
@@ -2064,38 +2050,17 @@ either one is wrong.
 
 ## AGENT SKILLS — three installed, deliberately not the rest
 
-Installed 2026-08-30 from `mattpocock/skills` via
-`npx skills@latest add mattpocock/skills`. Files live in `.claude/skills/`,
-**copied, not symlinked** (`--copy`) — they are editable files this repo owns,
-not a managed subscription to someone else's repo. Edit them freely; nothing
-auto-updates them.
-
-The upstream repo has **37 skills**. Three were installed, plus the setup
-skill they require. This was a selection, not a partial install to be
-completed later.
-
-| Skill | Invoke with | For |
-|---|---|---|
-| `diagnosing-bugs` | `/diagnosing-bugs` | Disciplined red-first diagnosis loop for hard bugs and performance regressions |
-| `tdd` | `/tdd` | Red-green-refactor, one vertical slice at a time |
-| `handoff` | `/handoff` | Compact the current session into a handoff doc (written to the OS temp dir, not this repo) before context runs out |
-| `setup-matt-pocock-skills` | `/setup-matt-pocock-skills` | Already run once, 2026-08-30. Re-run only to switch issue tracker |
-
-**Two of them auto-invoke; two do not.** `handoff` and
-`setup-matt-pocock-skills` are `disable-model-invocation: true` — they run only
-when Darryl types the slash command. `diagnosing-bugs` and `tdd` are **not**
-marked that way, so Claude may reach for them on its own the moment something
-is reported broken or a feature is asked for test-first. That is intended —
-it is why they were chosen — but it means their discipline can start without
-being asked for. To make either opt-in only, add
-`disable-model-invocation: true` to its `SKILL.md` frontmatter; the files are
-copies this repo owns, so that edit sticks.
-
-**Deliberately NOT installed:** `grill-me`, `grill-with-docs`, `to-spec`,
-`to-tickets`, `implement`, `wayfinder`, `triage`,
-`improve-codebase-architecture` and the remaining ~26 — **do not install more
-of them without a specific reason.** A future session finding only three
-skills present is looking at a decision, not an oversight.
+Three of `mattpocock/skills`' 37 are installed in `.claude/skills/` (copied,
+not symlinked — editable files this repo owns, nothing auto-updates them):
+`diagnosing-bugs` and `tdd`, which Claude may invoke on its own the moment
+something is reported broken or asked for test-first, and `handoff`
+(`/handoff`, a doc in the OS temp dir), plus the required
+`setup-matt-pocock-skills` (run once, 2026-08-30); the last two run only on
+the slash command (`disable-model-invocation: true` in a `SKILL.md`
+frontmatter makes any of them opt-in). **Do not install more without a
+specific reason** — three present is a decision, not an oversight. The table
+and the text as they stood: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md
+on 2026-10-21".
 
 ### Sub-agents — read-only exploration only (2026-09-23; no protocol file)
 
@@ -2136,21 +2101,12 @@ and are never back-edited; they are exempt from the one-number-one-place rule.
 Each row carries its dispatch's whitelist, suite counts, verification and
 measured build time — the level of detail this file no longer holds.
 
-No stubs since the twentieth batch (2026-10-02); the newest rows are at the
-top of `docs/CHANGELOG.md`.
-
-**trim-7's own stub was removed from this table on 2026-09-23**, not archived:
-its full row was already in `docs/CHANGELOG.md`, so a stub here was a third
-copy of one dispatch. **That is the exception, not a new habit** — a stub
-whose full row exists in `docs/CHANGELOG.md` may be dropped when this table is
-the only duplicate; every other stub still leaves in a dated ARCHIVE batch and
-is never deleted.
-
-Older stub lines are verbatim in `docs/ARCHIVE.md`, in **twenty dated
-batches** (2026-09-19 → 2026-10-02), each headed "CHANGELOG stubs moved from
-CLAUDE.md on <date> (<nth> batch, <the pass that spent it>)" — grep that;
-the per-batch counts once listed here were a third copy of a number the
-headings carry. **Every full row is in `docs/CHANGELOG.md` with one
-exception: the Notifications N1 server dispatch has no row there**, so its
-stub in the third batch is the only surviving summary. A stub is moved out
-when this file approaches its size limit, never deleted.
+No stubs stand here since the twentieth batch (2026-10-02). Older stubs are
+verbatim in `docs/ARCHIVE.md` in twenty dated batches headed "CHANGELOG stubs
+moved from CLAUDE.md on <date> (<nth> batch, …)" — grep that. **Every full
+row is in `docs/CHANGELOG.md` except the Notifications N1 server dispatch**,
+whose stub in the third batch is its only summary. A stub leaves in a dated
+batch, never deleted (the one exception — trim-7's stub, dropped on
+2026-09-23 because its full row already existed — is not a habit). The
+paragraphs as they stood: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on
+2026-10-21".
