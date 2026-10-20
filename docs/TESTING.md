@@ -156,6 +156,25 @@ After the run: users 8, students 4, grades 5, `auth_codes` 0, no placeholder
 address left, and the eight acceptance rows and the one confirmed email that
 were already there (2026-10-12/13) untouched.
 
+**`feat/first-signin`'s device check (2026-10-20/21, laptop Chrome, the
+Tecno phone in Expo Go, SMSGate in local mode) — PASSED, every section, no
+fix round** (`docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9). **Learned:** the
+seeded staff meet no consent screen while their draft-1 rows exist (the gate
+is only that count); forgot-password's one reply hides the minute, the hour,
+a wrong id and a failed send alike — read `auth_codes` and the
+`password_reset_*` actions — and the minute rule was proved on the PHONE
+with one account (the web's inside-the-minute press used a second Login ID,
+which is a second account and sends; the web half proved the reply, the
+disabled clock and the Resend at 0:00); a Settings "Not confirmed" needs a
+second confirmed contact. **Cleanup by id, backup 324**
+(`parents_portal_2026-10-21_021335.sql`): users 982–984 and students
+1450–1451 with their 10 codes, 6 acceptances and the admin's 2 bell rows
+(`notifications.item_id` has no FK, so a by-hand user delete takes them in
+the same transaction), one transaction with guards; 143 verification lines,
+all passed; the 49 `activity_logs` rows kept with `user_id` NULL; after:
+users 8, students 4, acceptances 8 (ids 1, 2, 5, 6), `auth_codes` 11 (all
+consumed), `login_attempts` 9 untouched.
+
 - `npm run test:students` — **97/97** (2026-10-10, feat/privacy, −1: decision 6 — a VALUE for the learner's birthday, gender, address or contact number is 400 "no longer collected" on POST and PUT, null and empty keys are ignored, and no response carries the four; the birthday round-trip check is gone with the field, and the class-change tests edit `last_name` where they edited the contact number. 98/98 before that, was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — 30/30
 - `npm run test:assignments` — **62/62** (count unchanged by #5a, but its two Grade 2 assertions flipped from "NULL, falls back to name ASC" to the school's confirmed order — the guard against a GUESSED order did its job on the day the school's answer arrived)

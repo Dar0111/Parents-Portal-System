@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-13, `main` `4d28d7f` — `fix/smoke-round` merged fast-forward: the grade locks (1a, 1b) and the smoke gate's F4–F7, device-checked on the web and the Android emulator, data cleaned up (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-21, `feat/first-signin` `546a4c1` + this docs commit, merge-ready — the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324); `main` is `4d28d7f` (`fix/smoke-round`, 2026-10-13) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1731,12 +1731,15 @@ the grade locks and the smoke-gate fix round (`4d28d7f`) — items:
 2026-10-11" (two batches) and "… item moved … on 2026-10-13"; rules: §5,
 §5f–§5g, §29–§32, M11, M26–M29.
 
-**NEXT (the owner's plan, 2026-10-13):** **professor system check, Wed
-2026-10-14, about 12:00** — the restore point is backup 317
+**NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin` is
+device-checked and merge-ready (2026-10-21; merge on the owner's word), then
+`feat/account-create` → `feat/password-alert` → `feat/grade-acknowledgement`
+→ `fix/f3-badges` → `feat/activity-log`, each on its own check, then
+`docs/pre-oct21`, the demo data and a new restore point. The owner's target
+is everything finished by Fri 2026-10-23; the next system check is Mon
+2026-10-26; the restore point on `main` is backup 317
 (`parents_portal_2026-10-13_233314.sql`). The manuscript delta list stays
-with the team. After the check: badged pages
-clear on a visit (KNOWN ISSUES), then the cloud (Supabase) migration
-planning only.
+with the team.
 
 ### Stage 6 — Integration
 

@@ -1469,6 +1469,13 @@ mirrored step words are driven in the web's `ssr-first-signin.jsx`. **The
 phone check (M7) owns** a real sign-in landing on each step, a real code, the
 Android back button, a real tick and accept, and the skeleton's 300 ms.
 
+**Run 2026-10-21 on the Tecno in Expo Go — PASSED** (§9 of the same doc):
+consent, the contact step by mobile number through SMSGate, the Android back
+button consumed (seen on the §7 parent variant), the new password, the
+Update email card, Forgot password's clock — and the minute rule, on one
+account: a second Send code inside the minute delivered nothing, Resend at
+0:00 delivered one.
+
 ## M27. The phone thread keeps the web's three positioning rules (`feat/shared-messages`, 2026-10-11)
 
 The phone already had ONE thread screen for every role

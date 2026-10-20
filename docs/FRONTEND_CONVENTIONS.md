@@ -3909,6 +3909,18 @@ retired fields — and `ssr-first-signin.jsx` for §29f. **The browser check
 owns** a real redirect, a real accept, a real code, the countdown and the
 300 ms clock.
 
+**Device-checked 2026-10-20/21 on the web — PASSED**
+(`docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9): the three steps on a new teacher;
+"Confirm it’s you" on a temporary password, Change kept on the step (the
+owner's D2 follow-up, 2026-10-21); Update email's three cases — (c) adding
+on the check parent (the Verify email path seen; the Save sentence read
+from the code), (b) seen verbatim on the same parent, (a) the gate on the
+check teacher; the admin edit's both halves — "Not confirmed" on the
+parent, the gate with an empty Gmail field on the teacher after the admin
+cleared the address; Forgot password's one reply and clock — the minute
+rule itself rests on the phone run with one account, the web's
+inside-the-minute press having used a second Login ID.
+
 ## 30. One Messages component — the thread and the list, every role (`feat/shared-messages`, 2026-10-11)
 
 **The rule: every web Messages surface is one of two shared components, and a
