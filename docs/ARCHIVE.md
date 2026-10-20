@@ -7553,3 +7553,29 @@ line names the merge.
       not done, the owner's call); data cleaned up (backup 316); merged
       2026-10-13 (`4d28d7f`)** (`docs/GRADE_LOCKS_DEVICE_CHECK.md` §5). F3 was
       cut (KNOWN ISSUES).
+
+## BUILD ORDER → Stage 5 item moved from CLAUDE.md on 2026-10-21 (the `feat/first-signin` merge, the REFILL RULE)
+
+The first sign-in never had a ticked line under CLAUDE.md's closed Stage 5
+heading: the branch's docs commit (`546a4c1`) put its state in the NEXT
+paragraph and in `docs/PROJECT_PROGRESS.md`'s row only. This is that item
+written the way the earlier ones were, with its status line brought to the
+merge (`bae0800` → `9d3b430`, fast-forward, six commits, the migration
+inventory docs `e9b6574` among them). Its rules stay where they live —
+FRONTEND §29f, MOBILE M26, `docs/API_REFERENCE.md` §5b, `docs/TESTING.md` —
+and CLAUDE.md's pointer line names the merge.
+
+- [x] **The first sign-in — `feat/first-signin`** (2026-10-18; the pre-Oct-21
+      build's branch 1 in the owner's order): consent → a confirmed Gmail or
+      mobile number → your own password, one pure module
+      (`utils/accountGates.js`), the first pending gate only, paths matched in
+      full; no temporary-password field, `PUT /auth/first-password`; a
+      temporary password on a confirmed account confirms it again ("Confirm
+      it’s you", D2 — Change stays on the step, the owner's follow-up of
+      2026-10-21); your own email (`PUT /auth/email`, web and phone Settings);
+      the 60-second resend cooldown on every code, forgot-password's silent,
+      counted down on both clients; 98 → 100 handlers. **Device-checked
+      2026-10-20/21 on the web, the Tecno phone (Expo Go) and SMSGate, every
+      section passed, no fix round; data cleaned up by id (backup 324);
+      merged 2026-10-21 (`9d3b430`)** (`docs/FIRST_SIGNIN_DEVICE_CHECK.md`
+      §9).

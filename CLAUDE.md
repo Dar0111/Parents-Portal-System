@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-21, `feat/first-signin` `546a4c1` + this docs commit, merge-ready — the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324); `main` is `4d28d7f` (`fix/smoke-round`, 2026-10-13) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-21, `main` `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1726,20 +1726,21 @@ Merged after the close, each device-checked: privacy (`456bba8`), shared
 Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
 (`10e277a`), staff acceptance (`5dc868d`), skeleton tier 2 on the web
 (`c8ac275`) and on the phone (`4bfbda0`), the web load races (`afccdd8`),
-the grade locks and the smoke-gate fix round (`4d28d7f`) — items:
-`docs/ARCHIVE.md` → "BUILD ORDER → Stage 5 items moved from CLAUDE.md on
-2026-10-11" (two batches) and "… item moved … on 2026-10-13"; rules: §5,
-§5f–§5g, §29–§32, M11, M26–M29.
+the grade locks and the smoke-gate fix round (`4d28d7f`), the first sign-in
+(`9d3b430`, 2026-10-21) — items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5
+items moved from CLAUDE.md on 2026-10-11" (two batches), "… item moved … on
+2026-10-13" and "… on 2026-10-21"; rules: §5, §5f–§5g, §11, §29–§32, M11,
+M26–M29.
 
 **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin` is
-device-checked and merge-ready (2026-10-21; merge on the owner's word), then
+merged (`9d3b430`, 2026-10-21), then
 `feat/account-create` → `feat/password-alert` → `feat/grade-acknowledgement`
 → `fix/f3-badges` → `feat/activity-log`, each on its own check, then
 `docs/pre-oct21`, the demo data and a new restore point. The owner's target
 is everything finished by Fri 2026-10-23; the next system check is Mon
-2026-10-26; the restore point on `main` is backup 317
-(`parents_portal_2026-10-13_233314.sql`). The manuscript delta list stays
-with the team.
+2026-10-26; the restore point is still backup 317
+(`parents_portal_2026-10-13_233314.sql`) — 324 is the check's pre-cleanup
+dump, not one. The manuscript delta list stays with the team.
 
 ### Stage 6 — Integration
 

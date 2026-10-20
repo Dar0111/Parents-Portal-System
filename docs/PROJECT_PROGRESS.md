@@ -11,12 +11,12 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-21: `main` at `4d28d7f` (`fix/smoke-round`, merged
-2026-10-13; the restore point taken before the 2026-10-14 system check is
-backup 317). `feat/first-signin` at `546a4c1` plus this docs commit:
-device-checked 2026-10-20/21 on the web, the Tecno phone (Expo Go) and
-SMSGate — every section passed, no fix round — cleaned up by id after backup
-324, merge-ready and NOT merged. Before it on `main`: the grade locks and
+**Snapshot, 2026-10-21: `main` at `9d3b430` plus this docs commit —
+`feat/first-signin` merged fast-forward from `bae0800` (`4d28d7f` plus its
+docs commit; six commits, the migration inventory docs `e9b6574` among them):
+the first sign-in, device-checked 2026-10-20/21 on the web, the Tecno phone
+(Expo Go) and SMSGate — every section passed, no fix round — cleaned up by id
+after backup 324; the restore point is still backup 317. Before it on `main`: the grade locks and
 the smoke gate's F4–F7 (2026-10-13), the web load races (2026-10-12),
 skeleton tier 2, staff acceptance, the socket handshake, skeleton option 1,
 shared Messages and privacy. F3 (a visit clearing a page's badge) is a KNOWN
@@ -56,7 +56,7 @@ and only there.
 | The web load races — `fix/web-load-races`: tickets on the roster, admin Grades' report and the class summary (Try again included); the class record, the class summary and admin Grades show only the current pick's data until it arrives — the grid not editable, no lock (built, gated and device-checked on 3G 2026-10-12; data cleaned up, backup 305) | — (untouched) | ✅ merged 2026-10-12 | — (untouched) |
 | Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; carried by `fix/smoke-round`, device-checked 2026-10-13; data cleaned up, backup 316) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | The smoke gate's fix round — `fix/smoke-round` (on `fix/grade-locks`): F4 the class record's Summative block without a raw total and a line saying how ST PS is made; F5 the parent breakdown's rows named "Written Work 1" or the column's own name, as the class record's helper promises; F6 sign-in confirming a password reset; F7 a per-row lock or unlock closing its dialog and keeping its line (built and gated 2026-10-13; device-checked the same night on the web and the Android emulator, every section passed, the bulk dialog's 390px / dark pass not done; data cleaned up, backup 316; F3 cut — KNOWN ISSUES) | — (untouched) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
-| The first sign-in — `feat/first-signin` (pre-Oct-21 build, branch 1 of 6 in the owner's order): consent → a confirmed Gmail or mobile number → your own password (no temporary-password field, `PUT /auth/first-password`; a temporary password on a confirmed account confirms it again); your own email (`PUT /auth/email`, web and phone Settings); the 60-second resend cooldown on every code, forgot-password included, counted down on both clients (built and gated 2026-10-18; device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round; cleaned up by id, backup 324; merge-ready, NOT merged) | 🔶 merge-ready | 🔶 merge-ready | 🔶 merge-ready |
+| The first sign-in — `feat/first-signin` (pre-Oct-21 build, branch 1 of 6 in the owner's order): consent → a confirmed Gmail or mobile number → your own password (no temporary-password field, `PUT /auth/first-password`; a temporary password on a confirmed account confirms it again); your own email (`PUT /auth/email`, web and phone Settings); the 60-second resend cooldown on every code, forgot-password included, counted down on both clients (built and gated 2026-10-18; device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round; cleaned up by id, backup 324; merged 2026-10-21, `9d3b430`) | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -79,7 +79,7 @@ A module with tables and no handlers is not started; there are none.
 
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
-| Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 12 (14 on `feat/first-signin`: `PUT /email`, `PUT /first-password`) | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
+| Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 14 (`PUT /email` and `PUT /first-password` since `feat/first-signin`, merged 2026-10-21) | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
 | Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are placeholders |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
@@ -140,15 +140,15 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-**Done (2026-10-21):** `feat/first-signin` is device-checked and cleaned up
-(`docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9), merge-ready. **Next, the owner's
-pre-Oct-21 order:** the merge (on the owner's word), then
-`feat/account-create`, `feat/password-alert`, `feat/grade-acknowledgement`,
-`fix/f3-badges`, `feat/activity-log`, each on its own check; then
-`docs/pre-oct21`, the demo data and a new restore point. The owner's own
-target is everything finished by Fri 2026-10-23; the next system check is
-Mon 2026-10-26. The restore point on `main` `4d28d7f` is backup 317,
-`parents_portal_2026-10-13_233314.sql`.
+**Merged (2026-10-21, `9d3b430`):** `feat/first-signin`, device-checked and
+cleaned up (`docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9). **Next, the owner's
+pre-Oct-21 order:** `feat/account-create`, `feat/password-alert`,
+`feat/grade-acknowledgement`, `fix/f3-badges`, `feat/activity-log`, each on
+its own check; then `docs/pre-oct21`, the demo data and a new restore point.
+The owner's own target is everything finished by Fri 2026-10-23; the next
+system check is Mon 2026-10-26. The restore point is still backup 317,
+`parents_portal_2026-10-13_233314.sql` (324 is the check's pre-cleanup dump,
+not one).
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). The badged-pages pass is `fix/f3-badges` in the order
