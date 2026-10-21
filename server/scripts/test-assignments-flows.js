@@ -322,7 +322,12 @@ async function run() {
     );
 
     const suffix = String(Date.now()).slice(-6);
-    const newTeacher = await request('POST', '/api/users/teachers', {
+    // feat/account-create (2026-10-21): POST /users/teachers takes no email
+    // (400 "no longer collected"); this throwaway never needed one, so the
+    // key is dropped from the body before the call.
+    const createTeacherBare = ({ token, body: { email, contact_number, ...rest } }) =>
+      request('POST', '/api/users/teachers', { token, body: rest });
+    const newTeacher = await createTeacherBare({
       token: adminToken,
       body: {
         login_id: `TCH-ASGN-${suffix}`,

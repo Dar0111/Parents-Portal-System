@@ -740,6 +740,9 @@ focused. Found on Records, the screen that reads what Attendance writes.
   on both, the subjects and the Average scrolling. No print on the phone.
 - **Enrol is one modal screen with the web's four phases** (decision 4), and
   Create parent on a record opens the same screen at its parent phase.
+  **Since `feat/account-create` (2026-10-21) the parent phase is Guardian
+  name, Password and Confirm password — no Email, no Contact number; the
+  server refuses either key with a value** (FRONTEND §29g).
 
 **Cleanup for this branch's writes** (M12's order, backup first, zero
 counts): the first-half check left a fictional learner, its pending parent,
@@ -800,6 +803,11 @@ returned to pending afterward"), a rejection needing a reason; **reset
 password is two phases** — confirm by name, then the password shown once.
 Your own active account shows "You cannot deactivate yourself" instead of
 the control; the last-active-admin refusal is the server's 400, shown.
+**Create teacher is Login ID, Password and Name since `feat/account-create`
+(2026-10-21; the owner's decision of 2026-10-16)** — no Email, no Contact
+number: `admin/users/logic.js` checks the three in the web's order and builds
+a three-key body, and `POST /users/teachers` refuses either key with a value
+(FRONTEND §29g). The teacher confirms their own at the first sign-in (M26).
 
 **The temporary password** (`admin/users/TempPasswordModal.jsx`):
 
@@ -1451,7 +1459,9 @@ phone differs.
 - **The four learner fields are gone** from `teacher/EnrollScreen` and both
   StudentDetail screens, the record one card, as on the web (§29e) — and with
   them the birthday `DateField` and the gender `Segmented` on those screens.
-  The parent's own number stays on the enrol screen's parent phase.
+  The parent's own number stayed on the enrol screen's parent phase until
+  `feat/account-create` (2026-10-21), when that phase and Create teacher
+  dropped Email and Contact number too (M15, M17; FRONTEND §29g).
 - **Edit student's LRN, Grade level and Section look read-only** (the fix
   round, PF5): they were already `editable={false}` but drawn like fields you
   can type in. Both StudentDetail screens now give them the web's disabled

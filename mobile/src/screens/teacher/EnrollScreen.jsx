@@ -10,7 +10,6 @@ import PasswordChecklist, { confirmError, passwordFormReady } from '../../compon
 import PasswordField from '../../components/PasswordField';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
-import { contactError, contactRuleHint } from '../../format/contactRule';
 import { lrnError, lrnRuleHint } from '../../format/lrnRule';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import Icon from '../../icons';
@@ -46,7 +45,10 @@ import { useTheme } from '../../theme/ThemeProvider';
 // that sentence stays plain. NO ENTRANCE MOTION: a phase swaps in place, and
 // nothing may delay the sentence that names the decision.
 const EMPTY_ENROLL = { lrn: '', first_name: '', last_name: '', classKey: '' };
-const EMPTY_PARENT = { name: '', password: '', confirmPassword: '', email: '', contact_number: '' };
+// No email and no contact number on the parent phase (feat/account-create,
+// 2026-10-21): the parent confirms their own at the first sign-in, and
+// POST /users/parents refuses either key with a value.
+const EMPTY_PARENT = { name: '', password: '', confirmPassword: '' };
 
 function parseClassKey(classKey) {
   const i = String(classKey).indexOf('|');
@@ -152,11 +154,6 @@ export default function EnrollScreen({ navigation, route }) {
       setFormError('New password and confirmation do not match.');
       return;
     }
-    const contactProblem = contactError(parent.contact_number);
-    if (contactProblem) {
-      setFieldErrors({ contact_number: contactProblem });
-      return;
-    }
     setPhase('confirm-parent');
   }
 
@@ -166,8 +163,6 @@ export default function EnrollScreen({ navigation, route }) {
     setFormError(null);
     try {
       const body = { lrn: enrolled.lrn, password: parent.password, name: parent.name.trim() };
-      if (parent.email.trim()) body.email = parent.email.trim();
-      if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();
       const { message } = await api.post('/users/parents', body, { unwrap: ['user', 'message'] });
       leave(message);
     } catch (err) {
@@ -282,16 +277,6 @@ export default function EnrollScreen({ navigation, route }) {
                 revealed={revealed.confirm}
                 onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
                 error={confirmError(parent.password, parent.confirmPassword)}
-              />
-              <FormField label="Email" value={parent.email} onChangeText={setField(setParent, 'email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
-              <FormField
-                label="Contact number"
-                value={parent.contact_number}
-                onChangeText={setField(setParent, 'contact_number')}
-                maxLength={20}
-                keyboardType="phone-pad"
-                hint={contactRuleHint()}
-                error={fieldErrors.contact_number}
               />
             </View>
             <View className="flex-row flex-wrap justify-end gap-2">

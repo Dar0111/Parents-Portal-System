@@ -16,9 +16,34 @@ const { removePhotoFile } = require('../utils/profilePhoto');
 
 const router = express.Router();
 
+// CREATE TEACHER AND CREATE PARENT TAKE NO EMAIL AND NO CONTACT NUMBER
+// (feat/account-create, 2026-10-21; the owner's decision of 2026-10-16). The
+// account holder confirms their own Gmail or mobile number at the first
+// sign-in (utils/accountGates.js), and the office changes one through
+// PUT /:id. A value sent here is refused the way decision 6 refuses the
+// learner's four retired fields — 400 naming the field — while null or an
+// empty string is ignored, so a client echoing an old form is not broken.
+const CONTACT_FIELDS = [
+  ['email', 'email address'],
+  ['contact_number', 'contact number'],
+];
+
+function refuseContactFields(body) {
+  for (const [field, label] of CONTACT_FIELDS) {
+    const value = body?.[field];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return {
+        error: `The ${label} is no longer collected here — the account holder confirms one at the first sign-in.`,
+        field,
+      };
+    }
+  }
+  return null;
+}
+
 // POST /api/users/teachers — Admin creates teacher (active immediately)
 router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
-  const { login_id, password, name, email, contact_number } = req.body;
+  const { login_id, password, name } = req.body;
 
   if (!login_id || !password || !name) {
     return res.status(400).json({
@@ -33,18 +58,11 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
-  // Contact number: optional; if given, 09…, +639… or 639…, stored as
-  // 09XXXXXXXXX (utils/contactRule.js). `field` names the input.
-  const contact = validateContact(contact_number);
-  if (contact.error) {
-    return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
-  }
-
-  // Email: optional; if given, an address the mailer can deliver to, stored
-  // trimmed (utils/emailRule.js). `field` names the input.
-  const emailCheck = validateEmail(email);
-  if (emailCheck.error) {
-    return res.status(400).json({ success: false, message: emailCheck.error, field: 'email' });
+  // No email, no contact number (feat/account-create): a value is 400 naming
+  // the field; the columns stay NULL until the holder confirms one.
+  const retired = refuseContactFields(req.body);
+  if (retired) {
+    return res.status(400).json({ success: false, message: retired.error, field: retired.field });
   }
 
   const trimmedLoginId = String(login_id).trim();
@@ -68,9 +86,9 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     // the first sign-in — the same gate an admin temporary password uses.
     const hashed = await hashPassword(password);
     const [result] = await pool.query(
-      `INSERT INTO users (login_id, password, role, status, name, email, contact_number, must_change_password, created_by)
-       VALUES (?, ?, 'teacher', 'active', ?, ?, ?, 1, ?)`,
-      [trimmedLoginId, hashed, name, emailCheck.value, contact.value, req.user.id]
+      `INSERT INTO users (login_id, password, role, status, name, must_change_password, created_by)
+       VALUES (?, ?, 'teacher', 'active', ?, 1, ?)`,
+      [trimmedLoginId, hashed, name, req.user.id]
     );
 
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [result.insertId]);
@@ -89,7 +107,7 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
 
 // POST /api/users/parents — Teacher creates parent account (pending approval)
 router.post('/parents', authenticate, authorize('teacher'), async (req, res) => {
-  const { lrn, password, name, email, contact_number } = req.body;
+  const { lrn, password, name } = req.body;
 
   if (!lrn || !password || !name) {
     return res.status(400).json({
@@ -106,17 +124,12 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     return res.status(400).json({ success: false, message: ruleError, field: 'password' });
   }
 
-  const contact = validateContact(contact_number);
-  if (contact.error) {
-    return res.status(400).json({ success: false, message: contact.error, field: 'contact_number' });
-  }
-
-  // Email (utils/emailRule.js) — checked BEFORE the student lookup, like the
-  // password and contact rules, so a bad address never reveals whether an
-  // LRN exists.
-  const emailCheck = validateEmail(email);
-  if (emailCheck.error) {
-    return res.status(400).json({ success: false, message: emailCheck.error, field: 'email' });
+  // No email, no contact number (feat/account-create) — refused BEFORE the
+  // student lookup, like the password rule, so the refusal never reveals
+  // whether an LRN exists. The parent confirms one at the first sign-in.
+  const retired = refuseContactFields(req.body);
+  if (retired) {
+    return res.status(400).json({ success: false, message: retired.error, field: retired.field });
   }
 
   const loginId = String(lrn).trim();
@@ -175,9 +188,9 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     // the first sign-in, before the consent screen.
     const hashed = await hashPassword(password);
     const [result] = await pool.query(
-      `INSERT INTO users (login_id, password, role, status, name, email, contact_number, student_id, must_change_password, created_by)
-       VALUES (?, ?, 'parent', 'pending', ?, ?, ?, ?, 1, ?)`,
-      [loginId, hashed, name, emailCheck.value, contact.value, student.id, req.user.id]
+      `INSERT INTO users (login_id, password, role, status, name, student_id, must_change_password, created_by)
+       VALUES (?, ?, 'parent', 'pending', ?, ?, 1, ?)`,
+      [loginId, hashed, name, student.id, req.user.id]
     );
 
     const [rows] = await pool.query(

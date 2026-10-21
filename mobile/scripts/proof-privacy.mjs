@@ -180,7 +180,14 @@ assert(
     RETIRED.test('<CardTitle icon="fa-address-book">Contact details</CardTitle>'),
   'control: the pattern catches the old field and the old card'
 );
-assert(/parent\.contact_number/.test(src('screens/teacher/EnrollScreen.jsx')), "the PARENT's own number stays on the enrol screen — the guardian's, not the learner's");
+// feat/account-create (2026-10-21): the PARENT's own email and number are gone
+// from the enrol screen's parent phase, and the Create teacher screen carries
+// neither field — the holder confirms one at the first sign-in (M26).
+const enrolScreen = src('screens/teacher/EnrollScreen.jsx');
+assert(!/parent\.(email|contact_number)/.test(enrolScreen) && !/label="(Email|Contact number)"/.test(enrolScreen), "the PARENT's own email and number are gone from the enrol screen as well (feat/account-create)");
+const createTeacher = src('screens/admin/CreateTeacherScreen.jsx');
+assert(!/form\.(email|contact_number)/.test(createTeacher) && !/label="(Email|Contact number)"/.test(createTeacher), 'Create teacher carries no Email and no Contact number field (feat/account-create)');
+assert(/parent\.(email|contact_number)/.test('if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();') && /label="(Email|Contact number)"/.test('<FormField label="Contact number" />'), 'control: the patterns catch the old body line and the old field');
 
 // STAFF ACCEPT TOO (feat/staff-acceptance, 2026-10-11), as on the web: the
 // child's tick is rendered for a parent only, the intro drops "for your child"

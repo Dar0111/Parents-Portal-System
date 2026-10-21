@@ -974,8 +974,11 @@ itself** (fix round). **The text (`server/policy/`) is a
 placeholder; staff tick two boxes, no child tick.** New teachers and parents change
 the password someone else typed. **Sign-in: 5 failures in a row / 100 per IP
 in 15 min → 429, an unknown id the same.** The learner's birthday, gender,
-address and contact number are not collected. Full text: FRONTEND §29, MOBILE
-M26, API_REFERENCE §5b.
+address and contact number are not collected. **Create teacher and Create
+parent collect no email or number since feat/account-create (2026-10-21; the
+owner's decision of 2026-10-16): the holder confirms one at the contact step,
+and the two POSTs refuse a value with `400` naming the field (§29g, M15, M17).**
+Full text: FRONTEND §29, MOBILE M26, API_REFERENCE §5b.
 
 ### 30. One Messages component — every web surface is one of two shared pages
 
@@ -1186,7 +1189,8 @@ web-only exception.
 - `login_id` + password only. **No role dropdown.**
 - Parent logs in with the child's **LRN**. Teacher and Admin use assigned IDs.
 - **No self-registration.** Teacher creates parent (`pending`) → Admin
-  approves (`active`). Admin creates teacher (`active` immediately).
+  approves (`active`). Admin creates teacher (`active` immediately). Neither
+  create takes an email or a number (2026-10-21, §29).
 - No grade-level selection after login.
 - **One account per student.** A guardian with three children has three
   accounts. This is deliberate, for data isolation. **Do not suggest a
@@ -1729,8 +1733,8 @@ merged (`9d3b430`, 2026-10-21), then
 `feat/account-create` → `feat/password-alert` → `feat/grade-acknowledgement`
 → `fix/f3-badges` → `feat/activity-log`, each on its own check, then
 `docs/pre-oct21`, the demo data and a new restore point. The owner's target
-is everything finished by Fri 2026-10-23; the next system check is Mon
-2026-10-26; the restore point is still backup 317
+is everything finished, the Supabase migration included, by Mon 2026-10-26;
+the next system check is Wed 2026-10-28; the restore point is still backup 317
 (`parents_portal_2026-10-13_233314.sql`) — 324 is the check's pre-cleanup
 dump, not one. The manuscript delta list stays with the team.
 

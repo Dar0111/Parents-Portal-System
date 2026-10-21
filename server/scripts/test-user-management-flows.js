@@ -217,23 +217,26 @@ async function run() {
     const refusedLogin = await login(throwawayLoginId, 'abc1234');
     assert(refusedLogin.status === 401, 'POST /teachers: a refused password creates no account');
 
-    // --- Email rule on POST /teachers (utils/emailRule.js, pre-Stage-5 #4):
-    // optional; if given, one @, no whitespace, a dotted domain, ASCII only;
-    // a refusal names field "email" and creates nothing.
+    // --- No email on POST /teachers (feat/account-create, 2026-10-21; the
+    // owner's decision of 2026-10-16): a value, valid or not, is 400 "no longer
+    // collected" naming field "email" and creates nothing — the teacher
+    // confirms their own Gmail or number at the first sign-in. The two bodies
+    // below were the email RULE's cases (pre-Stage-5 #4); they stand as two
+    // values the route now refuses alike.
     const emailSpace = await request('POST', '/api/users/teachers', {
       token: adminToken,
       body: { login_id: throwawayLoginId, password: 'Teacher@2026', name: 'Throwaway Teacher', email: 'not an email' },
     });
     assert(
-      emailSpace.status === 400 && emailSpace.data?.field === 'email' && /name@example\.com/.test(emailSpace.data?.message || ''),
-      'POST /teachers: "not an email" is 400, field "email", the rule message'
+      emailSpace.status === 400 && emailSpace.data?.field === 'email' && /no longer collected/.test(emailSpace.data?.message || ''),
+      'POST /teachers: an email value is 400, field "email", "no longer collected" (feat/account-create)'
     );
     const emailNoDot = await request('POST', '/api/users/teachers', {
       token: adminToken,
       body: { login_id: throwawayLoginId, password: 'Teacher@2026', name: 'Throwaway Teacher', email: 'user@localhost' },
     });
     assert(
-      emailNoDot.status === 400 && emailNoDot.data?.field === 'email',
+      emailNoDot.status === 400 && emailNoDot.data?.field === 'email' && /no longer collected/.test(emailNoDot.data?.message || ''),
       'POST /teachers: a domain with no dot (user@localhost) is 400, field "email" — not routable from here'
     );
 
@@ -419,8 +422,10 @@ async function run() {
       body: { login_id: `${throwawayLoginId}C`, password: 'Teacher@2026', name: 'Bad Contact', contact_number: 'Test' },
     });
     assert(
-      createBadContact.status === 400 && createBadContact.data?.field === 'contact_number',
-      'POST /teachers: contact "Test" is 400, field "contact_number", nothing created'
+      createBadContact.status === 400 &&
+        createBadContact.data?.field === 'contact_number' &&
+        /no longer collected/.test(createBadContact.data?.message || ''),
+      'POST /teachers: a contact_number value is 400, field "contact_number", "no longer collected", nothing created (feat/account-create)'
     );
     const badContactLogin = await login(`${throwawayLoginId}C`, 'Teacher@2026');
     assert(badContactLogin.status === 401, 'POST /teachers: the refused contact created no account');

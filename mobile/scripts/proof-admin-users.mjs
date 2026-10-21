@@ -41,10 +41,10 @@ assert(L.rowActions({ id: 9, status: 'active' }, me).toggle === 'inactive' && L.
 assert(L.rowActions({ id: 9, status: 'pending' }, me).toggle === null && L.rowActions({ id: 9, status: 'rejected' }, me).toggle === null, 'pending and rejected are the review\'s, not a toggle');
 
 console.log('create teacher — the web\'s order');
-const blank = { login_id: '', password: '', name: '', email: '', contact_number: '' };
+const blank = { login_id: '', password: '', name: '' };
 assert(L.createTeacherProblem(blank).message === 'login_id, password, and name are required.', 'the required fields first');
 assert(L.createTeacherProblem({ ...blank, login_id: 'TCH-TMP-01', name: 'Test', password: 'short' }).field === 'password', 'a weak password lands on the password field');
-assert(L.createTeacherProblem({ ...blank, login_id: 'TCH-TMP-01', name: 'Test', password: 'Teacher2026', contact_number: '12' }).field === 'contact_number', 'a bad contact number lands on its field');
+assert(L.createTeacherProblem({ ...blank, login_id: 'TCH-TMP-01', name: 'Test', password: 'Teacher2026', contact_number: '12' }) === null, 'a contact_number key in the form is ignored — the field is gone (feat/account-create), and the server refuses a value');
 assert(
   L.teacherCreatedNotice({ login_id: 'TCH-UIP02', role: 'teacher' }) === 'Teacher account created and activated. Login ID: TCH-UIP02.' &&
     L.teacherCreatedNotice(null) === 'Teacher account created and activated.',

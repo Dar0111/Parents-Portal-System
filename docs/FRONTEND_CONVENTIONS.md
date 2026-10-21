@@ -3249,7 +3249,9 @@ source the server reads, never reconstructed:
   list.
 - **Create parent** (`POST /users/parents`): the adviser of the learner's
   section — the advised list only; otherwise muted copy, not a button that
-  403s.
+  403s. **Since `feat/account-create` (2026-10-21) the parent form is
+  Guardian name, Password and Confirm password — no Email, no Contact
+  number (§29g).**
 - **The Section FILTER's union (`students/sectionOptions.js`) still takes
   the assignments list** — a filter narrows what is visible and is not a
   write scope. Do not make it read the advised list "for consistency".
@@ -3920,6 +3922,35 @@ parent, the gate with an empty Gmail field on the teacher after the admin
 cleared the address; Forgot password's one reply and clock — the minute
 rule itself rests on the phone run with one account, the web's
 inside-the-minute press having used a second Login ID.
+
+### 29g. Account creation collects no contact (`feat/account-create`, 2026-10-21; the owner's decision of 2026-10-16)
+
+**Create teacher (Admin → Users), the enrol wizard's parent step and Create
+parent account (Teacher → Student detail) carry no Email and no Contact
+number field, hold neither key, and send neither.** The holder confirms their
+own Gmail or mobile number at the first sign-in's contact step (§29f), the
+one place an address is proved to be theirs; an office that must fix one does
+it through Admin → Users → Edit, which keeps both fields and unconfirms a
+changed value (B4 §7). **The server is the rule:** `POST /users/teachers` and
+`POST /users/parents` refuse a non-empty `email` or `contact_number` with
+`400` naming the field — "The email address is no longer collected here — the
+account holder confirms one at the first sign-in." — the way decision 6
+refuses the learner's four fields (§29e), and ignore null or empty
+(API_REFERENCE §8); for a parent the refusal runs BEFORE the scope query,
+like the password rule, so it reveals nothing about the LRN. Settings →
+Account information and the contact gate are unchanged, and so is the
+mirrored `format/contactRule.js`, which the Edit dialog and Settings still
+use.
+
+**Proof:** `client/scripts/ssr-account-create.jsx` (source, with controls:
+the three forms hold neither key and neither label; Login ID / Password /
+Name and Guardian name / Password / Confirm password stay; the Edit dialog
+still has both fields and is the only caller of the contact rule on that
+page; the old body line and the old field are caught by the patterns);
+`ssr-privacy` keeps the parent lines gone instead of "stays". The phone:
+MOBILE M15, M17 and `proof-privacy`, `proof-admin-users`. **The device check
+owns** the three dialogs on screen and a new account's first sign-in landing
+on an EMPTY contact field (`docs/ACCOUNT_CREATE_DEVICE_CHECK.md`).
 
 ## 30. One Messages component — the thread and the list, every role (`feat/shared-messages`, 2026-10-11)
 

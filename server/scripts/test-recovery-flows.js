@@ -152,7 +152,24 @@ async function main() {
     // -----------------------------------------------------------------------
     console.log('\nFixture — a throwaway teacher with a verified email');
     // -----------------------------------------------------------------------
-    const mk = await request('POST', '/api/users/teachers', {
+    // feat/account-create (2026-10-21): POST /users/teachers takes no email and
+    // no contact number (400 "no longer collected"), so a fixture that needs
+    // one is created bare, then given it through the admin's PUT /users/:id —
+    // the office's own path. The returned shape is the POST's, with
+    // `data.user` re-read after the PUT; a refused create comes back untouched.
+    const createWithContact = async (path, { token, body }) => {
+      const { email, contact_number, ...rest } = body;
+      const res = await request('POST', path, { token, body: rest });
+      if (res.status !== 201 || (email === undefined && contact_number === undefined)) return res;
+      const put = await request('PUT', `/api/users/${res.data.user.id}`, {
+        token: admin.token,
+        body: { email, contact_number },
+      });
+      if (put.status === 200 && put.data?.user) res.data.user = put.data.user;
+      return res;
+    };
+
+    const mk = await createWithContact('/api/users/teachers', {
       token: admin.token,
       body: { login_id: TEACHER_ID, password: TEACHER_PW, name: 'Recovery Fixture', email: TEACHER_EMAIL },
     });
@@ -450,7 +467,7 @@ async function main() {
 
     const SMS_ID = 'TCH-REC2';
     const SMS_PW = 'Recovery2';
-    const mk2 = await request('POST', '/api/users/teachers', {
+    const mk2 = await createWithContact('/api/users/teachers', {
       token: admin.token,
       body: { login_id: SMS_ID, password: SMS_PW, name: 'Recovery SMS Fixture', contact_number: '+63 917 000 0123' },
     });

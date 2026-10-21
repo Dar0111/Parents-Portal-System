@@ -253,8 +253,13 @@ console.log('\nThe four retired learner fields are gone from the three pages (so
     RETIRED.test('value={student.birthday}') && RETIRED.test('<CardTitle icon="fa-address-book">Contact details</CardTitle>'),
     'control: the pattern catches the old field and the old card'
   );
+  // feat/account-create (2026-10-21): the PARENT's own email and number are
+  // gone from the create forms too — the holder confirms one at the first
+  // sign-in (ssr-account-create.jsx has the full check; this line keeps the
+  // old "stays" claim from coming back).
   const wizard = src('src/pages/teacher/StudentsPage.jsx');
-  assert(/parent\.contact_number/.test(wizard), "the PARENT's own contact number stays in the wizard — it is the guardian's, not the learner's");
+  assert(!/parent\.(email|contact_number)/.test(wizard), "the PARENT's own email and contact number are gone from the wizard as well (feat/account-create)");
+  assert(/parent\.(email|contact_number)/.test('if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();'), 'control: the pattern catches the old body line');
 }
 
 // STAFF ACCEPT TOO (feat/staff-acceptance, 2026-10-11): teachers and the admin

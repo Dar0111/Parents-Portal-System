@@ -15,7 +15,6 @@ import Modal from '../../components/Modal';
 import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
-import { contactError, contactRuleHint } from '../../format/contactRule';
 import StatusBadge from '../../components/StatusBadge';
 import Reveal from '../../motion/Reveal';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -106,12 +105,13 @@ function draftFrom(row) {
   };
 }
 
+// No email and no contact number (feat/account-create, 2026-10-21): the
+// parent confirms their own Gmail or mobile number at the first sign-in, and
+// POST /users/parents refuses either key with a value.
 const EMPTY_PARENT = {
   name: '',
   password: '',
   confirmPassword: '',
-  email: '',
-  contact_number: '',
 };
 
 const EMPTY_EDIT = {
@@ -126,11 +126,10 @@ export default function StudentDetailPage() {
   // null = no parent account yet; { id, status } = one exists (one per
   // student is LOCKED). load() is the only writer (§5b).
   const [parentAccount, setParentAccount] = useState(null);
-  // Field-level refusals in the create-parent modal — the client rule's (the
-  // parent's contact) or the server's 400 with a `field` key (the parent's
-  // contact_number, email, password) — render under their input with a red
-  // border (§7c). Cleared
-  // when a modal opens or closes and per field as it changes.
+  // Field-level refusals in the create-parent modal — the server's 400 with a
+  // `field` key (the parent's password) — render under their input with a red
+  // border (§7c). Cleared when a modal opens or closes and per field as it
+  // changes.
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -282,11 +281,6 @@ export default function StudentDetailPage() {
       setFormError('New password and confirmation do not match.');
       return;
     }
-    const contactProblem = contactError(parent.contact_number);
-    if (contactProblem) {
-      setFieldErrors({ contact_number: contactProblem });
-      return;
-    }
     setConfirming(true);
   }
 
@@ -301,8 +295,6 @@ export default function StudentDetailPage() {
         password: parent.password,
         name: parent.name.trim(),
       };
-      if (parent.email.trim()) body.email = parent.email.trim();
-      if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();
 
       const { message } = await api.post('/users/parents', body, { unwrap: ['user', 'message'] });
       setStatus({ record: ok(message) });
@@ -664,24 +656,6 @@ export default function StudentDetailPage() {
               revealed={revealed.confirm}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
               error={confirmError(parent.password, parent.confirmPassword)}
-            />
-            <FormField
-              label="Email"
-              type="email"
-              value={parent.email}
-              onChange={(e) => setParent((prev) => ({ ...prev, email: e.target.value }))}
-            />
-            <FormField
-              label="Contact number"
-              value={parent.contact_number}
-              onChange={(e) => {
-                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
-                setParent((prev) => ({ ...prev, contact_number: e.target.value }));
-              }}
-              maxLength={20}
-              inputMode="tel"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
             />
           </form>
         )}

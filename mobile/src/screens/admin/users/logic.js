@@ -1,4 +1,3 @@
-import { contactError } from '../../../format/contactRule';
 import { passwordIsValid, passwordRuleHint } from '../../../format/passwordRule';
 
 // THE PURE HALF OF THE WEB'S admin/UsersPage.jsx (Stage 5 branch 4), lifted so
@@ -96,25 +95,24 @@ export function statusMessage(nextStatus) {
 
 // CREATE TEACHER — the web's order of checks, one refusal at a time, each
 // with the field it belongs to (§7c). The server enforces the same and its
-// 400 names the field; `null` means send it.
+// 400 names the field; `null` means send it. The form is Login ID, Password
+// and Name only (feat/account-create, 2026-10-21): no email, no contact
+// number — the teacher confirms their own at the first sign-in, and the
+// server refuses either key with a value.
 export function createTeacherProblem(form) {
   if (!form.login_id.trim() || !form.password || !form.name.trim()) {
     return { field: null, message: 'login_id, password, and name are required.' };
   }
   if (!passwordIsValid(form.password)) return { field: 'password', message: passwordRuleHint() };
-  const contact = contactError(form.contact_number);
-  if (contact) return { field: 'contact_number', message: contact };
   return null;
 }
 
-// The POST body: optional fields are left out when blank, never sent empty.
+// The POST body: the three fields, trimmed — never an email or a number.
 export function createTeacherBody(form) {
   return {
     login_id: form.login_id.trim(),
     password: form.password,
     name: form.name.trim(),
-    email: form.email.trim() || undefined,
-    contact_number: form.contact_number.trim() || undefined,
   };
 }
 

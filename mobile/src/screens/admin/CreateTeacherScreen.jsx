@@ -8,7 +8,6 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import PasswordChecklist from '../../components/PasswordChecklist';
 import PasswordField from '../../components/PasswordField';
-import { contactRuleHint } from '../../format/contactRule';
 import { createTeacherBody, createTeacherProblem, teacherCreatedNotice } from './users/logic';
 
 // CREATE TEACHER — the web's dialog as a modal screen. POST /users/teachers
@@ -16,8 +15,10 @@ import { createTeacherBody, createTeacherProblem, teacherCreatedNotice } from '.
 // DECISIONS). NO CONFIRMATION (§5e): there is no delete, and the undo is
 // Deactivate. The checks are the web's, in its order (`createTeacherProblem`),
 // and a refusal lands under its own field — the client's or the server's 400
-// naming `field` (password, contact_number, email). The typed password is
-// never echoed back after the save.
+// naming `field` (password). The typed password is never echoed back after
+// the save. NO EMAIL, NO CONTACT NUMBER (feat/account-create, 2026-10-21):
+// the teacher confirms their own Gmail or mobile number at the first
+// sign-in, and POST /users/teachers refuses either key with a value.
 //
 // THE LOOK (feat/ui-refresh, 2026-10-03): the fields in one card, then the
 // neutral way out and the one filled step forward — both the shared `Button`
@@ -25,7 +26,7 @@ import { createTeacherBody, createTeacherProblem, teacherCreatedNotice } from '.
 // label still
 // changes while the write is in flight; `loading` is the old
 // `disabled={saving}` plus its spinner and busy state.
-const EMPTY = { login_id: '', password: '', name: '', email: '', contact_number: '' };
+const EMPTY = { login_id: '', password: '', name: '' };
 
 export default function CreateTeacherScreen({ navigation }) {
   const [form, setForm] = useState(EMPTY);
@@ -55,7 +56,7 @@ export default function CreateTeacherScreen({ navigation }) {
       navigation.popTo('Main', { screen: '/admin/users', params: { notice: teacherCreatedNotice(created), noticeKey: 'directory' } });
     } catch (err) {
       const field = err?.response?.data?.field;
-      if (field === 'password' || field === 'contact_number' || field === 'email') setFieldErrors({ [field]: extractError(err) });
+      if (field === 'password') setFieldErrors({ [field]: extractError(err) });
       else setFormError(extractError(err));
     } finally {
       setSaving(false);
@@ -89,16 +90,6 @@ export default function CreateTeacherScreen({ navigation }) {
             below={<PasswordChecklist value={form.password} />}
           />
           <FormField label="Name" required value={form.name} onChangeText={set('name')} />
-          <FormField label="Email" value={form.email} onChangeText={set('email')} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} error={fieldErrors.email} />
-          <FormField
-            label="Contact number"
-            value={form.contact_number}
-            onChangeText={set('contact_number')}
-            keyboardType="phone-pad"
-            maxLength={20}
-            hint={contactRuleHint()}
-            error={fieldErrors.contact_number}
-          />
         </View>
         <View className="flex-row flex-wrap justify-end gap-2">
           <Button onPress={() => navigation.goBack()} disabled={saving}>

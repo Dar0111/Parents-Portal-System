@@ -392,11 +392,30 @@ async function run() {
       'Seeded parent contact restored'
     );
 
+    // feat/account-create (2026-10-21): POST /users/teachers and /users/parents
+    // take no email and no contact number (400 "no longer collected"), so a
+    // fixture that needs one is created bare, then given the address or the
+    // number through the admin's PUT /users/:id — the office's own path. The
+    // returned shape is the POST's, with `data.user` re-read after the PUT; a
+    // refused create (no 201) comes back untouched.
+    const createWithContact = async (path, { token, adminToken: adminTok, body }) => {
+      const { email, contact_number, ...rest } = body;
+      const res = await request('POST', path, { token, body: rest });
+      if (res.status !== 201 || (email === undefined && contact_number === undefined)) return res;
+      const put = await request('PUT', `/api/users/${res.data.user.id}`, {
+        token: adminTok,
+        body: { email, contact_number },
+      });
+      if (put.status === 200 && put.data?.user) res.data.user = put.data.user;
+      return res;
+    };
+
     // --- Admin creates teacher ---
     console.log('\nAccount creation:');
 
-    const createTeacher = await request('POST', '/api/users/teachers', {
+    const createTeacher = await createWithContact('/api/users/teachers', {
       token: adminToken,
+      adminToken,
       body: {
         login_id: newTeacherId,
         password: 'Teacher@2026',
@@ -449,8 +468,9 @@ async function run() {
     assert(newTeacherLogin.status === 200, 'New teacher can login immediately');
 
     // --- Teacher creates parent (pending) ---
-    const createParent = await request('POST', '/api/users/parents', {
+    const createParent = await createWithContact('/api/users/parents', {
       token: teacherToken,
+      adminToken,
       body: {
         lrn: pendingLrn,
         password: 'Parent@2026',
@@ -524,17 +544,20 @@ async function run() {
     const outsideLogin = await login(outsideLrn, 'Parent@2026');
     assert(outsideLogin.status === 401, 'POST /parents: the refused out-of-scope create made no account');
 
-    // --- Email rule (utils/emailRule.js, pre-Stage-5 #4) runs BEFORE the
-    // scope query, like the password and contact rules: a bad address on an
-    // OUT-OF-SCOPE LRN is the email 400, not the scope 403, so the field's
-    // refusal reveals nothing about the LRN.
+    // --- The retired-field refusal (feat/account-create: no email and no
+    // contact number on a create, 400 "no longer collected") runs BEFORE the
+    // scope query, like the password rule did and the email rule before it:
+    // an email on an OUT-OF-SCOPE LRN is the field's 400, not the scope 403,
+    // so the refusal reveals nothing about the LRN.
     const outsideBadEmail = await request('POST', '/api/users/parents', {
       token: teacherToken,
       body: { lrn: outsideLrn, password: 'Parent@2026', name: 'Outside Guardian', email: 'guardian@nowhere' },
     });
     assert(
-      outsideBadEmail.status === 400 && outsideBadEmail.data?.field === 'email',
-      'POST /parents: a bad email is 400 field "email" BEFORE the scope check (order proved on an out-of-scope LRN)'
+      outsideBadEmail.status === 400 &&
+        outsideBadEmail.data?.field === 'email' &&
+        /no longer collected/.test(outsideBadEmail.data?.message || ''),
+      'POST /parents: an email is 400 field "email" ("no longer collected") BEFORE the scope check (order proved on an out-of-scope LRN)'
     );
 
     // The out-of-scope child now HAS a parent account (inserted by SQL, never
@@ -560,8 +583,9 @@ async function run() {
       'POST /parents: out-of-scope LRN of a child WITH a parent is the same 403, never a 409'
     );
 
-    const createParent2 = await request('POST', '/api/users/parents', {
+    const createParent2 = await createWithContact('/api/users/parents', {
       token: teacherToken,
+      adminToken,
       body: {
         lrn: pendingLrn,
         password: 'Parent@2026',

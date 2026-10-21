@@ -61,12 +61,15 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // Modals sit BESIDE the entrance wrapper, never inside it: Modal renders
 // inline, and a wrapper mid-tween carries a transform (motion/motion.js).
 
+// Login ID, Password and Name only (feat/account-create, 2026-10-21; the
+// owner's decision of 2026-10-16): no Email, no Contact number. The teacher
+// confirms their own Gmail or mobile number at the first sign-in, and
+// POST /users/teachers refuses either key with a value. The Edit dialog keeps
+// both fields — an admin edit is the office's way to fix an address.
 const EMPTY_TEACHER = {
   login_id: '',
   password: '',
   name: '',
-  email: '',
-  contact_number: '',
 };
 
 const EMPTY_EDIT = { name: '', email: '', contact_number: '' };
@@ -208,13 +211,10 @@ export default function UsersPage() {
   // field "password". Cleared when the field changes and when the form closes.
   const [passwordError, setPasswordError] = useState(null);
   const [passwordRevealed, setPasswordRevealed] = useState(false);
-  // Contact-number refusals — the client rule's or the server's 400 with
-  // field "contact_number" — under the field in each form (§7c).
-  const [createContactError, setCreateContactError] = useState(null);
+  // Contact-number and email refusals on the EDIT form — the client rule's or
+  // the server's 400 with field "contact_number" / "email" — under the field
+  // (§7c). Create teacher has neither field since feat/account-create.
   const [editContactError, setEditContactError] = useState(null);
-  // field: 'email' from utils/emailRule.js (pre-Stage-5 #4) lands on the
-  // email input, like the contact rule's, not in the form's generic slot.
-  const [createEmailError, setCreateEmailError] = useState(null);
   const [editEmailError, setEditEmailError] = useState(null);
   const [createSaving, setCreateSaving] = useState(false);
 
@@ -362,7 +362,6 @@ export default function UsersPage() {
   function openCreate() {
     setTeacherForm(EMPTY_TEACHER);
     setCreateError(null);
-    setCreateEmailError(null);
     setCreating(true);
   }
 
@@ -371,7 +370,6 @@ export default function UsersPage() {
     setCreating(false);
     setCreateError(null);
     setPasswordError(null);
-    setCreateContactError(null);
   }
 
   async function submitCreate(event) {
@@ -390,11 +388,6 @@ export default function UsersPage() {
       setPasswordError(passwordRuleHint());
       return;
     }
-    const contactProblem = contactError(teacherForm.contact_number);
-    if (contactProblem) {
-      setCreateContactError(contactProblem);
-      return;
-    }
     setCreateSaving(true);
     try {
       const created = await api.post(
@@ -403,8 +396,6 @@ export default function UsersPage() {
           login_id: teacherForm.login_id.trim(),
           password: teacherForm.password,
           name: teacherForm.name.trim(),
-          email: teacherForm.email.trim() || undefined,
-          contact_number: teacherForm.contact_number.trim() || undefined,
         },
         { unwrap: 'user' }
       );
@@ -425,10 +416,6 @@ export default function UsersPage() {
       const field = err?.response?.data?.field;
       if (field === 'password') {
         setPasswordError(extractError(err));
-      } else if (field === 'contact_number') {
-        setCreateContactError(extractError(err));
-      } else if (field === 'email') {
-        setCreateEmailError(extractError(err));
       } else {
         setCreateError(extractError(err));
       }
@@ -1058,28 +1045,6 @@ export default function UsersPage() {
             required
             value={teacherForm.name}
             onChange={(e) => setTeacherForm((f) => ({ ...f, name: e.target.value }))}
-          />
-          <FormField
-            label="Email"
-            type="email"
-            value={teacherForm.email}
-            onChange={(e) => {
-              setCreateEmailError(null);
-              setTeacherForm((f) => ({ ...f, email: e.target.value }));
-            }}
-            error={createEmailError}
-          />
-          <FormField
-            label="Contact number"
-            value={teacherForm.contact_number}
-            onChange={(e) => {
-              setCreateContactError(null);
-              setTeacherForm((f) => ({ ...f, contact_number: e.target.value }));
-            }}
-            maxLength={20}
-            inputMode="tel"
-            hint={contactRuleHint()}
-            error={createContactError}
           />
         </form>
       </Modal>

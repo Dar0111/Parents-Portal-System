@@ -23,7 +23,6 @@ import PasswordField from '../../components/PasswordField';
 import PasswordChecklist, { confirmError, passwordFormReady } from '../../components/PasswordChecklist';
 import { passwordIsValid, passwordRuleHint } from '../../format/passwordRule';
 import { lrnError, lrnRuleHint } from '../../format/lrnRule';
-import { contactError, contactRuleHint } from '../../format/contactRule';
 import StatusBadge from '../../components/StatusBadge';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -65,12 +64,13 @@ const EMPTY_ENROLL = {
   classKey: '',
 };
 
+// No email and no contact number (feat/account-create, 2026-10-21): the
+// parent confirms their own Gmail or mobile number at the first sign-in, and
+// POST /users/parents refuses either key with a value.
 const EMPTY_PARENT = {
   name: '',
   password: '',
   confirmPassword: '',
-  email: '',
-  contact_number: '',
 };
 
 function parseClassKey(classKey) {
@@ -127,11 +127,10 @@ export default function StudentsPage() {
   const [phase, setPhase] = useState('enroll');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
-  // Field-level refusals — the client rule's (the LRN, the parent's contact)
-  // or the server's 400 with a `field` key (lrn; the parent's password,
-  // email, contact_number) — render
-  // under their input with a red border (§7c); everything else stays in the
-  // form-level strip above. Cleared per field as it changes.
+  // Field-level refusals — the client rule's (the LRN) or the server's 400
+  // with a `field` key (lrn; the parent's password) — render under their
+  // input with a red border (§7c); everything else stays in the form-level
+  // strip above. Cleared per field as it changes.
   const [fieldErrors, setFieldErrors] = useState({});
   const [enroll, setEnroll] = useState(EMPTY_ENROLL);
   const [parent, setParent] = useState(EMPTY_PARENT);
@@ -357,11 +356,6 @@ export default function StudentsPage() {
       setFormError('New password and confirmation do not match.');
       return;
     }
-    const contactProblem = contactError(parent.contact_number);
-    if (contactProblem) {
-      setFieldErrors({ contact_number: contactProblem });
-      return;
-    }
     setPhase('confirm-parent');
   }
 
@@ -376,8 +370,6 @@ export default function StudentsPage() {
         password: parent.password,
         name: parent.name.trim(),
       };
-      if (parent.email.trim()) body.email = parent.email.trim();
-      if (parent.contact_number.trim()) body.contact_number = parent.contact_number.trim();
 
       const { message } = await api.post('/users/parents', body, { unwrap: ['user', 'message'] });
       setStatus({ list: ok(message) });
@@ -754,24 +746,6 @@ export default function StudentsPage() {
               revealed={revealed.confirm}
               onToggleReveal={() => setRevealed((prev) => ({ ...prev, confirm: !prev.confirm }))}
               error={confirmError(parent.password, parent.confirmPassword)}
-            />
-            <FormField
-              label="Email"
-              type="email"
-              value={parent.email}
-              onChange={(e) => setParent((prev) => ({ ...prev, email: e.target.value }))}
-            />
-            <FormField
-              label="Contact number"
-              value={parent.contact_number}
-              onChange={(e) => {
-                setFieldErrors((prev) => ({ ...prev, contact_number: null }));
-                setParent((prev) => ({ ...prev, contact_number: e.target.value }));
-              }}
-              maxLength={20}
-              inputMode="tel"
-              hint={contactRuleHint()}
-              error={fieldErrors.contact_number}
             />
           </form>
         ) : null}
