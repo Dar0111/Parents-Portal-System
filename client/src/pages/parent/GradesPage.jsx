@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import extractError from '../../api/extractError';
+import Button from '../../components/Button';
 import ErrorAlert from '../../components/ErrorAlert';
+import FormStatus, { fail } from '../../components/FormStatus';
 import { ScoresSkeleton } from '../../components/SkeletonShapes';
 import useSkeleton from '../../hooks/useSkeleton';
 import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import Reveal from '../../motion/Reveal';
+import { confirmDialog } from '../../format/acknowledgement';
 import { shortDate } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { SCORE_PENDING, formatScorePair } from '../../format/scorePair';
@@ -26,15 +29,26 @@ import { usePageTitle } from '../../layout/usePageTitle';
 // that file's header; what did NOT change is everything below, which is why
 // it is still written down here.
 //
-// NO WRITES OF ANY KIND. All seven write endpoints on /api/grades are
-// authorize('teacher','admin') or authorize('admin'), so a parent never
-// reaches a handler — the middleware answers 403 "Access denied." first, a
-// generic refusal with no reason in it. That is precisely why none of them may
-// be offered on screen: a scope refusal at least explains itself, a role
-// refusal does not. Same anti-dead-end rule as the Students page's absent Edit
-// button. Interactive elements: DataTable's two sort headers, and a term cell
-// that has a grade_id (opens the breakdown modal). Pending / null terms are
-// not buttons and must not fire a request.
+// ONE WRITE, SINCE feat/grade-acknowledgement (2026-10-21): POST
+// /api/grades/acknowledgements — "I have seen these grades", parent only, for
+// a term the server says is fully locked. Every OTHER write endpoint on
+// /api/grades is authorize('teacher','admin') or authorize('admin'), so a
+// parent never reaches a handler — the middleware answers 403 "Access denied."
+// first, a generic refusal with no reason in it. That is precisely why none of
+// them may be offered on screen: a scope refusal at least explains itself, a
+// role refusal does not. Same anti-dead-end rule as the Students page's absent
+// Edit button. Interactive elements: a term cell that has a grade_id (opens
+// the breakdown modal), and the confirm button on a locked term's block
+// (ReportCard's TermConfirmations). Pending / null terms are not buttons and
+// must not fire a request.
+//
+// THE CONFIRMATION IS A §5e DIALOG: the write cannot be undone (an unlock by
+// the admin clears it, the parent cannot), so the button opens a dialog that
+// names the term back — "Confirm Term 1 grades?" / "Yes, I have seen them" —
+// and only that second step writes. A failure renders INSIDE the dialog
+// (§7c); a success closes it and re-reads the card, whose block then says
+// "You confirmed Term 1 on <date>." — the result next to the control that
+// caused it, from the server's own row (§5b), never from this page's state.
 //
 // TWO READS. The card is GET /api/grades/student/:studentId (seven-key unwrap).
 // GET / is still not called: it returns bare grade rows with no subject-
@@ -351,6 +365,13 @@ export default function ParentGradesPage() {
   const [schoolName, setSchoolName] = useState(null);
   const [adviser, setAdviser] = useState(null);
 
+  // The confirmation dialog (feat/grade-acknowledgement): which term it is
+  // open for, which term's write is out, and the write's failure — one slot,
+  // rendered inside the dialog (§7c).
+  const [confirmTerm, setConfirmTerm] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState(null);
+
   const studentId = user?.student_id ?? null;
 
   // UNLIKE the parent content pages, this one SKIPS the request when the
@@ -401,6 +422,9 @@ export default function ParentGradesPage() {
             'term_averages',
             'general_average',
             'general_average_descriptor',
+            // feat/grade-acknowledgement: per term, locked and confirmed —
+            // the EIGHTH key, and the line to change (§1).
+            'acknowledgements',
           ],
         })
       );
@@ -411,6 +435,35 @@ export default function ParentGradesPage() {
       setLoading(false);
     }
   }, [studentId]);
+
+  // The block's button opens the dialog; nothing is written yet.
+  const askConfirm = useCallback((term) => {
+    setConfirmStatus(null);
+    setConfirmTerm(term);
+  }, []);
+
+  const closeConfirm = useCallback(() => {
+    if (confirming) return;
+    setConfirmTerm(null);
+    setConfirmStatus(null);
+  }, [confirming]);
+
+  // The one write. On success the dialog closes and the card is re-read —
+  // the confirmation line comes from the server's row, not from here.
+  const confirmNow = useCallback(async () => {
+    if (confirmTerm == null || confirming) return;
+    setConfirming(true);
+    setConfirmStatus(null);
+    try {
+      await api.post('/grades/acknowledgements', { term: confirmTerm }, { unwrap: 'acknowledgement' });
+      setConfirmTerm(null);
+      await load();
+    } catch (err) {
+      setConfirmStatus(fail(extractError(err)));
+    } finally {
+      setConfirming(false);
+    }
+  }, [confirmTerm, confirming, load]);
 
   useEffect(() => {
     load();
@@ -575,9 +628,37 @@ export default function ParentGradesPage() {
             emptyIcon={empty.icon}
             emptyTitle={empty.title}
             emptyMessage={empty.message}
+            onConfirmTerm={askConfirm}
+            confirmingTerm={confirming ? confirmTerm : null}
           />
         </section>
       </Reveal>
+
+      {/* THE CONFIRMATION DIALOG (§5e), beside the entrance wrapper like the
+          breakdown below: Modal renders inline, and a wrapper mid-tween
+          carries a transform. The failure slot sits inside it (§7c). */}
+      <div className="print:hidden">
+        <Modal
+          open={confirmTerm != null}
+          onClose={closeConfirm}
+          closeOnBackdrop={!confirming}
+          title={confirmTerm != null ? confirmDialog(confirmTerm).title : ''}
+          size="sm"
+          footer={
+            <>
+              <Button onClick={closeConfirm} disabled={confirming}>
+                {confirmTerm != null ? confirmDialog(confirmTerm).cancel : 'Go back'}
+              </Button>
+              <Button variant="primary" icon="fa-check" onClick={confirmNow} loading={confirming}>
+                {confirmTerm != null ? confirmDialog(confirmTerm).confirm : 'Confirm'}
+              </Button>
+            </>
+          }
+        >
+          <FormStatus status={confirmStatus} className="mb-4" />
+          {confirmTerm != null ? <p className="text-sm text-fg-body">{confirmDialog(confirmTerm).body}</p> : null}
+        </Modal>
+      </div>
 
       {/* PRINTING WITH THE BREAKDOWN OPEN (UI-D). `Modal` renders inline —
           no portal — behind a `fixed inset-0 z-50` backdrop, so a print

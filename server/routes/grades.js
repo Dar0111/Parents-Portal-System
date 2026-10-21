@@ -3,7 +3,14 @@ const pool = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
-const { parentOfStudent, insertNotifications, removeItemNotifications, emitNotifications } = require('../utils/notify');
+const {
+  parentOfStudent,
+  excuseAdviserAudience,
+  insertNotifications,
+  removeItemNotifications,
+  removeTypedNotifications,
+  emitNotifications,
+} = require('../utils/notify');
 const { isValidDateFormat } = require('../utils/dateFormat');
 const {
   isWholeNumber,
@@ -539,6 +546,109 @@ function buildTermEntry(gradeRow, mode) {
     // deliberately, the same way they do for numerical grades.
     initial_grade: numOrNull(gradeRow.initial_grade),
   };
+}
+
+// ---------------------------------------------------------------------------
+// GRADE ACKNOWLEDGEMENTS (feat/grade-acknowledgement, 2026-10-21)
+// ---------------------------------------------------------------------------
+// A parent confirms a TERM — "I have seen these grades" — once the term is
+// FULLY LOCKED: every subject of the learner's grade level has a locked grade
+// row WITH a value (the owner's Q3: the bulk lock's own test, applied after
+// the fact). The confirmation is one grade_acknowledgements row per (learner,
+// school year, term); an unlock of any subject of the term deletes it (Q2),
+// and the two typed notifications with it, so a relock asks again.
+//
+// THE NOTIFICATION KEY is the term's LOWEST grade id for that learner and
+// school year: one item_id for the parent's grades_locked, the adviser's
+// grades_acknowledged, and the delete on unlock. While the term is locked no
+// row of it can be deleted (DELETE /:id refuses a locked row), so the key
+// cannot move under a notification; after an unlock the rows are gone anyway.
+
+const TERM_ACK_TYPES = ['grades_locked', 'grades_acknowledged'];
+
+// Pure. `rows` are the learner's grade rows for ONE term and school year;
+// `subjectCount` the subjects of their grade level. Locked only when every
+// subject has a locked row that carries a value — a locked shell row is not
+// a final grade, and a subject with no row at all is not graded.
+function termFullyLocked(rows, subjectCount) {
+  if (!subjectCount) return false;
+  const locked = new Set();
+  for (const row of rows) {
+    const hasValue = row.term_grade !== null && row.term_grade !== undefined
+      ? true
+      : row.descriptive_grade !== null && row.descriptive_grade !== undefined;
+    if (hasValue && Number(row.is_locked) === 1) locked.add(Number(row.subject_id));
+  }
+  return locked.size >= subjectCount;
+}
+
+// The term's lock state and notification key for one learner, read live.
+async function loadTermLockState(conn, { studentId, gradeLevel, term, schoolYear }) {
+  const [[{ subjects }]] = await conn.query('SELECT COUNT(*) AS subjects FROM subjects WHERE grade_level = ?', [
+    gradeLevel,
+  ]);
+  const [rows] = await conn.query(
+    'SELECT id, subject_id, is_locked, term_grade, descriptive_grade FROM grades WHERE student_id = ? AND term = ? AND school_year = ?',
+    [studentId, term, schoolYear]
+  );
+  const itemId = rows.length ? Math.min(...rows.map((r) => Number(r.id))) : null;
+  return { fullyLocked: termFullyLocked(rows, Number(subjects)), itemId };
+}
+
+// The parent's "please confirm" — INSERT IGNORE on uq_notifications_once, so a
+// repeat (a relock of an already-locked row, two admins at once) inserts
+// nothing. Returns the recipients for the emit after commit.
+async function notifyGradesLocked(conn, { studentId, itemId, actorId }) {
+  if (!itemId) return [];
+  const audience = await parentOfStudent(conn, studentId);
+  return insertNotifications(conn, {
+    type: 'grades_locked',
+    itemType: 'grade',
+    itemId,
+    actorId,
+    titleSnapshot: null,
+    userIds: audience,
+  });
+}
+
+// The unlock's counterpart: the term's confirmation row (if any) and both
+// typed notifications go; the grade_available rows stay. Returns how many
+// confirmation rows were deleted and who to signal.
+async function clearTermAcknowledgement(conn, { studentId, term, schoolYear, itemId }) {
+  const [result] = await conn.query(
+    'DELETE FROM grade_acknowledgements WHERE student_id = ? AND school_year = ? AND term = ?',
+    [studentId, schoolYear, term]
+  );
+  const recipients = itemId ? await removeTypedNotifications(conn, TERM_ACK_TYPES, 'grade', itemId) : [];
+  return { cleared: result.affectedRows, recipients };
+}
+
+// The confirmations of some learners for one school year, keyed
+// `${student_id}:${term}` → { acknowledged_at, by_name }. One query for a
+// whole class or one card; never an LRN (users.name only).
+async function acknowledgementsFor(conn, studentIds, schoolYear) {
+  const map = new Map();
+  if (!studentIds.length) return map;
+  const [rows] = await conn.query(
+    `SELECT ga.student_id, ga.term, ga.acknowledged_at, u.name AS by_name
+       FROM grade_acknowledgements ga
+       LEFT JOIN users u ON u.id = ga.user_id
+      WHERE ga.student_id IN (?) AND ga.school_year = ?`,
+    [studentIds, schoolYear]
+  );
+  for (const row of rows) {
+    map.set(`${row.student_id}:${row.term}`, { acknowledged_at: row.acknowledged_at, by_name: row.by_name || null });
+  }
+  return map;
+}
+
+// "21 October 2026" in the school's timezone, for the one server message that
+// names a date (the repeat answer of POST /acknowledgements). The clients
+// format their own dates from `acknowledged_at` (format/date.js).
+function formatManilaDay(value) {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return String(value ?? '');
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Manila', day: 'numeric', month: 'long', year: 'numeric' }).format(at);
 }
 
 // Final Grade = average of the three term grades — NULL until all three
@@ -1932,6 +2042,10 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
       );
       gradeRows = rows;
     }
+    // The parents' confirmations for this term (feat/grade-acknowledgement) —
+    // one query for the class, read only on a term sheet; the Final sheet has
+    // no term to confirm.
+    const acknowledgements = isFinal ? new Map() : await acknowledgementsFor(pool, learnerIds, schoolYear);
 
     const byStudent = new Map();
     for (const row of gradeRows) {
@@ -2003,6 +2117,19 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
         first_name: learner.first_name,
         last_name: learner.last_name,
         cells,
+        // feat/grade-acknowledgement: whether this learner's term is fully
+        // locked (every subject locked with a value — the bulk lock's test),
+        // and the parent's confirmation of it. Both null on the Final sheet:
+        // a Final has no term to lock or confirm.
+        term_locked: isFinal
+          ? null
+          : termFullyLocked(
+              Object.values(bySubject)
+                .map((byTerm) => byTerm[term])
+                .filter(Boolean),
+              subjects.length
+            ),
+        acknowledged: isFinal ? null : (acknowledgements.get(`${learner.id}:${term}`) ?? null),
       };
       if (mode !== 'descriptive') row.general_average = generalAverage ?? null;
       return row;
@@ -2034,6 +2161,147 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
   }
 });
 
+// POST /api/grades/acknowledgements — parent only. "I HAVE SEEN THESE GRADES"
+// (feat/grade-acknowledgement, 2026-10-21; the owner's Q1–Q5, Q10, Q11).
+//
+// Body { term, school_year? } — the learner is req.user.student_id, never a
+// body or path value (THE AUTH PATTERN); the school year defaults to the
+// `academic_year` setting, as the report card does. One row per (learner,
+// school year, term), written only while the term is FULLY locked:
+//   - not fully locked    -> 409 naming the term; nothing to confirm yet
+//   - already confirmed   -> 200 "Already confirmed on <date>. Nothing changed."
+//                            (a repeat is absorbed, not refused — §5e's
+//                            confirmation step is on the client, once)
+//   - first confirmation  -> 201, the row, one activity_logs row
+//                            (`acknowledge_grades`), and the ADVISER's
+//                            grades_acknowledged notification (Q5: the
+//                            adviser of the learner's section, nobody else —
+//                            the same authority routes/excuses.js uses; no
+//                            adviser, no notification, as for a letter).
+// Grade 1 confirms its letters the same way (Q10). Only an ACTIVE parent gets
+// here (Q11) — authenticate refuses every other status before this runs.
+//
+// The parent is signalled too: their own grades_locked row self-heals in
+// routes/notifications.js once the confirmation exists, and the bell must
+// drop it live, the way a review signals the reviewer.
+//
+// Registered BEFORE `/locks` and `GET /:id`: a POST cannot match the id
+// route, but ssr-grade-locks reads the locks handler as the slice from the
+// locks route's registration line to the `GET /:id` comment, so nothing may
+// sit between those two.
+router.post('/acknowledgements', authenticate, authorize('parent'), async (req, res) => {
+  const { term, school_year: schoolYearIn } = req.body || {};
+  if (!isValidTerm(term)) {
+    return res.status(400).json({ success: false, message: 'term must be 1, 2, or 3.' });
+  }
+  const termNum = Number(term);
+  if (req.user.student_id == null) {
+    return res.status(400).json({ success: false, message: 'Your account is not linked to a learner.' });
+  }
+  const studentId = Number(req.user.student_id);
+
+  let conn;
+  try {
+    let schoolYear = schoolYearIn;
+    if (schoolYear === undefined || schoolYear === null || schoolYear === '') {
+      const [settingRows] = await pool.query(
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
+      );
+      schoolYear = settingRows[0]?.setting_value;
+      if (!schoolYear) {
+        return res.status(500).json({ success: false, message: 'academic_year is not configured in system settings.' });
+      }
+    } else if (!isValidSchoolYear(schoolYear)) {
+      return res.status(400).json({
+        success: false,
+        message: 'school_year must match YYYY-YYYY with consecutive years (e.g. 2026-2027).',
+      });
+    }
+
+    const [studentRows] = await pool.query('SELECT id, grade_level FROM students WHERE id = ? LIMIT 1', [studentId]);
+    const student = studentRows[0];
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+
+    const acknowledgementOf = async (runner) => {
+      const map = await acknowledgementsFor(runner, [studentId], schoolYear);
+      const ack = map.get(`${studentId}:${termNum}`) ?? null;
+      return ack ? { term: termNum, school_year: schoolYear, ...ack } : null;
+    };
+
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+
+    const [existingRows] = await conn.query(
+      'SELECT id FROM grade_acknowledgements WHERE student_id = ? AND school_year = ? AND term = ? FOR UPDATE',
+      [studentId, schoolYear, termNum]
+    );
+    if (existingRows.length) {
+      await conn.rollback();
+      const acknowledgement = await acknowledgementOf(pool);
+      return res.json({
+        success: true,
+        message: `Already confirmed on ${formatManilaDay(acknowledgement?.acknowledged_at)}. Nothing changed.`,
+        acknowledgement,
+      });
+    }
+
+    const state = await loadTermLockState(conn, {
+      studentId,
+      gradeLevel: student.grade_level,
+      term: termNum,
+      schoolYear,
+    });
+    if (!state.fullyLocked) {
+      await conn.rollback();
+      return res.status(409).json({
+        success: false,
+        message: `Term ${termNum} is not locked yet — there is nothing to confirm.`,
+      });
+    }
+
+    await conn.query('INSERT INTO grade_acknowledgements (student_id, school_year, term, user_id) VALUES (?, ?, ?, ?)', [
+      studentId,
+      schoolYear,
+      termNum,
+      req.user.id,
+    ]);
+    const adviser = await excuseAdviserAudience(conn, studentId);
+    const notified = await insertNotifications(conn, {
+      type: 'grades_acknowledged',
+      itemType: 'grade',
+      itemId: state.itemId,
+      actorId: req.user.id,
+      titleSnapshot: null,
+      userIds: adviser,
+    });
+    await conn.commit();
+
+    await logActivity(
+      req.user.id,
+      'acknowledge_grades',
+      `Confirmed Term ${termNum} grades for student #${studentId}, SY ${schoolYear}`
+    );
+    emitNotifications(req, [...notified, req.user.id]);
+
+    const acknowledgement = await acknowledgementOf(pool);
+    return res.status(201).json({ success: true, message: `Term ${termNum} grades confirmed.`, acknowledgement });
+  } catch (error) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch {
+        // the 500 below reports the failure
+      }
+    }
+    console.error('Acknowledge grades error:', error.code || error.message);
+    return res.status(500).json({ success: false, message: 'Failed to confirm the grades.' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // POST /api/grades/locks — admin only. LOCK OR UNLOCK A WHOLE TERM AT ONCE
 // (fix/grade-locks, 2026-10-13; the owner's Finding 1: locking one learner ×
 // subject × term at a time is impractical across Grades 1–6).
@@ -2056,8 +2324,12 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
 //   - One activity_logs row per applied action that changed something
 //     (scope + counts only — no names, no ids); none for a dry run or a
 //     repeat, as the single lock writes none for "already locked".
-//   - No notifications: a lock is a finalisation boundary, not a publication
-//     event (see recomputeGrade's hook).
+//   - ONE notification, since feat/grade-acknowledgement (2026-10-21, the
+//     owner's Q4): a learner whose term this lock completes — every subject
+//     locked with a value — has their parent asked to confirm
+//     (grades_locked, bell only); an unlock clears the term's confirmation
+//     and both typed notifications (Q2). A lock is still not a publication:
+//     nothing says what the grades are.
 //   - Never an LRN: every SELECT below names its columns.
 //
 // Rows are read FOR UPDATE inside the transaction, so the counts the write
@@ -2199,6 +2471,22 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
       }
     }
 
+    // THE CONFIRMATIONS AN UNLOCK CLEARS (feat/grade-acknowledgement, the
+    // owner's Q2): a learner whose term is unlocked — any row of it — loses
+    // the parent's confirmation, and the dry run counts them first so the
+    // preview can say so. A lock clears nothing (0).
+    const changedIds = [...changedLearners];
+    let acknowledgementsCleared = 0;
+    if (!lock && changedIds.length) {
+      const [[{ n }]] = await conn.query(
+        'SELECT COUNT(*) AS n FROM grade_acknowledgements WHERE student_id IN (?) AND school_year = ? AND term = ?',
+        [changedIds, schoolYear, termNum]
+      );
+      acknowledgementsCleared = Number(n);
+    }
+    // Whom to signal once the write is durable (emit after commit, always).
+    const signal = [];
+
     let recordsChanged = targetIds.length;
     if (dryRun) {
       await conn.rollback();
@@ -2211,6 +2499,39 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
           next,
         ]);
         recordsChanged = result.affectedRows;
+      }
+      if (lock) {
+        // Every learner this lock changed is now FULLY locked — it took them
+        // only when every subject had a value, and it locked every row — so
+        // each one's parent is asked to confirm (Q4). The term's lowest grade
+        // id is the key. Best effort, like every fan-out: a failed insert
+        // must not undo the lock.
+        try {
+          for (const studentId of changedIds) {
+            const rows = rowsByLearner.get(studentId) || [];
+            const itemId = rows.length ? Math.min(...rows.map((r) => Number(r.id))) : null;
+            signal.push(...(await notifyGradesLocked(conn, { studentId, itemId, actorId: req.user.id })));
+          }
+        } catch (hookError) {
+          console.error('Bulk grade lock notification error:', hookError.code || hookError.message);
+        }
+      } else {
+        // The clear is part of the unlock's meaning, so it is INSIDE the
+        // transaction: an unlock that could not clear the confirmation does
+        // not happen.
+        acknowledgementsCleared = 0;
+        for (const studentId of changedIds) {
+          const rows = rowsByLearner.get(studentId) || [];
+          const itemId = rows.length ? Math.min(...rows.map((r) => Number(r.id))) : null;
+          const { cleared, recipients } = await clearTermAcknowledgement(conn, {
+            studentId,
+            term: termNum,
+            schoolYear,
+            itemId,
+          });
+          acknowledgementsCleared += cleared;
+          signal.push(...recipients);
+        }
       }
       await conn.commit();
     }
@@ -2226,6 +2547,14 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
         }`
       );
     }
+    if (!dryRun && acknowledgementsCleared > 0) {
+      await logActivity(
+        req.user.id,
+        'grade_acknowledgement_cleared',
+        `Cleared ${acknowledgementsCleared} parent confirmation(s) by unlocking — Term ${termNum}, SY ${schoolYear}, ${scopeLabel}`
+      );
+    }
+    if (!dryRun) emitNotifications(req, signal);
 
     let message = 'Preview only — nothing was changed.';
     if (!dryRun) {
@@ -2242,6 +2571,9 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
       learners_changed: changedLearners.size,
       records_changed: recordsChanged,
       records_already: lock ? recordsAlready : 0,
+      // feat/grade-acknowledgement: the parent confirmations this unlock
+      // clears (a dry run counts them; a lock sends 0).
+      acknowledgements_cleared: acknowledgementsCleared,
       skipped,
     });
   } catch (error) {
@@ -2464,6 +2796,27 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     const term_averages = computeTermAverages(subjectReport, mode);
     const term_average_descriptors = computeTermAverageDescriptors(term_averages);
 
+    // PER TERM: is it fully locked, and has the parent confirmed it
+    // (feat/grade-acknowledgement, 2026-10-21). ALWAYS PRESENT, all three
+    // keys, for every reader — the parent's card shows the ask and the
+    // confirmation, the adviser's and the admin's show the date. `locked`
+    // is the bulk lock's own test (every subject locked with a value), read
+    // off the rows already loaded; the confirmations are one query. The name
+    // is the confirming account's `users.name` — never a login id (§5c).
+    const termAcks = await acknowledgementsFor(pool, [studentId], schoolYear);
+    const acknowledgements = {};
+    for (const term of [1, 2, 3]) {
+      const ack = termAcks.get(`${studentId}:${term}`) ?? null;
+      acknowledgements[term] = {
+        locked: termFullyLocked(
+          gradeRows.filter((row) => Number(row.term) === term),
+          subjects.length
+        ),
+        acknowledged_at: ack ? ack.acknowledged_at : null,
+        by_name: ack ? ack.by_name : null,
+      };
+    }
+
     return res.json({
       success: true,
       student: {
@@ -2480,6 +2833,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
       term_average_descriptors,
       general_average,
       general_average_descriptor,
+      acknowledgements,
     });
   } catch (error) {
     console.error('Get student report card error:', error);
@@ -3249,6 +3603,51 @@ router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => 
       'update_grade_lock',
       `Set is_locked for grade #${gradeId} from ${grade.is_locked} to ${next}`
     );
+
+    // THE TERM'S CONFIRMATION FOLLOWS THE SINGLE LOCK TOO (feat/grade-
+    // acknowledgement, 2026-10-21). A lock that completes the term — every
+    // subject now locked with a value — asks the parent to confirm (Q4, once:
+    // INSERT IGNORE); an unlock of any row of the term clears the
+    // confirmation and both typed notifications (Q2) and says so in
+    // activity_logs. Best effort after the lock is written and logged: a
+    // failure here is reported, never a 500 for a lock that happened.
+    try {
+      const [studentRows] = await pool.query('SELECT grade_level FROM students WHERE id = ? LIMIT 1', [grade.student_id]);
+      const gradeLevel = studentRows[0]?.grade_level;
+      const state = await loadTermLockState(pool, {
+        studentId: grade.student_id,
+        gradeLevel,
+        term: grade.term,
+        schoolYear: grade.school_year,
+      });
+      if (next === 1) {
+        if (state.fullyLocked) {
+          const notified = await notifyGradesLocked(pool, {
+            studentId: grade.student_id,
+            itemId: state.itemId,
+            actorId: req.user.id,
+          });
+          emitNotifications(req, notified);
+        }
+      } else {
+        const { cleared, recipients } = await clearTermAcknowledgement(pool, {
+          studentId: grade.student_id,
+          term: grade.term,
+          schoolYear: grade.school_year,
+          itemId: state.itemId,
+        });
+        if (cleared > 0) {
+          await logActivity(
+            req.user.id,
+            'grade_acknowledgement_cleared',
+            `Cleared the parent confirmation of Term ${grade.term}, SY ${grade.school_year}, for student #${grade.student_id} by unlocking grade #${gradeId}`
+          );
+        }
+        emitNotifications(req, recipients);
+      }
+    } catch (hookError) {
+      console.error('Grade lock acknowledgement hook error:', hookError.code || hookError.message);
+    }
 
     return res.json({ success: true, message: 'Grade lock updated.', grade: updatedRows[0] });
   } catch (error) {

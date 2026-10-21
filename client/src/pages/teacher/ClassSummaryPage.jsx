@@ -11,6 +11,13 @@ import { FilterAndTableSkeleton, GridSkeleton } from '../../components/SkeletonS
 import useSkeleton from '../../hooks/useSkeleton';
 import ScrollCue from '../../components/ScrollCue';
 import SectionHeader from '../../components/SectionHeader';
+import {
+  CONFIRMED_HEADER,
+  NOT_LOCKED_LABEL,
+  confirmedCell,
+  confirmedCount,
+  confirmedCountLine,
+} from '../../format/acknowledgement';
 import { timestampDay, todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/grade';
 import { currentTerm } from '../../format/schoolCalendar';
@@ -96,6 +103,13 @@ export function ClassSummaryTable({ data }) {
   const learners = data?.learners ?? [];
   const showGeneralAverage = data?.show_general_average === true;
   const isFinal = data?.show_final === true;
+  // THE "CONFIRMED" COLUMN (feat/grade-acknowledgement, 2026-10-21): on a
+  // term sheet, whether each learner's parent has confirmed the term — the
+  // date, "Not yet" while the term is locked and unconfirmed, "—" while it is
+  // not locked (nothing to confirm). Never on the Final sheet: there is no
+  // term to confirm. Counted in the header, never concluded (§4).
+  const showConfirmed = !isFinal;
+  const confirmed = confirmedCount(learners);
 
   const completenessBySubject = new Map();
   for (const entry of data?.completeness ?? []) completenessBySubject.set(entry.subject_id, entry);
@@ -148,17 +162,19 @@ export function ClassSummaryTable({ data }) {
       }
       describe={({ hiddenCount }) => {
         if (hiddenCount < 1) return null;
-        // The Average is the last column, so when anything is hidden it is
-        // among them — name it rather than folding it into the count, since
-        // "7 more subjects" would be wrong by one and the Average is the
-        // column a teacher is most likely to be looking for.
-        const subjectsHidden = showGeneralAverage ? hiddenCount - 1 : hiddenCount;
+        // The Average and Confirmed are the LAST columns, so when anything is
+        // hidden they are among them — named rather than folded into the
+        // count, since "7 more subjects" would be wrong by one or two and the
+        // Average is the column a teacher is most likely to be looking for.
+        // The rightmost column hides first: Confirmed, then the Average.
+        const trailing = [showGeneralAverage ? 'the Average' : null, showConfirmed ? 'Confirmed' : null].filter(Boolean);
+        const trailingHidden = trailing.slice(Math.max(0, trailing.length - hiddenCount));
+        const subjectsHidden = hiddenCount - trailingHidden.length;
+        const named = trailingHidden.join(' and ');
         // "Scroll", not "Swipe" (UI-7): the web is read with a mouse too.
-        if (showGeneralAverage && subjectsHidden < 1) return 'Scroll for the Average →';
+        if (subjectsHidden < 1) return `Scroll for ${named} →`;
         const noun = subjectsHidden === 1 ? 'subject' : 'subjects';
-        return showGeneralAverage
-          ? `Scroll for ${subjectsHidden} more ${noun} and the Average →`
-          : `Scroll for ${subjectsHidden} more ${noun} →`;
+        return named ? `Scroll for ${subjectsHidden} more ${noun}, ${named} →` : `Scroll for ${subjectsHidden} more ${noun} →`;
       }}
     >
       {/* NO `min-w-max`, AND THE SUBJECT HEADERS MAY WRAP (fix/polish,
@@ -188,6 +204,14 @@ export function ClassSummaryTable({ data }) {
             {showGeneralAverage && (
               <th scope="col" className={`whitespace-nowrap text-center align-top ${headCell}`}>
                 {isFinal ? 'General Average' : 'Average'}
+              </th>
+            )}
+            {showConfirmed && (
+              <th scope="col" className={`whitespace-nowrap text-center align-top ${headCell}`}>
+                {CONFIRMED_HEADER}
+                <div className="mt-0.5 text-[0.6875rem] font-normal normal-case tracking-normal text-fg-muted">
+                  {confirmedCountLine(confirmed, learners.length)}
+                </div>
               </th>
             )}
           </tr>
@@ -251,6 +275,26 @@ export function ClassSummaryTable({ data }) {
                       figure on this sheet that keeps them (GRADING_SPEC §4a —
                       721/8 prints as 90.13). */}
                   <GradeValue value={learner.general_average ?? null} mode={data?.grading_mode} />
+                </td>
+              )}
+              {showConfirmed && (
+                <td className={`whitespace-nowrap text-center tabular-nums ${bodyCell} ${endCorners(rowIndex)}`}>
+                  {(() => {
+                    const when = learner.acknowledged?.acknowledged_at
+                      ? timestampDay(learner.acknowledged.acknowledged_at, { style: 'short' })
+                      : null;
+                    const cell = confirmedCell(learner, when);
+                    if (cell.kind === 'date') return <span className="text-fg">{cell.text}</span>;
+                    if (cell.kind === 'pending') return <span className="text-fg-muted">{cell.text}</span>;
+                    // Not a grade value (§3 is about those): the dash means
+                    // the term is not locked for this learner, and the
+                    // accessible name says so.
+                    return (
+                      <span className="text-fg-faint" aria-label={NOT_LOCKED_LABEL}>
+                        {cell.text}
+                      </span>
+                    );
+                  })()}
                 </td>
               )}
             </tr>

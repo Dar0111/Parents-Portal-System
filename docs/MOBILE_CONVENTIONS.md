@@ -1603,3 +1603,47 @@ mirrored module driven and byte-equal to the web's, and as source the slot
 screen's two lines, the breakdown's label, the reset's `popTo` and Login's
 focus read, each with a control. **The emulator check owns** what is drawn
 and a real reset.
+
+## M30. Grade acknowledgement on the phone — the web's words, a system Alert for the step (`feat/grade-acknowledgement`, 2026-10-21)
+
+FRONTEND §33 governs; this is where the phone differs.
+
+- **The block is `ReportCardView`'s `TermConfirmations`**, between the
+  learner's facts and the term picker — the web's shape on one column, every
+  word from the mirrored `format/acknowledgement.js` (the 35th mirror). With
+  `onConfirmTerm` (the parent's `GradesScreen`) it asks and carries the one
+  48dp button; the adviser's `ClassSummaryLearnerScreen` passes none and
+  reads "Confirmed by the parent on <date>." / "The parent has not confirmed
+  yet.". `REPORT_UNWRAP` names `acknowledgements` (its ninth key).
+- **The §5e step is a system `Alert`, not a Modal** (the phone's confirms
+  are Alerts — M25): the card's button hands the term to the screen, whose
+  `Alert.alert` shows `confirmDialog(term)` — "Confirm Term N grades?", the
+  sentence, **Go back** (cancel) / **Yes, I have seen them** — and only
+  that confirm writes `POST /grades/acknowledgements`, then re-reads the
+  card as a pull (the card and its chosen term stay); a failure shows under
+  the button (`ErrorAlert`, §7c). No draft, no leave guard: nothing is
+  typed.
+- **The class summary's Confirmed column** is one more `CELL_W` column
+  after the Average on a term sheet — "Confirmed" over "N of M learners",
+  the date, "Not yet", or "—" with the accessibility label "Not locked
+  yet"; never on the Final sheet. The swipe hint names it.
+- **Admin → Grades** lists the confirmed terms under the learner's header
+  card and hands `acknowledgement: report?.acknowledgements?.[term]` to the
+  lock sheet in its route params, so `GradeLockScreen` — which makes no read
+  of its own — shows the unlock sentence from `route.params` only while a
+  confirmation exists. The bulk screen's unlock preview gets the
+  "Confirmations to clear: N." line through the mirrored `gradeLocks.js`.
+- **Both bells** are the web's: `grades_locked` opens `/parent/grades`,
+  `grades_acknowledged` `/teacher/class-summary` — both already in
+  `navigation/routes.js`; nothing for the admin.
+
+**Proof:** `npm run proof:grade-acknowledgement` (TESTING → Mobile
+proofs) — the mirrored words
+driven and both format files byte-equal to the web's, and as source (M7):
+the block's place and its button only under a handler, the Alert from
+`confirmDialog`, the one write inside its confirm and the re-read after it,
+the three props, the learner screen read-only, the column keyed on the term
+sheet, admin Grades' lines and the param, the lock sheet's sentence, no LRN
+anywhere — each with a control. **The phone check owns** the Alert, a real
+confirm, the 48dp target and a tap
+(`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md`).

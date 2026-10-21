@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import api from '../../api/client';
+import Button from '../../components/Button';
 import { cardClass } from '../../components/buttonStyles';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
@@ -8,6 +9,8 @@ import Segmented from '../../components/Segmented';
 import Skeleton, { SkeletonBar } from '../../components/Skeleton';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
+import { CONFIRM_BUTTON, TERM_FINAL_BODY, confirmedLine, confirmedReaderLine, lockedTerms, termFinalTitle } from '../../format/acknowledgement';
+import { timestampDay } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
 import { useSkeleton } from '../../hooks/useSkeleton';
@@ -45,10 +48,70 @@ export const REPORT_UNWRAP = [
   'term_average_descriptors',
   'general_average',
   'general_average_descriptor',
+  // feat/grade-acknowledgement: per term, locked and confirmed — the NINTH
+  // key, and the line to change (§1).
+  'acknowledgements',
 ];
 
 // The label over a fact or a key: the eyebrow style.
 const EYEBROW = 'text-xs font-semibold uppercase tracking-wide text-fg-muted';
+
+// THE TERM CONFIRMATIONS (feat/grade-acknowledgement, 2026-10-21) — the web's
+// ReportCard.TermConfirmations: one block per LOCKED term between the
+// learner's facts and the term picker. With `onConfirmTerm` (the parent's
+// screen) it asks — the body and the one 48dp button — and, once confirmed,
+// says when; with no handler (the adviser's learner screen) it says whether
+// the parent has confirmed, and nothing is a button. The button hands the
+// term to the screen, whose system Alert is the §5e step; this card never
+// writes. The words are the mirrored format/acknowledgement.js; the date is
+// timestampDay (Asia/Manila). `confirmError` is the write's failure, shown
+// under the button that caused it (§7c).
+export function TermConfirmations({ acknowledgements, onConfirmTerm, confirmingTerm, confirmError }) {
+  const terms = lockedTerms(acknowledgements);
+  if (!terms.length) return null;
+  return (
+    <View className="gap-3 border-b border-edge px-4 py-4">
+      {terms.map((term) => {
+        const ack = acknowledgements[term];
+        const when = ack.acknowledged_at ? timestampDay(ack.acknowledged_at, { style: 'long' }) : null;
+        let body;
+        if (when) {
+          body = <Text className="mt-1 text-sm text-fg-body">{onConfirmTerm ? confirmedLine(term, when) : confirmedReaderLine(when)}</Text>;
+        } else if (onConfirmTerm) {
+          body = (
+            <>
+              <Text className="mt-1 text-sm text-fg-body">{TERM_FINAL_BODY}</Text>
+              <View className="mt-3 items-start">
+                <Button
+                  variant="primary"
+                  icon="fa-check"
+                  onPress={() => onConfirmTerm(term)}
+                  loading={confirmingTerm === term}
+                  disabled={confirmingTerm != null && confirmingTerm !== term}
+                >
+                  {CONFIRM_BUTTON}
+                </Button>
+              </View>
+              {confirmError && confirmingTerm == null ? (
+                <View className="mt-3">
+                  <ErrorAlert message={confirmError} />
+                </View>
+              ) : null}
+            </>
+          );
+        } else {
+          body = <Text className="mt-1 text-sm text-fg-muted">{confirmedReaderLine(null)}</Text>;
+        }
+        return (
+          <View key={term} accessibilityLabel={termFinalTitle(term)} className="rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+            <Text className="text-sm font-semibold text-fg">{termFinalTitle(term)}</Text>
+            {body}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 // The band column is as wide as its longest value: "Below 65" for the
 // numerical scale, one letter for Key Stage 1 — a letter in a column sized
@@ -120,7 +183,19 @@ function ReportSkeleton({ phase, mode }) {
   );
 }
 
-export default function ReportCardView({ report, loading, error, onRetry, empty, onOpenTerm = null }) {
+export default function ReportCardView({
+  report,
+  loading,
+  error,
+  onRetry,
+  empty,
+  onOpenTerm = null,
+  // feat/grade-acknowledgement: the parent's screen passes the three; a
+  // reader passes none.
+  onConfirmTerm = null,
+  confirmingTerm = null,
+  confirmError = null,
+}) {
   const { tokens } = useTheme();
   const skeleton = useSkeleton(Boolean(loading) && !error);
   const [schoolName, setSchoolName] = useState(null);
@@ -240,6 +315,13 @@ export default function ReportCardView({ report, loading, error, onRetry, empty,
             </View>
           </View>
         ) : null}
+
+        <TermConfirmations
+          acknowledgements={report.acknowledgements}
+          onConfirmTerm={onConfirmTerm}
+          confirmingTerm={confirmingTerm}
+          confirmError={confirmError}
+        />
 
         <View className="p-4">
           <Segmented options={SEGMENTS} value={segment} onChange={setSelected} label="Term" />

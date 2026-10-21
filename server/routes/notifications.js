@@ -78,6 +78,14 @@ function visibilityClause(user) {
     // ever becomes possible, correct here for free. Today PUT
     // /api/students/:id refuses a class change with 400, so the only way it
     // can move is a direct database write.
+    //
+    // GRADES_LOCKED SELF-HEALS (feat/grade-acknowledgement, 2026-10-21), the
+    // excuse_submitted shape: "please confirm" is a call to act, so the row
+    // stops being listed and counted once a grade_acknowledgements row for
+    // that learner, school year and term exists — nothing deleted, nothing
+    // marked read; the acknowledge handler signals the parent so the drop is
+    // live. An unlock deletes the row outright (routes/grades.js), so a relock
+    // can ask again.
     return {
       sql: `(
         (n.item_type = 'announcement' AND a.id IS NOT NULL AND (
@@ -90,13 +98,23 @@ function visibilityClause(user) {
             e.target_grade IS NULL
             OR EXISTS (SELECT 1 FROM students s4 WHERE s4.id = ? AND s4.grade_level = e.target_grade)))
         OR (n.item_type = 'excuse_letter' AND x.id IS NOT NULL AND x.parent_id = n.user_id)
-        OR (n.item_type = 'grade' AND g.id IS NOT NULL AND g.student_id = ?)
+        OR (n.item_type = 'grade' AND g.id IS NOT NULL AND g.student_id = ?
+            AND (n.type <> 'grades_locked' OR NOT EXISTS (
+                  SELECT 1 FROM grade_acknowledgements ga
+                   WHERE ga.student_id = g.student_id AND ga.school_year = g.school_year AND ga.term = g.term)))
       )`,
       params: [user.student_id, user.student_id, user.student_id],
     };
   }
 
   if (user.role === 'teacher') {
+    // A GRADE ROW REACHES A TEACHER ONLY AS THE ADVISER (feat/grade-
+    // acknowledgement, 2026-10-21): grades_acknowledged goes to the adviser of
+    // the learner's section (utils/notify.js excuseAdviserAudience — the same
+    // authority), and the clause re-checks it live, so a teacher who stops
+    // advising the section stops seeing the row. grade_available is never
+    // fanned out to a teacher, so this clause never lists one.
+    //
     // EXCUSE LETTERS SELF-HEAL, the pending-parent shape (admin clause
     // below): "a letter was submitted" is a call to review it, so an
     // adviser's excuse_submitted row stops being listed and counted once the
@@ -126,6 +144,10 @@ function visibilityClause(user) {
             AND EXISTS (SELECT 1 FROM students s2
                           JOIN sections sec2 ON sec2.id = s2.section_id
                          WHERE s2.id = x.student_id AND sec2.adviser_id = n.user_id))
+        OR (n.item_type = 'grade' AND g.id IS NOT NULL
+            AND EXISTS (SELECT 1 FROM students s5
+                          JOIN sections sec5 ON sec5.id = s5.section_id
+                         WHERE s5.id = g.student_id AND sec5.adviser_id = n.user_id))
       )`,
       params: [],
     };
@@ -158,7 +180,8 @@ const FROM_CLAUSE = `
   LEFT JOIN users pu         ON n.item_type = 'user'          AND pu.id = n.item_id
   LEFT JOIN students ps      ON ps.id = pu.student_id
   LEFT JOIN grades g         ON n.item_type = 'grade'         AND g.id = n.item_id
-  LEFT JOIN subjects gs      ON gs.id = g.subject_id`;
+  LEFT JOIN subjects gs      ON gs.id = g.subject_id
+  LEFT JOIN students gst     ON gst.id = g.student_id`;
 
 const SELECT_COLUMNS = `
   n.id, n.type, n.item_type, n.item_id, n.title_snapshot, n.created_at, n.read_at,
@@ -169,7 +192,8 @@ const SELECT_COLUMNS = `
   x.absence_date, x.status AS excuse_status,
   xs.first_name AS excuse_student_first, xs.last_name AS excuse_student_last,
   ps.first_name AS pending_student_first, ps.last_name AS pending_student_last,
-  g.term AS grade_term, gs.name AS subject_name`;
+  g.term AS grade_term, gs.name AS subject_name,
+  gst.first_name AS grade_student_first, gst.last_name AS grade_student_last`;
 
 // ---------------------------------------------------------------------------
 // Text — composed server-side from the LIVE item, never from the request.
@@ -185,9 +209,10 @@ const SELECT_COLUMNS = `
 //   - NO LRN and no login_id. A parent's login_id IS their child's LRN
 //     (convention 5c). parent_pending names the STUDENT, which is what the
 //     admin needs to identify the account, and nothing else.
-//   - NO score, letter, average or verdict on grade_available (conventions 3
-//     and 4). The system counts and displays; it never concludes. The text
-//     says a grade is ready, and the report card says what it is.
+//   - NO score, letter, average or verdict on grade_available, grades_locked
+//     or grades_acknowledged (conventions 3 and 4). The system counts and
+//     displays; it never concludes. The text says a grade is ready, or a term
+//     is final, or a parent has seen it, and the report card says what it is.
 //   - NO teacher_remarks inlined on a declined letter. They are optional and
 //     can be long; the row sends the parent to the letter to read them.
 //   - NO claim that anyone was told anything else (convention 5i). Nothing in
@@ -256,6 +281,21 @@ function compose(row, role) {
         body: `${row.subject_name} — Term ${row.grade_term} is now on the report card.`,
         link: '/parent/grades',
       };
+    // feat/grade-acknowledgement (2026-10-21), the owner's Q4 and Q5. Both
+    // ride a grade row of the term (its lowest id); the term is the row's own.
+    // No score, letter or average — the report card says what the grades are.
+    case 'grades_locked':
+      return {
+        title: `Term ${row.grade_term} grades are final`,
+        body: `Please confirm you have seen your child's Term ${row.grade_term} grades.`,
+        link: '/parent/grades',
+      };
+    case 'grades_acknowledged':
+      return {
+        title: 'Grades confirmed',
+        body: `${fullName(row.grade_student_first, row.grade_student_last)}'s parent has seen the Term ${row.grade_term} grades.`,
+        link: '/teacher/class-summary',
+      };
     default:
       // Unreachable while `type` is an ENUM, but a silent undefined here would
       // render an empty row rather than fail loudly.
@@ -284,7 +324,8 @@ function toResponse(row, role) {
 // and returned under its own key so the bell is right, but N2 must not badge
 // it. That makes `total` larger than the sum of the badges for a parent, which
 // is correct and is the kind of thing that reads as a bug if nobody wrote it
-// down.
+// down. grades_locked and grades_acknowledged are the same: bell only, under
+// the `grades` key (the owner's Q4 and Q5, 2026-10-21).
 const NAV_SECTION = {
   announcement: 'announcements',
   memo: 'memos',
@@ -293,6 +334,8 @@ const NAV_SECTION = {
   excuse_reviewed: 'excuse_letters',
   parent_pending: 'users',
   grade_available: 'grades',
+  grades_locked: 'grades',
+  grades_acknowledged: 'grades',
 };
 
 // ---------------------------------------------------------------------------

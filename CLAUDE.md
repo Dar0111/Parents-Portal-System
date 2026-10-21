@@ -29,7 +29,7 @@ matches `GET /api/memos` having no scope clause.
 | Developer | Candilada, Darryl — sole developer |
 | Team | Conde, Marwin R. · Bargaso, Jea Mae T. · Bobis, Joan B. · Geguiera, Ashley T. |
 | Repo path | `C:\Users\Win10 User\Parents_Portal` |
-| Database | `parents_portal` — 25 tables |
+| Database | `parents_portal` — 26 tables |
 | Sept 7, 2026 | System proposal checkpoint — **not** the final defense |
 | Final defense | Expected around November 2026 |
 
@@ -112,8 +112,9 @@ Messages were **removed** on 2026-09-18 rather than left `built: false`, by
 the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
 2026-10-05** (that section's SCOPE DECISION 2026-10-05), and **About is last on every
 role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
-item**. **25 tables, 100 handlers + `/api/health`** (feat/first-signin, 2026-10-18; 98 before)
-(2026-10-13). 20 of 23 sections have no adviser and
+item**. **26 tables, 101 handlers + `/api/health`** (feat/grade-acknowledgement,
+2026-10-21 — built, not merged; 25 / 100 since feat/first-signin, 2026-10-18).
+20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
 ### Seeded baseline
@@ -131,7 +132,7 @@ After a clean `npm run db:setup`:
 | `teacher_assignments` | 8 — 3 for TCH-001 (G6 Mathematics/English/Filipino in Malikhain) and 5 for TCH-003 (every Grade 1 subject in Mabait). TCH-002 still has zero; that is the point of the account. |
 | `sections` with a real `adviser_id` | 3 of 23 — Malikhain → TCH-001, Masigasig → TCH-002, Mabait → TCH-003. The other 20 stay NULL until an admin assigns them. |
 | `grades` | 5 — Nino's partial descriptive card (Mathematics terms 1–3 A/B/C, Reading and Literacy terms 1–2 D/E). `grade_components` and `assessment_slots` are both 0. **These five are LEGACY rows** — letters typed before the rule, with no scores behind them, so they keep their letter and show no Final. Correct, not stale; do not "fix" them. |
-| `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages`, `policy_acceptances`, `login_attempts` | 0 (no parent has accepted, §29) |
+| `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages`, `policy_acceptances`, `login_attempts`, `grade_acknowledgements` (since feat/grade-acknowledgement) | 0 (no parent has accepted, §29; no term is locked) |
 
 HTTP suites that create rows delete them in a `finally` block and must
 return the database to this table, not to a remembered older snapshot.
@@ -753,7 +754,9 @@ audiences and the accessibility contract are in
   Excuse Letters / Announcements / Memos / Events for teacher and parent,
   Users and Announcements (carrying **announcements + memos**, since admin
   has no Memos page) for admin. Messages carries its own unread count for
-  every role, the admin's since 2026-10-05. **Grades is never badged** — bell only. So a
+  every role, the admin's since 2026-10-05. **Grades is never badged** — bell only:
+  `grade_available`, and since 2026-10-21 `grades_locked` (the parent's ask)
+  and `grades_acknowledged` (the adviser's), §33. So a
   parent’s bell total EXCEEDS the sum of their badges; that is correct, and
   it must be written down wherever it could read as a bug.
 - **A notification must be openable**, and "cannot open" includes having no
@@ -1001,6 +1004,26 @@ server's** (contacts). An empty picker group says why (§5f).
 controls. The phone thread keeps the same positioning rules (M27). Full text:
 FRONTEND §30, MOBILE M27.
 
+### 33. Grade acknowledgement — "I have seen these grades", once per locked term
+
+**feat/grade-acknowledgement, 2026-10-21 (the owner's Q1–Q12; built and
+gated, not merged).** A parent confirms a TERM once it is FULLY
+locked — every subject of the learner's grade level locked with a value, the
+bulk lock's own test — through `POST /api/grades/acknowledgements` (parent
+only, the learner from the session; `409` before that; a repeat `200`,
+nothing changed). One row per (learner, school year, term) in
+`grade_acknowledgements`, the 26th table; **an unlock of any row of the term
+deletes it** (the parent is asked again after a relock) and `activity_logs`
+keeps the trail. **Two bell-only notifications:** `grades_locked` to the
+parent when a lock — bulk or single — completes the term, self-healing once
+confirmed, and `grades_acknowledged` to the ADVISER on confirmation; nothing
+for the admin. The report card carries `acknowledgements` (all three terms),
+the class summary `term_locked` + `acknowledged` per learner, the bulk
+unlock `acknowledgements_cleared`. Every word is the mirrored
+`format/acknowledgement.js`; the §5e dialog names the term back; the dormant
+`grades.acknowledged` columns stay untouched (Q8). Full text: FRONTEND §33,
+MOBILE M30, `docs/API_REFERENCE.md` → Grade acknowledgements.
+
 ### Corrections — three claims retired here
 
 *"The first screen builds the shared components"* (~5h), *"backend is 100%
@@ -1244,8 +1267,11 @@ the rounding fix and Grade 1's computed letters (both 2026-09-22).
   refuses any HPS set, change or clear with `409` naming every locked learner
   of the class (a dry run too). `POST /api/grades/locks` (admin) locks only
   active learners graded in every subject — the rest are listed, never
-  locked — and unlocks with no check; preview first, one audit row, no
-  notifications. FRONTEND §31, MOBILE M28, `docs/API_REFERENCE.md`.
+  locked — and unlocks with no check; preview first, one audit row. **The
+  one notification a lock sends (since 2026-10-21, the owner's Q4): a lock
+  that completes a learner's term asks the parent to confirm; an unlock
+  clears the confirmation** — §33. FRONTEND §31, MOBILE M28,
+  `docs/API_REFERENCE.md`.
 - **A missing `grading_mode_configs` or `grade_weight_configs` row is `409`
   naming the gap — never a silent default, never `500`.** A transmutation year
   with no rows means "use the Initial Grade directly": **the data's absence
@@ -1415,7 +1441,7 @@ gate in full on its `POST /api/users/parents` row.
 
 | Issue | Where | Note |
 |---|---|---|
-| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**25** since the privacy build, 2026-10-10 — the restore re-creates its two tables itself since the fix round; 23 from `assessment_slots` on 2026-09-22, 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
+| **Restoring any backup taken before 2026-09-13 brings back the two Contributions tables** | `server/backups/*.sql` + restore | Afterwards: `DROP TABLE contribution_records;` then `DROP TABLE contributions;` and confirm the table count is back where it was (**26** since feat/grade-acknowledgement, 2026-10-21; 25 from the privacy build, 2026-10-10 — the restore re-creates its two tables itself since the fix round; 23 from `assessment_slots` on 2026-09-22, 22 from `auth_codes` on 2026-09-19). Do not delete or edit the old dumps |
 | **HAZARD — `DB_NAME=<other> npm run db:setup` destroys `<other>` and rebuilds `parents_portal` anyway** | `scripts/setup-db.js` + `schema.sql` | `schema.sql` hardcodes `CREATE DATABASE`/`USE parents_portal`. Never run setup-db with a non-default `DB_NAME`; for a scratch proof rewrite the name in memory (the 2026-08-29 method) |
 | **`academic_year` is locked on Admin → Settings — on that page only. Deliberate; do not "fix" it** | `settings/SchoolSettingsSection.jsx` (lock) + `routes/settings.js` (still writable) | Sections, mode configs, weights and the transmutation table are keyed on `school_year`; changing the setting moves none of them and four handlers 409. Starting a new school year is a process, not a field. Say "not editable from this page" |
 | **20 of 23 sections have no adviser and no screen can assign one** — attendance can never be recorded in them through the UI | `sections.adviser_id` + the Figure 5 scope decision | `PATCH /api/sections/:id/adviser` exists; Admin → Sections will not be built. Admin → Attendance names it: "Grade X - Name has no adviser…". No fix proposed — reversing the decision needs a date and a name |
@@ -1426,6 +1452,7 @@ gate in full on its `POST /api/users/parents` row.
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
+| **Restoring a backup taken before `feat/grade-acknowledgement` (2026-10-21) drops `grade_acknowledgements` and the two newer `notifications.type` values** — the report card and the class summary answer `500` until the migration is re-run | `server/backups/*.sql` | Re-run `npm run db:migrate:grade-acknowledgements` afterwards (idempotent) |
 | **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
 | **Profile photos are NOT in any backup** — a restore can point at a deleted photo (initials show) or orphan a newer one | `server/uploads/avatars/` + restore | Deliberate: the restore stays mysqldump-only. Never auto-delete an orphan photo; never add uploads to the dump without its own plan |
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
@@ -1649,18 +1676,19 @@ merged (`9d3b430`, 2026-10-21); `feat/account-create` and
 `feat/password-alert` are MERGED (`2b85331`, 2026-10-21 — `main`
 fast-forwarded from `bba67bd` by the ref move, no checkout under the running
 servers; the combined check `docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`
-§12, the cleanup §11, backup 338). **Next, on the owner's word:**
-`feat/grade-acknowledgement` — built and DB-free gated 2026-10-21 in its own
-worktree, waiting — rebases onto this `main` (docs conflicts keep both sides,
-every conflict reported), then runs its database part (a backup, the
-migration, the 23 HTTP suites, the smoke, its commit), then its own check →
+§12, the cleanup §11, backup 338). `feat/grade-acknowledgement` is rebased
+onto this `main` (trim-10 `bffd033`) and its database part ran 2026-10-21 —
+the migration twice after backup 339, the 23 HTTP suites, `smoke:isolated`
+20/20, the survey; the new suite's cleanup fixed after backup 344 —
+committed and pushed, not merged. **Next, on the owner's word:** the B1
+device check, `docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md` →
 `fix/f3-badges` → `feat/activity-log`, each on its own
 check, then `docs/pre-oct21`, the demo data and a new restore point. The
 owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
 still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324 and 338 are
-the two checks' pre-cleanup dumps, not restore points. The manuscript delta
-list stays with the team.
+the two checks' pre-cleanup dumps and 339 and 344 this branch's pre-write
+dumps, not restore points. The manuscript delta list stays with the team.
 
 ### Stage 6 — Integration
 

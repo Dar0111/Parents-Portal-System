@@ -23,6 +23,9 @@ export const LOCKS_UNWRAP = [
   'learners_changed',
   'records_changed',
   'records_already',
+  // feat/grade-acknowledgement: the parent confirmations an unlock clears
+  // (a dry run counts them; a lock sends 0).
+  'acknowledgements_cleared',
   'skipped',
 ];
 
@@ -79,6 +82,12 @@ export function previewLines(result) {
     }
   } else if (toChange > 0) {
     lines.push({ kind: 'count', text: `To unlock: ${records(toChange)} for ${learnersOf(result.learners_changed)}.` });
+    // An unlock clears the parents' confirmations of the term (feat/grade-
+    // acknowledgement, the owner's Q2) — said before the write, never after.
+    const confirmations = result.acknowledgements_cleared;
+    if (confirmations > 0) {
+      lines.push({ kind: 'count', text: `Confirmations to clear: ${confirmations}.` });
+    }
   } else {
     lines.push({ kind: 'nothing', text: `Nothing to unlock — no Term ${scope.term} grade is locked in ${scopeLabel(scope)}.` });
   }

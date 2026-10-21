@@ -11,7 +11,8 @@ import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import { ClassSummarySkeleton, SummarySheetSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
-import { todayLocalDateString } from '../../format/date';
+import { CONFIRMED_HEADER, NOT_LOCKED_LABEL, confirmedCell, confirmedCount, confirmedCountLine } from '../../format/acknowledgement';
+import { timestampDay, todayLocalDateString } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import { currentTerm } from '../../format/schoolCalendar';
 import TermValue from '../../format/TermValue';
@@ -201,6 +202,12 @@ export default function ClassSummaryScreen({ navigation }) {
   const showGA = data?.show_general_average === true;
   const isFinal = data?.show_final === true;
   const completeness = new Map((data?.completeness ?? []).map((e) => [e.subject_id, e]));
+  // THE "CONFIRMED" COLUMN (feat/grade-acknowledgement, 2026-10-21), the
+  // web's: on a term sheet, the date the learner's parent confirmed the
+  // term, "Not yet" while it is locked and unconfirmed, "—" while it is not
+  // locked. Never on the Final sheet. Counted in the header, never concluded.
+  const showConfirmed = !isFinal;
+  const confirmed = confirmedCount(learners);
 
   const sheet = (
     <View className={`flex-row overflow-hidden ${cardClass}`}>
@@ -245,6 +252,12 @@ export default function ClassSummaryScreen({ navigation }) {
                 <Text className={`text-center ${HEAD_TEXT}`}>{isFinal ? 'General Average' : 'Average'}</Text>
               </View>
             ) : null}
+            {showConfirmed ? (
+              <View style={{ width: CELL_W }} className="items-center justify-end px-1 pb-2">
+                <Text className={`text-center ${HEAD_TEXT}`}>{CONFIRMED_HEADER}</Text>
+                <Text className="mt-0.5 text-center text-xs text-fg-muted">{confirmedCountLine(confirmed, learners.length)}</Text>
+              </View>
+            ) : null}
           </View>
           {learners.map((learner) => (
             <View key={learner.student_id} style={{ height: ROW_H }} className="flex-row border-t border-edge-soft">
@@ -265,6 +278,18 @@ export default function ClassSummaryScreen({ navigation }) {
                   <GradeValue value={learner.general_average ?? null} mode={mode} className="text-sm font-semibold text-fg" />
                 </View>
               ) : null}
+              {showConfirmed
+                ? (() => {
+                    const when = learner.acknowledged?.acknowledged_at ? timestampDay(learner.acknowledged.acknowledged_at, { style: 'short' }) : null;
+                    const cell = confirmedCell(learner, when);
+                    const colour = cell.kind === 'date' ? 'text-fg' : cell.kind === 'pending' ? 'text-fg-muted' : 'text-fg-faint';
+                    return (
+                      <View style={{ width: CELL_W }} className="items-center justify-center" accessibilityLabel={cell.kind === 'none' ? NOT_LOCKED_LABEL : undefined}>
+                        <Text className={`text-center text-sm ${colour}`}>{cell.text}</Text>
+                      </View>
+                    );
+                  })()
+                : null}
             </View>
           ))}
         </View>
@@ -324,7 +349,11 @@ export default function ClassSummaryScreen({ navigation }) {
       ) : (
         <>
           {sheet}
-          {subjects.length > 2 ? <Text className="text-xs text-fg-muted">Swipe the grades sideways for every subject{showGA ? ' and the Average' : ''}. Tap a name for the report card.</Text> : null}
+          {subjects.length > 2 ? (
+            <Text className="text-xs text-fg-muted">
+              Swipe the grades sideways for every subject{showGA && showConfirmed ? ', the Average and Confirmed' : showGA ? ' and the Average' : showConfirmed ? ' and Confirmed' : ''}. Tap a name for the report card.
+            </Text>
+          ) : null}
         </>
       )}
       {/* A statement about who may EDIT this screen. An eye, not a padlock:

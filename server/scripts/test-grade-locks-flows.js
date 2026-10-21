@@ -440,6 +440,14 @@ async function main() {
       `the unlock preview counts 4 × ${S} + 1 records for five learners — Eli's incomplete row included, nobody skipped`,
       why(unlockDry)
     );
+    // feat/grade-acknowledgement: the preview says how many parent
+    // confirmations the unlock clears — none here, no learner of this class
+    // has a parent account.
+    assert(
+      unlockDry.data.acknowledgements_cleared === 0,
+      'the unlock preview carries acknowledgements_cleared, 0 for a class whose learners have no parent',
+      why(unlockDry)
+    );
     assert((await auditCount('bulk_grade_unlock')) === unlockAuditBefore, 'the unlock dry run wrote no activity_logs row');
 
     const unlock = await request('POST', '/api/grades/locks', { token: adminToken, body: sectionBody({ lock: false }) });

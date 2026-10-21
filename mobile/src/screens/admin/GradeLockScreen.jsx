@@ -7,6 +7,8 @@ import { cardClass } from '../../components/buttonStyles';
 import ErrorAlert from '../../components/ErrorAlert';
 import StatusBadge from '../../components/StatusBadge';
 import Text from '../../components/Text';
+import { unlockClearsSentence } from '../../format/acknowledgement';
+import { timestampDay } from '../../format/date';
 import TermValue from '../../format/TermValue';
 
 // LOCK OR UNLOCK ONE TERM GRADE — the web's lock modal as a modal screen.
@@ -25,7 +27,10 @@ import TermValue from '../../format/TermValue';
 // is no Delete here (KNOWN ISSUES). NO MOTION, and no pull-to-refresh — the
 // screen shows the list's snapshot and makes no read of its own.
 export default function GradeLockScreen({ navigation, route }) {
-  const { subjectName, term, mode, entry } = route.params;
+  // `acknowledgement` (feat/grade-acknowledgement): the term's parent
+  // confirmation, or null — passed by the list so this sheet can say what an
+  // unlock clears without a read of its own.
+  const { subjectName, term, mode, entry, acknowledgement = null } = route.params;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -71,6 +76,11 @@ export default function GradeLockScreen({ navigation, route }) {
             Locking stops every change to this grade's scores or letter — by teachers and by admins — and stops it from being deleted, until it is unlocked here.
             Parents and teachers still see it exactly as it is; the teacher sees it marked Locked.
           </Text>
+          {/* §5i: exactly what the unlock paths do — shown only while the
+              parent's confirmation of this term exists. */}
+          {acknowledgement?.acknowledged_at ? (
+            <Text className="text-sm text-fg-body">{unlockClearsSentence(timestampDay(acknowledgement.acknowledged_at, { style: 'long' }))}</Text>
+          ) : null}
         </View>
       ) : (
         <Text className="text-sm text-fg-muted">This term no longer has a grade record.</Text>

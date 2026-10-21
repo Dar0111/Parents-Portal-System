@@ -537,7 +537,12 @@ dashboard may display. Do not build a ranking view.
 
 Each term contains an Opening Block (Term 1 only), an Instructional Block, and
 a two-week End-of-Term Block where grades are computed and report cards are
-distributed.
+distributed. **Since `feat/grade-acknowledgement` (2026-10-21) the system
+records that a parent has SEEN a term's report card:** once every subject
+of the term is locked (the bulk lock's own test), the parent confirms the
+term once, the adviser is told, and an unlock clears the confirmation — a
+record of receipt, never a grade input, and not a DepEd rule (the owner's
+decision; CLAUDE.md §33).
 
 **Schema implication:** any `quarter` column with values 1–4 must become `term`
 with values 1–3.

@@ -517,7 +517,13 @@ CREATE TABLE auth_security_state (
 CREATE TABLE notifications (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id INT UNSIGNED NOT NULL,
-  type ENUM('announcement','memo','event','excuse_submitted','excuse_reviewed','parent_pending','grade_available') NOT NULL,
+  -- grades_locked and grades_acknowledged (feat/grade-acknowledgement,
+  -- 2026-10-21): item_type 'grade', item_id the TERM's lowest grade id for
+  -- that learner and school year — one key for the parent's "please confirm"
+  -- (grades_locked), the adviser's "confirmed" (grades_acknowledged), and the
+  -- unlock that deletes both. Appended at the END of the list, so the migration
+  -- is an in-place metadata change (scripts/migrate-grade-acknowledgements.js).
+  type ENUM('announcement','memo','event','excuse_submitted','excuse_reviewed','parent_pending','grade_available','grades_locked','grades_acknowledged') NOT NULL,
   item_type ENUM('announcement','memo','event','excuse_letter','user','grade') NOT NULL,
   item_id INT UNSIGNED NOT NULL,
   title_snapshot VARCHAR(200) DEFAULT NULL,
@@ -592,6 +598,35 @@ CREATE TABLE login_attempts (
   attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_login_attempts_key (login_key, attempted_at),
   INDEX idx_login_attempts_ip (ip, attempted_at)
+) ENGINE=InnoDB;
+
+-- Grade acknowledgements (feat/grade-acknowledgement, 2026-10-21; the owner's
+-- Q1). ONE ROW PER (learner, school year, term): the parent's "I have seen
+-- these grades", given only once the term is FULLY locked — every subject of
+-- the learner's grade level has a locked grade with a value (routes/grades.js
+-- termFullyLocked, the bulk lock's own test). Per TERM, not per subject row,
+-- because what the parent confirms is the report card's term column, and
+-- because the dormant per-row columns on `grades` (`acknowledged`,
+-- `acknowledged_at`) were never written by anything and stay untouched (Q8).
+--
+-- DELETED ON UNLOCK (Q2): an unlock of any subject of the term removes this
+-- row — the term is no longer final, so the confirmation no longer describes
+-- it — and the parent is asked again after a relock. activity_logs keeps the
+-- trail (`acknowledge_grades`, `grade_acknowledgement_cleared`).
+--
+-- user_id is the account that confirmed, SET NULL if it goes (the row is the
+-- learner's record, not the account's); student_id CASCADE with the learner.
+-- The adviser's and admin's screens read `acknowledged_at` only.
+CREATE TABLE grade_acknowledgements (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  student_id INT UNSIGNED NOT NULL,
+  school_year VARCHAR(9) NOT NULL,
+  term TINYINT UNSIGNED NOT NULL,
+  user_id INT UNSIGNED DEFAULT NULL,
+  acknowledged_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_grade_ack_term (student_id, school_year, term),
+  INDEX idx_grade_ack_user (user_id),
+  CONSTRAINT chk_grade_ack_term CHECK (term BETWEEN 1 AND 3)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------------
@@ -677,3 +712,7 @@ ALTER TABLE auth_codes
 ALTER TABLE policy_acceptances
   ADD CONSTRAINT fk_policy_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_policy_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE SET NULL;
+
+ALTER TABLE grade_acknowledgements
+  ADD CONSTRAINT fk_grade_ack_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_grade_ack_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;

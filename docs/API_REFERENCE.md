@@ -2,16 +2,19 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**100 handlers** across 16 route files, documented as **19 endpoint tables
+**101 handlers** across 16 route files, documented as **19 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **101 endpoints** (both +2 on 2026-10-18: `PUT /api/auth/email`
+`server.js` = **102 endpoints** (both +1 on 2026-10-21:
+`POST /api/grades/acknowledgements`, feat/grade-acknowledgement — built, not
+merged; both +2 on 2026-10-18: `PUT /api/auth/email`
 and `PUT /api/auth/first-password`, feat/first-signin; both +1 on 2026-10-13: `POST /api/grades/locks`,
 fix/grade-locks; both +3 on 2026-10-10: `GET /api/policy`,
 `GET /api/policy/status`, `POST /api/policy/accept`, feat/privacy; both +3 on 2026-09-30: `PUT` and
 `DELETE /api/auth/photo`, `DELETE /api/users/:id/photo`, feat/profile-photos;
 both +2 on 2026-09-29: `POST /api/auth/verify-contact/request` and `/confirm`, feat/sms-transport; both +1 on 2026-09-26: `GET /api/settings/public`). That 19 counts MARKDOWN TABLES IN THIS
-FILE — it is not a database-table count, and the database has **25** (since
+FILE — it is not a database-table count, and the database has **26** (since
+2026-10-21: `grade_acknowledgements`, feat/grade-acknowledgement; 25 since
 2026-10-10: `policy_acceptances` and `login_attempts`).
 Recounted from the code on 2026-09-22 — `PATCH /grades/:id/descriptive` was
 retired (−1) and the class record's `GET` and `PUT` landed (+2), so both
@@ -548,8 +551,9 @@ what to expect on the wire.
 | `grade_components` | array | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `descriptor` | object or `null` | `GET /grades/:id` (secondary key, alongside `grade`) |
 | `component` | object | `POST /grades/:id/components`, `PUT /grades/:id/components/:componentId` (secondary key, alongside `grade`) |
-| `student`, `school_year`, `grading_mode`, `subjects`, `term_averages`, `general_average`, `general_average_descriptor` | **7** flat top-level keys, no `grade`/`grades` key at all; `grading_mode` here is a **string** (`numerical`\|`descriptive`). A client that unwraps by naming keys must name all seven — DV3 shipped with `term_averages` missing from the list and the general-average row rendered "Pending" while the API was answering correctly | `GET /grades/student/:studentId` only — see `GET /grading-modes` above for the object shape of the same key |
-| `dry_run`, `lock`, `scope`, `learners`, `learners_ready`, `learners_changed`, `records_changed`, `records_already`, `skipped` | **9** flat top-level keys beside `message`, no `grade`/`grades` key; `learners` here is a **count**, not the class record's array; `learners_ready` is `null` for an unlock | `POST /grades/locks` only (fix/grade-locks, 2026-10-13) |
+| `student`, `school_year`, `grading_mode`, `subjects`, `term_averages`, `term_average_descriptors`, `general_average`, `general_average_descriptor`, `acknowledgements` | **9** flat top-level keys, no `grade`/`grades` key at all; `grading_mode` here is a **string** (`numerical`\|`descriptive`); `acknowledgements` (feat/grade-acknowledgement, 2026-10-21) is `{ "1": { locked, acknowledged_at, by_name }, "2": …, "3": … }`, always all three terms. A client that unwraps by naming keys must name every one it reads — DV3 shipped with `term_averages` missing from the list and the general-average row rendered "Pending" while the API was answering correctly | `GET /grades/student/:studentId` only — see `GET /grading-modes` above for the object shape of the same key |
+| `dry_run`, `lock`, `scope`, `learners`, `learners_ready`, `learners_changed`, `records_changed`, `records_already`, `acknowledgements_cleared`, `skipped` | **10** flat top-level keys beside `message`, no `grade`/`grades` key; `learners` here is a **count**, not the class record's array; `learners_ready` is `null` for an unlock; `acknowledgements_cleared` (2026-10-21) counts the parent confirmations an unlock clears — a dry run counts them, a lock sends 0 | `POST /grades/locks` only (fix/grade-locks, 2026-10-13) |
+| `acknowledgement` | object `{ term, school_year, acknowledged_at, by_name }` — `by_name` is the confirming account's `users.name`, never a login id | `POST /grades/acknowledgements` (feat/grade-acknowledgement, 2026-10-21) |
 | `attendance` | object (single-record endpoints) **or** array (list endpoints) — same key name, cardinality depends on which endpoint | `GET /attendance`, `GET /attendance/student/:studentId`, `POST /attendance`, `POST /attendance/bulk`, `PUT /attendance/:id` |
 | `summary` | object | `GET /attendance/summary/:studentId` |
 | `announcement` | object | `POST /announcements`, `PUT /announcements/:id` |
@@ -586,7 +590,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 100 handlers (101 with `GET /api/health`).
+the bottom must equal 101 handlers (102 with `GET /api/health`).
 
 ### Auth (14) — `/api/auth`
 
@@ -799,17 +803,18 @@ documented sort value does would be a contract change; only the default moved.
 | POST | `/` | `admin` | `teacher_id`*, `subject_id`*, `section`* | `assignment` | `grade_level` from the subject row, never the body; `section_id` resolved against `sections` for current `academic_year`; duplicate → `409`; inactive/non-teacher → `400` |
 | DELETE | `/:id` | `admin` | — | message only | does **not** refuse when grades exist; a scope change removes future authority, never past records |
 
-### Grades (14) — `/api/grades`
+### Grades (15) — `/api/grades`
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
 | GET | `/` | `teacher(wide)`, `admin`, `parent(own)` | query: `student_id`, `subject_id`, `term`, `school_year`, **`grade_level`** (integer 1–6, else `400`), **`section`** (trimmed, non-empty, else `400`) — all optional, no defaults | `grades` | parent naming a different `student_id` → `403`. The class pair filters on the JOINed `students` columns (2026-09-25); `sort` keys are `student`, `subject`, **`class`** (`s.grade_level, s.section`), `term`, `school_year`, `updated_at` |
 | GET | `/class-record` | `teacher(wide)`, `admin` | query: `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year` | `subject`+`slots`+`learners`+`group_hps`+`exam_max`+`exam_max_mixed`+`weights`+`grading_mode`+`can_encode` (no `grade` key) | the whole grid in one request; **registered BEFORE `/:id`** or `class-record` parses as an id. `404` outside view scope |
-| GET | `/class-summary` | `teacher(adviser)`, `admin` | query: `grade_level`*, `section`*, `term`* (`1｜2｜3｜final`), `school_year` | `section`+`school_year`+`term`+`grading_mode`+`show_final`+`show_general_average`+`subjects`+`learners`+`completeness` | the adviser's Summary of Grades, read-only. **Also registered BEFORE `/:id`.** `403` in view scope but not adviser; `404` otherwise. **No pagination** — see below |
+| GET | `/class-summary` | `teacher(adviser)`, `admin` | query: `grade_level`*, `section`*, `term`* (`1｜2｜3｜final`), `school_year` | `section`+`school_year`+`term`+`grading_mode`+`show_final`+`show_general_average`+`subjects`+`learners`+`completeness` | the adviser's Summary of Grades, read-only. **Also registered BEFORE `/:id`.** `403` in view scope but not adviser; `404` otherwise. **No pagination** — see below. Since 2026-10-21 each learner row carries `term_locked` (boolean; `null` on the Final sheet) and `acknowledged` (`{ acknowledged_at, by_name }` or `null`) |
 | PUT | `/class-record` | `teacher(subject)`, `admin` | `subject_id`*, `grade_level`*, `section`*, `term`*, `school_year`, plus any of `slots[]`, `entries[]`, `exam_max`, `dry_run` | `results`+`group_hps`+`slots` | one save for the whole class; see below |
-| POST | `/locks` | `admin` only | `lock`* (boolean), `term`* (1–3), `grade_level` (1–6; none = the whole school), `section` (needs `grade_level`), `dry_run` (boolean) | `dry_run`+`lock`+`scope`+`learners`+`learners_ready`+`learners_changed`+`records_changed`+`records_already`+`skipped` | lock or unlock a whole term (fix/grade-locks, 2026-10-13); **also registered BEFORE `/:id`**; see below |
+| POST | `/acknowledgements` | `parent` only | `term`* (1–3), `school_year` (optional, defaults to `system_settings.academic_year`) | `acknowledgement` | "I have seen these grades" for a FULLY locked term (feat/grade-acknowledgement, 2026-10-21); `201` the first time, `200` on a repeat, `409` while the term is not fully locked; **registered BEFORE `/locks` and `/:id`**; see below |
+| POST | `/locks` | `admin` only | `lock`* (boolean), `term`* (1–3), `grade_level` (1–6; none = the whole school), `section` (needs `grade_level`), `dry_run` (boolean) | `dry_run`+`lock`+`scope`+`learners`+`learners_ready`+`learners_changed`+`records_changed`+`records_already`+`acknowledgements_cleared`+`skipped` | lock or unlock a whole term (fix/grade-locks, 2026-10-13); **also registered BEFORE `/:id`**; see below |
 | GET | `/:id` | `teacher(wide)`, `admin`, `parent(own)` | — | `grade` + `grade_components` + `descriptor` | `404` out-of-scope |
-| GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+**`term_average_descriptors`**+`general_average`+`general_average_descriptor` (no `grade`/`grades` key) | `404` out-of-scope |
+| GET | `/student/:studentId` | `teacher(wide)`, `admin`, `parent(own)` | query: `school_year` (optional, defaults to `system_settings.academic_year`) | `student`+`school_year`+`grading_mode`+`subjects`+`term_averages`+**`term_average_descriptors`**+`general_average`+`general_average_descriptor`+**`acknowledgements`** (no `grade`/`grades` key) | `404` out-of-scope |
 | POST | `/` | `teacher(subject)`, `admin` | `student_id`*, `subject_id`*, `term`*, `school_year`* | `grade` | teacher out-of-scope → `403`; nonexistent `student_id` → `404` admin / `403` teacher |
 | POST | `/:id/components` | `teacher(subject)`, `admin` | **`slot_id`***, `type`* (`WW`\|`PT`), `score`*, `max_score`*, `label`, `date_recorded` | `component` + `grade` | `403` naming the subject if `wide` but not `subject`; `404` if outside `wide` entirely. **`slot_id` required since CR1**; a slot of another class or the wrong type → `404` (never leaks that it exists). **`label` is now OPTIONAL** — a slot-backed row leaves it `NULL`. Non-integer `score`/`max_score` → `400` |
 | PUT | `/:id/components/:componentId` | `teacher(subject)`, `admin` | `score`, `max_score`, `label`, `date_recorded`, `slot_id` (any subset — `type` not editable, `400` if sent differently) | `component` + `grade` | same `403`/`404` split; mismatched `componentId` → `404`; **moving a row into an UNUSED slot is refused**; non-integer score/max → `400` |
@@ -949,13 +954,24 @@ impractical across Grades 1–6. Admin only; **registered before `GET /:id`**.
   counts it wrote; a preview taken earlier can be stale.
 - **Counts:** `learners` (active learners in scope), `learners_ready` (lock
   only; `null` for unlock), `learners_changed`, `records_changed`,
-  `records_already` (lock only; `0` for unlock); `scope` echoes
+  `records_already` (lock only; `0` for unlock), and since 2026-10-21
+  `acknowledgements_cleared` — the parent confirmations an unlock clears (a
+  dry run counts them; a lock sends `0`); `scope` echoes
   `{ school_year, term, grade_level, section }`.
 - **Audit and notifications:** one `activity_logs` row
   (`bulk_grade_lock` / `bulk_grade_unlock`, scope and counts only) when an
-  applied action changed something — none for a dry run or a repeat. No
-  notifications: a lock is a finalisation boundary, not a publication. Never
-  an LRN.
+  applied action changed something — none for a dry run or a repeat; one
+  `grade_acknowledgement_cleared` row (counts only) when an unlock cleared a
+  confirmation. **One notification, since feat/grade-acknowledgement
+  (2026-10-21, the owner's Q4):** every learner a lock changes is then FULLY
+  locked (it took them only with every subject graded, and locked every
+  row), so each one's active parent gets `grades_locked` — bell only,
+  INSERT IGNORE on the term's lowest grade id, so a repeat asks nobody
+  twice. An unlock deletes the term's `grade_acknowledgements` row and both
+  typed notifications for every learner it changes, inside the transaction,
+  and signals their recipients after the commit; a relock asks again. A lock
+  is still not a publication: nothing says what the grades are. Never an
+  LRN.
 - **`400`s, exact:** "lock must be true or false.", "term must be 1, 2, or
   3.", "dry_run must be true or false." (strict — the string `"true"` never
   applies), "grade_level must be a whole number from 1 to 6.", "section must
@@ -963,6 +979,64 @@ impractical across Grades 1–6. Admin only; **registered before `GET /:id`**.
   token; a teacher or a parent `403` (`authorize`).
 
 Proved by `test:grade-locks` (`docs/TESTING.md`).
+
+### Grade acknowledgements: `POST /api/grades/acknowledgements` (feat/grade-acknowledgement, 2026-10-21)
+
+The owner's Q1–Q12: a parent confirms, once per term, that they have seen
+their child's locked grades; the adviser is told; an unlock clears it.
+**Parent only; registered BEFORE `/locks` and `GET /:id`.**
+
+- **What "locked" means (Q3):** the term is FULLY locked for the learner —
+  every subject of the learner's grade level has a locked grade row WITH a
+  value (`term_grade` or `descriptive_grade`; Grade 1's letters count, Q10).
+  The bulk lock's own test, applied after the fact (`termFullyLocked` in
+  `routes/grades.js`); a locked shell row is not a final grade, and a
+  subject with no row is not graded. The report card's
+  `acknowledgements[term].locked` and the class summary's `term_locked`
+  are this same answer.
+- **The row (Q1):** `grade_acknowledgements` — the 26th table — one per
+  (`student_id`, `school_year`, `term`), `user_id` the confirming account
+  (SET NULL if it goes), `acknowledged_at`. **Never written for an unlocked
+  term; deleted by an unlock of ANY row of the term (Q2)** — bulk or
+  single — and `activity_logs` keeps the trail (`acknowledge_grades` on the
+  parent, `grade_acknowledgement_cleared` on the admin). The dormant
+  `grades.acknowledged` / `acknowledged_at` columns stay as they are (Q8).
+- **Body** `{ term, school_year? }` — the learner is `req.user.student_id`,
+  never a body or path value; the school year defaults to the
+  `academic_year` setting. Only an ACTIVE parent reaches the handler (Q11;
+  `authenticate` refuses every other status first).
+- **Answers:** `400` "term must be 1, 2, or 3." / the school-year sentence /
+  "Your account is not linked to a learner."; `404` "Student not found.";
+  **`409` "Term N is not locked yet — there is nothing to confirm."**;
+  **`200` "Already confirmed on <day>. Nothing changed."** with the row (a
+  repeat is absorbed, not refused — the client's §5e dialog is the one
+  deliberate step); **`201` "Term N grades confirmed."** with
+  `acknowledgement` `{ term, school_year, acknowledged_at, by_name }`.
+  Teacher and admin are `403` (`authorize`). Never an LRN.
+- **Notifications, both bell-only under `grades` (Q4, Q5):**
+  `grades_locked` to the learner's active parent when a lock — the bulk
+  `POST /locks` or the single `PATCH /:id/lock` — completes the term (the
+  term's LOWEST grade id is the item, one key for the ask, the confirmation
+  and the delete); it **self-heals** in the parent's visibility clause once
+  the confirmation exists (listed and counted no more, the row kept unread)
+  and the handler signals the parent so the bell drops it live.
+  `grades_acknowledged` to the adviser of the learner's section
+  (`excuseAdviserAudience` — the review authority; no adviser, no row),
+  re-checked live in the teacher's visibility clause. **Nothing for the
+  admin.** An unlock deletes both typed rows (`removeTypedNotifications`,
+  never the item's `grade_available`) so a relock can ask again.
+- **Where it shows:** `GET /grades/student/:studentId` →
+  `acknowledgements` (all three terms, every reader); `GET /class-summary`
+  → `term_locked` + `acknowledged` per learner (term sheets; `null` on the
+  Final); `POST /locks` → `acknowledgements_cleared`.
+- **Migration:** `npm run db:migrate:grade-acknowledgements`
+  (`scripts/migrate-grade-acknowledgements.js`, the template's shape:
+  idempotent, `--print-state`, never drops) creates the table, its two
+  foreign keys and appends `'grades_locked','grades_acknowledged'` to
+  `notifications.type`; a dump taken before it needs it re-run after a
+  restore (KNOWN_ISSUES).
+
+Proved by `npm run test:grade-acknowledgements` (`docs/TESTING.md`).
 
 ### The class summary: the adviser's Summary of Grades (CR3, 2026-09-22)
 
@@ -1261,7 +1335,10 @@ The row is neither deleted nor marked read; it stays, unread, as history.
 Before this the adviser's Excuse Letters badge and the bell kept counting a
 letter that needed nothing more. `PATCH /api/excuse-letters/:id/review`
 therefore also emits `notification_counts` to the **reviewer**, not only to
-the parent, so the drop is live.
+the parent, so the drop is live. **The same for a parent's `grades_locked`
+since feat/grade-acknowledgement (2026-10-21):** listed and counted only
+while no `grade_acknowledgements` row exists for that learner, school year
+and term, and `POST /api/grades/acknowledgements` signals the parent too.
 
 | Method | Path | Roles | Request | Response key | Notes |
 |---|---|---|---|---|---|
@@ -1271,7 +1348,9 @@ the parent, so the drop is live.
 | PATCH | `/read-all` | any authenticated (own rows only) | — | `updated` (number) | Marks every unread row of the caller read, including ones currently filtered out by the visibility re-check. A second call returns `updated: 0` and is not an error. |
 
 **No DELETE, and no endpoint that writes a notification.** Rows are created
-only by the seven fan-out hooks in `server/routes/`, never by a request.
+only by the fan-out hooks in `server/routes/` (seven at N1; nine since
+feat/grade-acknowledgement added the two grade-lock hooks and the
+acknowledge handler's), never by a request.
 
 **No `logActivity` on mark-read — a deliberate exception to "every write
 logs".** A row per notification opened is hundreds of `activity_logs` rows a
@@ -1297,6 +1376,8 @@ but never concludes (CLAUDE.md §4).
 | `excuse_reviewed` (Declined) | Excuse letter declined | `Your excuse letter for {absence_date} was declined. Open it to read the teacher’s remarks.` — the remarks are **not** inlined; they are optional and can be long |
 | `parent_pending` | Parent account waiting for approval | `A new parent account for {student first + last} is waiting for approval.` — names the STUDENT, never the login id |
 | `grade_available` | A grade is ready to view | `{subject} — Term {n} is now on the report card.` — **no number, no letter, no "passing"** |
+| `grades_locked` (feat/grade-acknowledgement, 2026-10-21) | Term {n} grades are final | `Please confirm you have seen your child's Term {n} grades.` — to the learner's parent, link `/parent/grades`; **listed and counted only until the parent confirms** (self-heals, above); no score or letter |
+| `grades_acknowledged` (feat/grade-acknowledgement, 2026-10-21) | Grades confirmed | `{student first + last}'s parent has seen the Term {n} grades.` — to the adviser of the learner's section, link `/teacher/class-summary`; names the STUDENT, never the parent's login id |
 
 ---
 
@@ -1450,7 +1531,7 @@ the same as `router`.
 | Sections | 3 | `sections.js` |
 | Subjects | 1 | `assignments.js` |
 | Assignments | 3 | `assignments.js` |
-| Grades | 14 | `grades.js` |
+| Grades | 15 | `grades.js` |
 | Grading modes | 1 | `gradingModes.js` |
 | Attendance | 6 | `attendance.js` |
 | Announcements | 4 | `content.js` |
@@ -1463,24 +1544,26 @@ the same as `router`.
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
 | Policy | 3 | `policy.js` |
-| **Total** | **100** | |
+| **Total** | **101** | |
 
-14+11+5+3+1+3+14+1+6+4+4+4+6+5+5+6+4+1+3 = **100 handlers in `server/routes/`**
-(recounted from the code 2026-10-18, feat/first-signin: +2 auth `PUT /email`
+14+11+5+3+1+3+15+1+6+4+4+4+6+5+5+6+4+1+3 = **101 handlers in `server/routes/`**
+(recounted from the code 2026-10-21, feat/grade-acknowledgement — built, not
+merged: +1 grades `POST /acknowledgements`; 100 on 2026-10-18, feat/first-signin: +2 auth `PUT /email`
 and `PUT /first-password`; 98 on 2026-10-13, fix/grade-locks: +1 grades `POST /locks`;
 97 on 2026-10-10, feat/privacy: +3 policy; 94 on
 2026-09-30, feat/profile-photos: +2 auth `PUT`/`DELETE /photo`, +1 users
 `DELETE /:id/photo`; 91 on 2026-09-29, when
 the Total row had said 87 while the sum said 89). Plus `GET /api/health`,
-mounted directly in `server.js` = **101** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+mounted directly in `server.js` = **102** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than
 Contributions' eight — then the class record's `GET` and `PUT` landed, then
-the class summary's `GET`. **14 on 2026-10-13** with the bulk `POST /locks`.
+the class summary's `GET`. **14 on 2026-10-13** with the bulk `POST /locks`;
+**15 on 2026-10-21** with `POST /acknowledgements`.
 
-**State which number you mean.** 100 is handlers in route files; 101 is every
+**State which number you mean.** 101 is handlers in route files; 102 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files), and `POST /api/grades/locks` (2026-10-13, fix/grade-locks — recounted from the code the same day: 98 across 16 route files, grades 14), and `PUT /api/auth/email` + `PUT /api/auth/first-password` (2026-10-18, feat/first-signin — recounted from the code the same day: 100 across 16 route files, auth 14). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files), and `POST /api/grades/locks` (2026-10-13, fix/grade-locks — recounted from the code the same day: 98 across 16 route files, grades 14), and `PUT /api/auth/email` + `PUT /api/auth/first-password` (2026-10-18, feat/first-signin — recounted from the code the same day: 100 across 16 route files, auth 14), and `POST /api/grades/acknowledgements` (2026-10-21, feat/grade-acknowledgement — recounted from the code the same day: 101 across 16 route files, grades 15). Re-run the existence diff after a dispatch that adds or removes an endpoint.

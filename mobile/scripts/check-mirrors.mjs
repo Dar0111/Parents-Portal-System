@@ -70,6 +70,8 @@ export const PAIRS = [
   ['src/hooks/useCooldown.js', 'hooks/useCooldown.js'],
   // fix/socket-handshake fix round (R4) — when the Live updates strip shows.
   ['src/realtime/liveState.js', 'realtime/liveState.js'],
+  // feat/grade-acknowledgement — the parent's "I have seen these grades" words.
+  ['src/format/acknowledgement.js', 'format/acknowledgement.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

@@ -216,6 +216,30 @@ async function removeItemNotifications(conn, itemType, itemId) {
   return rows.map((r) => r.user_id);
 }
 
+// THE TYPED COUNTERPART (feat/grade-acknowledgement, 2026-10-21): only the
+// rows of the named TYPES for one item, never every row about it. An unlock
+// removes a term's grades_locked and grades_acknowledged rows — the term is no
+// longer final, so "please confirm" and "confirmed" both stop being true — and
+// must leave the same item's grade_available row alone: the grade is still
+// there to view. Removing the rows (rather than hiding them) is also what lets
+// a RELOCK notify again: uq_notifications_once would otherwise swallow the
+// second insert as a repeat. Returns the recipients, for the emit after
+// commit, like removeItemNotifications.
+async function removeTypedNotifications(conn, types, itemType, itemId) {
+  if (!types || !types.length) return [];
+  const [rows] = await conn.query(
+    'SELECT DISTINCT user_id FROM notifications WHERE type IN (?) AND item_type = ? AND item_id = ?',
+    [types, itemType, itemId]
+  );
+  if (!rows.length) return [];
+  await conn.query('DELETE FROM notifications WHERE type IN (?) AND item_type = ? AND item_id = ?', [
+    types,
+    itemType,
+    itemId,
+  ]);
+  return rows.map((r) => r.user_id);
+}
+
 // Per-user rooms already exist — socket.js:44 joins `user:<id>` at connect
 // time and routes/messages.js:402 established the pattern. NEVER io.emit().
 //
@@ -245,5 +269,6 @@ module.exports = {
   activeUserById,
   insertNotifications,
   removeItemNotifications,
+  removeTypedNotifications,
   emitNotifications,
 };

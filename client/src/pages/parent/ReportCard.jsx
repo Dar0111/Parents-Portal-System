@@ -1,9 +1,19 @@
 import { useMemo, useState } from 'react';
+import Button from '../../components/Button';
 import EmptyState from '../../components/EmptyState';
 import ErrorAlert from '../../components/ErrorAlert';
 import Skeleton, { SkeletonBar } from '../../components/Skeleton';
 import StatusBadge from '../../components/StatusBadge';
 import { cardClass } from '../../components/buttonClass';
+import {
+  CONFIRM_BUTTON,
+  TERM_FINAL_BODY,
+  confirmedLine,
+  confirmedReaderLine,
+  lockedTerms,
+  termFinalTitle,
+} from '../../format/acknowledgement';
+import { timestampDay } from '../../format/date';
 import GradeValue from '../../format/grade';
 import TermValue from '../../format/TermValue';
 import { useSkeleton } from '../../hooks/useSkeleton';
@@ -643,6 +653,68 @@ function TermView({
   );
 }
 
+// ---------------------------------------------------------------------------
+// THE TERM CONFIRMATIONS (feat/grade-acknowledgement, 2026-10-21)
+// ---------------------------------------------------------------------------
+// One block per LOCKED term — "Term 1 grades are final." — between the info
+// row and the grades, because it is about the term column the parent is
+// about to read. A term is locked when the server says so
+// (`acknowledgements[term].locked`: every subject locked with a value, the
+// bulk lock's own test); an unlocked term has nothing to confirm and no
+// block. The words are `format/acknowledgement.js`, shared with the phone.
+//
+// TWO READERS, ONE BLOCK. With `onConfirmTerm` (the parent's page) the block
+// asks — the body and the one button — and, once confirmed, says when. With
+// no handler (the adviser's drill-through, read-only) it says whether the
+// parent has confirmed, and nothing is a button. The button opens the
+// page's §5e dialog; this card never writes.
+//
+// PRESENTATIONAL AND EXPORTED, for the SSR proof: every state is reachable
+// by props. The date is `timestampDay` (Asia/Manila) and nothing here parses
+// one. `print:hidden` on the button only — "You confirmed Term 1 on …" is a
+// fact worth printing; a button is not.
+export function TermConfirmations({ acknowledgements, onConfirmTerm, confirmingTerm }) {
+  const terms = lockedTerms(acknowledgements);
+  if (!terms.length) return null;
+  return (
+    <div className="space-y-3 border-b border-edge px-4 py-4">
+      {terms.map((term) => {
+        const ack = acknowledgements[term];
+        const when = ack.acknowledged_at ? timestampDay(ack.acknowledged_at, { style: 'long' }) : null;
+        let body;
+        if (when) {
+          body = <p className="mt-1 text-sm text-fg-body">{onConfirmTerm ? confirmedLine(term, when) : confirmedReaderLine(when)}</p>;
+        } else if (onConfirmTerm) {
+          body = (
+            <>
+              <p className="mt-1 text-sm text-fg-body">{TERM_FINAL_BODY}</p>
+              <div className="mt-3 print:hidden">
+                <Button
+                  variant="primary"
+                  icon="fa-check"
+                  onClick={() => onConfirmTerm(term)}
+                  loading={confirmingTerm === term}
+                  disabled={confirmingTerm != null && confirmingTerm !== term}
+                >
+                  {CONFIRM_BUTTON}
+                </Button>
+              </div>
+            </>
+          );
+        } else {
+          body = <p className="mt-1 text-sm text-fg-muted">{confirmedReaderLine(null)}</p>;
+        }
+        return (
+          <section key={term} aria-label={termFinalTitle(term)} className="rounded-xl border border-edge bg-surface-subtle px-4 py-3">
+            <p className="text-sm font-semibold text-fg">{termFinalTitle(term)}</p>
+            {body}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 // THE CARD'S SKELETON (build 2, feat/dashboards-look, 2026-10-07): under the
 // real title band, the learner / class / adviser row, then one bar pair per
 // learning area — a name on the left, a value on the right, the shape both
@@ -700,6 +772,10 @@ export default function ReportCard({
   emptyIcon,
   emptyTitle,
   emptyMessage,
+  // feat/grade-acknowledgement: the parent's page passes `onConfirmTerm`
+  // (and which term's write is out); a reader passes neither.
+  onConfirmTerm,
+  confirmingTerm = null,
 }) {
   // ---------------------------------------------------------------------
   // THE CROSSOVER IS MEASURED ON THIS CARD, NOT ON THE WINDOW (DV3 review,
@@ -884,6 +960,11 @@ export default function ReportCard({
     <div className={frame}>
       {header}
       {info}
+      <TermConfirmations
+        acknowledgements={report.acknowledgements}
+        onConfirmTerm={onConfirmTerm}
+        confirmingTerm={confirmingTerm}
+      />
 
       {/* PRINT FORCES THE TABLE BRANCH (UI-D). This card's crossover is a
           CONTAINER query, and what the container measures during a print is

@@ -14,6 +14,8 @@ import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import { ReportCardSkeleton } from '../../components/SkeletonShapes';
 import Text from '../../components/Text';
+import { adminConfirmedLine, lockedTerms } from '../../format/acknowledgement';
+import { timestampDay } from '../../format/date';
 import GradeValue from '../../format/GradeValue';
 import TermValue from '../../format/TermValue';
 import { LOCK_TERM_LABEL } from '../../format/gradeLocks';
@@ -292,10 +294,24 @@ export default function GradesScreen({ navigation, route }) {
   const student = report?.student ?? null;
   const noGradesYet = subjects.length > 0 && subjects.every((s) => !s.terms[1] && !s.terms[2] && !s.terms[3]);
   const chosenSection = sectionOptions.find((s) => s.name === sectionName) || null;
+  // THE PARENT'S CONFIRMATIONS (feat/grade-acknowledgement): one line per
+  // confirmed term under the learner's header card, from the card (§5b).
+  const acks = report?.acknowledgements;
+  const confirmedLines = lockedTerms(acks)
+    .filter((t) => acks[t].acknowledged_at)
+    .map((t) => adminConfirmedLine(t, timestampDay(acks[t].acknowledged_at, { style: 'long' })));
 
   function openCell(subject, term) {
     setStatus(null);
-    navigation.navigate('GradeLock', { subjectName: subject.subject_name, term, mode, entry: subject.terms[term] });
+    // feat/grade-acknowledgement: the term's confirmation rides along, so the
+    // lock sheet can say what an unlock clears (the sheet makes no read).
+    navigation.navigate('GradeLock', {
+      subjectName: subject.subject_name,
+      term,
+      mode,
+      entry: subject.terms[term],
+      acknowledgement: report?.acknowledgements?.[term] ?? null,
+    });
   }
 
   // THE REPORT CARD'S SKELETON, AND WHOSE CARD IS ON SCREEN (feat/skeleton-
@@ -353,6 +369,12 @@ export default function GradesScreen({ navigation, route }) {
               <Text className="mt-0.5 text-sm text-fg-muted">
                 Grade {student.grade_level} · {student.section} · School year {report.school_year}
               </Text>
+              {confirmedLines.map((line) => (
+                <View key={line} className="mt-1 flex-row items-center gap-2">
+                  <Icon name="fa-circle-check" size={11} color={tokens['success-icon']} />
+                  <Text className="min-w-0 flex-1 text-sm text-fg-body">{line}</Text>
+                </View>
+              ))}
             </View>
           </View>
         ) : null}

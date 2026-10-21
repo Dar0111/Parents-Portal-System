@@ -70,6 +70,10 @@ export default function ClassSummaryLearnerPage() {
           'term_averages',
           'general_average',
           'general_average_descriptor',
+          // feat/grade-acknowledgement: the card's "Term N grades are final"
+          // block reads it — here with no handler, so it only says whether
+          // the parent has confirmed.
+          'acknowledgements',
         ],
       });
       setReport(data);

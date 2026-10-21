@@ -131,6 +131,16 @@ assert(
     JSON.stringify(['Nothing to unlock — no Term 2 grade is locked in Grade 6 - Malikhain.']),
   'unlock preview, nothing locked'
 );
+// feat/grade-acknowledgement: an unlock that clears parent confirmations says
+// so after the count; a lock never does (the server sends 0 for a lock).
+assert(
+  JSON.stringify(texts({ ...unlockPreview, acknowledgements_cleared: 2 })) ===
+    JSON.stringify(['To unlock: 8 grade records for 1 learner.', 'Confirmations to clear: 2.']) &&
+    JSON.stringify(texts({ ...unlockPreview, acknowledgements_cleared: 0 })) ===
+      JSON.stringify(['To unlock: 8 grade records for 1 learner.']) &&
+    !texts({ ...lockPreview, acknowledgements_cleared: 2 }).some((t) => t.startsWith('Confirmations')),
+  'unlock preview with confirmations: the clear line after the count, none at 0, never on a lock'
+);
 assert(skippedRow(marwin) === 'Conde, Marwin · Grade 6 - Malikhain · 8 of 8 subjects still Pending', 'the skipped row');
 assert(
   applyLabel(true, 8) === 'Lock 8 grade records' && applyLabel(true, 1) === 'Lock 1 grade record' && applyLabel(false, 8) === 'Unlock 8 grade records',

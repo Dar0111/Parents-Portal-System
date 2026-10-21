@@ -13,6 +13,8 @@ import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { cardClass } from '../../components/buttonClass';
+import { adminConfirmedLine, lockedTerms, unlockClearsSentence } from '../../format/acknowledgement';
+import { timestampDay } from '../../format/date';
 import GradeValue, { GradeLegend } from '../../format/grade';
 import { LOCK_TERM_LABEL } from '../../format/gradeLocks';
 import TermValue from '../../format/TermValue';
@@ -81,6 +83,9 @@ const REPORT_UNWRAP = [
   'subjects',
   'general_average',
   'general_average_descriptor',
+  // feat/grade-acknowledgement: per term, the lock state and the parent's
+  // confirmation (§1: the unwrap list is the line to change).
+  'acknowledgements',
 ];
 
 export default function AdminGradesPage() {
@@ -236,6 +241,20 @@ export default function AdminGradesPage() {
     const subject = subjects.find((s) => s.subject_id === selected.subjectId);
     return subject?.terms[selected.term] ?? null;
   }, [selected, subjects]);
+
+  // THE PARENT'S CONFIRMATIONS (feat/grade-acknowledgement, 2026-10-21): one
+  // line per confirmed term under the learner's header card, and — in the
+  // lock dialog — what an unlock of a confirmed term's cell does. Read from
+  // the card (§5b), formatted through Asia/Manila (§5a-iv); a confirmation
+  // exists only while its term is fully locked, so the dialog's sentence
+  // appears only on a locked cell of a confirmed term.
+  const confirmedLines = useMemo(() => {
+    const acks = report?.acknowledgements;
+    return lockedTerms(acks)
+      .filter((term) => acks[term].acknowledged_at)
+      .map((term) => adminConfirmedLine(term, timestampDay(acks[term].acknowledged_at, { style: 'long' })));
+  }, [report]);
+  const selectedConfirmedAt = selected ? (report?.acknowledgements?.[selected.term]?.acknowledged_at ?? null) : null;
 
   function openCell(subject, term) {
     setStatus({});
@@ -477,6 +496,16 @@ export default function AdminGradesPage() {
                     <p className="mt-0.5 text-sm text-fg-muted">
                       Grade {student.grade_level} · {student.section} · School year {report.school_year}
                     </p>
+                    {confirmedLines.length ? (
+                      <ul className="mt-2 space-y-0.5 text-sm text-fg-body">
+                        {confirmedLines.map((line) => (
+                          <li key={line} className="flex items-center gap-2">
+                            <i aria-hidden="true" className="fa-solid fa-circle-check text-xs text-success-icon" />
+                            <span>{line}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -624,6 +653,14 @@ export default function AdminGradesPage() {
               admins — and stops it from being deleted, until it is unlocked here. Parents and
               teachers still see it exactly as it is; the teacher sees it marked Locked.
             </p>
+            {/* §5i again: exactly what the unlock paths do (routes/grades.js
+                clearTermAcknowledgement) — shown only while the parent's
+                confirmation of this term exists. */}
+            {selectedConfirmedAt ? (
+              <p className="text-sm text-fg-body">
+                {unlockClearsSentence(timestampDay(selectedConfirmedAt, { style: 'long' }))}
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="text-sm text-fg-muted">This term no longer has a grade record.</p>

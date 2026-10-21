@@ -1865,6 +1865,9 @@ async function run() {
     // for that lives in the client render proof.
     const cardKeys = Object.keys(grade1ReportCard.data || {}).sort();
     const expectedCardKeys = [
+      // feat/grade-acknowledgement (2026-10-21): the per-term lock state and
+      // the parent's confirmation, one object per term, always present.
+      'acknowledgements',
       'general_average',
       'general_average_descriptor',
       'grading_mode',
@@ -1877,7 +1880,7 @@ async function run() {
     ];
     assert(
       JSON.stringify(cardKeys) === JSON.stringify(expectedCardKeys),
-      `Report card returns exactly the documented keys — the eight payload keys plus the success envelope (got ${JSON.stringify(cardKeys)})`
+      `Report card returns exactly the documented keys — the nine payload keys (acknowledgements since feat/grade-acknowledgement) plus the success envelope (got ${JSON.stringify(cardKeys)})`
     );
     // term_average_descriptors (pre-Stage-5 #2, item m): a Key Stage 1 card
     // is descriptive, so every term average is null and so is every word.

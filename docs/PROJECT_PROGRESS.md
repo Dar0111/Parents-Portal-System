@@ -23,7 +23,9 @@ trim-9 (`bba67bd`), the grade locks and
 the smoke gate's F4–F7 (2026-10-13), the web load races (2026-10-12),
 skeleton tier 2, staff acceptance, the socket handshake, skeleton option 1,
 shared Messages and privacy. F3 (a visit clearing a page's badge) is a KNOWN
-ISSUES row and `fix/f3-badges` in the owner's order.**
+ISSUES row and `fix/f3-badges` in the owner's order. Built, gated with its
+database part and pushed on its own branch, not merged:
+`feat/grade-acknowledgement` — its device check is next.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -62,6 +64,7 @@ and only there.
 | The first sign-in — `feat/first-signin` (pre-Oct-21 build, branch 1 of 6 in the owner's order): consent → a confirmed Gmail or mobile number → your own password (no temporary-password field, `PUT /auth/first-password`; a temporary password on a confirmed account confirms it again); your own email (`PUT /auth/email`, web and phone Settings); the 60-second resend cooldown on every code, forgot-password included, counted down on both clients (built and gated 2026-10-18; device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round; cleaned up by id, backup 324; merged 2026-10-21, `9d3b430`) | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 |
 | Account creation — `feat/account-create` (pre-Oct-21 build, branch 2 of 6): Create teacher and Create parent drop the Email and Contact number fields on the web's three forms and the phone's two screens, and `POST /users/teachers` / `POST /users/parents` refuse a value with `400` "no longer collected" naming the field (the owner's decision of 2026-10-16); the holder confirms a contact at the first sign-in; Admin → Users → Edit, Settings and the contact gate unchanged (built and gated 2026-10-21, `1e43b6a`; device-checked 2026-10-21 in the combined check with `feat/password-alert` — Sections 1–10, no findings — and cleaned up by id after backup 338; merged 2026-10-21, `2b85331`) | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 |
 | The password alert — `feat/password-alert` (pre-Oct-21 build, branch 3 of 6, on `feat/account-create`): after any password change — Settings → Change password, Forgot password's reset, the first sign-in's own password, the admin's temporary password — the holder gets a "was this you?" email and/or text on every confirmed channel, no code and no link, sent after the reply and never blocking the change; nothing confirmed is logged; the office's temporary password has its own words (the owner's decision of 2026-10-14/16; built and gated 2026-10-21; the two email hard-wrap fixes `b34f354` and `e78c635` during the check; device-checked 2026-10-21 in the combined check — every alert arrived on the confirmed channel, none on an unconfirmed one — and cleaned up after backup 338; merged 2026-10-21, `2b85331`) | ✅ merged 2026-10-21 | — (untouched) | — (untouched) |
+| Grade acknowledgement — `feat/grade-acknowledgement` (pre-Oct-21 build, branch 4 of 6, rebased onto `main`): a parent confirms a TERM of the report card once every subject is locked ("I have seen these grades", a §5e dialog / system Alert naming the term back), the adviser's bell is told and the class summary gains a Confirmed column, Admin → Grades lists the confirmed terms and the lock dialog says an unlock clears one; `POST /api/grades/acknowledgements`, the 26th table `grade_acknowledgements`, two bell-only notification types, `acknowledgements_cleared` on the bulk unlock (the owner's Q1–Q12 of 2026-10-21; built and DB-free gated 2026-10-21; rebased onto `main` `f9b3a68` and its database part run the same night — the migration twice after backup 339, the 23 HTTP suites, every proof, `smoke:isolated` 20/20, the new suite's cleanup fixed after backup 344 — committed and pushed; NOT device-checked; NOT merged) | 🔶 built | 🔶 built | 🔶 built |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -90,7 +93,7 @@ A module with tables and no handlers is not started; there are none.
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
 | Subjects + assignments | `subjects`, `teacher_assignments` | 1 + 3 | `test:assignments` | none by decision; read by pickers |
-| Grades | `grades`, `grade_components`, `assessment_slots`, `grade_weight_configs`, `transmutation_table`, `grading_mode_configs` | 14 + 1 (`/grading-modes`) | `test:grades`, `test:class-record`, `test:class-summary`, `test:grade-locks`, `test:grading-modes`, `test:grade-computation`, `verify:grading-seed` | Teacher → Grades (the class record), Teacher → Class summary + learner card; Parent → Grades (report card + term breakdown); Admin → Grades (lock one grade; lock or unlock a whole term — `fix/grade-locks`) |
+| Grades | `grades`, `grade_components`, `assessment_slots`, `grade_weight_configs`, `transmutation_table`, `grading_mode_configs`, and on `feat/grade-acknowledgement` `grade_acknowledgements` | 14 + 1 (`/grading-modes`); 15 on `feat/grade-acknowledgement` (`POST /acknowledgements`, built, not merged) | `test:grades`, `test:class-record`, `test:class-summary`, `test:grade-locks`, `test:grading-modes`, `test:grade-computation`, `verify:grading-seed`; on the branch `test:grade-acknowledgements` | Teacher → Grades (the class record), Teacher → Class summary + learner card (a Confirmed column on the branch); Parent → Grades (report card + term breakdown; "I have seen these grades" per locked term on the branch); Admin → Grades (lock one grade; lock or unlock a whole term — `fix/grade-locks`; the confirmed terms and what an unlock clears, on the branch) |
 | Attendance | `attendance` | 6 | `test:attendance` | Teacher → Attendance, Attendance records; Parent → Attendance (calendar); Admin → Attendance |
 | Announcements, memos, events | `announcements`, `memos`, `events` | 12 | `test:content` | Teacher ×3; Parent ×3; Admin → Announcements (with memos) |
 | Excuse letters | `excuse_letters` | 6 | `test:excuses` | Teacher → Excuse Letters (review); Parent → Excuse Letters |
@@ -151,18 +154,22 @@ and cleaned up — `docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9), then
 (`2b85331` — the combined device check PASSED, Sections 1–10, no findings;
 the §11 cleanup done and verified after backup 338,
 `docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md` §11–§12; `main`
-fast-forwarded from `bba67bd` by the ref move). **Next, on the owner's
-word:** `feat/grade-acknowledgement` — built and DB-free gated in its own
-worktree, waiting — rebases onto this `main` and runs its database part
-(the migration after a backup, the 23 HTTP suites, the smoke, its commit),
-then its own check. **Then the rest of the pre-Oct-21 order:**
-`fix/f3-badges`, `feat/activity-log`, each on its own check; then
-`docs/pre-oct21`, the demo data and a new restore point.
+fast-forwarded from `bba67bd` by the ref move). **`feat/grade-acknowledgement`
+is rebased onto this `main` and its database part ran 2026-10-21** (backup
+339, the migration twice, the 23 HTTP suites, every proof again, the smoke,
+the survey; the new suite's cleanup fixed after backup 344), committed and
+pushed, not merged. **Next, on the owner's word:** its device check
+(`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md`). **Then the rest of the
+pre-Oct-21 order:** `fix/f3-badges`, `feat/activity-log`, each on its own
+check; then `docs/pre-oct21`, the demo data and a new restore point. **For
+Session B (the Supabase migration, `migrate/postgres-prep`):** the 26th
+table and the two enum values, listed on this branch's CHANGELOG row.
 The owner's own target is everything finished, the Supabase migration
 included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
 restore point is still backup 317,
 `parents_portal_2026-10-13_233314.sql` (324 and 338 are the two checks'
-pre-cleanup dumps, not restore points).
+pre-cleanup dumps and 339 and 344 this branch's pre-write dumps, not
+restore points).
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). The badged-pages pass is `fix/f3-badges` in the order

@@ -4236,3 +4236,86 @@ RENDERED with and without the router state, F7 as source — each with a
 control. **Cannot prove** a real save, a real reset, a real lock or the dialog
 closing on screen — the device check (`docs/GRADE_LOCKS_DEVICE_CHECK.md`).
 
+## 33. Grade acknowledgement — "I have seen these grades", once per locked term (`feat/grade-acknowledgement`, 2026-10-21)
+
+The owner's Q1–Q12 (2026-10-21). A parent confirms a TERM of their child's
+report card once the school has locked it; the adviser is told; an unlock
+clears it. The server rules are `docs/API_REFERENCE.md` → "Grade
+acknowledgements"; this section is the screens. **Every word on every
+screen is `format/acknowledgement.js`** — pure, mirrored byte for byte to
+the phone (`lint:mirrors`) — so the parent's card, the adviser's sheet and
+Admin → Grades cannot drift.
+
+### 33a. Parent → Grades — the block on the report card
+
+- **One block per LOCKED term, between the info row and the grades**
+  (`ReportCard.jsx` `TermConfirmations`, exported for the proof): "Term N
+  grades are final." over "The school has locked them. Please confirm that
+  you have seen them." and the one button, **"I have seen these grades"**.
+  A term is locked when the server says so — `acknowledgements[term].locked`
+  is "every subject of the term locked with a value", the bulk lock's own
+  test; a term that is not shows no block at all. **No lock date:** nothing
+  records when a term was locked, so the sentence names none (§5i).
+- **The button opens a §5e dialog; the card never writes.** The write cannot
+  be undone by the parent (only an admin's unlock clears it), so the dialog
+  names the term back — "Confirm Term N grades?", "This tells the adviser
+  and the school that you have seen your child's Term N grades. It cannot
+  be undone.", **Go back** / **Yes, I have seen them** — and only the second
+  step posts `POST /api/grades/acknowledgements { term }`. A failure renders
+  INSIDE the dialog (`FormStatus`, §7c); a success closes it and re-reads
+  the card, whose block then says **"You confirmed Term N on 21 October
+  2026."** — the result next to the control that caused it, from the
+  server's own row (§5b), the Manila day (`timestampDay`, §5a-iv), never
+  this page's state. `print:hidden` on the button only: the confirmed line
+  is a fact worth printing.
+- **The unwrap list gained its eighth key** — `acknowledgements` — on the
+  parent page, the adviser's learner page and admin Grades (§1).
+- **The parent's bell** carries `grades_locked` ("Term N grades are final" /
+  "Please confirm you have seen your child's Term N grades.", link
+  `/parent/grades`), bell only like every grade type (§10); it stops being
+  listed and counted once the confirmation exists (the self-heal, §10),
+  and the row stays unread as history.
+
+### 33b. Teacher → Class summary and the learner's card
+
+- **A "Confirmed" column on a TERM sheet only** (`ClassSummaryTable`): the
+  header "Confirmed" over "N of M learners" (counted, never concluded —
+  §4); per learner the date (`timestampDay` short), **"Not yet"** while the
+  term is locked and unconfirmed, and **"—"** while it is not locked —
+  not a grade value, so §3's rule does not apply, and the cell carries the
+  accessible name "Not locked yet". Never on the Final sheet: there is no
+  term to confirm. `ScrollCue`'s sentence names the hidden trailing columns
+  — "Scroll for 3 more subjects, the Average and Confirmed →".
+- **The learner's drill-through** renders the same `ReportCard` with NO
+  `onConfirmTerm`, so the block says "Confirmed by the parent on <date>." or
+  "The parent has not confirmed yet." and nothing in it is a button.
+- **The adviser's bell** carries `grades_acknowledged` ("Grades confirmed" /
+  "<Learner>'s parent has seen the Term N grades.", link
+  `/teacher/class-summary`) — the adviser of the learner's section only
+  (`excuseAdviserAudience`, the review authority), re-checked live, so a
+  teacher who stops advising the section stops seeing it.
+
+### 33c. Admin → Grades — what an unlock clears
+
+- **One line per confirmed term under the learner's header card** — "Term N
+  · Confirmed 21 October 2026" with the check icon — from the card (§5b).
+- **The lock dialog says what an unlock does** (§5i), only while the
+  parent's confirmation of that cell's term exists: "The parent confirmed
+  these grades on <date>. Unlocking clears that confirmation, and the parent
+  is asked again after a relock." The bulk dialog's unlock preview adds
+  **"Confirmations to clear: N."** after its count (`format/gradeLocks.js`,
+  `LOCKS_UNWRAP` + `acknowledgements_cleared`); a lock never shows it.
+- **Nothing for the admin's bell** (the owner's Q5).
+
+### 33d. What proves it
+
+`scripts/ssr-grade-acknowledgement.jsx` (TESTING): the words exactly; the
+block RENDERED in the parent's three states and the reader's, and nothing
+for an unlocked term; the whole report card with the block in its place and
+no `initial_grade` leaking; the summary's column on a term sheet and absent
+on the Final; the unwrap lists against the handlers' keys; the parent page,
+admin Grades, the two route files, `schema.sql` and the migration as source —
+each with a control. `ssr-grade-locks` gained the unlock preview's clear
+line. **Cannot prove** a real confirm, the dialog's focus or the bell — the
+owner's device check (`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md`).
+
