@@ -157,9 +157,10 @@ function passwordChangedMessage({ name }) {
       '',
       'If this was you, there is nothing to do.',
       '',
-      "If it was not you, open the Parent's Portal sign-in page, choose",
-      'Forgot password and set a new password with the code we send — or',
-      'tell the school office.',
+      // ONE LINE PER PARAGRAPH (the owner's finding, row 4 of the combined
+      // check): a wrap typed into a plain-text body is a hard break that Gmail
+      // on a phone shows as one. The blank lines between paragraphs stay.
+      "If it was not you, open the Parent's Portal sign-in page, choose Forgot password and set a new password with the code we send — or tell the school office.",
       '',
       'Nobody from the school will ever ask you for your password.',
       '',
@@ -174,12 +175,10 @@ function temporaryPasswordMessage({ name }) {
     text: [
       `Hello ${name},`,
       '',
-      "The school office set a temporary password for your Parent's Portal",
-      'account just now. Every device that was signed in has been signed out.',
+      // One line per paragraph, as above.
+      "The school office set a temporary password for your Parent's Portal account just now. Every device that was signed in has been signed out.",
       '',
-      'If you asked the office for this, use the temporary password they gave',
-      'you the next time you sign in. You will then confirm your Gmail or',
-      'mobile number and choose a password of your own.',
+      'If you asked the office for this, use the temporary password they gave you the next time you sign in. You will then confirm your Gmail or mobile number and choose a password of your own.',
       '',
       'If you did not ask for this, tell the school office.',
       '',
