@@ -7699,3 +7699,248 @@ headings carry. **Every full row is in `docs/CHANGELOG.md` with one
 exception: the Notifications N1 server dispatch has no row there**, so its
 stub in the third batch is the only surviving summary. A stub is moved out
 when this file approaches its size limit, never deleted.
+
+---
+
+## Blocks moved from CLAUDE.md on 2026-10-21 (docs/trim-10, the tenth trim)
+
+Four blocks, verbatim as they stood on 2026-10-21 (`feat/password-alert`
+`e78c635`), moved as the first commit of `feat/grade-acknowledgement` so
+CLAUDE.md stays under its 138,000-byte trigger through the pre-Oct-21 build's
+remaining branches. For each, every rule stayed in CLAUDE.md as one line, with
+a pointer here.
+
+### BLOCKED / RESOLVED → Grades module, the class summary's four rules and the class record's five, as they stood until 2026-10-21
+
+**The class summary is BUILT (CR3a + CR3, 2026-09-22/23)** — the grades track
+is complete. `GET /api/grades/class-summary`, `subjects.display_order`, and
+Teacher → Class summary with a read-only drill-through to `ReportCard`.
+**Four rules stated nowhere else here:**
+
+- **Grades READ scope is assigned-OR-adviser; ENCODE is unchanged.** The
+  adviser of a section could not read one grade in it until CR3 — TCH-002 is
+  that account. **Widening encode to advisers would invent school policy.**
+- **`TEACHER_ADVISES_CLASS_SQL` sits beside `TEACHER_VIEW_SCOPE_SQL` in
+  `utils/teacherScope.js` and THE TWO MOVE TOGETHER.** Two forms of one rule:
+  the original needs a `students` row, the new one a class key. **Routing the
+  grades callers through `students` would make an EMPTY class invisible to an
+  assigned teacher** — that is why both exist.
+- **The printed order is `subjects.display_order`, not a client constant.**
+  Every reader sorts `display_order IS NULL, display_order, name` (null-last —
+  MySQL sorts NULL first). **Every grade level carries an order since
+  2026-09-26** (all six confirmed by the school on 2026-09-23); nothing
+  falls back to `name ASC`, and the leading `IS NULL` term stays for the
+  idiom.
+- **A descriptive letter is NOT a `GradeValue`.** Cells go through
+  `format/TermValue.jsx`, or `Number('A') → NaN → null` renders every Grade 1
+  letter as "— N/A". **An unrecorded letter is Pending, not N/A.**
+
+Full contract: `docs/API_REFERENCE.md` → The class summary. The page:
+`docs/FRONTEND_CONVENTIONS.md` **§14**. The order: `docs/GRADING_SPEC.md`
+**§6d-i**.
+
+**The class record is BUILT (CR0–CR2, 2026-09-22)** — `GET` and
+`PUT /api/grades/class-record`, the 23rd table `assessment_slots`, and
+Teacher → Grades rebuilt as the grid. **Five rules stated nowhere else in this
+file:**
+
+- **A slot is USED once it has a highest possible score** — not once it has a
+  row. **An unused slot is left out entirely; a USED slot where a learner has
+  no score makes that learner's whole group Pending — never left out, never
+  zero.** Leaving it out silently RAISED the grade of a learner who missed an
+  assessment; that was a real defect, found in review twice.
+- **Every score and every highest possible score is a WHOLE number**, refused
+  on the server at all four per-row write paths and the class record. This
+  does not make computed values integers (§4a).
+- **A score above its HPS is allowed and flagged, never refused or clamped** —
+  matching `gradeComputation.js`, and **the school confirmed on 2026-09-23
+  that it DOES award bonus points** (event participation), added to PT. The
+  behaviour was already right; what changes is that copy may now say so.
+- **Both class-record routes are registered BEFORE `GET /:id`** or
+  `class-record` parses as an id. Do not reorder `routes/grades.js`.
+- **`slot_id` is REQUIRED on `POST`/`PUT /:id/components`.** Only the
+  class-record `PUT` may create a column and its scores in one save, by
+  addressing a slot as `type` + `slot_no`.
+
+Full contract: `docs/API_REFERENCE.md` → The class record. The policy behind
+it: `docs/GRADING_SPEC.md` **§6e**. The page: `docs/FRONTEND_CONVENTIONS.md`
+**§13**.
+
+### STAGE 5 MOBILE CONVENTIONS → the bullets with their reasoning, as they stood until 2026-10-21
+
+- **`mobile/` is its own package and imports nothing from `client/` or
+  `server/`.** A module the web owns is COPIED byte for byte and
+  `npm run lint:mirrors` proves each copy equal; a divergence is a new file,
+  never an edit to a mirror. Renderers (`grade.jsx`, `TermValue.jsx`) are
+  rewritten over the copied logic. (M1)
+- **Tokens are GENERATED from `client/src/index.css`** — `npm run
+  lint:tokens` regenerates `src/theme/tokens.js` and `global.css` in memory
+  and fails on any difference; `npm run tokens:write` refreshes them. RN
+  reads no `oklch()`, so the values are converted (OKLab reference, probed
+  against seven Tailwind hexes). `tailwind.config.js` REPLACES the palette:
+  `bg-slate-500` does not compile. `npm run lint:colors` also refuses a hex /
+  rgb / hsl literal outside `tokens.js`. (M2)
+- **The theme is NativeWind's ROOT VARIABLES, set from JS** — `applyTheme`
+  writes every token through `StyleSheet.registerCompiled`; key `pp.theme` in
+  AsyncStorage, **Light by default**, System live only while stored. **Never
+  `colorScheme.set()` or `Appearance.setColorScheme()`**: on Android each is a
+  process-wide night-mode change (the blank strip after a theme switch, FR7).
+  Re-verify `registerCompiled` on every NativeWind upgrade. **Text size is a
+  declared deviation: dropped for the OS font scale.** (M3)
+- **Auth parity is §22 with three named differences**: the token in
+  expo-secure-store behind an injected provider (`api/client.js` imports
+  nothing native, so a proof can load it); a 401 clears the store and
+  signals `AuthContext`, the reason in memory, never a navigation param; a
+  15 s timeout, filed as "keep the token". The root navigator IS
+  `ProtectedRoute`: an unmounted `Stack.Screen` cannot be reached. **The
+  native splash is released when the theme is ready and the fonts have
+  settled (loaded, failed or 2.5 s), never held for
+  `/auth/me`** — held, a stuck request leaves the phone on Expo Go's overlay
+  with no way out; our own spinner covers the read. (M4)
+- **The network proof order is fixed:** phone Chrome reaches
+  `/api/health` with `"db":"ok"` before `npx expo start`.
+  `EXPO_PUBLIC_API_URL` is inlined at bundle time (restart Metro to change
+  it). **What opened 5000 and 8081 is the program rule for `node.exe`, not
+  a port rule.** (M5)
+- **Dev-only code is excluded at Metro's resolver (`context.dev`), never by
+  `__DEV__`** — a `__DEV__ ?` JSX branch left its strings in the first
+  production bundle (measured), and a static import keeps a module in the
+  graph whatever any branch says; what the toolchain folds is not a rule to
+  build on. `src/screens/dev/` is an empty module in production and is
+  grepped absent, with a positive control, before each mobile commit.
+  (M5, TESTING → Mobile proofs)
+- **The template's `CLAUDE.md`, `AGENTS.md` and `.claude/` do not survive
+  the scaffold** — a nested instruction file is a second source of truth.
+  (M6)
+- **There is no render proof on mobile; every screen is proved on the
+  phone**, both themes, every field typed, the error path seen once, and a
+  check that writes cleans up by id, backup first. **Reload by cold boot
+  (force-close, reopen), never by `r` in Metro** — it stuck twice on the
+  hotspot and a result read off it is not a result. **After a checkout in the
+  tree Metro serves, `npx expo start --clear` first** — a cold boot alone
+  served the old bundle (2026-10-13). Four lint figures per
+  dispatch: oxlint, mirrors, tokens, colors. (M7)
+- **Icons are the web's `fa-*` names resolved by `src/icons.js`; an
+  unmapped name throws in DEV.** (M8)
+- **Phone Attendance asks on every exit while FOCUSED and dirty** (drawer
+  items, account card, bell, Logout, hardware Back), and because a drawer
+  screen stays mounted, **Leave and discard resets the marks BEFORE the exit
+  runs**. (M14, fix/leave-guard)
+- **The message toast floats over AppShell's stack** at the top inset + 56
+  (React Navigation's default Android header; no `@react-navigation/elements`
+  import), and "in that conversation" is the FOCUSED route. **Every tone
+  awaits the ONE module-level audio mode** (`playsInSilentMode: false`), so
+  silent and vibrate-only play no tone; **DND still plays it** — Expo Go
+  cannot read DND (KNOWN ISSUES; the APK fix). (M22)
+- **The status bar is PAINTED, never style-only** — React Native's own
+  `StatusBar` at the root (`App.jsx`) with the header's `surface` and the
+  theme's icon style, not translucent; `ScreenStatusBar` while FOCUSED on a
+  screen whose top is not a header (the sign-in band, the public About).
+  React Native re-sends its default background — the window colour with its
+  alpha dropped — so a style-only bar turned black. Device-checked on
+  Android 14 in Expo Go; Android ignores the colour under enforced
+  edge-to-edge (KNOWN ISSUES). (M24)
+- **A form draft lives on the device until submit, discard or logout** —
+  AsyncStorage through the pure `drafts/deviceDrafts.js`; the hook writes
+  nothing until the stored draft has been read; Discard and the hand-off
+  question are system `Alert`s; no "continue draft" after a kill. (M25)
+- **Each first-sign-in step is a RootNavigator branch — consent, then
+  ConfirmContact (the Android back button consumed), then the new password —
+  and the realtime providers mount only past all three** (`nextStep()`,
+  mirrored); each tick is a 48dp checkbox row; each exit is `refresh()`. (M26)
+- **One LiveStatus strip per signed-in screen, below the header, and one
+  bottom frame** — the drawer's and the stack's `screenLayout` add both;
+  Home and Main take a bare layout. (M9)
+
+### KNOWN ISSUES → the five phone / APK rows, as they stood until 2026-10-21
+
+| Issue | Where | Note |
+|---|---|---|
+| **Expo Go on the Play Store moves to SDK 58 in October 2026, and an auto-updated Expo Go stops loading this SDK 57 project** — added 2026-09-27 | `mobile/package.json` + Darryl's phone | Auto-update is OFF on the phone (2026-09-27). Fallbacks: the SDK 57 APK from expo.dev/go, or Expo CLI installing it over USB. **The November defense needs one of those or an SDK 58 upgrade first.** Not a code defect; a date to watch |
+| **A standalone or development build refuses plain `http://` in release** — added 2026-09-27 | `mobile/app.json` | Expo Go allows cleartext to a LAN IP. A release build needs `expo-build-properties` with `android.usesCleartextTraffic: true` or a network security config naming the IP. Nothing to do while Expo Go is the device |
+| **The phone's message tone plays during Do Not Disturb** — added 2026-10-02 | `mobile/src/realtime/MessageToast.jsx` + expo-audio | Media stream; expo-audio's silent gate reads the ringer only, and Expo Go cannot read DND. Silent / vibrate-only ARE quiet. **Fix with the APK:** a native interruption-filter check, or notification-usage audio (`docs/APK_READY_PLAN.md`) |
+| **The phone's 150 ms vibration ignores DND and the ringer** — added 2026-10-02 | `MessageToast.jsx` (`Vibration.vibrate`) | React Native's `Vibration` sets no attributes. Kept by the owner; fix with the APK alongside the tone |
+| **The phone's status bar colour relies on React Native StatusBar's `backgroundColor`, which Android ignores under enforced edge-to-edge** — added 2026-10-04 | `mobile/App.jsx` + `components/ScreenStatusBar.jsx` | The full check ran in Expo Go on Android 14 with Full Screen for Apps on Show Cutout; with Auto (the default) a cold boot in Light painted correctly, so no phone setting is needed. Android 15+ with a target SDK of 35+ skips the colour. **Re-check on every Expo SDK upgrade, on an Android 15+ phone and in the APK** |
+
+### HOW TO WORK WITH DARRYL → the working agreement's bullets with the incident behind each, as they stood until 2026-10-21
+
+- Write or edit file content only with the Write/Edit tools — never through
+  `python -c`, `echo`, heredocs or any shell quoting (CLAUDE.md was once
+  truncated to 0 bytes this way).
+- **Never pipe a heredoc to an interpreter (`python -`, `node -`): it HANGS
+  on stdin instead of failing. A kill is confirmed by LISTING processes, not
+  by the kill's own output.**
+- **Never `git checkout --` (or any restore from HEAD) on uncommitted work.**
+  It restores from the last COMMIT, not from where you were, so every
+  uncommitted change in that file is gone with no warning. **Before a
+  negative control, copy the file** (`cp x x.bak`) and put it back from the
+  copy. `DataTable.jsx` lost a whole dispatch's edits this way on
+  2026-09-20 and had to be rebuilt from scratch.
+- Before writing code for a new module, state the exact list of files you
+  will create or modify. If you later need a file outside that list, stop
+  and say "SCOPE EXPANSION — need `<path>` because `<reason>`" rather than
+  quietly adding it.
+- **A whitelist includes every PROOF that renders a touched module**, so a
+  PLAN ONLY greps `client/scripts/` for them and lists them up front. Missed
+  twice running — `ssr-cards.jsx` in UI-C1b, `ssr-ui-a.jsx` in UI-D-1 — each
+  costing a mid-dispatch stop. A proof is coupled to what it renders.
+- When you stop, name the reason with one of: BASELINE MISMATCH, SCOPE
+  EXPANSION, CONTENT DRIFT, or a specific behavioral reason. "Something is
+  wrong" is not a stop reason.
+- **Any view of a seed, suite or proof is MASKED from the FIRST view** —
+  every run of 6+ digits, every email and every phone number, as well as
+  login ids and password lines (2026-10-06). LRNs are parent login ids, some
+  only 7–8 digits, and the pilot will hold real ones; a mask written for one
+  shape printed the others. Never print a login id, LRN, password, email,
+  phone or `.env` value, in tool output too. **Since 2026-10-10: any view of
+  suites, seeds or scripts masks EVERY string literal except API paths, from
+  the first view** — two dispatches in a row printed seeded credentials (an
+  old scratchpad script; a suite's `login('…', '…')` call).
+- **Every dispatch report ENDS with `Shell content writes: N`.** N should be
+  **0**; any non-zero lists the file and the commit. Added 2026-09-23 after a
+  `node -e` append put a block header through the shell and bash ate the
+  backticks in `` `activity_logs` ``, writing the sentence with the token
+  missing. A count that must be stated is harder to forget than a rule that
+  must be remembered.
+- **Before any live-DB write outside a suite — a migration, a by-hand
+  cleanup delete — `GET /api/health` must answer, then `POST /api/backups`
+  must return `201`, then write. If the backup call fails, the `--watch` API
+  is most likely mid-restart from a server-file edit: wait and retry; never
+  proceed without it.** Added 2026-09-26 after #5a's migration ran behind
+  two failed backup calls (`docs/CHANGELOG.md`).
+- **Set HPS → Done on Teacher → Grades is a DRY RUN; "Save all" writes**
+  slots, components and a grade row for each learner scored — for EVERY
+  learner (shell rows) only when it carries Summative maxima (measured
+  2026-09-26 and 2026-09-28). A browser check that saves
+  ends with cleanup by id, backup first — twice (#5b, #7) a later suite's
+  baseline found the rows instead.
+- Test assertions against shared tables must be scoped to rows the run
+  itself created, or written as invariants (`.every(...)`) that additional
+  real rows still satisfy. Never assert an exact row count or exact list
+  contents on a table the application also writes to. A suite that fails
+  when someone uses the feature is not testing the feature.
+- Before any module dispatch, confirm the current branch. New module work
+  starts on `feature/<module>`, never on `main`. (Missed on 2026-08-31 —
+  Excuse Letters was written on `main` and moved to a branch after the
+  fact.)
+- **After any merge to `main`, report `git log --oneline -1` and confirm
+  that commit is the one this dispatch produced.** `git status` being
+  clean does not prove the work landed. Teacher → Contributions (2026-09-08)
+  was written, browser-verified, and reported ready to commit; it was
+  never committed. The next dispatch needed a clean tree, so the work was
+  stashed, admin-prerequisites merged, and the stash was never reapplied.
+  Both then believed the Teacher role was complete for two dispatches.
+  A stash is how finished work becomes invisible. This is the second time
+  state has gone missing between dispatches — the first was leftover DB
+  state from a crashed test run. A stash left from a finished page is
+  not a WIP parking lot; check it the same way.
+- **A dispatch that changes a WRITE path runs every suite that WRITES
+  through it — not only the suite named after the file it edited, and not
+  only the suites that READ what it writes.** Find them with
+  `grep -n "'/api/<path>'" server/scripts/test-*.js` (plus any
+  `INSERT INTO <table>` the change depends on). `test:grades` was broken
+  2026-09-10 → 2026-09-13 because the POST /students change (d47589b) ran
+  `test:students` only, and the next students change (a068d8a) ran the
+  three suites that READ `section_id` — attendance, excuses, students —
+  but not grades, which WRITES a student through POST. Read versus write is
+  the gap.
