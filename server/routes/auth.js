@@ -16,6 +16,7 @@ const photos = require('../utils/profilePhoto');
 const throttle = require('../utils/loginThrottle');
 const policy = require('../utils/policy');
 const gates = require('../utils/accountGates');
+const { sendPasswordAlert } = require('../utils/passwordAlert');
 
 const router = express.Router();
 
@@ -253,7 +254,12 @@ router.put('/change-password', authenticate, async (req, res) => {
     const [[v]] = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const token = mintToken({ id: req.user.id, role: req.user.role }, v.token_version);
 
-    return res.json({ success: true, message: 'Password changed successfully.', token });
+    res.json({ success: true, message: 'Password changed successfully.', token });
+    // THE PASSWORD ALERT (feat/password-alert, 2026-10-21): the "was this
+    // you?" note to every confirmed channel, AFTER the reply and never awaited
+    // — a failed send changes nothing here (utils/passwordAlert.js).
+    sendPasswordAlert({ userId: req.user.id, kind: 'password_changed' });
+    return undefined;
   } catch (error) {
     console.error('Change password error:', error);
     return res.status(500).json({ success: false, message: 'Failed to change password.' });
@@ -328,7 +334,11 @@ router.put('/first-password', authenticate, async (req, res) => {
     const [[v]] = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const token = mintToken({ id: req.user.id, role: req.user.role }, v.token_version);
 
-    return res.json({ success: true, message: 'Password saved.', token });
+    res.json({ success: true, message: 'Password saved.', token });
+    // The password alert, after the reply (one rule, no branch — the owner's
+    // answer Q1: a brand-new account is told too).
+    sendPasswordAlert({ userId: req.user.id, kind: 'password_changed' });
+    return undefined;
   } catch (error) {
     if (isDbUnavailable(error)) return sendDbUnavailable(res, 'First password', error);
     console.error('First password error:', error.code || error.message);
@@ -736,7 +746,12 @@ router.post('/reset-password', async (req, res) => {
     );
     await logActivity(user.id, 'password_reset', 'Password reset with a sent code');
 
-    return res.json({ success: true, message: 'Password updated. You can sign in now.' });
+    res.json({ success: true, message: 'Password updated. You can sign in now.' });
+    // The password alert, after the reply: a reset by one inbox or phone is
+    // told to every OTHER confirmed channel too. Sent only after a successful
+    // reset, with the reply unchanged, so nothing here is an oracle.
+    sendPasswordAlert({ userId: user.id, kind: 'password_changed' });
+    return undefined;
   } catch (error) {
     console.error('Reset password error:', error);
     return res.status(500).json({ success: false, message: 'Failed to reset the password.' });

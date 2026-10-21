@@ -69,11 +69,15 @@ let warned = false;
 // NOTHING HERE IS EVER LOGGED. Not the code, not the body, not SMTP_PASS, not
 // SMTP_USER. The only thing printed on a failure is the error message, and the
 // only thing printed on success in file mode is the filename.
-async function sendMail({ to, subject, text }) {
+//
+// `kind` (feat/password-alert, 2026-10-21) is written into the FILE-MODE JSON
+// only — 'password_alert' marks a message that carries no code, so a suite
+// reading codes off disk can skip it. SMTP never sees it.
+async function sendMail({ to, subject, text, kind }) {
   if (FILE_TRANSPORT) {
     fs.mkdirSync(MAIL_DIR, { recursive: true });
     const file = path.join(MAIL_DIR, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
-    fs.writeFileSync(file, JSON.stringify({ to, subject, text, written_at: new Date().toISOString() }, null, 2));
+    fs.writeFileSync(file, JSON.stringify({ to, subject, text, kind, written_at: new Date().toISOString() }, null, 2));
     return { transport: 'file', file };
   }
 
@@ -135,4 +139,64 @@ function verifyEmailMessage({ name, code, minutes }) {
   };
 }
 
-module.exports = { sendMail, isConfigured, resetCodeMessage, verifyEmailMessage, FILE_TRANSPORT, MAIL_DIR };
+// ---------------------------------------------------------------------------
+// THE PASSWORD ALERT (feat/password-alert, 2026-10-21; the owner's decision of
+// 2026-10-14/16, the texts approved as written). Sent AFTER a password has
+// changed, to every confirmed channel — the "was this you?" note. No code, no
+// link (a link is what a phishing message would copy), no login id, no LRN,
+// no learner name, and no run of six digits (a suite reads codes by that
+// shape). utils/passwordAlert.js is the one caller.
+// ---------------------------------------------------------------------------
+function passwordChangedMessage({ name }) {
+  return {
+    subject: "Parent's Portal — your password was changed",
+    text: [
+      `Hello ${name},`,
+      '',
+      "The password for your Parent's Portal account was changed just now.",
+      '',
+      'If this was you, there is nothing to do.',
+      '',
+      "If it was not you, open the Parent's Portal sign-in page, choose",
+      'Forgot password and set a new password with the code we send — or',
+      'tell the school office.',
+      '',
+      'Nobody from the school will ever ask you for your password.',
+      '',
+      "Parent's Portal · Captain H. Francisco Elementary School",
+    ].join('\n'),
+  };
+}
+
+function temporaryPasswordMessage({ name }) {
+  return {
+    subject: "Parent's Portal — the school office reset your password",
+    text: [
+      `Hello ${name},`,
+      '',
+      "The school office set a temporary password for your Parent's Portal",
+      'account just now. Every device that was signed in has been signed out.',
+      '',
+      'If you asked the office for this, use the temporary password they gave',
+      'you the next time you sign in. You will then confirm your Gmail or',
+      'mobile number and choose a password of your own.',
+      '',
+      'If you did not ask for this, tell the school office.',
+      '',
+      'Nobody from the school will ever ask you for your password.',
+      '',
+      "Parent's Portal · Captain H. Francisco Elementary School",
+    ].join('\n'),
+  };
+}
+
+module.exports = {
+  sendMail,
+  isConfigured,
+  resetCodeMessage,
+  verifyEmailMessage,
+  passwordChangedMessage,
+  temporaryPasswordMessage,
+  FILE_TRANSPORT,
+  MAIL_DIR,
+};

@@ -3952,6 +3952,38 @@ MOBILE M15, M17 and `proof-privacy`, `proof-admin-users`. **The device check
 owns** the three dialogs on screen and a new account's first sign-in landing
 on an EMPTY contact field (`docs/ACCOUNT_CREATE_DEVICE_CHECK.md`).
 
+### 29h. The password alert — "was this you?" on every confirmed channel (`feat/password-alert`, 2026-10-21; the owner's decision of 2026-10-14/16)
+
+**After a password has changed, the account holder is told — by email, by
+text, or both, whichever they have confirmed — with no code and no link.**
+One rule, no branch, on all four paths: Settings → Change password, Forgot
+password's reset, the first sign-in's own password (a brand-new account too —
+the owner's answer Q1) and the admin's temporary password, which has its own
+words ("the school office set a temporary password", Q2). A restore sends
+nothing (Q6). **Server-only (Q4):** `server/utils/passwordAlert.js`, called by
+the four handlers AFTER the reply and never awaited — a failed send changes
+nothing and undoes nothing, and no reply waits for SMTP or the gateway. The
+channels are forgot-password's own: the email when `email_verified_at` is
+set, the number when `contact_verified_at` is set and this server can send
+texts; nothing confirmed → no message and one `password_alert_not_sent` row
+(Q8). Logged on the HOLDER's id, never a value: `password_alert_sent` with the
+channel names, `password_alert_email_failed`, `password_alert_sms_failed` with
+the transport's fixed reason; the admin's `admin_temp_password` row stays on
+the admin. **Not a code:** no `auth_codes` row, so an alert never counts toward
+the hourly limits or the resend cooldown, and no cap of its own (Q3) — every
+send has a real password change behind it. **The texts** (`utils/mailer.js`,
+`utils/smsTransport.js`, approved as written) carry no code, no link (what a
+phishing message would copy), no login id, no LRN, no learner name and no run
+of six digits — a code's shape, which the recovery suite reads codes by; the
+two SMS are ASCII and one GSM-7 part. In file mode both transports mark an
+alert `kind: 'password_alert'`, so a suite reading codes off disk skips it.
+**Nothing on either client changes**: the pages that change a password say
+what they said. **Proof:** `test:recovery` (all four paths, both channels, the
+no-contact case, the words, the row on the holder and not the admin) and
+`test:sms-transport` (the two texts' shape); the device check owns the real
+inbox and the real phone (`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`,
+one sheet for `feat/account-create` and this branch — D-79).
+
 ## 30. One Messages component — the thread and the list, every role (`feat/shared-messages`, 2026-10-11)
 
 **The rule: every web Messages surface is one of two shared components, and a

@@ -13,6 +13,7 @@ const { activeAdmins, insertNotifications, emitNotifications } = require('../uti
 const { sanitizeUser } = require('../utils/sanitizeUser');
 const codes = require('../utils/authCodes');
 const { removePhotoFile } = require('../utils/profilePhoto');
+const { sendPasswordAlert } = require('../utils/passwordAlert');
 
 const router = express.Router();
 
@@ -718,11 +719,18 @@ router.post('/:id/temp-password', authenticate, authorize('admin'), async (req, 
     );
     await logActivity(req.user.id, 'admin_temp_password', `Set a temporary password for user #${id}`);
 
-    return res.json({
+    res.json({
       success: true,
       message: 'Temporary password set. Give it to the account holder — it is shown once and cannot be retrieved again.',
       temporary_password: temporary,
     });
+    // THE PASSWORD ALERT (feat/password-alert, 2026-10-21; the owner's answer
+    // Q2): the HOLDER is told that the office set a temporary password — their
+    // sessions just died and someone else holds a password for the account —
+    // on every confirmed channel, after the reply, never carrying the password
+    // (utils/passwordAlert.js). The admin's own row above stays on the admin.
+    sendPasswordAlert({ userId: id, kind: 'temporary_password' });
+    return undefined;
   } catch (error) {
     console.error('Temp password error:', error);
     return res.status(500).json({ success: false, message: 'Failed to set a temporary password.' });

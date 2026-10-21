@@ -81,12 +81,21 @@ function mailFilesBefore() {
   if (!fs.existsSync(MAIL_DIR)) return new Set();
   return new Set(fs.readdirSync(MAIL_DIR));
 }
+// feat/password-alert (2026-10-21): the drop also holds the PASSWORD ALERTS —
+// the "was this you?" notes written after every password change, marked
+// `kind: 'password_alert'` by the file transports. They carry no code, so the
+// two code readers skip them (an alert landing after a code would otherwise
+// read as "no code"), and alertsSince() reads them on their own.
+const readJson = (dir, f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+const isAlert = (dir) => (f) => readJson(dir, f).kind === 'password_alert';
+function freshIn(dir, before) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((f) => !before.has(f)).sort();
+}
 function newestCodeSince(before) {
-  if (!fs.existsSync(MAIL_DIR)) return null;
-  const fresh = fs.readdirSync(MAIL_DIR).filter((f) => !before.has(f));
+  const fresh = freshIn(MAIL_DIR, before).filter((f) => !isAlert(MAIL_DIR)(f));
   if (!fresh.length) return null;
-  fresh.sort();
-  const body = JSON.parse(fs.readFileSync(path.join(MAIL_DIR, fresh[fresh.length - 1]), 'utf8'));
+  const body = readJson(MAIL_DIR, fresh[fresh.length - 1]);
   const m = body.text.match(/\b(\d{6})\b/);
   return m ? { code: m[1], to: body.to, text: body.text, files: fresh } : null;
 }
@@ -95,13 +104,36 @@ function smsFilesBefore() {
   return new Set(fs.readdirSync(SMS_DIR));
 }
 function newestSmsSince(before) {
-  if (!fs.existsSync(SMS_DIR)) return null;
-  const fresh = fs.readdirSync(SMS_DIR).filter((f) => !before.has(f));
+  const fresh = freshIn(SMS_DIR, before).filter((f) => !isAlert(SMS_DIR)(f));
   if (!fresh.length) return null;
-  fresh.sort();
-  const body = JSON.parse(fs.readFileSync(path.join(SMS_DIR, fresh[fresh.length - 1]), 'utf8'));
+  const body = readJson(SMS_DIR, fresh[fresh.length - 1]);
   const m = body.text.match(/\b(\d{6})\b/);
   return m ? { code: m[1], to: body.to, text: body.text, count: fresh.length } : null;
+}
+// Every password alert written to `dir` since `before`, oldest first:
+// { to, subject (mail only), text }.
+function alertsSince(dir, before) {
+  return freshIn(dir, before)
+    .map((f) => readJson(dir, f))
+    .filter((body) => body.kind === 'password_alert')
+    .map((body) => ({ to: body.to, subject: body.subject, text: body.text }));
+}
+// The alert is sent AFTER the reply (routes/auth.js, routes/users.js), so a
+// reader polls for it instead of trusting the response's timing.
+async function waitFor(check, ms = 3000) {
+  const until = Date.now() + ms;
+  for (;;) {
+    const value = await check();
+    if (value) return value;
+    if (Date.now() >= until) return value;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+// What a password alert must look like, whichever channel: no six-digit run
+// (a code's shape — the reader above would take one for a code), no twelve
+// digits (an LRN), no "http" (a link is what a phishing message would copy).
+function alertShapeOk(text) {
+  return typeof text === 'string' && !/\d{6}/.test(text) && !/\d{12}/.test(text) && !/https?:/i.test(text);
 }
 const settle = () => new Promise((r) => setTimeout(r, 400));
 
@@ -129,6 +161,26 @@ async function main() {
     c.query('SELECT (SELECT COUNT(*) FROM users) u, (SELECT COUNT(*) FROM students) s')
   );
   console.log(`  i watermark at start: users ${startCounts.u}, students ${startCounts.s}`);
+  // feat/password-alert (2026-10-21): the auth_codes boundary and the clock.
+  // The cleanup asserts that no row ABOVE this id remains — never that the
+  // table is empty, because rows other work left (the first-sign-in check's
+  // kept codes) are not this run's to count.
+  const [[startMarks]] = await withDb((c) =>
+    c.query('SELECT COALESCE(MAX(id), 0) AS ac_max, NOW() AS started_at FROM auth_codes')
+  );
+  console.log(`  i auth_codes at start: ${startMarks.ac_max ? `max id ${startMarks.ac_max}` : 'none'}`);
+  // How many password-alert rows an account has LOGGED since the start — by
+  // action and user id, never the description.
+  const alertRows = async (userId, action) => {
+    const [[row]] = await withDb((c) =>
+      c.query('SELECT COUNT(*) AS n FROM activity_logs WHERE user_id = ? AND action = ? AND created_at >= ?', [
+        userId,
+        action,
+        startMarks.started_at,
+      ])
+    );
+    return Number(row.n);
+  };
   let admin;
   let teacher;
   const TEACHER_ID = 'TCH-REC1';
@@ -301,6 +353,22 @@ async function main() {
     requireFixture(newPw.status === 200, 'the new password works', why(newPw));
     teacher = { token: newPw.data.token, ...newPw.data.user };
 
+    // feat/password-alert (2026-10-21): the reset told the holder. It is the
+    // first password change of this run, so the first alert in the drop since
+    // the start; the code mails before it are not alerts.
+    const resetAlerts = await waitFor(() => {
+      const a = alertsSince(MAIL_DIR, probe);
+      return a.length ? a : null;
+    });
+    assert(Array.isArray(resetAlerts) && resetAlerts.length === 1 && resetAlerts[0].to === TEACHER_EMAIL,
+      'the reset sent ONE password alert, to the confirmed email', `got ${resetAlerts ? resetAlerts.length : 0}`);
+    assert(resetAlerts?.[0]?.subject === "Parent's Portal — your password was changed" && /was changed just now/.test(resetAlerts[0].text),
+      'the alert says the password was changed, in the approved words');
+    assert(resetAlerts?.[0] && alertShapeOk(resetAlerts[0].text) && !resetAlerts[0].text.includes(TEACHER_ID) && !resetAlerts[0].text.includes(NEW_PW),
+      'no code, no link, no LRN, no login id and no password in the alert');
+    const resetLogged = await waitFor(async () => ((await alertRows(teacher.id, 'password_alert_sent')) >= 1 ? 1 : null));
+    assert(resetLogged === 1, 'logged password_alert_sent on the holder (email)');
+
     const consumed = await request('POST', '/api/auth/reset-password', {
       body: { login_id: TEACHER_ID, code: secondMail.code, new_password: 'Another11' },
     });
@@ -394,11 +462,40 @@ async function main() {
     assert(badId.status === 400, 'a non-numeric id is 400');
     const asTeacher = await request('POST', `/api/users/${teacher.id}/temp-password`, { token: teacher.token });
     assert(asTeacher.status === 403, 'a teacher cannot set a temporary password');
+    const tempAlertMark = mailFilesBefore();
 
     const temp = await request('POST', `/api/users/${teacher.id}/temp-password`, { token: admin.token });
     requireFixture(temp.status === 200 && temp.data.temporary_password, 'admin sets a temporary password', why(temp));
     const tempPw = temp.data.temporary_password;
     assert(tempPw.length >= 8 && /\d/.test(tempPw), 'it satisfies the shared password rule');
+
+    // feat/password-alert (the owner's answer Q2): the HOLDER is told that the
+    // office set a temporary password — on the confirmed email, never carrying
+    // the password. The admin's own admin_temp_password row stays on the admin.
+    const tempAlerts = await waitFor(() => {
+      const a = alertsSince(MAIL_DIR, tempAlertMark);
+      return a.length ? a : null;
+    });
+    assert(Array.isArray(tempAlerts) && tempAlerts.length === 1 && tempAlerts[0].to === TEACHER_EMAIL &&
+        tempAlerts[0].subject === "Parent's Portal — the school office reset your password" && /temporary password/.test(tempAlerts[0].text),
+      'the temporary password sent the "school office" alert to the holder', `got ${tempAlerts ? tempAlerts.length : 0}`);
+    assert(tempAlerts?.[0] && alertShapeOk(tempAlerts[0].text) && !tempAlerts[0].text.includes(tempPw),
+      'the alert never carries the temporary password, a code or a link');
+    assert((await waitFor(async () => ((await alertRows(teacher.id, 'password_alert_sent')) >= 2 ? 2 : null))) === 2,
+      'logged password_alert_sent on the holder again (the second of this run)');
+    assert((await alertRows(admin.id, 'password_alert_sent')) === 0, 'and nothing of the kind on the admin who set it');
+
+    // Nothing confirmed: no message, one password_alert_not_sent row (the
+    // owner's answer Q8) — the no-contact teacher, through the same endpoint.
+    const ncMail = mailFilesBefore();
+    const ncSms = smsFilesBefore();
+    const ncTemp = await request('POST', `/api/users/${mkNc.data.user.id}/temp-password`, { token: admin.token });
+    const ncLogged = await waitFor(async () => ((await alertRows(mkNc.data.user.id, 'password_alert_not_sent')) >= 1 ? 1 : null));
+    assert(ncTemp.status === 200 && ncLogged === 1,
+      'an account with nothing confirmed gets no alert and one password_alert_not_sent row', why(ncTemp));
+    assert(alertsSince(MAIL_DIR, ncMail).length === 0 && alertsSince(SMS_DIR, ncSms).length === 0,
+      'and no mail and no text was written for it');
+    const firstPwMark = mailFilesBefore();
 
     const afterTemp = await request('GET', '/api/auth/me', { token: teacher.token });
     assert(afterTemp.status === 401, 'A1: the temporary password killed the existing session');
@@ -451,6 +548,19 @@ async function main() {
     });
     requireFixture(changed.status === 200, 'PUT /auth/first-password sets it, with no temporary password typed', why(changed));
     assert(Boolean(changed.data.token), 'it returns a REPLACEMENT token, so the caller is not logged out');
+
+    // feat/password-alert (the owner's answer Q1): the first-password path
+    // alerts too — one rule, no branch. The reconfirm code mail between the
+    // mark and here is not an alert and is skipped.
+    const firstAlerts = await waitFor(() => {
+      const a = alertsSince(MAIL_DIR, firstPwMark);
+      return a.length ? a : null;
+    });
+    assert(Array.isArray(firstAlerts) && firstAlerts.length === 1 && firstAlerts[0].to === TEACHER_EMAIL &&
+        firstAlerts[0].subject === "Parent's Portal — your password was changed",
+      'PUT /auth/first-password sent the "was changed" alert to the confirmed email', `got ${firstAlerts ? firstAlerts.length : 0}`);
+    assert(firstAlerts?.[0] && alertShapeOk(firstAlerts[0].text) && !firstAlerts[0].text.includes(FINAL_PW) && !firstAlerts[0].text.includes(tempPw),
+      'and it carries neither password, no code and no link');
 
     const withNew = await request('GET', '/api/students?limit=1', { token: changed.data.token });
     assert(withNew.status !== 403, 'the replacement token is no longer blocked', why(withNew));
@@ -558,6 +668,54 @@ async function main() {
     requireFixture(s2.status === 200, 'and the new password signs in', why(s2));
     smsUser = { token: s2.data.token, id: s2.data.user.id };
 
+    // feat/password-alert (2026-10-21): the reset by the texted code told BOTH
+    // confirmed channels — the text in the owner's words, and the mail.
+    const rsText = await waitFor(() => {
+      const a = alertsSince(SMS_DIR, bothSms);
+      return a.length ? a : null;
+    });
+    const rsMail = await waitFor(() => {
+      const a = alertsSince(MAIL_DIR, bothMail);
+      return a.length ? a : null;
+    });
+    assert(Array.isArray(rsText) && rsText.length === 1 && rsText[0].to === bText.to &&
+        rsText[0].text === "Parent's Portal: your password was changed just now. If this was not you, use Forgot password on the sign-in page or tell the school office.",
+      'the reset sent the password alert by text, to the confirmed number, word for word', `got ${rsText ? rsText.length : 0}`);
+    assert(rsText?.[0] && rsText[0].text.length <= 160 && /^[\x20-\x7E]+$/.test(rsText[0].text) && alertShapeOk(rsText[0].text),
+      'one GSM-7 part, no code, no link, no LRN');
+    assert(Array.isArray(rsMail) && rsMail.length === 1 && rsMail[0].to === bMail.to &&
+        rsMail[0].subject === "Parent's Portal — your password was changed",
+      'and by mail, to the confirmed email', `got ${rsMail ? rsMail.length : 0}`);
+    assert((await waitFor(async () => ((await alertRows(smsUser.id, 'password_alert_sent')) >= 1 ? 1 : null))) === 1,
+      'logged password_alert_sent on the SMS fixture');
+
+    // Settings → Change password, the fourth path: its own alert by both
+    // channels, and the replacement token keeps this caller signed in.
+    const cpMail = mailFilesBefore();
+    const cpSms = smsFilesBefore();
+    const CHANGED_SMS_PW = `${NEW_SMS_PW}x1`;
+    const cp = await request('PUT', '/api/auth/change-password', {
+      token: smsUser.token,
+      body: { current_password: NEW_SMS_PW, new_password: CHANGED_SMS_PW },
+    });
+    requireFixture(cp.status === 200 && Boolean(cp.data?.token), "PUT /auth/change-password changes the SMS fixture's password", why(cp));
+    smsUser = { token: cp.data.token, id: smsUser.id };
+    const cpText = await waitFor(() => {
+      const a = alertsSince(SMS_DIR, cpSms);
+      return a.length ? a : null;
+    });
+    const cpMailAlerts = await waitFor(() => {
+      const a = alertsSince(MAIL_DIR, cpMail);
+      return a.length ? a : null;
+    });
+    assert(Array.isArray(cpText) && cpText.length === 1 && Array.isArray(cpMailAlerts) && cpMailAlerts.length === 1 &&
+        cpText[0].to === bText.to && cpMailAlerts[0].to === bMail.to,
+      'Settings → Change password sent the alert by text and by mail, one each',
+      `text ${cpText ? cpText.length : 0}, mail ${cpMailAlerts ? cpMailAlerts.length : 0}`);
+    assert(cpText?.[0] && cpMailAlerts?.[0] && !cpText[0].text.includes(CHANGED_SMS_PW) && !cpMailAlerts[0].text.includes(CHANGED_SMS_PW) &&
+        alertShapeOk(cpMailAlerts[0].text),
+      'neither alert carries the new password, a code or a link');
+
     // A number change unconfirms it and burns the code sent to the old one.
     const ch1 = await request('PUT', '/api/auth/contact', { token: smsUser.token, body: { contact_number: '09170000124' } });
     const me3 = await request('GET', '/api/auth/me', { token: smsUser.token });
@@ -646,7 +804,17 @@ async function main() {
       assert(c0.u === startCounts.u, `users back to its start count (${startCounts.u}) — got ${c0.u}`);
       assert(c0.s === startCounts.s, `students back to its start count (${startCounts.s}) — got ${c0.s}`);
       assert(c0.g === 5, `grades back to 5 — Nino's rows untouched — got ${c0.g}`);
-      assert(c0.ac === 0, `auth_codes back to 0 — got ${c0.ac}`);
+      // feat/password-alert (2026-10-21): RELATIVE TO THE RUN'S OWN START. Rows
+      // that were there before it (the first-sign-in check's kept codes) are
+      // not this run's to count; what must be gone is every row above the
+      // start id — the house rule on shared tables.
+      const [[acAbove]] = await withDb((c) =>
+        c.query('SELECT COUNT(*) AS n FROM auth_codes WHERE id > ?', [startMarks.ac_max])
+      );
+      assert(
+        Number(acAbove.n) === 0,
+        `auth_codes: no row above the start id remains (${c0.ac} from before the run stay) — got ${acAbove.n}`
+      );
       const jea = await withDb((c) => c.query("SELECT status FROM users WHERE login_id = '1234567'"));
       assert(jea[0][0].status === 'pending', "Jea's parent account is still pending");
       const mailLeft = fs.existsSync(MAIL_DIR) ? fs.readdirSync(MAIL_DIR).length : 0;

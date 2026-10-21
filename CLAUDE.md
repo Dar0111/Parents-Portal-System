@@ -802,6 +802,13 @@ has neither; it resumes at §13.** The reasoning and the endpoint detail are
   outside `Shell` and outside `ProtectedRoute`. **Since feat/first-signin it
   is the LAST of the three steps (§29) and writes `PUT /auth/first-password`
   — no current password; change-password passes no gate.**
+- **A password change is announced to its holder (feat/password-alert,
+  2026-10-21).** After the four writes — change-password, first-password,
+  the reset, the admin's temporary password — `utils/passwordAlert.js` sends
+  the "was this you?" note to every confirmed channel AFTER the reply, never
+  awaited: a failed send changes nothing, no reply waits, nothing confirmed
+  logs `password_alert_not_sent`. No code, no link; not an `auth_codes` row,
+  so no limit counts it. A restore sends nothing. FRONTEND §29h.
 
 **A screen may not tell someone to ask an office they ARE.** Settings →
 Account information names Admin → Users for an admin and the school office
@@ -972,7 +979,9 @@ Three ticks in the principal's draft words
 socket refuses the same gates, and a restore re-runs the privacy step
 itself** (fix round). **The text (`server/policy/`) is a
 placeholder; staff tick two boxes, no child tick.** New teachers and parents change
-the password someone else typed. **Sign-in: 5 failures in a row / 100 per IP
+the password someone else typed. **Every password change is announced to its
+holder on every confirmed channel — the password alert (feat/password-alert,
+2026-10-21; §11).** **Sign-in: 5 failures in a row / 100 per IP
 in 15 min → 429, an unknown id the same.** The learner's birthday, gender,
 address and contact number are not collected. **Create teacher and Create
 parent collect no email or number since feat/account-create (2026-10-21; the
@@ -1730,7 +1739,12 @@ M26–M29.
 
 **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin` is
 merged (`9d3b430`, 2026-10-21), then
-`feat/account-create` → `feat/password-alert` → `feat/grade-acknowledgement`
+`feat/account-create` (built and gated 2026-10-21, `1e43b6a`) and, on top of
+it, `feat/password-alert` (built and gated 2026-10-21) — ONE combined device
+check for both (D-79, `docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`),
+a fix round if needed, the cleanup, one merge-ready docs commit on
+`feat/password-alert`, then `main` fast-forwards to its head, which carries
+B5 → `feat/grade-acknowledgement`
 → `fix/f3-badges` → `feat/activity-log`, each on its own check, then
 `docs/pre-oct21`, the demo data and a new restore point. The owner's target
 is everything finished, the Supabase migration included, by Mon 2026-10-26;

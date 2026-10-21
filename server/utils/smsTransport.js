@@ -72,14 +72,18 @@ function createTransport({ mode, url, user, pass, fetchImpl = fetch, dir = SMS_D
   // Android may leave a delivered text at "Sent" (decision Q8: log acceptance
   // only). `ttl` matches the code's life, so a stalled queue cannot deliver a
   // dead code later.
-  async function send({ to, text, ttlSeconds = 600 }) {
+  //
+  // `kind` (feat/password-alert, 2026-10-21) goes into the FILE-MODE JSON only
+  // — 'password_alert' marks a text that carries no code, so a suite reading
+  // codes off disk can skip it. The gateway never sees it.
+  async function send({ to, text, ttlSeconds = 600, kind }) {
     const number = toE164(to);
     if (!number || typeof text !== 'string' || !text) throw failure('bad_config');
 
     if (mode === 'file') {
       fs.mkdirSync(dir, { recursive: true });
       const file = path.join(dir, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
-      fs.writeFileSync(file, JSON.stringify({ to: number, text, ttl: ttlSeconds, written_at: new Date().toISOString() }, null, 2));
+      fs.writeFileSync(file, JSON.stringify({ to: number, text, ttl: ttlSeconds, kind, written_at: new Date().toISOString() }, null, 2));
       return { transport: 'file', file };
     }
     if (!configured) throw failure('bad_config');
@@ -156,6 +160,18 @@ function verifyCodeText({ code, minutes }) {
   return `Parent's Portal: your mobile number confirmation code is ${code}. It expires in ${minutes} minutes.`;
 }
 
+// THE PASSWORD ALERT'S TWO TEXTS (feat/password-alert, 2026-10-21; the owner's
+// wording). The same rules — ASCII, one GSM-7 part — and like the emails: no
+// code, no link, no login id, no LRN, no learner name, no run of six digits.
+// utils/passwordAlert.js is the one caller.
+function passwordChangedText() {
+  return "Parent's Portal: your password was changed just now. If this was not you, use Forgot password on the sign-in page or tell the school office.";
+}
+
+function temporaryPasswordText() {
+  return "Parent's Portal: the school office set a temporary password for your account just now. If you did not ask for this, tell the school office.";
+}
+
 module.exports = {
   createTransport,
   send: transport.send,
@@ -163,6 +179,8 @@ module.exports = {
   health: transport.health,
   resetCodeText,
   verifyCodeText,
+  passwordChangedText,
+  temporaryPasswordText,
   SMS_MODE: MODE,
   FILE_TRANSPORT,
   SMS_DIR,

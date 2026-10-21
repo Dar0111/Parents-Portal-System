@@ -1486,6 +1486,14 @@ Update email card, Forgot password's clock — and the minute rule, on one
 account: a second Send code inside the minute delivered nothing, Resend at
 0:00 delivered one.
 
+**`feat/password-alert` (2026-10-21): nothing on the phone changes.** The
+"was this you?" note after a password change is the server's (FRONTEND §29h):
+the four phone screens that change one — Settings → Change password, the
+new-password step, Forgot password, the admin's Reset password — say what they
+said, and no proof changes. The combined device check
+(`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`) owns the text arriving
+on the Tecno and the mail in the project Gmail.
+
 ## M27. The phone thread keeps the web's three positioning rules (`feat/shared-messages`, 2026-10-11)
 
 The phone already had ONE thread screen for every role

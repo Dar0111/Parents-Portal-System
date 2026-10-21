@@ -57,7 +57,8 @@ and only there.
 | Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; carried by `fix/smoke-round`, device-checked 2026-10-13; data cleaned up, backup 316) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | The smoke gate's fix round — `fix/smoke-round` (on `fix/grade-locks`): F4 the class record's Summative block without a raw total and a line saying how ST PS is made; F5 the parent breakdown's rows named "Written Work 1" or the column's own name, as the class record's helper promises; F6 sign-in confirming a password reset; F7 a per-row lock or unlock closing its dialog and keeping its line (built and gated 2026-10-13; device-checked the same night on the web and the Android emulator, every section passed, the bulk dialog's 390px / dark pass not done; data cleaned up, backup 316; F3 cut — KNOWN ISSUES) | — (untouched) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | The first sign-in — `feat/first-signin` (pre-Oct-21 build, branch 1 of 6 in the owner's order): consent → a confirmed Gmail or mobile number → your own password (no temporary-password field, `PUT /auth/first-password`; a temporary password on a confirmed account confirms it again); your own email (`PUT /auth/email`, web and phone Settings); the 60-second resend cooldown on every code, forgot-password included, counted down on both clients (built and gated 2026-10-18; device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round; cleaned up by id, backup 324; merged 2026-10-21, `9d3b430`) | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 |
-| Account creation — `feat/account-create` (pre-Oct-21 build, branch 2 of 6): Create teacher and Create parent drop the Email and Contact number fields on the web's three forms and the phone's two screens, and `POST /users/teachers` / `POST /users/parents` refuse a value with `400` "no longer collected" naming the field (the owner's decision of 2026-10-16); the holder confirms a contact at the first sign-in; Admin → Users → Edit, Settings and the contact gate unchanged (built and gated 2026-10-21; NOT device-checked, NOT merged) | 🔶 built | 🔶 built | 🔶 built |
+| Account creation — `feat/account-create` (pre-Oct-21 build, branch 2 of 6): Create teacher and Create parent drop the Email and Contact number fields on the web's three forms and the phone's two screens, and `POST /users/teachers` / `POST /users/parents` refuse a value with `400` "no longer collected" naming the field (the owner's decision of 2026-10-16); the holder confirms a contact at the first sign-in; Admin → Users → Edit, Settings and the contact gate unchanged (built and gated 2026-10-21, `1e43b6a`; NOT device-checked — one combined check with `feat/password-alert`, D-79; NOT merged) | 🔶 built | 🔶 built | 🔶 built |
+| The password alert — `feat/password-alert` (pre-Oct-21 build, branch 3 of 6, on `feat/account-create`): after any password change — Settings → Change password, Forgot password's reset, the first sign-in's own password, the admin's temporary password — the holder gets a "was this you?" email and/or text on every confirmed channel, no code and no link, sent after the reply and never blocking the change; nothing confirmed is logged; the office's temporary password has its own words (the owner's decision of 2026-10-14/16; built and gated 2026-10-21; NOT device-checked — the combined check; NOT merged) | 🔶 built | — (untouched) | — (untouched) |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -143,11 +144,13 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 **Merged (2026-10-21, `9d3b430`):** `feat/first-signin`, device-checked and
 cleaned up (`docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9). **Built and gated
-(2026-10-21):** `feat/account-create`, waiting for its device check
-(`docs/ACCOUNT_CREATE_DEVICE_CHECK.md`; the owner decides whether it is
-combined with `feat/password-alert`'s). **Next, the owner's pre-Oct-21
-order:** `feat/password-alert`, `feat/grade-acknowledgement`,
-`fix/f3-badges`, `feat/activity-log`, each on its own check; then
+(2026-10-21):** `feat/account-create` (`1e43b6a`) and, on top of it,
+`feat/password-alert` — waiting for ONE combined device check
+(`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`, D-79), then a fix round
+if needed, the cleanup, one merge-ready docs commit on `feat/password-alert`,
+and `main` fast-forwarding to its head, which carries both. **Then, the
+owner's pre-Oct-21 order:** `feat/grade-acknowledgement`, `fix/f3-badges`,
+`feat/activity-log`, each on its own check; then
 `docs/pre-oct21`, the demo data and a new restore point.
 The owner's own target is everything finished, the Supabase migration
 included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The

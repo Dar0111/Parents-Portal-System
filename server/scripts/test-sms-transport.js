@@ -84,6 +84,23 @@ async function main() {
   }
 
   // -------------------------------------------------------------------------
+  console.log('\nThe password alert texts — one GSM-7 part, no code, no link, no identifiers (feat/password-alert)');
+  // -------------------------------------------------------------------------
+  for (const [name, text] of [
+    ['password changed', sms.passwordChangedText()],
+    ['temporary password', sms.temporaryPasswordText()],
+  ]) {
+    assert(text.length <= 160, `${name}: one part — ${text.length} characters`);
+    assert(/^[\x20-\x7E]+$/.test(text), `${name}: ASCII only (GSM-7)`);
+    assert(/^Parent's Portal: /.test(text) && /school office/.test(text), `${name}: the school's words, naming the office`);
+    assert(!/\d{6}/.test(text), `${name}: no run of six digits — nothing that reads as a code`);
+    assert(!/https?:|www\./i.test(text), `${name}: no link to copy`);
+    assert(!/\d{12}/.test(text), `${name}: no LRN-shaped number`);
+  }
+  assert(sms.temporaryPasswordText() !== sms.passwordChangedText() && /temporary password/.test(sms.temporaryPasswordText()),
+    'the office text is its own, and says "temporary password"');
+
+  // -------------------------------------------------------------------------
   console.log('\nGateway request shape (fake fetch)');
   // -------------------------------------------------------------------------
   const calls = [];
