@@ -4291,7 +4291,10 @@ Admin → Grades cannot drift.
   "The parent has not confirmed yet." and nothing in it is a button.
 - **The adviser's bell** carries `grades_acknowledged` ("Grades confirmed" /
   "<Learner>'s parent has seen the Term N grades.", link
-  `/teacher/class-summary`) — the adviser of the learner's section only
+  `/teacher/class-summary?term=N`) — **Class summary opens on the confirmed
+  term**, because the page reads `?term=` and falls back to today's term only
+  without one (the B1 fix round, 2026-10-22: the bare link opened Term 2 and
+  "0 of N learners"; no client change) — the adviser of the learner's section only
   (`excuseAdviserAudience`, the review authority), re-checked live, so a
   teacher who stops advising the section stops seeing it.
 

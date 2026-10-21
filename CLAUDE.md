@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-21, `main` `2b85331` plus this docs commit — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-22, `feat/grade-acknowledgement` `2525215` plus this docs commit — B1 device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346, READY TO MERGE on the owner's word; `main` is `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -113,7 +113,7 @@ the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
 2026-10-05** (that section's SCOPE DECISION 2026-10-05), and **About is last on every
 role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
 item**. **26 tables, 101 handlers + `/api/health`** (feat/grade-acknowledgement,
-2026-10-21 — built, not merged; 25 / 100 since feat/first-signin, 2026-10-18).
+2026-10-21 — device-checked 2026-10-22, not merged; 25 / 100 since feat/first-signin, 2026-10-18).
 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
 
@@ -1006,8 +1006,8 @@ FRONTEND §30, MOBILE M27.
 
 ### 33. Grade acknowledgement — "I have seen these grades", once per locked term
 
-**feat/grade-acknowledgement, 2026-10-21 (the owner's Q1–Q12; built and
-gated, not merged).** A parent confirms a TERM once it is FULLY
+**feat/grade-acknowledgement, 2026-10-21 (the owner's Q1–Q12; device-checked
+2026-10-22, one finding fixed in `2525215`; not merged).** A parent confirms a TERM once it is FULLY
 locked — every subject of the learner's grade level locked with a value, the
 bulk lock's own test — through `POST /api/grades/acknowledgements` (parent
 only, the learner from the session; `409` before that; a repeat `200`,
@@ -1016,8 +1016,9 @@ nothing changed). One row per (learner, school year, term) in
 deletes it** (the parent is asked again after a relock) and `activity_logs`
 keeps the trail. **Two bell-only notifications:** `grades_locked` to the
 parent when a lock — bulk or single — completes the term, self-healing once
-confirmed, and `grades_acknowledged` to the ADVISER on confirmation; nothing
-for the admin. The report card carries `acknowledgements` (all three terms),
+confirmed, and `grades_acknowledged` to the ADVISER on confirmation — its
+link opens Class summary on the confirmed term (`?term=N`; on the phone a
+link's query reaches its screen, M30); nothing for the admin. The report card carries `acknowledgements` (all three terms),
 the class summary `term_locked` + `acknowledged` per learner, the bulk
 unlock `acknowledgements_cleared`. Every word is the mirrored
 `format/acknowledgement.js`; the §5e dialog names the term back; the dormant
@@ -1679,16 +1680,20 @@ servers; the combined check `docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`
 §12, the cleanup §11, backup 338). `feat/grade-acknowledgement` is rebased
 onto this `main` (trim-10 `bffd033`) and its database part ran 2026-10-21 —
 the migration twice after backup 339, the 23 HTTP suites, `smoke:isolated`
-20/20, the survey; the new suite's cleanup fixed after backup 344 —
-committed and pushed, not merged. **Next, on the owner's word:** the B1
-device check, `docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md` →
-`fix/f3-badges` → `feat/activity-log`, each on its own
-check, then `docs/pre-oct21`, the demo data and a new restore point. The
+20/20, the survey; the new suite's cleanup fixed after backup 344 — and its
+B1 device check PASSED 2026-10-22 (Sections 1–6; one finding, "Grades
+confirmed" opening today's term, fixed in `2525215` and re-checked;
+`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md` §8), cleaned up by id after
+backup 346 (§7): READY TO MERGE, not merged. **On the owner's word
+"merge":** `main` fast-forwards to this branch's head by the ref move (never
+a checkout under the running servers), then the post-merge docs on `main`,
+then B3 (`fix/f3-badges` and `feat/activity-log` remain in the order, each on
+its own check), then `docs/pre-oct21`, the demo data and a new restore point. The
 owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
-still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324 and 338 are
-the two checks' pre-cleanup dumps and 339 and 344 this branch's pre-write
-dumps, not restore points. The manuscript delta list stays with the team.
+still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338 and 346
+are the three checks' pre-cleanup dumps and 339, 344 and 345 this branch's
+pre-write dumps, not restore points. The manuscript delta list stays with the team.
 
 ### Stage 6 — Integration
 

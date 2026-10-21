@@ -1634,8 +1634,17 @@ FRONTEND §33 governs; this is where the phone differs.
   confirmation exists. The bulk screen's unlock preview gets the
   "Confirmations to clear: N." line through the mirrored `gradeLocks.js`.
 - **Both bells** are the web's: `grades_locked` opens `/parent/grades`,
-  `grades_acknowledged` `/teacher/class-summary` — both already in
-  `navigation/routes.js`; nothing for the admin.
+  `grades_acknowledged` `/teacher/class-summary?term=N` — both paths already
+  in `navigation/routes.js`; nothing for the admin. **A link's query reaches
+  its own screen** (the B1 fix round, 2026-10-22): `linkToRoute` picks the
+  screen by the PATH alone, `linkParams` hands the query on — and nothing on
+  a fallback to the home — the Notifications screen passes it as
+  `params.preset` keyed by the press, and `ClassSummaryScreen` takes the term
+  from it during render (Admin → Users' preset shape, F3), only a term its
+  segment offers, so the bell opens the Term 1 tab. Before it the bare link
+  opened Class summary on today's term, and the old map (`35967d6`) would
+  have sent a link WITH a query to the teacher's home — an exact-path lookup
+  misses it. `proof:routes`.
 
 **Proof:** `npm run proof:grade-acknowledgement` (TESTING → Mobile
 proofs) — the mirrored words

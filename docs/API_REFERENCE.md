@@ -1377,7 +1377,7 @@ but never concludes (CLAUDE.md §4).
 | `parent_pending` | Parent account waiting for approval | `A new parent account for {student first + last} is waiting for approval.` — names the STUDENT, never the login id |
 | `grade_available` | A grade is ready to view | `{subject} — Term {n} is now on the report card.` — **no number, no letter, no "passing"** |
 | `grades_locked` (feat/grade-acknowledgement, 2026-10-21) | Term {n} grades are final | `Please confirm you have seen your child's Term {n} grades.` — to the learner's parent, link `/parent/grades`; **listed and counted only until the parent confirms** (self-heals, above); no score or letter |
-| `grades_acknowledged` (feat/grade-acknowledgement, 2026-10-21) | Grades confirmed | `{student first + last}'s parent has seen the Term {n} grades.` — to the adviser of the learner's section, link `/teacher/class-summary`; names the STUDENT, never the parent's login id |
+| `grades_acknowledged` (feat/grade-acknowledgement, 2026-10-21) | Grades confirmed | `{student first + last}'s parent has seen the Term {n} grades.` — to the adviser of the learner's section, link `/teacher/class-summary?term={n}` — Class summary opens on the confirmed term (since the B1 fix round, 2026-10-22; before it the bare path, today's term); names the STUDENT, never the parent's login id |
 
 ---
 
