@@ -290,11 +290,15 @@ function compose(row, role) {
         body: `Please confirm you have seen your child's Term ${row.grade_term} grades.`,
         link: '/parent/grades',
       };
+    // The link names the confirmed term (B1 fix round, 2026-10-22): without
+    // it Class summary opens on today's term and reads "0 of N learners".
+    // The web page reads `?term=`; the phone hands it on as the screen's
+    // preset (mobile navigation/routes.js linkParams).
     case 'grades_acknowledged':
       return {
         title: 'Grades confirmed',
         body: `${fullName(row.grade_student_first, row.grade_student_last)}'s parent has seen the Term ${row.grade_term} grades.`,
-        link: '/teacher/class-summary',
+        link: `/teacher/class-summary?term=${row.grade_term}`,
       };
     default:
       // Unreachable while `type` is an ENUM, but a silent undefined here would

@@ -350,12 +350,14 @@ proved(
     s.includes("case 'grades_acknowledged':") &&
     s.includes("title: 'Grades confirmed'") &&
     s.includes("'s parent has seen the Term ${row.grade_term} grades.`") &&
-    s.includes("link: '/teacher/class-summary'") &&
+    s.includes('link: `/teacher/class-summary?term=${row.grade_term}`') &&
     s.includes("grades_locked: 'grades',") &&
     s.includes("grades_acknowledged: 'grades',"),
   notifications,
   notifications.replace("grades_locked: 'grades',", "grades_locked: 'announcements',"),
-  notifications.replace("title: 'Grades confirmed'", "title: 'Grades acknowledged'")
+  notifications.replace("title: 'Grades confirmed'", "title: 'Grades acknowledged'"),
+  // The B1 fix round: the adviser's link names the confirmed term.
+  notifications.replace('link: `/teacher/class-summary?term=${row.grade_term}`', "link: '/teacher/class-summary'")
 );
 proved(
   "the adviser's visibility clause lists a grade row only for the section's adviser; the parent's self-heals a confirmed ask",

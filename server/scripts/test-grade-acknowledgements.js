@@ -434,7 +434,7 @@ async function main() {
       ackListed.length === 1 &&
         ackListed[0].title === 'Grades confirmed' &&
         ackListed[0].body === `${FIRST} ${LAST}'s parent has seen the Term ${TERM} grades.` &&
-        ackListed[0].link === '/teacher/class-summary',
+        ackListed[0].link === `/teacher/class-summary?term=${TERM}`,
       "the adviser sees it: the learner by name, the term, the link to the class summary",
       JSON.stringify(ackListed.map((n) => n.body))
     );

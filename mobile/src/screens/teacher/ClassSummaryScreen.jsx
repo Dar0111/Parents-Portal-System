@@ -82,7 +82,7 @@ function Header() {
   return <SectionHeader title="Summary of Grades" description="Every learner in your advisory section, across every learning area." />;
 }
 
-export default function ClassSummaryScreen({ navigation }) {
+export default function ClassSummaryScreen({ navigation, route }) {
   const { user } = useAuth();
   const { tokens } = useTheme();
   const [sections, setSections] = useState(null);
@@ -90,6 +90,20 @@ export default function ClassSummaryScreen({ navigation }) {
   const [sectionId, setSectionId] = useState(null);
   const [pinnedTerm] = useState(() => currentTerm(todayLocalDateString()));
   const [term, setTerm] = useState(pinnedTerm);
+
+  // A TERM FROM THE BELL (B1 fix round, 2026-10-22): "Grades confirmed" opens
+  // the confirmed term, not today's — `params.preset` `{ term, key }` from the
+  // link's `?term=`. A drawer screen stays mounted, so a new preset (its `key`
+  // is the moment of the press) is taken DURING RENDER, as Admin → Users takes
+  // the dashboard's. Only a term the segment offers; the segment stays the
+  // teacher's afterwards.
+  const preset = route?.params?.preset || null;
+  const [presetSeen, setPresetSeen] = useState(null);
+  if (preset && preset.key !== presetSeen) {
+    setPresetSeen(preset.key);
+    const asked = TERMS.find((t) => String(t.key) === String(preset.term));
+    if (asked) setTerm(asked.key);
+  }
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

@@ -7,7 +7,7 @@ import Button from '../components/Button';
 import DataList from '../components/DataList';
 import ErrorAlert from '../components/ErrorAlert';
 import SectionHeader from '../components/SectionHeader';
-import { linkToRoute } from '../navigation/routes';
+import { linkParams, linkToRoute } from '../navigation/routes';
 import { useNotifications } from '../realtime/NotificationProvider';
 
 // THE NOTIFICATIONS SCREEN — the web's bell panel as a screen (decision 4).
@@ -91,8 +91,12 @@ export default function NotificationsScreen({ navigation }) {
       // absorb the repeat.
     }
     const route = linkToRoute(row.link, user?.role);
+    // A link's query goes to the screen as its `preset`, keyed by the moment
+    // of the press so a still-mounted screen takes it again — the admin
+    // dashboard's shape (fix round F3). B1 fix round, 2026-10-22.
+    const params = linkParams(row.link, user?.role);
     // popTo, not navigate: navigate pushes a second drawer (M16).
-    navigation.popTo('Main', { screen: route });
+    navigation.popTo('Main', params ? { screen: route, params: { preset: { ...params, key: Date.now() } } } : { screen: route });
   }
 
   async function markAllRead() {

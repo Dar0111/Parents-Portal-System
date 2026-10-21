@@ -91,8 +91,35 @@ export function isBuilt(path) {
 // `/teacher/...` name their drawer does not register, and navigate() would
 // fail. The server never emits another role's link; this makes that a
 // guarantee on the phone rather than an assumption.
+//
+// A LINK MAY CARRY A QUERY (B1 fix round, 2026-10-22): "Grades confirmed"
+// links `/teacher/class-summary?term=N`. The PATH alone picks the screen.
 export function linkToRoute(link, role) {
   const home = `/${role}`;
-  if (typeof link !== 'string' || !(link === home || link.startsWith(`${home}/`))) return home;
-  return isBuilt(link) ? link : home;
+  const path = typeof link === 'string' ? link.split('?')[0] : link;
+  if (typeof path !== 'string' || !(path === home || path.startsWith(`${home}/`))) return home;
+  return isBuilt(path) ? path : home;
+}
+
+function decodePart(text) {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
+// The link's query as plain strings — `{ term: '1' }` — for the screen it
+// opens, or null when there is none. Only when the link opens ITS OWN screen:
+// a fallback to the home carries nothing. The screen validates what it takes.
+export function linkParams(link, role) {
+  if (typeof link !== 'string') return null;
+  const at = link.indexOf('?');
+  if (at === -1 || linkToRoute(link, role) !== link.slice(0, at)) return null;
+  const params = {};
+  for (const pair of link.slice(at + 1).split('&')) {
+    const [key, value = ''] = pair.split('=');
+    if (key) params[decodePart(key)] = decodePart(value);
+  }
+  return Object.keys(params).length ? params : null;
 }

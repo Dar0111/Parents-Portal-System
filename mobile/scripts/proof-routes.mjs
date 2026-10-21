@@ -8,7 +8,7 @@
 // Run from `mobile/`:
 //   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-routes.mjs
 import { NAV_BY_ROLE } from '../src/navigation/nav.js';
-import { ROUTES, isBuilt, isWebOnly, linkToRoute, routeFor } from '../src/navigation/routes.js';
+import { ROUTES, isBuilt, isWebOnly, linkParams, linkToRoute, routeFor } from '../src/navigation/routes.js';
 
 let passed = 0;
 let failed = 0;
@@ -94,6 +94,18 @@ console.log('notification links (role teacher)');
 for (const link of ['/teacher/announcements', '/teacher/memos', '/teacher/events', '/teacher/excuse-letters']) {
   assert(linkToRoute(link, 'teacher') === link, `${link} → its own screen`);
 }
+// The B1 fix round (2026-10-22): grades_acknowledged links the confirmed term.
+const ACK_LINK = '/teacher/class-summary?term=1';
+assert(linkToRoute(ACK_LINK, 'teacher') === '/teacher/class-summary', `${ACK_LINK} (grades_acknowledged) → Class summary`);
+const ackParams = linkParams(ACK_LINK, 'teacher');
+assert(ackParams?.term === '1' && Object.keys(ackParams).length === 1, `${ACK_LINK} hands the screen { term: '1' }`);
+assert(linkParams('/teacher/class-summary', 'teacher') === null, 'a link with no query hands the screen nothing');
+assert(
+  linkToRoute(ACK_LINK, 'parent') === '/parent' && linkParams(ACK_LINK, 'parent') === null,
+  "another role's link with a query opens this role's home and hands it nothing"
+);
+assert(linkParams('/teacher/nowhere?term=1', 'teacher') === null, 'a query on an unbuilt link hands the home nothing');
+assert(linkParams('/teacher/class-summary?term=%E0', 'teacher')?.term === '%E0', 'a malformed escape in a query never throws');
 
 console.log('notification links (server/routes/notifications.js shapes, role parent)');
 for (const link of ['/parent/announcements', '/parent/memos', '/parent/events', '/parent/excuse-letters', '/parent/grades']) {
@@ -178,6 +190,33 @@ const dashboards = ['parent', 'teacher', 'admin'].map((role) => {
 // a cold open until then.
 const notRefetching = dashboards.filter((x) => !x.focus || !x.skipsFirst).map((x) => x.role);
 assert(notRefetching.length === 0, `parent, teacher and admin dashboards re-fetch on focus and all three skip the mount's focus${notRefetching.length ? ` — not: ${notRefetching.join(', ')}` : ''}`);
+
+// THE LINK'S QUERY REACHES THE SCREEN (B1 fix round, 2026-10-22): the bell
+// hands it on as `params.preset`, keyed by the press, and Class summary takes
+// the term from it — only a term its segment offers. Each with a control the
+// check must refuse.
+console.log("a link's query (the B1 fix round)");
+function holdsAndRefuses(label, holds, real, ...controls) {
+  assert(holds(real) && controls.every((c) => !holds(c)), `${label} (${controls.length} control${controls.length === 1 ? '' : 's'} refused)`);
+}
+const bellScreen = fs.readFileSync(path.join(SRC, 'screens', 'NotificationsScreen.jsx'), 'utf8');
+holdsAndRefuses(
+  "the bell hands a link's query to its screen as the preset, keyed by the press",
+  (s) => s.includes('const params = linkParams(row.link, user?.role);') && s.includes('params: { preset: { ...params, key: Date.now() } }'),
+  bellScreen,
+  bellScreen.replace('params: { preset: { ...params, key: Date.now() } }', 'params: { preset: params }')
+);
+const summaryScreen = fs.readFileSync(path.join(SRC, 'screens', 'teacher', 'ClassSummaryScreen.jsx'), 'utf8');
+holdsAndRefuses(
+  "Class summary opens on the preset's term, once per press, a term the segment offers",
+  (s) =>
+    s.includes('const preset = route?.params?.preset || null;') &&
+    s.includes('if (preset && preset.key !== presetSeen) {') &&
+    /const asked = TERMS\.find\(\(t\) => String\(t\.key\) === String\(preset\.term\)\);\s*if \(asked\) setTerm\(asked\.key\);/.test(s),
+  summaryScreen,
+  summaryScreen.replace('if (asked) setTerm(asked.key);', ''),
+  summaryScreen.replace('const preset = route?.params?.preset || null;', 'const preset = null;')
+);
 
 console.log(`\nproof-routes: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);
