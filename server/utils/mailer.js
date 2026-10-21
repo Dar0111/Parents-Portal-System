@@ -110,8 +110,9 @@ function resetCodeMessage({ name, code, minutes }) {
       '',
       `It expires in ${minutes} minutes and can be used once.`,
       '',
-      'If you did not ask to reset your password, you can ignore this message —',
-      'nothing has changed.',
+      // One line per paragraph (the owner's finding of 2026-10-21): a wrap
+      // typed into a plain-text body is a hard break on a phone.
+      'If you did not ask to reset your password, you can ignore this message — nothing has changed.',
       '',
       'Nobody from the school will ever ask you for this code.',
       '',
