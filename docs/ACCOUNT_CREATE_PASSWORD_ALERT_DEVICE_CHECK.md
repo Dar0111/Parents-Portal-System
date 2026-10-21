@@ -85,7 +85,7 @@ the message; the first-sign-in screens' copy is
 ## 4. Approve, web (ADMIN001)
 
 7. Admin → Users → the pending parent → Review → Approve, the dialog naming
-   the decision → "Parent approved."
+   the decision → "Parent account approved and activated."
 
 ## 5. The new parent's first sign-in, the Tecno (Expo Go) — the alert by text
 
@@ -171,6 +171,77 @@ untouched. The `password_alert_*` rows stay, as every activity row does.
 Health 200 → `POST /api/backups` 201 → one guarded transaction, as option D
 and the B4 cleanup ran.
 
+**Result (2026-10-21, after the check; the plan approved with two changes —
+no restore, and the baselines taken right after the backup).** Health 200 →
+**backup 338** (`parents_portal_2026-10-21_211040.sql`, 2,364,120 bytes) —
+**the pre-cleanup dump: it still holds the check records, so it is not a
+restore point; the restore point stays 317.** Then one guarded transaction,
+COMMITTED, every affected-row count as planned: users **1057, 1058, 1065**
+and students **1542, 1543**, their 2 `auth_codes` rows (357, 358) and 4
+`policy_acceptances` rows (1139–1142), the admin's two `parent_pending` bell
+rows (3306, 3307), and B6's `auth_codes` **385–387** (the §9 reset codes on
+Maria Santos and Ana Reyes, the §10 reconfirm code on Lito Bautista) — 2, 2,
+3, 4, 3, 2 rows. The 14 `activity_logs` rows of 1057 and 1058 now carry
+`user_id` NULL; every activity row stays, the `password_alert_*` rows
+included. Guards before any delete: the five rows with their recorded
+`created_at`, every referencing count across the 24 FK columns, the exact
+codes and bell rows, and **the four seeded hashes (ADMIN001, Maria Santos,
+Ana Reyes, Lito Bautista) — all pass, so no restore ran.** After: users
+**8**, students **4**, policy_acceptances **8** (765, 766, 791–796),
+auth_codes **11** (max id 305), notifications **0**; activity_logs 26,397,
+login_attempts 42 (13 uncleared), grades 5, teacher_assignments 8, the three
+advisers, the seeded accounts' statuses, contacts, versions and stamps —
+unchanged. The owner's reload of the admin tab afterwards: no badge on the
+bell, Students 4 of 4.
+
 ## 12. Result
 
-Pending the owner's run.
+**PASSED — Sections 1–10, no findings (2026-10-21, 14:36–16:49; ADMIN001 on
+the web in a normal Chrome window, the test accounts in Incognito and on the
+Tecno via Expo Go).** One line per section:
+
+- **§1 PASS** — Create teacher shows Login ID, Password and Name only; the
+  account is created and activated.
+- **§2 PASS** — the new teacher's first sign-in on the web: consent (two
+  ticks) → Confirm your contact (an empty Gmail field, no Change) → the code
+  → Set a new password → the dashboard. The first-password alert email
+  arrived at 14:42.
+- **§3 PASS** — Maria Santos enrols FAKE STUDENT (Grade 6 - Malikhain) and
+  creates the parent account: Login ID (locked), Guardian name, Password,
+  Confirm password; no Email, no Contact number. "Parent account created.
+  Pending admin approval."
+- **§4 PASS** — the admin approves: "Parent account approved and activated."
+- **§5 PASS** — FAKE PARENT on the Tecno: consent (three ticks) → Mobile
+  number (an empty field, no Change) → the code by SMS → Set a new password
+  → Home. The alert text arrived.
+- **§6 PASS** — Create teacher on the Tecno shows Login ID, Password and
+  Name only (screenshot only; nothing created).
+- **§7 PASS** — Lito Bautista enrols 2 FAKE STUDENT (Grade 1 - Mabait) on
+  the Tecno and creates the parent account: "Create this parent account?" →
+  "Parent account created. Pending admin approval." No screenshot of the
+  form; the proofs and the server's 400 cover it.
+- **§8 PASS** — Maria Santos changes her password twice on the web: "Change
+  your password?" → "Password changed successfully." Each time the alert
+  email and the alert text arrived. She ends on the seeded password.
+- **§9 PASS** — Forgot password on the Tecno. The first run used Maria
+  Santos's account by mistake; the reset worked and set her password to the
+  seeded one (the cleanup confirmed her hash). The redo on Ana Reyes passed:
+  the reset-code email at 16:30, "Password updated. You can sign in now.",
+  the alert email at 16:31. No text, because she has no confirmed number.
+- **§10 PASS** — the admin resets Lito Bautista's password: the confirm
+  step "Set a temporary password for Lito Bautista?" → "Yes, set a temporary
+  password" → the temporary-password dialog (not screenshotted, because it
+  shows the password) → the office text at 16:47 → "Confirm it's you"
+  (Mobile number) → the code text at 16:48 → Set a new password (the seeded
+  one) → the dashboard at 16:48 → the password-changed text at 16:49. No
+  email, because he has no confirmed Gmail.
+
+**Fixed during the check, on the owner's decision:** `b34f354` (the two
+alert emails, one line per paragraph; seen in §8) and `e78c635` (the
+reset-code email, the same way; seen in §9).
+
+**Observations, not findings:** each text shows twice on the Tecno, because
+SMSGate on the Tecno texts its own number; Chrome's "Update password?" popup
+comes from the browser.
+
+The cleanup's result is §11 above.

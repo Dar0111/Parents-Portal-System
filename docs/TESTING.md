@@ -181,7 +181,9 @@ started from the branch's worktree** (each suite as
 `node --env-file=<main>\server\.env scripts/<file>` with
 `API_BASE=http://127.0.0.1:5001`; 3000 and 5000 untouched): twenty-one at
 their figures below, `test:recovery` 121/122 (its entry below — the eleven
-kept codes, not the branch). **The run before it stopped at the first
+kept codes, not the branch), and **`smoke:isolated` 20/20 at 10:58 on
+2026-10-21** from the B5 worktree on its own ports (5001/3001; 3000 and 5000
+untouched) — the line the branch's first report was missing. **The run before it stopped at the first
 suite's TCH-001 sign-in** (401, then the 429 throttle after five): her
 password had been changed through the web at 00:02 that day and kept —
 BASELINE MISMATCH, twice, because a Settings → Change password meant to put
@@ -224,6 +226,27 @@ mid-smoke — its setup accepts for the two pending seeded parents and its
 teardown removes exactly those rows, `e2e/auth.js:251–254`), notifications 0,
 `login_attempts` 40 (13 uncleared), backups 111 — newest 329. The alert files
 land in `server/tmp/`, and `test:recovery` wipes that drop at its end.
+
+**The combined B5 + B6 device check (2026-10-21, 14:36–16:49; ADMIN001 on
+the web in a normal Chrome window, the test accounts in Incognito and on the
+Tecno via Expo Go, SMSGate on the Tecno) — PASSED, Sections 1–10, no
+findings** (`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md` §12). Two
+email hard-wrap fixes landed during it on the owner's decision (`b34f354`,
+`e78c635` — one line per paragraph), each re-gated with `test:sms-transport`
+75/75 and `test:recovery` 141/141 on 5001 with file transports. **The §11
+cleanup ran and verified clean the same evening** (the sheet's §11): health
+200 → **backup 338** (`parents_portal_2026-10-21_211040.sql`, 2,364,120
+bytes — the PRE-cleanup dump, not a restore point; the restore point stays
+317), the baselines taken right after it, then one guarded transaction by
+id — the three check accounts, the two learners, their 2 codes and 4
+acceptance rows, the admin's two `parent_pending` rows and B6's three codes
+above the 305 mark — COMMITTED at exactly 2, 2, 3, 4, 3, 2 rows; the four
+seeded hashes (1, 2, 5, 6) passed as a guard, so no restore ran. After:
+users 8, students 4, grades 5, `auth_codes` 11 (max id 305), acceptances 8,
+notifications 0, `login_attempts` 42 (13 uncleared), backups 112 (newest
+338), `activity_logs` 26,397 (the 14 rows of the two check accounts with
+`user_id` NULL). The owner's reload of the admin tab: no badge, Students 4
+of 4. **B5 and B6 are merge-ready on this branch.**
 
 - `npm run test:students` — **97/97** (2026-10-10, feat/privacy, −1: decision 6 — a VALUE for the learner's birthday, gender, address or contact number is 400 "no longer collected" on POST and PUT, null and empty keys are ignored, and no response carries the four; the birthday round-trip check is gone with the field, and the class-change tests edit `last_name` where they edited the contact number. 98/98 before that, was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — **30/30** (2026-10-21, feat/account-create, same count: its throwaway teacher is created with login id, password and name alone — `createTeacherBare` — because `POST /users/teachers` refuses an email or a number since the branch)

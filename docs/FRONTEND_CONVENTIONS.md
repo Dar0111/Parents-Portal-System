@@ -3849,7 +3849,13 @@ record is one card, LRN (and the parent account's status for the admin); the
 Contact details card is gone. The server refuses a value (400 by field) and
 ignores a null or empty key; `db:migrate:privacy` cleared what was stored;
 the columns stay. **The PARENT's own contact number is not one of them** — it
-belongs to the guardian's account and stays in the wizard.
+belongs to the guardian's account, not the learner's record. It is not
+collected in the wizard either, since `feat/account-create` (2026-10-21,
+§29g): the Create parent account step is Guardian name, Password and Confirm
+password (`teacher/StudentsPage.jsx`), `POST /users/parents` refuses an
+email or a number with `400`, and the parent confirms a Gmail or a mobile
+number at the first sign-in (§29f); an admin may set one on Admin → Users →
+Edit.
 
 ### 29f. The first sign-in — consent, a confirmed contact, your own password (`feat/first-signin`, 2026-10-18)
 
