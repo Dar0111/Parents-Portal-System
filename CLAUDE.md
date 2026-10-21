@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-21, `feat/password-alert` `e78c635` plus this docs commit — B5 (`feat/account-create`) and B6 (the password alert) device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338, READY TO MERGE on the owner's word; `main` is `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-21, `main` `2b85331` plus this docs commit — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1738,17 +1738,16 @@ items moved from CLAUDE.md on 2026-10-11" (two batches), "… item moved … on
 M26–M29.
 
 **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin` is
-merged (`9d3b430`, 2026-10-21); `feat/account-create` (`1e43b6a`) and, on
-top of it, `feat/password-alert` (`e78c635` plus this docs commit) are
-device-checked (the combined check, 2026-10-21, Sections 1–10, no findings —
-`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md` §12), cleaned up by id
-after backup 338 (§11) and READY TO MERGE. **On the owner's word "merge":**
-`main` fast-forwards to this branch's head by the ref move (never a checkout
-under the running servers), then the post-merge docs on `main`; then
+merged (`9d3b430`, 2026-10-21); `feat/account-create` and
+`feat/password-alert` are MERGED (`2b85331`, 2026-10-21 — `main`
+fast-forwarded from `bba67bd` by the ref move, no checkout under the running
+servers; the combined check `docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`
+§12, the cleanup §11, backup 338). **Next, on the owner's word:**
 `feat/grade-acknowledgement` — built and DB-free gated 2026-10-21 in its own
-worktree, waiting — rebases onto the new `main` and runs its database part
-(a backup, the migration, the 23 HTTP suites, the smoke, its commit), then
-its own check → `fix/f3-badges` → `feat/activity-log`, each on its own
+worktree, waiting — rebases onto this `main` (docs conflicts keep both sides,
+every conflict reported), then runs its database part (a backup, the
+migration, the 23 HTTP suites, the smoke, its commit), then its own check →
+`fix/f3-badges` → `feat/activity-log`, each on its own
 check, then `docs/pre-oct21`, the demo data and a new restore point. The
 owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is

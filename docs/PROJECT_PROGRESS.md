@@ -11,20 +11,19 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-21: `main` at `9d3b430` plus this docs commit —
-`feat/first-signin` merged fast-forward from `bae0800` (`4d28d7f` plus its
-docs commit; six commits, the migration inventory docs `e9b6574` among them):
-the first sign-in, device-checked 2026-10-20/21 on the web, the Tecno phone
-(Expo Go) and SMSGate — every section passed, no fix round — cleaned up by id
-after backup 324; the restore point is still backup 317. Before it on `main`: the grade locks and
+**Snapshot, 2026-10-21: `main` at `2b85331` plus this docs commit —
+`feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5
+`feat/account-create` `1e43b6a`, B6 `9f3cc6d`, the two email hard-wrap fixes
+`b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation
+and the password alert, device-checked together on 2026-10-21 — Sections
+1–10, no findings — and cleaned up by id after backup 338; the restore point
+is still backup 317. Before it on `main`: `feat/first-signin` (`9d3b430`,
+2026-10-21 — device-checked 2026-10-20/21, cleaned up after backup 324),
+trim-9 (`bba67bd`), the grade locks and
 the smoke gate's F4–F7 (2026-10-13), the web load races (2026-10-12),
 skeleton tier 2, staff acceptance, the socket handshake, skeleton option 1,
 shared Messages and privacy. F3 (a visit clearing a page's badge) is a KNOWN
-ISSUES row and `fix/f3-badges` in the owner's order. On `feat/password-alert`
-(`e78c635` plus this docs commit, carrying `feat/account-create`): account
-creation and the password alert, device-checked together on 2026-10-21 —
-Sections 1–10, no findings — and cleaned up by id after backup 338; READY TO
-MERGE on the owner's word, not merged.**
+ISSUES row and `fix/f3-badges` in the owner's order.**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -61,8 +60,8 @@ and only there.
 | Grade locks — `fix/grade-locks`: a locked learner freezes the class's highest possible scores (`409` naming every locked learner, a dry run too); "Lock or unlock a term" on Admin → Grades — preview first, active learners only, a lock only for learners graded in every subject, the rest listed (built, gated and suites run 2026-10-13; carried by `fix/smoke-round`, device-checked 2026-10-13; data cleaned up, backup 316) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | The smoke gate's fix round — `fix/smoke-round` (on `fix/grade-locks`): F4 the class record's Summative block without a raw total and a line saying how ST PS is made; F5 the parent breakdown's rows named "Written Work 1" or the column's own name, as the class record's helper promises; F6 sign-in confirming a password reset; F7 a per-row lock or unlock closing its dialog and keeping its line (built and gated 2026-10-13; device-checked the same night on the web and the Android emulator, every section passed, the bulk dialog's 390px / dark pass not done; data cleaned up, backup 316; F3 cut — KNOWN ISSUES) | — (untouched) | ✅ merged 2026-10-13 | ✅ merged 2026-10-13 |
 | The first sign-in — `feat/first-signin` (pre-Oct-21 build, branch 1 of 6 in the owner's order): consent → a confirmed Gmail or mobile number → your own password (no temporary-password field, `PUT /auth/first-password`; a temporary password on a confirmed account confirms it again); your own email (`PUT /auth/email`, web and phone Settings); the 60-second resend cooldown on every code, forgot-password included, counted down on both clients (built and gated 2026-10-18; device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round; cleaned up by id, backup 324; merged 2026-10-21, `9d3b430`) | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 |
-| Account creation — `feat/account-create` (pre-Oct-21 build, branch 2 of 6): Create teacher and Create parent drop the Email and Contact number fields on the web's three forms and the phone's two screens, and `POST /users/teachers` / `POST /users/parents` refuse a value with `400` "no longer collected" naming the field (the owner's decision of 2026-10-16); the holder confirms a contact at the first sign-in; Admin → Users → Edit, Settings and the contact gate unchanged (built and gated 2026-10-21, `1e43b6a`; device-checked 2026-10-21 in the combined check with `feat/password-alert` — Sections 1–10, no findings — and cleaned up by id after backup 338; READY TO MERGE on the owner's word, NOT merged) | 🔶 ready to merge | 🔶 ready to merge | 🔶 ready to merge |
-| The password alert — `feat/password-alert` (pre-Oct-21 build, branch 3 of 6, on `feat/account-create`): after any password change — Settings → Change password, Forgot password's reset, the first sign-in's own password, the admin's temporary password — the holder gets a "was this you?" email and/or text on every confirmed channel, no code and no link, sent after the reply and never blocking the change; nothing confirmed is logged; the office's temporary password has its own words (the owner's decision of 2026-10-14/16; built and gated 2026-10-21; the two email hard-wrap fixes `b34f354` and `e78c635` during the check; device-checked 2026-10-21 in the combined check — every alert arrived on the confirmed channel, none on an unconfirmed one — and cleaned up after backup 338; READY TO MERGE on the owner's word, NOT merged) | 🔶 ready to merge | — (untouched) | — (untouched) |
+| Account creation — `feat/account-create` (pre-Oct-21 build, branch 2 of 6): Create teacher and Create parent drop the Email and Contact number fields on the web's three forms and the phone's two screens, and `POST /users/teachers` / `POST /users/parents` refuse a value with `400` "no longer collected" naming the field (the owner's decision of 2026-10-16); the holder confirms a contact at the first sign-in; Admin → Users → Edit, Settings and the contact gate unchanged (built and gated 2026-10-21, `1e43b6a`; device-checked 2026-10-21 in the combined check with `feat/password-alert` — Sections 1–10, no findings — and cleaned up by id after backup 338; merged 2026-10-21, `2b85331`) | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 | ✅ merged 2026-10-21 |
+| The password alert — `feat/password-alert` (pre-Oct-21 build, branch 3 of 6, on `feat/account-create`): after any password change — Settings → Change password, Forgot password's reset, the first sign-in's own password, the admin's temporary password — the holder gets a "was this you?" email and/or text on every confirmed channel, no code and no link, sent after the reply and never blocking the change; nothing confirmed is logged; the office's temporary password has its own words (the owner's decision of 2026-10-14/16; built and gated 2026-10-21; the two email hard-wrap fixes `b34f354` and `e78c635` during the check; device-checked 2026-10-21 in the combined check — every alert arrived on the confirmed channel, none on an unconfirmed one — and cleaned up after backup 338; merged 2026-10-21, `2b85331`) | ✅ merged 2026-10-21 | — (untouched) | — (untouched) |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -146,16 +145,15 @@ compiles; a page is done when it has been opened in a browser (CLAUDE.md
 
 ## What is next
 
-**Merged (2026-10-21, `9d3b430`):** `feat/first-signin`, device-checked and
-cleaned up (`docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9). **Ready to merge
-(2026-10-21):** `feat/account-create` (`1e43b6a`) and, on top of it,
-`feat/password-alert` (`e78c635` plus this docs commit) — the combined
-device check PASSED, Sections 1–10, no findings; the §11 cleanup done and
-verified after backup 338 (`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`
-§11–§12). **Next, on the owner's word "merge":** `main` fast-forwards to
-this branch's head by the ref move, then the post-merge docs on `main`;
-then `feat/grade-acknowledgement` — built and DB-free gated in its own
-worktree, waiting — rebases onto the new `main` and runs its database part
+**Merged (2026-10-21):** `feat/first-signin` (`9d3b430`, device-checked
+and cleaned up — `docs/FIRST_SIGNIN_DEVICE_CHECK.md` §9), then
+`feat/account-create` (`1e43b6a`) and `feat/password-alert` together
+(`2b85331` — the combined device check PASSED, Sections 1–10, no findings;
+the §11 cleanup done and verified after backup 338,
+`docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md` §11–§12; `main`
+fast-forwarded from `bba67bd` by the ref move). **Next, on the owner's
+word:** `feat/grade-acknowledgement` — built and DB-free gated in its own
+worktree, waiting — rebases onto this `main` and runs its database part
 (the migration after a backup, the 23 HTTP suites, the smoke, its commit),
 then its own check. **Then the rest of the pre-Oct-21 order:**
 `fix/f3-badges`, `feat/activity-log`, each on its own check; then
