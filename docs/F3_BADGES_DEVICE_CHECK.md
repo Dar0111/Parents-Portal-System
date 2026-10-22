@@ -96,4 +96,18 @@ seeded passwords checked as a guard (pass or fail only, no restore);
 
 ## 7. Result
 
-PENDING.
+PENDING — §1–§5 passed, with the owner's adjustments: rows 12–14 redone
+with one more Malikhain announcement; row 17 with one more Mabait
+announcement and a Grade 1 event, posted by Lito Bautista on the web; the
+letters approved instead of declined. §6 not run yet.
+
+**Finding #1 (the owner) — fixed, re-check pending.** The parent dashboard's
+Upcoming events card showed the next event's name too large, web and phone:
+it went through the shared `Stat` (`text-xl font-bold`, a figure's size).
+That card alone stops using `Stat` — `Stat` and the teacher dashboard's card
+are unchanged. The name is now, as the owner asked, the web Messages card's
+sender line (`text-sm font-semibold`) and, on the phone, the cards' line size
+in bold (`text-sm font-bold`) — so the two weights differ on purpose; "Next
+event · <date>" keeps `Stat`'s caption classes. The card's loading shape
+(`skeleton="list"`, shared) still draws a figure-sized first row, so the
+lines move up about 8px when it loads; left as it is.

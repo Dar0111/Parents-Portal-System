@@ -543,7 +543,13 @@ export default function DashboardScreen({ navigation }) {
         >
           {eLead ? (
             <View>
-              <Stat value={eLead.value} caption={eLead.caption} />
+              {/* NOT a Stat (the B3 device check's finding #1): the title
+                  reads at the cards' line size, text-sm, in bold. The caption
+                  keeps Stat's own classes, unchanged. */}
+              <View className="min-w-0">
+                <Text className="text-sm font-bold text-fg">{eLead.value}</Text>
+                <Text className="mt-1 text-sm text-fg-muted">{eLead.caption}</Text>
+              </View>
               {events.data.length > 1 ? (
                 <View className="mt-3 gap-2.5 border-t border-edge-soft pt-3">
                   {events.data.slice(1).map((row) => (

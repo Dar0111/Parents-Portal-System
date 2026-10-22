@@ -955,8 +955,14 @@ export default function ParentDashboard() {
       >
         {events.data?.length ? (
           <>
-            {/* The next one leads; the list below holds the rest. */}
-            <Stat value={events.data[0].title} caption={`Next event · ${longDate(events.data[0].event_date)}`} />
+            {/* The next one leads; the list below holds the rest. NOT a Stat
+                (the B3 device check's finding #1): a title is a line, not a
+                figure, so it takes the Messages card's sender line — text-sm,
+                semibold. The caption keeps Stat's own classes, unchanged. */}
+            <div className="min-w-0">
+              <p className="break-words text-sm font-semibold text-fg">{events.data[0].title}</p>
+              <p className="mt-1 text-sm text-fg-muted">{`Next event · ${longDate(events.data[0].event_date)}`}</p>
+            </div>
             {events.data.length > 1 ? (
               <ul className="mt-3 space-y-2.5 border-t border-edge-soft pt-3">
                 {events.data.slice(1).map((row) => (
