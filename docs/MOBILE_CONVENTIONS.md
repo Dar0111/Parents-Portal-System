@@ -1292,7 +1292,12 @@ The web's rules are FRONTEND_CONVENTIONS §27; only these differ.
   card that is not itself pressable, decision 3), then System. **Parent:**
   the web's order — Grades, Attendance, Messages, Excuse letters, Upcoming
   events, then **Announcements & memos last, as a list** (one row per post,
-  a hairline between). Teacher: unchanged but for the look.
+  a hairline between). Teacher: unchanged but for the look. **Since the B3
+  device check's finding #1 (2026-10-23), both dashboards' Upcoming events
+  card leads with the event's NAME as a line, not through `Stat`:**
+  `text-sm font-bold text-fg`, then the caption in `Stat`'s own classes —
+  the cards' line size, in BOLD on the phone where the web's is semibold,
+  the owner's choice; `Stat` itself is unchanged (FRONTEND §15e).
 - **The admin dashboard after the fix round (2026-10-08; FRONTEND §15e).**
   **F1 — the lockout notice is compact and holds its space:** the warning,
   then "Why this matters" (`accessibilityState` expanded; the explanation

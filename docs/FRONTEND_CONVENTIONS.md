@@ -2242,7 +2242,14 @@ All three roles, web and phone. **No "Open →" row.**
 - **Every card opens on a number or the next action, as `Stat`.** A count is
   printed at 0 once there is anything to count; none keeps the card's empty
   copy. Key Stage 1 still has no count (§12), and there is still no partial
-  average.
+  average. **One exception, both dashboards' Upcoming events (`fix/f3-badges`,
+  the B3 device check's finding #1, 2026-10-23):** the next event's NAME
+  leads, and a name is a line, not a figure — so the card writes its own two
+  lines instead of `Stat`: the name at the parent Messages card's sender line
+  (`text-sm font-semibold text-fg`, `break-words`), then "Next event ·
+  <date>" in `Stat`'s own caption classes. `Stat` itself is unchanged. Its
+  shared `list` skeleton still draws a figure-sized first row (an OPEN,
+  accepted KNOWN_ISSUES row).
 - **THE LOOK (Part C, 2026-10-07):** one blue accent (palette C) and no new
   token. **Cards:** the container corner `rounded-xl` (§27f), the hairline
   edge, **no shadow at rest**; a card that links darkens its edge
@@ -2275,6 +2282,8 @@ All three roles, web and phone. **No "Open →" row.**
     `hazard.single_unverified_admin`, not dismissible, naming no account.
   - **Teacher** (`sm:2 / lg:3`): unchanged — **"Excuse letters to review"
     leads**, first, `sm:col-span-2`, `Stat large`; no width leaves a hole.
+    Upcoming events leads with the event's name as a line (above), as on the
+    parent's.
   - **Parent** (`sm:2 / lg:3`): **Grades leads, two columns, beside
     Attendance**; then Messages, Excuse letters and Upcoming events; then
     **Announcements & memos across the page** (`sm:col-span-2 lg:col-span-3`)
@@ -2282,7 +2291,9 @@ All three roles, web and phone. **No "Open →" row.**
     its kind, a hairline between. Grades is one normal-size line ("1 of 8
     subjects recorded · Term 2") or the average, then the recorded subjects;
     Excuse letters is the small `StatusBadge` then "Absence on …", or "No
-    excuse letters."; Attendance keeps its large absences number.
+    excuse letters."; Upcoming events is the next event's name as a line,
+    then "Next event · <date>" and the rest of the list; Attendance keeps its
+    large absences number.
   - **The phone stays one column**, in the web's DOM order — so the parent's
     Announcements & memos moved to the end there too — with the same cards,
     wording and emphasis (`gradesLead`, `letterLead`).
@@ -3351,7 +3362,9 @@ the parent hero's figures 24px.
   14px (`layout/Shell.jsx:185`); the figures above are unchanged in size and
   now `font-bold` (`Card.jsx:182`). §27.
 - **A new figure uses `Stat`** (or states why not). A size picked at a call
-  site is how the scale drifts.
+  site is how the scale drifts. **A name is not a figure:** a title in a
+  card's lead (the Upcoming events cards, since the B3 device check's finding
+  #1) is a `text-sm` line, never `Stat`'s `text-xl` (§15e).
 
 ## 25. Profile photos — the file name is the key, and never a login id (`feat/profile-photos`, 2026-09-30)
 

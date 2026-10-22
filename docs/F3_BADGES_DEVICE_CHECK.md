@@ -1,4 +1,4 @@
-# F3 badges — device check (`fix/f3-badges`, B3, 2026-10-22; PENDING)
+# F3 badges — device check (`fix/f3-badges`, B3, 2026-10-22/23; PASSED)
 
 The owner's check of the smoke gate's F3: **visiting a badged page clears
 the INFORMATION notifications its badge counts; a call to act keeps clearing
@@ -28,6 +28,10 @@ is a credential: sign-ins are read at run time and never printed.
 - **After a backup, ONE direct insert by id:** a `parent_pending`
   notification for the admin about the seeded pending parent account (Jea's
   parent) — the Users badge, without creating an account. Recorded: its id.
+- **Two run-sheet corrections, given with §0's go:** for rows 13–14 the
+  second admin tab is opened FIRST, on another page, so the self-signal has
+  somewhere to land; and one phone holds one account, so rows 17 and 19 are
+  Lito Bautista's on the web while Nino's parent stays on the phone.
 
 ## 1. The posts — made in the app
 
@@ -88,20 +92,70 @@ is a credential: sign-ins are read at run time and never printed.
 Health 200 → `POST /api/backups` 201 → one transaction, every statement by
 id from the start marks: the check's announcements, memos and events (their
 notification rows with them), the two letters and their notification rows,
-the inserted `parent_pending` row, both parents' consent rows and codes above
-the start marks, the two parents' email and number back to the seed values
-(read from `setup-db.js` at run time) with both confirmation stamps NULL; the
-seeded passwords checked as a guard (pass or fail only, no restore);
-`activity_logs` and `login_attempts` kept.
+the inserted `parent_pending` row, the message the check sent (an unscripted
+step, row 9), both parents' consent rows and codes above the start marks, the
+two parents' email and number back to the seed values (read from
+`setup-db.js` at run time) with both confirmation stamps NULL; the seeded
+passwords checked as a guard (pass or fail only, no restore);
+`activity_logs` and `login_attempts` kept. Then `test:notifications` on 5001
+with file transports.
+
+**Result (2026-10-23, 05:24–05:28; the plan approved as written, the
+owner's Q1–Q6).** A read-only survey first (04:52): every row above the
+marks was the check's or the smoke run's, nothing unexplained. Health 200 →
+**backup 354** (`parents_portal_2026-10-23_052443.sql`, 2,497,921 bytes,
+footer present) — **the pre-cleanup dump: it still holds the check's rows,
+so it is not a restore point; the restore point stays 317.** Guards G1–G13
+all passed (the five seeded passwords passed, so nothing was restored; users
+1, 2, 4, 5, 6 and 647 unchanged by one digest; #3's and #7's other columns
+untouched, compared before and after the writes). W1–W11 at exactly **1, 29,
+2, 5, 1, 2, 1, 4, 3, 1, 1** rows: notification 3577 (the §0 insert) and
+3578–3606 (the fan-out); letters 572 and 573; announcements 392–396; memo
+132; events 262 and 263; message 622; acceptances 1361–1364; codes 427–429
+(#428 was #7's first email change, 10/22 17:51, overtaken by #429 the next
+morning); #3 and #7 back to the seed contacts. COMMIT at 05:25:03.
+**After:** users 8, students 4, grades 5 all unlocked, `excuse_letters`,
+notifications, messages, `grade_acknowledgements` and attendance 0;
+announcements, memos and events 0 (their §0 counts); `policy_acceptances` 8
+(highest 796), `auth_codes` 11 (highest 305); backups 120, the newest 354;
+every other table at its count; `activity_logs` and `login_attempts` kept.
+**`test:notifications` 226/226** on 5001 at 05:27, and the same state after
+it. What the smoke run of 10/23 (04:11–04:17, `c248c51`'s gate) left: 25
+sign-in rows (kept) and five of the check's notifications marked read by its
+visits (deleted with the rest).
 
 ## 7. Result
 
-PENDING — §1–§5 passed, with the owner's adjustments: rows 12–14 redone
-with one more Malikhain announcement; row 17 with one more Mabait
-announcement and a Grade 1 event, posted by Lito Bautista on the web; the
-letters approved instead of declined. §6 not run yet.
+**PASSED — §1–§5, one finding, fixed in `c248c51` (parent) and `ce9f111`
+(teacher) and re-checked on the web and the phone (2026-10-22/23; the admin,
+Maria Santos and Marwin's parent on the web in Chrome; Nino's parent on the
+Tecno via Expo Go; Lito Bautista on the phone, and on the web for rows 17
+and 19).** The owner's adjustments: rows 12–14 redone with one more
+Malikhain announcement; row 17 with one more Mabait announcement and a
+Grade 1 event, posted by Lito Bautista on the web; both letters approved
+instead of declined, so row 11 read "approved" — information all the same.
+One line per section:
 
-**Finding #1 (the owner) — fixed, re-check pending.** The parent dashboard's
+- **§0 DONE** (10/22, 15:31–15:33) — **backup 353**
+  (`parents_portal_2026-10-22_153141.sql`, 2,489,074 bytes, a pre-write
+  dump), the insert #3577 at 15:32:29, the start marks, the switch of the
+  main tree to the branch (the API reloaded at 15:32:42).
+- **§1 PASS** (16:59–17:02) — announcements 392 (school-wide), 393
+  (Malikhain), 394 (Mabait), memo 132, event 262.
+- **§2 PASS** (17:08–17:13) — rows 4–7 after consent and the contact step;
+  each page's badge gone once its list showed, the bell's rows read.
+- **§3 PASS** (17:14–17:19) — rows 8–11; a message from Maria Santos to
+  Marwin's parent (17:14, unscripted, cleaned up in §6); the letter 572
+  approved, its call to act cleared on the decision, not on the visit.
+- **§4 PASS** (17:25–17:47) — rows 12–14, redone with announcement 395; the
+  second tab's badge dropped without a reload.
+- **§5 PASS** (10/22 17:51 – 10/23 03:57) — rows 15–20; Nino's parent's
+  contact step finished on the morning of 10/23; announcement 396 and event
+  263 by Lito Bautista on the web; letter 573 approved; the re-read on focus.
+- **Finding #1** — below; fixed and re-checked on 10/23, web and phone.
+- **§6 DONE** (10/23, 05:24–05:28) — above.
+
+**Finding #1 (the owner) — fixed and re-checked.** The parent dashboard's
 Upcoming events card showed the next event's name too large, web and phone:
 it went through the shared `Stat` (`text-xl font-bold`, a figure's size).
 That card stops using `Stat` (`c248c51`), and so does the teacher
@@ -113,4 +167,6 @@ Messages sender line on the web (`text-sm font-semibold`) and, on the phone, the
 in bold (`text-sm font-bold`) — so the two weights differ on purpose; "Next
 event · <date>" keeps `Stat`'s caption classes. The card's loading shape
 (`skeleton="list"`, shared) still draws a figure-sized first row, so the
-lines move up about 8px when it loads; left as it is.
+lines move up about 8px when it loads — accepted by the owner (Q3), an OPEN,
+accepted KNOWN_ISSUES row; no fix now. The rule went into FRONTEND §15e and
+§24 and MOBILE M23: an event's name is a line, not a figure.

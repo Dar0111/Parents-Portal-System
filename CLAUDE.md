@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-22, `fix/f3-badges` (B3) on `main` `1b43150` plus this commit — a visit clears a badge's information rows, built and gated, NOT device-checked, NOT merged; `main` is `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-23, `fix/f3-badges` (B3) on `main` `1b43150` — `b9268e2`, the fix round `c248c51` + `ce9f111` and this commit — a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354, merge-ready, NOT merged; `main` is `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1470,6 +1470,7 @@ gate in full on its `POST /api/users/parents` row.
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
+| **The Upcoming events card's loading shape still draws a figure-sized first row — its lines move up about 8px when it loads** — added 2026-10-23 (`fix/f3-badges`; accepted, the owner's Q3) | both shared `dashboards/Card.jsx` (`skeleton="list"`) | Since the card's name became a line (the B3 check's finding #1), the shared skeleton no longer matches it (§5a-vii). Cosmetic; a line-sized lead shape is its own dispatch |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1691,23 +1692,26 @@ MERGED (`6c39f9c`, 2026-10-22 — `main` fast-forwarded from `f9b3a68` by the
 ref move, no checkout under the running servers; its database part ran
 2026-10-21 after backups 339 and 344, the check
 `docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md` §8 with its one finding fixed
-in `2525215`, the cleanup §7, backup 346). **B3 `fix/f3-badges` is built and
-gated** (2026-10-22, in its own worktree, after backup 348): a visit clears a
-badge's information rows (§10) — committed and pushed, NOT device-checked,
-NOT merged. **Next, on the owner's word (the owner's labels):** B3's device
-check (`docs/F3_BADGES_DEVICE_CHECK.md`) and its merge, then B2
-`feat/activity-log` on its own check, then B7 `docs/pre-oct21` — the demo
-data and a new restore point; then the Supabase migration in Session B,
+in `2525215`, the cleanup §7, backup 346). **B3 `fix/f3-badges` is
+device-checked and merge-ready** (built and gated 2026-10-22 after backup
+348; the check `docs/F3_BADGES_DEVICE_CHECK.md` §7, its one finding fixed in
+`c248c51` + `ce9f111`, the cleanup §6, backup 354): a visit clears a badge's
+information rows (§10) — NOT merged. **Next, on the owner's word (the
+owner's order, 2026-10-23):** B3's merge, then B8 `feat/excuse-attendance`
+(an excuse decision sets that day's attendance; its plan is reported and
+waits for its PLAN APPROVED), then B2 `feat/activity-log` on its own check,
+then B7 `docs/pre-oct21` — the demo data and a new restore point; then the
+Supabase migration in Session B,
 whose sync must add B1's
 26th table `grade_acknowledgements` and the two `notifications.type` values
 `grades_locked` and `grades_acknowledged` (listed on B1's build CHANGELOG
 row, 2026-10-21). The
 owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
-still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338 and 346
-are the three checks' pre-cleanup dumps, 347 the owner's demo records'
-(2026-10-22, cleaned up by id), and 339, 344, 345 and 348 pre-write dumps,
-not restore points. The manuscript delta list stays with the team.
+still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346
+and 354 are the four checks' pre-cleanup dumps, 347 the owner's demo records'
+(2026-10-22, cleaned up by id), and 339, 344, 345, 348 and 353 pre-write
+dumps, not restore points. The manuscript delta list stays with the team.
 
 ### Stage 6 — Integration
 
