@@ -16,6 +16,7 @@ import Text from '../../components/Text';
 import { staffAudienceLabel } from '../../format/audience';
 import { timestampDay } from '../../format/date';
 import Icon from '../../icons';
+import useVisitClear from '../../realtime/useVisitClear';
 import { useTheme } from '../../theme/ThemeProvider';
 import { announcementFilterParams, canEditAnnouncement, deleteSentence, EMPTY_FILTER } from './posts/logic';
 
@@ -83,9 +84,11 @@ export default function AnnouncementsScreen({ navigation, route }) {
           setRows((prev) => (offset === 0 ? result.memos : [...prev, ...result.memos]));
           setPage(result.page);
         }
+        return true;
       } catch (err) {
         setError(extractError(err));
         if (offset === 0) setRows([]);
+        return false;
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -95,10 +98,15 @@ export default function AnnouncementsScreen({ navigation, route }) {
     [kind, filter]
   );
 
+  // A visit whose first page loads clears the badge (fix/f3-badges,
+  // realtime/useVisitClear.js) — the badge carries announcements AND memos,
+  // and the server clears both even though one segment is on screen; accepted
+  // (KNOWN_ISSUES). A segment or filter change while focused re-reads here.
+  const visited = useVisitClear('announcements');
   useFocusEffect(
     useCallback(() => {
-      load(0);
-    }, [load])
+      load(0).then(visited);
+    }, [load, visited])
   );
 
   useFocusEffect(
@@ -248,9 +256,9 @@ export default function AnnouncementsScreen({ navigation, route }) {
       }}
       loading={loading}
       error={error}
-      onRetry={() => load(0)}
+      onRetry={() => load(0).then(visited)}
       refreshing={refreshing}
-      onRefresh={() => load(0, { pull: true })}
+      onRefresh={() => load(0, { pull: true }).then(visited)}
       hasMore={Boolean(page?.has_more)}
       loadingMore={loadingMore}
       onLoadMore={() => load(rows.length || PAGE_SIZE)}

@@ -20,6 +20,7 @@ import { findOpenDrafts, loadDraft } from '../../drafts/sessionDrafts';
 import { useDraftAutosave } from '../../drafts/useDraft';
 import { usePageTitle } from '../../layout/usePageTitle';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 
 // Admin announcements AND memos — Figure 5 process 1.18, manuscript Feature 4
 // ("Announcements & Memo Dissemination"). Darryl decided 2026-09-14 that
@@ -275,6 +276,13 @@ export default function AdminAnnouncementsPage() {
   useEffect(() => {
     loadMemos();
   }, [loadMemos]);
+
+  // A visit clears this page's badge — which carries announcements AND memos,
+  // so both lists must have loaded (fix/f3-badges, realtime/useVisitClear.js).
+  useVisitClear(
+    'announcements',
+    !annLoading && !annError && annPage !== null && !memoLoading && !memoError && memoPage !== null
+  );
 
   useEffect(() => {
     let cancelled = false;

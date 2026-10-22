@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
@@ -10,6 +11,7 @@ import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
 import { longDate, todayLocalDateString } from '../../format/date';
+import useVisitClear from '../../realtime/useVisitClear';
 import { eventAudience } from './PostReadScreen';
 
 // PARENT → EVENTS. Upcoming asks the endpoint for `from=today` AND
@@ -44,9 +46,11 @@ export default function EventsScreen({ navigation }) {
         const result = await api.get('/events', { unwrap: ['events', 'page'], params });
         setRows((prev) => (offset === 0 ? result.events : [...prev, ...result.events]));
         setPage(result.page);
+        return true;
       } catch (err) {
         setError(extractError(err));
         if (offset === 0) setRows([]);
+        return false;
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -56,9 +60,19 @@ export default function EventsScreen({ navigation }) {
     [range]
   );
 
-  useEffect(() => {
-    load(0);
-  }, [load]);
+  // EVERY FOCUS RE-READS, as Admin → Announcements does (fix/f3-badges): a
+  // drawer screen stays mounted, so a visit is a focus, and a visit whose
+  // first page loads clears the badge (realtime/useVisitClear.js). The first
+  // focus is the mount, so there is no mount load of its own; a range change
+  // while focused re-reads here too. The screen opens on Upcoming, so an
+  // event dated before today is cleared without being shown — accepted
+  // (KNOWN_ISSUES).
+  const visited = useVisitClear('events');
+  useFocusEffect(
+    useCallback(() => {
+      load(0).then(visited);
+    }, [load, visited])
+  );
 
   const empty = (() => {
     if (user?.student_id == null) {
@@ -108,9 +122,9 @@ export default function EventsScreen({ navigation }) {
       })}
       loading={loading}
       error={error}
-      onRetry={() => load(0)}
+      onRetry={() => load(0).then(visited)}
       refreshing={refreshing}
-      onRefresh={() => load(0, { pull: true })}
+      onRefresh={() => load(0, { pull: true }).then(visited)}
       hasMore={Boolean(page?.has_more)}
       loadingMore={loadingMore}
       onLoadMore={() => load(rows.length || PAGE_SIZE)}

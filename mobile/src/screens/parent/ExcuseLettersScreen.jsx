@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View } from 'react-native';
 import { fetchAll } from '../../api/client';
@@ -12,6 +12,7 @@ import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
 import Icon from '../../icons';
+import useVisitClear from '../../realtime/useVisitClear';
 import { useTheme } from '../../theme/ThemeProvider';
 import parentLetterCard from './excuseLetters/card';
 
@@ -41,24 +42,27 @@ export default function ExcuseLettersScreen({ navigation, route }) {
     setError(null);
     try {
       setLetters(await fetchAll('/excuse-letters/mine', { unwrap: 'excuse_letters' }));
+      return true;
     } catch (err) {
       setError(extractError(err));
       setLetters([]);
+      return false;
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Reload when a write brought us back (compose / edit), not on every focus.
+  // EVERY FOCUS RE-READS, as Admin → Announcements does (fix/f3-badges) — a
+  // return from compose or edit included, so the write's `notice` needs no
+  // reload of its own: a drawer screen stays mounted, so a visit is a focus,
+  // and a visit whose letters load clears the badge's reviewed-letter rows
+  // (realtime/useVisitClear.js). The first focus is the mount.
+  const visited = useVisitClear('excuse_letters');
   useFocusEffect(
     useCallback(() => {
-      if (notice) load();
-    }, [notice, load])
+      load().then(visited);
+    }, [load, visited])
   );
 
   const visible = useMemo(() => (status === 'All' ? letters : letters.filter((row) => row.status === status)), [letters, status]);
@@ -135,9 +139,9 @@ export default function ExcuseLettersScreen({ navigation, route }) {
       renderCard={(row) => parentLetterCard(row, { onRead: (letter) => navigation.navigate('ExcuseLetterRead', { letter }) })}
       loading={loading}
       error={error}
-      onRetry={() => load()}
+      onRetry={() => load().then(visited)}
       refreshing={refreshing}
-      onRefresh={() => load({ pull: true })}
+      onRefresh={() => load({ pull: true }).then(visited)}
       header={header}
       empty={empty}
     />

@@ -15,6 +15,16 @@
 //                        smoke run may not visit it. If detail routes are
 //                        ever added, THIS ONE STAYS OUT or is declared a
 //                        writer.
+//
+// DECLARED WRITERS, and visited anyway (fix/f3-badges, 2026-10-22; the
+// owner's Q7): every badged page whose badge counts information —
+// Announcements, Memos and Events for a teacher and a parent, a parent's
+// Excuse Letters, the admin's Announcements — sends
+// PATCH /notifications/read-all { section } once its list loads, on every
+// visit, even at 0 (realtime/useVisitClear.js). It marks only that section's
+// unread information rows read. On the Seeded baseline every account has 0
+// notifications, so the run changes 0 rows; a 400 from a wrong section is a
+// failed response, which the run already records.
 //   every other :id    — needs fixtures. On the Seeded baseline there is
 //                        nothing to open, so a visit would prove only that
 //                        an empty state renders.

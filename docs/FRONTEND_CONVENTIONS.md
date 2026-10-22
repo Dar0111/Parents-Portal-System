@@ -1743,6 +1743,12 @@ never a widening), and every read re-checks visibility against live rows. If
 a page is ever added for something currently excluded, BOTH places change —
 flipping a nav flag alone will not do it.
 
+**A VISIT CLEARS A BADGE'S INFORMATION ROWS (since `fix/f3-badges`,
+2026-10-22).** Opening a badged page marks read the information rows that
+badge counted — never a call to act, which still clears only on the decision.
+The page sends its section; the server decides what it covers; the count is
+re-read, never adjusted. §34 has the rules.
+
 **Where the reasoning lives:** `server/utils/notify.js` (the audiences and
 the three declared narrowings), `server/routes/notifications.js` (the
 read-time re-check and the text), `client/src/realtime/NotificationProvider.jsx`
@@ -4321,4 +4327,66 @@ admin Grades, the two route files, `schema.sql` and the migration as source —
 each with a control. `ssr-grade-locks` gained the unlock preview's clear
 line. **Cannot prove** a real confirm, the dialog's focus or the bell — the
 owner's device check (`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md`).
+
+## 34. A visit clears a badge — its information rows only (`fix/f3-badges`, 2026-10-22)
+
+The smoke gate's F3 (2026-10-13, KNOWN_ISSUES): visiting a badged page left
+its badge; only opening each notification from the bell cleared it. The
+owner's decision (2026-10-22): **a visit clears only the INFORMATION
+notifications a badge counts; a call to act keeps clearing only on the
+decision**, as built (§10's self-heal). The server rules are
+`docs/API_REFERENCE.md` → Notifications (`PATCH /read-all { section }`).
+
+### 34a. Which pages clear, and what
+
+| Role | Page | Section | Clears on a visit |
+|---|---|---|---|
+| Teacher, Parent | Announcements / Memos / Events | `announcements` / `memos` / `events` | the announcement / memo / event rows |
+| Parent | Excuse Letters | `excuse_letters` | the reviewed-letter rows (approved and declined — information, the owner's Q1) |
+| Admin | Announcements | `announcements` | announcement AND memo rows — the badge carries both |
+| Teacher | Excuse Letters | — | **nothing**: "letter submitted" is a call to act, cleared when the letter is reviewed |
+| Admin | Users | — | **nothing**: "parent pending" is a call to act, cleared when the account is decided |
+
+**The server decides what a section covers** (`VISIT_CLEAR` in
+`routes/notifications.js`, per role); the page sends only its section's
+name. No grade type is in any section — Grades is never badged and the two
+grade-acknowledgement types are bell-only (§33) — and messages are not
+notifications.
+
+### 34b. What a visit is on the web
+
+`realtime/useVisitClear.js` — `useVisitClear(section, loaded)`, one call per
+page beside its load effect. **Once per mount**: a navigation to the page, a
+browser reload, or a Retry that succeeds after a failed first load. A filter,
+sort or page change on the same mount is not a visit. **A failed load clears
+nothing**: `loaded` is `!loading && !error && page !== null` (Excuse
+Letters, unpaged: `!loading && !error`; Admin → Announcements: both of its
+lists). **Sent on every visit, even at 0** (the owner's Q7) — simpler than
+reading the count first, and right on a reload, when the counts may not have
+arrived yet. After it, `refresh()` re-reads `/unread-counts` (§10: nothing
+subtracted); the bell re-reads its list whenever it opens, so the cleared
+rows show read there. A failed clear is silent — the badge stays and the bell
+still clears each row. The section clear also signals the caller's other
+devices and tabs, which refetch.
+
+### 34c. The gaps, accepted
+
+The clear covers the badge's whole section, not the rows on screen
+(KNOWN_ISSUES, the owner's Q3, Q5, Q6): a row created between the list's
+reply and the clear, an item past page 1, a past-dated event on parent
+Events (it opens on Upcoming). Each row stays in the bell, read. The browser
+smoke now declares the badged pages writers (`client/e2e/pages.js`); on the
+Seeded baseline the clear changes 0 rows.
+
+### 34d. What proves it
+
+`scripts/ssr-visit-clear.jsx` (TESTING), all as source because the clear is
+an effect and SSR runs none (§5h): the helper's request, once-per-mount and
+loaded gates, refresh and silent failure; the eight pages' calls with their
+sections and a `loaded` a failed load cannot make true; the two call-to-act
+pages calling nothing; the server's `VISIT_CLEAR`, the old no-section path,
+the 400, the empty section, the skipped `UPDATE` and the one signal — each
+with a control. `test:notifications` drives the endpoint on rows the run
+creates. **Cannot prove** a real visit or a badge falling — the owner's device
+check (`docs/F3_BADGES_DEVICE_CHECK.md`).
 

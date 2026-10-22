@@ -5,6 +5,7 @@ import DataTable from '../../components/DataTable';
 import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Teacher memos — READ ONLY, and that is the whole design.
@@ -68,6 +69,10 @@ export default function MemosPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — its information rows, once the list
+  // has loaded (fix/f3-badges, realtime/useVisitClear.js).
+  useVisitClear('memos', !loading && !error && page !== null);
 
   const columns = [
     {

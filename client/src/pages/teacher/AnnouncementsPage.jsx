@@ -15,6 +15,7 @@ import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { staffAudienceLabel } from '../../format/audience';
 import { timestampDay } from '../../format/date';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import teacherAnnouncementCard from './announcements/card';
 import { useAuth } from '../../auth/AuthContext';
 import { DRAFT_COPY, editContext, itemChangedSince, threadContext } from '../../drafts/draftCore';
@@ -208,6 +209,10 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — its information rows, once the list
+  // has loaded (fix/f3-badges, realtime/useVisitClear.js).
+  useVisitClear('announcements', !loading && !error && page !== null);
 
   // Thread arrival. Auto-open only when compose state is present AND the
   // target list has finished loading — opening against [] would hide compose

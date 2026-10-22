@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import { useAuth } from '../../auth/AuthContext';
 import DataList from '../../components/DataList';
 import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
+import useVisitClear from '../../realtime/useVisitClear';
 import { announcementAudience } from './PostReadScreen';
 
 // PARENT → ANNOUNCEMENTS: the paged list as cards (the web's own
@@ -31,9 +33,11 @@ export default function AnnouncementsScreen({ navigation }) {
       const result = await api.get('/announcements', { unwrap: ['announcements', 'page'], params: listParams({ offset }) });
       setRows((prev) => (offset === 0 ? result.announcements : [...prev, ...result.announcements]));
       setPage(result.page);
+      return true;
     } catch (err) {
       setError(extractError(err));
       if (offset === 0) setRows([]);
+      return false;
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -41,9 +45,16 @@ export default function AnnouncementsScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => {
-    load(0);
-  }, [load]);
+  // EVERY FOCUS RE-READS, as Admin → Announcements does (fix/f3-badges): a
+  // drawer screen stays mounted, so a visit is a focus, and a visit whose
+  // first page loads clears the badge (realtime/useVisitClear.js). The first
+  // focus is the mount, so there is no mount load of its own.
+  const visited = useVisitClear('announcements');
+  useFocusEffect(
+    useCallback(() => {
+      load(0).then(visited);
+    }, [load, visited])
+  );
 
   const empty =
     user?.student_id == null
@@ -69,9 +80,9 @@ export default function AnnouncementsScreen({ navigation }) {
       })}
       loading={loading}
       error={error}
-      onRetry={() => load(0)}
+      onRetry={() => load(0).then(visited)}
       refreshing={refreshing}
-      onRefresh={() => load(0, { pull: true })}
+      onRefresh={() => load(0, { pull: true }).then(visited)}
       hasMore={Boolean(page?.has_more)}
       loadingMore={loadingMore}
       onLoadMore={() => load(rows.length || PAGE_SIZE)}

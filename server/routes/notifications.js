@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 const { parseId } = require('../utils/validateId');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { emitNotifications } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -469,15 +470,94 @@ router.patch('/:id/read', authenticate, async (req, res) => {
 // NO :userId in the path, unlike PATCH /api/messages/read-all/:userId. The
 // caller is the only possible subject here, and an id in the path would invite
 // exactly the mistake that route has to guard against.
+//
+// THE VISIT CLEAR (fix/f3-badges, 2026-10-22 — the smoke gate's F3 and the
+// owner's decision). A badged page sends `{ section }` after it loads, and the
+// rows that badge counted are marked read — but only the INFORMATION ones.
+// A call to act keeps clearing only on the decision, as built: an adviser's
+// excuse_submitted once the letter is reviewed, the admin's parent_pending
+// once the account is decided (§10's self-heal). Which types a section covers
+// is decided HERE, per role, the badges' own mapping (NAV_SECTION above, the
+// admin's Announcements badge carrying memos too) minus the calls to act. No
+// grade type is in any section — Grades is never badged, the two
+// grade-acknowledgement types are bell-only (§33) — and messages are not
+// notifications. A section with no clearable type answers 0 and runs no query.
+//
+// Without `section` this is the bell's "Mark all as read", exactly as before.
+const VISIT_CLEAR = {
+  parent: {
+    announcements: ['announcement'],
+    memos: ['memo'],
+    events: ['event'],
+    excuse_letters: ['excuse_reviewed'],
+  },
+  teacher: {
+    announcements: ['announcement'],
+    memos: ['memo'],
+    events: ['event'],
+    excuse_letters: [],
+  },
+  admin: {
+    announcements: ['announcement', 'memo'],
+    users: [],
+  },
+};
+
 router.patch('/read-all', authenticate, async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+
+  if (body.section === undefined) {
+    try {
+      const [result] = await pool.query(
+        'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL',
+        [req.user.id]
+      );
+      return res.json({ success: true, message: 'All notifications marked as read.', updated: result.affectedRows });
+    } catch (error) {
+      console.error('Mark all notifications read error:', error);
+      return res.status(500).json({ success: false, message: 'Failed to mark notifications as read.' });
+    }
+  }
+
+  const sections = VISIT_CLEAR[req.user.role] || {};
+  const { section } = body;
+  if (typeof section !== 'string' || !Object.prototype.hasOwnProperty.call(sections, section)) {
+    return res.status(400).json({
+      success: false,
+      message: `section must be one of: ${Object.keys(sections).join(', ')}.`,
+    });
+  }
+
+  const types = sections[section];
+  if (!types.length) {
+    return res.json({ success: true, message: 'Marked as read.', section, updated: 0 });
+  }
+
   try {
-    const [result] = await pool.query(
-      'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL',
-      [req.user.id]
+    // Two plain statements rather than a multi-table UPDATE (portable — Phase
+    // 3). The SELECT is the badge's own count — unread, these types, and the
+    // read-time visibility re-check — so the clear marks exactly the rows the
+    // badge counted. No ids found means no UPDATE: an empty IN () is not SQL.
+    const visibility = visibilityClause(req.user);
+    const [rows] = await pool.query(
+      `SELECT n.id ${FROM_CLAUSE}
+        WHERE n.user_id = ? AND n.read_at IS NULL AND n.type IN (?) AND ${visibility.sql}`,
+      [req.user.id, types, ...visibility.params]
     );
-    return res.json({ success: true, message: 'All notifications marked as read.', updated: result.affectedRows });
+    let updated = 0;
+    if (rows.length) {
+      const [result] = await pool.query(
+        'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL AND id IN (?)',
+        [req.user.id, rows.map((r) => r.id)]
+      );
+      updated = result.affectedRows;
+    }
+    // The caller's OTHER devices and tabs refetch their counts (the owner's
+    // Q4); a clear of nothing signals nothing.
+    if (updated > 0) emitNotifications(req, [req.user.id]);
+    return res.json({ success: true, message: 'Marked as read.', section, updated });
   } catch (error) {
-    console.error('Mark all notifications read error:', error);
+    console.error('Mark section notifications read error:', error.code || error.message);
     return res.status(500).json({ success: false, message: 'Failed to mark notifications as read.' });
   }
 });

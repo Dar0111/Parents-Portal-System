@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
 import extractError from '../../api/extractError';
 import DataList from '../../components/DataList';
 import SectionHeader from '../../components/SectionHeader';
 import { timestampDay } from '../../format/date';
+import useVisitClear from '../../realtime/useVisitClear';
 
 // TEACHER → MEMOS — READ ONLY, and that is the whole design: every memo
 // write is authorize('admin'), so a compose control here would fail every
@@ -33,9 +35,11 @@ export default function MemosScreen() {
       const result = await api.get('/memos', { unwrap: ['memos', 'page'], params: listParams({ offset }) });
       setRows((prev) => (offset === 0 ? result.memos : [...prev, ...result.memos]));
       setPage(result.page);
+      return true;
     } catch (err) {
       setError(extractError(err));
       if (offset === 0) setRows([]);
+      return false;
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -43,9 +47,16 @@ export default function MemosScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load(0);
-  }, [load]);
+  // EVERY FOCUS RE-READS, as Admin → Announcements does (fix/f3-badges): a
+  // drawer screen stays mounted, so a visit is a focus, and a visit whose
+  // first page loads clears the badge (realtime/useVisitClear.js). The first
+  // focus is the mount, so there is no mount load of its own.
+  const visited = useVisitClear('memos');
+  useFocusEffect(
+    useCallback(() => {
+      load(0).then(visited);
+    }, [load, visited])
+  );
 
   const header = (
     <View className="mb-4">
@@ -62,9 +73,9 @@ export default function MemosScreen() {
       renderCard={(row) => ({ title: row.title, subtitle: row.content, meta: `${row.posted_by_name} · ${timestampDay(row.created_at)}` })}
       loading={loading}
       error={error}
-      onRetry={() => load(0)}
+      onRetry={() => load(0).then(visited)}
       refreshing={refreshing}
-      onRefresh={() => load(0, { pull: true })}
+      onRefresh={() => load(0, { pull: true }).then(visited)}
       hasMore={Boolean(page?.has_more)}
       loadingMore={loadingMore}
       onLoadMore={() => load(rows.length || PAGE_SIZE)}

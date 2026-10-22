@@ -15,6 +15,7 @@ import SectionHeader from '../../components/SectionHeader';
 import { shortDate, todayLocalDateString } from '../../format/date';
 import { staffAudienceLabel } from '../../format/audience';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import teacherEventCard from './events/card';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
 import { useAuth } from '../../auth/AuthContext';
@@ -165,6 +166,10 @@ export default function EventsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — its information rows, once the list
+  // has loaded (fix/f3-badges, realtime/useVisitClear.js).
+  useVisitClear('events', !loading && !error && page !== null);
 
   function openCompose() {
     setWriteStatus({});

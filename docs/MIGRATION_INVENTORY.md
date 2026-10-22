@@ -634,6 +634,7 @@ page paths. Phone paths are under `mobile/src/`, with `screens/` dropped.
 | GET | /unread-counts | :349 | any | Counts per nav section | — | realtime/NotificationProvider.jsx:50 | realtime/NotificationProvider.jsx:30 |
 | PATCH | /:id/read | :386 | any (own rows) | Mark one read | — | components/NotificationBell.jsx:153 | NotificationsScreen.jsx:86 |
 | PATCH | /read-all | :425 | any (own rows) | Mark all read (no section filter) | — | components/NotificationBell.jsx:166 | NotificationsScreen.jsx:101 |
+| PATCH | /read-all `{ section }` | :506 (since fix/f3-badges, 2026-10-22) | any (own rows) | The visit clear: one badge's unread INFORMATION rows read, the types per role from `VISIT_CLEAR` (:487); a call to act and every grade type never; `400` naming the role's sections | emits `notification_counts` to the caller when `updated` > 0 | realtime/useVisitClear.js:32 (eight badged pages) | realtime/useVisitClear.js:28 (eight badged screens) |
 
 ### B15. /api/dashboard, /api/policy, and `server.js`
 | Method | Path | Line | Role | Purpose | Side effects | Web | Phone |
@@ -696,7 +697,7 @@ has never been logged.
 | C27 | Restore | `routes/backups.js:476-700` | Step-up password (:532). Type-the-filename check (:542). Safety dump first (:566). `stripBackupsTableDdl` (:263, :605). One-off `multipleStatements` connection (:607-611). `resetPool` (:638). Re-runs `migratePrivacy` (:653). Session cutoff (:667). Wiped-logs marker (:679-681). Synchronous |
 | C28 | Activity logging | `utils/activity.js:3-8` | One INSERT per write: `user_id`, `action`, free-text `description`. 66 actions in code (B) |
 | C29 | Notification fan-out | `utils/notify.js:64-236` | Audiences: announcement :64, memo :97 (every active account), event :117 (no admins), excuse adviser :147, admins :159, parent :164, one user :172. INSERT IGNORE on uq_notifications_once :188-198. The actor is never a recipient (:189). A delete removes the item's rows (:210). `notification_counts` is emitted after commit (:230-235) |
-| C30 | Read-time visibility | `routes/notifications.js:62`, `:288`, `:349` | `visibilityClause` re-checks each row against live data on every read. `NAV_SECTION` maps the badges |
+| C30 | Read-time visibility | `routes/notifications.js:62`, `:288`, `:349` | `visibilityClause` re-checks each row against live data on every read. `NAV_SECTION` maps the badges. **Since fix/f3-badges (2026-10-22):** `VISIT_CLEAR` (`:487`) maps each role's badged section to the information types a visit may clear; the clear is a SELECT of ids (the badge's own count, through `visibilityClause`) then `UPDATE … WHERE id IN (?)`, skipped when no ids — two plain statements, no multi-table UPDATE (`IN (?)` with an array is mysql2's expansion: `= ANY($1)` on Postgres) |
 | C31 | Teacher read scope | `utils/teacherScope.js:55-113` | `TEACHER_VIEW_SCOPE_SQL` needs two parameters (`teacherViewScopeParams` :66). `TEACHER_ADVISES_CLASS_SQL` :108 |
 | C32 | Attendance scope | `routes/attendance.js:35`, `:69-108`, `:402`, `:480` | Writes are for the adviser; reads are for the recorder OR the current adviser. 403 outside scope |
 | C33 | Excuse-letter authority | `routes/excuses.js:324`, `:419-440` | The parent edits only while Pending. Only the adviser reviews, and only once (403 after that) |

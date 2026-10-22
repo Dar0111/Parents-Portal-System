@@ -8,6 +8,7 @@ import Button from '../../components/Button';
 import SectionHeader from '../../components/SectionHeader';
 import { cardClass, linkClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
@@ -133,6 +134,12 @@ export default function ParentEventsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — its information rows, once the list
+  // has loaded (fix/f3-badges, realtime/useVisitClear.js). The page opens on
+  // Upcoming, so an event dated before today is cleared without being on the
+  // first view — accepted (KNOWN_ISSUES).
+  useVisitClear('events', !loading && !error && page !== null);
 
   // Convention 5f — one branch per cause, keyed on the actual applied value,
   // never on a boolean meaning "something is set". A reset is offered only in

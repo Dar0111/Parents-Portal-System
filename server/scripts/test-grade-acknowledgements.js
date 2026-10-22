@@ -386,6 +386,15 @@ async function main() {
     const teacherSeesLock = await listed(teacherToken, 'grades_locked');
     assert(teacherSeesLock.length === 0, 'the adviser is not asked to confirm');
 
+    // A VISIT'S SECTION CLEAR never touches the ask (fix/f3-badges): no grade
+    // type is in any section — Grades is never badged, and the ask is a call
+    // to act that clears only on the confirmation.
+    for (const section of ['announcements', 'memos', 'events', 'excuse_letters']) {
+      await request('PATCH', '/api/notifications/read-all', { token: parentToken, body: { section } });
+    }
+    const askKept = await listed(parentToken, 'grades_locked');
+    assert(askKept.length === 1 && askKept[0].read_at === null, "no section clear marks the parent's grades_locked ask read");
+
     const card1 = await request('GET', `/api/grades/student/${studentId}`, { token: parentToken });
     assert(
       card1.data.acknowledgements[TERM].locked === true && card1.data.acknowledgements[TERM].acknowledged_at === null,
@@ -441,6 +450,13 @@ async function main() {
     const teacherAfter = await counts(teacherToken);
     assert(teacherAfter.total === teacherBefore.total + 1 && teacherAfter.grades === teacherBefore.grades + 1, "the adviser's bell counts it under grades");
     assert((await listed(adminToken, 'grades_acknowledged')).length === 0, 'the admin is told nothing (Q5)');
+
+    // Nor the adviser's confirmed row (fix/f3-badges): bell-only (§33).
+    for (const section of ['announcements', 'memos', 'events', 'excuse_letters']) {
+      await request('PATCH', '/api/notifications/read-all', { token: teacherToken, body: { section } });
+    }
+    const confirmedKept = await listed(teacherToken, 'grades_acknowledged');
+    assert(confirmedKept.length === 1 && confirmedKept[0].read_at === null, "no section clear marks the adviser's grades_acknowledged row read");
 
     // The parent's ask self-heals: the row stays, unread, and stops counting.
     const parentAfter = await counts(parentToken);

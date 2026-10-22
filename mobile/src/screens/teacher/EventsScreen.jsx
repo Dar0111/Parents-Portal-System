@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, View } from 'react-native';
 import api, { listParams, PAGE_SIZE } from '../../api/client';
@@ -14,6 +14,7 @@ import FormStatus, { ok, fail } from '../../components/FormStatus';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import useTeacherTargets from '../../hooks/useTeacherTargets';
+import useVisitClear from '../../realtime/useVisitClear';
 import teacherEventCard from './events/card';
 
 // TEACHER → EVENTS — list, compose, edit, delete. SHARES NO COMPONENT WITH
@@ -67,9 +68,11 @@ export default function EventsScreen({ navigation, route }) {
         const result = await api.get('/events', { unwrap: ['events', 'page'], params });
         setRows((prev) => (offset === 0 ? result.events : [...prev, ...result.events]));
         setPage(result.page);
+        return true;
       } catch (err) {
         setError(extractError(err));
         if (offset === 0) setRows([]);
+        return false;
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -79,18 +82,25 @@ export default function EventsScreen({ navigation, route }) {
     [applied]
   );
 
-  useEffect(() => {
-    load(0);
-  }, [load]);
+  // EVERY FOCUS RE-READS, as Admin → Announcements does (fix/f3-badges): a
+  // drawer screen stays mounted, so a visit is a focus, and a visit whose
+  // first page loads clears the badge (realtime/useVisitClear.js). The first
+  // focus is the mount, so there is no mount load of its own; an applied
+  // filter while focused re-reads here too.
+  const visited = useVisitClear('events');
+  useFocusEffect(
+    useCallback(() => {
+      load(0).then(visited);
+    }, [load, visited])
+  );
 
   useFocusEffect(
     useCallback(() => {
       if (notice) {
         setWriteStatus(ok(notice));
-        load(0);
         navigation.setParams({ notice: null });
       }
-    }, [notice, load, navigation])
+    }, [notice, navigation])
   );
 
   function confirmDelete(row) {
@@ -194,9 +204,9 @@ export default function EventsScreen({ navigation, route }) {
       }
       loading={loading}
       error={error}
-      onRetry={() => load(0)}
+      onRetry={() => load(0).then(visited)}
       refreshing={refreshing}
-      onRefresh={() => load(0, { pull: true })}
+      onRefresh={() => load(0, { pull: true }).then(visited)}
       hasMore={Boolean(page?.has_more)}
       loadingMore={loadingMore}
       onLoadMore={() => load(rows.length || PAGE_SIZE)}

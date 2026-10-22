@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import { linkClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import { useAuth } from '../../auth/AuthContext';
 import { usePageTitle } from '../../layout/usePageTitle';
 
@@ -110,6 +111,10 @@ export default function ParentAnnouncementsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — its information rows, once the list
+  // has loaded (fix/f3-badges, realtime/useVisitClear.js).
+  useVisitClear('announcements', !loading && !error && page !== null);
 
   // Empty-state copy derived from the state that produced it (convention 5f).
   // Two branches, not three, and that is a fact about this endpoint rather

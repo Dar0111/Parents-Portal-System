@@ -12,6 +12,7 @@ import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { cardClass, linkClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
 import parentLetterCard from './excuseLetters/card';
 import { useAuth } from '../../auth/AuthContext';
@@ -163,6 +164,11 @@ export default function ParentExcuseLettersPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — the reviewed-letter rows, once the
+  // list has loaded (fix/f3-badges, realtime/useVisitClear.js). No pager
+  // here, so loaded is simply "finished without an error".
+  useVisitClear('excuse_letters', !loading && !error);
 
   const visible = useMemo(
     () => (status === 'All' ? letters : letters.filter((row) => row.status === status)),

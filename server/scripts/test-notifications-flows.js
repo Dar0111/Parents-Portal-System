@@ -1080,6 +1080,256 @@ async function main() {
     assert(zeroed.total === 0, 'the unread total is 0 after mark-all', `got ${zeroed.total}`);
     const allAgain = await request('PATCH', '/api/notifications/read-all', { token: parentNino.token });
     assert(allAgain.status === 200 && allAgain.data.updated === 0, 'a second mark-all updates nothing and is not an error');
+
+    // -----------------------------------------------------------------------
+    console.log('\nThe visit clear — PATCH /read-all { section } (fix/f3-badges)');
+    // -----------------------------------------------------------------------
+    // A badged page sends its section after it loads, and the server marks read
+    // only the INFORMATION rows that badge counted: never a call to act, never
+    // a grade row, never another user's row. Every row asserted on here is one
+    // THIS block creates, read straight from the table.
+    const vcReadAt = async (userId, type, itemType, itemId) => {
+      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      try {
+        const [rows] = await conn.query(
+          'SELECT read_at FROM notifications WHERE user_id = ? AND type = ? AND item_type = ? AND item_id = ? LIMIT 1',
+          [userId, type, itemType, itemId]
+        );
+        return rows.length ? rows[0].read_at : undefined;
+      } finally {
+        await conn.end();
+      }
+    };
+    const vcClear = (token, section) => request('PATCH', '/api/notifications/read-all', { token, body: { section } });
+
+    const vcAnnRes = await request('POST', '/api/announcements', {
+      token: tch1.token,
+      body: { title: 'Visit clear announcement', content: 'For the section clear.', target_grade: 6, target_section: 'Malikhain' },
+    });
+    requireFixture(vcAnnRes.status === 201, 'visit clear: a class announcement is posted', why(vcAnnRes));
+    const vcAnnId = vcAnnRes.data.announcement.id;
+    created.announcements.push(vcAnnId);
+    notificationItems.push(['announcement', vcAnnId]);
+
+    const vcMemoRes = await request('POST', '/api/memos', {
+      token: admin.token,
+      body: { title: 'Visit clear memo', content: 'For the section clear.' },
+    });
+    requireFixture(vcMemoRes.status === 201, 'visit clear: a memo is posted', why(vcMemoRes));
+    const vcMemoId = vcMemoRes.data.memo.id;
+    created.memos.push(vcMemoId);
+    notificationItems.push(['memo', vcMemoId]);
+
+    const vcEvRes = await request('POST', '/api/events', {
+      token: tch1.token,
+      body: { title: 'Visit clear event', event_date: daysAgo(-7), target_grade: 6 },
+    });
+    requireFixture(vcEvRes.status === 201, 'visit clear: a Grade 6 event is posted', why(vcEvRes));
+    const vcEvId = vcEvRes.data.event.id;
+    created.events.push(vcEvId);
+    notificationItems.push(['event', vcEvId]);
+
+    // The adviser's call to act: a letter left Pending (excuse_submitted).
+    const vcPendRes = await request('POST', '/api/excuse-letters', {
+      token: parentMarwin.token,
+      body: { absence_date: daysAgo(6), reason: 'Visit clear, left Pending.' },
+    });
+    requireFixture(vcPendRes.status === 201, 'visit clear: a Pending letter for the adviser', why(vcPendRes));
+    const vcPendId = vcPendRes.data.excuse_letter.id;
+    created.excuseLetters.push(vcPendId);
+    notificationItems.push(['excuse_letter', vcPendId]);
+
+    // The parent's information: a DECLINED letter (excuse_reviewed) — a
+    // declined letter is information, the owner's Q1.
+    const vcRevRes = await request('POST', '/api/excuse-letters', {
+      token: parentMarwin.token,
+      body: { absence_date: daysAgo(7), reason: 'Visit clear, declined.' },
+    });
+    requireFixture(vcRevRes.status === 201, 'visit clear: a second letter', why(vcRevRes));
+    const vcRevId = vcRevRes.data.excuse_letter.id;
+    created.excuseLetters.push(vcRevId);
+    notificationItems.push(['excuse_letter', vcRevId]);
+    const vcReview = await request('PATCH', `/api/excuse-letters/${vcRevId}/review`, {
+      token: tch1.token,
+      body: { status: 'Declined', teacher_remarks: 'Visit clear.' },
+    });
+    requireFixture(vcReview.status === 200, 'visit clear: the adviser declines the second letter', why(vcReview));
+
+    // The admin's call to act: a pending parent account (parent_pending).
+    const vcLrn = `9${String(Date.now()).slice(-11)}`;
+    const vcStuRes = await request('POST', '/api/students', {
+      token: tch1.token,
+      body: { lrn: vcLrn, first_name: 'Visit', last_name: 'Clear', grade_level: 6, section: 'Malikhain' },
+    });
+    requireFixture(vcStuRes.status === 201, 'visit clear: a throwaway learner', why(vcStuRes));
+    created.students.push(vcStuRes.data.student.id);
+    const vcParentRes = await request('POST', '/api/users/parents', {
+      token: tch1.token,
+      body: { lrn: vcLrn, password: `Visit${Date.now()}`, name: 'Visit Clear Parent' },
+    });
+    requireFixture(vcParentRes.status === 201, 'visit clear: a pending parent account', why(vcParentRes));
+    const vcParentId = vcParentRes.data.user.id;
+    created.users.push(vcParentId);
+    notificationItems.push(['user', vcParentId]);
+
+    // The admin posts every memo, so A1 keeps the admin off its own memo's
+    // audience — but the admin's Announcements badge carries memos, so that
+    // row is inserted directly (it goes with ['memo', vcMemoId] in the cleanup).
+    {
+      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      try {
+        await conn.query("INSERT INTO notifications (user_id, type, item_type, item_id) VALUES (?, 'memo', 'memo', ?)", [
+          admin.id,
+          vcMemoId,
+        ]);
+      } finally {
+        await conn.end();
+      }
+    }
+
+    for (const [label, userId, type, itemType, itemId] of [
+      ["Marwin's parent: the announcement", parentMarwin.id, 'announcement', 'announcement', vcAnnId],
+      ["Marwin's parent: the memo", parentMarwin.id, 'memo', 'memo', vcMemoId],
+      ["Marwin's parent: the event", parentMarwin.id, 'event', 'event', vcEvId],
+      ["Marwin's parent: the declined letter", parentMarwin.id, 'excuse_reviewed', 'excuse_letter', vcRevId],
+      ['the adviser: the Pending letter', tch1.id, 'excuse_submitted', 'excuse_letter', vcPendId],
+      ['the adviser: the memo', tch1.id, 'memo', 'memo', vcMemoId],
+      ['the admin: the announcement', admin.id, 'announcement', 'announcement', vcAnnId],
+      ['the admin: the memo', admin.id, 'memo', 'memo', vcMemoId],
+      ['the admin: the pending parent', admin.id, 'parent_pending', 'user', vcParentId],
+      ['the Grade 1 parent: the grade', g1Parent.id, 'grade_available', 'grade', g1GradeId],
+    ]) {
+      requireFixture((await vcReadAt(userId, type, itemType, itemId)) === null, `visit clear fixture: ${label} is an unread row`);
+    }
+
+    // A section the caller's role has no badge for, or no section at all: 400,
+    // naming that role's sections — and nothing changes.
+    const VC_PARENT_TEACHER = 'section must be one of: announcements, memos, events, excuse_letters.';
+    const VC_ADMIN = 'section must be one of: announcements, users.';
+    for (const [who, token, section, message] of [
+      ['a parent', parentMarwin.token, 'users', VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, 'grades', VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, 'messages', VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, 'nonsense', VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, 'constructor', VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, '', VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, null, VC_PARENT_TEACHER],
+      ['a parent', parentMarwin.token, 5, VC_PARENT_TEACHER],
+      ['a teacher', tch1.token, 'users', VC_PARENT_TEACHER],
+      ['a teacher', tch1.token, 'grades', VC_PARENT_TEACHER],
+      ['the admin', admin.token, 'memos', VC_ADMIN],
+      ['the admin', admin.token, 'events', VC_ADMIN],
+      ['the admin', admin.token, 'excuse_letters', VC_ADMIN],
+      ['the admin', admin.token, 'grades', VC_ADMIN],
+    ]) {
+      const res = await vcClear(token, section);
+      assert(
+        res.status === 400 && res.data?.message === message,
+        `${who}: section ${JSON.stringify(section)} is a 400 naming the role's sections`,
+        why(res)
+      );
+    }
+    assert((await vcReadAt(parentMarwin.id, 'announcement', 'announcement', vcAnnId)) === null, 'a refused clear changes nothing');
+
+    // A badge that counts only calls to act: 200, updated 0, no query — and
+    // the call to act stays unread until the decision.
+    const vcTchLetters = await vcClear(tch1.token, 'excuse_letters');
+    assert(
+      vcTchLetters.status === 200 && vcTchLetters.data?.updated === 0 && vcTchLetters.data?.section === 'excuse_letters',
+      "a teacher's Excuse Letters clear answers 0 — its badge counts only the call to act",
+      why(vcTchLetters)
+    );
+    assert((await vcReadAt(tch1.id, 'excuse_submitted', 'excuse_letter', vcPendId)) === null, "the adviser's Pending letter stays unread (it clears on review)");
+    const vcAdmUsers = await vcClear(admin.token, 'users');
+    assert(
+      vcAdmUsers.status === 200 && vcAdmUsers.data?.updated === 0 && vcAdmUsers.data?.section === 'users',
+      "the admin's Users clear answers 0 — its badge counts only the call to act",
+      why(vcAdmUsers)
+    );
+    assert((await vcReadAt(admin.id, 'parent_pending', 'user', vcParentId)) === null, "the admin's pending-parent row stays unread (it clears on approve or reject)");
+
+    // A section with types but nothing unread: the SELECT finds no ids and the
+    // UPDATE is skipped (an empty IN () would be a 500). The first call clears
+    // whatever is there; the second has nothing left.
+    await vcClear(parentNino.token, 'announcements');
+    const vcNothing = await vcClear(parentNino.token, 'announcements');
+    assert(vcNothing.status === 200 && vcNothing.data?.updated === 0, 'a section with nothing unread answers 200, updated 0', why(vcNothing));
+
+    // The parent's four sections, one at a time: each clears its own rows and
+    // leaves the others.
+    const vcSock = await connectSocket(parentMarwin.token);
+    requireFixture(Boolean(vcSock), "visit clear: Marwin's parent's socket connects");
+    const vcSignal = nextCountsSignal(vcSock);
+    const vcAnnClear = await vcClear(parentMarwin.token, 'announcements');
+    assert(
+      vcAnnClear.status === 200 &&
+        vcAnnClear.data?.section === 'announcements' &&
+        vcAnnClear.data?.updated >= 1 &&
+        vcAnnClear.data?.message === 'Marked as read.',
+      "Marwin's parent's Announcements clear answers 200 with the count it marked",
+      why(vcAnnClear)
+    );
+    assert(await vcSignal, "a clear above 0 sends notification_counts to the caller's own room (the owner's Q4)");
+    assert((await vcReadAt(parentMarwin.id, 'announcement', 'announcement', vcAnnId)) != null, "the parent's announcement row is now read");
+    assert((await vcReadAt(admin.id, 'announcement', 'announcement', vcAnnId)) === null, "the admin's row for the same announcement is untouched — another user's row");
+    assert(
+      (await vcReadAt(parentMarwin.id, 'memo', 'memo', vcMemoId)) === null &&
+        (await vcReadAt(parentMarwin.id, 'event', 'event', vcEvId)) === null &&
+        (await vcReadAt(parentMarwin.id, 'excuse_reviewed', 'excuse_letter', vcRevId)) === null,
+      "the parent's memo, event and letter rows stay unread — other sections"
+    );
+    assert((await countsOf(parentMarwin.token))?.announcements === 0, "the parent's Announcements badge reads 0 from the server");
+    const vcQuiet = nextCountsSignal(vcSock, 1500);
+    const vcAnnAgain = await vcClear(parentMarwin.token, 'announcements');
+    assert(vcAnnAgain.status === 200 && vcAnnAgain.data?.updated === 0, 'a second clear of the same section updates nothing and is not an error', why(vcAnnAgain));
+    assert(!(await vcQuiet), 'a clear of nothing signals nothing');
+    vcSock.close();
+
+    const vcMemoClear = await vcClear(parentMarwin.token, 'memos');
+    assert(vcMemoClear.status === 200 && vcMemoClear.data?.updated >= 1, "the parent's Memos clear marks its memo rows", why(vcMemoClear));
+    assert((await vcReadAt(parentMarwin.id, 'memo', 'memo', vcMemoId)) != null, "the parent's memo row is now read");
+    assert((await vcReadAt(tch1.id, 'memo', 'memo', vcMemoId)) === null, "the adviser's row for the same memo is untouched");
+    assert((await vcReadAt(parentMarwin.id, 'event', 'event', vcEvId)) === null, "the parent's event row stays unread");
+
+    const vcEvClear = await vcClear(parentMarwin.token, 'events');
+    assert(vcEvClear.status === 200 && vcEvClear.data?.updated >= 1, "the parent's Events clear marks its event rows", why(vcEvClear));
+    assert((await vcReadAt(parentMarwin.id, 'event', 'event', vcEvId)) != null, "the parent's event row is now read");
+    assert((await vcReadAt(parentMarwin.id, 'excuse_reviewed', 'excuse_letter', vcRevId)) === null, "the parent's letter row stays unread");
+
+    const vcLetterClear = await vcClear(parentMarwin.token, 'excuse_letters');
+    assert(vcLetterClear.status === 200 && vcLetterClear.data?.updated >= 1, "the parent's Excuse Letters clear marks the reviewed-letter rows", why(vcLetterClear));
+    assert((await vcReadAt(parentMarwin.id, 'excuse_reviewed', 'excuse_letter', vcRevId)) != null, "the declined letter's row is now read — information (Q1)");
+
+    // No section touches a grade row: Grades is never badged.
+    for (const section of ['announcements', 'memos', 'events', 'excuse_letters']) {
+      const res = await vcClear(g1Parent.token, section);
+      assert(res.status === 200, `the Grade 1 parent's ${section} clear answers 200`, why(res));
+    }
+    assert((await vcReadAt(g1Parent.id, 'grade_available', 'grade', g1GradeId)) === null, 'no section clear touches a grade row — Grades is never badged');
+
+    // The admin's Announcements badge carries announcements AND memos.
+    const vcAdmClear = await vcClear(admin.token, 'announcements');
+    assert(vcAdmClear.status === 200 && vcAdmClear.data?.updated >= 2, "the admin's Announcements clear marks announcements and memos", why(vcAdmClear));
+    assert(
+      (await vcReadAt(admin.id, 'announcement', 'announcement', vcAnnId)) != null && (await vcReadAt(admin.id, 'memo', 'memo', vcMemoId)) != null,
+      "the admin's announcement and memo rows are now read"
+    );
+    assert((await vcReadAt(admin.id, 'parent_pending', 'user', vcParentId)) === null, "the admin's pending-parent row stays unread after the clear");
+
+    // A teacher's information sections.
+    const vcTchMemos = await vcClear(tch1.token, 'memos');
+    assert(vcTchMemos.status === 200 && vcTchMemos.data?.updated >= 1, "the adviser's Memos clear marks its memo rows", why(vcTchMemos));
+    assert((await vcReadAt(tch1.id, 'memo', 'memo', vcMemoId)) != null, "the adviser's memo row is now read");
+    assert((await vcReadAt(tch1.id, 'excuse_submitted', 'excuse_letter', vcPendId)) === null, "the adviser's Pending letter stays unread after the memo clear");
+
+    // `{}` — what the web bell sends — is still Mark all as read, unchanged.
+    const vcBraces = await request('PATCH', '/api/notifications/read-all', { token: tch3.token, body: {} });
+    assert(
+      vcBraces.status === 200 && vcBraces.data?.message === 'All notifications marked as read.' && !('section' in (vcBraces.data || {})),
+      "an empty body is the bell's Mark all as read, unchanged",
+      why(vcBraces)
+    );
+    assert((await vcReadAt(tch3.id, 'memo', 'memo', vcMemoId)) != null, 'and it marks every unread row of the caller, as before');
   } catch (error) {
     if (error instanceof FixtureFailure) {
       console.error(`\nFIXTURE FAILED — run stopped: ${error.message}`);

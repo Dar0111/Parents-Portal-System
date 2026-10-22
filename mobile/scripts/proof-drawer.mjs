@@ -388,5 +388,78 @@ const UNGUARDED = drawerSrc
 const unguarded = exitWiring(UNGUARDED);
 assert(!unguarded.logout && !unguarded.items && !unguarded.noBareExit, 'NEGATIVE CONTROL: the pre-fix wiring (bare logout / navigate) is caught');
 
+// A VISIT CLEARS THE BADGE (fix/f3-badges, 2026-10-22; MOBILE M31), as
+// SOURCE (M7): realtime/useVisitClear.js sends the section once a load
+// SUCCEEDED and re-reads the counts; the eight screens whose badge counts
+// information re-read on EVERY FOCUS (no mount load of their own) and hand
+// each first-page load's result — focus, pull, Retry — to it; the two badges
+// that count only calls to act do not. Each check with controls it refuses.
+function holdsAndRefuses(label, holds, real, ...controls) {
+  assert(holds(real) && controls.every((c) => !holds(c)), `${label} (${controls.length} control${controls.length === 1 ? '' : 's'} refused)`);
+}
+const srcOf = (...parts) => fs.readFileSync(path.join(here, '..', 'src', ...parts), 'utf8').replace(/\r\n/g, '\n');
+const visitHook = srcOf('realtime', 'useVisitClear.js');
+holdsAndRefuses(
+  'useVisitClear sends the section only for a load that succeeded, then re-reads the counts; a failed clear is silent',
+  (s) =>
+    s.includes('if (loaded !== true) return;') &&
+    s.includes(".patch('/notifications/read-all', { section }, { unwrap: 'updated' })") &&
+    s.includes('.then(() => refresh())') &&
+    s.includes('.catch(() => {'),
+  visitHook,
+  visitHook.replace('if (loaded !== true) return;', ''),
+  visitHook.replace("{ section }, { unwrap: 'updated' }", "{}, { unwrap: 'updated' }"),
+  visitHook.replace('.then(() => refresh())', '.then(() => {})')
+);
+const VISIT_SCREENS = [
+  [['screens', 'teacher', 'AnnouncementsScreen.jsx'], 'announcements', 'load(0'],
+  [['screens', 'teacher', 'MemosScreen.jsx'], 'memos', 'load(0'],
+  [['screens', 'teacher', 'EventsScreen.jsx'], 'events', 'load(0'],
+  [['screens', 'parent', 'AnnouncementsScreen.jsx'], 'announcements', 'load(0'],
+  [['screens', 'parent', 'MemosScreen.jsx'], 'memos', 'load(0'],
+  [['screens', 'parent', 'EventsScreen.jsx'], 'events', 'load(0'],
+  [['screens', 'parent', 'ExcuseLettersScreen.jsx'], 'excuse_letters', 'load('],
+  [['screens', 'admin', 'AnnouncementsScreen.jsx'], 'announcements', 'load(0'],
+];
+const MOUNT_LOAD = /useEffect\(\(\) => \{\s*load\((0)?\);\s*\}, \[load\]\);/;
+for (const [parts, section, call] of VISIT_SCREENS) {
+  const src = srcOf(...parts);
+  const focusLoad = `useFocusEffect(\n    useCallback(() => {\n      ${call === 'load(' ? 'load()' : 'load(0)'}.then(visited);\n    }, [load, visited])\n  );`;
+  const holds = (s) =>
+    s.includes("import useVisitClear from '../../realtime/useVisitClear';") &&
+    s.includes(`const visited = useVisitClear('${section}');`) &&
+    s.includes(focusLoad) &&
+    /onRefresh=\{\(\) => load\([^)]*\{ pull: true \}\)\.then\(visited\)\}/.test(s) &&
+    /onRetry=\{\(\) => load\([^)]*\)\.then\(visited\)\}/.test(s) &&
+    !MOUNT_LOAD.test(s) &&
+    s.includes('return true;') &&
+    s.includes('return false;');
+  holdsAndRefuses(
+    `${parts.slice(1).join('/')}: every focus re-reads and a load that succeeded clears '${section}' — the pull and Retry too, no mount load of its own`,
+    holds,
+    src,
+    // the clear tied to every focus whatever the load did
+    src.replace(focusLoad, focusLoad.replace('.then(visited);', ';\n      visited(true);')),
+    // a pull that does not clear
+    src.replace(/(onRefresh=\{\(\) => load\([^)]*\{ pull: true \}\))\.then\(visited\)\}/, '$1}'),
+    // the old mount load back beside the focus re-read (a double load on the first focus)
+    src.replace(focusLoad, `useEffect(() => {\n    ${call === 'load(' ? 'load()' : 'load(0)'};\n  }, [load]);\n\n  ${focusLoad}`),
+    // a load that no longer says whether it succeeded
+    src.replace('return true;', '')
+  );
+}
+for (const parts of [
+  ['screens', 'teacher', 'ExcuseLettersScreen.jsx'],
+  ['screens', 'admin', 'UsersScreen.jsx'],
+]) {
+  const src = srcOf(...parts);
+  holdsAndRefuses(
+    `${parts.slice(1).join('/')} does not clear on a visit — its badge counts only the call to act`,
+    (s) => !s.includes('useVisitClear'),
+    src,
+    `import useVisitClear from '../../realtime/useVisitClear';\n${src}`
+  );
+}
+
 console.log(`\nproof-drawer: ${passed}/${passed + failed}`);
 process.exit(failed ? 1 : 0);

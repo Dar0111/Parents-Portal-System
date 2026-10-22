@@ -1656,3 +1656,42 @@ sheet, admin Grades' lines and the param, the lock sheet's sentence, no LRN
 anywhere — each with a control. **The phone check owns** the Alert, a real
 confirm, the 48dp target and a tap
 (`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md`).
+
+## M31. A visit clears a badge on the phone — every focus and every pull (`fix/f3-badges`, 2026-10-22)
+
+FRONTEND §34 governs (which pages clear, what each section covers, the
+accepted gaps); this is where the phone differs.
+
+- **A visit is a FOCUS, not a mount.** A drawer screen stays mounted, so the
+  web's once-per-mount rule would clear a badge once per sign-in. On the
+  phone every focus and every pull-to-refresh is a visit, and so is a Retry
+  that succeeds: `realtime/useVisitClear.js` returns `visited(loaded)`, and
+  the screen hands it each first-page load's result —
+  `load(0).then(visited)` — so **a failed load clears nothing**. Loading more
+  is not a visit. The request is the web's (`PATCH /notifications/read-all
+  { section }`, sent even at 0), then the counts are re-read (§10).
+- **The seven list screens re-read on EVERY FOCUS** (the owner's Q2):
+  teacher Announcements, Memos, Events; parent Announcements, Memos, Events,
+  Excuse Letters. Each follows Admin → Announcements' existing focus re-read
+  — `useFocusEffect(load(0))`, the same loading display, the current filter
+  kept — and replaces its mount effect, so the first focus (the mount) loads
+  once. A filter, range or segment change while focused re-reads there too,
+  and that load clears as well. A `notice` from a compose or edit screen now
+  only sets its status line: the focus re-read is the reload. Before this, a
+  revisit showed the last list and loaded nothing.
+- **Admin → Announcements shows one segment at a time** and its badge
+  carries announcements AND memos, so a visit to either segment clears both
+  (accepted, the owner's Q5 — KNOWN_ISSUES).
+- **Teacher → Excuse Letters and Admin → Users send nothing** — their badges
+  count only calls to act.
+- **Lint:** the seven mount loads were each a `react(set-state-in-effect)`
+  warning; `useFocusEffect` is not flagged by that rule, so the phone's oxlint
+  total went 46 → 39 (TESTING).
+
+**Proof:** `npm run proof:drawer` (TESTING → Mobile proofs) — as source
+(M7): the helper's gate on a successful load, its request and its re-read;
+each of the eight screens' focus re-read, pull and Retry handing the load's
+result to it, no mount load beside the focus effect, a `load` that resolves
+true or false; the two call-to-act screens calling nothing — each with
+controls. **The phone check owns** a real focus, a pull and the badge falling
+(`docs/F3_BADGES_DEVICE_CHECK.md`).

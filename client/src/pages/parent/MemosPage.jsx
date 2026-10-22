@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import { linkClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
+import useVisitClear from '../../realtime/useVisitClear';
 import { usePageTitle } from '../../layout/usePageTitle';
 
 // Parent memos — READ ONLY, like every role's memos page.
@@ -81,6 +82,10 @@ export default function ParentMemosPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A visit clears this page's badge — its information rows, once the list
+  // has loaded (fix/f3-badges, realtime/useVisitClear.js).
+  useVisitClear('memos', !loading && !error && page !== null);
 
   const columns = [
     {
