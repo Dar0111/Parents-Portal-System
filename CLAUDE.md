@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-23, `fix/f3-badges` (B3) on `main` `1b43150` — `b9268e2`, the fix round `c248c51` + `ce9f111` and this commit — a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354, merge-ready, NOT merged; `main` is `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-23, `main` `96a1776` plus this commit (the post-merge docs) — `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs `96a1776`): a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354; before it `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -165,9 +165,10 @@ number** (`test:recovery` without `MAIL_TRANSPORT=file SMS_TRANSPORT=file` on th
 the same commit** — a figure corrected in a report and nowhere else is how
 eight counts went stale at once. **The Seeded baseline above is DATA and
 stays here**; it is what the suites assert against, not a count of them.
-**The read-only browser smoke run is there too** (`npm run smoke`, five
-roles × two themes × two widths) — including why it writes one login row
-per TEST and why it must never run during a server suite.
+**The browser smoke run is there too** (`npm run smoke`, five roles × two
+themes × two widths) — read-only but for one declared write since B3 (the
+visit clear on badged pages) — including why it writes one login row per
+TEST and why it must never run during a server suite or a device check.
 
 ### Files that exist
 
@@ -1692,14 +1693,15 @@ MERGED (`6c39f9c`, 2026-10-22 — `main` fast-forwarded from `f9b3a68` by the
 ref move, no checkout under the running servers; its database part ran
 2026-10-21 after backups 339 and 344, the check
 `docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md` §8 with its one finding fixed
-in `2525215`, the cleanup §7, backup 346). **B3 `fix/f3-badges` is
-device-checked and merge-ready** (built and gated 2026-10-22 after backup
-348; the check `docs/F3_BADGES_DEVICE_CHECK.md` §7, its one finding fixed in
-`c248c51` + `ce9f111`, the cleanup §6, backup 354): a visit clears a badge's
-information rows (§10) — NOT merged. **Next, on the owner's word (the
-owner's order, 2026-10-23):** B3's merge, then B8 `feat/excuse-attendance`
-(an excuse decision sets that day's attendance; its plan is reported and
-waits for its PLAN APPROVED), then B2 `feat/activity-log` on its own check,
+in `2525215`, the cleanup §7, backup 346). **B3 `fix/f3-badges` is MERGED**
+(`96a1776`, 2026-10-23 — `main` fast-forwarded from `1b43150` by the ref
+move, no file changed under the running servers; built and gated 2026-10-22
+after backup 348; the check `docs/F3_BADGES_DEVICE_CHECK.md` §7, its one
+finding fixed in `c248c51` + `ce9f111`, the cleanup §6, backup 354): a visit
+clears a badge's information rows (§10). **Next, on the owner's word (the
+owner's order, 2026-10-23):** B8 `feat/excuse-attendance` (an excuse
+decision sets that day's attendance; its plan is reported and waits for its
+PLAN APPROVED), then B2 `feat/activity-log` on its own check,
 then B7 `docs/pre-oct21` — the demo data and a new restore point; then the
 Supabase migration in Session B,
 whose sync must add B1's
