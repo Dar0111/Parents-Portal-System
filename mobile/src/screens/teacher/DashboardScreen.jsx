@@ -315,7 +315,13 @@ export default function DashboardScreen({ navigation }) {
         >
           {eventLine ? (
             <View>
-              <Stat value={eventLine.value} caption={eventLine.caption} />
+              {/* NOT a Stat — the parent card's fix (the B3 device check's
+                  finding #1): the title reads at the cards' line size,
+                  text-sm, in bold. The caption keeps Stat's own classes. */}
+              <View className="min-w-0">
+                <Text className="text-sm font-bold text-fg">{eventLine.value}</Text>
+                <Text className="mt-1 text-sm text-fg-muted">{eventLine.caption}</Text>
+              </View>
               {events.data.length > 1 ? (
                 <View className="mt-3 gap-2 border-t border-edge-soft pt-3">
                   {events.data.slice(1).map((row) => (

@@ -328,7 +328,15 @@ export default function TeacherDashboard() {
         >
           {events.data?.length ? (
             <>
-              <Stat value={events.data[0].title} caption={`Next event · ${longDate(events.data[0].event_date)}`} />
+              {/* NOT a Stat — the parent card's fix (the B3 device check's
+                  finding #1): a title is a line, not a figure, so it takes
+                  the parent card's text-sm semibold (the parent dashboard's
+                  Messages sender line). The caption keeps Stat's own classes,
+                  unchanged. */}
+              <div className="min-w-0">
+                <p className="break-words text-sm font-semibold text-fg">{events.data[0].title}</p>
+                <p className="mt-1 text-sm text-fg-muted">{`Next event · ${longDate(events.data[0].event_date)}`}</p>
+              </div>
               {events.data.length > 1 ? (
                 <ul className="mt-3 space-y-2 border-t border-edge-soft pt-3">
                   {events.data.slice(1).map((row) => (

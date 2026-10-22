@@ -104,9 +104,12 @@ letters approved instead of declined. §6 not run yet.
 **Finding #1 (the owner) — fixed, re-check pending.** The parent dashboard's
 Upcoming events card showed the next event's name too large, web and phone:
 it went through the shared `Stat` (`text-xl font-bold`, a figure's size).
-That card alone stops using `Stat` — `Stat` and the teacher dashboard's card
-are unchanged. The name is now, as the owner asked, the web Messages card's
-sender line (`text-sm font-semibold`) and, on the phone, the cards' line size
+That card stops using `Stat` (`c248c51`), and so does the teacher
+dashboard's Upcoming events card, whose lead was built the same way (approved
+by the owner for the same fix; the rows below the lead differ between the two
+cards and are untouched); `Stat` and every other card are unchanged. On both
+dashboards the name is now, as the owner asked, the parent dashboard's
+Messages sender line on the web (`text-sm font-semibold`) and, on the phone, the cards' line size
 in bold (`text-sm font-bold`) — so the two weights differ on purpose; "Next
 event · <date>" keeps `Stat`'s caption classes. The card's loading shape
 (`skeleton="list"`, shared) still draws a figure-sized first row, so the
