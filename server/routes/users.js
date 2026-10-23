@@ -93,7 +93,9 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     );
 
     const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [result.insertId]);
-    await logActivity(req.user.id, 'create_teacher', `Created teacher account ${login_id}`);
+    // The id, not the login id (§5c; feat/activity-log, the owner's Q9.1): an
+    // audit row persists. Rows written before 2026-10-23 keep their wording.
+    await logActivity(req.user.id, 'create_teacher', `Created teacher account #${result.insertId}`);
 
     return res.status(201).json({
       success: true,
@@ -565,7 +567,10 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     ]);
 
     const [updated] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
-    await logActivity(req.user.id, 'update_user', `Updated user #${id} (${existing.login_id})`);
+    // The id only (§5c; feat/activity-log, the owner's Q9.1): a parent's
+    // login_id IS the child's LRN, and an audit row persists. Rows written
+    // before 2026-10-23 keep their wording.
+    await logActivity(req.user.id, 'update_user', `Updated user #${id}`);
 
     return res.json({ success: true, message: 'User updated.', user: sanitizeUser(updated[0]) });
   } catch (error) {
@@ -633,7 +638,8 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
     await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, id]);
 
     const [updated] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
-    await logActivity(req.user.id, 'update_user_status', `Set user #${id} (${target.login_id}) to ${status}`);
+    // The id only (§5c; feat/activity-log, the owner's Q9.1) — see update_user.
+    await logActivity(req.user.id, 'update_user_status', `Set user #${id} to ${status}`);
 
     return res.json({ success: true, message: 'User status updated.', user: sanitizeUser(updated[0]) });
   } catch (error) {
