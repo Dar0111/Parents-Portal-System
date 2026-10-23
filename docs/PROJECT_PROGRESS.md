@@ -11,12 +11,17 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-23: `main` is the post-merge docs of `47be373` —
-`feat/excuse-attendance` (B8) merged fast-forward from `613c73e` (three
-commits: B8 `b4c8e11`, the class-day fix `7c24e5c`, the merge-ready docs
-`47be373`): an excuse decision sets that day's attendance, device-checked
-2026-10-23 — §1–§3, no findings — and cleaned up by id after backup 362.
-Before it, `613c73e`, the post-merge docs of
+**Snapshot, 2026-10-24: `main` is the post-merge docs of `f4cc8c4` —
+`feat/activity-log` (B2) merged fast-forward from `9c2c34b` (five commits:
+trim-11 `00235a0`, the three writers' ids `04258c8`, the build `d516c61`, the
+gate `774b98c`, the merge-ready docs `f4cc8c4`): Admin → Activity log, gated
+after backup 363, device-checked 2026-10-24 on the web — §1–§5, no findings —
+and cleaned up by id after backup 369. Before it, `9c2c34b`, the post-merge
+docs of `47be373` — `feat/excuse-attendance` (B8) merged fast-forward from
+`613c73e` (three commits: B8 `b4c8e11`, the class-day fix `7c24e5c`, the
+merge-ready docs `47be373`): an excuse decision sets that day's attendance,
+device-checked 2026-10-23 — §1–§3, no findings — and cleaned up by id after
+backup 362. Before it, `613c73e`, the post-merge docs of
 `96a1776` —
 `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3
 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs
@@ -33,11 +38,7 @@ device-checked together, Sections 1–10, no findings, cleaned up after backup
 trim-9 (`bba67bd`), the grade locks and
 the smoke gate's F4–F7 (2026-10-13), the web load races (2026-10-12),
 skeleton tier 2, staff acceptance, the socket handshake, skeleton option 1,
-shared Messages and privacy. **On its branch, merge-ready, not merged: B2
-`feat/activity-log`** — trim-11, the three writers' ids, Admin → Activity log
-(built 2026-10-23/24 and gated 2026-10-24 in its own worktree after backup
-363; device-checked 2026-10-24 on the web, §1–§5, no findings, and cleaned up
-by id after backup 369; it merges on the owner's word).
+shared Messages and privacy.
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -79,15 +80,15 @@ and only there.
 | Grade acknowledgement — `feat/grade-acknowledgement` (pre-Oct-21 build, branch 4 of 6, rebased onto `main`): a parent confirms a TERM of the report card once every subject is locked ("I have seen these grades", a §5e dialog / system Alert naming the term back), the adviser's bell is told and the class summary gains a Confirmed column, Admin → Grades lists the confirmed terms and the lock dialog says an unlock clears one; `POST /api/grades/acknowledgements`, the 26th table `grade_acknowledgements`, two bell-only notification types, `acknowledgements_cleared` on the bulk unlock (the owner's Q1–Q12 of 2026-10-21; built and DB-free gated 2026-10-21; rebased onto `main` `f9b3a68` and its database part run the same night — the migration twice after backup 339, the 23 HTTP suites, every proof, `smoke:isolated` 20/20, the new suite's cleanup fixed after backup 344 — committed and pushed; device-checked 2026-10-22 on the web and the Tecno — Sections 1–6, one finding: "Grades confirmed" opened Class summary on today's term, fixed in `2525215` (the link names the term; on the phone a link's query reaches its screen) and re-checked — and cleaned up by id after backup 346; merged 2026-10-22, `6c39f9c`) | ✅ merged 2026-10-22 | ✅ merged 2026-10-22 | ✅ merged 2026-10-22 |
 | F3 badges — `fix/f3-badges` (B3, the owner's label): a visit clears a badge's INFORMATION rows — Announcements, Memos and Events for a teacher and a parent, a parent's Excuse Letters, the admin's Announcements (announcements + memos) — through `PATCH /api/notifications/read-all { section }` (no new handler; the server's per-role `VISIT_CLEAR` decides what a section covers), the web once per mount and the phone on every focus and pull (the seven phone list screens re-read on focus since); the calls to act — Teacher → Excuse Letters, Admin → Users — still clear only on the decision (the owner's decision of 2026-10-22; built and gated 2026-10-22 in its own worktree after backup 348; device-checked 2026-10-22/23 on the web and the Tecno — §1–§5, one finding: the Upcoming events card's name at a figure's size, fixed in `c248c51` (parent) and `ce9f111` (teacher) and re-checked — and cleaned up by id after backup 354; merged 2026-10-23, `96a1776`) | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 |
 | Excuse attendance — `feat/excuse-attendance` (B8): an excuse letter's decision SETS that day's attendance in the review's own transaction — approved: an unrecorded class day becomes Excused, Absent becomes Excused; declined: an unrecorded class day becomes Absent; a Present, Late or Excused mark stays; a day that is not a class day — a weekend, the break between terms or a day outside the school year; a class day is a weekday inside one of the three terms (the owner's answer of 2026-10-23) — gets no write; the reviewer recorded, an `excuse_attendance` activity row when the day changes, a `409` "try again" when another write wins the moment; the review says before and after exactly what happens, the parent's four places carry the owner's sentence, the phone register and the parent's Attendance re-read on focus (the owner's Q1–Q11 of 2026-10-22/23; built and gated 2026-10-23 in its own worktree after backup 355; the class-day fix gated the same day after backup 360; device-checked the same day, no findings, cleaned up by id after backup 362; merged `47be373`) | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 |
-| The Activity log — `feat/activity-log` (B2, the owner's decision D-21 of 2026-10-16): trim-11 of CLAUDE.md (`00235a0`); `create_teacher`, `update_user` and `update_user_status` write ids only (`04258c8`); Admin → Activity log — `activity_logs` newest first by Manila day, account role and action, 50 a page, a CSV of exactly that set (BOM, RFC 4180, every cell formula-guarded, at most 50,000), the description never selected, each code's label the server's; a download logs `export_activity_log`; three admin-only handlers; web only (built 2026-10-23/24 and gated 2026-10-24 in its own worktree after backup 363; device-checked 2026-10-24 on the web, §1–§5, no findings, cleaned up by id after backup 369 — merge-ready, not merged) | ✅ on the branch | ✅ on the branch | — (web only: the mirrored nav hides it, `WEB_ONLY`) |
+| The Activity log — `feat/activity-log` (B2, the owner's decision D-21 of 2026-10-16): trim-11 of CLAUDE.md (`00235a0`); `create_teacher`, `update_user` and `update_user_status` write ids only (`04258c8`); Admin → Activity log — `activity_logs` newest first by Manila day, account role and action, 50 a page, a CSV of exactly that set (BOM, RFC 4180, every cell formula-guarded, at most 50,000), the description never selected, each code's label the server's; a download logs `export_activity_log`; three admin-only handlers; web only (built 2026-10-23/24 and gated 2026-10-24 in its own worktree after backup 363; device-checked 2026-10-24 on the web, §1–§5, no findings, cleaned up by id after backup 369; merged 2026-10-24, `f4cc8c4`) | ✅ merged 2026-10-24 | ✅ merged 2026-10-24 | — (web only: the mirrored nav hides it, `WEB_ONLY`) |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
 and then removed on 2026-09-13 because the school may not collect
 contributions — CLAUDE.md → SCOPE DECISION).
 
-**Navigation today:** teacher 13 items, parent 10, admin 10 on `main` (11
-on `feat/activity-log`, with the Activity log), every one built; About is
+**Navigation today:** teacher 13 items, parent 10, admin 11 (the Activity log
+since B2, merged 2026-10-24), every one built; About is
 last on every role. Admin has no Sections, Excuse Letters,
 Memos or Events page by the Figure 5 scope decision — memos are written on
 Admin → Announcements. **Admin → Messages came back on 2026-10-05** by the
@@ -118,7 +119,7 @@ A module with tables and no handlers is not started; there are none.
 | Settings + school calendar | `system_settings` | 5 | `test:settings`, `test:school-calendar` | Admin → Settings; About (every role, and public from the login page) |
 | Dashboard | — | 1 | `test:dashboard` | one dashboard per role |
 | Backup & restore | `backups` | 5 | `test:backups`, `test:restore` | Admin → Backup & Restore (web only, by design) |
-| Audit log | `activity_logs` | 3 on `feat/activity-log` (written by every write; read by `GET /api/activity-logs`, `/actions`, `/export` — never the description) | `test:activity-log` | Admin → Activity log (web only), on the branch |
+| Audit log | `activity_logs` | 3 since `feat/activity-log`, merged 2026-10-24 (written by every write; read by `GET /api/activity-logs`, `/actions`, `/export` — never the description) | `test:activity-log` | Admin → Activity log (web only) |
 
 **Across every screen, web and phone:**
 
@@ -187,25 +188,28 @@ from `1b43150` by the ref move). **Merged (2026-10-23):** B8
 attendance; gated after backups 355 and 360; the device check PASSED the
 same day, §1–§3, no findings, the phone part reordered by the owner; the §4
 cleanup verified after backup 362, `docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`
-§4–§5; `main` fast-forwarded from `613c73e` by the ref move).
-**Next, on the owner's word (the owner's order, 2026-10-23):** B2
-`feat/activity-log` is MERGE-READY on its branch (2026-10-23/24, its own
-worktree `Parents_Portal-activity-log`; the gate after backup 363; the device
-check PASSED 2026-10-24, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §8, no
-findings; cleaned up by id after backup 369) — it merges on the owner's word —
-then B7 `docs/pre-oct21` — the demo data and a new restore point. For B7 (the
-owner's Q7): `activity_logs` keeps every row, so the demo's 7-day view shows
-gate rows unless the demo data is made after the last gate (28,983 rows since
-2026-09-07, about 589 a day over the 14 days to 2026-10-23, 17% from deleted
-suite accounts; a full gate writes about 650). B7 also carries four items
-(2026-10-24): the local-mode SMS wording to re-word (SMS runs in SMSGate Cloud
-mode through the owner's `.env`); the `sms:probe` exit crash; SMS end-to-end
-encryption (approved, not built — B7 or its own small branch, the owner to
-choose); and Q9.6's stale claims (CLAUDE.md NEXT names each).
-**Then Session B (the Supabase migration, `migrate/postgres-prep`):** its
-sync must add B1's 26th table `grade_acknowledgements` and the two
-`notifications.type` values `grades_locked` and `grades_acknowledged`,
-listed on B1's build CHANGELOG row (2026-10-21).
+§4–§5; `main` fast-forwarded from `613c73e` by the ref move). **Merged
+(2026-10-24):** B2 `feat/activity-log` (`f4cc8c4` — Admin → Activity log;
+built in its own worktree, gated after backup 363; the device check PASSED
+2026-10-24, §1–§5 on the web, no findings; the cleanup after the owner's SMS
+test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
+`main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
+detached at `774b98c`).
+**Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
+(1) B7 `docs/pre-oct21` — the docs pass (the local-mode SMS wording now that
+SMS runs in SMSGate Cloud mode through the owner's `.env`, the `sms:probe`
+exit crash, Q9.6's stale claims), the demo data of D-102, the deletion of the
+old test-era `activity_logs` rows after a backup (the owner's answer of
+2026-10-24, replacing Q7's "keep every row" for them), and a new restore
+point; (2) Session B (`migrate/postgres-prep`) — the sync with `main`, then
+the Supabase migration (the owner makes `supabase.env` at 12 PM on Sat
+2026-10-24); the sync adds B1's 26th table `grade_acknowledgements` and the
+two `notifications.type` values `grades_locked` and `grades_acknowledged`
+(B1's build CHANGELOG row, 2026-10-21); B2 adds no schema change, and its new
+SQL to port is MIGRATION_INVENTORY B16; (3) after the migration — SMS
+end-to-end encryption in its own small branch (the owner's choice), the
+privacy text in the app (D-36) and the old code-row purge (P-19, approved);
+(4) hosting last, once the whole system is complete.
 The owner's own target is everything finished, the Supabase migration
 included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
 restore point is still backup 317,
