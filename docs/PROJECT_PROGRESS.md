@@ -11,10 +11,12 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-23: `feat/excuse-attendance` (B8) built, gated and
-device-checked on `main` `613c73e` — an excuse decision sets that day's
-attendance; the check PASSED with no findings and was cleaned up by id after
-backup 362; merge-ready, NOT merged. `main` is `613c73e`, the post-merge docs of
+**Snapshot, 2026-10-23: `main` is the post-merge docs of `47be373` —
+`feat/excuse-attendance` (B8) merged fast-forward from `613c73e` (three
+commits: B8 `b4c8e11`, the class-day fix `7c24e5c`, the merge-ready docs
+`47be373`): an excuse decision sets that day's attendance, device-checked
+2026-10-23 — §1–§3, no findings — and cleaned up by id after backup 362.
+Before it, `613c73e`, the post-merge docs of
 `96a1776` —
 `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3
 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs
@@ -31,8 +33,8 @@ device-checked together, Sections 1–10, no findings, cleaned up after backup
 trim-9 (`bba67bd`), the grade locks and
 the smoke gate's F4–F7 (2026-10-13), the web load races (2026-10-12),
 skeleton tier 2, staff acceptance, the socket handshake, skeleton option 1,
-shared Messages and privacy. **Next, on the owner's word: B8's merge, then
-B2 `feat/activity-log` (its first commit the CLAUDE.md trim).**
+shared Messages and privacy. **Next, on the owner's word: B2
+`feat/activity-log` (its first commit the CLAUDE.md trim).**
 Table and endpoint
 counts: CLAUDE.md front
 matter, their one home. Suite, proof and lint baselines: `docs/TESTING.md`,
@@ -73,7 +75,7 @@ and only there.
 | The password alert — `feat/password-alert` (pre-Oct-21 build, branch 3 of 6, on `feat/account-create`): after any password change — Settings → Change password, Forgot password's reset, the first sign-in's own password, the admin's temporary password — the holder gets a "was this you?" email and/or text on every confirmed channel, no code and no link, sent after the reply and never blocking the change; nothing confirmed is logged; the office's temporary password has its own words (the owner's decision of 2026-10-14/16; built and gated 2026-10-21; the two email hard-wrap fixes `b34f354` and `e78c635` during the check; device-checked 2026-10-21 in the combined check — every alert arrived on the confirmed channel, none on an unconfirmed one — and cleaned up after backup 338; merged 2026-10-21, `2b85331`) | ✅ merged 2026-10-21 | — (untouched) | — (untouched) |
 | Grade acknowledgement — `feat/grade-acknowledgement` (pre-Oct-21 build, branch 4 of 6, rebased onto `main`): a parent confirms a TERM of the report card once every subject is locked ("I have seen these grades", a §5e dialog / system Alert naming the term back), the adviser's bell is told and the class summary gains a Confirmed column, Admin → Grades lists the confirmed terms and the lock dialog says an unlock clears one; `POST /api/grades/acknowledgements`, the 26th table `grade_acknowledgements`, two bell-only notification types, `acknowledgements_cleared` on the bulk unlock (the owner's Q1–Q12 of 2026-10-21; built and DB-free gated 2026-10-21; rebased onto `main` `f9b3a68` and its database part run the same night — the migration twice after backup 339, the 23 HTTP suites, every proof, `smoke:isolated` 20/20, the new suite's cleanup fixed after backup 344 — committed and pushed; device-checked 2026-10-22 on the web and the Tecno — Sections 1–6, one finding: "Grades confirmed" opened Class summary on today's term, fixed in `2525215` (the link names the term; on the phone a link's query reaches its screen) and re-checked — and cleaned up by id after backup 346; merged 2026-10-22, `6c39f9c`) | ✅ merged 2026-10-22 | ✅ merged 2026-10-22 | ✅ merged 2026-10-22 |
 | F3 badges — `fix/f3-badges` (B3, the owner's label): a visit clears a badge's INFORMATION rows — Announcements, Memos and Events for a teacher and a parent, a parent's Excuse Letters, the admin's Announcements (announcements + memos) — through `PATCH /api/notifications/read-all { section }` (no new handler; the server's per-role `VISIT_CLEAR` decides what a section covers), the web once per mount and the phone on every focus and pull (the seven phone list screens re-read on focus since); the calls to act — Teacher → Excuse Letters, Admin → Users — still clear only on the decision (the owner's decision of 2026-10-22; built and gated 2026-10-22 in its own worktree after backup 348; device-checked 2026-10-22/23 on the web and the Tecno — §1–§5, one finding: the Upcoming events card's name at a figure's size, fixed in `c248c51` (parent) and `ce9f111` (teacher) and re-checked — and cleaned up by id after backup 354; merged 2026-10-23, `96a1776`) | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 |
-| Excuse attendance — `feat/excuse-attendance` (B8): an excuse letter's decision SETS that day's attendance in the review's own transaction — approved: an unrecorded class day becomes Excused, Absent becomes Excused; declined: an unrecorded class day becomes Absent; a Present, Late or Excused mark stays; a day that is not a class day — a weekend, the break between terms or a day outside the school year; a class day is a weekday inside one of the three terms (the owner's answer of 2026-10-23) — gets no write; the reviewer recorded, an `excuse_attendance` activity row when the day changes, a `409` "try again" when another write wins the moment; the review says before and after exactly what happens, the parent's four places carry the owner's sentence, the phone register and the parent's Attendance re-read on focus (the owner's Q1–Q11 of 2026-10-22/23; built and gated 2026-10-23 in its own worktree after backup 355; the class-day fix gated the same day after backup 360; device-checked the same day, no findings, cleaned up by id after backup 362) | ✅ device-checked, not merged | ✅ device-checked, not merged | ✅ device-checked, not merged |
+| Excuse attendance — `feat/excuse-attendance` (B8): an excuse letter's decision SETS that day's attendance in the review's own transaction — approved: an unrecorded class day becomes Excused, Absent becomes Excused; declined: an unrecorded class day becomes Absent; a Present, Late or Excused mark stays; a day that is not a class day — a weekend, the break between terms or a day outside the school year; a class day is a weekday inside one of the three terms (the owner's answer of 2026-10-23) — gets no write; the reviewer recorded, an `excuse_attendance` activity row when the day changes, a `409` "try again" when another write wins the moment; the review says before and after exactly what happens, the parent's four places carry the owner's sentence, the phone register and the parent's Attendance re-read on focus (the owner's Q1–Q11 of 2026-10-22/23; built and gated 2026-10-23 in its own worktree after backup 355; the class-day fix gated the same day after backup 360; device-checked the same day, no findings, cleaned up by id after backup 362; merged `47be373`) | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 | ✅ merged 2026-10-23 |
 | 6 — Integration, deployment decision, demo | ❌ | ❌ | ❌ (the standalone APK is a ready plan, not built) |
 
 **Nine features ship** (Feature 7, Contribution/Fees Monitoring, was built
@@ -175,16 +177,15 @@ after backup 348, the owner's demo records of the day cleaned up by id after
 backup 347 first; the device check PASSED 2026-10-22/23, §1–§5, one finding
 fixed in `c248c51` + `ce9f111` and re-checked; the §6 cleanup verified after
 backup 354, `docs/F3_BADGES_DEVICE_CHECK.md` §6–§7; `main` fast-forwarded
-from `1b43150` by the ref move).
-**Device-checked (2026-10-23):** B8 `feat/excuse-attendance` (an excuse
-decision sets that day's attendance; gated after backups 355 and 360; the
-device check PASSED the same day, §1–§3, no findings, the phone part
-reordered by the owner; the §4 cleanup verified after backup 362,
-`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md` §4–§5; merge-ready, NOT merged).
-**Next, on the owner's word (the owner's order, 2026-10-23):** B8's merge,
-then B2 `feat/activity-log` on its own check — its first commit the
-CLAUDE.md trim — then B7 `docs/pre-oct21` — the demo data and a new restore
-point.
+from `1b43150` by the ref move). **Merged (2026-10-23):** B8
+`feat/excuse-attendance` (`47be373` — an excuse decision sets that day's
+attendance; gated after backups 355 and 360; the device check PASSED the
+same day, §1–§3, no findings, the phone part reordered by the owner; the §4
+cleanup verified after backup 362, `docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`
+§4–§5; `main` fast-forwarded from `613c73e` by the ref move).
+**Next, on the owner's word (the owner's order, 2026-10-23):** B2
+`feat/activity-log` on its own check — its first commit the CLAUDE.md trim —
+then B7 `docs/pre-oct21` — the demo data and a new restore point.
 **Then Session B (the Supabase migration, `migrate/postgres-prep`):** its
 sync must add B1's 26th table `grade_acknowledgements` and the two
 `notifications.type` values `grades_locked` and `grades_acknowledged`,
