@@ -7968,3 +7968,208 @@ is adviser-only and NEVER touches `attendance`** (BLOCKED / RESOLVED)". The
 school's words behind the old rule ("excuse lang yung bata pero absent pa
 rin") are in the BLOCKED / RESOLVED → Excuse Letters narrative above; the
 change is the owner's, and Chapter 5 must say so (the manuscript delta list).
+
+## Blocks moved from CLAUDE.md on 2026-10-23 (docs/trim-11, the eleventh trim)
+
+Twenty-one passages, verbatim as they stood on 2026-10-23 (`main` `9c2c34b`),
+moved as the first commit of `feat/activity-log` so CLAUDE.md stays under its
+138,000-byte trigger through B2, B7 and Session B's sync. Each is history — a
+chain of merges, the dated story behind a rule, a figure repeated outside its
+one home — and every rule around it stayed in CLAUDE.md word for word; where a
+section lost more than a clause, a pointer here took its place. In CLAUDE.md
+order; a passage that began or ended mid-sentence is shown after the words it
+followed.
+
+### CURRENT STATE → Last verified, the chain of earlier merges, as it stood until 2026-10-23
+
+After "…device-checked 2026-10-23 (no findings), cleaned up by id after backup 362":
+
+; before it `613c73e` (the post-merge docs of `96a1776`) — `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs `96a1776`): a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354; before it `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324)
+
+### CURRENT STATE → the admin nav's history and the counts, as they stood until 2026-10-23
+
+After "**Admin nav is 10 items, all built**":
+
+ — Sections, Excuse Letters, Memos, Events and
+Messages were **removed** on 2026-09-18 rather than left `built: false`, by
+the scope decision under ADMIN SCOPE AUDIT; **Messages came back on
+2026-10-05** (that section's SCOPE DECISION 2026-10-05),
+
+and after "**no role has a `built: false` item**." (the counts' one home is
+the front matter):
+
+ **26 tables, 101 handlers + `/api/health`** (feat/grade-acknowledgement,
+2026-10-21 — merged 2026-10-22; 25 / 100 since feat/first-signin, 2026-10-18).
+
+### STAGE 4 FRONTEND CONVENTIONS → §5g, the history of the 2026-09-18 gate, as it stood until 2026-10-23
+
+After "(the admin, until 2026-10-05).":
+
+ The 2026-09-18 gate on `messagesBuilt` is
+gone: it was sound when written (nothing on an admin's screen was
+channel-fed, so the strip announced a failure they could do nothing about),
+but N1 changed the fact it rested on. Every role now has a bell and sidebar
+badges on the SAME socket, and admin receives `parent_pending` live, so an
+admin whose channel dies has a silently frozen bell — the thing this
+convention exists to prevent. §5g's inverse is therefore not "closed"; it
+no longer exists, because no role is channel-less.
+
+### STAGE 4 FRONTEND CONVENTIONS → §6, the Stage 5 expectation and §5g's gate again, as it stood until 2026-10-23
+
+After "`Shell.jsx` still implements unbuilt and blocked, `/dev/ui` still renders both":
+
+, and Stage 5 was
+expected to reintroduce them. **The `LiveStatus` gate that landed the same day is gone
+again (N2, 2026-09-19)** — every role is channel-fed now, so the strip is
+unconditional; see §5g. `SocketProvider` still connects for every role, and
+an admin socket now feeds something.
+
+### STAGE 4 FRONTEND CONVENTIONS → §12, the card that broke the link rule, as it stood until 2026-10-23
+
+After "**A card never links to an action the app cannot perform** (§5i).":
+
+ The
+  hazard card shipped with "Create a second admin →" pointing at Admin →
+  Users, which cannot do it — `POST /api/users/teachers` hardcodes role
+  `teacher`, `/parents` hardcodes `parent`, and no endpoint anywhere creates
+  an admin. Removed.
+
+### STAGE 4 FRONTEND CONVENTIONS → §33, the status clause, as it stood until 2026-10-23
+
+After "**feat/grade-acknowledgement, 2026-10-21 (the owner's Q1–Q12":
+
+; device-checked
+2026-10-22, one finding fixed in `2525215`; merged 2026-10-22, `6c39f9c`
+
+### STAGE 5 MOBILE CONVENTIONS → the M9–M26 index, as it stood until 2026-10-23
+
+After "`docs/MOBILE_CONVENTIONS.md` (M1–M8 below; ":
+
+**M9 the shell and the pure route
+map, M10 the socket on a phone, M11 lists without DataTable, M12 writes and
+cleanup, M13 Grades one slot at a time, M14 the roster and where
+`beforeRemove` can fire, M15 the teacher's lists, M16 the admin shell and
+`popTo` back to the drawer, M17 sensitive actions and the shown-once
+password, M18 the admin's lists, M20 the drawer grouped and foldable (`pp.navGroups`, the
+active group always open), M21 the photo picker (library only, no camera), M23 the refresh on the phone
+(faces, `Text`, `Button`, motion, pull-to-refresh), M24 the status bar, M25 form drafts, M26 privacy — stated only there**
+
+### THE AUTH PATTERN IS THE TEMPLATE → the sanitizeUser fix, as it stood until 2026-10-23
+
+**Fixed, no longer a caveat:** `sanitizeUser` used to only delete the key
+literally named `password` — a JOIN aliasing the hash to another name
+(`creator_password`, `sender_password`, `u2_password`, ...) would have
+leaked it straight through. Now lives in one place, `utils/sanitizeUser.js`
+(was duplicated identically in `routes/auth.js` and `routes/users.js`), and
+strips **any** key whose name contains `password`, case-insensitive —
+covers every aliased-JOIN shape, not just the exact column name. Directly
+relevant to Messages: that module JOINs `users` twice, for sender and
+receiver names, which is exactly the shape that used to trigger this.
+Unit-tested directly (not through HTTP — no endpoint produces an aliased
+row yet) in `scripts/test-sanitize-user.js`.
+
+### BLOCKED / RESOLVED → Grades module, the stage history, as it stood until 2026-10-23
+
+**Nine stages, all done 2026-09-05/06** (G1a → G2a → G2b → G2c → G1b → G2d →
+G2e → G3), plus `DELETE /:id` and `GET /api/grading-modes` (2026-09-08) and
+the rounding fix and Grade 1's computed letters (both 2026-09-22).
+
+### BLOCKED / RESOLVED → Excuse Letters, the nudge's history and the Stage G1a paragraph, as they stood until 2026-10-23
+
+After "**The decline-reason nudge is BUILT":
+
+; "never built" was stale and was removed
+2026-09-23 after checking the code
+
+and the paragraph:
+
+**The Stage G1a schema fix also left this file** (`grade_weight_configs`
+re-keyed off grade bands, `grade_components.type` → `ENUM('WW','PT')`). Live
+text: `docs/GRADING_SPEC.md` → "Known schema defect — FIXED in Stage G1a",
+which carries the warning this file's copy lacked — **the discarded
+`G1–3: 30/50/20` band scheme is NOT the Grade 1 rule**, despite the numbers
+coinciding with §6a.
+
+### BLOCKED / RESOLVED → Attendance, the corrected claim, as it stood until 2026-10-23
+
+**One claim went stale here and is corrected rather than carried out.** This
+section said Parent → Attendance shows "Present on recorded days" as a
+percentage, one decimal, half-up. **DV2 deleted that percentage on
+2026-09-20** — the page shows the fraction, `presentOnRecordedDays` was
+deleted rather than exported, and §12 has the dashboard card showing the
+fraction only. Teacher attendance history is `/teacher/attendance-records`,
+not the parent page.
+
+### KNOWN ISSUES → the Contributions restore row's table-count history, as it stood until 2026-10-23
+
+After "confirm the table count is back where it was":
+
+(**26** since feat/grade-acknowledgement, 2026-10-21; 25 from the privacy build, 2026-10-10 — the restore re-creates its two tables itself since the fix round; 23 from `assessment_slots` on 2026-09-22, 22 from `auth_codes` on 2026-09-19)
+
+### BEFORE THE PARENT DEMO → the closed contacts item, as it stood until 2026-10-23
+
+- (The contacts item is closed — built 2026-09-07; text in `docs/ARCHIVE.md`
+  → "Moved from CLAUDE.md on 2026-10-02".)
+
+### BUILD ORDER → Stage 5, the closing record, the merges after the close and NEXT's merged branches, as they stood until 2026-10-23
+
+The section's first sentence, before "Rules: M9–M26.":
+
+Every role's screens, then the polish, the UI refresh, form drafts, builds 1
+and 2 and admin Messages — each device-checked and merged (build 2 last,
+`9ed8793`). 
+
+The paragraph after it:
+
+Merged after the close, each device-checked: privacy (`456bba8`), shared
+Messages (`ea96ecf`), skeleton option 1 (`450b792`), the socket handshake
+(`10e277a`), staff acceptance (`5dc868d`), skeleton tier 2 on the web
+(`c8ac275`) and on the phone (`4bfbda0`), the web load races (`afccdd8`),
+the grade locks and the smoke-gate fix round (`4d28d7f`), the first sign-in
+(`9d3b430`, 2026-10-21) — items: `docs/ARCHIVE.md` → "BUILD ORDER → Stage 5
+items moved from CLAUDE.md on 2026-10-11" (two batches), "… item moved … on
+2026-10-13" and "… on 2026-10-21"; rules: §5, §5f–§5g, §11, §29–§32, M11,
+M26–M29.
+
+And NEXT, after "**NEXT (the owner's pre-Oct-21 order, 2026-10-18):**":
+
+ `feat/first-signin` is
+merged (`9d3b430`, 2026-10-21); `feat/account-create` and
+`feat/password-alert` are MERGED (`2b85331`, 2026-10-21 — `main`
+fast-forwarded from `bba67bd` by the ref move, no checkout under the running
+servers; the combined check `docs/ACCOUNT_CREATE_PASSWORD_ALERT_DEVICE_CHECK.md`
+§12, the cleanup §11, backup 338). `feat/grade-acknowledgement` (B1) is
+MERGED (`6c39f9c`, 2026-10-22 — `main` fast-forwarded from `f9b3a68` by the
+ref move, no checkout under the running servers; its database part ran
+2026-10-21 after backups 339 and 344, the check
+`docs/GRADE_ACKNOWLEDGEMENT_DEVICE_CHECK.md` §8 with its one finding fixed
+in `2525215`, the cleanup §7, backup 346). **B3 `fix/f3-badges` is MERGED**
+(`96a1776`, 2026-10-23 — `main` fast-forwarded from `1b43150` by the ref
+move, no file changed under the running servers; built and gated 2026-10-22
+after backup 348; the check `docs/F3_BADGES_DEVICE_CHECK.md` §7, its one
+finding fixed in `c248c51` + `ce9f111`, the cleanup §6, backup 354): a visit
+clears a badge's information rows (§10). **B8 `feat/excuse-attendance` is
+MERGED** (`47be373`, 2026-10-23 — `main` fast-forwarded from `613c73e` by the
+ref move, no file changed under the running servers; built and gated
+2026-10-23 in its own worktree after backups 355 and 360; the check
+`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md` §5 PASSED the same day, no findings;
+the cleanup §4, backup 362): an excuse decision sets that day's attendance
+(BLOCKED / RESOLVED → Excuse Letters).
+
+### ADMIN SCOPE AUDIT → the 2026-09-18 decision's provenance, as it stood until 2026-10-23
+
+After "(Sections, Excuse Letters, Memos, Events, Messages).":
+
+ Supersedes one line of 2026-09-13; that entry is not edited, so
+the archived copy still carries the line it replaced.
+
+### CHANGELOG → the stub-history clauses, as they stood until 2026-10-23
+
+The section's second paragraph began:
+
+No stubs stand here since the twentieth batch (2026-10-02). 
+
+and after "A stub leaves in a dated batch, never deleted":
+
+ (the one exception — trim-7's stub, dropped on
+2026-09-23 because its full row already existed — is not a habit)
