@@ -10,14 +10,16 @@
 //
 //   approve:  not recorded → Excused (new) · Absent → Excused · Excused, Present, Late stay
 //   decline:  not recorded → Absent (new) · Absent, Excused, Present, Late stay
-//   a day that is not a class day (a weekend, or outside the school year): no write
+//   a day that is not a class day: no write — a class day is a weekday inside
+//   one of the three terms (TERMS), so a weekend, the break between terms and a
+//   date outside the school year are not (the owner's answer of 2026-10-23)
 //
 // Every sentence is a claim about behaviour (§5i), so each one is true in
 // every case it is shown for — including the one shown when the day's mark
 // could not be read. Dates arrive as `YYYY-MM-DD` strings; the weekday and the
 // long form come from format/date.js, the only home for date maths (§5a-iv).
 import { isWeekend, longDate, weekdayName } from './date.js';
-import { CLASSES_END, CLASSES_START } from './schoolCalendar.js';
+import { TERMS } from './schoolCalendar.js';
 
 export const DECISIONS = ['Approved', 'Declined'];
 
@@ -31,8 +33,7 @@ export function isClassDay(date) {
   return (
     typeof date === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(date) &&
-    date >= CLASSES_START &&
-    date <= CLASSES_END &&
+    TERMS.some((term) => term.start <= date && date <= term.end) &&
     !isWeekend(date)
   );
 }

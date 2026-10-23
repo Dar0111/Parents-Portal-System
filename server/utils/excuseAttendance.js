@@ -17,20 +17,24 @@
 //   Present          | stays Present        | stays Present        Q1
 //   Late             | stays Late           | stays Late           Q1
 //   NOT A CLASS DAY  | no write             | no write             Q9
+//   (a weekend, the break between terms, or outside the school year)
 //
 // A decision never turns a day the adviser recorded as there (Present, Late)
 // into an absence, and the result does not depend on the order two letters for
 // one day are reviewed in. A day that already holds the result is not written
 // at all — no `recorded_by` change, no `updated_at` bump.
 //
-// A CLASS DAY (Q9) is a weekday inside the school year, per the school calendar
-// module (CLASSES_START..CLASSES_END). A weekend, or a date outside the school
-// year, gets no attendance write under either decision. The calendar itself
-// still blocks nothing: an adviser may record any day, weekends included (OPEN
-// QUESTIONS, make-up classes) — this rule only keeps an excuse decision from
-// creating one. The weekday comes from the date STRING's parts through
-// Date.UTC, never from parsing the string, so no timezone can move it.
-const { CLASSES_START, CLASSES_END } = require('./schoolCalendar');
+// A CLASS DAY (Q9, as the owner narrowed it on 2026-10-23) is a weekday inside
+// one of the three terms, per the school calendar module (TERMS, each term's
+// start..end). A weekend, the break between two terms (in SY 2026-2027,
+// 2026-12-19 → 2027-01-03), or a date outside the school year gets no
+// attendance write under either decision. The calendar itself still blocks
+// nothing: an adviser may record any day, weekends included (OPEN QUESTIONS,
+// make-up classes) — this rule only keeps an excuse decision from creating
+// one. The weekday comes from the date STRING's parts through Date.UTC, never
+// from parsing the string, so no timezone can move it; a term's bounds are
+// compared as strings.
+const { TERMS } = require('./schoolCalendar');
 
 const DECISIONS = ['Approved', 'Declined'];
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,8 +45,12 @@ function isWeekend(date) {
   return day === 0 || day === 6;
 }
 
+function inTerm(date) {
+  return TERMS.some((term) => term.start <= date && date <= term.end);
+}
+
 function isClassDay(date) {
-  return typeof date === 'string' && DATE_ONLY.test(date) && date >= CLASSES_START && date <= CLASSES_END && !isWeekend(date);
+  return typeof date === 'string' && DATE_ONLY.test(date) && inTerm(date) && !isWeekend(date);
 }
 
 // What a decision does to one day: `write` is 'insert', 'update' or null; `to`

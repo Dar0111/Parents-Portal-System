@@ -26,6 +26,7 @@ const { hashPassword } = require('../utils/password');
 const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
 const { snapshotDays, restoreDays, daysMatch } = require('./test-helpers/attendance');
 const { decide, isClassDay, RETRY_MESSAGE } = require('../utils/excuseAttendance');
+const { TERMS } = require('../utils/schoolCalendar');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
@@ -849,7 +850,8 @@ async function run() {
 
     // Days with NO attendance row and NO letter for Marwin yet, so every row
     // this block makes is its own; yesterday to three days ago are left to the
-    // letters above. A class day is a weekday inside the school year.
+    // letters above. A class day is a weekday inside one of the three terms
+    // (the owner's answer of 2026-10-23).
     const usedDays = new Set([daysAgo(1), daysAgo(2), daysAgo(3)]);
     async function isFree(date) {
       const [att] = await withDb((conn) =>
@@ -889,6 +891,36 @@ async function run() {
     );
     await guardDays([...cellDays, ...weekendDays, outsideDay].map((date) => [marwinId, date]));
 
+    // TWO WEEKDAYS IN A BREAK BETWEEN TERMS (the December break in SY
+    // 2026-2027) — inside the school year but not a class day (the owner's
+    // answer of 2026-10-23). They come from the calendar's TERMS — the days
+    // after one term ends and before the next starts — skipping any day this
+    // run already uses or that is not free, so the run date cannot collide
+    // with them. A parent cannot date a letter in the future, so each letter
+    // is filed on a free past class day and its stored date then moved into
+    // the break, as a parent's edit would once the break has passed; the
+    // review reads the date from the letter inside its transaction.
+    const nextDay = (date) => {
+      const [y, m, d] = date.split('-').map(Number);
+      const t = new Date(Date.UTC(y, m - 1, d + 1));
+      const pad = (v) => String(v).padStart(2, '0');
+      return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+    };
+    const breakDays = [];
+    for (let i = 1; i < TERMS.length && breakDays.length < 2; i += 1) {
+      for (let date = nextDay(TERMS[i - 1].end); date < TERMS[i].start && breakDays.length < 2; date = nextDay(date)) {
+        if (isWeekendDay(date) || usedDays.has(date)) continue;
+        if (await isFree(date)) {
+          breakDays.push(date);
+          usedDays.add(date);
+        }
+      }
+    }
+    const fileDays = await freeDays(2, isClassDay);
+    const breakFree = breakDays.length === 2 && breakDays.every((date) => !isClassDay(date)) && fileDays.length === 2;
+    assert(breakFree, 'Fixture: two weekdays in the break between terms, free for Marwin and not class days, and two free class days to file their letters on');
+    await guardDays([...breakDays, ...fileDays].map((date) => [marwinId, date]));
+
     async function submitOn(date, reason) {
       const res = await request('POST', '/api/excuse-letters', { token: parentToken, body: { absence_date: date, reason } });
       if (res.data?.excuse_letter?.id) createdExcuseLetterIds.push(res.data.excuse_letter.id);
@@ -920,8 +952,9 @@ async function run() {
     // One cell: put the day in its state (a row recorded by TCH-002, so the
     // reviewer's recorded_by is visible), submit a letter for it, review it
     // as Marwin's adviser, and check the day, the reply and the log against
-    // the rule.
-    async function reviewCell(decision, state, date, label) {
+    // the rule. `fileOn`, when given, is the day the letter is filed on before
+    // its stored date is moved to `date` (the December break, above).
+    async function reviewCell(decision, state, date, label, fileOn = null) {
       if (state) {
         await withDb((conn) =>
           conn.query('INSERT INTO attendance (student_id, date, status, recorded_by) VALUES (?, ?, ?, ?)', [
@@ -933,7 +966,10 @@ async function run() {
         );
       }
       const before = await dayRow(date);
-      const letter = await submitOn(date, `Cell: ${label}`);
+      const letter = await submitOn(fileOn ?? date, `Cell: ${label}`);
+      if (fileOn && letter) {
+        await withDb((conn) => conn.query('UPDATE excuse_letters SET absence_date = ? WHERE id = ?', [date, letter]));
+      }
       const logsBefore = await attendanceLogCount();
       const res = await request('PATCH', `/api/excuse-letters/${letter}/review`, {
         token: teacherToken,
@@ -981,6 +1017,10 @@ async function run() {
     if (weekendDays[0]) await reviewCell('Approved', null, weekendDays[0], 'a weekend day');
     if (weekendDays[1]) await reviewCell('Declined', 'Absent', weekendDays[1], 'a weekend day with a mark');
     await reviewCell('Declined', null, outsideDay, 'a weekday before the school year');
+    if (breakFree) {
+      await reviewCell('Approved', null, breakDays[0], 'a weekday in the December break', fileDays[0]);
+      await reviewCell('Approved', 'Absent', breakDays[1], 'a weekday in the December break with an Absent mark', fileDays[1]);
+    }
 
     // TWO REVIEWS OF ONE UNRECORDED DAY AT ONCE (the owner's change 3). Which
     // one wins is timing, so the test asserts what must hold EITHER way: each

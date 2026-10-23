@@ -4422,10 +4422,14 @@ Excuse Letters; the eleven cells are `server/utils/excuseAttendance.js`.
 | Present, Late | stay (Q1) | stay (Q1) |
 | not a class day | no write (Q9) | no write (Q9) |
 
-**A class day** is a weekday inside the school year (`CLASSES_START` ..
-`CLASSES_END`, the calendar module). The calendar still blocks nothing for an
-adviser's own marking — weekends stay writable there (OPEN QUESTIONS); only an
-excuse decision declines to create a weekend or out-of-year row. **The server
+**A class day** is a weekday inside one of the three terms (`TERMS`, each
+term's `start` .. `end`, the calendar module — the owner's answer of
+2026-10-23). A weekend, the break between Term 2 and Term 3 (in SY 2026-2027,
+19 December → 3 January) and a date outside the school year are not; the
+review names the day and says it is not a class day. The calendar still
+blocks nothing for an adviser's own marking — weekends stay writable there
+(OPEN QUESTIONS); only an excuse decision declines to create a row on a day
+that is not a class day. **The server
 decides**; `format/excuseAttendance.js` (mirrored to the phone) holds the same
 table for the words only, and `npm run test:excuse-attendance-rule` runs the
 server's `decide()` and the client's over every decision × mark × date and

@@ -5,7 +5,9 @@
 //
 // What it proves, each source check with a NEGATIVE CONTROL that must fail:
 //   - the mirrored words (src/format/excuseAttendance.js) DRIVEN: the same
-//     sentences the web proof holds, for a class day, a weekend and an
+//     sentences the web proof holds, for a class day, a weekend, a weekday in
+//     the December break (not a class day: a class day is a weekday inside
+//     one of the three terms, the owner's answer of 2026-10-23) and an
 //     unreadable day — and the file byte-equal to the web's;
 //   - the review screen as SOURCE: the day read only for a class day, from
 //     the first render (no state set in the effect), a stale answer dropped,
@@ -63,6 +65,12 @@ check(
 check(
   reviewNote(SAT, null) === 'Saturday, 24 October 2026 is not a class day, so neither decision changes attendance.',
   'a weekend: not a class day, its weekday named (Q9)'
+);
+check(
+  reviewNote('2026-12-23', null) === 'Wednesday, 23 December 2026 is not a class day, so neither decision changes attendance.' &&
+    decide('Approved', 'Absent', '2026-12-23').write === null &&
+    decide('Approved', 'Absent', '2026-12-18').write === 'update',
+  'a weekday in the December break: not a class day, nothing written; Term 2\'s last day still is one'
 );
 check(
   confirmSentence('Declined', WED, { state: 'ready', current: null }) === 'Wednesday, 21 October 2026 will be recorded as Absent in attendance.',

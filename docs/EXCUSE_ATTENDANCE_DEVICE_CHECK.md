@@ -24,7 +24,8 @@ run time and never printed. **Never Tala or Tala's parent.**
   contact: **Change → the project Gmail → Send code → the code** — never the
   address on file, never Mobile.
 - **The days, picked by a read-only survey:** past CLASS days (weekdays inside
-  the school year) on which that learner has **no attendance row and no
+  one of the three terms — the owner's answer of 2026-10-23) on which that
+  learner has **no attendance row and no
   letter yet**, so every row the check makes is new and the cleanup deletes it
   by id — for Marwin **D1–D4** and one weekend day **W1**; for Nino **E1–E2**
   and one weekend day **W2**. The survey prints the dates (dates only).
@@ -99,7 +100,11 @@ Yes → the line above the list.
 19. Dark theme: the review screen at its warning. 📸
 
 **Not by hand:** two reviews of one day at the same moment (the 409) — the
-suite drives it (`test:excuses`, "Two reviews of one day at the same moment").
+suite drives it (`test:excuses`, "Two reviews of one day at the same moment");
+and a weekday in the December break (not a class day, so no write — the
+owner's answer of 2026-10-23): a letter cannot be dated in the future, so
+none can name a break day before 19 December; `test:excuses` moves a letter's
+stored date into the break and reviews it.
 
 ## 4. Cleanup (by id, backup first)
 

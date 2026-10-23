@@ -8,7 +8,9 @@
  *   - the RULE: all eleven cells (two decisions x five states of the day, and
  *     a day that is not a class day), and the class-day boundaries — the
  *     school year's first and last day, the day before and after, Saturday,
- *     Sunday;
+ *     Sunday, and since the owner's answer of 2026-10-23 (a class day is a
+ *     weekday inside one of the three terms) the December break between Term
+ *     2 and Term 3: its weekdays are not class days, the two terms' edges are;
  *   - THE PARITY PROOF: the server's decide() and isClassDay() against the
  *     client's format/excuseAttendance.js (which the phone mirrors byte for
  *     byte) over every decision x state x date, failing on any difference —
@@ -68,8 +70,22 @@ function dayAfter(date) {
 }
 
 // Dates that cover every branch of isClassDay: inside, both ends, outside,
-// both weekend days, a weekday in the December break (inside the school year,
-// so a class day by the owner's definition), and a malformed string.
+// both weekend days, the December break and the terms' edges around it (a
+// weekday in the break is NOT a class day — the owner's answer of 2026-10-23),
+// the seam between Term 1 and Term 2, and a malformed string.
+const BREAK_DAYS = ['2026-12-21', '2026-12-23', '2027-01-01']; // Monday, Wednesday, Friday in the break
+
+// The definition this replaced (B8 as first built): a weekday anywhere inside
+// CLASSES_START..CLASSES_END, the break included. The controls below use it.
+function weekend(date) {
+  const [y, m, d] = date.split('-').map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return day === 0 || day === 6;
+}
+function schoolYearClassDay(date) {
+  return typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= CLASSES_START && date <= CLASSES_END && !weekend(date);
+}
+
 const DATES = [
   CLASS_DAY,
   CLASSES_START,
@@ -78,7 +94,11 @@ const DATES = [
   dayAfter(CLASSES_END),
   '2026-10-24', // Saturday
   '2026-10-25', // Sunday
-  '2026-12-23', // a Wednesday in the break
+  ...BREAK_DAYS,
+  '2026-12-18', // Friday, Term 2's last day
+  '2027-01-04', // Monday, Term 3's first day
+  '2026-09-15', // Tuesday, Term 1's last day
+  '2026-09-16', // Wednesday, Term 2's first day
   '2026-06-05', // the Friday before classes start
   'not-a-date',
 ];
@@ -109,13 +129,33 @@ async function main() {
   }
   assert(threw, 'a decision other than Approved / Declined throws');
 
-  console.log('\nClass days (Q9: a weekday inside the school year)');
+  for (const date of BREAK_DAYS) {
+    const writes = [];
+    for (const decision of rule.DECISIONS) {
+      for (const current of STATES) {
+        const got = rule.decide(decision, current, date);
+        if (got.write !== null || got.to !== current || got.classDay !== false) writes.push(`${decision}/${current}`);
+      }
+    }
+    assert(writes.length === 0, `the eleventh cell on a weekday in the December break (${date}): neither decision writes, over any mark`, writes.join(', '));
+  }
+
+  console.log('\nClass days (Q9, the owner\'s answer of 2026-10-23: a weekday inside one of the three terms)');
   assert(rule.isClassDay(CLASS_DAY), 'a Wednesday in Term 2 is a class day');
   assert(rule.isClassDay(CLASSES_START) && rule.isClassDay(CLASSES_END), "the school year's first and last day are class days");
   assert(!rule.isClassDay(dayBefore(CLASSES_START)) && !rule.isClassDay(dayAfter(CLASSES_END)), 'the day before and the day after the school year are not');
   assert(!rule.isClassDay('2026-06-05'), 'a WEEKDAY before the school year (Friday, 5 June) is not — the lower bound itself, not the weekend rule');
   assert(!rule.isClassDay('2026-10-24') && !rule.isClassDay('2026-10-25'), 'Saturday and Sunday are not');
-  assert(rule.isClassDay('2026-12-23'), 'a weekday in the December break is (inside the school year — the owner\'s definition)');
+  assert(
+    BREAK_DAYS.every((date) => !rule.isClassDay(date)),
+    "a weekday in the December break is NOT (Monday 21 and Wednesday 23 December, New Year's Day) — between two terms, though inside the school year"
+  );
+  assert(rule.isClassDay('2026-12-18') && rule.isClassDay('2027-01-04'), "the break's edges are: Term 2's last day (Friday, 18 December) and Term 3's first (Monday, 4 January)");
+  assert(rule.isClassDay('2026-09-15') && rule.isClassDay('2026-09-16'), "Term 1's last day and Term 2's first are both class days — no gap between those two terms");
+  assert(
+    BREAK_DAYS.every((date) => schoolYearClassDay(date) && !rule.isClassDay(date)),
+    'NEGATIVE CONTROL: the definition this replaced (a weekday inside CLASSES_START..CLASSES_END) calls the break a class day; the rule does not'
+  );
   assert(!rule.isClassDay('not-a-date') && !rule.isClassDay(null), 'a malformed date is not');
   assert(rule.isClassDay('2026-10-24') === false && rule.isClassDay('2026-10-23') === true, 'NEGATIVE CONTROL: Friday and Saturday differ — the weekday is computed, not assumed');
 
@@ -148,6 +188,19 @@ async function main() {
   assert(differences(rule, drifted).length > 0, 'NEGATIVE CONTROL: a client that turned a declined Excused day Absent is caught');
   const driftedDay = { isClassDay: (date) => client.isClassDay(date) || date === '2026-10-24', decide: client.decide };
   assert(differences(rule, driftedDay).length > 0, 'NEGATIVE CONTROL: a client that called a Saturday a class day is caught');
+  // The client as it stood before the owner's answer of 2026-10-23: the same
+  // table, on the school-year definition of a class day.
+  const driftedBreak = {
+    isClassDay: schoolYearClassDay,
+    decide: (decision, current, date) =>
+      schoolYearClassDay(date) ? client.decide(decision, current, CLASS_DAY) : { write: null, to: current ?? null, classDay: false },
+  };
+  const breakDiff = differences(rule, driftedBreak);
+  assert(
+    breakDiff.length > 0 && breakDiff.every((d) => BREAK_DAYS.some((date) => d.includes(date))),
+    'NEGATIVE CONTROL: a client that still called the December break a class day (the school-year definition) is caught — on the break days and nowhere else',
+    breakDiff.join(', ')
+  );
   assert(
     client.PARENT_NOTE ===
       'If the adviser approves it, an absent or unrecorded class day is marked Excused; if declined, an unrecorded class day is marked Absent.',
@@ -225,6 +278,16 @@ async function main() {
     const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn('2026-10-24'), [], []]);
     const r = await rule.reviewWithAttendance(pool, args());
     assert(r.write === null && r.classDay === false && r.row === null && log.queries.length === 4 && log.committed === 1, 'an approval on a Saturday writes no attendance');
+  }
+  {
+    // A weekday in the December break holding an Absent mark — on a class day
+    // the approval would update it to Excused; here the letter commits alone.
+    const { pool, log } = stubPool([{ affectedRows: 1 }, letterOn('2026-12-23'), [{ id: 11, status: 'Absent' }], [{ id: 11, status: 'Absent' }]]);
+    const r = await rule.reviewWithAttendance(pool, args());
+    assert(
+      r.write === null && r.classDay === false && r.from === 'Absent' && r.to === 'Absent' && !log.queries.includes('UPDATE attendance') && log.queries.length === 4 && log.committed === 1,
+      'an approval on a weekday in the December break leaves its Absent mark and commits the letter alone'
+    );
   }
   {
     const { pool, log } = stubPool([{ affectedRows: 0 }]);

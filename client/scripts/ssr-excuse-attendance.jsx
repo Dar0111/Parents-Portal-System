@@ -5,7 +5,9 @@
 //
 // What it proves, each check with a NEGATIVE CONTROL that must fail:
 //   - the shared words (format/excuseAttendance.js) for EVERY state of the
-//     day — not a class day (a weekend, a day outside the school year), being
+//     day — not a class day (a weekend, a weekday in the break between terms,
+//     a day outside the school year — a class day is a weekday inside one of
+//     the three terms, the owner's answer of 2026-10-23), being
 //     read, unreadable, and each of the five marks — and each sentence agrees
 //     with the rule it describes (§5i): what the confirmation says happens is
 //     what `decide` does;
@@ -59,6 +61,7 @@ const html = (el) => renderToStaticMarkup(el).replace(/&#x27;/g, "'").replace(/&
 const WED = '2026-10-21'; // a class day
 const SAT = '2026-10-24'; // a weekend
 const BEFORE = '2026-06-05'; // a weekday before the school year
+const BREAK = '2026-12-23'; // a weekday in the December break, between Term 2 and Term 3
 const ready = (current) => ({ state: 'ready', current });
 
 console.log('\nThe words, every state of the day');
@@ -71,6 +74,11 @@ assert(
 assert(
   reviewNote(BEFORE, null) === 'Friday, 5 June 2026 is not a class day, so neither decision changes attendance.',
   'a weekday before the school year: the same sentence, its weekday named'
+);
+assert(
+  reviewNote(BREAK, null) === 'Wednesday, 23 December 2026 is not a class day, so neither decision changes attendance.' &&
+    confirmSentence('Approved', BREAK, null) === 'Wednesday, 23 December 2026 is not a class day; attendance does not change.',
+  'a weekday in the December break: not a class day (between two terms), the same sentences, its weekday named'
 );
 assert(reviewNote(WED, { state: 'loading', current: null }) === 'Reading the attendance for Wednesday, 21 October 2026…', 'while the day is read: "Reading the attendance for …"');
 assert(
@@ -194,7 +202,10 @@ assert(
   JSON.stringify(REVIEW_UNWRAP) === JSON.stringify(['excuse_letter', 'attendance', 'attendance_from', 'class_day']),
   "the unwrap list names the reply's four keys (§1)"
 );
-assert(isClassDay(WED) && !isClassDay(SAT) && !isClassDay(BEFORE), 'the module knows a class day from a weekend and a day before the school year');
+assert(
+  isClassDay(WED) && !isClassDay(SAT) && !isClassDay(BEFORE) && !isClassDay(BREAK) && isClassDay('2026-12-18') && isClassDay('2027-01-04'),
+  "the module knows a class day from a weekend, a day before the school year and a weekday in the break — the break's edges (18 December, 4 January) are class days"
+);
 
 console.log("\nThe parent's sentence");
 assert(

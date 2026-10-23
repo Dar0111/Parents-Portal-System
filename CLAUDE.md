@@ -1338,8 +1338,9 @@ Nino's seeded card; do not "fix" it. The closed BLOCKED item is in
 owner's decision of 2026-10-22 — replacing the school's "the learner stays
 Absent"; Chapter 5 must say so):** approved → `Excused`, declined → `Absent`
 (a new row for an unrecorded day), a `Present`, `Late` or `Excused` mark kept,
-**no write on a day that is not a class day** (a weekend, or outside the
-school year); in ONE transaction with the letter (`utils/excuseAttendance.js`,
+**no write on a day that is not a class day** (a class day is a weekday inside
+one of the three terms — the owner's answer of 2026-10-23 — so not a weekend,
+the break between terms, or outside the school year); in ONE transaction with the letter (`utils/excuseAttendance.js`,
 the eleven-cell rule; the client's mirrored words held to it by
 `test:excuse-attendance-rule`); a lost race on the day is `409`, the letter
 still Pending. FRONTEND §35, MOBILE M32, `docs/API_REFERENCE.md`; the old

@@ -1279,9 +1279,11 @@ that day's row is read `FOR UPDATE`, and the rule decides: **approved** — no
 record → a new row `Excused`, `Absent` → `Excused`; **declined** — no record →
 a new row `Absent`; **every other mark stays** (`Excused`, `Present` and `Late`
 under either decision, `Absent` under a decline). **A day that is not a class
-day** — a weekend, or a date outside the school year's
-`CLASSES_START`..`CLASSES_END` (`utils/schoolCalendar.js`) — **gets no write**,
-whatever it holds. A row written carries `recorded_by` = the reviewer; a day
+day gets no write**, whatever it holds: a class day is a weekday inside one of
+the three terms (`TERMS` in `utils/schoolCalendar.js`, each term's
+`start`..`end` — the owner's answer of 2026-10-23), so a weekend, the break
+between Term 2 and Term 3 (in SY 2026-2027, 2026-12-19 → 2027-01-03) and a
+date outside the school year are not. A row written carries `recorded_by` = the reviewer; a day
 that already holds the result is not written at all (no `recorded_by` change,
 no `updated_at` bump). An inactive learner's past day is written all the same.
 When the day changes, a second `activity_logs` row, `excuse_attendance`
