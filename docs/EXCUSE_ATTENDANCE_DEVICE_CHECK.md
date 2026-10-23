@@ -1,4 +1,4 @@
-# Excuse attendance — device check (`feat/excuse-attendance`, B8, built 2026-10-23; PENDING)
+# Excuse attendance — device check (`feat/excuse-attendance`, B8, built 2026-10-23; PASSED 2026-10-23)
 
 The owner's check of B8: **approving or declining an excuse letter sets that
 day's attendance** — approved → Excused, declined → Absent (a new row for an
@@ -32,6 +32,19 @@ run time and never printed. **Never Tala or Tala's parent.**
 - **The start marks** (read-only): the next id of `excuse_letters`,
   `notifications`, `attendance`, `policy_acceptances` and `auth_codes`;
   `activity_logs`' highest id. A backup first; no direct insert.
+
+**As run (2026-10-23, 13:07–13:09):** health 200, then **backup 361**
+(`parents_portal_2026-10-23_130719.sql`, 2,589,948 bytes, footer present —
+the pre-check dump, not a restore point; 317 stays). The start marks, read
+live: the next id of `excuse_letters` **675**, `notifications` **4000**,
+`attendance` **527**, `policy_acceptances` **1501**, `auth_codes` **447**;
+`activity_logs`' highest **28859**. The days: Marwin **D1** Mon 19 Oct,
+**D2** Tue 20, **D3** Wed 21, **D4** Thu 22, **W1** Sun 18; Nino **E1** Thu
+15 Oct, **E2** Fri 16, **W2** Sat 17 (2026), all free. No fixture. The
+switch: the B8 worktree detached at `7c24e5c`, then the main tree on
+`feat/excuse-attendance`; the API reloaded and answered 200, 3000 and 8081
+kept running; Metro's `--clear` and the phone's cold boot were the owner's
+(M7).
 
 ## 1. Web — the marks and the letters
 
@@ -76,6 +89,13 @@ Yes → the line above the list.
     and D2, **P** on D3, **A** on D4, each with "Excuse letter · Approved /
     Declined"; W1 has no mark. 📸
 
+**Result, §1–§2 (the web): PASSED**, every row as written, with one
+addition by the owner: a **sixth letter, for Fri 23 Oct** (the day of the
+check, a class day with no mark), filed first and approved — a new
+**Excused** row, the line "… was recorded as Excused". Row 2's 📸 (the
+owner's 2b) was not taken; the phone's form (row 13) showed the owner's
+sentence.
+
 ## 3. The phone (Expo Go, the Tecno)
 
 11. Lito Bautista: Teacher → Attendance → date **E2** → **Nino Absent** → Save.
@@ -99,6 +119,26 @@ Yes → the line above the list.
     re-read: no skeleton). 📸
 19. Dark theme: the review screen at its warning. 📸
 
+**Result, §3 (the phone): PASSED, reordered by the owner** because one
+phone holds one account:
+
+- Row 11 (the owner's P1): Lito marked Nino **Absent on Fri 23 Oct** instead
+  of E2, so E2 stayed unrecorded.
+- Lito approved the **E2 (16 Oct)** letter **on the web** while Nino's parent
+  stayed signed in on the phone — an unrecorded class day, so a new
+  **Excused** row, not row 15's decline over Absent.
+- Rows 14 (E1, 15 Oct: Approve, a new Excused row), 16 (W2, Sat 17 Oct: not
+  a class day, nothing written) and 19 (the dark theme) on the phone, by
+  Lito.
+- Row 17 (P12, the register's focus re-read) and row 18 (R6, the parent's)
+  passed. A re-test of the parent's: Lito changed Nino's 23 Oct to
+  **Present** on the web, and the parent's Attendance showed it on focus,
+  without a pull.
+- **Row 15's cell — a decline over Absent stays Absent — was not exercised
+  by hand.** `test:excuses` ("class day 7: decline over Absent → nothing
+  written") and `test:excuse-attendance-rule` (`decide()` and the parity
+  proof) cover it.
+
 **Not by hand:** two reviews of one day at the same moment (the 409) — the
 suite drives it (`test:excuses`, "Two reviews of one day at the same moment");
 and a weekday in the December break (not a class day, so no write — the
@@ -117,6 +157,35 @@ the two parents' email and number back to the seed values (read from
 passwords checked as a guard (pass or fail only, no restore); `activity_logs`
 and `login_attempts` kept.
 
+**As run (2026-10-23, 18:16–18:19), the check accounts signed out on every
+device first:** a read-only survey (every row above the start marks traced
+to the four accounts; every table backup 361 holds rows for compared with
+it row by row) and the baseline, both matching; health 200; **backup 362**
+(`parents_portal_2026-10-23_181651.sql`, 2,597,542 bytes, footer present —
+the pre-cleanup dump, not a restore point; 317 stays). ONE transaction by id
+— G1–G13 passed, the five seeded passwords included, so no restore; W1–W7
+at 18, 8, 9, 4, 2, 1, 1 rows (notifications 4000–4017, attendance 527–534,
+letters 675–683, acceptances 1501–1504, codes 447–448, #3 and #7 back to the
+seed contacts with both stamps NULL); COMMIT. Verified: users 8, students 4,
+grades 5 (all unlocked); attendance, `excuse_letters`, notifications,
+messages, `grade_acknowledgements`, announcements, memos and events 0;
+acceptances 8 (max id 796), `auth_codes` 11 (max id 305), backups 124;
+every table backup 361 holds rows for equal to it but #3's and #7's
+`updated_at`; `activity_logs` (+47: the check's 45, the backup's two) and
+`login_attempts` (12) kept. Then **`test:excuses` 121/121** on 5001 from the
+B8 worktree with file transports, and the same state after it but
+`activity_logs` (+78, kept).
+
 ## 5. Result
 
-PENDING.
+**PASSED 2026-10-23 — no findings, no fix round.** §1–§2 on the web; §3 on
+the Tecno in Expo Go, reordered as recorded there. The database's record of
+the check, read before the cleanup: 9 letters (#675–#683 — Marwin's six,
+the sixth for 23 Oct, and Nino's three), 8 attendance rows (#527–#534), 18
+notifications (9 submitted, 9 reviewed), 4 acceptances, 2 codes, no
+message; **six `excuse_attendance` activity rows, exactly the six days a
+decision changed** — 19, 20, 22 and 23 Oct for Marwin, 15 and 16 Oct for
+Nino — and none for 21 Oct (Present stays), 18 Oct or 17 Oct (not class
+days): Q5 on live data. `login_attempts` went 19 → 12: the app's own
+24-hour prune ran at Nino's parent's first failed sign-in (9 old rows gone),
+and that account's two failed sign-ins added two. The cleanup: §4.

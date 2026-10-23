@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-23, `feat/excuse-attendance` (B8) on `main` `613c73e` plus this commit — an excuse decision sets that day's attendance, built and gated after backup 355, NOT device-checked, NOT merged; `main` is `613c73e` (the post-merge docs of `96a1776`) — `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs `96a1776`): a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354; before it `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-23, `feat/excuse-attendance` (B8) on `main` `613c73e` plus three commits (B8 `b4c8e11`, the class-day fix `7c24e5c`, these merge-ready docs) — an excuse decision sets that day's attendance, built and gated after backups 355 and 360, device-checked 2026-10-23 (no findings), cleaned up by id after backup 362, NOT merged; `main` is `613c73e` (the post-merge docs of `96a1776`) — `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs `96a1776`): a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354; before it `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -1709,12 +1709,13 @@ move, no file changed under the running servers; built and gated 2026-10-22
 after backup 348; the check `docs/F3_BADGES_DEVICE_CHECK.md` §7, its one
 finding fixed in `c248c51` + `ce9f111`, the cleanup §6, backup 354): a visit
 clears a badge's information rows (§10). **B8 `feat/excuse-attendance` is
-built and gated** (2026-10-23, in its own worktree, after backup 355): an
-excuse decision sets that day's attendance (BLOCKED / RESOLVED → Excuse
-Letters) — committed and pushed, NOT device-checked, NOT merged. **Next, on
-the owner's word (the owner's order, 2026-10-23):** B8's device check
-(`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`) and its merge, then B2
-`feat/activity-log` on its own check,
+device-checked** (built and gated 2026-10-23, in its own worktree, after
+backups 355 and 360; the check `docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md` §5
+PASSED the same day, no findings; the cleanup §4, backup 362): an excuse
+decision sets that day's attendance (BLOCKED / RESOLVED → Excuse Letters) —
+merge-ready, NOT merged. **Next, on the owner's word (the owner's order,
+2026-10-23):** B8's merge, then B2 `feat/activity-log` on its own check —
+its first commit the CLAUDE.md trim —
 then B7 `docs/pre-oct21` — the demo data and a new restore point; then the
 Supabase migration in Session B,
 whose sync must add B1's
@@ -1723,10 +1724,10 @@ whose sync must add B1's
 row, 2026-10-21). The
 owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
-still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346
-and 354 are the four checks' pre-cleanup dumps, 347 the owner's demo records'
-(2026-10-22, cleaned up by id), and 339, 344, 345, 348, 353 and 355
-pre-write dumps, not restore points. The manuscript delta list stays with the
+still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346,
+354 and 362 are the five checks' pre-cleanup dumps, 361 B8's pre-check dump,
+347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
+345, 348, 353, 355 and 360 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
 that day's attendance, the owner's change of the school's earlier rule.
 
