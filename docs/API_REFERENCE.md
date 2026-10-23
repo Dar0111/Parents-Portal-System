@@ -702,9 +702,10 @@ a changed number does the same for `contact_verified_at` there and on
 
 #### SMS — a second channel beside email (feat/sms-transport, 2026-09-29)
 
-Email, with SMS through a phone-hosted gateway ("SMS Gateway for Android" in
-LOCAL mode on the demo phone — plain HTTP with Basic auth on the hotspot LAN,
-a demo arrangement; `docs/KNOWN_ISSUES.md`).
+Email, with SMS through "SMS Gateway for Android" (SMSGate), which sends each
+text from the demo phone's own SIM — in CLOUD mode since 2026-10-24 (an https
+API base; from 2026-09-29 until then LOCAL mode, plain HTTP with Basic auth on
+the hotspot LAN, which stays the fallback); `docs/KNOWN_ISSUES.md`.
 
 - **One code, every confirmed channel.** A forgot request writes ONE
   `auth_codes` row and sends that same code by email and by text when both

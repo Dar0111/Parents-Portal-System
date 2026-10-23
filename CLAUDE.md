@@ -70,7 +70,7 @@ split — if a fact seems missing here, it is in one of these.
 | `docs/CHANGELOG.md` | the full dated change table — **new rows go here**, newest first | yes |
 | `docs/KNOWN_ISSUES.md` | every known-issue row, open and closed — **new rows go here**; the KNOWN ISSUES section here lists only the open ones | yes |
 | `docs/TESTING.md` | every suite, proof and lint baseline; the one suite whose clean run is not a clean number; and **the read-only browser smoke run** — **a re-measured figure is updated there, in the same commit** | yes |
-| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§25 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
+| `docs/FRONTEND_CONVENTIONS.md` | the full text of STAGE 4 FRONTEND CONVENTIONS §1–§10 and §13–§36 (§11 and §12 live here), with the reasoning, the worked examples and the browser-found defects behind each | frozen rules |
 | `docs/RESTORE.md` | the full RESTORE design record — the text `server/routes/backups.js` and `test-restore-flows.js` mean by "CLAUDE.md's RESTORE section" | reference |
 | `docs/ARCHIVE.md` | verbatim narratives moved out of this file, in original order: per-file notes, the sections-table and Class Board investigations, the React web app history, MEASURED BUILD TIME, the Grades stage history, NOW POSSIBLE, the contacts design, BUILD ORDER write-ups, the admin scope audit, OPEN QUESTIONS history | history |
 | `docs/MOBILE_CONVENTIONS.md` | the full text of STAGE 5 MOBILE CONVENTIONS — only where the phone DIFFERS from the web, and why; frozen per section as each Stage 5 branch lands (since 2026-09-27) | frozen rules |
@@ -723,7 +723,7 @@ Full text: `docs/FRONTEND_CONVENTIONS.md` §9.
 
 ### 10. Notifications — the bell, the badges, and what a count may be
 
-**Frozen 2026-09-19 (N1 server, N2 client).** Four rules; the reasoning, the
+**Frozen 2026-09-19 (N1 server, N2 client).** Five rules (the fifth since `fix/f3-badges`); the reasoning, the
 audiences and the accessibility contract are in
 `docs/FRONTEND_CONVENTIONS.md` §10 and `docs/API_REFERENCE.md`.
 
@@ -771,7 +771,7 @@ audiences and the accessibility contract are in
 
 ### 11. Account recovery — what may be said, and what revokes a session
 
-**Frozen 2026-09-19 (R1 server, R2 client).** Four rules. **This file is the
+**Frozen 2026-09-19 (R1 server, R2 client).** Five rules (the fifth since `feat/password-alert`). **This file is the
 only present-tense home for §11 and §12 — `docs/FRONTEND_CONVENTIONS.md`
 has neither; it resumes at §13.** The reasoning and the endpoint detail are
 `docs/API_REFERENCE.md` → Auth (the trimmed clauses are verbatim in
@@ -857,7 +857,7 @@ temporary-password endpoint is admin-only and refuses your own id (§5i).
 - **A card never links to an action the app cannot perform** (§5i). The card that broke it:
   `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Before adding a link, check the handler.**
 
-**The PARENT dashboard adds four rules (DV4, 2026-09-23). Reasoning and the
+**The PARENT dashboard adds five rules (DV4, 2026-09-23; the fifth 2026-09-25). Reasoning and the
 worked failures: `docs/FRONTEND_CONVENTIONS.md` §15.**
 
 - **One term, and it is today's term from the school calendar
@@ -1057,11 +1057,11 @@ moved from CLAUDE.md on 2026-10-21".
 
 ---
 
-## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M12 parent, M13–M15 teacher, M16–M18 admin; M23–M24 the UI refresh; M25 form drafts; M26 privacy
+## STAGE 5 MOBILE CONVENTIONS — M1–M8 frozen 2026-09-27; M9–M32 in `docs/MOBILE_CONVENTIONS.md`
 
 The phone inherits every STAGE 4 rule; this section states only where it
 differs and why. Rule statements here, reasoning and mechanism in
-`docs/MOBILE_CONVENTIONS.md` (M1–M8 below; **M9–M32 are stated only there**). Darryl's decisions of 2026-09-27
+`docs/MOBILE_CONVENTIONS.md` (M1–M8 and the bullets below; **M9–M32 in full only there**). Darryl's decisions of 2026-09-27
 that fix them: Expo SDK 57 in Expo Go; in-app notifications via Socket.io
 only; text size dropped for the OS scale; notifications as a screen; FA 7
 SVG icons; React Navigation drawer; the seal as icon and splash; a
@@ -1414,12 +1414,16 @@ RESTORE section".
 pre-flight gates and `token_valid_after` with crafted JWTs, and **no request
 in it ever combines the real password with the real `confirm_filename`.** A
 real end-to-end restore is a deliberate manual step; **`db:setup` is NOT the
-recovery path** (it drops `activity_logs`). **Three things a restore of an old
+recovery path** (it drops `activity_logs`). **Five things a restore of an old
 dump does, all KNOWN ISSUES:** before 2026-09-13 it brings back the two
 Contributions tables; before 2026-09-22 it reverts the Grade 1 subject rename;
-and **before CR1 the dump has no `assessment_slots` at all**, so a restore
+**before CR1 the dump has no `assessment_slots` at all**, so a restore
 drops the table and every `grade_components.slot_id` with it — the class
-record stops loading until the migration is re-run.
+record stops loading until the migration is re-run; before `feat/sms-transport`
+(2026-09-29) it brings back the old `users` / `auth_codes` shape
+(`db:migrate:contact-verification`); and before `feat/grade-acknowledgement`
+(2026-10-21) it drops `grade_acknowledgements` and two `notifications.type`
+values (`db:migrate:grade-acknowledgements`).
 
 ---
 
@@ -1445,6 +1449,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
+| **In SMSGate cloud mode (since 2026-10-24) every text, its code included, passes through the cloud relay unencrypted** — added 2026-10-24 (B7) | `utils/smsTransport.js` `send()` + SMSGate's cloud server | https protects the hop, but the relay reads number and message. Fix: the SMS end-to-end encryption branch (NEXT). The plain-HTTP LAN risk now applies only to the local-mode fallback |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
 | **Restoring a backup taken before `feat/grade-acknowledgement` (2026-10-21) drops `grade_acknowledgements` and the two newer `notifications.type` values** — the report card and the class summary answer `500` until the migration is re-run | `server/backups/*.sql` | Re-run `npm run db:migrate:grade-acknowledgements` afterwards (idempotent) |
 | **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
@@ -1666,24 +1671,23 @@ with `feat/password-alert`, B1, B3, B8 and B2 are MERGED, the last `f4cc8c4`
 after backup 363, device-checked on the web with no findings, cleaned up by
 id after backup 369); each one's check, cleanup and backup: its CHANGELOG row
 and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Next,
-in the owner's order (2026-10-24):**
+in the owner's order (2026-10-24; D-119, D-122, D-124):**
 
-1. **B7 `docs/pre-oct21`** — the docs pass with (a) SMS in SMSGate Cloud mode
-   since 2026-10-24, through the owner's `.env` alone, so the wording that says
-   local mode — `server/utils/smsTransport.js`'s comments,
-   `server/.env.example`, README — needs re-wording; (b) `npm run sms:probe`
-   prints its answer (reachable, http 200, gateway status pass), then crashes
-   at exit on a libuv assertion (`!(handle->flags & UV_HANDLE_CLOSING)`,
-   `src\win\async.c` line 76); (d) Q9.6's stale claims — the companion-table
-   range, "Four rules" over five bullets, the M26 index and RESTORE's
-   three-of-five list. Then the demo data of D-102; then **the deletion of the
-   old test-era `activity_logs` rows, after a backup** (the owner's answer of
-   2026-10-24, replacing Q7's "keep every row" for them — Q7's figures: 28,983
-   rows since 2026-09-07, about 589 a day over the 14 days to 2026-10-23, 17%
-   from deleted suite accounts, a full gate about 650); then a new restore
-   point.
-2. **Session B** — the sync with `main`, then the Supabase migration (the
-   owner makes `supabase.env` at 12 PM on Sat 2026-10-24). The sync adds B1's
+1. **B7 `chore/pre-migration`** (its own worktree `Parents_Portal-pre-migration`,
+   from `01495e5`; the PLAN APPROVED of 2026-10-24) — the docs pass (SMSGate
+   cloud mode's wording, Q9.6's stale claims, TESTING's PENDING, the passing
+   items), the probe's exit fix (`process.exitCode`, never `process.exit()`
+   after a fetch — the libuv `UV_HANDLE_CLOSING` assertion), and the demo data
+   of D-102 (Nino's five Grade 1 letters reproduced by scores and HPS through
+   one shared module, `setup-db.js` and `db:migrate:demo-grade1`); then a new
+   restore point, taken last, after the device check and its cleanup — it
+   still holds the old activity rows.
+2. **Session B, and beside it in Session A the E2E + P-19 branch** (D-119:
+   SMS end-to-end encryption, approved 2026-10-24, and the old code-row purge,
+   P-19, approved). Session B syncs with `main`, then migrates to Supabase (the
+   owner makes `supabase.env` at 12 PM on Sat 2026-10-24); **it copies
+   everything, the old activity rows included** — their reset is step 4, on
+   Supabase. The sync adds B1's
    26th table `grade_acknowledgements` and the two `notifications.type` values
    `grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
    2026-10-21). **B2 adds no schema change**; its new SQL to port
@@ -1695,11 +1699,24 @@ in the owner's order (2026-10-24):**
    (JS `Date` instants), `u.role = ?`, `a.user_id IS NULL`, `a.action = ?` and
    `IN` / `NOT IN` lists written as `?, ?, …`; the writers' change
    (`routes/users.js`) is description text only.
-3. **After the migration:** SMS end-to-end encryption in its own small branch
-   (NEXT's old (c); the owner chose a separate branch, 2026-10-24), the
-   privacy text in the app (D-36), and the old code-row purge (P-19,
-   approved).
-4. **Hosting last**, once the whole system is complete.
+3. **The privacy text in the app** (D-36), after the principal's approval on
+   Mon 2026-10-26 (D-124).
+4. **The reset of the old activity rows, at the end** — after the last gate
+   and before the demo, on Supabase (D-122; moved out of B7); its scope is
+   decided then. **B7's survey for it (2026-10-24, MySQL):** 29,712 rows, ids
+   1–29721; the written rules protect 48 — the 40 contribution rows (SCOPE
+   DECISION → Feature 7), ids 5515–5517 (the 2026-09-21 clock rows, After
+   Stage 4) and the five `seed` rows (ids 1–4, 15782); the restore trail is 149
+   (3 `restore_backup`, 3 `restore_wiped_activity_logs`, 143
+   `restore_refused`); no code needs old rows. It would make stale:
+   `activityActions.js:8–9` and `:164–165`, this file's two rules above and
+   the KNOWN ISSUES "291 rows" line, MOBILE_CONVENTIONS `:605`, FRONTEND
+   `:4518` and `:4542–4543`, TESTING `:616`, KNOWN_ISSUES `:126` and
+   `:264–265`, MIGRATION_INVENTORY's 77 distinct actions, and the
+   "check `activity_logs` for `password_reset_*_failed`" run-book. Q7's
+   figures: 28,983 rows since 2026-09-07, about 589 a day over the 14 days to
+   2026-10-23, 17% from deleted suite accounts, a full gate about 650.
+5. **Hosting last**, once the whole system is complete.
 
 The owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is

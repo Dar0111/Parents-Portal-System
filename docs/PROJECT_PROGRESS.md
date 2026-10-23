@@ -196,20 +196,24 @@ test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
 `main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
 detached at `774b98c`).
 **Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
-(1) B7 `docs/pre-oct21` — the docs pass (the local-mode SMS wording now that
-SMS runs in SMSGate Cloud mode through the owner's `.env`, the `sms:probe`
-exit crash, Q9.6's stale claims), the demo data of D-102, the deletion of the
-old test-era `activity_logs` rows after a backup (the owner's answer of
-2026-10-24, replacing Q7's "keep every row" for them), and a new restore
-point; (2) Session B (`migrate/postgres-prep`) — the sync with `main`, then
-the Supabase migration (the owner makes `supabase.env` at 12 PM on Sat
-2026-10-24); the sync adds B1's 26th table `grade_acknowledgements` and the
-two `notifications.type` values `grades_locked` and `grades_acknowledged`
-(B1's build CHANGELOG row, 2026-10-21); B2 adds no schema change, and its new
-SQL to port is MIGRATION_INVENTORY B16; (3) after the migration — SMS
-end-to-end encryption in its own small branch (the owner's choice), the
-privacy text in the app (D-36) and the old code-row purge (P-19, approved);
-(4) hosting last, once the whole system is complete.
+(1) B7 `chore/pre-migration`, in progress in its own worktree
+`Parents_Portal-pre-migration` — the docs pass (SMSGate cloud mode's wording,
+Q9.6's stale claims, TESTING's PENDING, the passing items), the `sms:probe`
+exit fix, the demo data of D-102 (Nino's five Grade 1 letters reproduced by
+scores and HPS), and a new restore point taken last (it still holds the old
+activity rows); (2) Session B (`migrate/postgres-prep`) — the sync with
+`main`, then the Supabase migration (the owner makes `supabase.env` at 12 PM
+on Sat 2026-10-24), copying everything; the sync adds B1's 26th table
+`grade_acknowledgements` and the two `notifications.type` values
+`grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
+2026-10-21); B2 adds no schema change, and its new SQL to port is
+MIGRATION_INVENTORY B16 — and beside it, in Session A, the E2E + P-19 branch
+(SMS end-to-end encryption and the old code-row purge; D-119); (3) the privacy
+text in the app (D-36) after the principal's approval on Mon 2026-10-26
+(D-124); (4) the reset of the old activity rows at the end, after the last
+gate and before the demo, on Supabase (D-122 — moved out of B7; B7's survey
+for it is in CLAUDE.md NEXT); (5) hosting last, once the whole system is
+complete.
 The owner's own target is everything finished, the Supabase migration
 included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
 restore point is still backup 317,

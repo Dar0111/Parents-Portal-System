@@ -27,11 +27,9 @@ import { useCard } from './useCard';
 // the cause would be invisible.
 //
 // RECENT ACTIVITY IS NOT HERE, and its absence is a decision (Darryl, Q2):
-// there is no read endpoint for `activity_logs` — every reference in
-// server/routes/ is a write — and building one needs a redaction rule for
-// free text produced by twenty-odd call sites. It moves to the Admin
-// Activity Log page with its own endpoint. Do not add a card that fakes it
-// from something else.
+// it is Admin → Activity log, with its own endpoints since feat/activity-log
+// (pages/admin/ActivityLogPage.jsx; CLAUDE.md §36 — never an entry's
+// details). Do not add a card that fakes it from something else.
 //
 // NO VERDICTS (§4), AND NOTHING ON THIS PAGE IS RED. Amber means "there is
 // something to do"; red would mean something has already failed, and nothing

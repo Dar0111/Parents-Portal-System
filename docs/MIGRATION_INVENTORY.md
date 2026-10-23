@@ -731,7 +731,7 @@ Three templates changed in B2's commit 2 (`create_teacher`, `update_user`,
 | C37 | School calendar | `utils/schoolCalendar.js:28-77` (server, used by `dashboard.js:74`); `client/src/format/schoolCalendar.js:21-61` (copied byte for byte to `mobile/src/format/`) | SY 2026-2027, class days and three term ranges, `currentTerm`, `termDates`, month clamp. Three copies of one table |
 | C38 | Dashboards | `routes/dashboard.js:70-345` | Summaries per role. The parent's general average is computed on the server with `roundTo2` (:339). The term comes from C37 |
 | C39 | Email transport | `utils/mailer.js:36-136` | nodemailer over SMTP (`SMTP_*`), or `MAIL_TRANSPORT=file` writes to `server/tmp/mail`. Two templates: reset code :99, verify email :119 |
-| C40 | SMS transport | `utils/smsTransport.js:35-157` | An HTTP gateway: `POST <url>/message`, Basic auth, E.164 numbers, a TTL, a 10 s timeout, fixed failure reasons. Or file mode to `server/tmp/sms`. Two texts: :151, :155 |
+| C40 | SMS transport | `utils/smsTransport.js:40-197` | An HTTP gateway: `POST <url>/message`, Basic auth, E.164 numbers, a TTL, a 10 s timeout, fixed failure reasons; SMSGate in cloud mode since 2026-10-24 (an https API base), local mode the fallback. Or file mode to `server/tmp/sms`. Four texts: the two codes :164, :168, the two password alerts :176, :180 |
 | C41 | Route-param ids | `utils/validateId.js:4` | `parseId`: positive integers only, otherwise 400 |
 | C42 | Field rules | `utils/emailRule.js:28-47`; `utils/contactRule.js:27-55`; `utils/lrnRule.js:14-21` | Email pattern, 100 characters max. A mobile number is stored as `09XXXXXXXXX`, with `toE164` for SMS. An LRN is exactly 12 digits |
 | C43 | Pagination and sort | `utils/pagination.js:19-92` | Default 50, max 200, a sort allow-list per endpoint, `page` metadata |
@@ -809,8 +809,8 @@ from client arithmetic.
 | CORS_ORIGIN | `utils/corsOrigins.js:50` | Allowed origins for HTTP and the socket |
 | SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM | `utils/mailer.js:40-44` | Outgoing email |
 | MAIL_TRANSPORT | `utils/mailer.js:36` | `file` = write mail to disk (suites); not set in `.env` |
-| SMS_TRANSPORT | `utils/smsTransport.js:129` | `gateway` / `file` / off |
-| SMS_GATEWAY_URL, SMS_GATEWAY_USER, SMS_GATEWAY_PASS | `utils/smsTransport.js:136-143` | The SMS gateway |
+| SMS_TRANSPORT | `utils/smsTransport.js:140` | `gateway` / `file` / off |
+| SMS_GATEWAY_URL, SMS_GATEWAY_USER, SMS_GATEWAY_PASS | `utils/smsTransport.js:143-155` | The SMS gateway (cloud mode's https API base since 2026-10-24) |
 | MYSQLDUMP_PATH | `routes/backups.js:110` | The mysqldump binary (default: on PATH); not set in `.env` |
 | NODE_ENV | — | In `.env` and the template; read by no server code |
 | SMS_CHECK_PASSWORD | — | In `server/.env` only (not in the template); read by no code |

@@ -38,10 +38,10 @@ const router = express.Router();
 //      would have been a second implementation of a number parents compare
 //      against their child's card.
 //
-// Recent activity is NOT here. It needs a read endpoint for `activity_logs`
-// (none exists — every reference in server/routes/ is a write) plus a
-// redaction rule for free-text `details` written by twenty-odd call sites.
-// It moves to the Admin Activity Log page with its own endpoint (Darryl, Q2).
+// Recent activity is NOT here (Darryl, Q2). It is Admin → Activity log, with
+// its own endpoints since feat/activity-log (routes/activityLogs.js, which
+// never selects the free-text description — CLAUDE.md §36); this dashboard
+// reads nothing from `activity_logs`.
 //
 // ---------------------------------------------------------------------------
 // SCOPE: EVERY QUERY REUSES THE LIST'S OWN `WHERE`, NEVER A WIDENING

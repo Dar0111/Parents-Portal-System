@@ -6,11 +6,16 @@ const { toE164 } = require('./contactRule');
 // utils/mailer.js: one place, the transport chosen ONCE at module load from
 // the environment, never from a request.
 //
-//   SMS_TRANSPORT=gateway  POST to "SMS Gateway for Android" in LOCAL mode on
-//                          the demo phone (its own SIM, no paid service):
-//                          SMS_GATEWAY_URL (http://<phone-ip>:8080),
-//                          SMS_GATEWAY_USER, SMS_GATEWAY_PASS (Basic auth —
-//                          the only auth local mode supports).
+//   SMS_TRANSPORT=gateway  POST to "SMS Gateway for Android" (SMSGate), which
+//                          sends from the demo phone's own SIM (no paid
+//                          service). CLOUD mode since 2026-10-24: the app's
+//                          cloud server relays to the phone. SMS_GATEWAY_URL
+//                          is the API base the app gives for its mode (cloud:
+//                          an https base; the local-mode fallback:
+//                          http://<phone-ip>:8080); this file appends /message
+//                          and /health. SMS_GATEWAY_USER, SMS_GATEWAY_PASS are
+//                          the Basic-auth credentials the app shows for that
+//                          mode.
 //   SMS_TRANSPORT=file     write server/tmp/sms/*.json instead (git-ignored).
 //                          The suites read codes from there; no proof or
 //                          suite ever sends a real text.
@@ -47,7 +52,8 @@ function reasonFor(err) {
   return name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'unreachable';
 }
 
-// Accepts only an http(s) origin, and keeps it without a trailing slash.
+// Accepts only an http(s) URL — an origin (local mode) or an API base with a
+// path (cloud mode) — and keeps it without a trailing slash.
 function baseUrl(url) {
   try {
     const u = new URL(String(url || ''));
@@ -104,8 +110,9 @@ function createTransport({ mode, url, user, pass, fetchImpl = fetch, dir = SMS_D
   }
 
   // For scripts/probe-sms-gateway.js only. GET /health sends nothing. Returns
-  // plain facts about the phone, or { reachable: false, reason } — never the
-  // URL. Sends the credentials too: harmless if /health does not need them,
+  // the plain facts the gateway's /health reports (the phone's own in local
+  // mode; the cloud server's in cloud mode), or { reachable: false, reason } —
+  // never the URL. Sends the credentials too: harmless if /health does not need them,
   // and the docs do not say whether it does.
   async function health() {
     if (mode !== 'gateway') return { reachable: false, reason: 'bad_config', mode: mode || 'off' };
@@ -148,9 +155,11 @@ const transport = createTransport({
 });
 
 // ---------------------------------------------------------------------------
-// The two texts. ASCII only (GSM-7, so one part up to 160 characters — no
-// curly quotes, no dashes that would flip the encoding and halve the limit),
-// and like the emails they carry NO LRN, login id or student name (§5c).
+// The four texts (the two codes since feat/sms-transport, the two password
+// alerts since feat/password-alert). ASCII only (GSM-7, so one part up to 160
+// characters — no curly quotes, no dashes that would flip the encoding and
+// halve the limit), and like the emails they carry NO LRN, login id or
+// student name (§5c).
 // ---------------------------------------------------------------------------
 function resetCodeText({ code, minutes }) {
   return `Parent's Portal: your password reset code is ${code}. It expires in ${minutes} minutes. Nobody from the school will ever ask for this code.`;

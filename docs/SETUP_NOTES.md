@@ -172,7 +172,9 @@ Ang ayos na gumana sa telepono (Expo Go) gamit ang hotspot ng telepono.
    Gateway** ay ang telepono. Pareho dapat ang unang tatlong numero nila.
 5. **`mobile\.env`:** ang host ng `EXPO_PUBLIC_API_URL` = ang IPv4.
 6. **`server\.env`:** ang host ng **pangalawang** entry ng `CORS_ORIGIN` =
-   ang IPv4, at ang host ng `SMS_GATEWAY_URL` = ang Default Gateway.
+   ang IPv4. (Sa SMSGate local mode lang: ang host ng `SMS_GATEWAY_URL` = ang
+   Default Gateway. Sa Cloud mode — ang gamit mula 2026-10-24 — hindi ito
+   ginagalaw.)
 7. **Windows network profile → Private** para sa hotspot.
 8. **I-restart ang API.**
 9. **BAGONG cmd window**, sa `mobile\`:

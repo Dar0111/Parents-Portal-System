@@ -1,13 +1,15 @@
-// Is the phone's SMS gateway reachable RIGHT NOW? (feat/sms-transport,
-// 2026-09-29). Run before every phone check that could send a text — the
-// gateway's IP can change with each hotspot session.
+// Is the SMS gateway reachable RIGHT NOW? (feat/sms-transport, 2026-09-29).
+// Run before every check that could send a text — in the local-mode fallback
+// the phone's IP can change with each hotspot session (the demo runs SMSGate
+// in cloud mode since 2026-10-24).
 //
 //   npm run sms:probe
 //
 // READ-ONLY AND SENDS NOTHING: one GET /health through the same transport the
 // server uses, with the same env (server/.env). It prints plain facts only —
-// reachable yes/no, a FIXED failure reason, the app's own status and version,
-// battery, charging, cellular. NEVER the URL, the credentials or a number.
+// reachable yes/no, a FIXED failure reason, the gateway's own status and
+// version, and whatever checks its /health reports (in local mode: battery,
+// charging, cellular). NEVER the URL, the credentials or a number.
 //
 // A changed SMS_GATEWAY_URL needs the API restarted too: the server reads it
 // once at startup, and `node --watch` does not watch .env.

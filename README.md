@@ -41,7 +41,7 @@ detail is in other files:
 
 | Part | Status |
 |--------|--------|
-| Database schema (23 tables) | ✅ Done |
+| Database schema (26 tables) | ✅ Done |
 | Seed data | ✅ Done |
 | **Backend API** | ✅ Every module, Socket.io included. Endpoint counts: the front matter of `CLAUDE.md` |
 | Web — all three roles (Teacher, Parent, Admin) | ✅ Stage 4 closed 2026-09-14; the additions after it are in `CLAUDE.md`'s BUILD ORDER |
@@ -95,7 +95,7 @@ npm run db:setup
 ```
 
 When it succeeds, Workbench shows the database **`parents_portal`** with
-**23 tables**.
+**26 tables**.
 
 > **`db:setup` is for a new machine only.** It wipes `activity_logs` and the
 > `backups` rows. On a database that already has data, a new seed row arrives
@@ -226,11 +226,14 @@ below. The rules: `docs/MOBILE_CONVENTIONS.md`.
 Forgot-password can send its code by **email and by text**. The text goes
 through the **SMSGate** ("SMS Gateway for Android") app on a phone:
 
-- In the app: **Local Server** mode, port **8080**. The app shows the Local
-  Server's username and password.
-- In `server\.env`: `SMS_TRANSPORT=gateway`,
-  `SMS_GATEWAY_URL=http://<the phone's ip>:8080`, and `SMS_GATEWAY_USER` /
-  `SMS_GATEWAY_PASS` from the app. **Never commit the values.**
+- In the app: **Cloud Server** mode (since 2026-10-24). The app shows the
+  Cloud Server's username and password. (The fallback, **Local Server** mode
+  on port 8080 with the phone on the same hotspot, takes the same keys.)
+- In `server\.env`: `SMS_TRANSPORT=gateway`, `SMS_GATEWAY_URL=` the API base
+  the app gives for its mode (cloud: an https base; local:
+  `http://<the phone's ip>:8080`) — the server appends `/message` and
+  `/health` — and `SMS_GATEWAY_USER` / `SMS_GATEWAY_PASS` from the app.
+  **Never commit the values.**
 - **It stays off except during a test:** a blank `SMS_TRANSPORT` = SMS off,
   email only. `npm run sms:probe` (in `server/`) checks that the gateway is
   reachable. The detail: `docs/KNOWN_ISSUES.md` (the SMS rows) and
@@ -284,7 +287,7 @@ are in `seed.sql`.
 parents_portal
 ```
 
-Shown in MySQL Workbench under **SCHEMAS** → `parents_portal`. **23 tables.**
+Shown in MySQL Workbench under **SCHEMAS** → `parents_portal`. **26 tables.**
 
 Quick check in the Query tab:
 
@@ -356,7 +359,7 @@ npm run test:auth
 Parents_Portal/
 ├── README.md, CLAUDE.md, .cursorrules
 ├── docs/            ← the documents above; docs/agents/ for the skills
-├── database/        ← schema.sql (23 tables), seed.sql
+├── database/        ← schema.sql (26 tables), seed.sql
 ├── scripts/         ← create-backup-zip.js: a SOURCE-CODE archiver, not a DB backup —
 │                       `git archive` of HEAD (tracked files only) to the Desktop as
 │                       Parents_Portal_source_<date>_<sha>.zip; proof-source-zip.mjs proves it

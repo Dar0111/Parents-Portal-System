@@ -1,6 +1,6 @@
 # STAGE 4 FRONTEND CONVENTIONS — frozen 2026-09-06 (full text)
 
-> The complete text of every Stage 4 frontend convention (§1–§10 and §13–§24; §11 and §12 live only in `CLAUDE.md`) and the three retired planning claims, with the reasoning and worked examples. `CLAUDE.md` → STAGE 4 FRONTEND CONVENTIONS carries the rule statements.
+> The complete text of every Stage 4 frontend convention (§1–§10 and §13–§36; §11 and §12 live only in `CLAUDE.md`) and the three retired planning claims, with the reasoning and worked examples. `CLAUDE.md` → STAGE 4 FRONTEND CONVENTIONS carries the rule statements.
 > Moved out of `CLAUDE.md` on 2026-09-18 verbatim so that file fits Claude Code's 150k-char limit. `CLAUDE.md` holds the condensed version and wins on any present-tense claim; if the two disagree, the code is correct and both must be fixed.
 > Dated entries record what was true on their date and are never back-edited. MEASURED BUILD TIME lives in `docs/ARCHIVE.md`.
 
@@ -551,7 +551,7 @@ error — with `onRetry` — and empty all render **inside its own frame**,
 behaving identically to `DataTable`'s. Being presentational is also what
 makes the SSR proof possible at all.
 
-**Four rules this card carries that are not `DataTable`'s:**
+**Six rules this card carries that are not `DataTable`'s:**
 
 - **The printed subject order is a client constant.** `subjects` is
   `id, name, grade_level` with **no display-order column**, so the API can
@@ -1686,8 +1686,9 @@ school ever supplies a new seal. `favicon.svg` is gone.
 
 ### 10. Notifications — the bell, the badges, and what a count is allowed to be
 
-**Frozen 2026-09-19, after N1 (server) and N2 (client).** Four rules. The
-first two are about correctness and the last two about honesty.
+**Frozen 2026-09-19, after N1 (server) and N2 (client).** Five rules. The
+first two are about correctness, the next two about honesty, and the fifth
+(since `fix/f3-badges`) about what a visit clears.
 
 **A COUNT IS ALWAYS THE SERVER’S ANSWER, NEVER CLIENT ARITHMETIC.** The
 socket event `notification_counts` carries no payload; it means *refetch*.
@@ -2388,7 +2389,7 @@ be reading different words for it. `docs/KNOWN_ISSUES.md` has the row.
 ## 17. The encode roster, and where a proof lives (DV1b-b, frozen 2026-09-23)
 
 The fifteenth and last DataTable consumer, and the one `renderCard` could not
-express. Five rules; the first two are about the proof rather than the page,
+express. Six rules (17a–17f); the first two are about the proof rather than the page,
 and they are here because both were learned by shipping the defect.
 
 ### 17a. A proof script lives in `client/scripts/`, and it is a LINT boundary

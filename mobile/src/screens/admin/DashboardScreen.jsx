@@ -20,8 +20,8 @@ import { backupAge, CARD_LINKS, countRows, hazardSlot, pendingLead, pendingTone 
 // request per card; every count is the server's (`GET /dashboard`) and each
 // card opens the list whose WHERE it repeats. NOTHING IS RED. The lockout
 // hazard card is amber, not dismissible, names no account, and clears itself.
-// Recent activity is deliberately absent (no read endpoint for
-// activity_logs). BACKUP & RESTORE IS WEB ONLY: the System card shows the
+// Recent activity is deliberately absent (it is the web's Admin → Activity
+// log, web only since feat/activity-log). BACKUP & RESTORE IS WEB ONLY: the System card shows the
 // last backup's age and never links to it. It re-reads on focus (M14): a
 // drawer screen is never unmounted, and a review on Users changes the
 // waiting count behind it.
