@@ -1666,7 +1666,8 @@ with `feat/password-alert`, B1, B3 and B8 are MERGED, the last `47be373`
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Next, on the owner's word (the
 owner's order, 2026-10-23):** B2 `feat/activity-log` is BUILT on its branch
 in its own worktree (`Parents_Portal-activity-log`, 2026-10-23/24: trim-11
-`00235a0`, the three writers' ids `04258c8`, the build — §36); its device
+`00235a0`, the three writers' ids `04258c8`, the build `d516c61` — §36),
+gated 2026-10-24 after backup 363; its device
 check (`docs/ACTIVITY_LOG_DEVICE_CHECK.md`) waits for its own go —
 then B7 `docs/pre-oct21` — the demo data and a new restore point. **For B7
 (the owner's Q7): `activity_logs` keeps every row, and the demo's 7-day view
@@ -1683,7 +1684,7 @@ Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
 still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346,
 354 and 362 are the five checks' pre-cleanup dumps, 361 B8's pre-check dump,
 347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
-345, 348, 353, 355 and 360 pre-write dumps, not restore points. The manuscript delta list stays with the
+345, 348, 353, 355, 360 and 363 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
 that day's attendance, the owner's change of the school's earlier rule.
 

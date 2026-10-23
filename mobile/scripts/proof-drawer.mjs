@@ -91,17 +91,19 @@ for (const role of ['parent', 'teacher', 'admin']) {
   assert(result.groups.every((g) => g.label), `${role}: no unlabelled group`);
 }
 
-console.log('admin: Backup & Restore is web only');
+console.log('admin: Backup & Restore and the Activity log are web only');
 const adminPhone = groupNav('admin', phoneItems('admin'));
 assert(!adminPhone.groups.some((g) => g.label === 'System'), 'phone: the System group is absent');
 assert(
-  ![...adminPhone.top, ...adminPhone.groups.flatMap((g) => g.items), ...adminPhone.bottom].some((i) => i.to === '/admin/backups'),
-  'phone: /admin/backups is in no group'
+  ![...adminPhone.top, ...adminPhone.groups.flatMap((g) => g.items), ...adminPhone.bottom].some(
+    (i) => i.to === '/admin/backups' || i.to === '/admin/activity-log'
+  ),
+  'phone: /admin/backups and /admin/activity-log are in no group'
 );
 const adminWeb = groupNav('admin', NAV_BY_ROLE.admin);
 assert(
-  adminWeb.groups.some((g) => g.label === 'System' && same(paths(g.items), ['/admin/backups'])),
-  'control: the same file, given the web list, still has System → Backup & Restore'
+  adminWeb.groups.some((g) => g.label === 'System' && same(paths(g.items), ['/admin/backups', '/admin/activity-log'])),
+  'control: the same file, given the web list, still has System → Backup & Restore, Activity log'
 );
 
 console.log('an item navGroups.js does not name');
