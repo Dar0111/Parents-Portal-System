@@ -11,6 +11,7 @@ import FormStatus, { ok } from '../../components/FormStatus';
 import SectionHeader from '../../components/SectionHeader';
 import Segmented from '../../components/Segmented';
 import Text from '../../components/Text';
+import { PARENT_NOTE } from '../../format/excuseAttendance';
 import Icon from '../../icons';
 import useVisitClear from '../../realtime/useVisitClear';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -91,7 +92,8 @@ export default function ExcuseLettersScreen({ navigation, route }) {
     return {
       icon: 'fa-envelope-open-text',
       title: 'No excuse letters yet',
-      message: 'Use Submit letter when your child is absent. The adviser reviews it; it does not change the attendance record.',
+      // The adviser's decision sets that day's attendance (feat/excuse-attendance).
+      message: `Use Submit letter when your child is absent. ${PARENT_NOTE}`,
     };
   })();
 

@@ -1,8 +1,12 @@
 /**
  * Excuse Letters API tests — full CRUD (submit, list, view, edit) plus
  * PATCH /:id/review (approve/decline). Review is adviser-only (not any
- * assigned teacher) and never touches the attendance table — see
- * CLAUDE.md's BLOCKED / RESOLVED section.
+ * assigned teacher) and, since feat/excuse-attendance (B8, the owner's
+ * decision of 2026-10-22), sets that day's attendance in the same
+ * transaction — every cell of the rule (utils/excuseAttendance.js) is
+ * exercised over HTTP below, and so are two reviews of one day at once.
+ * Every (learner, day) the run reviews is snapshotted first and put back
+ * first in the cleanup (test-helpers/attendance.js).
  * Prerequisite: npm run db:setup && npm start (or npm run dev)
  *
  * Idempotent: every excuse letter this script creates for the seeded
@@ -20,6 +24,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const { hashPassword } = require('../utils/password');
 const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
+const { snapshotDays, restoreDays, daysMatch } = require('./test-helpers/attendance');
+const { decide, isClassDay, RETRY_MESSAGE } = require('../utils/excuseAttendance');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
@@ -152,6 +158,25 @@ async function run() {
   const createdLrns = [];
   const createdLoginIds = [];
 
+  // THE DAYS THIS RUN'S REVIEWS TOUCH (feat/excuse-attendance, B8). A review
+  // sets that day's attendance, so each (learner, day) is snapshotted before
+  // its first review and put back FIRST in the cleanup — before any fixture
+  // user goes, since `recorded_by` is ON DELETE RESTRICT.
+  const attendanceSnapshot = [];
+  // The one letter moved out of Pending by SQL, not by a review — the only
+  // run letter whose day need not be in the snapshot.
+  let sqlApprovedLetterId = null;
+  async function guardDays(pairs) {
+    const fresh = pairs.filter(([s, d]) => !attendanceSnapshot.some((x) => x.studentId === s && x.date === d));
+    if (fresh.length) attendanceSnapshot.push(...(await withDb((conn) => snapshotDays(conn, fresh))));
+  }
+  async function dayStatus(studentId, date) {
+    const [rows] = await withDb((conn) =>
+      conn.query('SELECT status FROM attendance WHERE student_id = ? AND date = ? LIMIT 1', [studentId, date])
+    );
+    return rows[0]?.status ?? null;
+  }
+
   async function cleanup() {
     // Submitting a letter notifies the adviser and reviewing it notifies the
     // parent, both keyed on the letter's id, and nothing cascades those rows
@@ -166,6 +191,36 @@ async function run() {
         ])
       );
       for (const r of rows) letterIds.add(r.id);
+    }
+    // The attendance first: every letter this run REVIEWED must have had its
+    // day snapshotted (else its row would stay behind), then every day goes
+    // back. A failure is counted and the cleanup carries on.
+    try {
+      await withDb(async (conn) => {
+        const [reviewed] = letterIds.size
+          ? await conn.query(
+              "SELECT id, student_id, DATE_FORMAT(absence_date, '%Y-%m-%d') AS absence_date FROM excuse_letters WHERE id IN (?) AND status <> 'Pending' AND id <> ?",
+              [[...letterIds], sqlApprovedLetterId ?? 0]
+            )
+          : [[]];
+        const unguarded = reviewed.filter(
+          (r) => !attendanceSnapshot.some((x) => x.studentId === r.student_id && x.date === r.absence_date)
+        );
+        assert(
+          unguarded.length === 0,
+          `every letter THIS RUN reviewed had its day snapshotted first (${reviewed.length} reviewed)`,
+          `letters not guarded: ${unguarded.map((r) => r.id).join(', ')}`
+        );
+        if (attendanceSnapshot.length) {
+          const touched = await restoreDays(conn, attendanceSnapshot);
+          assert(
+            await daysMatch(conn, attendanceSnapshot),
+            `every attendance day THIS RUN's reviews touched is back exactly as it was (${touched} rows put back over ${attendanceSnapshot.length} days)`
+          );
+        }
+      });
+    } catch (err) {
+      assert(false, "the attendance restore ran to the end", `failed: ${err.code || 'an error'}`);
     }
     const notificationPairs = pairsFor('excuse_letter', [...letterIds]);
     if (createdExcuseLetterIds.length) {
@@ -483,6 +538,7 @@ async function run() {
     // built) so the "already reviewed" guard can be tested honestly, not
     // just asserted against a state the API has no way to reach yet.
     await withDb((conn) => conn.query("UPDATE excuse_letters SET status = 'Approved' WHERE id = ?", [letterId]));
+    sqlApprovedLetterId = letterId;
 
     const editReviewed = await request('PUT', `/api/excuse-letters/${letterId}`, {
       token: parentToken,
@@ -536,15 +592,25 @@ async function run() {
       'Fixture: a non-adviser teacher assigned to Malikhain (can read, cannot review)'
     );
 
+    // ONE date for these letters, their guard and the approval's check, so a
+    // run that crosses midnight cannot snapshot one day and review another.
+    const reviewDay = daysAgo(1);
     async function submitFor(reason) {
       const res = await request('POST', '/api/excuse-letters', {
         token: parentToken,
-        body: { absence_date: daysAgo(1), reason },
+        body: { absence_date: reviewDay, reason },
       });
       if (res.data?.excuse_letter?.id) createdExcuseLetterIds.push(res.data.excuse_letter.id);
       return res.data?.excuse_letter?.id;
     }
 
+    // Marwin's day (these letters) and the outside learner's — the day its
+    // letter was STORED with (the admin's review below) — are guarded before
+    // any review runs.
+    await guardDays([
+      [marwinId, reviewDay],
+      [outsideStudentRow?.id, outsideSubmit.data?.excuse_letter?.absence_date],
+    ]);
     const letterForApproval = await submitFor('Review: approval');
     const letterForDeclineRemarks = await submitFor('Review: decline with remarks');
     const letterForDeclineNoRemarks = await submitFor('Review: decline without remarks');
@@ -605,11 +671,13 @@ async function run() {
     );
     const jeaParentId = jeaParentRow?.[0]?.[0]?.id;
 
+    // One date for the letter and its guard below (a midnight crossing).
+    const jeaDay = daysAgo(3);
     const insertedJeaLetter = await withDb((conn) =>
       conn.query(
         `INSERT INTO excuse_letters (student_id, parent_id, absence_date, reason, status)
          VALUES (?, ?, ?, 'Adviser-scope fixture', 'Pending')`,
-        [jeaStudentId, jeaParentId, daysAgo(3)]
+        [jeaStudentId, jeaParentId, jeaDay]
       )
     );
     const jeaLetterId = insertedJeaLetter?.[0]?.insertId;
@@ -637,11 +705,10 @@ async function run() {
     });
     assert(adviserReadsOutside.status === 404, 'Adviser-only teacher reading an out-of-scope letter returns 404');
 
-    // Attendance is record-only across ANY approval, whoever approves —
-    // "excuse lang yung bata pero absent pa rin" (the school's own words).
-    const attendanceBeforeAdviser = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS c FROM attendance WHERE student_id = ?', [jeaStudentId])
-    );
+    // Since feat/excuse-attendance (B8) the decision sets that day's
+    // attendance, whoever reviews: the day is guarded first.
+    await guardDays([[jeaStudentId, jeaDay]]);
+    const jeaBefore = await dayStatus(jeaStudentId, jeaDay);
 
     const adviserReviews = await request('PATCH', `/api/excuse-letters/${jeaLetterId}/review`, {
       token: adviserToken,
@@ -656,12 +723,12 @@ async function run() {
       'reviewed_by records the adviser who actually reviewed it'
     );
 
-    const attendanceAfterAdviser = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS c FROM attendance WHERE student_id = ?', [jeaStudentId])
-    );
+    const jeaWant = decide('Approved', jeaBefore, jeaDay);
     assert(
-      attendanceBeforeAdviser?.[0]?.[0]?.c === attendanceAfterAdviser?.[0]?.[0]?.c,
-      'Approval by the adviser leaves the attendance table untouched'
+      (await dayStatus(jeaStudentId, jeaDay)) === jeaWant.to &&
+        adviserReviews.data?.attendance_from === jeaBefore &&
+        adviserReviews.data?.class_day === jeaWant.classDay,
+      `The adviser-only teacher's approval sets the day by the rule (${jeaBefore ?? 'no record'} → ${jeaWant.to ?? 'no record'}, class day: ${jeaWant.classDay})`
     );
 
     const adviserReviewsOutside = await request('PATCH', `/api/excuse-letters/${outsideLetterId}/review`, {
@@ -673,12 +740,9 @@ async function run() {
       'Adviser-only teacher reviewing an out-of-scope letter returns 404 (outside read scope entirely)'
     );
 
-    // Attendance must be completely untouched by an approval — the whole
-    // point of this module. Snapshot before, compare after.
-    const attendanceBefore = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS c FROM attendance WHERE student_id = ?', [marwinId])
-    );
-    const attendanceCountBefore = attendanceBefore[0][0].c;
+    // The approval sets the day by the rule (B8); the day was guarded above.
+    const approvalDay = reviewDay;
+    const approvalBefore = await dayStatus(marwinId, approvalDay);
 
     const adviserApproves = await request('PATCH', `/api/excuse-letters/${letterForApproval}/review`, {
       token: teacherToken,
@@ -691,12 +755,13 @@ async function run() {
       'Adviser approves a Pending letter — status Approved, reviewed_by set to the adviser'
     );
 
-    const attendanceAfter = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS c FROM attendance WHERE student_id = ?', [marwinId])
-    );
+    const approvalWant = decide('Approved', approvalBefore, approvalDay);
     assert(
-      attendanceAfter[0][0].c === attendanceCountBefore,
-      `Attendance row count for the student is unchanged by the approval (before ${attendanceCountBefore}, after ${attendanceAfter[0][0].c})`
+      (await dayStatus(marwinId, approvalDay)) === approvalWant.to &&
+        adviserApproves.data?.attendance_from === approvalBefore &&
+        adviserApproves.data?.class_day === approvalWant.classDay &&
+        (adviserApproves.data?.attendance?.status ?? null) === approvalWant.to,
+      `The adviser's approval sets the day by the rule and the reply says so (${approvalBefore ?? 'no record'} → ${approvalWant.to ?? 'no record'})`
     );
 
     const parentEditsAfterReview = await request('PUT', `/api/excuse-letters/${letterForApproval}`, {
@@ -778,6 +843,202 @@ async function run() {
       body: { status: 'Approved' },
     });
     assert(unauthReview.status === 401, 'Unauthenticated PATCH /:id/review returns 401');
+
+    // --- The day's attendance — every cell of the rule (feat/excuse-attendance, B8) ---
+    console.log("\nThe day's attendance (every cell, B8):");
+
+    // Days with NO attendance row and NO letter for Marwin yet, so every row
+    // this block makes is its own; yesterday to three days ago are left to the
+    // letters above. A class day is a weekday inside the school year.
+    const usedDays = new Set([daysAgo(1), daysAgo(2), daysAgo(3)]);
+    async function isFree(date) {
+      const [att] = await withDb((conn) =>
+        conn.query('SELECT COUNT(*) AS n FROM attendance WHERE student_id = ? AND date = ?', [marwinId, date])
+      );
+      const [lets] = await withDb((conn) =>
+        conn.query('SELECT COUNT(*) AS n FROM excuse_letters WHERE student_id = ? AND absence_date = ?', [marwinId, date])
+      );
+      return Number(att[0].n) === 0 && Number(lets[0].n) === 0;
+    }
+    async function freeDays(count, wanted) {
+      const out = [];
+      for (let i = 1; out.length < count && i < 500; i += 1) {
+        const date = daysAgo(i);
+        if (usedDays.has(date) || !wanted(date)) continue;
+        if (await isFree(date)) {
+          out.push(date);
+          usedDays.add(date);
+        }
+      }
+      return out;
+    }
+    const isWeekendDay = (date) => {
+      const [y, m, d] = date.split('-').map(Number);
+      const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+      return day === 0 || day === 6;
+    };
+    const cellDays = await freeDays(13, isClassDay);
+    const weekendDays = await freeDays(2, isWeekendDay);
+    // A weekday before the school year starts — not a class day either.
+    const outsideDay = '2026-06-05';
+    const outsideFree = !usedDays.has(outsideDay) && !isClassDay(outsideDay) && (await isFree(outsideDay));
+    usedDays.add(outsideDay);
+    assert(
+      cellDays.length === 13 && weekendDays.length === 2 && outsideFree,
+      'Fixture: thirteen unrecorded class days, two weekend days and a weekday before the school year, all free for Marwin'
+    );
+    await guardDays([...cellDays, ...weekendDays, outsideDay].map((date) => [marwinId, date]));
+
+    async function submitOn(date, reason) {
+      const res = await request('POST', '/api/excuse-letters', { token: parentToken, body: { absence_date: date, reason } });
+      if (res.data?.excuse_letter?.id) createdExcuseLetterIds.push(res.data.excuse_letter.id);
+      return res.data?.excuse_letter?.id;
+    }
+    async function dayRow(date) {
+      const [rows] = await withDb((conn) =>
+        conn.query(
+          "SELECT id, status, recorded_by, DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at FROM attendance WHERE student_id = ? AND date = ? LIMIT 1",
+          [marwinId, date]
+        )
+      );
+      return rows[0] || null;
+    }
+    // Only this run's rows: the reviewer's, after this block began — another
+    // server writing to the same database cannot move the count.
+    const [[logFloorRow]] = await withDb((conn) => conn.query('SELECT COALESCE(MAX(id), 0) AS id FROM activity_logs'));
+    const logFloor = Number(logFloorRow.id);
+    async function attendanceLogCount() {
+      const [rows] = await withDb((conn) =>
+        conn.query("SELECT COUNT(*) AS n FROM activity_logs WHERE action = 'excuse_attendance' AND user_id = ? AND id > ?", [
+          teacherId,
+          logFloor,
+        ])
+      );
+      return Number(rows[0].n);
+    }
+
+    // One cell: put the day in its state (a row recorded by TCH-002, so the
+    // reviewer's recorded_by is visible), submit a letter for it, review it
+    // as Marwin's adviser, and check the day, the reply and the log against
+    // the rule.
+    async function reviewCell(decision, state, date, label) {
+      if (state) {
+        await withDb((conn) =>
+          conn.query('INSERT INTO attendance (student_id, date, status, recorded_by) VALUES (?, ?, ?, ?)', [
+            marwinId,
+            date,
+            state,
+            adviserId,
+          ])
+        );
+      }
+      const before = await dayRow(date);
+      const letter = await submitOn(date, `Cell: ${label}`);
+      const logsBefore = await attendanceLogCount();
+      const res = await request('PATCH', `/api/excuse-letters/${letter}/review`, {
+        token: teacherToken,
+        body: { status: decision },
+      });
+      const after = await dayRow(date);
+      const logsAfter = await attendanceLogCount();
+      const want = decide(decision, state, date);
+      const replyOk =
+        res.status === 200 &&
+        res.data?.excuse_letter?.status === decision &&
+        res.data?.attendance_from === (state ?? null) &&
+        res.data?.class_day === want.classDay &&
+        (res.data?.attendance?.status ?? null) === (want.to ?? null);
+      let dayOk;
+      if (want.write === 'insert') dayOk = before === null && after && after.status === want.to && after.recorded_by === teacherId;
+      else if (want.write === 'update')
+        dayOk = before && after && after.id === before.id && after.status === want.to && after.recorded_by === teacherId;
+      else dayOk = JSON.stringify(before) === JSON.stringify(after);
+      assert(
+        replyOk && dayOk && logsAfter - logsBefore === (want.write ? 1 : 0),
+        `${label}: ${decision === 'Approved' ? 'approve' : 'decline'} over ${state ?? 'no record'} → ${
+          want.write ? `${want.write}, ${want.to}, recorded by the reviewer` : 'nothing written'
+        }; the reply's attendance, attendance_from and class_day; ${want.write ? 'one' : 'no'} excuse_attendance row`,
+        JSON.stringify({ status: res.status, from: res.data?.attendance_from, classDay: res.data?.class_day, before, after, logs: logsAfter - logsBefore })
+      );
+    }
+
+    const CELLS = [
+      ['Approved', null],
+      ['Approved', 'Absent'],
+      ['Approved', 'Excused'],
+      ['Approved', 'Present'],
+      ['Approved', 'Late'],
+      ['Declined', null],
+      ['Declined', 'Absent'],
+      ['Declined', 'Excused'],
+      ['Declined', 'Present'],
+      ['Declined', 'Late'],
+    ];
+    for (let i = 0; i < CELLS.length; i += 1) {
+      const [decision, state] = CELLS[i];
+      if (cellDays[i]) await reviewCell(decision, state, cellDays[i], `class day ${i + 1}`);
+    }
+    if (weekendDays[0]) await reviewCell('Approved', null, weekendDays[0], 'a weekend day');
+    if (weekendDays[1]) await reviewCell('Declined', 'Absent', weekendDays[1], 'a weekend day with a mark');
+    await reviewCell('Declined', null, outsideDay, 'a weekday before the school year');
+
+    // TWO REVIEWS OF ONE UNRECORDED DAY AT ONCE (the owner's change 3). Which
+    // one wins is timing, so the test asserts what must hold EITHER way: each
+    // answer is 200, or 409 saying nothing was saved and to try again; a 409's
+    // letter is still Pending; the day has exactly one row, and it is what the
+    // winners' decisions make it — Excused whenever an approval landed, in
+    // either order. Then every 409 is retried and lands.
+    console.log('\nTwo reviews of one day at the same moment:');
+    let conflicts = 0;
+    const ROUNDS = [
+      ['Approved', 'Approved'],
+      ['Approved', 'Approved'],
+      ['Approved', 'Declined'],
+    ];
+    for (let r = 0; r < ROUNDS.length; r += 1) {
+      const date = cellDays[10 + r];
+      if (!date) continue;
+      const ids = [await submitOn(date, `Race ${r + 1}a`), await submitOn(date, `Race ${r + 1}b`)];
+      const answers = await Promise.all(
+        ids.map((id, k) => request('PATCH', `/api/excuse-letters/${id}/review`, { token: teacherToken, body: { status: ROUNDS[r][k] } }))
+      );
+      const [letterRows] = await withDb((conn) => conn.query('SELECT id, status FROM excuse_letters WHERE id IN (?) ORDER BY id', [ids]));
+      const statusOf = (id) => letterRows.find((row) => row.id === id)?.status;
+      const shapeOk = answers.every(
+        (a, k) =>
+          (a.status === 200 && statusOf(ids[k]) === ROUNDS[r][k]) ||
+          (a.status === 409 && a.data?.message === RETRY_MESSAGE && statusOf(ids[k]) === 'Pending')
+      );
+      const winners = answers.map((a, k) => (a.status === 200 ? ROUNDS[r][k] : null)).filter(Boolean);
+      const [dayRows] = await withDb((conn) =>
+        conn.query('SELECT status FROM attendance WHERE student_id = ? AND date = ?', [marwinId, date])
+      );
+      const expectedDay = winners.includes('Approved') ? 'Excused' : winners.length ? 'Absent' : null;
+      assert(
+        shapeOk && winners.length >= 1 && dayRows.length === 1 && dayRows[0].status === expectedDay,
+        `round ${r + 1} (${ROUNDS[r].join(' + ')}): each answer is 200, or 409 with the letter still Pending; one row for the day, ${expectedDay}`,
+        JSON.stringify({ answers: answers.map((a) => a.status), day: dayRows.map((d) => d.status) })
+      );
+      // One assertion per round whatever the timing, so the suite's count is
+      // stable: every letter told to try again lands on its retry.
+      let retriesLanded = true;
+      for (let k = 0; k < answers.length; k += 1) {
+        if (answers[k].status !== 409) continue;
+        conflicts += 1;
+        const retry = await request('PATCH', `/api/excuse-letters/${ids[k]}/review`, { token: teacherToken, body: { status: ROUNDS[r][k] } });
+        if (!(retry.status === 200 && retry.data?.excuse_letter?.status === ROUNDS[r][k])) retriesLanded = false;
+      }
+      assert(retriesLanded, `round ${r + 1}: every letter told to try again lands on its retry`);
+      const [finalRows] = await withDb((conn) =>
+        conn.query('SELECT status FROM attendance WHERE student_id = ? AND date = ?', [marwinId, date])
+      );
+      assert(
+        finalRows.length === 1 && finalRows[0].status === (ROUNDS[r].includes('Approved') ? 'Excused' : 'Absent'),
+        `round ${r + 1}: with both letters reviewed the day is ${ROUNDS[r].includes('Approved') ? 'Excused' : 'Absent'}, whichever landed first`
+      );
+    }
+    console.log(`  i ${conflicts} of ${ROUNDS.length * 2} concurrent reviews lost the race and were told to try again (timing, not asserted)`);
+
     // --- Pagination contract (2026-09-19, utils/pagination.js): every list
     // carries page { limit, offset, total, has_more }; limit default 50, max
     // 200; sort against an allow-list. Invariants only — never an exact count

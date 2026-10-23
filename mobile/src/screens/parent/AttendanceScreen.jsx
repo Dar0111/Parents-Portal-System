@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import api, { fetchAll } from '../../api/client';
 import extractError from '../../api/extractError';
@@ -30,6 +31,16 @@ import { COUNTS, EMPTY_SUMMARY, countOf, recordedDays, yearRows, yearTotals } fr
 // on screen — the view and the selected day are not touched) and, through
 // `yearTick`, the whole history and the letters, so the cards stay one
 // answer. The adviser's name is reference data and is not re-read.
+//
+// EVERY FOCUS AFTER THE FIRST re-reads the same way, QUIETLY (feat/excuse-
+// attendance, B8; the owner's Q8): an adviser's decision on a letter now sets
+// that day's attendance, and a drawer screen stays mounted, so without this a
+// parent opening Attendance after the bell said "approved" saw the day as it
+// was. Quiet: the answer on screen stays (no skeleton, no pull indicator)
+// until the new one lands — or, if the re-read fails, gives way to the error,
+// as any failed read of the month does (a pull or the next focus retries).
+// With an error on screen there is no answer to keep, so that focus read is
+// not quiet: it shows the skeleton.
 
 // One cell of the school-year table. The SIZE is named where the cell is
 // used — `text-xs` on the header row, `text-sm` on the body rows — and never
@@ -72,7 +83,7 @@ export default function AttendanceScreen() {
   const [tickets] = useState(createTickets);
 
   const load = useCallback(
-    async ({ pull = false } = {}) => {
+    async ({ pull = false, quiet = false } = {}) => {
       const ticket = tickets.take();
       if (studentId == null) {
         setSummary(EMPTY_SUMMARY);
@@ -82,7 +93,7 @@ export default function AttendanceScreen() {
         return;
       }
       if (pull) setRefreshing(true);
-      else setLoading(true);
+      else if (!quiet) setLoading(true);
       setError(null);
       try {
         const { from, to } = monthBounds(`${view.year}-${String(view.month).padStart(2, '0')}-01`);
@@ -158,10 +169,35 @@ export default function AttendanceScreen() {
 
   // The month's own request plus the two whole-history reads — what a pull
   // has always asked for.
-  function reloadAll({ pull = false } = {}) {
+  function reloadAll({ pull = false, quiet = false } = {}) {
     setYearTick((n) => n + 1);
-    load({ pull });
+    load({ pull, quiet });
   }
+
+  // The quiet focus re-read (see the header). The first focus is the mount,
+  // which the effects above have already read; `load` is read through a ref so
+  // the callback runs on a focus only, never on a month change. Quiet only
+  // while an ANSWER is on screen: after a failed read there is nothing to keep,
+  // so the re-read shows the skeleton like any first read — never "Nothing
+  // recorded this month." over an empty month while the read is out.
+  const firstFocus = useRef(true);
+  const latestLoad = useRef(load);
+  const failedRead = useRef(false);
+  useEffect(() => {
+    latestLoad.current = load;
+    failedRead.current = error != null;
+  });
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return undefined;
+      }
+      setYearTick((n) => n + 1);
+      latestLoad.current({ quiet: !failedRead.current });
+      return undefined;
+    }, [])
+  );
 
   const fraction = recordedDays(summary);
   const linked = studentId != null;

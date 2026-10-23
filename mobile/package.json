@@ -40,6 +40,7 @@
     "proof:grade-locks": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-grade-locks.mjs",
     "proof:smoke-round": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-smoke-round.mjs",
     "proof:grade-acknowledgement": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-grade-acknowledgement.mjs",
+    "proof:excuse-attendance": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/proof-excuse-attendance.mjs",
     "tone:write": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-message-tone.mjs"
   },
   "dependencies": {

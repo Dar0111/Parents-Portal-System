@@ -14,6 +14,7 @@ import { cardClass, linkClass } from '../../components/buttonClass';
 import Reveal from '../../motion/Reveal';
 import useVisitClear from '../../realtime/useVisitClear';
 import { longDate, shortDate, todayLocalDateString } from '../../format/date';
+import { PARENT_NOTE } from '../../format/excuseAttendance';
 import parentLetterCard from './excuseLetters/card';
 import { useAuth } from '../../auth/AuthContext';
 import { editContext, itemChangedSince } from '../../drafts/draftCore';
@@ -198,11 +199,10 @@ export default function ParentExcuseLettersPage() {
       title: 'No excuse letters yet',
       // §5f: the header's Submit letter is always visible when a letter can
       // be submitted, so the empty state names it instead of repeating it.
-      // "…it does not change the attendance record", not "…stays Absent"
-      // (fix/smoke-gate): the day may be Present or not recorded at all, and
-      // a letter does not make it an absence. The rule is that review never
-      // touches attendance; that is what the sentence now says (§5i).
-      message: 'Use Submit letter when your child is absent. The adviser reviews it; it does not change the attendance record.',
+      // Since feat/excuse-attendance (B8) the adviser's decision sets that
+      // day's attendance, and PARENT_NOTE says exactly what it does — true for
+      // every day, a Present or Late mark and a weekend included (§5i).
+      message: `Use Submit letter when your child is absent. ${PARENT_NOTE}`,
       showReset: false,
     };
   })();
@@ -504,9 +504,7 @@ export default function ParentExcuseLettersPage() {
             <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
               <i className="fa-solid fa-circle-info" />
             </span>
-            <span className="min-w-0">
-              The adviser records the reason. It does not change the attendance record for that day.
-            </span>
+            <span className="min-w-0">{PARENT_NOTE}</span>
           </p>
           <FormField
             label="Absence date"

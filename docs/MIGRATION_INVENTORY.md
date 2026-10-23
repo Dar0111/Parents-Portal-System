@@ -425,7 +425,7 @@ UNIQUE uq_transmutation_range(school_year, ig_min, ig_max).
 | `result.affectedRows` | 8 uses | mysql2's result shape |
 | `error.code === 'ER_DUP_ENTRY'` | `assignments.js:241` | a MySQL error name |
 | mysql2 connection error codes | `utils/dbUnavailable.js:22-32` | a driver-specific list behind the 503 |
-| Transactions through `getConnection()` + `beginTransaction()` | 10, in `attendance.js`, `content.js`, `grades.js`, `settings.js` | |
+| Transactions through `getConnection()` + `beginTransaction()` | 12 (counted 2026-10-23: `grades.js` 8, `attendance.js`, `content.js` and `settings.js` 1 each, and since B8 `utils/excuseAttendance.js:87-90` — an excuse review and that day's attendance, the letter and the day read `SELECT … FOR UPDATE`) | A lost race is recognised in ONE place, `isWriteConflict()` (`utils/excuseAttendance.js`), by code: MySQL's `ER_DUP_ENTRY`, `ER_LOCK_DEADLOCK`, `ER_LOCK_WAIT_TIMEOUT` and PostgreSQL's `23505`, `40P01`, `40001` are already listed. It reads `affectedRows` (mysql2's shape; `rowCount` in pg) |
 | `multipleStatements: true` on a one-off connection | `backups.js:611` | the restore runs a whole dump file as one script |
 | `mysqldump` child process | `backups.js:108-245` | the backup format is a MySQL dump |
 | `dateStrings: ['DATE']` | `config/db.js:27` | a driver option |
@@ -592,12 +592,12 @@ page paths. Phone paths are under `mobile/src/`, with `screens/` dropped.
 ### B10. /api/excuse-letters — `server/routes/excuses.js`
 | Method | Path | Line | Role | Purpose | Side effects | Web | Phone |
 |---|---|---|---|---|---|---|---|
-| GET | /mine | :33 | parent | Own letters | — | dashboards/ParentDashboard.jsx:569; parent/AttendancePage.jsx:216; parent/ExcuseLettersPage.jsx:130 | parent/AttendanceScreen.jsx:125; parent/DashboardScreen.jsx:289; parent/ExcuseLettersScreen.jsx:43 |
-| GET | / | :63 | teacher(wide), admin | Letters in scope | — | dashboards/TeacherDashboard.jsx:174; teacher/ExcuseLettersPage.jsx:144 | teacher/DashboardScreen.jsx:136; teacher/ExcuseLettersScreen.jsx:89 |
-| GET | /:id | :146 | parent(own), teacher(wide), admin | One letter | — | — | — |
-| POST | / | :195 | parent | Submit (text only) | log:submit_excuse_letter; notif:excuse_submitted → the section's adviser; emit | parent/ExcuseLettersPage.jsx:266 | parent/ExcuseLetterComposeScreen.jsx:117 |
-| PUT | /:id | :290 | parent(own), while Pending | Edit | log:update_excuse_letter | parent/ExcuseLettersPage.jsx:264 | parent/ExcuseLetterComposeScreen.jsx:116 |
-| PATCH | /:id/review | :357 | teacher(adviser), admin | Approve / decline, once. Never touches `attendance` | log:review_excuse_letter; notif:excuse_reviewed → the parent; emit to the parent and the reviewer | teacher/ExcuseLettersPage.jsx:219 | teacher/ExcuseLetterReviewScreen.jsx:61 |
+| GET | /mine | :34 | parent | Own letters | — | dashboards/ParentDashboard.jsx:569; parent/AttendancePage.jsx:216; parent/ExcuseLettersPage.jsx:132 | parent/AttendanceScreen.jsx:136; parent/DashboardScreen.jsx:289; parent/ExcuseLettersScreen.jsx:45 |
+| GET | / | :64 | teacher(wide), admin | Letters in scope | — | dashboards/TeacherDashboard.jsx:174; teacher/ExcuseLettersPage.jsx:153 | teacher/DashboardScreen.jsx:136; teacher/ExcuseLettersScreen.jsx:89 |
+| GET | /:id | :147 | parent(own), teacher(wide), admin | One letter | — | — | — |
+| POST | / | :196 | parent | Submit (text only) | log:submit_excuse_letter; notif:excuse_submitted → the section's adviser; emit | parent/ExcuseLettersPage.jsx:272 | parent/ExcuseLetterComposeScreen.jsx:118 |
+| PUT | /:id | :291 | parent(own), while Pending (re-checked in the `UPDATE` since B8) | Edit | log:update_excuse_letter | parent/ExcuseLettersPage.jsx:270 | parent/ExcuseLetterComposeScreen.jsx:117 |
+| PATCH | /:id/review | :372 | teacher(adviser), admin | Approve / decline, once — and since B8 that day's attendance, in one transaction (approved → Excused, declined → Absent, Present / Late / Excused kept, no write off a class day); 409 on a lost race | log:review_excuse_letter, and log:excuse_attendance when the day changes; notif:excuse_reviewed → the parent; emit to the parent and the reviewer | teacher/ExcuseLettersPage.jsx:256 | teacher/ExcuseLetterReviewScreen.jsx:90 |
 
 ### B11. /api/settings — `server/routes/settings.js`
 | Method | Path | Line | Role | Purpose | Side effects | Web | Phone |
@@ -656,8 +656,9 @@ page paths. Phone paths are under `mobile/src/`, with `screens/` dropped.
 `PUT /attendance/:id`, `GET /excuse-letters/:id`, `GET /settings/:key`,
 `PUT /settings/:key`, `PATCH /messages/:id/read`.
 
-**Audit actions:** 66 distinct `activity_logs.action` values are written by
-code. The live table holds 71. Six of those are written by no route: four
+**Audit actions:** 67 distinct `activity_logs.action` values are written by
+code (66, plus B8's `excuse_attendance`). The live table held 71 when this
+was first counted, and 77 on 2026-10-23 (counted after B8's gate). Six of those are written by no route: four
 from the removed Contributions feature, `record_descriptive_grade` (its
 endpoint is retired) and `seed`. One action in code, `password_reset_email_failed`,
 has never been logged.
@@ -695,12 +696,12 @@ has never been logged.
 | C25 | Profile photos | `utils/profilePhoto.js:28-110`; `server.js:47-58`; `routes/auth.js:342`, `:380`; `routes/users.js:642` | multer memory storage: 5 MB, 1 file, field `photo`. sharp accepts JPEG/PNG/WebP only, caps input at 40 MP, and re-encodes to a 512×512 JPEG without EXIF or GPS (:72-93). The file name is 32 random hex + `.jpg` (:97). Stored on local disk at `server/uploads/avatars/`; the old file is unlinked (:105). Served without a token, with `nosniff` and a private cache. Not in any backup |
 | C26 | Backup | `routes/backups.js:16-320` | Spawns `mysqldump` (`MYSQLDUMP_PATH`; password passed through `MYSQL_PWD`) :108. Writes `.partial` then renames, with a stale-partial sweep :41 and a footer check :57. `--ignore-table` for backups and auth_codes (:206, :218), plus a `--no-data` pass (:234). `createBackupRecord` :276 |
 | C27 | Restore | `routes/backups.js:476-700` | Step-up password (:532). Type-the-filename check (:542). Safety dump first (:566). `stripBackupsTableDdl` (:263, :605). One-off `multipleStatements` connection (:607-611). `resetPool` (:638). Re-runs `migratePrivacy` (:653). Session cutoff (:667). Wiped-logs marker (:679-681). Synchronous |
-| C28 | Activity logging | `utils/activity.js:3-8` | One INSERT per write: `user_id`, `action`, free-text `description`. 66 actions in code (B) |
+| C28 | Activity logging | `utils/activity.js:3-8` | One INSERT per write: `user_id`, `action`, free-text `description`. 67 actions in code since B8's `excuse_attendance` (B) |
 | C29 | Notification fan-out | `utils/notify.js:64-236` | Audiences: announcement :64, memo :97 (every active account), event :117 (no admins), excuse adviser :147, admins :159, parent :164, one user :172. INSERT IGNORE on uq_notifications_once :188-198. The actor is never a recipient (:189). A delete removes the item's rows (:210). `notification_counts` is emitted after commit (:230-235) |
 | C30 | Read-time visibility | `routes/notifications.js:62`, `:288`, `:349` | `visibilityClause` re-checks each row against live data on every read. `NAV_SECTION` maps the badges. **Since fix/f3-badges (2026-10-22):** `VISIT_CLEAR` (`:487`) maps each role's badged section to the information types a visit may clear; the clear is a SELECT of ids (the badge's own count, through `visibilityClause`) then `UPDATE … WHERE id IN (?)`, skipped when no ids — two plain statements, no multi-table UPDATE (`IN (?)` with an array is mysql2's expansion: `= ANY($1)` on Postgres) |
 | C31 | Teacher read scope | `utils/teacherScope.js:55-113` | `TEACHER_VIEW_SCOPE_SQL` needs two parameters (`teacherViewScopeParams` :66). `TEACHER_ADVISES_CLASS_SQL` :108 |
 | C32 | Attendance scope | `routes/attendance.js:35`, `:69-108`, `:402`, `:480` | Writes are for the adviser; reads are for the recorder OR the current adviser. 403 outside scope |
-| C33 | Excuse-letter authority | `routes/excuses.js:324`, `:419-440` | The parent edits only while Pending. Only the adviser reviews, and only once (403 after that) |
+| C33 | Excuse-letter authority | `routes/excuses.js:324` and `:340-349` (the edit, Pending re-checked in the `UPDATE`), `:432-457` (the adviser, once), `:466-480` (the transaction's outcomes); `utils/excuseAttendance.js` | The parent edits only while Pending. Only the adviser reviews, and only once (403 after that, re-checked inside the transaction). Since B8 the review also writes that day's `attendance` row (the eleven-cell rule; `recorded_by` = the reviewer; a weekday inside the school year only) |
 | C34 | Content targeting | `routes/content.js:120`, `:172`, `:363`, `:419`, `:737`, `:801` | `resolveAnnouncementTarget` and `resolveEventTarget` check the teacher's classes. Only the author or an admin may edit or delete |
 | C35 | Who may message whom | `routes/messages.js:27`, `:165-191` | `canMessage`: teacher ↔ admin; a parent → their child's teachers; admin → parent and admin → admin are refused. Contacts are the inverse of the same rule |
 | C36 | Parent-account gate | `routes/users.js:145-157` | Only the adviser of the learner's section may create the parent account |

@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-23, `main` `96a1776` plus this commit (the post-merge docs) — `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs `96a1776`): a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354; before it `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-23, `feat/excuse-attendance` (B8) on `main` `613c73e` plus this commit — an excuse decision sets that day's attendance, built and gated after backup 355, NOT device-checked, NOT merged; `main` is `613c73e` (the post-merge docs of `96a1776`) — `fix/f3-badges` (B3) merged fast-forward from `1b43150` (four commits: B3 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs `96a1776`): a visit clears a badge's information rows, device-checked 2026-10-22/23 (§1–§5; one finding, the Upcoming events card's name at a figure's size, fixed and re-checked), cleaned up by id after backup 354; before it `1b43150` (the post-merge docs of `6c39f9c`) — `feat/grade-acknowledgement` merged fast-forward from `f9b3a68` (four commits: trim-10 `bffd033`, B1 `35967d6`, the fix `2525215`, the merge-ready docs `6c39f9c`): grade acknowledgement, device-checked 2026-10-22 (Sections 1–6, one finding fixed in `2525215` and re-checked), cleaned up by id after backup 346; before it `f9b3a68` (the post-merge docs of `2b85331`) — `feat/password-alert` merged fast-forward from `bba67bd` (five commits: B5 `1e43b6a`, B6 `9f3cc6d`, the two email fixes `b34f354` and `e78c635`, the merge-ready docs `2b85331`): account creation and the password alert, device-checked together on 2026-10-21, Sections 1–10, no findings, cleaned up by id after backup 338; before it `9d3b430` — `feat/first-signin` merged fast-forward from `bae0800`: the first sign-in device-checked 2026-10-20/21 on the web, the Tecno phone and SMSGate, every section passed, no fix round, data cleaned up (backup 324) (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 10 items, all built** — Sections, Excuse Letters, Memos, Events and
@@ -177,7 +177,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **nine migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the twenty-nine test files, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **ten migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-one test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -1334,10 +1334,17 @@ Nino's seeded card; do not "fix" it. The closed BLOCKED item is in
 
 ### Excuse Letters — both blockers RESOLVED and BUILT; moved out 2026-09-22
 
-**Approval is record-only: the learner stays `Absent` and approval MUST NOT
-modify `attendance` rows** — enforced, not just documented (`PATCH /:id/review`
-writes `status`, `teacher_remarks`, `reviewed_by` and names no `attendance`
-query). **Review authority is the class adviser only**, via
+**A decision SETS that day's attendance (`feat/excuse-attendance`, B8, the
+owner's decision of 2026-10-22 — replacing the school's "the learner stays
+Absent"; Chapter 5 must say so):** approved → `Excused`, declined → `Absent`
+(a new row for an unrecorded day), a `Present`, `Late` or `Excused` mark kept,
+**no write on a day that is not a class day** (a weekend, or outside the
+school year); in ONE transaction with the letter (`utils/excuseAttendance.js`,
+the eleven-cell rule; the client's mirrored words held to it by
+`test:excuse-attendance-rule`); a lost race on the day is `409`, the letter
+still Pending. FRONTEND §35, MOBILE M32, `docs/API_REFERENCE.md`; the old
+paragraph is in `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-10-23".
+**Review authority is the class adviser only**, via
 `sections.adviser_id`, and is narrower than the read scope (any assigned
 teacher) — which is why a non-adviser gets `403` naming the reason, not `404`.
 Both narratives are verbatim in `docs/ARCHIVE.md` → BLOCKED / RESOLVED →
@@ -1472,6 +1479,7 @@ gate in full on its `POST /api/users/parents` row.
 | **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
 | **The Upcoming events card's loading shape still draws a figure-sized first row — its lines move up about 8px when it loads** — added 2026-10-23 (`fix/f3-badges`; accepted, the owner's Q3) | both shared `dashboards/Card.jsx` (`skeleton="list"`) | Since the card's name became a line (the B3 check's finding #1), the shared skeleton no longer matches it (§5a-vii). Cosmetic; a line-sized lead shape is its own dispatch |
+| **An attendance register open elsewhere can write a day's old mark back over an excuse decision** — added 2026-10-23 (`feat/excuse-attendance`; accepted, the owner's Q7) | both registers' Save (`entries`, every mark on screen) + `POST /attendance/bulk` | A second tab, another device, or a phone register holding unsaved marks (its focus re-read skips it). The day is then the adviser's mark, correctable; the letter stands. Fix: Save only the changed marks, its own dispatch |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1604,7 +1612,8 @@ heading). Nothing here is outstanding.
 - [x] **Stage 3 — Backend modules, all ten.** Students · Sections ·
       Attendance (per day, adviser-scoped) · Announcements + Memos + Events
       (the Class Board needed zero new code) · **Excuse Letters — review is
-      adviser-only and NEVER touches `attendance`** (BLOCKED / RESOLVED) ·
+      adviser-only, and since B8 it sets that day's attendance** (BLOCKED /
+      RESOLVED) ·
       ~~Contributions, REMOVED 2026-09-13~~ · Messages + Socket.io · Settings ·
       User Management · Backup/Restore · **Grades, all nine stages** plus
       `DELETE /:id` and `GET /api/grading-modes`.
@@ -1698,10 +1707,13 @@ in `2525215`, the cleanup §7, backup 346). **B3 `fix/f3-badges` is MERGED**
 move, no file changed under the running servers; built and gated 2026-10-22
 after backup 348; the check `docs/F3_BADGES_DEVICE_CHECK.md` §7, its one
 finding fixed in `c248c51` + `ce9f111`, the cleanup §6, backup 354): a visit
-clears a badge's information rows (§10). **Next, on the owner's word (the
-owner's order, 2026-10-23):** B8 `feat/excuse-attendance` (an excuse
-decision sets that day's attendance; its plan is reported and waits for its
-PLAN APPROVED), then B2 `feat/activity-log` on its own check,
+clears a badge's information rows (§10). **B8 `feat/excuse-attendance` is
+built and gated** (2026-10-23, in its own worktree, after backup 355): an
+excuse decision sets that day's attendance (BLOCKED / RESOLVED → Excuse
+Letters) — committed and pushed, NOT device-checked, NOT merged. **Next, on
+the owner's word (the owner's order, 2026-10-23):** B8's device check
+(`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`) and its merge, then B2
+`feat/activity-log` on its own check,
 then B7 `docs/pre-oct21` — the demo data and a new restore point; then the
 Supabase migration in Session B,
 whose sync must add B1's
@@ -1712,8 +1724,10 @@ owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
 still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346
 and 354 are the four checks' pre-cleanup dumps, 347 the owner's demo records'
-(2026-10-22, cleaned up by id), and 339, 344, 345, 348 and 353 pre-write
-dumps, not restore points. The manuscript delta list stays with the team.
+(2026-10-22, cleaned up by id), and 339, 344, 345, 348, 353 and 355
+pre-write dumps, not restore points. The manuscript delta list stays with the
+team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
+that day's attendance, the owner's change of the school's earlier rule.
 
 ### Stage 6 — Integration
 
@@ -1857,7 +1871,8 @@ the same way.**
   have recorded one. Parent → Attendance shows such a day in an "Also
   recorded" strip beneath the Mon–Fri grid and counts it (DV2,
   2026-09-20). **If make-up classes fall on weekends, everything is
-  already right.** If they never do, the answer is a server-side `400`,
+  already right — except one rule: an excuse decision writes no weekend day
+  (B8, the owner's Q9), so a weekend answer reopens Q9.** If they never do, the answer is a server-side `400`,
   never a client filter — hiding a row the database holds would make the
   calendar disagree with its own totals. `docs/KNOWN_ISSUES.md` has the
   full row.

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, View } from 'react-native';
 import api from '../../api/client';
 import extractError from '../../api/extractError';
@@ -8,6 +8,7 @@ import ErrorAlert from '../../components/ErrorAlert';
 import FormField from '../../components/FormField';
 import Text from '../../components/Text';
 import { longDate } from '../../format/date';
+import { REVIEW_UNWRAP, confirmSentence, confirmTail, isClassDay, reviewNote, successNote } from '../../format/excuseAttendance';
 import Icon from '../../icons';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -16,10 +17,13 @@ import { useTheme } from '../../theme/ThemeProvider';
 // DECISION BACK (§5e: once a letter leaves Pending, PATCH /:id/review
 // answers 403 and there is no un-review). Remarks stay optional on both
 // decisions — an API decision — and the nudge shows only on Decline. THE
-// SCHOOL'S OWN RULE sits at the moment of decision: approving records the
-// reason and does not touch the attendance record (the handler names no
-// attendance query). On success the list gets `notice` naming the learner,
-// because a reviewed letter leaves the default Pending list on the reload.
+// DAY sits at the moment of decision (feat/excuse-attendance, B8): a decision
+// sets that day's attendance (approved → Excused, declined → Absent, a
+// Present, Late or Excused mark kept, nothing on a day that is not a class
+// day), so the screen reads the day's mark and says what each decision does
+// to it — the web's words, format/excuseAttendance.js mirrored. On success
+// the list gets `notice` naming the learner and the day as the server wrote
+// it, because a reviewed letter leaves the default Pending list on the reload.
 //
 // The row is the LIST ROW (§20c); `canReview` was decided on the list, and
 // the server still decides: a 403 here is a reason shown in place, never a
@@ -53,18 +57,49 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [reviewError, setReviewError] = useState(null);
 
+  // THE LETTER'S DAY: its mark, from the adviser's own read of that learner's
+  // attendance; only a class day is read. `{ state, current }` — loading from
+  // the first render (no state set in the effect), then ready or failed. A
+  // reply older than the newest read is dropped.
+  const date = letter.absence_date;
+  const [day, setDay] = useState(() => (isClassDay(date) ? { state: 'loading', current: null } : null));
+  const dayTicket = useRef(0);
+  const fetchDay = useCallback(() => {
+    dayTicket.current += 1;
+    const ticket = dayTicket.current;
+    api
+      .get(`/attendance/student/${letter.student_id}`, { unwrap: 'attendance', params: { from: date, to: date } })
+      .then((rows) => {
+        if (dayTicket.current !== ticket) return;
+        const row = rows.find((r) => r.date === date);
+        setDay({ state: 'ready', current: row ? row.status : null });
+      })
+      .catch(() => {
+        if (dayTicket.current === ticket) setDay({ state: 'failed', current: null });
+      });
+  }, [letter.student_id, date]);
+  useEffect(() => {
+    if (isClassDay(date)) fetchDay();
+  }, [date, fetchDay]);
+
   async function submitReview() {
     if (saving || !decision) return;
     setSaving(true);
     setReviewError(null);
     try {
-      await api.patch(`/excuse-letters/${letter.id}/review`, { status: decision, teacher_remarks: remarks.trim() || undefined }, { unwrap: 'excuse_letter' });
-      const message = `Letter from ${letter.last_name}, ${letter.first_name} ${decision === 'Approved' ? 'approved' : 'declined'}.`;
+      const reply = await api.patch(`/excuse-letters/${letter.id}/review`, { status: decision, teacher_remarks: remarks.trim() || undefined }, { unwrap: REVIEW_UNWRAP });
+      // The day as the SERVER wrote it, never the prediction.
+      const message = successNote(`${letter.last_name}, ${letter.first_name}`, decision, reply);
       // popTo, not navigate: navigate pushes a second drawer (M16).
       navigation.popTo('Main', { screen: '/teacher/excuse-letters', params: { notice: message } });
     } catch (err) {
       setReviewError(extractError(err));
       setConfirming(false);
+      // The day may have moved under the review (a 409 is exactly that).
+      if (isClassDay(date)) {
+        setDay({ state: 'loading', current: null });
+        fetchDay();
+      }
     } finally {
       setSaving(false);
     }
@@ -101,7 +136,7 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
 
         <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
           <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
-          <Text className="min-w-0 flex-1 text-sm text-info-strong">Approving records the reason given in this letter. It does not change the attendance record for that day.</Text>
+          <Text className="min-w-0 flex-1 text-sm text-info-strong">{reviewNote(date, day)}</Text>
         </View>
 
         {confirming ? (
@@ -109,7 +144,7 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
             <View className="flex-row items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3">
               <Icon name="fa-triangle-exclamation" size={16} color={tokens['warning-icon']} style={{ marginTop: 2 }} />
               <Text className="min-w-0 flex-1 text-sm text-warning-strong">
-                <Text className="font-semibold">{approve ? 'Approve this letter?' : 'Decline this letter?'}</Text> This cannot be changed afterward.
+                <Text className="font-semibold">{approve ? 'Approve this letter?' : 'Decline this letter?'}</Text> {confirmSentence(decision, date, day)} {confirmTail(decision, date, day)}
               </Text>
             </View>
             {/* The label still changes while the write is in flight; `loading`
@@ -165,7 +200,8 @@ export default function ExcuseLetterReviewScreen({ navigation, route }) {
               <Button variant="secondary" onPress={() => navigation.goBack()} disabled={saving}>
                 Cancel
               </Button>
-              <Button variant="primary" onPress={() => setConfirming(true)} disabled={!decision}>
+              {/* Waits for the day's read, so the confirmation can name its effect. */}
+              <Button variant="primary" onPress={() => setConfirming(true)} disabled={!decision || day?.state === 'loading'}>
                 Continue
               </Button>
             </View>

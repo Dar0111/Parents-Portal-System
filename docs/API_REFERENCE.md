@@ -1228,6 +1228,12 @@ Final Grade.
 | POST | `/bulk` | `teacher(adviser)`, `admin` | `section_id`*, `date`*, `entries`* (array of `{student_id, status}`) | `attendance` (array) | teacher out-of-scope → `403`; this is the **primary** path, not a convenience alias |
 | PUT | `/:id` | `teacher(adviser)`, `admin` | `status`* | `attendance` (single) | `404` out-of-scope |
 
+**One more writer of these rows since B8:** an excuse letter's review sets
+that day's attendance in its own transaction (Excuse Letters, below). A day it
+writes is an ordinary row: `PUT /:id` can correct it, and so can the two POSTs
+for an active learner — both refuse an inactive one, whose past day a review
+still writes (the owner's Q10).
+
 ### Announcements (4) — `/api/announcements`
 
 | Method | Path | Roles | Request body | Response key | Notes |
@@ -1263,8 +1269,29 @@ Final Grade.
 | GET | `/` | `teacher(wide)`, `admin` | query: `status`, `student_id`, `from`, `to` | `excuse_letters` | |
 | GET | `/:id` | `parent(own)`, `teacher(wide)`, `admin` | — | `excuse_letter` | `404` out-of-scope |
 | POST | `/` | `parent` only | `absence_date`*, `reason`*, `details` | `excuse_letter` | `parent_id`/`student_id`/`status` always from `req.user`, never the body. Unlinked parent (`users.student_id` NULL) is **409**, not 400 — the body is valid; `student_id` does not come from it. Same family as `POST /api/students` with no `academic_year` and a missing `grading_mode_configs` row. Message names the school office (parent-facing; matches Parent → Excuse Letters unlinked copy), not "An admin" |
-| PUT | `/:id` | `parent(own)` | `absence_date`, `reason`, `details` (any subset) | `excuse_letter` | `404` if not theirs; `403` if already reviewed |
-| PATCH | `/:id/review` | `teacher(adviser)`, `admin` | `status`* (`Approved`\|`Declined`), `teacher_remarks` | `excuse_letter` | `404` outside `wide` read-scope; `403` naming the reason if within `wide` but not `adviser`; `403` if already reviewed; never touches `attendance`; emits `notification_counts` to the parent AND the reviewer (the reviewer's `excuse_submitted` self-heals — Notifications) |
+| PUT | `/:id` | `parent(own)` | `absence_date`, `reason`, `details` (any subset) | `excuse_letter` | `404` if not theirs; `403` if already reviewed — re-checked in the `UPDATE` itself (`AND status = 'Pending'`, since B8), so an edit cannot land after a review that began after its read |
+| PATCH | `/:id/review` | `teacher(adviser)`, `admin` | `status`* (`Approved`\|`Declined`), `teacher_remarks` | `excuse_letter`, **`attendance`** (the day's row afterwards, or `null`), **`attendance_from`** (its status before, or `null`), **`class_day`** (boolean) | `404` outside `wide` read-scope; `403` naming the reason if within `wide` but not `adviser`; `403` if already reviewed (re-checked inside the transaction, so two reviews of one letter cannot both land); **since `feat/excuse-attendance` (B8, the owner's decision of 2026-10-22) it SETS that day's attendance in the same transaction** — see the paragraph below; **`409`** *"Another change arrived at the same moment, so this decision was not saved. Please try again."* when the transaction loses to a concurrent write (a duplicate key, a deadlock or a lock-wait timeout — everything rolls back and the letter stays Pending); emits `notification_counts` to the parent AND the reviewer (the reviewer's `excuse_submitted` self-heals — Notifications); the parent's `excuse_reviewed` text is unchanged |
+
+**A review sets that day's attendance (B8, `utils/excuseAttendance.js`).** In
+one transaction the letter moves out of Pending, is re-read `FOR UPDATE` (its
+learner and date as stored at that moment, never the handler's earlier read),
+that day's row is read `FOR UPDATE`, and the rule decides: **approved** — no
+record → a new row `Excused`, `Absent` → `Excused`; **declined** — no record →
+a new row `Absent`; **every other mark stays** (`Excused`, `Present` and `Late`
+under either decision, `Absent` under a decline). **A day that is not a class
+day** — a weekend, or a date outside the school year's
+`CLASSES_START`..`CLASSES_END` (`utils/schoolCalendar.js`) — **gets no write**,
+whatever it holds. A row written carries `recorded_by` = the reviewer; a day
+that already holds the result is not written at all (no `recorded_by` change,
+no `updated_at` bump). An inactive learner's past day is written all the same.
+When the day changes, a second `activity_logs` row, `excuse_attendance`
+("Set attendance for student #N, YYYY-MM-DD: Absent -> Excused (excuse letter
+#M)"). Plain `INSERT` / `UPDATE` by id — no `ON DUPLICATE KEY`. The reply's
+`attendance` row is read inside the transaction, before `COMMIT`, so it is the
+row this review left, not a later write's. The rule
+replaces the school's earlier "the learner stays Absent" (`docs/ARCHIVE.md` →
+"Moved from CLAUDE.md on 2026-10-23"). Attendance's own write paths (above)
+are unchanged; this is a fourth writer of `attendance` rows.
 
 ### Settings (5) — `/api/settings`
 

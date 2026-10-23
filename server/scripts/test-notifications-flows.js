@@ -139,6 +139,10 @@ function daysAgo(n) {
 }
 
 const ABSENCE_DATE = daysAgo(3);
+// The two other days this run reviews on (B8), fixed once like ABSENCE_DATE so
+// a run that crosses midnight snapshots the same days it reviews.
+const SECOND_LETTER_DATE = daysAgo(4);
+const VISIT_LETTER_DATE = daysAgo(7);
 
 function has(rows, type, itemId) {
   return rows.some((r) => r.type === type && Number(r.item_id) === Number(itemId));
@@ -165,6 +169,10 @@ const dbConfig = {
 // pre-Stage-5 #3a the implementation is shared with every suite that fans
 // out, in test-helpers/notifications.js, so there is one copy of it.
 const { deleteNotificationsFor } = require('./test-helpers/notifications');
+// Since feat/excuse-attendance (B8) a review sets that day's attendance, so
+// the days this run reviews are snapshotted and put back (the same helper the
+// excuses suite uses).
+const { snapshotDays, restoreDays, daysMatch } = require('./test-helpers/attendance');
 
 // SLOT FIXTURES (CR1, 2026-09-22). Every component write needs a slot_id
 // now. This suite is not testing slots — it is testing the grade_available
@@ -243,6 +251,8 @@ async function main() {
   };
   // (item_type, item_id) pairs whose notification rows this run must remove.
   const notificationItems = [];
+  // The attendance days this run's three reviews touch (B8), put back first.
+  let attendanceSnapshot = [];
 
   // WATERMARK, captured at the start, not a constant (pre-Stage-5 #3b). This
   // used to assert `users === 7` and `students === 3` — the Seeded baseline
@@ -389,6 +399,22 @@ async function main() {
     // -----------------------------------------------------------------------
     console.log('\nExcuse letter — submitted goes to the ADVISER alone');
     // -----------------------------------------------------------------------
+    // THE THREE DAYS THIS RUN REVIEWS ON MARWIN (B8: a review sets that
+    // day's attendance) — snapshotted before the first review, put back first
+    // in the cleanup.
+    {
+      const conn = await require('mysql2/promise').createConnection(dbConfig);
+      try {
+        const [[me]] = await conn.query('SELECT student_id FROM users WHERE id = ?', [parentMarwin.id]);
+        attendanceSnapshot = await snapshotDays(
+          conn,
+          [ABSENCE_DATE, SECOND_LETTER_DATE, VISIT_LETTER_DATE].map((date) => [me.student_id, date])
+        );
+      } finally {
+        await conn.end();
+      }
+    }
+
     // The adviser's counts BEFORE the letter: every count assertion below is
     // a delta from here, so unread rows left by earlier sections of this run
     // (or by anyone using the system) cannot move the result.
@@ -514,7 +540,7 @@ async function main() {
     // -----------------------------------------------------------------------
     const letter2Res = await request('POST', '/api/excuse-letters', {
       token: parentMarwin.token,
-      body: { absence_date: daysAgo(4), reason: 'NOTIF TEST second letter' },
+      body: { absence_date: SECOND_LETTER_DATE, reason: 'NOTIF TEST second letter' },
     });
     requireFixture(letter2Res.status === 201, "Marwin's parent submits a second letter", why(letter2Res));
     const letter2Id = letter2Res.data.excuse_letter.id;
@@ -1143,7 +1169,7 @@ async function main() {
     // declined letter is information, the owner's Q1.
     const vcRevRes = await request('POST', '/api/excuse-letters', {
       token: parentMarwin.token,
-      body: { absence_date: daysAgo(7), reason: 'Visit clear, declined.' },
+      body: { absence_date: VISIT_LETTER_DATE, reason: 'Visit clear, declined.' },
     });
     requireFixture(vcRevRes.status === 201, 'visit clear: a second letter', why(vcRevRes));
     const vcRevId = vcRevRes.data.excuse_letter.id;
@@ -1359,6 +1385,27 @@ async function main() {
     };
 
     try {
+      // The attendance days the reviews set (B8), put back FIRST — before
+      // anything else goes (`recorded_by` is ON DELETE RESTRICT) and before
+      // any step below that can throw past it. A failure is counted and the
+      // cleanup carries on.
+      if (attendanceSnapshot.length) {
+        try {
+          const conn = await require('mysql2/promise').createConnection(dbConfig);
+          try {
+            const touched = await restoreDays(conn, attendanceSnapshot);
+            assert(
+              await daysMatch(conn, attendanceSnapshot),
+              `every attendance day THIS RUN's reviews touched is back exactly as it was (${touched} rows put back over ${attendanceSnapshot.length} days)`
+            );
+          } finally {
+            await conn.end();
+          }
+        } catch (err) {
+          assert(false, 'the attendance restore ran to the end', `failed: ${err.code || 'an error'}`);
+        }
+      }
+
       for (const id of created.components) {
         await tryDelete(`/api/grades/${created.grades[0]}/components/${id}`);
       }

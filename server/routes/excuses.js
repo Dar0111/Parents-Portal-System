@@ -12,14 +12,15 @@ const {
 const { isValidDateFormat, todayLocalDateString } = require('../utils/dateFormat');
 const { TEACHER_VIEW_SCOPE_SQL, teacherViewScopeParams } = require('../utils/teacherScope');
 const { readListParams, pageMeta } = require('../utils/pagination');
+const { reviewWithAttendance, RETRY_MESSAGE } = require('../utils/excuseAttendance');
 
 const router = express.Router();
 
 // CRUD half — submit, list, view, edit — plus PATCH /:id/review
-// (approve/decline). Both school-visit blockers on review are answered:
-// the section ADVISER only may review (not any assigned teacher), and
-// review never touches the attendance table (the learner stays Absent;
-// the letter documents the reason, nothing more).
+// (approve/decline). The section ADVISER only may review (not any assigned
+// teacher), and since feat/excuse-attendance (B8, the owner's decision of
+// 2026-10-22) the decision sets that day's attendance in the same
+// transaction — the rule is utils/excuseAttendance.js.
 const VALID_STATUSES = ['Pending', 'Approved', 'Declined']; // for ?status= filter validation only
 
 
@@ -332,10 +333,20 @@ router.put('/:id', authenticate, authorize('parent'), async (req, res) => {
     const nextReason = reason !== undefined ? reason : existing.reason;
     const nextDetails = details !== undefined ? details || null : existing.details;
 
-    await pool.query(
-      'UPDATE excuse_letters SET absence_date = ?, reason = ?, details = ? WHERE id = ?',
+    // The UPDATE re-checks Pending (feat/excuse-attendance): a review that
+    // committed between the read above and this write has already set the
+    // day's attendance on the old date, and moving the letter's date now
+    // would leave the letter and its day apart. The same 403 as above.
+    const [edit] = await pool.query(
+      "UPDATE excuse_letters SET absence_date = ?, reason = ?, details = ? WHERE id = ? AND status = 'Pending'",
       [nextAbsenceDate, nextReason, nextDetails, id]
     );
+    if (edit.affectedRows !== 1) {
+      return res.status(403).json({
+        success: false,
+        message: 'This excuse letter has already been reviewed and can no longer be edited.',
+      });
+    }
 
     const [updated] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
     await logActivity(req.user.id, 'update_excuse_letter', `Updated excuse letter #${id}`);
@@ -348,12 +359,16 @@ router.put('/:id', authenticate, authorize('parent'), async (req, res) => {
 });
 
 // PATCH /api/excuse-letters/:id/review — adviser of the student's section,
-// or admin. This is a documentation act only: it writes status,
-// teacher_remarks, and reviewed_by, nothing else. It must NEVER touch the
-// attendance table — the school was explicit that an approved excuse
-// letter does not change the learner's attendance record ("excuse lang
-// yung bata pero absent pa rin"). This exact constraint blocked the
-// endpoint for weeks; do not "helpfully" add an attendance write here.
+// or admin. Writes the letter's status, teacher_remarks and reviewed_by AND,
+// since feat/excuse-attendance (B8), that day's attendance, in ONE
+// transaction (utils/excuseAttendance.js: approved → Excused, declined →
+// Absent, Present / Late / Excused kept, no write on a day that is not a
+// class day). This REPLACES the school's earlier rule — "excuse lang yung
+// bata pero absent pa rin", under which a review never touched attendance —
+// by the owner's decision of 2026-10-22. The reply adds `attendance` (the
+// day's row afterwards, or null), `attendance_from` (its status before, or
+// null) and `class_day`; a lost race on the day's row is a 409 and the letter
+// stays Pending.
 router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (req, res) => {
   const id = parseId(req.params.id);
   if (id === null) {
@@ -443,15 +458,26 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
 
     const remarks = teacher_remarks || null;
 
-    // Writes ONLY status, teacher_remarks, reviewed_by (+ updated_at via
-    // ON UPDATE CURRENT_TIMESTAMP). See the constraint noted at the top
-    // of this handler — attendance is never touched here.
-    await pool.query('UPDATE excuse_letters SET status = ?, teacher_remarks = ?, reviewed_by = ? WHERE id = ?', [
+    // The letter and its day in one transaction. The UPDATE re-checks
+    // Pending, so two reviews of one letter at once cannot both land, and the
+    // learner and date come from the letter as it stands INSIDE the
+    // transaction; a lost race on the day's row (a duplicate key, a deadlock)
+    // rolls everything back and is a 409 — the reviewer tries again.
+    const result = await reviewWithAttendance(pool, {
+      letterId: id,
       status,
       remarks,
-      req.user.id,
-      id,
-    ]);
+      reviewerId: req.user.id,
+    });
+    if (result.outcome === 'already_reviewed') {
+      return res.status(403).json({
+        success: false,
+        message: 'This excuse letter has already been reviewed.',
+      });
+    }
+    if (result.outcome === 'conflict') {
+      return res.status(409).json({ success: false, message: RETRY_MESSAGE });
+    }
 
     const [updated] = await pool.query('SELECT * FROM excuse_letters WHERE id = ? LIMIT 1', [id]);
     await logActivity(
@@ -459,6 +485,13 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
       'review_excuse_letter',
       `Reviewed excuse letter #${id}: ${existing.status} -> ${status}`
     );
+    if (result.write) {
+      await logActivity(
+        req.user.id,
+        'excuse_attendance',
+        `Set attendance for student #${result.studentId}, ${result.absenceDate}: ${result.from || 'not recorded'} -> ${result.to} (excuse letter #${id})`
+      );
+    }
 
     // Fan-out is best effort, exactly like logActivity above it: the thing
     // this describes is already written and logged, so a failure here must
@@ -493,7 +526,15 @@ router.patch('/:id/review', authenticate, authorize('teacher', 'admin'), async (
     // outside the fan-out's try so a failed parent insert cannot skip it.
     emitNotifications(req, [req.user.id]);
 
-    return res.json({ success: true, message: 'Excuse letter reviewed.', excuse_letter: updated[0] });
+    return res.json({
+      success: true,
+      message: 'Excuse letter reviewed.',
+      excuse_letter: updated[0],
+      // The day as this review's transaction left it (read before COMMIT).
+      attendance: result.row,
+      attendance_from: result.from,
+      class_day: result.classDay,
+    });
   } catch (error) {
     console.error('Review excuse letter error:', error);
     return res.status(500).json({ success: false, message: 'Failed to review excuse letter.' });

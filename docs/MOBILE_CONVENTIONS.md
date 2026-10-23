@@ -1700,3 +1700,50 @@ result to it, no mount load beside the focus effect, a `load` that resolves
 true or false; the two call-to-act screens calling nothing — each with
 controls. **The phone check owns** a real focus, a pull and the badge falling
 (`docs/F3_BADGES_DEVICE_CHECK.md`).
+
+## M32. An excuse decision sets that day's attendance on the phone — and two screens re-read on focus (`feat/excuse-attendance`, 2026-10-23)
+
+FRONTEND §35 governs (the rule, the words, the 409); this is where the phone
+differs.
+
+- **The review screen** (`teacher/ExcuseLetterReviewScreen.jsx`) uses the
+  mirrored `format/excuseAttendance.js` for its note, its confirmation and its
+  notice, word for word the web's. It reads the letter's day for a class day
+  from the FIRST RENDER — the `loading` state is the `useState` initializer, so
+  no state is set inside the effect (`react(set-state-in-effect)` stays at
+  the baseline) — and drops a stale reply. Continue waits for the read; a
+  failed save reads the day again. The notice handed back to the list is
+  built from the server's reply.
+- **Teacher → Attendance re-reads on FOCUS when nothing is unsaved** (the
+  owner's Q7). A drawer screen stays mounted (M14), so before this a register
+  read before a decision made elsewhere kept the old mark, and its Save — which
+  sends every mark on screen — would have written it back. The re-read runs on
+  a focus only, never on the mount's focus (the effect has read it) or on a
+  section or date change (the effect owns those): the latest `unsaved`,
+  `saving`, `refreshing` and `loadRoster` reach a stable callback through a
+  ref. **With unsaved marks, a save in flight or a pull under way, nothing is
+  re-read** — a re-read replaces the marks, and the leave guard (M14) already
+  owns that exit. **While the focus read is in flight the register takes no
+  touches and Save waits** (`focusReading`, the same two conditions as a
+  pull), so a mark tapped then cannot be replaced by the answer, nor a Save
+  send marks the answer is about to change. **Each focus read takes a number
+  and only the newest lets go** (`focusRead`): leave and come back while a
+  read is out and the older read, answering late, must not unblock the
+  register while the newer one is still out. A register left open on another
+  device is the KNOWN_ISSUES row.
+- **Parent → Attendance re-reads on focus, QUIETLY** (the owner's Q8): the
+  month and the history, through `load({ quiet: true })` — no skeleton, no
+  pull indicator; what is on screen stays until the answer lands (a failed
+  re-read gives way to the error, as any failed read of the month does).
+  **Quiet only over an answer:** with an error on screen there is nothing to
+  keep, so that focus read shows the skeleton — never "Nothing recorded this
+  month." over an empty month while it is out. The mount's focus is skipped,
+  as on the dashboards.
+- **The parent's two screens** (the list's empty state, the compose note)
+  carry `PARENT_NOTE`.
+
+**Proof:** `npm run proof:excuse-attendance` (TESTING → Mobile proofs) — the
+mirrored words driven, the module byte-equal to the web's, the review screen's
+read and wiring, the parent's two screens, and both focus re-reads with their
+guards, as source with controls. **The phone check owns** a real focus and a
+real review (`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`).

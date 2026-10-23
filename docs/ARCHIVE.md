@@ -7944,3 +7944,27 @@ it: `docs/GRADING_SPEC.md` **§6e**. The page: `docs/FRONTEND_CONVENTIONS.md`
   three suites that READ `section_id` — attendance, excuses, students —
   but not grades, which WRITES a student through POST. Read versus write is
   the gap.
+
+## Moved from CLAUDE.md on 2026-10-23 (`feat/excuse-attendance`, B8 — the excuse rule it replaces)
+
+The owner's decision of 2026-10-22: an excuse letter's decision now SETS that
+day's attendance (approved → Excused, declined → Absent, a Present, Late or
+Excused mark kept, nothing written on a day that is not a class day). It
+replaces the school's earlier rule, which CLAUDE.md's BLOCKED / RESOLVED →
+Excuse Letters stated as below until this day; the paragraph as it stood,
+verbatim:
+
+> **Approval is record-only: the learner stays `Absent` and approval MUST NOT
+> modify `attendance` rows** — enforced, not just documented (`PATCH /:id/review`
+> writes `status`, `teacher_remarks`, `reviewed_by` and names no `attendance`
+> query). **Review authority is the class adviser only**, via
+> `sections.adviser_id`, and is narrower than the read scope (any assigned
+> teacher) — which is why a non-adviser gets `403` naming the reason, not `404`.
+> Both narratives are verbatim in `docs/ARCHIVE.md` → BLOCKED / RESOLVED →
+> Excuse Letters.
+
+And the Stage 3 line in BUILD ORDER, as it stood: "**Excuse Letters — review
+is adviser-only and NEVER touches `attendance`** (BLOCKED / RESOLVED)". The
+school's words behind the old rule ("excuse lang yung bata pero absent pa
+rin") are in the BLOCKED / RESOLVED → Excuse Letters narrative above; the
+change is the owner's, and Chapter 5 must say so (the manuscript delta list).

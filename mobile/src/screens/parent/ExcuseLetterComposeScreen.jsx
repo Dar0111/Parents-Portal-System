@@ -13,6 +13,7 @@ import Text from '../../components/Text';
 import { editContext, itemChangedSince } from '../../drafts/draftCore';
 import { useDeviceDraft } from '../../drafts/useDraft';
 import { longDate, todayLocalDateString } from '../../format/date';
+import { PARENT_NOTE } from '../../format/excuseAttendance';
 import Icon from '../../icons';
 import Reveal from '../../motion/Reveal';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -135,7 +136,7 @@ export default function ExcuseLetterComposeScreen({ navigation, route }) {
         {formError ? <ErrorAlert message={formError} /> : null}
         <View className="flex-row items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3">
           <Icon name="fa-circle-info" size={16} color={tokens['info-strong']} style={{ marginTop: 2 }} />
-          <Text className="min-w-0 flex-1 text-sm text-info-strong">The adviser records the reason. It does not change the attendance record for that day.</Text>
+          <Text className="min-w-0 flex-1 text-sm text-info-strong">{PARENT_NOTE}</Text>
         </View>
 
         <Reveal>

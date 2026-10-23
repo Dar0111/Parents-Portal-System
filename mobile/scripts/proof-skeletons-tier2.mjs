@@ -190,10 +190,10 @@ proved(
 );
 const attendance = files['screens/teacher/AttendanceScreen.jsx'];
 proved(
-  'teacher Attendance: the cards take no touches while a pull OR a save and its re-read are in flight (Q4)',
-  (t) => t.includes("pointerEvents={refreshing || saving ? 'none' : 'auto'}"),
+  'teacher Attendance: the cards take no touches while a pull OR a save and its re-read are in flight (Q4) — or, since B8, a focus re-read',
+  (t) => t.includes("pointerEvents={refreshing || saving || focusReading ? 'none' : 'auto'}"),
   attendance,
-  attendance.replace("pointerEvents={refreshing || saving ? 'none' : 'auto'}", "pointerEvents={refreshing ? 'none' : 'auto'}")
+  attendance.replace("pointerEvents={refreshing || saving || focusReading ? 'none' : 'auto'}", "pointerEvents={refreshing || focusReading ? 'none' : 'auto'}")
 );
 
 // T2: the roster's waiting rule, as source and DRIVEN through the mirrored hook.

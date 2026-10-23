@@ -4403,3 +4403,91 @@ with a control. `test:notifications` drives the endpoint on rows the run
 creates. **Cannot prove** a real visit or a badge falling — the owner's device
 check (`docs/F3_BADGES_DEVICE_CHECK.md`).
 
+## 35. An excuse decision sets that day's attendance — and the review says so (`feat/excuse-attendance`, 2026-10-23)
+
+The owner's decision of 2026-10-22 (B8) and answers Q1–Q11: approving or
+declining a letter now SETS that day's attendance, in one transaction with the
+letter. It replaces the school's "excuse lang yung bata pero absent pa rin" —
+the line the review modal used to carry ("It does not change the attendance
+record for that day"). The rule and the reply are `docs/API_REFERENCE.md` →
+Excuse Letters; the eleven cells are `server/utils/excuseAttendance.js`.
+
+### 35a. The rule, and who decides it
+
+| The day | Approve | Decline |
+|---|---|---|
+| no record | **Excused** (a new row) | **Absent** (a new row) |
+| Absent | **→ Excused** | stays |
+| Excused | stays | stays (Q2) |
+| Present, Late | stay (Q1) | stay (Q1) |
+| not a class day | no write (Q9) | no write (Q9) |
+
+**A class day** is a weekday inside the school year (`CLASSES_START` ..
+`CLASSES_END`, the calendar module). The calendar still blocks nothing for an
+adviser's own marking — weekends stay writable there (OPEN QUESTIONS); only an
+excuse decision declines to create a weekend or out-of-year row. **The server
+decides**; `format/excuseAttendance.js` (mirrored to the phone) holds the same
+table for the words only, and `npm run test:excuse-attendance-rule` runs the
+server's `decide()` and the client's over every decision × mark × date and
+fails on any difference (with controls), so a sentence cannot promise what
+the server will not do.
+
+### 35b. Every sentence is exact (§5i)
+
+All of them are `format/excuseAttendance.js`; none is typed in a page.
+
+- **The review's note** (`pages/teacher/excuseLetters/attendanceNote.jsx`,
+  `AttendanceNote`), in place of the old line. The page READS the letter's day
+  when the review opens — `GET /attendance/student/:id` for that one date, the
+  adviser's own scope — but only for a class day; a reply that lands after
+  another letter was opened is dropped. Five shapes: not a class day ("…
+  Saturday, 24 October 2026 is not a class day, so neither decision changes
+  attendance." — the weekday named, Q9), being read, **could not be read**
+  (the rule itself, true whatever the day holds), no record ("… Approving
+  records it as Excused; declining records it as Absent."), and a mark ("… is
+  marked Absent. Approving changes it to Excused; declining leaves it
+  Absent." / "… Neither decision changes it."). **Continue waits for the
+  read**; a failed read still continues.
+- **The confirmation** (`ConfirmNote`, §5e) names the decision back WITH its
+  effect: "Approve this letter? Wednesday, 21 October 2026 changes from Absent
+  to Excused in attendance. The decision cannot be changed afterward." The
+  tail is that one sentence for every decision, and **promises no correction
+  of the mark**: an adviser can re-mark an active learner's day, but no
+  register lists an inactive learner, whose past day a review still writes
+  (Q10), so "can still be corrected" would be untrue there (§5i). An
+  unreadable day gets the conditional sentence ("If … is absent or not
+  recorded, it is marked Excused; a Present, Late or Excused mark stays.").
+  The prediction is the day as read when the review opened; the result line
+  below is what the server did.
+- **The note after the save is the SERVER'S answer**, never the prediction —
+  `REVIEW_UNWRAP` reads `attendance`, `attendance_from` and `class_day`, and
+  `successNote` says "… was recorded as Excused." / "… is now Excused (was
+  Absent)." / "… stays Present." / "… is not a class day; attendance was not
+  changed." A day that moved between the read and the save is told as it is.
+- **A 409** (another change arrived at the same moment; nothing was saved and
+  the letter is still Pending) shows the server's sentence in the modal and the
+  day is read again before the next try.
+- **The parent's sentence**, the owner's words, in both parent places (the
+  empty state and the form note): "If the adviser approves it, an absent or
+  unrecorded class day is marked Excused; if declined, an unrecorded class day
+  is marked Absent." (`PARENT_NOTE`).
+
+### 35c. Where the day shows
+
+Teacher → Attendance and Attendance records, Admin → Attendance and Parent →
+Attendance all read on each visit, so a decided day shows the next time each
+page opens — no change was needed on the web. **A register already open in
+another tab is not live** and its Save sends every mark on screen, so it can
+write the old mark back over the decision (KNOWN_ISSUES, the owner's Q7).
+
+### 35d. What proves it
+
+`scripts/ssr-excuse-attendance.jsx` (TESTING): every sentence in every state,
+each agreeing with `decide()`; the two notes rendered; the note following the
+reply over the prediction; the teacher page's read, its stale drop, the
+re-read after a failed save, Continue waiting, the unwrap list; the parent's
+two places; the server's transaction and its 409 as source; the old line gone
+— each with a control. `test:excuses` drives every cell over HTTP and two
+reviews of one day at once. **Cannot prove** a real review on screen — the
+owner's device check (`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`).
+

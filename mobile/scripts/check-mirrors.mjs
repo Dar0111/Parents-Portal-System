@@ -72,6 +72,8 @@ export const PAIRS = [
   ['src/realtime/liveState.js', 'realtime/liveState.js'],
   // feat/grade-acknowledgement — the parent's "I have seen these grades" words.
   ['src/format/acknowledgement.js', 'format/acknowledgement.js'],
+  // feat/excuse-attendance — an excuse decision and that day's attendance: the rule's words.
+  ['src/format/excuseAttendance.js', 'format/excuseAttendance.js'],
 ];
 
 // THE SCHOOL CALENDAR IS A THREE-WAY COPY: server → client → mobile. The

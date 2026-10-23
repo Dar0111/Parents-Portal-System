@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import api, { listParams } from '../../api/axios';
 import extractError from '../../api/extractError';
 import Button from '../../components/Button';
@@ -13,7 +13,9 @@ import Modal from '../../components/Modal';
 import SectionHeader from '../../components/SectionHeader';
 import StatusBadge from '../../components/StatusBadge';
 import { longDate, shortDate } from '../../format/date';
+import { REVIEW_UNWRAP, isClassDay, successNote } from '../../format/excuseAttendance';
 import Reveal from '../../motion/Reveal';
+import { AttendanceNote, ConfirmNote } from './excuseLetters/attendanceNote';
 import teacherLetterCard from './excuseLetters/card';
 import LetterReadingView from './excuseLetters/readingView';
 import { useAuth } from '../../auth/AuthContext';
@@ -88,6 +90,13 @@ export default function ExcuseLettersPage() {
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reviewError, setReviewError] = useState(null);
+
+  // THE LETTER'S DAY (feat/excuse-attendance, B8): its attendance mark, read
+  // when the review opens, so the note and the confirmation can say exactly
+  // what each decision does to it (§5i). Only a class day is read. A reply
+  // that lands after another letter was opened is dropped (`dayTicket`).
+  const [day, setDay] = useState(null);
+  const dayTicket = useRef(0);
 
   // The outcome of the last review, rendered above the list (§7c — it
   // outlives the modal). `writeStatus`, not `status`: this page's `status` is
@@ -186,6 +195,32 @@ export default function ExcuseLettersPage() {
     setApplied({ status: 'Pending', from: '', to: '' });
   }
 
+  // The day's mark, from the adviser's own read of that learner's attendance
+  // (the reviewer is the current adviser, so the row is in scope). The server
+  // still decides; this only lets the sentences be exact.
+  function readDay(letter) {
+    dayTicket.current += 1;
+    const ticket = dayTicket.current;
+    if (!isClassDay(letter.absence_date)) {
+      setDay(null);
+      return;
+    }
+    setDay({ state: 'loading', current: null });
+    api
+      .get(`/attendance/student/${letter.student_id}`, {
+        unwrap: 'attendance',
+        params: { from: letter.absence_date, to: letter.absence_date },
+      })
+      .then((rows) => {
+        if (dayTicket.current !== ticket) return;
+        const row = rows.find((r) => r.date === letter.absence_date);
+        setDay({ state: 'ready', current: row ? row.status : null });
+      })
+      .catch(() => {
+        if (dayTicket.current === ticket) setDay({ state: 'failed', current: null });
+      });
+  }
+
   function openReview(letter) {
     setWriteStatus({});
     setReviewing(letter);
@@ -193,10 +228,12 @@ export default function ExcuseLettersPage() {
     setRemarks('');
     setConfirming(false);
     setReviewError(null);
+    readDay(letter);
   }
 
   function closeReview() {
     if (saving) return; // never dismiss mid-flight — see the Modal props below
+    dayTicket.current += 1;
     setReviewing(null);
   }
 
@@ -216,14 +253,14 @@ export default function ExcuseLettersPage() {
     setSaving(true);
     setReviewError(null);
     try {
-      await api.patch(
+      const reply = await api.patch(
         `/excuse-letters/${reviewing.id}/review`,
         { status: decision, teacher_remarks: remarks.trim() || undefined },
-        { unwrap: 'excuse_letter' }
+        { unwrap: REVIEW_UNWRAP }
       );
-      const message = `Letter from ${reviewing.last_name}, ${reviewing.first_name} ${
-        decision === 'Approved' ? 'approved' : 'declined'
-      }.`;
+      // The day as the SERVER wrote it, never the prediction (B8).
+      const message = successNote(`${reviewing.last_name}, ${reviewing.first_name}`, decision, reply);
+      dayTicket.current += 1;
       setReviewing(null);
       // Refetch rather than patching the row locally: the server is the
       // authority on what is now stored, and a client-side merge is exactly the
@@ -233,6 +270,9 @@ export default function ExcuseLettersPage() {
     } catch (err) {
       setReviewError(extractError(err));
       setConfirming(false); // back to the decision step so the teacher can re-read
+      // The day may have moved under the review (a 409 is exactly that), so
+      // its sentence is read again before the next try.
+      readDay(reviewing);
     } finally {
       setSaving(false);
     }
@@ -469,7 +509,10 @@ export default function ExcuseLettersPage() {
           ) : (
             <>
               <Button onClick={closeReview}>Cancel</Button>
-              <Button variant="primary" disabled={!decision} onClick={() => setConfirming(true)}>
+              {/* Waits for the day's read, so the confirmation can name what the
+                  decision does to it (a failed read still continues, with the
+                  sentence that is true either way). */}
+              <Button variant="primary" disabled={!decision || day?.state === 'loading'} onClick={() => setConfirming(true)}>
                 Continue
               </Button>
             </>
@@ -510,43 +553,22 @@ export default function ExcuseLettersPage() {
               ) : null}
             </dl>
 
-            {/* THE SCHOOL'S OWN RULE, at the moment of decision rather than in a
-                page header: "excuse lang yung bata pero absent pa rin".
-                Approving records the reason; it does not touch the attendance
-                table (enforced server-side — that handler references no
-                attendance query at all). A teacher who approves believing the
-                absence clears has been misled by the interface into a wrong
-                model of their own records.
-
-                TRUE WHATEVER THE DAY HOLDS (fix/smoke-gate). It used to end
-                "the student stays marked Absent for that day", which is false
-                when the day is not Absent — Tala's 09-24 letter was approved
-                over a Present mark in the browser check — or not recorded at
-                all. The rule it carried is the first half: the record does not
-                change. A letter states a reason; it does not establish that
-                the day was an absence (§5i). */}
-            <div className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong">
-              <i aria-hidden="true" className="fa-solid fa-circle-info mt-0.5" />
-              <p className="min-w-0 flex-1">
-                Approving records the reason given in this letter. It does not change the attendance
-                record for that day.
-              </p>
-            </div>
+            {/* THE DAY, at the moment of decision (feat/excuse-attendance, B8):
+                since the owner's decision of 2026-10-22 a decision SETS that
+                day's attendance — approved → Excused, declined → Absent, a
+                Present, Late or Excused mark kept, nothing written on a day
+                that is not a class day. It replaces the school's earlier
+                "excuse lang yung bata pero absent pa rin" line. The note names
+                the day's mark and what each decision does to it, read from the
+                adviser's own attendance read (§5i). */}
+            <AttendanceNote date={reviewing.absence_date} day={day} />
 
             {confirming ? (
               // Explicit confirmation because the API refuses correction: once a
               // letter leaves Pending, PATCH /:id/review answers 403 and there is
-              // no un-review endpoint. Names the specific decision back rather
-              // than asking a generic "are you sure".
-              <div className="flex items-start gap-3 rounded-xl border border-warning-edge bg-warning-soft px-4 py-3 text-sm text-warning-strong">
-                <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5" />
-                <p className="min-w-0 flex-1">
-                  <strong>
-                    {decision === 'Approved' ? 'Approve this letter?' : 'Decline this letter?'}
-                  </strong>{' '}
-                  This cannot be changed afterward.
-                </p>
-              </div>
+              // no un-review endpoint. Names the specific decision back — and
+              // what it does to the day — rather than a generic "are you sure".
+              <ConfirmNote decision={decision} date={reviewing.absence_date} day={day} />
             ) : (
               <>
                 {/* TWO TOGGLES OF EQUAL WIDTH. The chosen one is filled, says

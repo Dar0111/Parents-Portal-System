@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDrawerStatus } from '@react-navigation/drawer';
 import { useFocusEffect, usePreventRemove } from '@react-navigation/native';
 import { Alert, BackHandler, FlatList, RefreshControl, ScrollView, View } from 'react-native';
@@ -187,6 +187,46 @@ export default function AttendanceScreen({ navigation }) {
   );
   const unsetCount = roster.length - entries.length;
   const isUpdate = recorded.size > 0;
+
+  // RE-READ ON FOCUS WHEN NOTHING IS UNSAVED (feat/excuse-attendance, B8; the
+  // owner's Q7). A drawer screen stays mounted, so a register read before an
+  // excuse decision made elsewhere still showed the day's old mark — and Save
+  // sends every mark on screen, so it would have written that mark back over
+  // the decision. The first focus is the mount, which the effect above has
+  // already read. With unsaved marks, a save in flight or a pull under way
+  // nothing is re-read (a re-read replaces the marks); a register left open on
+  // another device or tab is the KNOWN_ISSUES row. The latest values are read
+  // through a ref so the callback stays stable and runs on a FOCUS only, never
+  // on a section or date change (the effect above owns those). WHILE THE READ
+  // IS IN FLIGHT THE REGISTER TAKES NO TOUCHES AND SAVE WAITS, exactly as for
+  // a pull (`focusReading`): a mark tapped meanwhile would be replaced when the
+  // reply lands, and a Save would send the marks the read is replacing. Each
+  // focus read takes a number and only the NEWEST one lets go — an older read
+  // answering late must not unblock the register while a newer one is out.
+  const [focusReading, setFocusReading] = useState(false);
+  const focusRead = useRef(0);
+  const firstFocus = useRef(true);
+  const focusState = useRef({ unsaved: 0, saving: false, refreshing: false, loadRoster });
+  useEffect(() => {
+    focusState.current = { unsaved, saving, refreshing, loadRoster };
+  });
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return undefined;
+      }
+      const latest = focusState.current;
+      if (latest.unsaved !== 0 || latest.saving || latest.refreshing) return undefined;
+      focusRead.current += 1;
+      const mine = focusRead.current;
+      setFocusReading(true);
+      latest.loadRoster().finally(() => {
+        if (focusRead.current === mine) setFocusReading(false);
+      });
+      return undefined;
+    }, [])
+  );
 
   const pick = useCallback((id, value) => setMarks((m) => pickStatus(m, recorded, id, value)), [recorded]);
 
@@ -391,9 +431,10 @@ export default function AttendanceScreen({ navigation }) {
       ) : (
         // While a pull's read is in flight no mark may be tapped (see the
         // header), nor while a save and its re-read are (the owner's Q4, the
-        // web's inert cards): the wrapper, not the list, takes the touch
-        // block — a plain View honours `pointerEvents` on every platform.
-        <View className="flex-1" pointerEvents={refreshing || saving ? 'none' : 'auto'}>
+        // web's inert cards), nor while a focus re-read is (B8): the wrapper,
+        // not the list, takes the touch block — a plain View honours
+        // `pointerEvents` on every platform.
+        <View className="flex-1" pointerEvents={refreshing || saving || focusReading ? 'none' : 'auto'}>
           <FlatList
             data={roster}
             keyExtractor={(s) => String(s.id)}
@@ -433,7 +474,7 @@ export default function AttendanceScreen({ navigation }) {
           <Text className={`min-w-0 flex-1 text-sm ${unsaved ? 'font-semibold text-warning-fg' : 'text-fg-muted'}`}>
             {unsaved === 0 ? 'No unsaved changes' : `${unsaved} unsaved change${unsaved === 1 ? '' : 's'}`}
           </Text>
-          <Button variant="primary" onPress={handleSubmit} loading={saving} disabled={saving || refreshing || entries.length === 0}>
+          <Button variant="primary" onPress={handleSubmit} loading={saving} disabled={saving || refreshing || focusReading || entries.length === 0}>
             {saving ? 'Saving…' : isUpdate ? 'Update attendance' : 'Save attendance'}
           </Button>
         </View>
