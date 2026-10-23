@@ -13,6 +13,14 @@
 //
 // A changed SMS_GATEWAY_URL needs the API restarted too: the server reads it
 // once at startup, and `node --watch` does not watch .env.
+//
+// EXIT BY process.exitCode, NEVER process.exit() (B7, 2026-10-24): on Windows
+// the probe printed its answer and then "Assertion failed:
+// !(handle->flags & UV_HANDLE_CLOSING)". The likely cause (an inference, not
+// proven): process.exit() straight after the fetch tore the process down while
+// a libuv handle was still closing — fetch's keep-alive socket, the abort timer
+// or a pending console write. Setting the code and returning lets the event
+// loop drain and exit on its own.
 
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const sms = require('../utils/smsTransport');
@@ -22,7 +30,8 @@ const sms = require('../utils/smsTransport');
   const h = await sms.health();
   if (!h.reachable) {
     console.log(`reachable: no (${h.reason})`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   console.log('reachable: yes');
   console.log(`http: ${h.httpStatus}`);
@@ -34,8 +43,8 @@ const sms = require('../utils/smsTransport');
     const c = h.checks[key];
     console.log(`  ${key}: ${c.status ?? '?'}${c.observed !== undefined ? ` (${c.observed})` : ''}`);
   }
-  process.exit(h.httpStatus >= 200 && h.httpStatus < 300 ? 0 : 1);
+  process.exitCode = h.httpStatus >= 200 && h.httpStatus < 300 ? 0 : 1;
 })().catch((err) => {
   console.log(`reachable: no (${err.reason || 'unreachable'})`);
-  process.exit(1);
+  process.exitCode = 1;
 });
