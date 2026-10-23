@@ -332,6 +332,7 @@ const KEYED = [
   'teacher/ExcuseLettersPage.jsx',
   'teacher/MemosPage.jsx',
   'teacher/StudentsPage.jsx',
+  'admin/ActivityLogPage.jsx',
   'admin/AnnouncementsPage.jsx',
   'admin/AttendancePage.jsx',
   'admin/BackupsPage.jsx',
@@ -359,14 +360,14 @@ const keysMatchLoads = (map) =>
     return keys.every((k) => depsIn(text).some((d) => sameSet(d, k.parts)));
   });
 proved(
-  'C1 exactly the 17 web files whose query can change pass a queryKey',
+  'C1 exactly the 18 web files whose query can change pass a queryKey',
   (map) => sameSet(keyedFiles(map), KEYED),
   pageFiles,
   { ...pageFiles, 'parent/ExcuseLettersPage.jsx': `${pageFiles['parent/ExcuseLettersPage.jsx']}\n// queryKey={[status]}\n` },
   { ...pageFiles, 'teacher/MemosPage.jsx': pageFiles['teacher/MemosPage.jsx'].replace('queryKey={[offset, sort]}', '') }
 );
 proved(
-  'C2 every key is its load’s dependency array (19 tables; UsersPage splits its one load between its two tables)',
+  'C2 every key is its load’s dependency array (20 tables; UsersPage splits its one load between its two tables)',
   keysMatchLoads,
   pageFiles,
   { ...pageFiles, 'admin/StudentsPage.jsx': pageFiles['admin/StudentsPage.jsx'].replace('queryKey={[applied, offset, sort]}', 'queryKey={[applied, offset]}') },
@@ -375,8 +376,8 @@ proved(
 );
 const tableCount = (map) => KEYED.reduce((n, f) => n + keysIn(map[f] || '').length, 0);
 proved(
-  'C3 19 keyed tables in the 17 files (two each on Users and admin Announcements)',
-  (map) => tableCount(map) === 19,
+  'C3 20 keyed tables in the 18 files (two each on Users and admin Announcements)',
+  (map) => tableCount(map) === 20,
   pageFiles,
   { ...pageFiles, 'admin/AnnouncementsPage.jsx': pageFiles['admin/AnnouncementsPage.jsx'].replace('queryKey={[memoOffset, memoSort, userId]}', '') }
 );

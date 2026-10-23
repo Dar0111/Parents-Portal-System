@@ -83,6 +83,9 @@ export const NAV_BY_ROLE = {
     { to: '/admin/messages', label: 'Messages', icon: 'fa-comments', built: true },
     { to: '/admin/settings', label: 'Settings', icon: 'fa-gear', built: true },
     { to: '/admin/backups', label: 'Backup & Restore', icon: 'fa-database', built: true },
+    // The admin's read of activity_logs (feat/activity-log, the owner's D-21).
+    // Web only, like Backup & Restore: the phone lists it in WEB_ONLY.
+    { to: '/admin/activity-log', label: 'Activity log', icon: 'fa-clock-rotate-left', built: true },
     // Last, after Backup & Restore — "after Settings" for the other roles
     // means the bottom of the list, and the bottom is where an About lives.
     { to: '/admin/about', label: 'About', icon: 'fa-circle-info', built: true },

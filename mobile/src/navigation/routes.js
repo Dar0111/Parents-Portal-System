@@ -20,8 +20,10 @@
 // verbatim `nav.js` still lists the item — it is a mirror of the web's and
 // must stay byte-equal — so the phone HIDES it: the drawer drops a web-only
 // item entirely rather than dimming it (a dimmed row would claim the page is
-// coming), and a link to it falls back to the role's home. Branch 4.
-export const WEB_ONLY = Object.freeze(['/admin/backups']);
+// coming), and a link to it falls back to the role's home. Branch 4. The
+// Activity log joined it (feat/activity-log, the owner's Q6: web only — the
+// phone has no way to save its CSV without a new dependency).
+export const WEB_ONLY = Object.freeze(['/admin/backups', '/admin/activity-log']);
 
 export function isWebOnly(path) {
   return WEB_ONLY.includes(path);

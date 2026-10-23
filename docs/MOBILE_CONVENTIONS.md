@@ -768,6 +768,13 @@ only — no screen, no nav item.**
   would claim the page is coming. A notification link to it opens the admin
   home. The admin sees eight items: Dashboard, Users, Students, Grades,
   Attendance, Announcements, Settings, About.
+- **A second web-only item since `feat/activity-log` (B2, 2026-10-23): the
+  Activity log** (the owner's Q6 — the phone has no way to save its CSV
+  without a new dependency). The mirrored `nav.js` and `navGroups.js` carry
+  it, `WEB_ONLY` lists `/admin/activity-log` beside `/admin/backups`, and the
+  drawer hides it the same way; the admin's System group stays empty on the
+  phone and is dropped (M20). The admin still sees nine items (Messages
+  included, M9).
 - **One Settings, and the web's words.** The drawer item is Settings for
   every role; the verbatim `tabs.js` gives the admin a first row, **School
   settings** — the school's details, with the school year locked and the term

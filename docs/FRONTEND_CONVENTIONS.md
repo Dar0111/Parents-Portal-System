@@ -30,7 +30,9 @@ api.post('/backups/3/restore', body, { raw: true })       // -> the axios respon
   missing-key guard instead of dropping to `raw`.
 - **`raw` is for exactly two endpoints** — `POST /api/backups/:id/restore`
   (the one place `success: true` does not mean full success; its caller
-  must read `message`) and the binary `GET /api/backups/:id/download`.
+  must read `message`) and the binary `GET /api/backups/:id/download` —
+  since B2 also `GET /api/activity-logs/export`, the other file download
+  (§36), which reads its file name from the exposed `Content-Disposition`.
   **`raw` returns the FULL axios response** — status, headers, data — not
   the body, unlike `unwrap`, which returns a value from inside the body.
   The download needs the headers for the filename. This is the one place
@@ -4494,4 +4496,99 @@ two places; the server's transaction and its 409 as source; the old line gone
 — each with a control. `test:excuses` drives every cell over HTTP and two
 reviews of one day at once. **Cannot prove** a real review on screen — the
 owner's device check (`docs/EXCUSE_ATTENDANCE_DEVICE_CHECK.md`).
+
+## 36. The Activity log — who, when and what kind; never an entry's details (`feat/activity-log`, 2026-10-23/24)
+
+The owner's decision D-21 (2026-10-16) and the PLAN APPROVED of 2026-10-23
+(Q1–Q9, C1–C8). The manuscript mentions activity logs only in Figure 4's
+description (DFD 0, p. 29), among the system's outputs to the admin; Figure 5
+names no activity-log process, so this page is the owner's decision, as Admin
+→ Messages is, and Chapter 5 must say so. Web only (Q6): the phone's mirrored
+nav carries the item and `navigation/routes.js` lists it in `WEB_ONLY`, so the
+drawer hides it as it hides Backup & Restore. The endpoints:
+`docs/API_REFERENCE.md` → Activity log.
+
+### 36a. What an entry shows, and what it never shows
+
+- **The description is never selected** (Q1 (a)). Its templates can hold a
+  typed title (Posts, Contributions), a person's name (a profile-photo
+  removal, an assignment), a setting's value (the school's email or phone), a
+  login id (`create_teacher`, `update_user`, `update_user_status` until
+  2026-10-23, when B2's commit 2 made them ids only) and an LRN (six writers
+  until 2026-09-18 — 291 rows can still hold one). Old rows keep old wording,
+  so no allowlist or mask could be trusted; the API names no description in
+  any statement and an entry is exactly seven fields: `id`, `created_at`,
+  `action`, `action_label`, `action_group`, `actor_name`, `actor_role`.
+- **The words are the server's.** `server/utils/activityActions.js` maps every
+  code to a label that reads on its own (C1 — the table shows no group) and a
+  group; the list carries each row's label, `GET /activity-logs/actions` gives
+  the filter its options, the CSV prints the same. A code the map does not
+  know lists as its own code, in Other; `test:activity-log` reads every
+  `logActivity` call and fails until the map has it. A removed code keeps a
+  label ending "(removed)".
+- **Account** is the row's account by name and role, **never a login id** (a
+  parent's IS the child's LRN, §5c). For a failed sign-in, a reset request and
+  a password alert it is the account concerned, not a proven actor — the page's
+  sentence says so. A NULL `user_id` is a deleted account (every writer passes
+  an id; the FK is `ON DELETE SET NULL`): "Deleted account", role "—",
+  filtered as `role=deleted`.
+
+### 36b. The page
+
+- **The owner's sentence (C3), word for word:** "Entries the portal records,
+  such as sign-ins, changes and downloads. Newest first; times are in
+  Philippine time. For a failed sign-in, a reset request or a password alert,
+  Account is the account it concerned, which may not be who acted. An entry's
+  details are not shown." It says nothing about retention (Q7: every row is
+  kept, and a restore rewinds the log).
+- **Filters** (staged, `FilterActions`): From and To (Manila days; the default
+  the last 7 days, today included — Q3; From after To is refused on the field
+  and by the server), Account role (All roles / Admin / Teacher / Parent /
+  Deleted account), Action (All actions, then each group with "All <group>"
+  and its codes). Reset appears only when the applied filters differ from the
+  default.
+- **The table:** When (`dateTime`, Manila), Account, Role, Action. **No column
+  sorts** — the server's order is fixed, newest first (`created_at`, then
+  `id`; the 2026-09-21 clock rows sit out of id order). 50 a page with
+  DataTable's pager (Q5); `queryKey={[applied, offset]}`; a static card below
+  `sm`.
+- **The empty state (§5f, C2)** is one sentence from the applied values —
+  labels are verb phrases, so an action is quoted and counted in "entries", a
+  group is not quoted, a role is "<role> accounts", one bound cleared reads
+  "since …" / "up to …": 'No "Signed in" entries for teacher accounts from 17
+  Oct 2026 to 23 Oct 2026.' / 'No Attendance entries for teacher accounts from
+  … to ….' / 'Nothing recorded for teacher accounts from … to ….'
+- **Download CSV** (the header's one action) downloads exactly the applied
+  filters through `raw` + `blob` (§1), named by the server's
+  `Content-Disposition`, which `server.js` now exposes through CORS (Q9.4).
+  Over the cap the list's `export_limit.message` — the server's own refusal —
+  shows when it is pressed, **before any request**. Disabled while the list
+  loads and when it is empty. A download writes one `export_activity_log` row
+  (Q8); the list does not re-read for it (no Reload control — the browser's
+  reload shows it).
+- **No dashboard card** (Q9.5): §12's "Recent activity" is this page.
+
+### 36c. The CSV
+
+Eight columns — Entry, Date, Time (Philippine time), Account, Role, Group,
+Action, Action code — UTF-8 with a BOM (Excel), every field quoted, inner
+quotes doubled, CRLF between records (RFC 4180), and **every cell guarded**:
+one starting with `=`, `+`, `-`, `@`, a tab or a CR gets a leading apostrophe,
+so a name typed as a formula shows as typed (`server/utils/csv.js`). Times are
+formatted in `Asia/Manila` whatever the host's zone. At most 50,000 rows; over
+it the server refuses rather than cut the set short, naming the count.
+
+### 36d. What proves it
+
+`scripts/ssr-activity-log.jsx` (TESTING): the pure helper (the default range,
+the parameters, the labels, every C2 sentence, the file name), the first render
+(C3 word for word, Download disabled, the filters, no sortable header, no
+detail), and as source the unwrap list against the handler's reply, the key
+against the load, the download, the refusal before any request, the server's
+seven fields and no description, CORS, the nav and both mirrors — each with a
+control. `scripts/ssr-query-key.jsx` counts the page among its 18 keyed files.
+`test:activity-log` drives the three endpoints, a Manila day on fabricated rows,
+the filters, the refusals and the CSV byte by byte. **Cannot prove** a real
+load, a download saved, the CSV in Excel — the owner's device check
+(`docs/ACTIVITY_LOG_DEVICE_CHECK.md`).
 

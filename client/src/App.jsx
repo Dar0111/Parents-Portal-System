@@ -18,6 +18,7 @@ import AdminAttendance from './pages/admin/AttendancePage';
 import AdminAnnouncements from './pages/admin/AnnouncementsPage';
 import AdminGrades from './pages/admin/GradesPage';
 import AdminBackups from './pages/admin/BackupsPage';
+import AdminActivityLog from './pages/admin/ActivityLogPage';
 import TeacherDashboard from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import TeacherAttendance from './pages/teacher/AttendancePage';
@@ -126,6 +127,7 @@ export default function App() {
             <Route path="messages/:userId" element={<ParentMessageThread />} />
             <Route path="grades" element={<AdminGrades />} />
             <Route path="backups" element={<AdminBackups />} />
+            <Route path="activity-log" element={<AdminActivityLog />} />
             <Route path="about" element={<AboutPage />} />
           </Route>
 

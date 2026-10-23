@@ -483,7 +483,8 @@ page paths. Phone paths are under `mobile/src/`, with `screens/` dropped.
 | /api/notifications | 4 | `routes/notifications.js` |
 | /api/dashboard | 1 | `routes/dashboard.js` |
 | /api/policy | 3 | `routes/policy.js` |
-| **Total** | **98** | plus `GET /api/health` and `/uploads` |
+| /api/activity-logs (B2, 2026-10-23 — B16) | 3 | `routes/activityLogs.js` |
+| **Total** | **98** on 2026-10-18; **104** recounted from `server/routes/` on 2026-10-23 (B2 — the other rows above are the 2026-10-18 snapshot, refreshed in B7's docs pass) | plus `GET /api/health` and `/uploads` |
 
 ### B1. /api/auth — `server/routes/auth.js`
 | Method | Path | Line | Role | Purpose | Side effects | Web | Phone |
@@ -646,6 +647,21 @@ page paths. Phone paths are under `mobile/src/`, with `screens/` dropped.
 | GET | /api/health | `server.js:70` | public | `SELECT 1`; 503 when the DB is down | — | — (suites, smoke) | — |
 | GET | /uploads/* | `server.js:48-58` | public | Profile photo files (`express.static`) | — | through format/photoUrl.js | through format/photoUrl.js |
 
+### B16. /api/activity-logs — `server/routes/activityLogs.js` (web only; B2, 2026-10-23)
+
+The admin's read of `activity_logs` (FRONTEND §36). **It never selects
+`description`** — port that as it is. Plain SQL: a `LEFT JOIN users`, `IN` /
+`NOT IN` lists built as `?, ?, …` (no mysql2 array expansion), `LIMIT ?
+OFFSET ?`, `SELECT DISTINCT`; the day bounds are JS `Date` instants
+(`utils/manilaTime.js`), which node-postgres sends with their offset. `server.js`'s
+CORS adds `exposedHeaders: ['Content-Disposition']` for the export's file name.
+
+| Method | Path | Line | Role | Purpose | Side effects | Web | Phone |
+|---|---|---|---|---|---|---|---|
+| GET | /api/activity-logs | `activityLogs.js:150` | admin | One page, newest first, by Manila day, role (or deleted account) and action or group; `export_limit` | — | admin/ActivityLogPage.jsx:108 | — (web only, `WEB_ONLY`) |
+| GET | /api/activity-logs/actions | `activityLogs.js:186` | admin | The filter's groups and codes with their labels, plus Other | — | admin/ActivityLogPage.jsx:91 | — |
+| GET | /api/activity-logs/export | `activityLogs.js:217` | admin | The filtered set as a CSV (BOM, RFC 4180, formula guard, Manila times; at most 50,000 rows, 400 above) | log:export_activity_log | admin/ActivityLogPage.jsx:166 | — |
+
 **The 20 handlers no web page or phone screen calls:** `GET /users/:id`,
 `GET /sections/:id`, `PATCH /sections/:id/adviser`, `GET /subjects`,
 `POST /assignments`, `DELETE /assignments/:id`, `GET /grades`,
@@ -656,12 +672,19 @@ page paths. Phone paths are under `mobile/src/`, with `screens/` dropped.
 `PUT /attendance/:id`, `GET /excuse-letters/:id`, `GET /settings/:key`,
 `PUT /settings/:key`, `PATCH /messages/:id/read`.
 
-**Audit actions:** 67 distinct `activity_logs.action` values are written by
-code (66, plus B8's `excuse_attendance`). The live table held 71 when this
-was first counted, and 77 on 2026-10-23 (counted after B8's gate). Six of those are written by no route: four
-from the removed Contributions feature, `record_descriptive_grade` (its
-endpoint is retired) and `seed`. One action in code, `password_reset_email_failed`,
-has never been logged.
+**Audit actions** (recounted 2026-10-23 by B2's survey, every `logActivity`
+call in `server/routes/` and `server/utils/` — 75 calls): **75 distinct
+`activity_logs.action` values are written by code** (74 before B2's
+`export_activity_log`), plus `seed`, written only by `scripts/setup-db.js` and
+`scripts/migrate-fixture-learner.js`. The live table held 77 on 2026-10-23
+(after B8's gate): 71 of the code's, the four removed Contributions codes,
+`record_descriptive_grade` (its endpoint is retired) and `seed`. **Three
+actions in code have never been logged**, all send failures:
+`password_reset_email_failed`, `password_alert_email_failed` and
+`password_alert_sms_failed`. (Until B2 this paragraph said 67 and one.) The
+English label and group of every code: `server/utils/activityActions.js`.
+Three templates changed in B2's commit 2 (`create_teacher`, `update_user`,
+`update_user_status` — ids only, no login id); old rows keep their wording.
 
 ---
 
@@ -696,7 +719,7 @@ has never been logged.
 | C25 | Profile photos | `utils/profilePhoto.js:28-110`; `server.js:47-58`; `routes/auth.js:342`, `:380`; `routes/users.js:642` | multer memory storage: 5 MB, 1 file, field `photo`. sharp accepts JPEG/PNG/WebP only, caps input at 40 MP, and re-encodes to a 512×512 JPEG without EXIF or GPS (:72-93). The file name is 32 random hex + `.jpg` (:97). Stored on local disk at `server/uploads/avatars/`; the old file is unlinked (:105). Served without a token, with `nosniff` and a private cache. Not in any backup |
 | C26 | Backup | `routes/backups.js:16-320` | Spawns `mysqldump` (`MYSQLDUMP_PATH`; password passed through `MYSQL_PWD`) :108. Writes `.partial` then renames, with a stale-partial sweep :41 and a footer check :57. `--ignore-table` for backups and auth_codes (:206, :218), plus a `--no-data` pass (:234). `createBackupRecord` :276 |
 | C27 | Restore | `routes/backups.js:476-700` | Step-up password (:532). Type-the-filename check (:542). Safety dump first (:566). `stripBackupsTableDdl` (:263, :605). One-off `multipleStatements` connection (:607-611). `resetPool` (:638). Re-runs `migratePrivacy` (:653). Session cutoff (:667). Wiped-logs marker (:679-681). Synchronous |
-| C28 | Activity logging | `utils/activity.js:3-8` | One INSERT per write: `user_id`, `action`, free-text `description`. 67 actions in code since B8's `excuse_attendance` (B) |
+| C28 | Activity logging | `utils/activity.js:3-8` | One INSERT per write: `user_id`, `action`, free-text `description`. 75 actions in code since B2's `export_activity_log` (B, "Audit actions"); the one read is `GET /api/activity-logs` (B16), which never selects `description` |
 | C29 | Notification fan-out | `utils/notify.js:64-236` | Audiences: announcement :64, memo :97 (every active account), event :117 (no admins), excuse adviser :147, admins :159, parent :164, one user :172. INSERT IGNORE on uq_notifications_once :188-198. The actor is never a recipient (:189). A delete removes the item's rows (:210). `notification_counts` is emitted after commit (:230-235) |
 | C30 | Read-time visibility | `routes/notifications.js:62`, `:288`, `:349` | `visibilityClause` re-checks each row against live data on every read. `NAV_SECTION` maps the badges. **Since fix/f3-badges (2026-10-22):** `VISIT_CLEAR` (`:487`) maps each role's badged section to the information types a visit may clear; the clear is a SELECT of ids (the badge's own count, through `visibilityClause`) then `UPDATE … WHERE id IN (?)`, skipped when no ids — two plain statements, no multi-table UPDATE (`IN (?)` with an array is mysql2's expansion: `= ANY($1)` on Postgres) |
 | C31 | Teacher read scope | `utils/teacherScope.js:55-113` | `TEACHER_VIEW_SCOPE_SQL` needs two parameters (`teacherViewScopeParams` :66). `TEACHER_ADVISES_CLASS_SQL` :108 |

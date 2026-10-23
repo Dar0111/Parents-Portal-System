@@ -2,12 +2,13 @@
 
 Generated 2026-09-06 by reading every file in `server/routes/` and
 `server/middleware/auth.js` directly — not from CLAUDE.md's summaries.
-**101 handlers** across 16 route files, documented as **19 endpoint tables
+**104 handlers** across 17 route files, documented as **20 endpoint tables
 in §8** (more tables than files, because `content.js` holds three separate
 resources and `assignments.js` holds two), plus `GET /api/health` in
-`server.js` = **102 endpoints** (both +1 on 2026-10-21:
-`POST /api/grades/acknowledgements`, feat/grade-acknowledgement — built, not
-merged; both +2 on 2026-10-18: `PUT /api/auth/email`
+`server.js` = **105 endpoints** (both +3 on 2026-10-23: `GET /api/activity-logs`,
+`/actions` and `/export`, feat/activity-log (B2); both +1 on 2026-10-21:
+`POST /api/grades/acknowledgements`, feat/grade-acknowledgement — merged
+2026-10-22; both +2 on 2026-10-18: `PUT /api/auth/email`
 and `PUT /api/auth/first-password`, feat/first-signin; both +1 on 2026-10-13: `POST /api/grades/locks`,
 fix/grade-locks; both +3 on 2026-10-10: `GET /api/policy`,
 `GET /api/policy/status`, `POST /api/policy/accept`, feat/privacy; both +3 on 2026-09-30: `PUT` and
@@ -65,9 +66,10 @@ it.
   `term_grade`.
   Coerce with `Number()` before doing math or comparisons. See the
   Gotchas section for the one place this is *not* true.
-- **No pagination anywhere.** All 76 endpoints return their complete
-  filtered result set. There is no `?page=`, `?limit=`, or cursor param
-  on any list endpoint in this API.
+- **Every list endpoint pages** (since 2026-09-19 — §6b, `?limit=` and
+  `?offset=`, one thread on a cursor); the few that do not are named there.
+  (Until B2's docs this line said "No pagination anywhere" — true of the 76
+  endpoints that stood when it was written.)
 - **Numeric path params** (`:id`, `:studentId`, `:componentId`,
   `:userId`) are validated by `parseId()` — a positive integer, or the
   request is rejected with `400` before any query runs. One exception:
@@ -194,9 +196,8 @@ by side. Nothing here is guessed — every line traces to a specific file.
   TINYINT — `0` or `1`. `GET /api/grades/student/:studentId`'s per-term
   entries explicitly coerce it (`!!gradeRow.is_locked`) to a real JS
   boolean. Same column, two shapes, depending which endpoint you hit.
-- **No pagination anywhere** — repeated from Conventions because it's
-  worth confirming explicitly rather than searching for a param that
-  isn't there.
+- **Every list endpoint pages** — repeated from Conventions; §6b names the
+  handlers and the deliberate exceptions.
 - **`:key` in `GET`/`PUT /api/settings/:key` is the only string-typed
   path param in the entire API.** Every other bracketed path segment
   (`:id`, `:studentId`, `:componentId`, `:userId`) is a numeric id
@@ -450,12 +451,14 @@ stubbed pool.
 
 ## 6b. Pagination — every list endpoint (2026-09-19)
 
-One contract, `server/utils/pagination.js`, on **16 list handlers**:
+One contract, `server/utils/pagination.js`, on **18 list handlers**:
 `GET /users`, `/users/parents/pending`, `/students`, `/grades`,
 `/attendance`, `/attendance/student/:id`, `/excuse-letters`,
 `/excuse-letters/mine`, `/announcements`, `/memos`, `/events`,
-`/assignments`, `/backups`, `/messages/conversations`, `/messages/contacts`
-and — on a cursor, see below — `/messages/with/:userId`. Not paginated, by
+`/assignments`, `/backups`, `/messages/conversations`, `/messages/contacts`,
+`/notifications`, `/activity-logs` (since B2 — `parsePagination` alone: it
+takes no `sort`) and — on a cursor, see below — `/messages/with/:userId`. (This
+line said 16 until B2's docs: `/notifications` had been left out.) Not paginated, by
 design: `/sections` (23 rows), `/subjects` (40), `/settings`,
 `/grading-modes`, `/grades/student/:id` (a bounded report card),
 `/attendance/summary/:id` (counts), and `backups`' `orphaned_files` (the
@@ -590,7 +593,7 @@ only its error paths (`404`) return the usual JSON shape.
 ## 8. Endpoint tables
 
 Each table's endpoint count is stated in its heading. Running total at
-the bottom must equal 101 handlers (102 with `GET /api/health`).
+the bottom must equal 104 handlers (105 with `GET /api/health`).
 
 ### Auth (14) — `/api/auth`
 
@@ -1544,6 +1547,35 @@ the school's approval"; KNOWN ISSUES).
 | GET | `/status` | any authenticated | — | `required` (does this role accept — every role since feat/staff-acceptance), `policy_pending`, `acceptances` — `[{ document, title, version, accepted_at }]` for the CURRENT versions, `accepted_at` null until accepted |
 | POST | `/accept` | `parent`, `teacher`, `admin` (`policy.ROLES_THAT_ACCEPT`; staff since feat/staff-acceptance, 2026-10-11) | `versions`* — `{ privacy_notice, terms_of_use }`, the versions the screen SHOWED; `on_behalf_of_child`* — `true`, **a parent only** (staff send `{ versions }`; the flag is neither required nor read for them) | `policy_pending` + `acceptances` + message "Thank you. You can now use the portal." — a missing version is `400` "Tick the box to accept the …" with `field` naming the document; a parent with no `on_behalf_of_child: true` is `400` with `field: "on_behalf_of_child"`; **a version other than the current one is `409`** "The … has changed since this page opened. Read the new version, then accept again." — never a silent acceptance of words not shown. One `policy_acceptances` row per document (user, version, time, and the parent's `student_id` — NULL for staff); a version already accepted is a no-op `200` (a double tap). Logged `accept_policy` with the documents and versions only |
 
+---
+
+### Activity log (3) — `/api/activity-logs`
+
+The admin's read of `activity_logs` (feat/activity-log, B2 — the owner's
+decision D-21, 2026-10-16; FRONTEND §36). `routes/activityLogs.js`.
+**`description` is never selected** — no statement names it — and an entry is
+exactly seven fields: `id`, `created_at` (the instant, ISO), `action`,
+`action_label` and `action_group` (the server's words,
+`utils/activityActions.js`; an unknown code is its own label, group `other`),
+`actor_name` and `actor_role` (`users.name` / `users.role`, both null for a
+deleted account — every writer passes an id, the FK is `ON DELETE SET NULL`).
+Never `user_id`, never a login id. **Newest first, always**: `ORDER BY
+a.created_at DESC, a.id DESC`; `sort` and `order` are `400`.
+
+**The filters**, shared by the list and the export, all optional: `from`,
+`to` — a real date `YYYY-MM-DD`, a MANILA day (`from` its first instant, `to`
+the first instant after it; `utils/manilaTime.js`), `from` after `to` `400`;
+`role` — `admin` | `teacher` | `parent` | `deleted` (no account); `action` — one
+code (lower-case letters and underscores); `group` — a group key, or `other`
+(every code the map does not know); `action` with `group` is `400`. Every
+refusal is `400 { success: false, message }`.
+
+| Method | Path | Roles | Query | Response key |
+|---|---|---|---|---|
+| GET | `/` | `admin` | the filters; `limit` (default 50, max 200), `offset` (§6b) | `entries` — the seven fields; `page` — `{ limit, offset, total, has_more }`, `total` the FILTERED count; `export_limit` — `{ max: 50000, message }`, `message` the export's own refusal when this filter is over the cap, else null. Logs nothing (a read) |
+| GET | `/actions` | `admin` | — | `groups` — `[{ key, label, actions: [{ code, label }] }]`, the map's eleven groups in order, then `other` with any code the table holds that the map does not know (its code as its label) — absent when there is none |
+| GET | `/export` | `admin` | the filters (no `limit`, `offset`, `sort` or `order` — `400`) | **A CSV, not JSON**: `text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="activity-log_<from or beginning>_to_<to or today>.csv"` (exposed through CORS — `server.js`), `Cache-Control: no-store`. UTF-8 BOM, eight quoted columns — Entry, Date, Time (Philippine time), Account ("Deleted account" for none), Role, Group, Action, Action code — CRLF between records, every cell formula-guarded (`utils/csv.js`), newest first. **Over 50,000 matching entries `400`** "This filter matches N entries; a download holds at most 50,000. Narrow the dates or add a filter." — never a cut set. Logged `export_activity_log`: the count, the dates and the filter codes only. A failure's body is the usual JSON |
+
 ## Verification
 
 **Recounted from the code on 2026-09-19 (R3), because this table had drifted
@@ -1579,26 +1611,28 @@ the same as `router`.
 | Notifications | 4 | `notifications.js` |
 | Dashboard | 1 | `dashboard.js` |
 | Policy | 3 | `policy.js` |
-| **Total** | **101** | |
+| Activity log | 3 | `activityLogs.js` |
+| **Total** | **104** | |
 
-14+11+5+3+1+3+15+1+6+4+4+4+6+5+5+6+4+1+3 = **101 handlers in `server/routes/`**
-(recounted from the code 2026-10-21, feat/grade-acknowledgement — built, not
-merged: +1 grades `POST /acknowledgements`; 100 on 2026-10-18, feat/first-signin: +2 auth `PUT /email`
+14+11+5+3+1+3+15+1+6+4+4+4+6+5+5+6+4+1+3+3 = **104 handlers in `server/routes/`**
+(recounted from the code 2026-10-23, feat/activity-log (B2): +3 activity log;
+101 on 2026-10-21, feat/grade-acknowledgement, merged 2026-10-22: +1 grades
+`POST /acknowledgements`; 100 on 2026-10-18, feat/first-signin: +2 auth `PUT /email`
 and `PUT /first-password`; 98 on 2026-10-13, fix/grade-locks: +1 grades `POST /locks`;
 97 on 2026-10-10, feat/privacy: +3 policy; 94 on
 2026-09-30, feat/profile-photos: +2 auth `PUT`/`DELETE /photo`, +1 users
 `DELETE /:id/photo`; 91 on 2026-09-29, when
 the Total row had said 87 while the sum said 89). Plus `GET /api/health`,
-mounted directly in `server.js` = **102** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
+mounted directly in `server.js` = **105** endpoints in total. Contributions' 8 were removed 2026-09-13 and are not in either figure.
 **Grades went 11 → 10 → 12 → 13 across 2026-09-22/23**: `PATCH /:id/descriptive`
 was retired — still the only endpoint this system has ever removed other than
 Contributions' eight — then the class record's `GET` and `PUT` landed, then
 the class summary's `GET`. **14 on 2026-10-13** with the bulk `POST /locks`;
 **15 on 2026-10-21** with `POST /acknowledgements`.
 
-**State which number you mean.** 101 is handlers in route files; 102 is every
+**State which number you mean.** 104 is handlers in route files; 105 is every
 endpoint the API answers. CLAUDE.md's archived table is 81 rows — that is a
 dated 2026-09-19 snapshot taken before Notifications and account recovery
 landed, and it is not the live record. This document is.
 
-**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files), and `POST /api/grades/locks` (2026-10-13, fix/grade-locks — recounted from the code the same day: 98 across 16 route files, grades 14), and `PUT /api/auth/email` + `PUT /api/auth/first-password` (2026-10-18, feat/first-signin — recounted from the code the same day: 100 across 16 route files, auth 14), and `POST /api/grades/acknowledgements` (2026-10-21, feat/grade-acknowledgement — recounted from the code the same day: 101 across 16 route files, grades 15). Re-run the existence diff after a dispatch that adds or removes an endpoint.
+**Verified by a three-way audit on 2026-09-07** (CLAUDE.md's endpoints table vs. this document vs. the handlers actually registered in `server/routes/` and mounted in `server/server.js`): all three agreed then at 77. Additions since: assignments/subjects and grading-modes and `DELETE /grades/:id` (2026-09-08), `PUT /auth/contact` (2026-09-09), Notifications' 4 (2026-09-19, N1), and account recovery's 5 — four on `/api/auth` plus `POST /api/users/:id/temp-password` (2026-09-19, R1), and `GET /api/dashboard` (2026-09-19, DB1), `GET /api/settings/public` (2026-09-26), and `POST /api/auth/verify-contact/request` + `/confirm` (2026-09-29, feat/sms-transport), and `PUT` + `DELETE /api/auth/photo` and `DELETE /api/users/:id/photo` (2026-09-30, feat/profile-photos — recounted from the code the same day: 94 `router.<method>(` calls across `server/routes/`, auth 12, users 11), and the three `/api/policy` endpoints (2026-10-10, feat/privacy — recounted from the code the same day: 97 across 16 route files), and `POST /api/grades/locks` (2026-10-13, fix/grade-locks — recounted from the code the same day: 98 across 16 route files, grades 14), and `PUT /api/auth/email` + `PUT /api/auth/first-password` (2026-10-18, feat/first-signin — recounted from the code the same day: 100 across 16 route files, auth 14), and `POST /api/grades/acknowledgements` (2026-10-21, feat/grade-acknowledgement — recounted from the code the same day: 101 across 16 route files, grades 15), and `GET /api/activity-logs`, `/actions` and `/export` (2026-10-23, feat/activity-log — recounted from the code the same day: 104 across 17 route files). Re-run the existence diff after a dispatch that adds or removes an endpoint.

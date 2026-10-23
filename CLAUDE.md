@@ -46,8 +46,8 @@ to the team.
 > prevent, and it happened here anyway, inside the file that records the rule.
 >
 > Same applies to endpoint counts. Two numbers are both correct and mean
-> different things: **`docs/API_REFERENCE.md` counts 101** handlers defined in
-> `server/routes/`, and the API answers **102 endpoints** because
+> different things: **`docs/API_REFERENCE.md` counts 104** handlers defined in
+> `server/routes/`, and the API answers **105 endpoints** because
 > `GET /api/health` is mounted directly in `server.js`. State which you mean.
 > Count history: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on 2026-10-02",
 > and the CHANGELOG rows.
@@ -107,8 +107,8 @@ behind is the rule and the pointer, nothing else.
 **Last verified:** 2026-10-23, `main` `9c2c34b` (the post-merge docs of `47be373`) — `feat/excuse-attendance` (B8) merged fast-forward from `613c73e` (three commits: B8 `b4c8e11`, the class-day fix `7c24e5c`, the merge-ready docs `47be373`): an excuse decision sets that day's attendance, built and gated after backups 355 and 360, device-checked 2026-10-23 (no findings), cleaned up by id after backup 362; earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
-nav is 10 items, all built** (ADMIN SCOPE AUDIT), and **About is last on every
-role since 2026-09-26** (10 / 13 / 10); **no role has a `built: false`
+nav is 11 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36), and **About is last on every
+role since 2026-09-26** (11 / 13 / 10); **no role has a `built: false`
 item**.
 20 of 23 sections have no adviser and
 no screen can assign one — see KNOWN ISSUES.)
@@ -173,7 +173,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **ten migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-one test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **ten migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-two test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -221,8 +221,8 @@ and the 2026-09-19 section-trim block.
 
 ### Mobile — every role's screens built
 
-**The Expo app has every role's screens** (Backup & Restore stays web
-only). Stage 5 adds no endpoint. No module is "not started".
+**The Expo app has every role's screens** (Backup & Restore and the
+Activity log stay web only). Stage 5 adds no endpoint. No module is "not started".
 
 ### Grades — fully built (write path + viewing), Stage 3's last backend module
 
@@ -319,7 +319,8 @@ api.post('/backups/3/restore', body, { raw: true })       // -> the axios respon
 - **Array form** for multi-key responses (`GET /backups` + `orphaned_files`,
   `GET /grades/:id` + `grade_components` + `descriptor`).
 - **`raw` is for exactly two endpoints** — `POST /api/backups/:id/restore`
-  (`success: true` does not mean full success) and the binary download —
+  (`success: true` does not mean full success) and the binary download
+  (since B2 the Activity log's CSV too, §36) —
   and it returns the FULL axios response, not the body.
 - **A path-to-key map cannot work:** `GET /api/attendance` returns
   `attendance` as an array and `POST /api/attendance` returns it as an
@@ -879,10 +880,10 @@ worked failures: `docs/FRONTEND_CONVENTIONS.md` §15.**
 **`GradeValue` hardcodes `text-fg`; on a coloured surface pass `className`,
 and it wins only by stylesheet ORDER** — §3a.
 
-**Recent activity is deliberately absent from the admin dashboard.** There
-is no read endpoint for `activity_logs`, and building one needs a redaction
-rule for free text written by twenty-odd call sites. It belongs to a future
-Admin Activity Log page. Do not fake it from another source.
+**Recent activity is deliberately absent from the admin dashboard** (the
+owner's Q9.5, B2): it is Admin → Activity log (§36), whose redaction rule is
+that the description is never selected. No dashboard card. Do not fake it
+from another source.
 
 ### 25. Profile photos — the file name is the key, and never a login id
 
@@ -1017,6 +1018,26 @@ unlock `acknowledgements_cleared`. Every word is the mirrored
 `grades.acknowledged` columns stay untouched (Q8). Full text: FRONTEND §33,
 MOBILE M30, `docs/API_REFERENCE.md` → Grade acknowledgements.
 
+### 36. The Activity log — who, when and what kind; never an entry's details
+
+**feat/activity-log (B2), 2026-10-23/24 — the owner's decision D-21
+(2026-10-16), the PLAN APPROVED of 2026-10-23.** Admin → Activity log
+(`/admin/activity-log`, the System group; web only — `WEB_ONLY` on the phone)
+reads `activity_logs` NEWEST FIRST (`created_at`, then `id`), 50 a page, by
+Manila day (default the last 7 days, today included), account role (Admin,
+Teacher, Parent, Deleted account — a NULL `user_id` is a deleted account) and
+action (one code or a whole group), and downloads exactly that set as a CSV
+(eight columns, UTF-8 BOM, RFC 4180, every cell formula-guarded, Manila times,
+at most 50,000 rows — over it the server's own refusal shows before any
+request). **The description is never selected** (Q1 (a)): an entry is seven
+fields — id, `created_at`, the code with the server's label and group
+(`utils/activityActions.js`, the one source; an unknown code is its own label,
+in Other), the account's name and role; never a login id or `user_id`. **A
+download writes `export_activity_log`** (count, dates, filter codes); a page
+read writes nothing. Three handlers, admin only: `GET /api/activity-logs`,
+`/actions`, `/export`. Full text: FRONTEND §36, `docs/API_REFERENCE.md` →
+Activity log.
+
 ### Corrections — three claims retired here
 
 *"The first screen builds the shared components"* (~5h), *"backend is 100%
@@ -1126,7 +1147,7 @@ was fixed: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
 no Turborepo, no nx.
 
 **Mobile scope:** all 9 features (Feature 7 removed 2026-09-13), all 3 roles. Backup/Restore is the one
-web-only exception.
+web-only exception (and the admin's Activity log page, the owner's Q6, B2).
 
 **Authentication — implemented and tested**
 
@@ -1435,6 +1456,9 @@ gate in full on its `POST /api/users/parents` row.
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
 | **The Upcoming events card's loading shape still draws a figure-sized first row — its lines move up about 8px when it loads** — added 2026-10-23 (`fix/f3-badges`; accepted, the owner's Q3) | both shared `dashboards/Card.jsx` (`skeleton="list"`) | Since the card's name became a line (the B3 check's finding #1), the shared skeleton no longer matches it (§5a-vii). Cosmetic; a line-sized lead shape is its own dispatch |
 | **An attendance register open elsewhere can write a day's old mark back over an excuse decision** — added 2026-10-23 (`feat/excuse-attendance`; accepted, the owner's Q7) | both registers' Save (`entries`, every mark on screen) + `POST /attendance/bulk` | A second tab, another device, or a phone register holding unsaved marks (its focus re-read skips it). The day is then the adviser's mark, correctable; the letter stands. Fix: Save only the changed marks, its own dispatch |
+| **DO NOT select `activity_logs.description` into any response, page or export** — added 2026-10-23 (`feat/activity-log`, the owner's Q1) | `routes/activityLogs.js` + every `logActivity` template | Old rows keep old wording: an LRN in six templates until 2026-09-18 (291 rows), a login id in three until 2026-10-23; typed titles, names and setting values still. The Activity log shows the server's label (§36) |
+| **`activity_logs` has no index on `created_at`** — added 2026-10-23 (B2's survey) | `schema.sql` + `routes/activityLogs.js` | A page cost about 0.2 s at 29,000 rows; past about 0.5 s, `(created_at, id)` by its own migration |
+| **Admin → Backup & Restore shows times in the device's zone; the Activity log in Philippine time** — added 2026-10-23 (the owner's Q9.7) | `admin/BackupsPage.jsx` `formatWhen` | The same on the school's Philippine-time devices. No code change |
 
 The other 30 compact rows that stood here until 2026-09-19 are verbatim in
 `docs/KNOWN_ISSUES.md` → "Compact rows moved from CLAUDE.md on 2026-09-19".
@@ -1640,9 +1664,15 @@ Merged after the close, each device-checked, with their item pointers:
 with `feat/password-alert`, B1, B3 and B8 are MERGED, the last `47be373`
 (2026-10-23); each one's check, cleanup and backup: its CHANGELOG row and
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Next, on the owner's word (the
-owner's order, 2026-10-23):** B2 `feat/activity-log` on its own check — its
-first commit the CLAUDE.md trim —
-then B7 `docs/pre-oct21` — the demo data and a new restore point; then the
+owner's order, 2026-10-23):** B2 `feat/activity-log` is BUILT on its branch
+in its own worktree (`Parents_Portal-activity-log`, 2026-10-23/24: trim-11
+`00235a0`, the three writers' ids `04258c8`, the build — §36); its device
+check (`docs/ACTIVITY_LOG_DEVICE_CHECK.md`) waits for its own go —
+then B7 `docs/pre-oct21` — the demo data and a new restore point. **For B7
+(the owner's Q7): `activity_logs` keeps every row, and the demo's 7-day view
+shows gate rows unless the demo data is made after the last gate** — 28,983
+rows since 2026-09-07, about 589 a day over the 14 days to 2026-10-23, 17% of
+them from deleted suite accounts, and a full gate writes about 650; then the
 Supabase migration in Session B,
 whose sync must add B1's
 26th table `grade_acknowledgements` and the two `notifications.type` values
@@ -1845,8 +1875,13 @@ questions.
   share one guardian email; one account per student is locked). If email
   login is ever built, scope uniqueness to `role IN ('teacher', 'admin')` —
   never a plain table constraint across all roles.
-- `activity_logs` appears nowhere in the manuscript. Document it as a
-  security feature, or drop the table.
+- `activity_logs` in the manuscript: it is mentioned only in Figure 4's
+  description (DFD 0, p. 29), which lists "activity logs" among the system's
+  outputs to the admin; Figure 5's description names no activity-log process.
+  The table stays and has a page — Admin → Activity log, the owner's decision
+  D-21 (2026-10-16), as with Admin → Messages (§36); Chapter 5 must say so.
+  The line as it stood: `docs/ARCHIVE.md` → "Moved from CLAUDE.md on
+  2026-10-24 (`feat/activity-log`, B2)".
 - **Parent demo — data:** real names and LRNs need the school's answer on
   consent (RA 10173 — see BEFORE THE PARENT DEMO). **Parent demo —
   logistics:** how many parents, when, is there a PTA meeting to join?

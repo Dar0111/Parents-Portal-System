@@ -65,6 +65,10 @@ export const PAGES = {
     // here is ever clicked — Create, Download, Delete and Restore are all
     // writes, and Restore drops the database.
     '/admin/backups',
+    // The Activity log (feat/activity-log): visiting is a read — the list and
+    // the filter's options. Download CSV writes an export_activity_log row
+    // and is never clicked.
+    '/admin/activity-log',
     '/admin/about',
   ],
 

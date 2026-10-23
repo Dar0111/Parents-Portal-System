@@ -22,6 +22,7 @@ const excusesRoutes = require('./routes/excuses');
 const notificationsRoutes = require('./routes/notifications');
 const dashboardRoutes = require('./routes/dashboard');
 const policyRoutes = require('./routes/policy');
+const activityLogsRoutes = require('./routes/activityLogs');
 const { initSocket } = require('./socket');
 const { ensureAvatarDir } = require('./utils/profilePhoto');
 const { corsOriginsFromEnv } = require('./utils/corsOrigins');
@@ -33,7 +34,10 @@ const PORT = process.env.PORT || 5000;
 // localhost and the LAN address a phone's Chrome uses, never a wildcard. The
 // SAME list goes to Socket.io (socket.js), read once here at startup.
 const allowedOrigins = corsOriginsFromEnv();
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+// `Content-Disposition` is EXPOSED (feat/activity-log, the owner's Q9.4) so
+// the web reads a download's file name from the server, its one source —
+// cross-origin, a browser hides every header not named here.
+app.use(cors({ origin: allowedOrigins, credentials: true, exposedHeaders: ['Content-Disposition'] }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // THE UPLOADS MOUNT (hardened, feat/profile-photos, 2026-09-30). Unauthenticated
@@ -96,6 +100,7 @@ app.use('/api/messages', messagesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/policy', policyRoutes);
+app.use('/api/activity-logs', activityLogsRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, message: 'Route not found.' });

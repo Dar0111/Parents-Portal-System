@@ -8173,3 +8173,24 @@ and after "A stub leaves in a dated batch, never deleted":
 
  (the one exception — trim-7's stub, dropped on
 2026-09-23 because its full row already existed — is not a habit)
+
+## Moved from CLAUDE.md on 2026-10-24 (`feat/activity-log`, B2)
+
+The owner's decision D-21 (2026-10-16) gave `activity_logs` its read: Admin →
+Activity log (CLAUDE.md §36). Two sentences that described the table before
+it had one were replaced, verbatim here. STAGE 4 FRONTEND CONVENTIONS → §12,
+the dashboards, as it stood until this day:
+
+> **Recent activity is deliberately absent from the admin dashboard.** There
+> is no read endpoint for `activity_logs`, and building one needs a redaction
+> rule for free text written by twenty-odd call sites. It belongs to a future
+> Admin Activity Log page. Do not fake it from another source.
+
+OPEN QUESTIONS → Engineering, manuscript, and logistics, as it stood:
+
+> - `activity_logs` appears nowhere in the manuscript. Document it as a
+>   security feature, or drop the table.
+
+The owner confirmed the manuscript's wording on 2026-10-23: activity logs
+appear only in Figure 4's description (DFD 0, p. 29), among the system's
+outputs to the admin; Figure 5's description names no activity-log process.

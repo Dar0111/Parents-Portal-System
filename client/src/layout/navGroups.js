@@ -7,7 +7,8 @@
 // a separate file from layout/nav.js, the single source of WHICH items exist
 // and in what order; this file only says where each one sits, keyed by path
 // suffix — the same identity the badges use. On the phone, Backup & Restore
-// is web only, so admin's System group is empty there and is dropped below.
+// and the Activity log are web only, so admin's System group is empty there
+// and is dropped below.
 //
 //   top     Dashboard, above every group
 //   bottom  Settings and About, pinned under the groups, above the user card
@@ -17,7 +18,7 @@ const GROUPS_BY_ROLE = {
   admin: [
     { label: 'Manage', paths: ['/users', '/students', '/grades', '/attendance'] },
     { label: 'Communicate', paths: ['/announcements', '/messages'] },
-    { label: 'System', paths: ['/backups'] },
+    { label: 'System', paths: ['/backups', '/activity-log'] },
   ],
   teacher: [
     { label: 'My class', paths: ['/students', '/attendance', '/attendance-records', '/grades', '/class-summary'] },
