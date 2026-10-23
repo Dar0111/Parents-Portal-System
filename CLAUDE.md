@@ -127,7 +127,7 @@ After a clean `npm run db:setup`:
 | `students` | 4 — Marwin Conde G6 Malikhain, Jea Mae Bargaso G5 Masigasig, Nino Alcantara G1 Mabait, and **Tala Halimbawa G6 Malikhain — the browser-fixture learner, nobody's test target** (pre-Stage-5 #3b, 2026-09-25): every suite stays on Marwin, every browser fixture goes on Tala, so the two protocols no longer exclude each other. On a live database she arrives by `npm run db:migrate:fixture-learner`, not `db:setup` |
 | `teacher_assignments` | 8 — 3 for TCH-001 (G6 Mathematics/English/Filipino in Malikhain) and 5 for TCH-003 (every Grade 1 subject in Mabait). TCH-002 still has zero; that is the point of the account. |
 | `sections` with a real `adviser_id` | 3 of 23 — Malikhain → TCH-001, Masigasig → TCH-002, Mabait → TCH-003. The other 20 stay NULL until an admin assigns them. |
-| `grades` | 5 — Nino's partial descriptive card (Mathematics terms 1–3 A/B/C, Reading and Literacy terms 1–2 D/E). `grade_components` and `assessment_slots` are both 0. **These five are LEGACY rows** — letters typed before the rule, with no scores behind them, so they keep their letter and show no Final. Correct, not stale; do not "fix" them. |
+| `grades` | 5 — Nino's partial descriptive card, **COMPUTED since B7 (D-102, 2026-10-24)**: Mathematics terms 1–3 A/B/C (Initial Grades 94.70 / 85.00 / 77.50, Final **B**), Reading and Literacy terms 1–2 D/E (70.00 / 60.00), each from one WW and one PT slot (HPS 20) and Summative maxima 20/20/20 — so `assessment_slots` is **10** and `grade_components` **10**. One source, `scripts/demoGrade1.js`, run by `db:setup` after the seed and once on the live DB by `db:migrate:demo-grade1`. No seeded row is a legacy letter any more. |
 | `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages`, `policy_acceptances`, `login_attempts`, `grade_acknowledgements` (since feat/grade-acknowledgement) | 0 (no parent has accepted, §29; no term is locked) |
 
 HTTP suites that create rows delete them in a `finally` block and must
@@ -173,7 +173,7 @@ Purpose per file, the long narratives and the one rule each carries moved to
 the per-file *narratives* were already there under CURRENT STATE → Files
 that exist. **Shape:** `server/` is `routes/` (one file per module) +
 `utils/` (shared helpers) + `middleware/auth.js` + `config/db.js` +
-`scripts/` (setup, **ten migrations**, `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-two test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
+`scripts/` (setup, **eleven migrations**, `demoGrade1` (D-102's demo scores), `verify-grading-seed`, `probe-sms-gateway`, `proof-backup-loop`, the thirty-two test files and `test-helpers/`, `policyFixture.js`); `utils/profilePhoto.js` + `uploads/avatars/` (git-ignored) hold the profile photos; `policy/` holds the notice, the terms and their versions (§29); `database/`
 is `schema.sql` + `seed.sql`; `client/src/` is under React web app below.
 **`mobile/` (since 2026-09-27, Stage 5)** is its own Expo SDK 57 package:
 `src/api/` + `src/auth/` + `src/navigation/` + `src/screens/` +
@@ -1312,8 +1312,10 @@ weighted score, no transmutation, no General Average, a Final letter only when
 all three terms are recorded. **`PATCH /:id/descriptive` is RETIRED**: one
 write path for every grade level, and a letter cannot be set by hand. **A
 legacy Grade 1 row — a letter typed before the rule, with no scores behind it
-— keeps its letter and shows NO Final**, which is correct and is visible on
-Nino's seeded card; do not "fix" it. The closed BLOCKED item is in
+— keeps its letter and shows NO Final**, which is correct — **until an HPS or
+Summative-maximum save on its class recomputes it to Pending** (every unlocked
+row of that subject and term). The seed holds none since B7 (D-102): Nino's
+five letters carry scores. The closed BLOCKED item is in
 `docs/ARCHIVE.md` → BLOCKED / RESOLVED → Grade 1's computed letter.
 
 ### Excuse Letters — both blockers RESOLVED and BUILT; moved out 2026-09-22
@@ -1698,7 +1700,12 @@ in the owner's order (2026-10-24; D-119, D-122, D-124):**
    `SELECT … LIMIT ?` (`:236`), their WHERE from `a.created_at >= ?` / `< ?`
    (JS `Date` instants), `u.role = ?`, `a.user_id IS NULL`, `a.action = ?` and
    `IN` / `NOT IN` lists written as `?, ?, …`; the writers' change
-   (`routes/users.js`) is description text only.
+   (`routes/users.js`) is description text only. **B7 for the port:** no
+   schema change; the seed's Grade 1 demo rows — 10 `assessment_slots`, 10
+   `grade_components`, rows 1–5's summative and computed columns — come from
+   `scripts/demoGrade1.js`, which `setup-db.js` runs after the seed (port it
+   with the seed); `db:migrate:demo-grade1` is a MySQL one-off, already in the
+   copied data; `verify-grading-seed`'s Grade 1 checks read the same columns.
 3. **The privacy text in the app** (D-36), after the principal's approval on
    Mon 2026-10-26 (D-124).
 4. **The reset of the old activity rows, at the end** — after the last gate

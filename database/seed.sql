@@ -329,17 +329,18 @@ UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-003
 -- ---------------------------------------------------------------------------
 -- Grade 1 partial descriptive card for Nino (LRN 1090001).
 --
--- These letters are ILLUSTRATIVE FIXTURE DATA, not a computed result.
--- Grade 1 as a manual A-E judgment is an ASSUMPTION (DO 015 defines no
--- IG-to-letter mapping). Nothing in this INSERT derives a letter from
--- scores; if the school later says a computation feeds the letter, one
--- write handler changes (PATCH /:id/descriptive), not this seed and not
--- the schema.
+-- ILLUSTRATIVE FIXTURE DATA. This INSERT writes the five letters only; the
+-- school's rule (2026-09-22, GRADING_SPEC §6a) computes a Grade 1 letter
+-- from scores, and since B7 (D-102, 2026-10-24) scripts/setup-db.js runs
+-- scripts/demoGrade1.js straight after this seed: each row gets one WW and
+-- one PT slot (HPS 20) and Summative maxima 20/20/20, with scores that
+-- compute these same letters. The live database got the same rows from
+-- db:migrate:demo-grade1. So no seeded row is a legacy letter any more.
 --
 -- Partial on purpose so Parent → Grades can show three states on one
--- screen: letters (Mathematics, all three terms), Pending (Reading term
--- 3 blank; Makabansa/GMRC/Language untouched), and N/A (Final Grade and
--- General Average, inapplicable in descriptive mode).
+-- screen: letters (Mathematics, all three terms, and its Final letter),
+-- Pending (Reading term 3 blank; Makabansa/GMRC/Language untouched), and
+-- N/A (the General Average, inapplicable in descriptive mode).
 -- ---------------------------------------------------------------------------
 INSERT INTO grades (student_id, subject_id, term, school_year, descriptive_grade)
 SELECT st.id, s.id, v.term, '2026-2027', v.letter

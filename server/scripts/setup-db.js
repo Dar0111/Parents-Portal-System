@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
+const { applyDemoGrade1 } = require('./demoGrade1');
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
@@ -188,16 +189,19 @@ async function main() {
     await runSqlFile(connection, SCHEMA_PATH);
 
     console.log('Running seed.sql...');
-    let seedSql = fs.readFileSync(SEED_PATH, 'utf8');
-    const userSeed = await buildUserSeedSql();
-    seedSql = seedSql.replace('-- __SEED_USERS__', userSeed);
-    seedSql = seedSql.replace('-- __SEED_ASSIGNMENTS__', '');
-    seedSql = seedSql.replace('-- __SEED_ACTIVITY__', '');
+    const seedSql = await buildSeedSql();
 
     await connection.query(seedSql);
 
     console.log('Backfilling section_id from existing VARCHAR values...');
     await backfillSectionIds(connection);
+
+    // D-102 (B7): the demo learner's five Grade 1 letters get the scores and
+    // highest possible scores that compute them — the same module the live
+    // database's db:migrate:demo-grade1 runs, so the two agree.
+    console.log("Scoring the demo learner's Grade 1 letters (scripts/demoGrade1.js)...");
+    const demo = await applyDemoGrade1(connection);
+    console.log(`  ${demo.filter((r) => r.state === 'applied').length} of ${demo.length} rows scored`);
 
     console.log('\nDatabase setup complete.\n');
     console.log('Default accounts:');
@@ -216,4 +220,18 @@ async function main() {
   }
 }
 
-main();
+// The seed SQL exactly as db:setup runs it. Exported, with the two helpers
+// beside it, for B7's disposable-schema proof (a fresh setup and the live
+// database agree on D-102's rows); `npm run db:setup` is unchanged.
+async function buildSeedSql() {
+  let seedSql = fs.readFileSync(SEED_PATH, 'utf8');
+  const userSeed = await buildUserSeedSql();
+  seedSql = seedSql.replace('-- __SEED_USERS__', userSeed);
+  seedSql = seedSql.replace('-- __SEED_ASSIGNMENTS__', '');
+  seedSql = seedSql.replace('-- __SEED_ACTIVITY__', '');
+  return seedSql;
+}
+
+if (require.main === module) main();
+
+module.exports = { SCHEMA_PATH, buildSeedSql, backfillSectionIds };

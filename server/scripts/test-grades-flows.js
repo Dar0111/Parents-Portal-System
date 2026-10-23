@@ -2000,12 +2000,13 @@ async function run() {
     // The throwaway Matipid student above is the only write target. Writing
     // to this student would make the suite able to break the demo fixture.
     //
-    // These five rows are LEGACY: they were seeded with hand-picked letters
-    // and no component or Summative scores at all, back when a teacher chose
-    // the letter. They keep their letters — nothing rewrites a stored grade —
-    // and the assertions below pin what that means now that the letter is
-    // computed: a term cell still reads, and everything DERIVED from the
-    // scores behind it is null, because there are no scores behind it.
+    // These five rows were LEGACY — hand-picked letters with no scores behind
+    // them — until B7 (D-102, 2026-10-24): scripts/demoGrade1.js gives each
+    // one WW and one PT slot (HPS 20) and Summative maxima 20/20/20, with
+    // scores that compute the same letters, for db:setup and
+    // db:migrate:demo-grade1 alike. The assertions below pin the COMPUTED
+    // card: the same letters, an Initial Grade behind each term, and a Final
+    // letter for Mathematics, the one subject with all three terms.
     console.log('\nSeeded Grade 1 fixture (read-only — do not write):');
 
     const g1ParentLogin = await login('1090001', 'Parent@2026');
@@ -2046,19 +2047,18 @@ async function run() {
         mathCard?.terms?.[2]?.descriptive_grade === 'B' &&
         mathCard?.terms?.[3]?.descriptive_grade === 'C' &&
         mathCard?.terms?.[1]?.term_grade === null,
-      'Seeded Mathematics keeps its three hand-set letters A/B/C, term_grade null — a stored grade is never rewritten by a rule change'
+      'Seeded Mathematics reads A/B/C, term_grade null — the letters D-102 computes from scores'
     );
-    // THE LEGACY CASE, and the reason it gets its own assertion: all three
-    // terms ARE recorded here, so "incomplete" cannot explain the null. The
-    // Final letter is the average of the three terms' Initial Grades, and
-    // these rows have none — the letters were typed, not computed. A Final
-    // letter invented from A/B/C would be a number the school never produced.
+    // THE COMPUTED CASE (D-102). Each term carries the Initial Grade the
+    // scores give (94.70, 85.00, 77.50), and the Final letter is the band of
+    // their mean, 85.73 — B. A legacy subject (letters with no scores) still
+    // has no Final; the seed simply holds none any more.
     assert(
-      mathCard?.terms?.[1]?.initial_grade === null &&
-        mathCard?.terms?.[2]?.initial_grade === null &&
-        mathCard?.terms?.[3]?.initial_grade === null &&
-        mathCard?.final_grade === null,
-      `A legacy Grade 1 subject with all three letters and NO scores has final_grade null (got ${mathCard?.final_grade})`
+      Number(mathCard?.terms?.[1]?.initial_grade) === 94.7 &&
+        Number(mathCard?.terms?.[2]?.initial_grade) === 85 &&
+        Number(mathCard?.terms?.[3]?.initial_grade) === 77.5 &&
+        mathCard?.final_grade === 'B',
+      `Seeded Mathematics has Initial Grades 94.70 / 85.00 / 77.50 and the Final letter B (got ${mathCard?.terms?.[1]?.initial_grade} / ${mathCard?.terms?.[2]?.initial_grade} / ${mathCard?.terms?.[3]?.initial_grade}, final ${mathCard?.final_grade})`
     );
 
     // "Reading and Literacy", the school's own name — renamed from "Reading"

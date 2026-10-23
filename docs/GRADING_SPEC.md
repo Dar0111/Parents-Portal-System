@@ -303,17 +303,22 @@ and the band arithmetic are the teacher's; the card shows `A Advancing` and
 the legend. This matches the existing rule for numerical grades, where the
 Initial Grade is deliberately not shown.
 
-**Nino's five seeded rows have no components and are kept as legacy.** They
-were entered as letters before any computation existed, and a computed path
-must tolerate a letter with no inputs rather than back-filling invented
-assessment data — that is honestly what a transitional row looks like.
+**Nino's five seeded rows are COMPUTED since B7 (D-102, 2026-10-24).** They
+were entered as letters before any computation existed — legacy rows — and
+`scripts/demoGrade1.js` now gives each one Written Work and one Performance
+Task slot (HPS 20) and Summative maxima of 20/20/20, with scores that compute
+the same letters: Mathematics A / B / C (Initial Grades 94.70, 85.00, 77.50;
+Final **B**, the band of 85.73), Reading and Literacy D / E (70.00, 60.00).
+It is demo data, not assessment data, and it is written by the same pure
+functions `recomputeGrade` uses, for `db:setup` and `db:migrate:demo-grade1`.
 
-**What that means on screen, and it is visible on the demo card:** a legacy
-subject with all three letters recorded still shows **no Final letter**,
-because the Final averages the three terms' Initial Grades and there are none
-behind a typed letter. Nino's Mathematics reads A / B / C with "— Pending" for the Final,
-and that is correct, not a bug. The breakdown modal on such a row says the
-grade predates kept scores rather than claiming the grade level has none.
+**A legacy row, wherever one exists, still means what it did:** a subject with
+all three letters typed and no scores shows **no Final letter**, because the
+Final averages the three terms' Initial Grades and there are none behind a
+typed letter — correct, not a bug — and the breakdown modal says the grade
+predates kept scores rather than claiming the grade level has none. **But an
+HPS or Summative-maximum save on its class recomputes it**, and with no scores
+behind it the letter becomes Pending until every score is in.
 **The card's reading note says so too (build 1 fix round, 2026-10-05):** it
 said the final letter "appears once all three terms are recorded", which read
 as false beside three recorded letters; it now says the final letter "is

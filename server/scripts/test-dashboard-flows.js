@@ -375,13 +375,16 @@ async function run() {
   // this is the assertion that catches either one.
   //
   // It scans the SERIALIZED payload rather than named fields, because a
-  // field added later would not be in a list written today. Nino's rows are
-  // legacy and hold no scores, so this does not prove the computed case; a
-  // fixture for that needs a second Grade 1 learner and a parent account,
-  // which this suite's cleanup does not create or remove. Recorded as a gap,
-  // not as coverage.
+  // field added later would not be in a list written today. Since B7 (D-102,
+  // 2026-10-24) Nino's rows hold real scores and Initial Grades
+  // (scripts/demoGrade1.js), so the computed case is real here too: no key
+  // AND no spelling of any of the five Initial Grades reaches the payload.
   const g1Payload = JSON.stringify(p2);
   assert(!/initial_grade/.test(g1Payload), 'No initial_grade key anywhere in a Grade 1 parent dashboard payload');
+  assert(
+    !['94.70', '94.7', '85.00', '77.50', '77.5', '70.00', '60.00'].some((s) => g1Payload.includes(s)),
+    "None of the computed Grade 1 card's Initial Grades appears in the parent dashboard payload, in any decimal spelling"
+  );
   assert(
     p2.grades.general_average === null && p2.grades.term === null && p2.grades.subjects_recorded === null,
     'Every numeric grade field on a Grade 1 parent dashboard is null — there is no General Average in Key Stage 1'

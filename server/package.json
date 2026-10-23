@@ -17,6 +17,7 @@
     "db:migrate:contact-verification": "node scripts/migrate-contact-verification.js",
     "db:migrate:privacy": "node scripts/migrate-privacy.js",
     "db:migrate:grade-acknowledgements": "node scripts/migrate-grade-acknowledgements.js",
+    "db:migrate:demo-grade1": "node scripts/migrate-demo-grade1.js",
     "sms:probe": "node scripts/probe-sms-gateway.js",
     "proof:backups": "node scripts/proof-backup-loop.js",
     "test:sms-transport": "node scripts/test-sms-transport.js",

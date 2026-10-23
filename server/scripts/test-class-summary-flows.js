@@ -553,8 +553,8 @@ async function main() {
     assert(g1Final.status === 200, 'Grade 1 final view is 200', why(g1Final));
     const ninoFinal = (g1Final.data?.learners || []).find((l) => l.first_name === 'Nino');
     assert(
-      ninoFinal?.cells[mathCol]?.value === null,
-      'THE LEGACY CASE: all three terms are lettered, yet the Final letter is null — those letters were typed, not computed, so there are no Initial Grades to average',
+      ninoFinal?.cells[mathCol]?.value === 'B',
+      'THE COMPUTED CASE (D-102, B7): all three terms are scored, so the Final letter is the band of the three Initial Grades — 85.73, B',
       `got ${ninoFinal?.cells[mathCol]?.value}`
     );
     assert(

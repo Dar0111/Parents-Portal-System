@@ -3527,10 +3527,13 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
 // grade_available for both modes (see the hook there), so a letter still
 // reaches the parent — through the one path, once.
 //
-// Legacy rows are unaffected and NOT rewritten: the five seeded Grade 1
-// letters carry no components, so nothing recomputes them and they keep the
-// letters they were given. They can no longer be edited through the API,
-// which is the accepted cost of one write path.
+// A legacy row (a letter typed before the rule, with no scores behind it)
+// keeps its letter only until something recomputes it: an HPS or a
+// Summative-maximum save on its class (PUT /class-record fans out to every
+// unlocked row of that subject and term) rewrites it to NULL — Pending —
+// until every score is in. It cannot be edited back by hand, the accepted
+// cost of one write path. The seed holds none since B7 (D-102): Nino's five
+// letters carry scores (scripts/demoGrade1.js).
 // PATCH /api/grades/:id/lock — admin only, unscoped. Toggles is_locked,
 // which every write endpoint above already checks (via
 // preflightGradeWrite) but which nothing could set until now.

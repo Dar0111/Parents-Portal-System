@@ -12,6 +12,8 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const mysql = require('mysql2/promise');
+const gc = require('../utils/gradeComputation');
+const demo = require('./demoGrade1');
 
 const SCHOOL_YEAR = '2026-2027';
 
@@ -301,7 +303,7 @@ async function run() {
     );
 
     const [g1Grades] = await conn.query(
-      `SELECT g.id, g.term, g.descriptive_grade, g.term_grade, g.initial_grade, s.name AS subject_name
+      `SELECT g.*, s.name AS subject_name
        FROM grades g
        JOIN subjects s ON s.id = g.subject_id
        WHERE g.student_id = ? AND g.school_year = ?`,
@@ -309,14 +311,86 @@ async function run() {
     );
     check(g1Grades.length === 5, 'Exactly 5 grade rows for the Grade 1 student (partial card)', `found ${g1Grades.length}`);
 
-    const allLetters = g1Grades.every(
-      (r) => r.descriptive_grade != null && r.term_grade == null && r.initial_grade == null
+    // COMPUTED SINCE B7 (D-102, 2026-10-24). These five rows were LEGACY —
+    // letters typed with no scores behind them. scripts/demoGrade1.js now
+    // gives each one WW and one PT slot (HPS 20) and Summative maxima of
+    // 20/20/20, for db:setup and db:migrate:demo-grade1 alike. Two checks per
+    // row: the stored scores are the module's table, and the stored results
+    // are what utils/gradeComputation.js computes from those STORED inputs —
+    // the same functions, in the same order, as recomputeGrade.
+    const gradeIds = g1Grades.map((r) => r.id);
+    const [components] = gradeIds.length
+      ? await conn.query('SELECT grade_id, type, score, max_score, slot_id FROM grade_components WHERE grade_id IN (?)', [gradeIds])
+      : [[]];
+    check(components.length === 10, 'Ten grade_components on the descriptive fixture — one WW and one PT per row', `found ${components.length}`);
+
+    const [g1Weights] = await conn.query(
+      `SELECT w.subject_id, w.ww_weight, w.pt_weight, w.ex_weight
+         FROM grade_weight_configs w JOIN subjects s ON s.id = w.subject_id
+        WHERE s.grade_level = 1 AND w.school_year = ?`,
+      [SCHOOL_YEAR]
     );
-    check(
-      allLetters,
-      'Every seeded Grade 1 grade row stores a letter and leaves numerical columns NULL — not a computed result',
-      g1Grades.map((r) => `${r.subject_name} T${r.term}=${r.descriptive_grade}/${r.term_grade}`).join(', ')
+    const [g1Slots] = await conn.query(
+      'SELECT id, subject_id, term, type, slot_no, max_score FROM assessment_slots WHERE grade_level = ? AND section = ? AND school_year = ? AND max_score IS NOT NULL',
+      [demo.LEARNER.grade_level, demo.LEARNER.section, SCHOOL_YEAR]
     );
+
+    for (const expected of demo.ROWS) {
+      const name = `${expected.subject} T${expected.term}`;
+      const row = g1Grades.find((r) => r.subject_name === expected.subject && Number(r.term) === expected.term);
+      if (!row) {
+        check(false, `${name}: the row exists`, 'missing');
+        continue;
+      }
+      const ww = components.filter((c) => c.grade_id === row.id && c.type === 'WW');
+      const pt = components.filter((c) => c.grade_id === row.id && c.type === 'PT');
+      const used = g1Slots.filter((s) => s.subject_id === row.subject_id && Number(s.term) === expected.term);
+      const usedWw = used.filter((s) => s.type === 'WW').map((s) => s.id);
+      const usedPt = used.filter((s) => s.type === 'PT').map((s) => s.id);
+      const weights = g1Weights.find((w) => w.subject_id === row.subject_id);
+
+      const inputsAreTheModules =
+        ww.length === 1 && pt.length === 1 && usedWw.length === 1 && usedPt.length === 1 &&
+        ww[0].slot_id === usedWw[0] && pt[0].slot_id === usedPt[0] &&
+        toCents(ww[0].score) === expected.ww * 100 && toCents(pt[0].score) === expected.pt * 100 &&
+        [ww[0].max_score, pt[0].max_score, row.ex_st1_max, row.ex_st2_max, row.ex_te_max].every((m) => toCents(m) === demo.HPS * 100) &&
+        used.every((s) => toCents(s.max_score) === demo.HPS * 100) &&
+        toCents(row.ex_st1) === expected.st1 * 100 && toCents(row.ex_st2) === expected.st2 * 100 && toCents(row.ex_te) === expected.te * 100;
+      check(
+        inputsAreTheModules,
+        `${name}: one WW and one PT slot (HPS 20), scores ${expected.ww} / ${expected.pt}, summative ${expected.st1} / ${expected.st2} / ${expected.te} of 20 — the module's table`,
+        `components ${ww.length} WW + ${pt.length} PT, slots ${usedWw.length} WW + ${usedPt.length} PT`
+      );
+
+      const wwPercentage = gc.componentPercentage(ww, usedWw);
+      const ptPercentage = gc.componentPercentage(pt, usedPt);
+      const exPercentage = gc.exPercentage(
+        gc.subTestPercentage(row.ex_st1, row.ex_st1_max),
+        gc.subTestPercentage(row.ex_st2, row.ex_st2_max),
+        gc.subTestPercentage(row.ex_te, row.ex_te_max)
+      );
+      const wwWeighted = gc.weighted(wwPercentage, weights?.ww_weight);
+      const ptWeighted = gc.weighted(ptPercentage, weights?.pt_weight);
+      const exWeighted = gc.weighted(exPercentage, weights?.ex_weight);
+      const initial = gc.initialGrade(wwWeighted, ptWeighted, exWeighted);
+      const recomputed = {
+        ww_percentage: wwPercentage, ww_weighted: wwWeighted,
+        pt_percentage: ptPercentage, pt_weighted: ptWeighted,
+        ex_percentage: exPercentage, ex_weighted: exWeighted,
+        initial_grade: initial,
+      };
+      const storedAgrees =
+        initial !== null &&
+        Object.entries(recomputed).every(([key, value]) => value !== null && toCents(row[key]) === Math.round(value * 100)) &&
+        row.descriptive_grade === gc.bandForScore(initial) &&
+        row.descriptive_grade === expected.letter &&
+        row.term_grade === null;
+      check(
+        storedAgrees,
+        `${name}: ${expected.letter}, Initial Grade ${initial === null ? 'none' : initial.toFixed(2)} — what gradeComputation computes from the stored scores; term_grade NULL`,
+        `stored ${row.descriptive_grade} / ${row.initial_grade} / ${row.term_grade}`
+      );
+    }
 
     function lettersFor(name) {
       return g1Grades
@@ -336,16 +410,6 @@ async function run() {
     );
     const untouched = ['GMRC', 'Language', 'Makabansa'].every((name) => lettersFor(name).length === 0);
     check(untouched, 'GMRC, Language, and Makabansa have zero grade rows (Pending)');
-
-    const gradeIds = g1Grades.map((r) => r.id);
-    if (gradeIds.length) {
-      const [components] = await conn.query('SELECT COUNT(*) AS c FROM grade_components WHERE grade_id IN (?)', [
-        gradeIds,
-      ]);
-      check(components[0].c === 0, 'Zero grade_components on the descriptive fixture — no WW/PT path');
-    } else {
-      check(false, 'Zero grade_components on the descriptive fixture — no WW/PT path', 'no grade rows to check');
-    }
   } finally {
     await conn.end();
   }

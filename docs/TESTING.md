@@ -43,7 +43,7 @@ twenty-four at `docs/stage5` the same day); on 2026-09-26 it was twenty-three wi
 tests, and the "twenty-two … eighteen" before that was wrong by one HTTP
 suite, because `test:grade-computation` is described in a paragraph below
 rather than a bullet. **Also in `package.json`:** `verify:grading-seed`,
-ten `db:migrate:*` scripts (`db:migrate:grade-acknowledgements` since 2026-10-21, `db:migrate:privacy` since 2026-10-10), `sms:probe` and `proof:backups`. Scripts that
+eleven `db:migrate:*` scripts (`db:migrate:demo-grade1` since 2026-10-24 — D-102, B7 — `db:migrate:grade-acknowledgements` since 2026-10-21, `db:migrate:privacy` since 2026-10-10), `sms:probe` and `proof:backups`. Scripts that
 are not tests and have no baseline here — client `build` / `preview`,
 mobile `start` / `android` / `tokens:write` — are in README → NPM scripts. **Every count below
 was re-run on 2026-09-22 and EIGHT were stale** — students, grades,
@@ -619,7 +619,7 @@ wrong-password sign-in), both kept.
 direct-DB verification script (no server, no HTTP, no `assert()` harness),
 checking the Grades seed (transmutation table, weights, modes, Grade 1
 descriptive fixture) is internally consistent. Run it after `db:setup`, before
-trusting the seed. **46/46 as of 2026-09-26** (was 44: Grades 2 and 3 now assert their confirmed order — +4 — and the two "NULL on purpose" checks are gone — −2) — the descriptive-exclusion
+trusting the seed. **B7 (D-102, 2026-10-24) rewrote its Grade 1 fixture block for the COMPUTED rows** — ten `grade_components`; per row, the scores are `scripts/demoGrade1.js`'s table (one WW and one PT slot at HPS 20, Summative 20/20/20), and the stored percentages, weighted parts, Initial Grade and letter are what `utils/gradeComputation.js` computes from those STORED inputs, `term_grade` NULL; the old "letters only, numerical NULL" and "zero components" checks are gone (its count is recorded with B7's gate). **46/46 as of 2026-09-26** (was 44: Grades 2 and 3 now assert their confirmed order — +4 — and the two "NULL on purpose" checks are gone — −2) — the descriptive-exclusion
 check **inverted** to "every grade level has weights" when Grade 1 gained its
 own, plus one asserting Grade 1 is exactly 30/50/20. **There is now a second
 reason to run it: after restoring any backup**, because every dump taken
