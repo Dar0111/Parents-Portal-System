@@ -1,4 +1,4 @@
-# Activity log — device check (`feat/activity-log`, B2, built 2026-10-23/24; waits for its go)
+# Activity log — device check (`feat/activity-log`, B2, built 2026-10-23/24; PASSED 2026-10-24)
 
 The owner's check of B2: **Admin → Activity log** reads `activity_logs` newest
 first by Manila day, account role and action, 50 a page, and downloads exactly
@@ -31,6 +31,15 @@ parent (the suite proves a parent's `403`).
 - **The marks** (read-only): `activity_logs`' highest id, the `login_attempts`
   count, the next ids of `users` and `notifications`. Health, then a backup —
   the pre-check dump, not a restore point. No fixture.
+- **As run (2026-10-24 01:26):** health 200; **backup 368**
+  (`parents_portal_2026-10-24_012659.sql`, 2,663,879 bytes, footer present —
+  the pre-check dump; 317 stays the restore point); the marks —
+  `activity_logs` highest id 29652, `login_attempts` 16, `auth_codes` 11
+  (highest 305; recorded because the owner's SMS test followed the check),
+  `users` highest id 647, `notifications` 0; the B2 worktree detached at
+  `774b98c` and the main tree switched to `feat/activity-log` at `774b98c`;
+  `GET /api/activity-logs` with no token `401`, not `404` — the running API
+  had reloaded on the branch.
 
 ## 1. Web, the admin, 1280 px, light — the page
 
@@ -105,6 +114,48 @@ check's sign-ins and downloads — kept, as activity rows always are) and
 `login_attempts` (only if a sign-in was mistyped). The check writes nothing
 else, so there is no cleanup by id; the survey says so.
 
+**As run (2026-10-24 02:08–02:11).** The owner's SMS test came after the
+check, so its one row is cleaned up here. **The SMS test** (the owner's own
+`.env`, not read): SMS switched to SMSGate Cloud mode and the 5000 API
+restarted; `npm run sms:probe` answered reachable, http 200, gateway status
+pass, then crashed at exit on a libuv assertion
+(`!(handle->flags & UV_HANDLE_CLOSING)`, `src\win\async.c` line 76 — for B7,
+CLAUDE.md NEXT); a Forgot password on Lito Bautista at about 02:04 delivered
+the reset code by text to the Tecno. **The survey** (read only, against
+§0): every count at its §0 value but `activity_logs` (+6 — Principal Admin's
+sign-in at 01:34 and downloads at 01:43 and 01:51, Maria Santos's sign-ins at
+01:40 and 01:53, the reset request at 02:04; kept) and `auth_codes` (+1 — id
+466, Lito Bautista's `password_reset` of 02:04:17, unused); `login_attempts`
+16, `notifications` 0. **Backup 369** (`parents_portal_2026-10-24_020902.sql`,
+2,664,531 bytes, footer present — the pre-cleanup dump; 317 stays). **ONE
+guarded transaction:** G1 the rows above 305 are exactly id 466, Lito
+Bautista's, `password_reset`; G2 one row deleted; G3 `auth_codes` 11, highest
+305 — committed. **After:** `auth_codes` 11 (highest 305), `notifications` 0;
+the four seeded staff passwords still sign in (a guard only — no restore);
+`test:recovery` **141/141** and `test:activity-log` **98/98** on 5001 with
+file transports, from the B2 worktree (detached at `774b98c`); the survey
+after them every seeded count at §0 but `activity_logs` (+59) and
+`login_attempts` (16 → 17, `test:recovery`'s deliberate wrong-password
+sign-in), both kept.
+
 ## 8. Result
 
-PENDING — the device check waits for its own go.
+**PASSED 2026-10-24 — §1–§5 on the web, every row, no findings, no fix
+round.** §6 (the phone) dropped (C8). As run, where it differs from the
+sheet:
+
+- **Row 5** ran with role **Teacher** still set from row 4: 47 of 47 entries
+  (the 51 is All roles; row 12's CSV shows the admin's rows that make the
+  difference).
+- **Row 7** ran with **All Attendance** still set from row 6, giving the empty
+  state "No Attendance entries for deleted accounts from 18 Oct 2026 to 24 Oct
+  2026."
+- **Row 8b** ran with **All roles**, giving 'No "Signed in" entries from 16
+  Oct 2026 to 17 Oct 2026.'
+- **Row 9** ran with To = **13 Oct**.
+- **Row 12** opened the CSV in **Google Sheets**, not Excel.
+- **Row 14** downloaded the all-dates file (3.1 MB).
+
+The check's own rows: three sign-ins and two downloads in `activity_logs`
+(kept); nothing else. The cleanup above removed the SMS test's one
+`auth_codes` row.

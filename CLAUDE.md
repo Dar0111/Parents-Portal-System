@@ -1664,16 +1664,27 @@ Merged after the close, each device-checked, with their item pointers:
 with `feat/password-alert`, B1, B3 and B8 are MERGED, the last `47be373`
 (2026-10-23); each one's check, cleanup and backup: its CHANGELOG row and
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Next, on the owner's word (the
-owner's order, 2026-10-23):** B2 `feat/activity-log` is BUILT on its branch
-in its own worktree (`Parents_Portal-activity-log`, 2026-10-23/24: trim-11
-`00235a0`, the three writers' ids `04258c8`, the build `d516c61` — §36),
-gated 2026-10-24 after backup 363; its device
-check (`docs/ACTIVITY_LOG_DEVICE_CHECK.md`) waits for its own go —
+owner's order, 2026-10-23):** B2 `feat/activity-log` is MERGE-READY on its
+branch (built in its own worktree `Parents_Portal-activity-log`, 2026-10-23/24:
+trim-11 `00235a0`, the three writers' ids `04258c8`, the build `d516c61` —
+§36), gated 2026-10-24 after backup 363, device-checked 2026-10-24 on the
+web (§1–§5, no findings; `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §8) and cleaned
+up by id after backup 369; it merges on the owner's word —
 then B7 `docs/pre-oct21` — the demo data and a new restore point. **For B7
 (the owner's Q7): `activity_logs` keeps every row, and the demo's 7-day view
 shows gate rows unless the demo data is made after the last gate** — 28,983
 rows since 2026-09-07, about 589 a day over the 14 days to 2026-10-23, 17% of
-them from deleted suite accounts, and a full gate writes about 650; then the
+them from deleted suite accounts, and a full gate writes about 650. **B7 also
+carries four items (2026-10-24):** (a) SMS runs in SMSGate Cloud mode since
+2026-10-24, through the owner's `.env` alone, so the wording that says local
+mode — `server/utils/smsTransport.js`'s comments, `server/.env.example`,
+README — needs re-wording; (b) `npm run sms:probe` prints its answer
+(reachable, http 200, gateway status pass), then crashes at exit on a libuv
+assertion (`!(handle->flags & UV_HANDLE_CLOSING)`, `src\win\async.c` line
+76); (c) SMS end-to-end encryption, approved 2026-10-24 and not built — in B7
+or its own small branch, the owner to choose; (d) Q9.6's stale claims — the
+companion-table range, "Four rules" over five bullets, the M26 index and
+RESTORE's three-of-five list. Then the
 Supabase migration in Session B,
 whose sync must add B1's
 26th table `grade_acknowledgements` and the two `notifications.type` values
@@ -1682,7 +1693,8 @@ row, 2026-10-21). The
 owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
 still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346,
-354 and 362 are the five checks' pre-cleanup dumps, 361 B8's pre-check dump,
+354, 362 and 369 are the six checks' pre-cleanup dumps, 361 and 368 B8's and
+B2's pre-check dumps,
 347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
 345, 348, 353, 355, 360 and 363 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
