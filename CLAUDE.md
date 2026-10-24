@@ -974,8 +974,9 @@ confirms one again in that session); then your own password
 Three ticks in the principal's draft words
 (§29a), the child by first name, never the LRN; a stale version is 409. **The
 socket refuses the same gates, and a restore re-runs the privacy step
-itself** (fix round). **The text (`server/policy/`) is a
-placeholder; staff tick two boxes, no child tick.** New teachers and parents change
+itself** (fix round). **The text (`server/policy/`) is the
+owner's draft-2 of both documents (feat/privacy-text, plain paragraphs); staff
+tick two boxes, no child tick.** New teachers and parents change
 the password someone else typed. **Every password change is announced to its
 holder on every confirmed channel — the password alert (feat/password-alert,
 2026-10-21; §11).** **Sign-in: 5 failures in a row / 100 per IP
@@ -1459,7 +1460,6 @@ gate in full on its `POST /api/users/parents` row.
 | **A truncated dump from the 2026-09-15 browser check is on disk as an orphan, and nothing on screen says it is incomplete** | `server/backups/parents_portal_2026-09-15_003822.sql` + `createBackupRecord` | No `-- Dump completed on` footer; `createBackupRecord`'s cleanup runs only in a live process. **Check any orphan for the footer before adopting it.** Not deleted (no backup file is ever deleted). **Cause named 2026-09-30:** `node --watch` restarting on access-time events in `node_modules`; the `dev` script now watches our code only, and the demo runs `npm start` |
 | **Five phone / APK notes, one row (2026-09-27 → 10-04): Expo Go on the Play Store moves to SDK 58 in October 2026 (auto-update is OFF on the phone; the SDK 57 APK or a USB install is the fallback, or an SDK 58 upgrade before November); a release build refuses plain `http://` (a cleartext setting or a network security config); the message tone plays during DND and the 150 ms vibration ignores DND and the ringer (the APK fix); the status bar colour is ignored under enforced edge-to-edge (re-check on every SDK upgrade, on Android 15+ and in the APK)** | `mobile/` | Not code defects — dates and the APK to watch. The five rows in full: `docs/KNOWN_ISSUES.md`, and as they stood here in `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-21 (docs/trim-10, the tenth trim)" |
 | **BEFORE THE PILOT — change the seeded admin password** — added 2026-10-04 | `server/scripts/setup-db.js` + `server/scripts/proof-backup-loop.js:172` + `server/scripts/test-messages-flows.js:95` (and `:101` / `:106` / `:151` / `:165`, the seeded teacher and parent sign-ins) | It still signs in on the live DB (backups 275, 276 and 278), and the proof and the messages suite hold it in the repo; `test:privacy` READS it from `:172` at run time. After the change all three need another way to sign in (an env var, never a value in a file). **Never print the value** |
-| **BEFORE THE PILOT — the notice and terms are PLACEHOLDERS** — added 2026-10-10 | `server/policy/*` | Approved text → replace the file, bump its version, restart the API |
 | **A visit's clear can mark read a row whose item is not on the first view** — added 2026-10-22 (`fix/f3-badges`; accepted, the owner's Q3, Q5, Q6) | `realtime/useVisitClear.js` (both clients) + `routes/notifications.js` `VISIT_CLEAR` | The section clears whole: a row created between the load and the clear, an item past page 1, a past-dated event (parent Events opens on Upcoming), and on the phone the admin's memo rows while Announcements shows. The bell still lists each row, read. No guard, by decision |
 | **The Upcoming events card's loading shape still draws a figure-sized first row — its lines move up about 8px when it loads** — added 2026-10-23 (`fix/f3-badges`; accepted, the owner's Q3) | both shared `dashboards/Card.jsx` (`skeleton="list"`) | Since the card's name became a line (the B3 check's finding #1), the shared skeleton no longer matches it (§5a-vii). Cosmetic; a line-sized lead shape is its own dispatch |
 | **An attendance register open elsewhere can write a day's old mark back over an excuse decision** — added 2026-10-23 (`feat/excuse-attendance`; accepted, the owner's Q7) | both registers' Save (`entries`, every mark on screen) + `POST /attendance/bulk` | A second tab, another device, or a phone register holding unsaved marks (its focus re-read skips it). The day is then the adviser's mark, correctable; the letter stands. Fix: Save only the changed marks, its own dispatch |
@@ -1676,11 +1676,14 @@ exit-time abort guarded); each one's check, cleanup and backup: its CHANGELOG
 row and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23".
 **Next, in the owner's order (2026-10-25; D-36, D-122, D-124 changed):**
 
-1. **The privacy text in the app** (D-36) — `feat/privacy-text`, PLAN
-   APPROVED 2026-10-25: the owner's draft-2 Data Privacy Notice and Terms of
-   Use, both versions `draft-2` (D-124 changed by the owner: in now, without
-   waiting for the principal's approval; a change he asks for is a later
-   small update).
+1. **The privacy text in the app** (D-36) — `feat/privacy-text` (worktree
+   `Parents_Portal-privacy-text`), PLAN APPROVED 2026-10-25: the owner's
+   draft-2 Data Privacy Notice and Terms of Use, both versions `draft-2`
+   (D-124 changed by the owner: in now, without waiting for the principal's
+   approval; a change he asks for is a later update under a new version,
+   which asks every account again); next its device
+   check (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`, web only — the phone joins the
+   D-67 phone pass). **After the restart every account accepts again once.**
 2. **Then Session A's half of the Phase 3 split.**
 3. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
    then Phase 3; the owner writes `supabase.env` after Session A. **Its next

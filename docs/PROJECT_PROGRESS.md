@@ -121,7 +121,7 @@ A module with tables and no handlers is not started; there are none.
 | Module | Tables | Handlers | Suites | Web |
 |---|---|---|---|---|
 | Auth + account recovery + own profile photo + sign-in limits | `users`, `auth_codes`, `auth_security_state`, `login_attempts` | 14 (`PUT /email` and `PUT /first-password` since `feat/first-signin`, merged 2026-10-21) | `test:auth`, `test:recovery`, `test:auth-middleware`, `test:sanitize`, `test:sms-transport`, `test:profile-photo`, `test:privacy` | Login, Forgot password, forced password change (also for every new teacher and parent), Settings (Account — with the profile photo —, Password, Personalization) for all roles |
-| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are placeholders |
+| Privacy — consent (feat/privacy, merged 2026-10-11) | `policy_acceptances` | 3 | `test:privacy` | the consent screen (every role since feat/staff-acceptance — staff with two ticks — FIRST, before the contact step and the password, since feat/first-signin); Settings → Security & policy (every role). The notice and terms are the owner's draft-2 (feat/privacy-text, both `draft-2`) |
 | User management | `users` | 11 | `test:users`, `test:profile-photo` | Admin → Users (remove a photo; never upload one for someone else) |
 | Student records | `students` | 5 | `test:students` | Teacher → Students + detail (enrol, create parent account); Admin → Students + detail |
 | Sections | `sections` | 3 | `test:sections` | none by decision; read by pickers |
@@ -220,7 +220,9 @@ Node ≥ 24.20.0 upgrade the owner's decision; `main` fast-forwarded from
 **Next, in the owner's order (2026-10-25; CLAUDE.md NEXT names each item):**
 (1) the privacy text in the app (D-36; D-124 changed by the owner — in now,
 without waiting for the principal's approval) — `feat/privacy-text`, both
-documents' draft-2 text, both versions `draft-2`; (2) then Session A's half of
+documents' draft-2 text, both versions `draft-2`, built; then its gate and its
+web device check (`docs/PRIVACY_TEXT_DEVICE_CHECK.md`; the phone joins the
+D-67 phone pass); (2) then Session A's half of
 the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
 sync with `main` (its next sync carries P-19's DELETE in both forms and the
 SMS change), then the D-65 fix round, then Phase 3 (the owner writes
@@ -239,9 +241,9 @@ included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
 restore point is backup 376, `parents_portal_2026-10-24_150020.sql` (after
 B7's demo data; it still holds the old activity rows — D-122; 317,
 `parents_portal_2026-10-13_233314.sql`, the previous one). 324, 338, 346, 354,
-362 and 369 are the six checks' pre-cleanup dumps, 361, 368 and 375 B8's, B2's
+362, 369 and 382 are the seven checks' pre-cleanup dumps, 361, 368 and 375 B8's, B2's
 and B7's pre-check dumps, 347 the demo records', and 339, 344, 345, 348, 353,
-355, 360, 363 and 370 pre-write dumps, not restore points.
+355, 360, 363, 370 and 377 pre-write dumps, not restore points.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged;
@@ -287,9 +289,10 @@ and the phone teacher picker's empty groups.
 - [ ] **RA 10173 (Data Privacy Act).** Ask the school whether loading real
       names and LRNs needs a consent process, and whether a form exists.
       **The in-app consent step exists since the privacy build
-      (2026-10-10)**, but the Data Privacy Notice and Terms of Use it shows
-      are placeholders — **the school's approved text replaces them**
-      (`server/policy/`, a version bump; KNOWN_ISSUES).
+      (2026-10-10)**, and since feat/privacy-text the Data Privacy Notice and
+      Terms of Use it shows are the owner's draft-2, sent to the principal —
+      **a change he asks for is a later update** (`server/policy/`, a version
+      bump that asks every account again).
 - [ ] **Confirm ADMIN001's email or mobile number** — a confirmed one is the
       only in-app way back in if the one admin loses its password (CLAUDE.md
       KNOWN ISSUES hazard).

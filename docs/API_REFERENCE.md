@@ -1557,8 +1557,9 @@ reachable while the gate is shut (§5b) — consent is the first of the three
 sign-in steps since feat/first-signin. **The text
 ships with the app**: `server/policy/privacy-notice.md`, `terms-of-use.md` and
 `versions.json`, read once when the server starts — a new text is an edit, a
-version bump and a restart. Both are still the placeholder ("Draft — awaiting
-the school's approval"; KNOWN ISSUES).
+version bump and a restart. **Both are the owner's draft-2** (feat/privacy-text,
+2026-10-25; the placeholder until then): plain paragraphs separated by a blank
+line, which is all the clients render (FRONTEND §29b).
 
 | Method | Path | Roles | Request body | Response key |
 |---|---|---|---|---|
