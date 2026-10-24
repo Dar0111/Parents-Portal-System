@@ -666,6 +666,10 @@ Added R1 (server) / R2 (client), 2026-09-19. Codes are 6 digits, **bcrypt-
 hashed at rest** in `auth_codes`, valid 10 minutes, 5 attempts, single use,
 3 per account per hour and 10 per IP per hour, and **only the newest code
 for an account+purpose is valid** — issuing one consumes the older ones.
+**A code row older than 24 hours is deleted, its `request_ip` with it, by
+the next code anyone requests** (P-19, `feat/sms-e2e-code-purge`; request-
+driven, no timer — the failed-sign-in prune's shape). It never reaches a
+live code or a row a limit still counts.
 
 1. **`POST /forgot-password` answers `202` with one sentence, always** —
    *"If this account has a confirmed email or mobile number, we sent a code

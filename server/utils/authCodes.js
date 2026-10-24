@@ -31,6 +31,11 @@ const MAX_PER_IP_PER_HOUR = 10;
 // rule, so a script cannot skip it. Counted from the newest row's created_at,
 // so a code whose send failed (and was burned) still starts the wait.
 const RESEND_COOLDOWN_SECONDS = 60;
+// P-19, THE PURGE (feat/sms-e2e-code-purge, 2026-10-24; the owner's Q1 (a)): a
+// code row older than this goes, with its request_ip — the same day-long IP
+// retention as login_attempts (utils/loginThrottle.js). Nothing reads a row
+// that old: a code lives CODE_TTL_MINUTES and both limits look back one hour.
+const KEEP_HOURS = 24;
 
 // crypto.randomInt, not Math.random: this is a credential.
 function generateCode() {
@@ -95,6 +100,10 @@ async function createCode({ userId, purpose, email = null, contact = null, ip })
      VALUES (?, ?, ?, ?, ?, (NOW() + INTERVAL ? MINUTE), ?)`,
     [userId, purpose, codeHash, email, contact, CODE_TTL_MINUTES, ip || null]
   );
+  // REQUEST-DRIVEN, NO TIMER — the failed-sign-in prune's shape: each new code
+  // clears every row past KEEP_HOURS, whoever's it was. It can never reach a
+  // live code or a row a limit still counts.
+  await pool.query('DELETE FROM auth_codes WHERE created_at < (NOW() - INTERVAL ? HOUR)', [KEEP_HOURS]);
 
   return { code, minutes: CODE_TTL_MINUTES };
 }
@@ -160,6 +169,7 @@ module.exports = {
   MAX_PER_ACCOUNT_PER_HOUR,
   MAX_PER_IP_PER_HOUR,
   RESEND_COOLDOWN_SECONDS,
+  KEEP_HOURS,
   generateCode,
   isRateLimited,
   cooldownRemaining,
