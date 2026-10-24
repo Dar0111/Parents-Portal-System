@@ -84,23 +84,9 @@ async function login(loginId, password) {
 async function run() {
   console.log(`\nParents Portal — Auth Flow Tests (${BASE})\n`);
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL since Phase 3 (commit F): the PG_* keys, the API's own role,
+  // loopback only (test-helpers/db.js).
+  const { withDb } = require('./test-helpers/db');
 
   // section_id is resolved the way POST /students stores it (pre-Stage-5
   // #4): the parents gate keys on sections.adviser_id through s.section_id,
@@ -113,7 +99,7 @@ async function run() {
          VALUES (?, ?, ?, ?, ?,
                  (SELECT id FROM sections WHERE name = ? AND grade_level = ? AND school_year = '2026-2027' LIMIT 1),
                  'active', 2)
-         ON DUPLICATE KEY UPDATE first_name = VALUES(first_name)`,
+         ON CONFLICT (lrn) DO UPDATE SET first_name = EXCLUDED.first_name`,
         [lrn, firstName, lastName, grade, section, section, grade]
       )
     );
@@ -142,10 +128,10 @@ async function run() {
     const notificationPairs = pairsFor('user', createdParentUserIds);
     await withDb(async (conn) => {
       if (createdLoginIds.length) {
-        await conn.query('DELETE FROM users WHERE login_id IN (?)', [createdLoginIds]);
+        await conn.query('DELETE FROM users WHERE login_id = ANY(?::text[])', [createdLoginIds]);
       }
       if (createdLrns.length) {
-        await conn.query('DELETE FROM students WHERE lrn IN (?)', [createdLrns]);
+        await conn.query('DELETE FROM students WHERE lrn = ANY(?::text[])', [createdLrns]);
       }
       const deleted = await deleteNotificationsFor(conn, notificationPairs);
       const leftover = await countNotificationsFor(conn, notificationPairs);
@@ -209,7 +195,7 @@ async function run() {
     // stripped 'inactive' out of the schema on every test:auth run.)
     try {
       await withDb((conn) =>
-        conn.query(`UPDATE users SET status = 'inactive' WHERE login_id = 'TCH-001' LIMIT 1`)
+        conn.query(`UPDATE users SET status = 'inactive' WHERE login_id = 'TCH-001'`)
       );
       const inactiveLogin = await login('TCH-001', 'Teacher@2026');
       assert(
@@ -218,7 +204,7 @@ async function run() {
       );
     } finally {
       await withDb((conn) =>
-        conn.query(`UPDATE users SET status = 'active' WHERE login_id = 'TCH-001' LIMIT 1`)
+        conn.query(`UPDATE users SET status = 'active' WHERE login_id = 'TCH-001'`)
       );
     }
 
@@ -381,7 +367,7 @@ async function run() {
     } finally {
       await withDb((conn) =>
         conn.query(
-          `UPDATE users SET contact_number = '09170000003' WHERE login_id = '13567454' LIMIT 1`
+          `UPDATE users SET contact_number = '09170000003' WHERE login_id = '13567454'`
         )
       );
     }

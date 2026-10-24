@@ -89,13 +89,15 @@ router.post('/accept', authenticate, authorize(...policy.ROLES_THAT_ACCEPT), asy
   try {
     let inserted = 0;
     for (const d of policy.CURRENT) {
-      // INSERT IGNORE on uq_policy_once: accepting a version already accepted
-      // is a no-op that still answers success (a double tap, a second tab).
-      const [result] = await pool.query(
-        'INSERT IGNORE INTO policy_acceptances (user_id, document, version, student_id) VALUES (?, ?, ?, ?)',
+      // ON CONFLICT DO NOTHING on uq_policy_once (MySQL's INSERT IGNORE):
+      // accepting a version already accepted is a no-op that still answers
+      // success (a double tap, a second tab). rowCount is 0 on the ignored row.
+      const result = await pool.query(
+        `INSERT INTO policy_acceptances (user_id, document, version, student_id) VALUES (?, ?, ?, ?)
+         ON CONFLICT (user_id, document, version) DO NOTHING`,
         [req.user.id, d.document, d.version, isParent ? req.user.student_id || null : null]
       );
-      inserted += result.affectedRows;
+      inserted += result.rowCount;
     }
     if (inserted > 0) {
       // Document names and versions only — never a login id or an LRN.

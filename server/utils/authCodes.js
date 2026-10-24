@@ -37,9 +37,11 @@ function generateCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
+// THE CLOCK IS THE DATABASE'S (Phase 3): portal.now_s() is MySQL's NOW() —
+// the statement's start, whole seconds (migration/docs/02 C.1, C.6).
 async function countRecentForUser(userId, purpose) {
-  const [rows] = await pool.query(
-    'SELECT COUNT(*) AS c FROM auth_codes WHERE user_id = ? AND purpose = ? AND created_at > (NOW() - INTERVAL 1 HOUR)',
+  const { rows } = await pool.query(
+    "SELECT COUNT(*) AS c FROM auth_codes WHERE user_id = ? AND purpose = ? AND created_at > (portal.now_s() - interval '1 hour')",
     [userId, purpose]
   );
   return Number(rows[0].c);
@@ -47,8 +49,8 @@ async function countRecentForUser(userId, purpose) {
 
 async function countRecentForIp(ip) {
   if (!ip) return 0;
-  const [rows] = await pool.query(
-    'SELECT COUNT(*) AS c FROM auth_codes WHERE request_ip = ? AND created_at > (NOW() - INTERVAL 1 HOUR)',
+  const { rows } = await pool.query(
+    "SELECT COUNT(*) AS c FROM auth_codes WHERE request_ip = ? AND created_at > (portal.now_s() - interval '1 hour')",
     [ip]
   );
   return Number(rows[0].c);
@@ -65,10 +67,13 @@ async function isRateLimited(userId, purpose, ip) {
 
 // Seconds until another code of this purpose may be sent to this account; 0
 // when it may be sent now (no code yet, or the newest is old enough). Both
-// times are the database's, so the server's clock is not involved.
+// times are the database's, so the server's clock is not involved. The age is
+// FLOORED to whole seconds, as TIMESTAMPDIFF truncated: a plain ::int cast
+// would round 59.9 up to 60 and shorten the wait (migration/docs/02 C.6).
 async function cooldownRemaining(userId, purpose) {
-  const [rows] = await pool.query(
-    'SELECT TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age FROM auth_codes WHERE user_id = ? AND purpose = ? ORDER BY id DESC LIMIT 1',
+  const { rows } = await pool.query(
+    `SELECT floor(extract(epoch from (portal.now_s() - created_at)))::int AS age
+       FROM auth_codes WHERE user_id = ? AND purpose = ? ORDER BY id DESC LIMIT 1`,
     [userId, purpose]
   );
   if (!rows.length) return 0;
@@ -92,7 +97,7 @@ async function createCode({ userId, purpose, email = null, contact = null, ip })
   const codeHash = await hashPassword(code);
   await pool.query(
     `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, contact_snapshot, expires_at, request_ip)
-     VALUES (?, ?, ?, ?, ?, (NOW() + INTERVAL ? MINUTE), ?)`,
+     VALUES (?, ?, ?, ?, ?, (portal.now_s() + make_interval(mins => ?)), ?)`,
     [userId, purpose, codeHash, email, contact, CODE_TTL_MINUTES, ip || null]
   );
 
@@ -105,7 +110,7 @@ async function createCode({ userId, purpose, email = null, contact = null, ip })
 // an old phone stops being able to confirm the new one.
 async function burnPending(userId, purpose) {
   await pool.query(
-    'UPDATE auth_codes SET consumed_at = NOW() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL',
+    'UPDATE auth_codes SET consumed_at = portal.now_s() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL',
     [userId, purpose]
   );
 }
@@ -119,9 +124,9 @@ async function burnPending(userId, purpose) {
 async function consumeCode({ userId, purpose, code }) {
   if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return { ok: false };
 
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT id, code_hash, attempts, email_snapshot, contact_snapshot FROM auth_codes
-      WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > NOW()
+      WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > portal.now_s()
       ORDER BY id DESC LIMIT 1`,
     [userId, purpose]
   );
@@ -129,7 +134,7 @@ async function consumeCode({ userId, purpose, code }) {
   if (!row) return { ok: false };
 
   if (row.attempts >= MAX_ATTEMPTS) {
-    await pool.query('UPDATE auth_codes SET consumed_at = NOW() WHERE id = ?', [row.id]);
+    await pool.query('UPDATE auth_codes SET consumed_at = portal.now_s() WHERE id = ?', [row.id]);
     return { ok: false };
   }
 
@@ -138,12 +143,12 @@ async function consumeCode({ userId, purpose, code }) {
     await pool.query('UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ?', [row.id]);
     // The fifth wrong try burns the code rather than leaving it for a sixth.
     if (row.attempts + 1 >= MAX_ATTEMPTS) {
-      await pool.query('UPDATE auth_codes SET consumed_at = NOW() WHERE id = ?', [row.id]);
+      await pool.query('UPDATE auth_codes SET consumed_at = portal.now_s() WHERE id = ?', [row.id]);
     }
     return { ok: false };
   }
 
-  await pool.query('UPDATE auth_codes SET consumed_at = NOW() WHERE id = ?', [row.id]);
+  await pool.query('UPDATE auth_codes SET consumed_at = portal.now_s() WHERE id = ?', [row.id]);
   return { ok: true, emailSnapshot: row.email_snapshot, contactSnapshot: row.contact_snapshot };
 }
 

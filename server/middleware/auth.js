@@ -33,7 +33,7 @@ async function authenticate(req, res, next) {
     // pointing at a user_id that no longer means the same person must stop
     // working. token_valid_after is NULL until the first restore ever runs,
     // so this is a no-op for the entire life of the system until then.
-    const [stateRows] = await pool.query('SELECT token_valid_after FROM auth_security_state WHERE id = 1 LIMIT 1');
+    const { rows: stateRows } = await pool.query('SELECT token_valid_after FROM auth_security_state WHERE id = 1 LIMIT 1');
     const tokenValidAfter = stateRows[0]?.token_valid_after;
     if (tokenValidAfter && decoded.iat * 1000 < new Date(tokenValidAfter).getTime()) {
       return res.status(401).json({
@@ -43,9 +43,10 @@ async function authenticate(req, res, next) {
     }
 
     // policy_accepted: how many CURRENT policy documents this user has
-    // accepted, as a subquery on the same read (no extra round trip).
+    // accepted, as a subquery on the same read (no extra round trip). A
+    // bigint COUNT, which config/db.js hands back as a number.
     const accepted = policy.acceptedCountSql('users.id');
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT id, login_id, role, status, name, email, contact_number, profile_pic, student_id,
               email_verified_at, contact_verified_at, password_changed_at, token_version, must_change_password,
               ${accepted.sql} AS policy_accepted

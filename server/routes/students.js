@@ -53,7 +53,7 @@ function publicStudent(row) {
 // a dead end ending in the server's 409 (KNOWN ISSUES, 2026-09-18). One
 // account per student is a LOCKED decision, so LIMIT 1 is the whole story.
 async function parentAccountFor(studentId) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT id, status FROM users WHERE student_id = ? AND role = 'parent' LIMIT 1`,
     [studentId]
   );
@@ -72,7 +72,7 @@ const CLASS_CHANGE_REFUSED =
 
 // Duplicated from routes/assignments.js. Extract on a third copy, not here.
 async function currentAcademicYear() {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
   );
   return rows[0]?.setting_value || null;
@@ -125,10 +125,15 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
     params.push('active');
   }
 
+  // THE SEARCH (the owner's Q5, 2026-10-25): an exact LRN (portal.ci
+  // equality), or the full name through the one search helper in
+  // config/db.js — case- and accent-insensitive, as MySQL's collation made
+  // it. The space is a string constant: MySQL's " " is an IDENTIFIER on
+  // PostgreSQL (42703, migration/docs/03). Trimmed here, at the boundary.
   if (search) {
     const term = String(search).trim();
-    conditions.push('(s.lrn = ? OR CONCAT(s.first_name, " ", s.last_name) LIKE ?)');
-    params.push(term, `%${term}%`);
+    conditions.push(`(s.lrn = ? OR ${pool.foldedSql("concat(s.first_name, ' ', s.last_name)")} LIKE ?)`);
+    params.push(term, pool.foldedContains(term));
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -151,8 +156,12 @@ router.get('/', authenticate, authorize('teacher', 'admin'), async (req, res) =>
   try {
     // total counts the FILTERED, scoped set (C4). The scope predicate is
     // EXISTS-based, so COUNT(*) over the same WHERE is the DISTINCT count.
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM students s ${where}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total FROM students s ${where}`, params);
+    // SELECT DISTINCT: every sortable key below is in the select list, which
+    // PostgreSQL requires (42P10) where MySQL did not.
+    const { rows } = await pool.query(
       `SELECT DISTINCT s.id, s.lrn, s.first_name, s.last_name, s.grade_level, s.section,
               s.status, s.created_at
        FROM students s
@@ -181,7 +190,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
       if (id !== req.user.student_id) {
         return res.status(404).json({ success: false, message: 'Student not found.' });
       }
-      const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [req.user.student_id]);
+      const { rows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [req.user.student_id]);
       if (!rows.length) {
         return res.status(404).json({ success: false, message: 'Student not found.' });
       }
@@ -189,7 +198,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     }
 
     if (req.user.role === 'teacher') {
-      const [rows] = await pool.query(
+      const { rows } = await pool.query(
         `SELECT s.* FROM students s
          WHERE s.id = ?
            AND ${TEACHER_VIEW_SCOPE_SQL}
@@ -203,7 +212,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     }
 
     // admin
-    const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
@@ -256,7 +265,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     // posts Marwin's LRN with fictional section 'Mabini'; resolving first would
     // turn that 409 into a 400. A write of section_id on insert (same shape as
     // POST /assignments) — not a fifth reader for scoping.
-    const [existing] = await pool.query('SELECT id FROM students WHERE lrn = ? LIMIT 1', [trimmedLrn]);
+    const { rows: existing } = await pool.query('SELECT id FROM students WHERE lrn = ? LIMIT 1', [trimmedLrn]);
     if (existing.length) {
       return res.status(409).json({ success: false, message: 'A student with this LRN already exists.' });
     }
@@ -273,7 +282,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
     // gate is a fact about the target row, so the row has to exist first.
     // A nonexistent section is a 400 to every role — section names are
     // reference data every authenticated user can list, so nothing leaks.
-    const [sectionRows] = await pool.query(
+    const { rows: sectionRows } = await pool.query(
       `SELECT id, adviser_id FROM sections
        WHERE name = ? AND grade_level = ? AND school_year = ?
        LIMIT 1`,
@@ -309,19 +318,21 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       });
     }
 
-    const [result] = await pool.query(
+    const { rows: inserted } = await pool.query(
       `INSERT INTO students (lrn, first_name, last_name, grade_level, section, section_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`,
       [trimmedLrn, first_name, last_name, gradeLevelNum, trimmedSection, sectionRow.id, req.user.id]
     );
+    const newId = inserted[0].id;
 
-    const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [result.insertId]);
+    const { rows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [newId]);
     // Id, not the LRN (§5c) — the LRN doubles as the parent's login id and an
     // audit row persists. Rows written before 2026-09-18 keep their wording.
     await logActivity(
       req.user.id,
       'create_student',
-      `Created student #${result.insertId} (Grade ${gradeLevelNum} - ${trimmedSection})`
+      `Created student #${newId} (Grade ${gradeLevelNum} - ${trimmedSection})`
     );
 
     return res.status(201).json({
@@ -368,7 +379,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       // enrolled the learner and keeps the class list — could see a record
       // they could not correct. A learner outside both legs is 404, exactly
       // as GET /:id answers the same teacher (anti-enumeration, §2).
-      const [rows] = await pool.query(
+      const { rows } = await pool.query(
         `SELECT s.* FROM students s
          WHERE s.id = ?
            AND (
@@ -386,7 +397,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       );
       existing = rows[0];
     } else {
-      const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+      const { rows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
       existing = rows[0];
     }
 
@@ -426,7 +437,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
     if (sectionIdToWrite == null) {
       const schoolYear = await currentAcademicYear();
       if (schoolYear) {
-        const [sectionRows] = await pool.query(
+        const { rows: sectionRows } = await pool.query(
           `SELECT id FROM sections
            WHERE name = ? AND grade_level = ? AND school_year = ?
            LIMIT 1`,
@@ -446,7 +457,7 @@ router.put('/:id', authenticate, authorize('teacher', 'admin'), async (req, res)
       [updated.first_name, updated.last_name, updated.grade_level, updated.section, sectionIdToWrite, id]
     );
 
-    const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
     await logActivity(req.user.id, 'update_student', `Updated student #${id}`);
 
     return res.json({ success: true, message: 'Student updated.', student: publicStudent(rows[0]) });
@@ -470,7 +481,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
     }
@@ -480,14 +491,15 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
     // changed, so nothing is logged. The guarded UPDATE decides that in one
     // statement, which also closes the race between two admins acting at
     // once (the old read-then-write let both log a change).
-    const [result] = await pool.query('UPDATE students SET status = ? WHERE id = ? AND status <> ?', [
+    // rowCount is the MATCHED rows, the meaning affectedRows had here (02 §B).
+    const result = await pool.query('UPDATE students SET status = ? WHERE id = ? AND status <> ?', [
       status,
       id,
       status,
     ]);
-    const [updated] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
+    const { rows: updated } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [id]);
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.json({
         success: true,
         message: `Student is already ${status}. Nothing was changed.`,

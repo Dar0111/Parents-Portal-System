@@ -62,10 +62,10 @@ app.use(
 );
 
 // A HEALTH CHECK THAT CHECKS SOMETHING (pre-Stage-5 #2, o5). This returned a
-// static 200 with MySQL down, which is the one condition a health probe
-// exists to report. `SELECT 1` through the pool — and the pool is the PROXY
-// from config/db.js, so this follows `resetPool()` after a restore rather
-// than a connection captured at boot.
+// static 200 with the database down, which is the one condition a health
+// probe exists to report. `SELECT 1` through the shared pool (config/db.js —
+// PostgreSQL since Phase 3; the pool is never swapped: the PostgreSQL restore
+// does not drop the database, migration/docs/04).
 //
 // The 200 body KEEPS `success: true` and the same message: sixteen HTTP
 // suites preflight on `data.success`, and the smoke's `waitFor` polls this

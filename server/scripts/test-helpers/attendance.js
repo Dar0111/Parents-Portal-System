@@ -21,9 +21,13 @@
  * Takes the suite's own connection, like the notifications helper.
  */
 
+// PostgreSQL since Phase 3 (commit F): the timestamps travel as their own text
+// form WITH the offset (`created_at::text`), so the value written back is the
+// same instant whatever the session's zone — stricter than the MySQL version's
+// zone-less strings, never looser.
 const ROW = `SELECT id, status, recorded_by,
-                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
-                    DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
+                    created_at::text AS created_at,
+                    updated_at::text AS updated_at
                FROM attendance WHERE student_id = ? AND date = ? LIMIT 1`;
 
 // `pairs` is [[studentId, 'YYYY-MM-DD'], …]; a pair named twice is kept once.
@@ -50,11 +54,35 @@ async function restoreDays(conn, snapshot) {
       await conn.query('DELETE FROM attendance WHERE id = ?', [now.id]);
       touched += 1;
     } else if (row && now) {
+      // "Touched" counts a row whose values CHANGED (mysql2's changedRows):
+      // PostgreSQL has no such count, so the WHERE clause asks for exactly that.
       const [result] = await conn.query(
-        'UPDATE attendance SET status = ?, recorded_by = ?, created_at = ?, updated_at = ? WHERE id = ?',
-        [row.status, row.recorded_by, row.created_at, row.updated_at, now.id]
+        `UPDATE attendance SET status = ?::portal.attendance_status, recorded_by = ?,
+                created_at = ?::timestamptz, updated_at = ?::timestamptz
+          WHERE id = ? AND (status, recorded_by, created_at, updated_at)
+                IS DISTINCT FROM (?::portal.attendance_status, ?::integer, ?::timestamptz, ?::timestamptz)`,
+        [
+          row.status,
+          row.recorded_by,
+          row.created_at,
+          row.updated_at,
+          now.id,
+          row.status,
+          row.recorded_by,
+          row.created_at,
+          row.updated_at,
+        ]
       );
-      touched += result.changedRows;
+      touched += result.affectedRows;
+      // portal.touch_updated_at() keeps an updated_at the statement CHANGES,
+      // but bumps one the statement sets to the value it already had while
+      // another column changed (MySQL's ON UPDATE would not). Setting it once
+      // more, alone, makes it exactly the snapshot's.
+      await conn.query('UPDATE attendance SET updated_at = ?::timestamptz WHERE id = ? AND updated_at IS DISTINCT FROM ?::timestamptz', [
+        row.updated_at,
+        now.id,
+        row.updated_at,
+      ]);
     } else if (row && !now) {
       await conn.query(
         'INSERT INTO attendance (id, student_id, date, status, recorded_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',

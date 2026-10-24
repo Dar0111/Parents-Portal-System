@@ -62,18 +62,11 @@ async function request(method, p, { token, body, headers: extra } = {}) {
 }
 const login = (id, pw) => request('POST', '/api/auth/login', { body: { login_id: id, password: pw } });
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
-async function withDb(fn) {
-  const mysql = require('mysql2/promise');
-  const conn = await mysql.createConnection(dbConfig);
-  try { return await fn(conn); } finally { await conn.end(); }
-}
+// PostgreSQL since Phase 3 (commit F): the PG_* keys, the API's own role,
+// loopback only (test-helpers/db.js). Its clock below is portal.now_s(), the
+// whole-second statement time MySQL's NOW() was, so the run's start mark and
+// the rows a request writes in that same second compare as they did (`>=`).
+const { withDb } = require('./test-helpers/db');
 
 // Reads the code the file transport wrote. This is the ONLY way the suite can
 // see a code, which is the point: no endpoint returns one.
@@ -145,7 +138,7 @@ const settle = () => new Promise((r) => setTimeout(r, 400));
 // One purpose at a time: each purpose has its own cooldown.
 async function skipCooldown(userId, purpose) {
   await withDb((c) =>
-    c.query('UPDATE auth_codes SET created_at = created_at - INTERVAL 61 SECOND WHERE user_id = ? AND purpose = ?', [userId, purpose])
+    c.query("UPDATE auth_codes SET created_at = created_at - interval '61 seconds' WHERE user_id = ? AND purpose = ?", [userId, purpose])
   );
 }
 
@@ -166,7 +159,7 @@ async function main() {
   // table is empty, because rows other work left (the first-sign-in check's
   // kept codes) are not this run's to count.
   const [[startMarks]] = await withDb((c) =>
-    c.query('SELECT COALESCE(MAX(id), 0) AS ac_max, NOW() AS started_at FROM auth_codes')
+    c.query('SELECT COALESCE(MAX(id), 0) AS ac_max, portal.now_s() AS started_at FROM auth_codes')
   );
   console.log(`  i auth_codes at start: ${startMarks.ac_max ? `max id ${startMarks.ac_max}` : 'none'}`);
   // How many password-alert rows an account has LOGGED since the start — by
@@ -399,7 +392,7 @@ async function main() {
     // to the throwaway teacher — the same approach test-sections uses to reset
     // its own fixtures.
     await withDb((c) =>
-      c.query('UPDATE auth_codes SET created_at = (NOW() - INTERVAL 2 HOUR) WHERE user_id = ?', [teacher.id])
+      c.query("UPDATE auth_codes SET created_at = (portal.now_s() - interval '2 hours') WHERE user_id = ?", [teacher.id])
     );
     const beforeC = mailFilesBefore();
     await request('POST', '/api/auth/forgot-password', { body: { login_id: TEACHER_ID } });
@@ -573,7 +566,7 @@ async function main() {
     // Reopen the per-IP window: every row this run has written so far is
     // backdated, so the SMS half is not silently rate-limited by the email
     // half above (10 per IP per hour).
-    await withDb((c) => c.query('UPDATE auth_codes SET created_at = (NOW() - INTERVAL 2 HOUR) WHERE user_id IN (?)', [created.users]));
+    await withDb((c) => c.query("UPDATE auth_codes SET created_at = (portal.now_s() - interval '2 hours') WHERE user_id = ANY(?::int[])", [created.users]));
 
     const SMS_ID = 'TCH-REC2';
     const SMS_PW = 'Recovery2';

@@ -71,7 +71,7 @@ function isPending(role, acceptedCount) {
 
 // Every acceptance of a CURRENT version this user has given, keyed by document.
 async function currentAcceptances(userId) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT document, version, accepted_at FROM policy_acceptances
       WHERE user_id = ? AND (${CURRENT.map(() => '(document = ? AND version = ?)').join(' OR ')})`,
     [userId, ...CURRENT.flatMap((d) => [d.document, d.version])]

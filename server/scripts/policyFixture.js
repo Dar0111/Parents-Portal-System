@@ -26,24 +26,13 @@
  * end to end; every other suite uses this.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit F): the PG_* keys, the API's own role,
+// loopback only — test-helpers/db.js. Its NOW() below is portal.now_s(), the
+// whole-second statement time MySQL's NOW() was, so a stamp and the rows a
+// request writes in the same second compare as they did (`>=`).
+const { withDb } = require('./test-helpers/db');
 
 const BASE = process.env.API_BASE || 'http://localhost:5000';
-
-async function withDb(fn) {
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  });
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
 
 async function call(method, path, token, body) {
   const res = await fetch(`${BASE}${path}`, {
@@ -98,23 +87,23 @@ const CONTACT_COLUMNS = 'email, email_verified_at, contact_number, contact_verif
 async function stampContact(userId) {
   return withDb(async (conn) => {
     const [[row]] = await conn.query(
-      `SELECT ${CONTACT_COLUMNS}, (created_at > NOW() - INTERVAL 15 MINUTE) AS fresh, NOW() AS stamped_at FROM users WHERE id = ?`,
+      `SELECT ${CONTACT_COLUMNS}, (created_at > portal.now_s() - interval '15 minutes') AS fresh, portal.now_s() AS stamped_at FROM users WHERE id = ?`,
       [userId]
     );
     if (!row) throw new Error(`policyFixture: user ${userId} not found for the contact step`);
     const since = row.stamped_at;
     if (row.email) {
-      await conn.query('UPDATE users SET email_verified_at = NOW() WHERE id = ?', [userId]);
+      await conn.query('UPDATE users SET email_verified_at = portal.now_s() WHERE id = ?', [userId]);
       return { userId, since, restore: { email_verified_at: row.email_verified_at } };
     }
     if (row.contact_number) {
-      await conn.query('UPDATE users SET contact_verified_at = NOW() WHERE id = ?', [userId]);
+      await conn.query('UPDATE users SET contact_verified_at = portal.now_s() WHERE id = ?', [userId]);
       return { userId, since, restore: { contact_verified_at: row.contact_verified_at } };
     }
     if (!Number(row.fresh)) {
       throw new Error(`policyFixture: user ${userId} has no email or number to confirm and was not created by this run`);
     }
-    await conn.query('UPDATE users SET email = ?, email_verified_at = NOW() WHERE id = ?', [`suite-${userId}@example.invalid`, userId]);
+    await conn.query('UPDATE users SET email = ?, email_verified_at = portal.now_s() WHERE id = ?', [`suite-${userId}@example.invalid`, userId]);
     return { userId, since, restore: { email: null, email_verified_at: null } };
   });
 }
@@ -183,7 +172,7 @@ function createPolicyFixture() {
     await restoreContacts();
     if (!createdIds.length) return 0;
     const ids = createdIds.splice(0);
-    const [result] = await withDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id IN (?)', [ids]));
+    const [result] = await withDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id = ANY(?::int[])', [ids]));
     return result.affectedRows;
   }
 
@@ -195,7 +184,7 @@ async function clearForcedChange(userId) {
     conn.query(
       `UPDATE users SET must_change_password = 0
         WHERE id = ? AND must_change_password = 1 AND password_changed_at IS NULL
-          AND created_at > (NOW() - INTERVAL 15 MINUTE)`,
+          AND created_at > (portal.now_s() - interval '15 minutes')`,
       [userId]
     )
   );

@@ -8,6 +8,11 @@
 //               produces (snapshots, manifests, rehearsal output, the local
 //               PostgreSQL data directory, secrets) goes here, never into a
 //               repo and never into server/backups (override: MIGRATION_DATA_DIR)
+//   PG_LOCAL_DIR  the embedded cluster's folder, <DATA_DIR>/pg17 by default.
+//               A SECOND session's own cluster (Phase 3's split: Session A on
+//               its own branch) sets MIGRATION_PG_DIR to another folder and
+//               MIGRATION_PG_PORT to another port (lib/env.js), so the two
+//               sessions' suites never share a database.
 const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -26,5 +31,5 @@ module.exports = {
   SNAPSHOT_DIR: path.join(DATA_DIR, 'snapshots'),
   MANIFEST_DIR: path.join(DATA_DIR, 'manifests'),
   REHEARSAL_DIR: path.join(DATA_DIR, 'rehearsal'),
-  PG_LOCAL_DIR: path.join(DATA_DIR, 'pg17'),
+  PG_LOCAL_DIR: process.env.MIGRATION_PG_DIR || path.join(DATA_DIR, 'pg17'),
 };

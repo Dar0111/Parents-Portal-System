@@ -58,7 +58,7 @@ async function sendPasswordAlert({ userId, kind }) {
   }
 
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       'SELECT id, name, email, email_verified_at, contact_number, contact_verified_at FROM users WHERE id = ? LIMIT 1',
       [userId]
     );

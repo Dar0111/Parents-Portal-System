@@ -65,8 +65,11 @@ async function acceptedCountFor(row) {
   return Object.keys(await policy.currentAcceptances(row.id)).length;
 }
 
+// `u.login_id = ?` is case-insensitive through the column's portal.ci
+// collation (migration/docs/02 D) — the sign-in path depends on it, as it
+// depended on utf8mb4_unicode_ci.
 async function fetchUserByLoginId(loginId) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT u.*, s.first_name AS student_first_name, s.last_name AS student_last_name,
             s.grade_level, s.section
      FROM users u
@@ -203,7 +206,7 @@ router.put('/change-password', authenticate, async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const { rows } = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -232,7 +235,7 @@ router.put('/change-password', authenticate, async (req, res) => {
     // replacement is PUT /first-password below. Kept so the row can never be
     // left flagged by a password the owner chose.
     await pool.query(
-      'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
+      'UPDATE users SET password = ?, password_changed_at = portal.now_ms(), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
       [hashed, req.user.id]
     );
     await logActivity(req.user.id, 'change_password', 'Password updated');
@@ -251,7 +254,9 @@ router.put('/change-password', authenticate, async (req, res) => {
     // stores it and re-reads /auth/me. Settings → Change password and the
     // forced-change screen are the two callers. Anything new that calls this
     // endpoint must do the same or it signs its own caller out.
-    const [[v]] = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const {
+      rows: [v],
+    } = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const token = mintToken({ id: req.user.id, role: req.user.role }, v.token_version);
 
     res.json({ success: true, message: 'Password changed successfully.', token });
@@ -308,7 +313,7 @@ router.put('/first-password', authenticate, async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const { rows } = await pool.query('SELECT password FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -321,17 +326,19 @@ router.put('/first-password', authenticate, async (req, res) => {
     }
 
     const hashed = await hashPassword(new_password);
-    const [upd] = await pool.query(
-      `UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1,
+    const upd = await pool.query(
+      `UPDATE users SET password = ?, password_changed_at = portal.now_ms(), token_version = token_version + 1,
               must_change_password = 0
         WHERE id = ? AND must_change_password = 1`,
       [hashed, req.user.id]
     );
-    if (upd.affectedRows === 0) return res.status(409).json(PASSWORD_ALREADY_SET);
+    if (upd.rowCount === 0) return res.status(409).json(PASSWORD_ALREADY_SET);
 
     await logActivity(req.user.id, 'change_password', 'Password set at first sign-in');
 
-    const [[v]] = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const {
+      rows: [v],
+    } = await pool.query('SELECT token_version FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const token = mintToken({ id: req.user.id, role: req.user.role }, v.token_version);
 
     res.json({ success: true, message: 'Password saved.', token });
@@ -397,7 +404,9 @@ router.put('/contact', authenticate, async (req, res) => {
     // sent there must not be able to confirm the new one. Compared in the one
     // stored form (utils/contactRule.js), so the same number re-typed as
     // +63… or 63… is NOT a change and keeps its confirmation.
-    const [[current]] = await pool.query('SELECT contact_number FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const {
+      rows: [current],
+    } = await pool.query('SELECT contact_number FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const changed = (current?.contact_number ?? null) !== nextContact;
     if (changed) {
       await pool.query('UPDATE users SET contact_number = ?, contact_verified_at = NULL WHERE id = ?', [nextContact, req.user.id]);
@@ -472,7 +481,9 @@ router.put('/email', authenticate, async (req, res) => {
   }
 
   try {
-    const [[current]] = await pool.query('SELECT email FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const {
+      rows: [current],
+    } = await pool.query('SELECT email FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const changed = (current?.email ?? null) !== email.value;
     if (changed) {
       await pool.query('UPDATE users SET email = ?, email_verified_at = NULL WHERE id = ?', [email.value, req.user.id]);
@@ -521,7 +532,9 @@ router.put('/photo', authenticate, async (req, res) => {
 
   let written = null;
   try {
-    const [[current]] = await pool.query('SELECT profile_pic FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const {
+      rows: [current],
+    } = await pool.query('SELECT profile_pic FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     written = await photos.writePhoto(encoded.buffer);
     await pool.query('UPDATE users SET profile_pic = ? WHERE id = ?', [written, req.user.id]);
     const saved = written;
@@ -549,7 +562,9 @@ router.put('/photo', authenticate, async (req, res) => {
 
 router.delete('/photo', authenticate, async (req, res) => {
   try {
-    const [[current]] = await pool.query('SELECT profile_pic FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const {
+      rows: [current],
+    } = await pool.query('SELECT profile_pic FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     if (current?.profile_pic) {
       await pool.query('UPDATE users SET profile_pic = NULL WHERE id = ?', [req.user.id]);
       await photos.removePhotoFile(current.profile_pic);
@@ -604,7 +619,7 @@ router.post('/forgot-password', async (req, res) => {
   const ip = req.ip;
 
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       'SELECT id, name, email, email_verified_at, contact_number, contact_verified_at, status FROM users WHERE login_id = ? LIMIT 1',
       [loginId]
     );
@@ -726,7 +741,7 @@ router.post('/reset-password', async (req, res) => {
   const INVALID = { success: false, message: 'That code is not valid. Request a new one.' };
 
   try {
-    const [rows] = await pool.query('SELECT id, status FROM users WHERE login_id = ? LIMIT 1', [login_id.trim()]);
+    const { rows } = await pool.query('SELECT id, status FROM users WHERE login_id = ? LIMIT 1', [login_id.trim()]);
     const user = rows[0];
     if (!user || user.status !== 'active') {
       await codes.burnTiming();
@@ -741,7 +756,7 @@ router.post('/reset-password', async (req, res) => {
     // which is the point of a reset. No replacement token — this caller is
     // not signed in; they go and log in.
     await pool.query(
-      'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
+      'UPDATE users SET password = ?, password_changed_at = portal.now_ms(), token_version = token_version + 1, must_change_password = 0 WHERE id = ?',
       [hashed, user.id]
     );
     await logActivity(user.id, 'password_reset', 'Password reset with a sent code');
@@ -796,7 +811,7 @@ function hourlyReply(otherChannel) {
 // nothing: this caller already knows their own email.
 router.post('/verify-email/request', authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT email, email_verified_at FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const { rows } = await pool.query('SELECT email, email_verified_at FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const row = rows[0];
     if (!row || !row.email) {
       return res.status(400).json({
@@ -824,7 +839,7 @@ router.post('/verify-email/request', authenticate, async (req, res) => {
     try {
       await mailer.sendMail({ to: row.email, subject: msg.subject, text: msg.text });
     } catch (err) {
-      await pool.query('UPDATE auth_codes SET consumed_at = NOW() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL', [
+      await pool.query('UPDATE auth_codes SET consumed_at = portal.now_s() WHERE user_id = ? AND purpose = ? AND consumed_at IS NULL', [
         req.user.id,
         'email_verification',
       ]);
@@ -858,11 +873,11 @@ router.post('/verify-email/confirm', authenticate, async (req, res) => {
     // change; the UPDATE's own condition refuses one that raced them. The
     // stamp is ALWAYS rewritten, so a re-confirm counts as "since this
     // sign-in" (utils/accountGates.js).
-    const [upd] = await pool.query('UPDATE users SET email_verified_at = NOW() WHERE id = ? AND email = ?', [
+    const upd = await pool.query('UPDATE users SET email_verified_at = portal.now_s() WHERE id = ? AND email = ?', [
       req.user.id,
       result.emailSnapshot,
     ]);
-    if (!result.emailSnapshot || upd.affectedRows === 0) return res.status(400).json(INVALID);
+    if (!result.emailSnapshot || upd.rowCount === 0) return res.status(400).json(INVALID);
 
     await logActivity(req.user.id, 'email_verified', 'Email address confirmed');
     return res.json({ success: true, message: 'Email confirmed. You can now reset your own password.' });
@@ -892,7 +907,7 @@ const SMS_UNAVAILABLE = {
 // case counts for nothing.
 router.post('/verify-contact/request', authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT contact_number, contact_verified_at FROM users WHERE id = ? LIMIT 1', [req.user.id]);
+    const { rows } = await pool.query('SELECT contact_number, contact_verified_at FROM users WHERE id = ? LIMIT 1', [req.user.id]);
     const row = rows[0];
     if (!row || !row.contact_number) {
       return res.status(400).json({ success: false, message: 'There is no mobile number on this account. Add one first.' });
@@ -948,11 +963,11 @@ router.post('/verify-contact/confirm', authenticate, async (req, res) => {
     // holds NOW. A number change already burns pending codes; this also
     // refuses one that raced it. The UPDATE repeats the check, so a change
     // landing between the two statements confirms nothing.
-    const [upd] = await pool.query(
-      'UPDATE users SET contact_verified_at = NOW() WHERE id = ? AND contact_number = ?',
+    const upd = await pool.query(
+      'UPDATE users SET contact_verified_at = portal.now_s() WHERE id = ? AND contact_number = ?',
       [req.user.id, result.contactSnapshot]
     );
-    if (!result.contactSnapshot || upd.affectedRows === 0) return res.status(400).json(INVALID);
+    if (!result.contactSnapshot || upd.rowCount === 0) return res.status(400).json(INVALID);
 
     await logActivity(req.user.id, 'contact_verified', 'Mobile number confirmed');
     return res.json({ success: true, message: 'Mobile number confirmed. You can now get reset codes by text message.' });

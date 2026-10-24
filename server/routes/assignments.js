@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../config/db');
+const { isUniqueViolation } = require('../utils/dbErrors');
 const { authenticate, authorize } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { parseId } = require('../utils/validateId');
@@ -20,12 +21,12 @@ const ASSIGNMENT_DETAIL_SQL = `
 `;
 
 async function fetchAssignment(id) {
-  const [rows] = await pool.query(ASSIGNMENT_DETAIL_SQL, [id]);
+  const { rows } = await pool.query(ASSIGNMENT_DETAIL_SQL, [id]);
   return rows[0] || null;
 }
 
 async function currentAcademicYear() {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
   );
   return rows[0]?.setting_value || null;
@@ -54,9 +55,11 @@ subjectsRouter.get('/', authenticate, async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       // The school's printed order within each grade level (CR3a), null-last
       // so Grades 2 and 3 keep the alphabetical fallback rather than leading.
+      // `display_order IS NULL` sorts false before true on PostgreSQL, as 0
+      // before 1 did on MySQL.
       `SELECT id, name, grade_level, display_order FROM subjects ${where}
         ORDER BY grade_level, display_order IS NULL, display_order, name`,
       params
@@ -116,11 +119,10 @@ assignmentsRouter.get('/', authenticate, authorize('teacher', 'admin'), async (r
       params.push(teacherIdFilter);
     }
 
-    const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) AS total FROM teacher_assignments ta ${where}`,
-      params
-    );
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total FROM teacher_assignments ta ${where}`, params);
+    const { rows } = await pool.query(
       `SELECT ta.id, ta.teacher_id, u.name AS teacher_name,
               ta.subject_id, s.name AS subject_name,
               ta.grade_level, ta.section, ta.section_id
@@ -162,7 +164,7 @@ assignmentsRouter.post('/', authenticate, authorize('admin'), async (req, res) =
   }
 
   try {
-    const [teacherRows] = await pool.query('SELECT id, role, status FROM users WHERE id = ? LIMIT 1', [teacherId]);
+    const { rows: teacherRows } = await pool.query('SELECT id, role, status FROM users WHERE id = ? LIMIT 1', [teacherId]);
     const teacher = teacherRows[0];
     if (!teacher) {
       return res.status(400).json({ success: false, message: 'teacher_id does not reference an existing user.' });
@@ -180,7 +182,7 @@ assignmentsRouter.post('/', authenticate, authorize('admin'), async (req, res) =
       });
     }
 
-    const [subjectRows] = await pool.query('SELECT id, name, grade_level FROM subjects WHERE id = ? LIMIT 1', [
+    const { rows: subjectRows } = await pool.query('SELECT id, name, grade_level FROM subjects WHERE id = ? LIMIT 1', [
       subjectId,
     ]);
     const subject = subjectRows[0];
@@ -196,7 +198,7 @@ assignmentsRouter.post('/', authenticate, authorize('admin'), async (req, res) =
       });
     }
 
-    const [sectionRows] = await pool.query(
+    const { rows: sectionRows } = await pool.query(
       `SELECT id FROM sections
        WHERE name = ? AND grade_level = ? AND school_year = ?
        LIMIT 1`,
@@ -210,7 +212,7 @@ assignmentsRouter.post('/', authenticate, authorize('admin'), async (req, res) =
       });
     }
 
-    const [existing] = await pool.query(
+    const { rows: existing } = await pool.query(
       `SELECT id FROM teacher_assignments
        WHERE teacher_id = ? AND subject_id = ? AND grade_level = ? AND section = ?
        LIMIT 1`,
@@ -223,13 +225,14 @@ assignmentsRouter.post('/', authenticate, authorize('admin'), async (req, res) =
       });
     }
 
-    const [result] = await pool.query(
+    const { rows: inserted } = await pool.query(
       `INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section, section_id)
-       VALUES (?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?)
+       RETURNING id`,
       [teacherId, subjectId, subject.grade_level, section, sectionRow.id]
     );
 
-    const created = await fetchAssignment(result.insertId);
+    const created = await fetchAssignment(inserted[0].id);
     await logActivity(
       req.user.id,
       'create_assignment',
@@ -238,7 +241,9 @@ assignmentsRouter.post('/', authenticate, authorize('admin'), async (req, res) =
 
     return res.status(201).json({ success: true, message: 'Assignment created.', assignment: created });
   } catch (error) {
-    if (error.code === 'ER_DUP_ENTRY') {
+    // 23505 on uq_teacher_assignment (a portal.ci section, so a case variant
+    // collides as it did on MySQL) — the race the SELECT above cannot close.
+    if (isUniqueViolation(error)) {
       return res.status(409).json({
         success: false,
         message: 'This teacher is already assigned to that subject in that section.',

@@ -45,14 +45,14 @@ async function authenticateHandshake(socket, next) {
   try {
     // The restore cutoff (CLAUDE.md → RESTORE): NULL until the first
     // restore, so a no-op until then.
-    const [stateRows] = await pool.query('SELECT token_valid_after FROM auth_security_state WHERE id = 1 LIMIT 1');
+    const { rows: stateRows } = await pool.query('SELECT token_valid_after FROM auth_security_state WHERE id = 1 LIMIT 1');
     const tokenValidAfter = stateRows[0]?.token_valid_after;
     if (tokenValidAfter && decoded.iat * 1000 < new Date(tokenValidAfter).getTime()) {
       return next(new Error('Session invalidated by a database restore. Please log in again.'));
     }
 
     const accepted = policy.acceptedCountSql('users.id');
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT id, role, status, token_version, must_change_password, email, email_verified_at,
               contact_number, contact_verified_at, ${accepted.sql} AS policy_accepted
        FROM users WHERE id = ? LIMIT 1`,

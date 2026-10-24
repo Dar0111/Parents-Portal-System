@@ -2,8 +2,11 @@
  * Unit test for the Socket.io handshake (socket.js → authenticateHandshake)
  * — direct calls, no server, no socket, and NO DATABASE: the pool is a stub
  * planted in require.cache before socket.js is loaded, scripted per call to
- * return rows or to throw the way mysql2 does when MySQL is down. The
- * test:auth-middleware pattern (fix/socket-handshake, 2026-10-11).
+ * return rows or to throw the way node-postgres does when the database is
+ * down. The test:auth-middleware pattern (fix/socket-handshake, 2026-10-11).
+ * Since Phase 3 (commit F, PostgreSQL) the stub answers pg's `{ rows,
+ * rowCount }` and the dropped connection is 57P01 (mysql2's
+ * PROTOCOL_CONNECTION_LOST).
  *
  * What it proves: a token problem says "Invalid or expired token." and never
  * touches the pool; a database problem says "Database unreachable." with code
@@ -43,7 +46,8 @@ require.cache[dbPath] = {
       script.calls += 1;
       const next = script.answers.shift();
       if (next instanceof Error) throw next;
-      return [next || []];
+      const rows = next || [];
+      return { rows, rowCount: rows.length };
     },
     getConnection: async () => {
       throw new Error('the stub pool has no connections');
@@ -206,7 +210,7 @@ const CASES = [
   },
   {
     label: 'the connection lost on the users read → "Database unreachable." + DB_UNAVAILABLE',
-    input: { token: good, answers: [STATE_CLEAR, scriptedError('PROTOCOL_CONNECTION_LOST')] },
+    input: { token: good, answers: [STATE_CLEAR, scriptedError('57P01')] },
     check: (r, h) =>
       r.message === DB_UNAVAILABLE_BODY.message && r.code === 'DB_UNAVAILABLE' && h.status === 503 && r.calls === 2,
     control: ["refusal(DB_UNAVAILABLE_BODY.message, 'DB_UNAVAILABLE')", `new Error('${TOKEN_SENTENCE}')`],

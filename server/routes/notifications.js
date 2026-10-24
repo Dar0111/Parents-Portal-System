@@ -372,8 +372,10 @@ router.get('/', authenticate, async (req, res) => {
     const where = `WHERE ${conditions.join(' AND ')}`;
     // `total` counts the same filtered-AND-visibility-checked set the rows
     // come from (the pagination contract's C4), not every row this user owns.
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${FROM_CLAUSE} ${where}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total ${FROM_CLAUSE} ${where}`, params);
+    const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} ${FROM_CLAUSE} ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
       [...params, list.limit, list.offset]
     );
@@ -397,7 +399,7 @@ router.get('/', authenticate, async (req, res) => {
 router.get('/unread-counts', authenticate, async (req, res) => {
   try {
     const visibility = visibilityClause(req.user);
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT n.type, COUNT(*) AS count
          ${FROM_CLAUSE}
         WHERE n.user_id = ? AND n.read_at IS NULL AND ${visibility.sql}
@@ -443,13 +445,15 @@ router.patch('/:id/read', authenticate, async (req, res) => {
     // not own. Already-read rows are absorbed (read_at IS NULL in the WHERE),
     // so a double click is not an error — the same reversibility reasoning as
     // convention 5e: this is a repeat, not a second decision.
-    await pool.query('UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND read_at IS NULL', [
+    // portal.now_s(): whole seconds at statement time, as MySQL's
+    // CURRENT_TIMESTAMP stored them (migration/docs/02 §C).
+    await pool.query('UPDATE notifications SET read_at = portal.now_s() WHERE id = ? AND user_id = ? AND read_at IS NULL', [
       id,
       req.user.id,
     ]);
 
     const visibility = visibilityClause(req.user);
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT ${SELECT_COLUMNS} ${FROM_CLAUSE} WHERE n.id = ? AND n.user_id = ? AND ${visibility.sql} LIMIT 1`,
       [id, req.user.id, ...visibility.params]
     );
@@ -508,11 +512,11 @@ router.patch('/read-all', authenticate, async (req, res) => {
 
   if (body.section === undefined) {
     try {
-      const [result] = await pool.query(
-        'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL',
+      const result = await pool.query(
+        'UPDATE notifications SET read_at = portal.now_s() WHERE user_id = ? AND read_at IS NULL',
         [req.user.id]
       );
-      return res.json({ success: true, message: 'All notifications marked as read.', updated: result.affectedRows });
+      return res.json({ success: true, message: 'All notifications marked as read.', updated: result.rowCount });
     } catch (error) {
       console.error('Mark all notifications read error:', error);
       return res.status(500).json({ success: false, message: 'Failed to mark notifications as read.' });
@@ -537,20 +541,22 @@ router.patch('/read-all', authenticate, async (req, res) => {
     // Two plain statements rather than a multi-table UPDATE (portable — Phase
     // 3). The SELECT is the badge's own count — unread, these types, and the
     // read-time visibility re-check — so the clear marks exactly the rows the
-    // badge counted. No ids found means no UPDATE: an empty IN () is not SQL.
+    // badge counted. No ids found means no UPDATE (an empty IN () was not SQL
+    // on MySQL; an empty ANY is harmless here, but the skip saves a statement).
+    // The type list binds as an array of the ENUM; the ids as int[].
     const visibility = visibilityClause(req.user);
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT n.id ${FROM_CLAUSE}
-        WHERE n.user_id = ? AND n.read_at IS NULL AND n.type IN (?) AND ${visibility.sql}`,
+        WHERE n.user_id = ? AND n.read_at IS NULL AND n.type = ANY(?::portal.notification_type[]) AND ${visibility.sql}`,
       [req.user.id, types, ...visibility.params]
     );
     let updated = 0;
     if (rows.length) {
-      const [result] = await pool.query(
-        'UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL AND id IN (?)',
+      const result = await pool.query(
+        'UPDATE notifications SET read_at = portal.now_s() WHERE user_id = ? AND read_at IS NULL AND id = ANY(?::int[])',
         [req.user.id, rows.map((r) => r.id)]
       );
-      updated = result.affectedRows;
+      updated = result.rowCount;
     }
     // The caller's OTHER devices and tabs refetch their counts (the owner's
     // Q4); a clear of nothing signals nothing.

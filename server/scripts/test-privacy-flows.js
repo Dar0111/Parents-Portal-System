@@ -35,7 +35,9 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit F): the PG_* keys, the API's own role,
+// loopback only (test-helpers/db.js).
+const { withDb } = require('./test-helpers/db');
 const { loginKey, MAX_PER_ACCOUNT, MAX_PER_IP, TOO_MANY } = require('../utils/loginThrottle');
 
 const BASE = process.env.API_BASE || 'http://localhost:5000';
@@ -94,21 +96,6 @@ function trySocket(token) {
   });
 }
 
-async function withDb(fn) {
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  });
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
-
 // The admin sign-in, read where the dispatches keep it. Never printed.
 function adminSignIn() {
   const line = fs.readFileSync(path.join(__dirname, 'proof-backup-loop.js'), 'utf8').split(/\r?\n/)[171];
@@ -145,7 +132,7 @@ async function staffAccept(token) {
 async function deleteStaffAcceptances() {
   if (!staffAcceptanceIds.length) return;
   const ids = staffAcceptanceIds.splice(0);
-  await withDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id IN (?)', [ids]));
+  await withDb((conn) => conn.query('DELETE FROM policy_acceptances WHERE id = ANY(?::int[])', [ids]));
 }
 
 function requireFixture(condition, label, res) {
@@ -168,7 +155,7 @@ async function confirmByPlantedCode(token, userId, address) {
   await withDb((conn) =>
     conn.query(
       `INSERT INTO auth_codes (user_id, purpose, code_hash, email_snapshot, expires_at)
-       VALUES (?, 'email_verification', ?, ?, NOW() + INTERVAL 10 MINUTE)`,
+       VALUES (?, 'email_verification', ?, ?, portal.now_s() + interval '10 minutes')`,
       [userId, hash, address]
     )
   );
@@ -628,6 +615,17 @@ async function run() {
     const liveDb = process.env.DB_NAME || 'parents_portal';
     const scratch = `pp_privacy_scratch_${tail}`;
     const PRIVACY_TABLES = "TABLE_NAME IN ('policy_acceptances', 'login_attempts')";
+    // ON POSTGRESQL (Phase 3, commit F) THIS BLOCK HAS NOTHING TO RUN AGAINST:
+    // it builds a pre-privacy MySQL schema in a scratch DATABASE and runs the
+    // MySQL privacy migration that the MySQL restore calls. The PostgreSQL
+    // restore (migration/docs/04, commit 6) replaces no schema — an archive
+    // whose schema fingerprint differs is refused instead — so this case is
+    // rewritten with that restore. Until then its six checks are SKIPPED,
+    // said so on the run's output, and counted neither as passed nor failed.
+    const RESTORE_PORTED = false;
+    if (!RESTORE_PORTED) {
+      console.log('  SKIPPED 6 checks: the MySQL privacy step on a scratch database (rewritten with the PostgreSQL restore, commit 6)');
+    } else {
     try {
       await withDb(async (conn) => {
         await conn.query(`CREATE DATABASE \`${scratch}\``);
@@ -680,6 +678,7 @@ async function run() {
       conn.query('SELECT COUNT(*) AS n FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?', [scratch])
     );
     assert(Number(scratchLeft) === 0, 'the scratch schema is dropped');
+    }
 
     // The wiring, read as SOURCE (a real restore drops the live database): the
     // restore route runs the step after the pool reset, before the session cutoff.
@@ -758,7 +757,7 @@ async function run() {
       conn.query('SELECT ip FROM login_attempts WHERE login_key = ? ORDER BY id DESC LIMIT 1', [loginKey(unknownId)])
     );
     const [[{ n: ipNow }]] = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > (NOW() - INTERVAL 15 MINUTE)', [mine.ip])
+      conn.query("SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > (portal.now_s() - interval '15 minutes')", [mine.ip])
     );
     const toFill = Math.max(0, MAX_PER_IP - Number(ipNow));
     for (let i = 0; i < toFill; i += 1) {
@@ -776,7 +775,7 @@ async function run() {
     // foreign key, so they do not go with the accounts.
     const plantedFor = [created.teacherId, created.parentId].filter(Boolean);
     if (plantedFor.length) {
-      await withDb((conn) => conn.query('DELETE FROM auth_codes WHERE user_id IN (?)', [plantedFor]));
+      await withDb((conn) => conn.query('DELETE FROM auth_codes WHERE user_id = ANY(?::int[])', [plantedFor]));
     }
     await cleanup(created, typedIds);
     await deleteStaffAcceptances();
@@ -792,7 +791,7 @@ async function run() {
 async function cleanup(created, typedIds) {
   await withDb(async (conn) => {
     const keys = [...typedIds].map(loginKey);
-    if (keys.length) await conn.query('DELETE FROM login_attempts WHERE login_key IN (?)', [keys]);
+    if (keys.length) await conn.query('DELETE FROM login_attempts WHERE login_key = ANY(?::text[])', [keys]);
     if (created.parentId) {
       await conn.query('DELETE FROM policy_acceptances WHERE user_id = ?', [created.parentId]);
       await conn.query("DELETE FROM notifications WHERE item_type = 'user' AND item_id = ?", [created.parentId]);

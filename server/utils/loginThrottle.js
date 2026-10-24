@@ -40,16 +40,23 @@ function loginKey(loginId) {
     .digest('hex');
 }
 
+// THE CLOCK IS THE DATABASE'S (Phase 3): portal.now_s() is MySQL's NOW() —
+// the statement's start, truncated to the second — and make_interval() takes
+// the bound minute or hour count, as `INTERVAL ? MINUTE` did (migration/docs/02 C.6).
 async function isLimited(key, ip) {
-  const [[account]] = await pool.query(
+  const {
+    rows: [account],
+  } = await pool.query(
     `SELECT COUNT(*) AS n FROM login_attempts
-      WHERE login_key = ? AND cleared = 0 AND attempted_at > (NOW() - INTERVAL ? MINUTE)`,
+      WHERE login_key = ? AND cleared = 0 AND attempted_at > (portal.now_s() - make_interval(mins => ?))`,
     [key, WINDOW_MINUTES]
   );
   if (Number(account.n) >= MAX_PER_ACCOUNT) return true;
   if (!ip) return false;
-  const [[byIp]] = await pool.query(
-    'SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > (NOW() - INTERVAL ? MINUTE)',
+  const {
+    rows: [byIp],
+  } = await pool.query(
+    'SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > (portal.now_s() - make_interval(mins => ?))',
     [ip, WINDOW_MINUTES]
   );
   return Number(byIp.n) >= MAX_PER_IP;
@@ -58,7 +65,7 @@ async function isLimited(key, ip) {
 async function recordFailure(key, ip) {
   await pool.query('INSERT INTO login_attempts (login_key, ip) VALUES (?, ?)', [key, ip || null]);
   // Nothing older than a day is ever counted; keep the table that small.
-  await pool.query('DELETE FROM login_attempts WHERE attempted_at < (NOW() - INTERVAL ? HOUR)', [KEEP_HOURS]);
+  await pool.query('DELETE FROM login_attempts WHERE attempted_at < (portal.now_s() - make_interval(hours => ?))', [KEEP_HOURS]);
 }
 
 // A successful sign-in: this account starts again from zero. The rows stay

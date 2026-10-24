@@ -61,24 +61,29 @@
 //   teacher: (target_grade IS NULL OR EXISTS teacher_assignments
 //             OR EXISTS sections.adviser_id)
 //   admin  : no condition
+//
+// EVERY `? IS NULL` CARRIES ITS TYPE. A parameter tested only with IS NULL
+// gives PostgreSQL nothing to infer its type from — 42P18, measured on the
+// commit F probe — where MySQL never asked. smallint for a grade, varchar for
+// a section; the `= ?` beside each one takes its type from the column.
 async function announcementAudience(conn, { target_grade, target_section }) {
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     `SELECT u.id FROM users u
        LEFT JOIN students s ON s.id = u.student_id
       WHERE u.status = 'active'
         AND (
           u.role = 'admin'
           OR (u.role = 'parent' AND s.id IS NOT NULL AND (
-                ? IS NULL OR (s.grade_level = ? AND (? IS NULL OR s.section = ?))
+                ?::smallint IS NULL OR (s.grade_level = ? AND (?::varchar IS NULL OR s.section = ?))
               ))
           OR (u.role = 'teacher' AND (
-                ? IS NULL
+                ?::smallint IS NULL
                 OR EXISTS (SELECT 1 FROM teacher_assignments ta
                             WHERE ta.teacher_id = u.id AND ta.grade_level = ?
-                              AND (? IS NULL OR ta.section = ?))
+                              AND (?::varchar IS NULL OR ta.section = ?))
                 OR EXISTS (SELECT 1 FROM sections sec
                             WHERE sec.adviser_id = u.id AND sec.grade_level = ?
-                              AND (? IS NULL OR sec.name = ?))
+                              AND (?::varchar IS NULL OR sec.name = ?))
               ))
         )`,
     [
@@ -95,7 +100,7 @@ async function announcementAudience(conn, { target_grade, target_section }) {
 // does this. Confirmed by Darryl 2026-09-19 as intended, not an oversight:
 // every active account is notified for every memo.
 async function memoAudience(conn) {
-  const [rows] = await conn.query("SELECT id FROM users WHERE status = 'active'");
+  const { rows } = await conn.query("SELECT id FROM users WHERE status = 'active'");
   return rows.map((r) => r.id);
 }
 
@@ -115,14 +120,14 @@ async function memoAudience(conn) {
 // If Admin -> Events is ever built, this exclusion and that clause are the two
 // places to change, and flipping the nav flag alone will not do it.
 async function eventAudience(conn, { target_grade }) {
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     `SELECT u.id FROM users u
        LEFT JOIN students s ON s.id = u.student_id
       WHERE u.status = 'active'
         AND (
-          (u.role = 'parent' AND s.id IS NOT NULL AND (? IS NULL OR s.grade_level = ?))
+          (u.role = 'parent' AND s.id IS NOT NULL AND (?::smallint IS NULL OR s.grade_level = ?))
           OR (u.role = 'teacher' AND (
-                ? IS NULL
+                ?::smallint IS NULL
                 OR EXISTS (SELECT 1 FROM teacher_assignments ta
                             WHERE ta.teacher_id = u.id AND ta.grade_level = ?)
                 OR EXISTS (SELECT 1 FROM sections sec
@@ -145,7 +150,7 @@ async function eventAudience(conn, { target_grade }) {
 // not a fallback recipient here, which would hand a letter to someone with no
 // authority to review it.
 async function excuseAdviserAudience(conn, studentId) {
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     `SELECT sec.adviser_id AS id
        FROM students s
        JOIN sections sec ON sec.id = s.section_id
@@ -157,12 +162,12 @@ async function excuseAdviserAudience(conn, studentId) {
 }
 
 async function activeAdmins(conn) {
-  const [rows] = await conn.query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
+  const { rows } = await conn.query("SELECT id FROM users WHERE role = 'admin' AND status = 'active'");
   return rows.map((r) => r.id);
 }
 
 async function parentOfStudent(conn, studentId) {
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     "SELECT id FROM users WHERE role = 'parent' AND status = 'active' AND student_id = ? LIMIT 1",
     [studentId]
   );
@@ -170,7 +175,7 @@ async function parentOfStudent(conn, studentId) {
 }
 
 async function activeUserById(conn, userId) {
-  const [rows] = await conn.query("SELECT id FROM users WHERE id = ? AND status = 'active' LIMIT 1", [userId]);
+  const { rows } = await conn.query("SELECT id FROM users WHERE id = ? AND status = 'active' LIMIT 1", [userId]);
   return rows.map((r) => r.id);
 }
 
@@ -181,20 +186,38 @@ async function activeUserById(conn, userId) {
 // Returns the recipient ids actually offered to the insert (A1 already
 // applied), for the caller to emit after commit.
 //
-// INSERT IGNORE against uq_notifications_once (user_id, type, item_id) is what
-// makes "at most once per subject + term" free for grade_available: a grades
-// row already IS one (student, subject, term, school_year), so its id is that
-// key. It also makes every hook idempotent under a retry.
+// ON CONFLICT DO NOTHING against uq_notifications_once (user_id, type,
+// item_id) is what makes "at most once per subject + term" free for
+// grade_available: a grades row already IS one (student, subject, term,
+// school_year), so its id is that key. It also makes every hook idempotent
+// under a retry. (MySQL's INSERT IGNORE ignored every error class; this
+// ignores the unique conflict only, so an FK or CHECK failure now raises —
+// migration/docs/03 §3.)
+//
+// mysql2 expanded `VALUES ?` from nested arrays; PostgreSQL has no such form,
+// so the rows are written out, 500 to a statement (6 parameters a row, far
+// under the 65,535-parameter limit). Never DO UPDATE here: two rows for one
+// key in one statement would be 21000 (measured).
+const ROWS_PER_INSERT = 500;
+
 async function insertNotifications(conn, { type, itemType, itemId, actorId, titleSnapshot, userIds }) {
   const recipients = [...new Set(userIds)].filter((id) => id && id !== actorId);
   if (!recipients.length) return [];
 
-  const values = recipients.map((uid) => [uid, type, itemType, itemId, titleSnapshot || null, actorId || null]);
-  await conn.query(
-    `INSERT IGNORE INTO notifications (user_id, type, item_type, item_id, title_snapshot, actor_id)
-     VALUES ?`,
-    [values]
-  );
+  for (let start = 0; start < recipients.length; start += ROWS_PER_INSERT) {
+    const chunk = recipients.slice(start, start + ROWS_PER_INSERT);
+    const params = [];
+    const tuples = chunk.map((uid) => {
+      params.push(uid, type, itemType, itemId, titleSnapshot || null, actorId || null);
+      return '(?, ?, ?, ?, ?, ?)';
+    });
+    await conn.query(
+      `INSERT INTO notifications (user_id, type, item_type, item_id, title_snapshot, actor_id)
+       VALUES ${tuples.join(', ')}
+       ON CONFLICT DO NOTHING`,
+      params
+    );
+  }
   return recipients;
 }
 
@@ -208,7 +231,7 @@ async function insertNotifications(conn, { type, itemType, itemId, actorId, titl
 // exists cannot be opened (§10), and leaving it was what every cleanup kept
 // finding.
 async function removeItemNotifications(conn, itemType, itemId) {
-  const [rows] = await conn.query('SELECT DISTINCT user_id FROM notifications WHERE item_type = ? AND item_id = ?', [
+  const { rows } = await conn.query('SELECT DISTINCT user_id FROM notifications WHERE item_type = ? AND item_id = ?', [
     itemType,
     itemId,
   ]);
@@ -227,16 +250,17 @@ async function removeItemNotifications(conn, itemType, itemId) {
 // commit, like removeItemNotifications.
 async function removeTypedNotifications(conn, types, itemType, itemId) {
   if (!types || !types.length) return [];
-  const [rows] = await conn.query(
-    'SELECT DISTINCT user_id FROM notifications WHERE type IN (?) AND item_type = ? AND item_id = ?',
+  // The list binds as an array of the ENUM (a ::text[] here is 42883 —
+  // migration/docs/03 §1, rehearsed).
+  const { rows } = await conn.query(
+    'SELECT DISTINCT user_id FROM notifications WHERE type = ANY(?::portal.notification_type[]) AND item_type = ? AND item_id = ?',
     [types, itemType, itemId]
   );
   if (!rows.length) return [];
-  await conn.query('DELETE FROM notifications WHERE type IN (?) AND item_type = ? AND item_id = ?', [
-    types,
-    itemType,
-    itemId,
-  ]);
+  await conn.query(
+    'DELETE FROM notifications WHERE type = ANY(?::portal.notification_type[]) AND item_type = ? AND item_id = ?',
+    [types, itemType, itemId]
+  );
   return rows.map((r) => r.user_id);
 }
 

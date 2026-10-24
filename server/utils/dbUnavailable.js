@@ -14,28 +14,18 @@
 
 const DB_UNAVAILABLE_BODY = Object.freeze({ success: false, message: 'Database unreachable.' });
 
-// The mysql2 / Node error codes a dead or unreachable server produces. A
-// query that FAILS (bad SQL, a missing column after a bad restore) carries an
-// ER_* code and is a 500 — that is a defect to fix, not an outage to wait
-// out. ER_ACCESS_DENIED_ERROR is the one ER_* here: wrong credentials are an
-// environment fault, and 503 is closer to the truth than 500.
-const UNAVAILABLE_CODES = new Set([
-  'ECONNREFUSED',
-  'ECONNRESET',
-  'ETIMEDOUT',
-  'ENOTFOUND',
-  'EHOSTUNREACH',
-  'EPIPE',
-  'PROTOCOL_CONNECTION_LOST',
-  'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR',
-  'PROTOCOL_ENQUEUE_AFTER_QUIT',
-  'PROTOCOL_SEQUENCE_TIMEOUT',
-  'ER_ACCESS_DENIED_ERROR',
-  'ER_CON_COUNT_ERROR',
-]);
+// WHICH errors mean "the database is unreachable" is decided in ONE place,
+// utils/dbErrors.js (Phase 3, commit F — PostgreSQL): the Node socket codes,
+// SQLSTATE class 08, a shutdown or crash (57P01-57P03), too many connections
+// (53300), refused credentials (28P01, 28000), a missing database (3D000), and
+// node-postgres's few code-less connection failures. A query that FAILS (bad
+// SQL, a missing column after a bad restore) carries another SQLSTATE and is a
+// 500 — a defect to fix, not an outage to wait out. Until commit F this list
+// held mysql2's codes (PROTOCOL_CONNECTION_LOST, ER_ACCESS_DENIED_ERROR, …).
+const { isConnectionError } = require('./dbErrors');
 
 function isDbUnavailable(error) {
-  return Boolean(error && typeof error.code === 'string' && UNAVAILABLE_CODES.has(error.code));
+  return isConnectionError(error);
 }
 
 function sendDbUnavailable(res, context, error) {

@@ -26,8 +26,10 @@ const SECTION_DETAIL_SQL = `
   LIMIT 1
 `;
 
+// student_count is COUNT(*) — bigint on PostgreSQL, a JSON number through
+// config/db.js's int8 parser, as it was on MySQL.
 async function fetchSectionDetail(id) {
-  const [rows] = await pool.query(SECTION_DETAIL_SQL, [id]);
+  const { rows } = await pool.query(SECTION_DETAIL_SQL, [id]);
   return rows[0];
 }
 
@@ -57,7 +59,7 @@ router.get('/', authenticate, async (req, res) => {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT sec.id, sec.name, sec.grade_level, sec.adviser_id, sec.school_year,
               sec.created_at, sec.updated_at,
               u.name AS adviser_name,
@@ -127,7 +129,7 @@ router.patch('/:id/adviser', authenticate, authorize('admin'), async (req, res) 
   }
 
   try {
-    const [sectionRows] = await pool.query('SELECT * FROM sections WHERE id = ? LIMIT 1', [id]);
+    const { rows: sectionRows } = await pool.query('SELECT * FROM sections WHERE id = ? LIMIT 1', [id]);
     const section = sectionRows[0];
     if (!section) {
       return res.status(404).json({ success: false, message: 'Section not found.' });
@@ -136,7 +138,7 @@ router.patch('/:id/adviser', authenticate, authorize('admin'), async (req, res) 
     // adviser_id: null clears it — skip the existence/role/status checks
     // entirely, there's nothing to validate against.
     if (adviserId !== null) {
-      const [userRows] = await pool.query('SELECT id, role, status FROM users WHERE id = ? LIMIT 1', [adviserId]);
+      const { rows: userRows } = await pool.query('SELECT id, role, status FROM users WHERE id = ? LIMIT 1', [adviserId]);
       const user = userRows[0];
 
       if (!user) {

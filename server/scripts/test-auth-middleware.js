@@ -2,8 +2,13 @@
  * Unit test for middleware/auth.js — direct calls, no server, no HTTP, and
  * NO DATABASE: the pool is a stub planted in require.cache before the
  * middleware is loaded, scripted per call to return rows or to throw the way
- * mysql2 does when MySQL is down. That is the only way to prove the outage
- * path without stopping MySQL under every other suite (fix/auth-503).
+ * node-postgres does when the database is down. That is the only way to prove
+ * the outage path without stopping the database under every other suite
+ * (fix/auth-503). Since Phase 3 (commit F, PostgreSQL) the stub answers pg's
+ * shape, `{ rows, rowCount }`, and the scripted outages are pg's: a refused
+ * socket (ECONNREFUSED), an administrator shutdown (57P01, where mysql2 said
+ * PROTOCOL_CONNECTION_LOST) and a timeout; the coded query failure that must
+ * stay a 500 is 42703 (undefined column, mysql2's ER_BAD_FIELD_ERROR).
  *
  * What it proves: a token problem is 401 and never touches the pool; a
  * database problem is 503 with the health endpoint's body and never 401;
@@ -20,7 +25,7 @@ const path = require('path');
 const dbPath = require.resolve(path.join(__dirname, '..', 'config', 'db.js'));
 const script = { answers: [], calls: 0 };
 function scriptedError(code) {
-  const err = new Error(`connect ${code} 127.0.0.1:3306`);
+  const err = new Error(`connect ${code} 127.0.0.1:5432`);
   err.code = code;
   return err;
 }
@@ -33,7 +38,8 @@ require.cache[dbPath] = {
       script.calls += 1;
       const next = script.answers.shift();
       if (next instanceof Error) throw next;
-      return [next || []];
+      const rows = next || [];
+      return { rows, rowCount: rows.length };
     },
     getConnection: async () => {
       throw new Error('getConnection is not used by the middleware');
@@ -129,7 +135,7 @@ async function run({ token, answers, reqPath = '/api/students', method = 'GET' }
     assert(!r.next, 'next() is not called on an outage');
   }
   {
-    const r = await run({ token: good, answers: [[{ token_valid_after: null }], scriptedError('PROTOCOL_CONNECTION_LOST')] });
+    const r = await run({ token: good, answers: [[{ token_valid_after: null }], scriptedError('57P01')] });
     assert(r.status === 503 && r.body.message === 'Database unreachable.', 'pool throws on the users read → 503 too', `got ${r.status}`);
   }
   {
@@ -198,10 +204,10 @@ async function run({ token, answers, reqPath = '/api/students', method = 'GET' }
   }
 
   console.log('\nisDbUnavailable — what /me treats as an outage:');
-  assert(isDbUnavailable(scriptedError('ECONNREFUSED')) && isDbUnavailable(scriptedError('PROTOCOL_CONNECTION_LOST')), 'connection-level codes are an outage');
+  assert(isDbUnavailable(scriptedError('ECONNREFUSED')) && isDbUnavailable(scriptedError('57P01')), 'connection-level codes are an outage');
   {
     const sqlError = new Error("Unknown column 'nope' in 'field list'");
-    sqlError.code = 'ER_BAD_FIELD_ERROR';
+    sqlError.code = '42703';
     assert(!isDbUnavailable(sqlError) && !isDbUnavailable(new Error('plain')) && !isDbUnavailable(null), 'NEGATIVE CONTROL: a SQL error, a plain Error and null are NOT an outage — those stay 500');
   }
 

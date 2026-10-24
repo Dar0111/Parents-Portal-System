@@ -75,7 +75,8 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
   }
 
   try {
-    const [existing] = await pool.query('SELECT id FROM users WHERE login_id = ? LIMIT 1', [
+    // users.login_id is portal.ci, so this matches a case variant as MySQL did.
+    const { rows: existing } = await pool.query('SELECT id FROM users WHERE login_id = ? LIMIT 1', [
       trimmedLoginId,
     ]);
     if (existing.length) {
@@ -86,16 +87,18 @@ router.post('/teachers', authenticate, authorize('admin'), async (req, res) => {
     // 4): the admin typed this password, so the teacher chooses their own at
     // the first sign-in — the same gate an admin temporary password uses.
     const hashed = await hashPassword(password);
-    const [result] = await pool.query(
+    const { rows: inserted } = await pool.query(
       `INSERT INTO users (login_id, password, role, status, name, must_change_password, created_by)
-       VALUES (?, ?, 'teacher', 'active', ?, 1, ?)`,
+       VALUES (?, ?, 'teacher', 'active', ?, 1, ?)
+       RETURNING id`,
       [trimmedLoginId, hashed, name, req.user.id]
     );
+    const newId = inserted[0].id;
 
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [result.insertId]);
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [newId]);
     // The id, not the login id (§5c; feat/activity-log, the owner's Q9.1): an
     // audit row persists. Rows written before 2026-10-23 keep their wording.
-    await logActivity(req.user.id, 'create_teacher', `Created teacher account #${result.insertId}`);
+    await logActivity(req.user.id, 'create_teacher', `Created teacher account #${newId}`);
 
     return res.status(201).json({
       success: true,
@@ -158,7 +161,7 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     // sections.adviser_id on s.section_id — the same column attendance and
     // excuse review key on, NOT utils/teacherScope.js's read predicate, which
     // its own header says is never a write gate.
-    const [students] = await pool.query(
+    const { rows: students } = await pool.query(
       `SELECT s.id FROM students s
        WHERE s.lrn = ?
          AND EXISTS (SELECT 1 FROM sections sec WHERE sec.id = s.section_id AND sec.adviser_id = ?)
@@ -173,12 +176,12 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     }
     const student = students[0];
 
-    const [existingUser] = await pool.query('SELECT id FROM users WHERE login_id = ? LIMIT 1', [loginId]);
+    const { rows: existingUser } = await pool.query('SELECT id FROM users WHERE login_id = ? LIMIT 1', [loginId]);
     if (existingUser.length) {
       return res.status(409).json({ success: false, message: 'Parent account for this LRN already exists.' });
     }
 
-    const [existingParent] = await pool.query(
+    const { rows: existingParent } = await pool.query(
       'SELECT id FROM users WHERE student_id = ? AND role = ? LIMIT 1',
       [student.id, 'parent']
     );
@@ -190,18 +193,20 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     // 4): the adviser typed this password, so the parent chooses their own at
     // the first sign-in, before the consent screen.
     const hashed = await hashPassword(password);
-    const [result] = await pool.query(
+    const { rows: inserted } = await pool.query(
       `INSERT INTO users (login_id, password, role, status, name, student_id, must_change_password, created_by)
-       VALUES (?, ?, 'parent', 'pending', ?, ?, 1, ?)`,
+       VALUES (?, ?, 'parent', 'pending', ?, ?, 1, ?)
+       RETURNING id`,
       [loginId, hashed, name, student.id, req.user.id]
     );
+    const newId = inserted[0].id;
 
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT u.*, s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name
        FROM users u
        JOIN students s ON s.id = u.student_id
        WHERE u.id = ? LIMIT 1`,
-      [result.insertId]
+      [newId]
     );
 
     // Ids, not the LRN (§5c): a parent's login_id IS the child's LRN, and an
@@ -209,7 +214,7 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
     await logActivity(
       req.user.id,
       'create_parent',
-      `Created pending parent account #${result.insertId} for student #${student.id}`
+      `Created pending parent account #${newId} for student #${student.id}`
     );
 
     // Fan-out is best effort, exactly like logActivity above it: the account
@@ -230,7 +235,7 @@ router.post('/parents', authenticate, authorize('teacher'), async (req, res) => 
       const notified = await insertNotifications(pool, {
         type: 'parent_pending',
         itemType: 'user',
-        itemId: result.insertId,
+        itemId: newId,
         actorId: req.user.id,
         titleSnapshot: null,
         userIds: audience,
@@ -268,13 +273,15 @@ router.get('/parents/pending', authenticate, authorize('admin'), async (req, res
   }
 
   try {
-    const [[{ total }]] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(
       `SELECT COUNT(*) AS total
        FROM users u
        JOIN students s ON s.id = u.student_id
        WHERE u.role = 'parent' AND u.status = 'pending'`
     );
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT u.id, u.login_id, u.name, u.email, u.contact_number, u.status, u.created_at, u.profile_pic,
               s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name,
               s.grade_level, s.section,
@@ -303,7 +310,7 @@ router.put('/parents/:id/approve', authenticate, authorize('admin'), async (req,
   }
 
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT * FROM users WHERE id = ? AND role = 'parent' LIMIT 1`,
       [parentId]
     );
@@ -324,7 +331,7 @@ router.put('/parents/:id/approve', authenticate, authorize('admin'), async (req,
       [req.user.id, parentId]
     );
 
-    const [updated] = await pool.query(
+    const { rows: updated } = await pool.query(
       `SELECT u.*, s.lrn, s.first_name AS student_first_name, s.last_name AS student_last_name
        FROM users u JOIN students s ON s.id = u.student_id WHERE u.id = ? LIMIT 1`,
       [parentId]
@@ -357,7 +364,7 @@ router.put('/parents/:id/reject', authenticate, authorize('admin'), async (req, 
   }
 
   try {
-    const [rows] = await pool.query(
+    const { rows } = await pool.query(
       `SELECT * FROM users WHERE id = ? AND role = 'parent' LIMIT 1`,
       [parentId]
     );
@@ -416,26 +423,31 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
     params.push(status);
   }
 
+  // THE SEARCH (the owner's Q5, 2026-10-25): the name through the one search
+  // helper in config/db.js — case- and accent-insensitive, as MySQL's
+  // collation made it — and the login id with ILIKE under the ICU root
+  // collation, because LIKE on a portal.ci column is 0A000 on PostgreSQL 17
+  // (migration/docs/02 §D). Trimmed here, at the request boundary.
   if (search) {
-    const term = `%${String(search).trim()}%`;
-    conditions.push('(name LIKE ? OR login_id LIKE ?)');
-    params.push(term, term);
+    const term = String(search).trim();
+    conditions.push(`(${pool.foldedSql('name')} LIKE ? OR login_id COLLATE "und-x-icu" ILIKE ?)`);
+    params.push(pool.foldedContains(term), `%${term}%`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const list = readListParams(req.query, {
-    // `role` and `status` are ENUMs, and MySQL sorts an ENUM by its ORDINAL —
-    // parent, teacher, admin — not by its letters. Admin → Users' column
-    // header promised A–Z and delivered declaration order for a week, and no
-    // suite sorted on either key so nothing said so (pre-Stage-5 #2, o3).
-    // `CAST(... AS CHAR)` sorts the words; `parseSort` splits its expressions
-    // on commas only, so the call passes through intact.
+    // `role` and `status` are ENUMs, and an ENUM sorts by its ORDINAL —
+    // parent, teacher, admin — not by its letters, on PostgreSQL as on MySQL.
+    // Admin → Users' column header promised A–Z and delivered declaration
+    // order for a week, and no suite sorted on either key so nothing said so
+    // (pre-Stage-5 #2, o3). `::text` sorts the words; `parseSort` splits its
+    // expressions on commas only, so the cast passes through intact.
     sortable: {
       name: 'name',
       login_id: 'login_id',
-      role: 'CAST(role AS CHAR)',
-      status: 'CAST(status AS CHAR)',
+      role: 'role::text',
+      status: 'status::text',
       created_at: 'created_at',
     },
     defaultOrderBy: 'created_at DESC',
@@ -447,8 +459,10 @@ router.get('/', authenticate, authorize('admin'), async (req, res) => {
 
   try {
     // total counts the FILTERED set (C4) — same WHERE, same params.
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM users ${where}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total FROM users ${where}`, params);
+    const { rows } = await pool.query(
       `SELECT * FROM users ${where} ${list.orderBy} LIMIT ? OFFSET ?`,
       [...params, list.limit, list.offset]
     );
@@ -471,7 +485,7 @@ router.get('/:id', authenticate, authorize('admin'), async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -504,7 +518,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
     const existing = rows[0];
     if (!existing) {
       return res.status(404).json({ success: false, message: 'User not found.' });
@@ -541,8 +555,9 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     // flag is a claim that someone proved they read that inbox, and the new
     // address has proved nothing. This is the ONLY path that changes an
     // email — no self-service screen writes it — so this is the only place
-    // the flag has to be cleared. `<=>` is the NULL-safe comparison; a
-    // change from NULL to an address must count.
+    // the flag has to be cleared. `IS DISTINCT FROM` is the NULL-safe
+    // comparison (MySQL's `NOT (… <=> …)`); a change from NULL to an address
+    // must count.
     //
     // AND IT BURNS THE CODES ALREADY SENT (feat/sms-transport, Q4,
     // 2026-09-29). Until then a code mailed to the OLD address stayed live and
@@ -553,7 +568,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
     // change.
     const emailChanged = (existing.email ?? null) !== (nextEmail ?? null);
     const contactChanged = (existing.contact_number ?? null) !== (nextContact ?? null);
-    await pool.query('UPDATE users SET email_verified_at = NULL WHERE id = ? AND NOT (email <=> ?)', [id, nextEmail]);
+    await pool.query('UPDATE users SET email_verified_at = NULL WHERE id = ? AND email IS DISTINCT FROM ?', [id, nextEmail]);
     if (emailChanged) await codes.burnPending(id, 'email_verification');
     if (contactChanged) {
       await pool.query('UPDATE users SET contact_verified_at = NULL WHERE id = ?', [id]);
@@ -566,7 +581,7 @@ router.put('/:id', authenticate, authorize('admin'), async (req, res) => {
       id,
     ]);
 
-    const [updated] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const { rows: updated } = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
     // The id only (§5c; feat/activity-log, the owner's Q9.1): a parent's
     // login_id IS the child's LRN, and an audit row persists. Rows written
     // before 2026-10-23 keep their wording.
@@ -603,7 +618,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
   }
 
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
     const target = rows[0];
     if (!target) {
       return res.status(404).json({ success: false, message: 'User not found.' });
@@ -624,7 +639,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
     // reduce the active count, so it isn't a lockout risk and shouldn't be
     // blocked by this check.
     if (target.role === 'admin' && status === 'inactive' && target.status === 'active') {
-      const [activeAdmins] = await pool.query(
+      const { rows: activeAdmins } = await pool.query(
         `SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND status = 'active'`
       );
       if (activeAdmins[0].count <= 1) {
@@ -637,7 +652,7 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res) =
 
     await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, id]);
 
-    const [updated] = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
+    const { rows: updated } = await pool.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
     // The id only (§5c; feat/activity-log, the owner's Q9.1) — see update_user.
     await logActivity(req.user.id, 'update_user_status', `Set user #${id} to ${status}`);
 
@@ -665,7 +680,9 @@ router.delete('/:id/photo', authenticate, authorize('admin'), async (req, res) =
     return res.status(400).json({ success: false, message: 'Invalid user id.' });
   }
   try {
-    const [[target]] = await pool.query('SELECT id, name, role, profile_pic FROM users WHERE id = ? LIMIT 1', [id]);
+    const {
+      rows: [target],
+    } = await pool.query('SELECT id, name, role, profile_pic FROM users WHERE id = ? LIMIT 1', [id]);
     if (!target) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -707,7 +724,7 @@ router.post('/:id/temp-password', authenticate, authorize('admin'), async (req, 
   }
 
   try {
-    const [rows] = await pool.query('SELECT id, name FROM users WHERE id = ? LIMIT 1', [id]);
+    const { rows } = await pool.query('SELECT id, name FROM users WHERE id = ? LIMIT 1', [id]);
     if (!rows.length) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -720,7 +737,7 @@ router.post('/:id/temp-password', authenticate, authorize('admin'), async (req, 
     // A1: every session this account had dies now, and it cannot do anything
     // but change this password on the way back in.
     await pool.query(
-      'UPDATE users SET password = ?, password_changed_at = NOW(3), token_version = token_version + 1, must_change_password = 1 WHERE id = ?',
+      'UPDATE users SET password = ?, password_changed_at = portal.now_ms(), token_version = token_version + 1, must_change_password = 1 WHERE id = ?',
       [hashed, id]
     );
     await logActivity(req.user.id, 'admin_temp_password', `Set a temporary password for user #${id}`);
