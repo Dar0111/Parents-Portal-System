@@ -127,7 +127,7 @@ After a clean `npm run db:setup`:
 | `students` | 4 — Marwin Conde G6 Malikhain, Jea Mae Bargaso G5 Masigasig, Nino Alcantara G1 Mabait, and **Tala Halimbawa G6 Malikhain — the browser-fixture learner, nobody's test target** (pre-Stage-5 #3b, 2026-09-25): every suite stays on Marwin, every browser fixture goes on Tala, so the two protocols no longer exclude each other. On a live database she arrives by `npm run db:migrate:fixture-learner`, not `db:setup` |
 | `teacher_assignments` | 8 — 3 for TCH-001 (G6 Mathematics/English/Filipino in Malikhain) and 5 for TCH-003 (every Grade 1 subject in Mabait). TCH-002 still has zero; that is the point of the account. |
 | `sections` with a real `adviser_id` | 3 of 23 — Malikhain → TCH-001, Masigasig → TCH-002, Mabait → TCH-003. The other 20 stay NULL until an admin assigns them. |
-| `grades` | 5 — Nino's partial descriptive card, **COMPUTED since B7 (D-102, 2026-10-24)**: Mathematics terms 1–3 A/B/C (Initial Grades 94.70 / 85.00 / 77.50, Final **B**), Reading and Literacy terms 1–2 D/E (70.00 / 60.00), each from one WW and one PT slot (HPS 20) and Summative maxima 20/20/20 — so `assessment_slots` is **10** and `grade_components` **10**. One source, `scripts/demoGrade1.js`, run by `db:setup` after the seed and once on the live DB by `db:migrate:demo-grade1`. No seeded row is a legacy letter any more. |
+| `grades` | 5 — Nino's partial descriptive card, **COMPUTED since B7 (D-102)**: Mathematics terms 1–3 A/B/C (Initial Grades 94.70 / 85.00 / 77.50, Final **B**), Reading and Literacy terms 1–2 D/E (70.00 / 60.00), each from one WW and one PT slot (HPS 20) and Summative 20/20/20 — `assessment_slots` **10**, `grade_components` **10**. One source, `scripts/demoGrade1.js` (`db:setup`; on the live DB `db:migrate:demo-grade1`). No legacy letter is seeded. |
 | `attendance`, `announcements`, `memos`, `events`, `excuse_letters`, `messages`, `policy_acceptances`, `login_attempts`, `grade_acknowledgements` (since feat/grade-acknowledgement) | 0 (no parent has accepted, §29; no term is locked) |
 
 HTTP suites that create rows delete them in a `finally` block and must
@@ -1675,14 +1675,10 @@ id after backup 369); each one's check, cleanup and backup: its CHANGELOG row
 and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Next,
 in the owner's order (2026-10-24; D-119, D-122, D-124):**
 
-1. **B7 `chore/pre-migration`** (its own worktree `Parents_Portal-pre-migration`,
-   from `01495e5`; the PLAN APPROVED of 2026-10-24) — the docs pass (SMSGate
-   cloud mode's wording, Q9.6's stale claims, TESTING's PENDING, the passing
-   items), the probe's exit fix (`process.exitCode`, never `process.exit()`
-   after a fetch — the libuv `UV_HANDLE_CLOSING` assertion), and the demo data
-   of D-102 (Nino's five Grade 1 letters reproduced by scores and HPS through
-   one shared module, `setup-db.js` and `db:migrate:demo-grade1`); then a new
-   restore point, taken last, after the device check and its cleanup — it
+1. **B7 `chore/pre-migration`** (worktree `Parents_Portal-pre-migration`, from
+   `01495e5`) — the docs pass, the probe's exit fix, D-102's demo data and the
+   seed fix, gated 2026-10-24 after backup 370 (their CHANGELOG rows); then
+   the device check, its cleanup and a new restore point, taken last — it
    still holds the old activity rows.
 2. **Session B, and beside it in Session A the E2E + P-19 branch** (D-119:
    SMS end-to-end encryption, approved 2026-10-24, and the old code-row purge,
@@ -1701,29 +1697,19 @@ in the owner's order (2026-10-24; D-119, D-122, D-124):**
    (JS `Date` instants), `u.role = ?`, `a.user_id IS NULL`, `a.action = ?` and
    `IN` / `NOT IN` lists written as `?, ?, …`; the writers' change
    (`routes/users.js`) is description text only. **B7 for the port:** no
-   schema change; the seed's Grade 1 demo rows — 10 `assessment_slots`, 10
-   `grade_components`, rows 1–5's summative and computed columns — come from
-   `scripts/demoGrade1.js`, which `setup-db.js` runs after the seed (port it
-   with the seed); `db:migrate:demo-grade1` is a MySQL one-off, already in the
-   copied data; `verify-grading-seed`'s Grade 1 checks read the same columns.
+   schema change; Nino's 10 slots, 10 components and computed columns come
+   from `scripts/demoGrade1.js`, run by `setup-db.js` after the seed — port it
+   with the seed; `db:migrate:demo-grade1` is a MySQL one-off, its rows already
+   in the copied data; `verify-grading-seed` reads the same columns.
 3. **The privacy text in the app** (D-36), after the principal's approval on
    Mon 2026-10-26 (D-124).
 4. **The reset of the old activity rows, at the end** — after the last gate
    and before the demo, on Supabase (D-122; moved out of B7); its scope is
-   decided then. **B7's survey for it (2026-10-24, MySQL):** 29,712 rows, ids
-   1–29721; the written rules protect 48 — the 40 contribution rows (SCOPE
-   DECISION → Feature 7), ids 5515–5517 (the 2026-09-21 clock rows, After
-   Stage 4) and the five `seed` rows (ids 1–4, 15782); the restore trail is 149
-   (3 `restore_backup`, 3 `restore_wiped_activity_logs`, 143
-   `restore_refused`); no code needs old rows. It would make stale:
-   `activityActions.js:8–9` and `:164–165`, this file's two rules above and
-   the KNOWN ISSUES "291 rows" line, MOBILE_CONVENTIONS `:605`, FRONTEND
-   `:4518` and `:4542–4543`, TESTING `:616`, KNOWN_ISSUES `:126` and
-   `:264–265`, MIGRATION_INVENTORY's 77 distinct actions, and the
-   "check `activity_logs` for `password_reset_*_failed`" run-book. Q7's
-   figures: 28,983 rows since 2026-09-07, about 589 a day over the 14 days to
-   2026-10-23, 17% from deleted suite accounts, a full gate about 650.
-5. **Hosting last**, once the whole system is complete.
+   decided then. B7's survey for it: `docs/ACTIVITY_RESET.md`.
+5. **Hosting last**, once the whole system is complete. **Before going
+   online, change or remove the seeded accounts' default passwords** — they
+   are committed in `seed.sql`'s comments (and `setup-db.js`, BEFORE THE
+   PARENT DEMO).
 
 The owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
@@ -1731,7 +1717,7 @@ still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346,
 354, 362 and 369 are the six checks' pre-cleanup dumps, 361 and 368 B8's and
 B2's pre-check dumps,
 347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
-345, 348, 353, 355, 360 and 363 pre-write dumps, not restore points. The manuscript delta list stays with the
+345, 348, 353, 355, 360, 363 and 370 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
 that day's attendance, the owner's change of the school's earlier rule.
 
