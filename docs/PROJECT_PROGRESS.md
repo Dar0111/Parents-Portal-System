@@ -11,8 +11,15 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-24: `main` is the post-merge docs of `4b8be36` — B7
-`chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight
+**Snapshot, 2026-10-25: `main` is the post-merge docs of `5eb2127` —
+`feat/sms-e2e-code-purge` merged fast-forward from `5426b70` by the ref move
+(four commits: P-19 `e8236ac`, the SMS end-to-end encryption `fe53aad`, the
+gate `82b8cf8`, the device check and the probe's fix round `5eb2127`): a code
+row older than 24 hours goes with the next code, and every text and number is
+encrypted before it leaves the server; gated after backup 377, device-checked
+2026-10-25 (`encryption: on`, a real code arrived in plain words), cleaned up
+by id after backup 382. Before it, `5426b70`, the post-merge docs of
+`4b8be36` — B7 `chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight
 commits: the docs pass `50ab559`, the probe's exit fix `ff426bb`, D-102
 `bff57b6`, the seed fix `a882711`, the gate `7c3f558`, the run sheet
 `6611af3`, finding #1's fix `415064c`, the merge-ready docs `4b8be36`): the
@@ -203,29 +210,26 @@ built in its own worktree, gated after backup 363; the device check PASSED
 2026-10-24, §1–§5 on the web, no findings; the cleanup after the owner's SMS
 test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
 `main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
-detached at `774b98c`).
-**Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
-(1) Session A: `feat/sms-e2e-code-purge` (D-119; worktree
-`Parents_Portal-sms-e2e`) — P-19 `e8236ac` (a code row older than 24 hours,
-its IP with it, goes with the next code; `auth_codes` 0 between runs since the
-gate) and the SMS end-to-end encryption `fe53aad` (SMSGate's passphrase
-scheme, both modes, nothing sent without `SMS_ENCRYPTION_PASSPHRASE`), gated
-2026-10-24 after backup 377; the device check PASSED 2026-10-25
-(`docs/SMS_E2E_DEVICE_CHECK.md` §4 — `encryption: on`, a real reset code
-arrived in plain words; cleaned up by id after backup 382; the cloud-relay
-KNOWN_ISSUES row closed) and its fix round gave the SMS probe a second guard
-against Node 24.14.1's exit-time abort (nodejs/node#56645, fixed in Node
-24.20.0 — the upgrade is the owner's decision); merge on the owner's word
-after the re-check; (2) Session B
-(`migrate/postgres-prep`), beside it — the sync with `main`, then the D-65 fix
-round, then Phase 3 (the owner writes `supabase.env` after Session A),
-copying everything; the sync adds B1's 26th table `grade_acknowledgements`
+detached at `774b98c`). **Merged (2026-10-24):** B7 `chore/pre-migration`
+(`4b8be36` — the docs before the migration and D-102's demo data; the restore
+point backup 376). **Merged (2026-10-25):** `feat/sms-e2e-code-purge`
+(`5eb2127` — P-19 and the SMS end-to-end encryption; the device check PASSED,
+`docs/SMS_E2E_DEVICE_CHECK.md` §4; the probe's exit-time abort guarded, the
+Node ≥ 24.20.0 upgrade the owner's decision; `main` fast-forwarded from
+`5426b70` by the ref move).
+**Next, in the owner's order (2026-10-25; CLAUDE.md NEXT names each item):**
+(1) the privacy text in the app (D-36; D-124 changed by the owner — in now,
+without waiting for the principal's approval) — `feat/privacy-text`, both
+documents' draft-2 text, both versions `draft-2`; (2) then Session A's half of
+the Phase 3 split; (3) Session B (`migrate/postgres-prep`), beside it — the
+sync with `main` (its next sync carries P-19's DELETE in both forms and the
+SMS change), then the D-65 fix round, then Phase 3 (the owner writes
+`supabase.env` after Session A), copying everything; the sync adds B1's 26th table `grade_acknowledgements`
 and the two `notifications.type` values `grades_locked` and
 `grades_acknowledged` (B1's build CHANGELOG row, 2026-10-21); B2 adds no
 schema change, and its new SQL to port is MIGRATION_INVENTORY B16; B7 adds
 none either — port its seed Grade 1 block, the demo-grade1 migration and
-`verify-grading-seed`'s new SQL (CLAUDE.md NEXT); (3) the privacy text in the app (D-36) after
-the principal's approval on Mon 2026-10-26 (D-124); (4) the reset of the old
+`verify-grading-seed`'s new SQL (CLAUDE.md NEXT); (4) the reset of the old
 activity rows at the end, after the last gate and before the demo, on
 Supabase (D-122; B7's survey for it: `docs/ACTIVITY_RESET.md`); (5) hosting
 last, once the whole system is complete — before going online, the seeded
