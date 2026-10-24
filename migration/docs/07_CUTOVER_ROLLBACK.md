@@ -9,16 +9,23 @@ the test and check data are the team's own history (backup numbers and
 
 Prerequisites, all from this package: the application port merged and
 green against the local PostgreSQL copy (`03_QUERY_PORT_INVENTORY.md`),
-the hosted checks in `06_STAGING_SUPABASE.md` §4 all answered, and the
-Backup & Restore replacement in `04_BACKUP_RESTORE_DESIGN.md` built and
-rehearsed — a cutover without a working restore has no rollback inside the
-new system.
+the hosted checks in `06_STAGING_SUPABASE.md` §4 all answered, the roles made
+(`002` as the owner, `roles:passwords`, `06` §2) and `003`'s two walls proven
+on the hosted target (`06` §4 items 7, 8 and 13), and the Backup & Restore
+replacement in `04_BACKUP_RESTORE_DESIGN.md` built and rehearsed — a cutover
+without a working restore has no rollback inside the new system.
+
+**The owner's decisions of 2026-10-24 that govern MySQL's fate are
+recorded here and nowhere else: D-19, D-66 and D-67 (Phase 4 and the
+decision table).** Every step that drops or deletes anything is the owner's
+to approve, with the command shown first.
 
 ## Phase 0 — rehearsal (any day before)
 
 1. `snapshot` → `snapshot:restore-check` (MySQL, isolated).
-2. `pg:schema --target staging` → `transfer --target staging` →
-   `reconcile --target staging` → `semantics` → `rehearse`.
+2. `pg:schema --target staging` (001 + 003, the COUNTS and POLICIES lines)
+   → `rls:check --target staging` (the catalog part) → `transfer --target
+   staging` → `reconcile --target staging` → `semantics` → `rehearse`.
 3. Run the ported server against staging with `MAIL_TRANSPORT=file
    SMS_TRANSPORT=file`, then the HTTP suites retargeted per
    `05_VALIDATION_MATRIX.md` §3. Fix, re-apply with `--drop-first`
@@ -38,9 +45,12 @@ new system.
 
 ## Phase 2 — load
 
-1. `pg:schema --target staging` on an EMPTY schema (if the rehearsal left
-   one, `--drop-first` is refused for staging on purpose — drop it by hand
-   as `portal_migrate` after confirming it holds rehearsal data only).
+1. `pg:schema --target staging` on an EMPTY schema — `001` and `003` in one
+   transaction, the POLICIES line read back (`06` §2a). If the rehearsal
+   left a schema, `--drop-first` is refused for staging on purpose, by the
+   flag before any secret is read and by the connection after (D-65, the
+   owner's Q2.3): the owner drops it by hand as `portal_migrate` after
+   confirming it holds rehearsal data only, the command shown first.
 2. `transfer --target staging` — one transaction, every FK deferred, every
    sequence set to the source AUTO_INCREMENT. Any error → automatic
    ROLLBACK → fix → rerun. There is no partial state to clean up.
@@ -53,10 +63,13 @@ new system.
 
 ## Phase 3 — switch
 
-1. Deploy the ported API with `PG_URL` pointing at staging-now-production,
-   `trust proxy` set, `JWT_SECRET` unchanged, `CORS_ORIGIN` listing the
-   web origin, `VITE_API_BASE_URL` / `EXPO_PUBLIC_API_URL` pointing at the
-   new API host (the phone needs a rebuilt bundle for that).
+1. Deploy the ported API connecting as `portal_app.<ref>` through the
+   Session pooler (port 5432) with `verify-full` and the project's CA (`06`
+   §0 and §1; the direct host is not used), the restore endpoint's one-off
+   connection as `portal_migrate.<ref>`, `trust proxy` set, `JWT_SECRET`
+   unchanged, `CORS_ORIGIN` listing the web origin, `VITE_API_BASE_URL` /
+   `EXPO_PUBLIC_API_URL` pointing at the new API host (the phone needs a
+   rebuilt bundle for that).
 2. `GET /api/health` must answer `"db":"ok"` (the ported health check runs
    `SELECT 1` on the pg pool).
 3. **Invalidate every session once, deliberately:** write
@@ -91,11 +104,26 @@ Everything written after Phase 3 exists only in PostgreSQL. Two cases:
   window: after it, forward-fix on PostgreSQL. Write that down in the
   CHANGELOG row of the cutover with the time.
 
-The MySQL database is **not dropped** at cutover. It stays read-only
-(revoke the API user's write grants, or simply keep the MySQL service
-stopped) until the team decides, with a date, that it can go; the final
-snapshot file and its manifest in `Parents_Portal-migration-data` are the
-durable record either way.
+**MySQL after the cutover — the owner's decisions of 2026-10-24:**
+
+- **D-19.** Nothing happens to MySQL until the cutover is done and the whole
+  database is confirmed working on Supabase (D-67). The final snapshot
+  `.sql` of Phase 1 and its manifest in `Parents_Portal-migration-data` are
+  kept. Any `DROP` — a database, a scratch, a table — goes through the
+  owner's approval like every destructive step, the command shown first.
+- **D-66.** After the cutover and the D-67 checks, MySQL is **not deleted**:
+  it stays on the laptop, disconnected from the app (the API's `DB_*` keys
+  removed, or the MySQL service kept stopped), as the fallback. Deleting it
+  later is a new decision with its own date.
+- **D-67.** Before the app leaves MySQL for good, or anything is dropped,
+  three things, in order: (1) `RECONCILE OK` on Supabase for every table
+  (26) and every sequence; (2) the full smoke gate passing on Supabase, on
+  the web and on the phone; (3) the owner's explicit go, with any `DROP`
+  command screenshotted to the chat before approval.
+
+The two scratch databases `parents_portal_migsrc_20261019_145706` and
+`parents_portal_migsrc_20261024_164012` stay until after the cutover; the
+owner drops both by hand then (the owner's answer Q2.6, 2026-10-24).
 
 ## Rollback decision table
 
@@ -104,6 +132,8 @@ durable record either way.
 | Phase 2 fails | transfer rolled back itself; fix and rerun | none |
 | Phase 3 smoke fails | stop new API, restart MySQL API | smoke rows abandoned (count them) |
 | First hours, defect | same as above | post-cutover rows abandoned, counted |
-| After the smoke window | forward-fix on PostgreSQL | none; MySQL is history |
+| After the smoke window | forward-fix on PostgreSQL | none; MySQL is the disconnected fallback (D-66), not history |
+| D-67 not yet satisfied | MySQL stays as it was; nothing dropped (D-19) | none |
+| D-67 satisfied, the owner's go given | the app leaves MySQL; MySQL stays on the laptop, disconnected (D-66) | none; a later deletion is a new decision |
 | Restore needed on PostgreSQL | §04 restore (application-scope, transactional) | sessions invalidated by the cutoff, as today |
 | Restore needed from a pre-cutover MySQL dump | §04 historical path: MySQL scratch → transfer → reconcile | the PostgreSQL rows newer than that dump are replaced, as a snapshot restore does today |

@@ -24,6 +24,17 @@ The application database was only ever read (session `READ ONLY`).
 | Workflow rehearsal | **ran** | `rehearsal/rehearse_local_20261024T084423.json`: `REHEARSAL OK`, 90 checks (71 + the 19 of §3a), 0 synthetic rows left |
 | Query inventory | **ran** | 350 `.query(` call sites in 27 files (`03`) |
 
+## 0b. The D-65 fix round (2026-10-24; `06` §2–§2a, §4)
+
+| Requirement | Status | Result / evidence |
+|---|---|---|
+| Schema + grants + RLS applied in one transaction | **ran** | local `--drop-first` (the discard printed first: 26 tables, about 30,780 rows): COUNTS as §0; POLICIES `rls_on 26, forced 0, policies 26, portal_app_all 26, app_schema_usage true, app_schema_create false, app_dml_tables 26, app_truncate_tables 0, app_usage_sequences 25, anon/authenticated/service_role schema usage false, anon/service_role select tables 0`; the local roles created NOLOGIN |
+| The allow-and-deny matrix | **ran** | `rehearsal/rlscheck_local_20261024T090921.json`: `RLS CHECK OK`, 20 checks + 6 INFO — catalog 7; deny 3 × 104 of 104 at 42501 (anon, authenticated, service_role with BYPASSRLS); RLS alone: 0 rows in 26 tables (18 populated) for a granted role without a policy and its INSERT 42501 by RLS's own message; allow: `portal_app` equal counts on 26, insert/update/delete 1/1/1, TRUNCATE/ALTER/DROP/CREATE 42501, `now_s()` executable; owner: reads 26 and inserts without a policy (no FORCE); rollback left nothing (0 throwaway roles, 0 synthetic rows, 26 tables owned by the migrator, 26 policies). The first run (`rlscheck_local_20261024T090832.json`) failed the owner INSERT on the function revoke, not on RLS — the emulation now grants EXECUTE, as the real owner has |
+| The staging refusals, flag first | **ran** | `apply-schema.js --target staging --drop-first` and `transfer.js --target staging --truncate` both exit 1 naming the flag, with no `supabase.env` on disk — no secret was read; the connection check (`isDisposableLocal`) passed for the real local target on the `--truncate` run |
+| `set-role-passwords.js --dry-run` | **ran** | exit 1, names only: the file and the three keys MISSING, the CA file MISSING → TLS would be refused without `--tls-encrypt-only`; no connection opened; `--target local` refused |
+| Transfer and reconcile after 003 | **ran** | `transfer_local_20261024T090817.json` 26 tables, 30,780 rows as `portal_migrate` with RLS on (the owner exempt); `reconcile_local_20261024T090929.json` `RECONCILE OK`, every sequence equal after the matrix; a second transfer with `--truncate` printed the per-table discards and the total before loading again — its first run counted 7 tables / 122 rows because `TRUNCATE … CASCADE` on `users` had already emptied the dependents when their turn came; the guard now counts every table BEFORE truncating any and printed 18 tables / 30,780 rows (`transfer_local_20261024T091356.json`); the reconcile after it `RECONCILE OK` |
+| The hosted RLS proof | **pending** `supabase.env` | `06` §4 items 7, 8 and 13 |
+
 ## 1. Data
 
 | Requirement | Status | Result / evidence |
@@ -131,7 +142,7 @@ the last check proves 0 synthetic rows remain).
 | API-host ↔ database clock skew | one machine today | `06` §4 item 4 |
 | Connection mode (session pooler over IPv4), idle limits, TLS verify-full | no project | `06` §4 item 6 |
 | Schema, transfer, reconcile, semantics, rehearsal on the hosted target | no project | `06` §4 items 7–10 |
-| Data API disabled / `portal` not exposed | no project | `06` §4 item 11 |
+| Data API on (D-17), `portal` not exposed; the RLS proof as `anon` | no `supabase.env` | `06` §4 items 11 and 13 |
 | `pg_dump` option for `04` | no client tools on this host; the recommended design needs none | — |
 | Full HTTP suite run against PostgreSQL | application port not written (out of this phase) | `03` §5 steps 1–8 |
 | Browser smoke (`npm run smoke`) against PostgreSQL | same | after the port |

@@ -12,6 +12,8 @@
     "inspect:source": "node scripts/inspect-source.js",
     "pg:local": "node scripts/pg-local.js",
     "pg:schema": "node scripts/apply-schema.js",
+    "rls:check": "node scripts/rls-check.js",
+    "roles:passwords": "node scripts/set-role-passwords.js",
     "transfer": "node scripts/transfer.js",
     "reconcile": "node scripts/reconcile.js",
     "semantics": "node scripts/semantics.js",

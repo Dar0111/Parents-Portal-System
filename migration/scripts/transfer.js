@@ -26,7 +26,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readOnly, sourceConfig } = require('../lib/mysql');
-const { targetConfig } = require('../lib/env');
+const { targetName, targetConfig, isDisposableLocal } = require('../lib/env');
 const { pool } = require('../lib/pg');
 const { TABLES, toPg, tableSetMismatch } = require('../lib/tables');
 const P = require('../lib/paths');
@@ -39,9 +39,14 @@ function arg(name, fallback) {
 }
 
 async function main() {
-  const target = targetConfig();
+  // THE GUARD, FLAG FIRST (D-65): refused by the target name before any secret
+  // is read, then by the connection itself (the disposable local cluster only).
   const truncate = process.argv.includes('--truncate');
-  if (truncate && target.name !== 'local') throw new Error('--truncate is allowed on the local target only.');
+  const name = targetName();
+  if (truncate && name !== 'local') throw new Error(`--truncate is allowed on the local target only (refused for ${name} before any secret was read).`);
+  const target = targetConfig();
+  if (truncate && !isDisposableLocal(target)) throw new Error('--truncate refused: the target is not the disposable local cluster (127.0.0.1, the embedded port and database, no TLS).');
+  console.log(`target ${target.name}: tls ${target.tlsMode}`);
   const sourceDb = arg('--source-db', sourceConfig().database);
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
   fs.mkdirSync(P.REHEARSAL_DIR, { recursive: true });
@@ -74,12 +79,24 @@ async function main() {
     await pgc.query('SET CONSTRAINTS ALL DEFERRED');
     await pgc.query("SET LOCAL TIME ZONE 'UTC'");
 
+    // Count EVERY table before truncating ANY: TRUNCATE … CASCADE on users
+    // empties its dependents, so a count taken table by table would under-
+    // state the discard (the first run of this guard printed 7 tables where
+    // 18 held rows). The figure printed is what the target held.
+    const held = {};
     for (const table of TABLES) {
-      const existing = (await pgc.query(`SELECT count(*)::int AS n FROM portal.${table.name}`)).rows[0].n;
-      if (existing > 0) {
-        if (!truncate) throw new Error(`portal.${table.name} already holds ${existing} rows — refusing (local: --truncate).`);
-        await pgc.query(`TRUNCATE portal.${table.name} CASCADE`);
-      }
+      held[table.name] = (await pgc.query(`SELECT count(*)::int AS n FROM portal.${table.name}`)).rows[0].n;
+    }
+    const nonEmpty = TABLES.filter((t) => held[t.name] > 0);
+    if (nonEmpty.length && !truncate) {
+      throw new Error(`portal.${nonEmpty[0].name} already holds ${held[nonEmpty[0].name]} rows (${nonEmpty.length} tables hold rows) — refusing (local: --truncate).`);
+    }
+    if (truncate && nonEmpty.length) {
+      const discardedRows = nonEmpty.reduce((sum, t) => sum + held[t.name], 0);
+      for (const t of nonEmpty) console.log(`discarding ${held[t.name]} rows from portal.${t.name} (local --truncate)`);
+      report.discarded = { tables: nonEmpty.length, rows: discardedRows };
+      console.log(`TRUNCATING ${nonEmpty.length} tables, ${discardedRows} rows discarded on ${target.name} (counts only; the discard is visible, never silent)`);
+      await pgc.query(`TRUNCATE ${nonEmpty.map((t) => `portal.${t.name}`).join(', ')} CASCADE`);
     }
 
     for (const table of TABLES) {
