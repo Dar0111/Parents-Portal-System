@@ -3778,7 +3778,8 @@ on a 403 (§2).
   contact step and the new password (§29f); until then the forced password
   change came first, and change-password passed this gate.
 - **`policy_pending` on `/auth/me` is what the client routes on.**
-  `ProtectedRoute` sends a pending parent to **`/consent`**, a top-level route
+  `ProtectedRoute` sends a pending account (every role since
+  feat/staff-acceptance) to **`/consent`**, a top-level route
   outside Shell and outside every ProtectedRoute — the forced-change screen's
   shape, for its reasons (a sidebar of refused pages lies; wrapping it loops).
   The page does its own guard: signed out → `/login`, consent not the next

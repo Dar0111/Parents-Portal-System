@@ -7,8 +7,9 @@ const policy = require('../utils/policy');
 // THE CONSENT GATE'S THREE ENDPOINTS (feat/privacy, 2026-10-10; every role
 // since feat/staff-acceptance, 2026-10-11). All three are reachable while the
 // gate is shut — middleware/auth.js lets /api/policy/* through for an account
-// that has not accepted yet, after the forced password change (that comes
-// first).
+// that has not accepted yet. Consent is the FIRST of the three sign-in steps
+// since feat/first-signin (utils/accountGates.js), so these come before the
+// contact step and the password.
 const router = express.Router();
 
 function documentView(d) {

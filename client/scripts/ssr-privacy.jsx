@@ -121,8 +121,8 @@ console.log('\nThe consent screen (rendered)');
     'each document is shown with its title and version from server/policy/versions.json'
   );
   assert(
-    (fresh.match(/Draft — awaiting the school(’|&#x27;|')s approval\./g) || []).length === 2,
-    'both documents are still the placeholder: "Draft — awaiting the school\'s approval."'
+    !/Draft — awaiting the school/.test(fresh) && DOCUMENTS.every((d) => d.text.split(/\n\s*\n/).every((p) => fresh.includes(p.replace(/\s*\n\s*/g, ' ').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;')))),
+    'neither document is the placeholder any more, and every paragraph of both files is on the consent screen, one blank-line paragraph each'
   );
   assert(
     (fresh.match(/role="region" aria-label="[^"]+ text" tabindex="0"/g) || []).length === 2,
