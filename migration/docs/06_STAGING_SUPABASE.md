@@ -9,14 +9,19 @@ equal to the local lines), the 2026-10-24 scratch transferred (26 tables,
 catalog checks and the behavioural probe (three Data API roles refused with
 42501 on `portal`), the semantics matrix and the rehearsal. Every connection
 was `verify-full` over TLSv1.3 against the project's intermediate CA, the
-certificate matching the pooler host. **Three things the run found, §4:**
-the clock of this laptop is about 9.8 s behind the database (item 4 — the
-two hosted check failures are that, nothing else); the semantics script
-installed the `citext` extension into `portal` as a side effect (item 5 — a
-`DROP EXTENSION` awaiting the owner's approval); the read-only MCP runs as
-`supabase_read_only_user` and cannot `SET ROLE`, so the behavioural probe
-ran as the owner instead (item 13). The application stays on MySQL; nothing
-in `server/`, `client/` or `mobile/` changed.
+certificate matching the pooler host. **Three things the run found, and
+their follow-ups the same day (§4):** the clock of this laptop was about
+9.8 s behind the database — the owner synced it, the re-measurement reads
+1 ms, and the semantics matrix and the rehearsal re-ran green (item 4); the
+semantics script had installed the `citext` extension into `portal` as a
+side effect — the owner approved its one `DROP EXTENSION`, run as the owner
+after a read-only dependency check, and the script no longer creates any
+extension (item 5); the read-only MCP runs as `supabase_read_only_user` and
+cannot `SET ROLE`, so the behavioural probe ran as the owner instead (item
+13); the owner's dashboard read closed item 11. **Still open: item 6's
+idle-transaction limit and item 12's backup cadence and PITR.** The
+application stays on MySQL; nothing in `server/`, `client/` or `mobile/`
+changed.
 
 (2026-10-24, the D-65 fix round: the project existed, `supabase.env` did
 not; the catalog facts read through the MCP that day are in §4.) No script
@@ -219,11 +224,16 @@ Each is a command in this package or a dashboard read; record the answer in
    `B.cutoff_same_second_token_minted_after_write_is_accepted` and the
    rehearsal's `restore.cutoff_rejects_old_token_accepts_new` are the only
    two hosted expectations not met, and both compare `Date.now()` here with
-   `portal.now_s()` there (locally one clock served both). **Open until the
-   host that will run the API is time-synced and this measurement reads
-   under one second**; the restore cutoff and "confirmed since this sign-in"
-   compare a JWT `iat` with database stamps in whole seconds, and a skew
-   above one second is fixed on the host before cutover, never tolerated.
+   `portal.now_s()` there (locally one clock served both). **Closed for this
+   host the same day:** the owner synced the laptop's clock (Windows, Sync
+   now), the re-measurement read **−1 ms median, −7 to −1 ms across five
+   samples** (round trip 42–61 ms), and both expectations then passed —
+   `semantics_staging_20261024T172356.json` `SEMANTICS OK`,
+   `rehearse_staging_20261024T172414.json` `REHEARSAL OK`, 90 of 90. The
+   rule stands for whichever host runs the API: the restore cutoff and
+   "confirmed since this sign-in" compare a JWT `iat` with database stamps
+   in whole seconds, so this measurement is repeated there before cutover
+   and a skew above one second is fixed on that host, never tolerated.
 5. Privileges — **answered 2026-10-25:** `CREATE SCHEMA` and `CREATE
    COLLATION` as `portal_migrate` both worked (`001` applied, `portal.ci`
    ICU nondeterministic). `pg_available_extensions`: `citext` 1.6 and
@@ -233,13 +243,19 @@ Each is a command in this package or a dashboard read; record the answer in
    by a non-superuser — it is now installed **in schema `portal`**, owned by
    `supabase_admin` (the platform's extension mechanism), adding its
    functions to the schema (50 functions where `001` makes 3). `02` §D
-   measured `citext` and did NOT choose it. The remedy is one statement,
-   `DROP EXTENSION citext;` as the owner, which waits for the owner's
-   approval like every DROP (D-19); the script itself should measure
-   `citext` only where it is already present — a change for the next round,
-   not this one. The rehearsal's `CREATE EXTENSION IF NOT EXISTS unaccent`
-   also succeeded but inside a savepoint that the rolled-back transaction
-   discarded: `unaccent` is NOT installed. No `zz_%` relation or collation
+   measured `citext` and did NOT choose it. **Undone the same day, on the
+   owner's approval of exactly one DROP (D-19):** first a read-only
+   dependency check — 89 member objects, 0 columns of type `citext` in
+   `portal`, and the 16 non-member rows depending on members all citext's
+   own operator-family entries (`pg_amop`, `pg_amproc`), nothing of the
+   portal's — then `DROP EXTENSION citext;` as the owner, no CASCADE; after
+   it `citext` absent, `portal` back to its 3 functions, no `citext` type,
+   and the COUNTS and POLICIES figures of item 7 unchanged (read back
+   through the MCP). `scripts/semantics.js` now measures `citext` only where
+   it is already installed and creates no extension on any target. The
+   rehearsal's `CREATE EXTENSION IF NOT EXISTS unaccent` succeeds inside a
+   savepoint that the rolled-back transaction discards: `unaccent` is NOT
+   installed, read back after both re-runs. No `zz_%` relation or collation
    remains in `portal` (0 and 0); relations 51 = 26 tables + 25 sequences.
 6. Connection mode — **partly answered 2026-10-25:** the session-mode pooler
    is reachable over IPv4 from this host (every step of the run went through
@@ -273,18 +289,22 @@ Each is a command in this package or a dashboard read; record the answer in
    (`reconcile_staging_20261024T170651.json`); `scripts/rls-check.js --target
    staging` → **`RLS CHECK OK`**, the 7 catalog checks PASS, the behaviour
    matrix reported as skipped (`rlscheck_staging_20261024T170700.json`).
-9. `scripts/semantics.js --target staging` (no `--mysql-db`) — **ran
-   2026-10-25: one expectation not met of the PostgreSQL-side set, the
-   clock-skew one (item 4); every other PASS, the collation matrix identical
-   to the local run** (`semantics_staging_20261024T170819.json`). Section F
-   ran through session mode with its two connections. The run's `citext`
-   side effect is item 5. Its §F creates and drops throwaway tables in
-   `portal` rather than rolling back — nothing remained.
-10. `scripts/rehearse.js --target staging` — **ran 2026-10-25: 90 checks,
-    89 PASS, 1 FAIL — the restore cutoff's same-second case, item 4;
-    `rollback.left_no_synthetic_rows` 0** (`rehearse_staging_20261024T170837.json`).
-    The `unaccent` INFO read `true` inside its savepoint and left nothing
-    (item 5).
+9. `scripts/semantics.js --target staging` (no `--mysql-db`) — **ran twice
+   2026-10-25.** First run: one expectation not met of the PostgreSQL-side
+   set, the clock-skew one (item 4); every other PASS, the collation matrix
+   identical to the local run (`semantics_staging_20261024T170819.json`);
+   its `citext` side effect is item 5. **Second run, after the clock sync
+   and the extension guard: `SEMANTICS OK`, 0 failures, `citext` measured
+   as absent** (`semantics_staging_20261024T172356.json`). Section F runs
+   through session mode with its two connections; it creates and drops
+   throwaway tables in `portal` rather than rolling back — nothing remained
+   after either run.
+10. `scripts/rehearse.js --target staging` — **ran twice 2026-10-25.** First
+    run: 90 checks, 89 PASS, 1 FAIL — the restore cutoff's same-second case,
+    item 4 (`rehearse_staging_20261024T170837.json`). **Second run, after
+    the clock sync: `REHEARSAL OK`, 90 of 90, `rollback.left_no_synthetic_rows`
+    0** (`rehearse_staging_20261024T172414.json`). The `unaccent` INFO reads
+    `true` inside its savepoint and leaves nothing (item 5).
 11. Data API (D-17 keeps it on): **a dashboard check, no curl** — Project
     Settings → Data API: the **Exposed schemas** list does not contain
     `portal`, and `public` holds no portal table (the Table Editor shows
@@ -298,8 +318,10 @@ Each is a command in this package or a dashboard read; record the answer in
     26 `portal_app_all` policies; `current_setting('pgrst.db_schemas', true)`
     is null, and `pg_db_role_setting` holds no `pgrst.*` entry for
     `authenticator` or any role — the exposed-schema list lives in the
-    dashboard's API settings, not in the catalog, so the dashboard read is
-    the part still open, the owner's.**
+    dashboard's API settings, not in the catalog.** **The dashboard read,
+    the owner's, 2026-10-25 (Integrations → Data API → Settings): Exposed
+    schemas "2 of 3 schemas exposed" — `public` and `graphql_public`
+    checked, `portal` not checked. Item 11 is closed.**
 12. Backups: confirm the plan's automatic backup cadence and PITR
     availability for the project (both are inputs to §04). **Open.**
 13. **The RLS proof on the hosted target — ran 2026-10-25.** The catalog

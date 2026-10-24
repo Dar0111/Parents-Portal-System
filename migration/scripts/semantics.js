@@ -229,8 +229,13 @@ async function sectionD(pgc, my) {
     candidates.push(['icu_level2_nondet', 'COLLATE portal.zz_sem_level2']);
     candidates.push(['icu_level1_det_sort_only', 'COLLATE portal.zz_sem_level1_det']);
   }
-  const citext = await tryq(pgc, 'CREATE EXTENSION IF NOT EXISTS citext');
-  note('D', 'citext_extension', citext.ok ? 'created/present' : citext.code);
+  // citext is MEASURED only where it is already installed — never created.
+  // On Supabase a trusted extension may be created by a non-superuser, and the
+  // 2026-10-25 staging run installed citext into schema portal that way (the
+  // owner approved its DROP afterwards). No CREATE EXTENSION on any target.
+  const citextInstalled = await tryq(pgc, "SELECT 1 FROM pg_extension WHERE extname = 'citext'");
+  const citext = { ok: Boolean(citextInstalled.ok && citextInstalled.rowCount) };
+  note('D', 'citext_extension', citext.ok ? 'present (measured)' : 'absent (not created; measured only where installed)');
   const D = {};
   for (const [name, coll] of candidates) {
     const row = {};
