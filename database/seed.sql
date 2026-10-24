@@ -303,7 +303,7 @@ INSERT INTO students (lrn, first_name, last_name, grade_level, section, status) 
   -- as Marwin on purpose — TCH-001 must be able to encode and review.
   -- "Halimbawa" is Filipino for "example": plainly fictional. 12-digit LRN.
   -- Mirrored by scripts/migrate-fixture-learner.js for a live database.
-  ('136893260001', 'Tala', 'Halimbawa', 6, 'Malikhain', '2014-05-05', 'female', 'Pateros, Metro Manila', 'active');
+  ('136893260001', 'Tala', 'Halimbawa', 6, 'Malikhain', 'active');
 
 -- Password hashes for users are inserted by scripts/setup-db.js after bcrypt hashing.
 -- Placeholder markers below are replaced programmatically:
