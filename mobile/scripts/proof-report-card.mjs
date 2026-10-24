@@ -61,6 +61,7 @@ assert(gradeText(0, 'numerical').text === '0.00', 'a real 0 is "0.00", not a nul
 console.log('reading note / score pairs');
 assert(readingNoteLines('numerical', { hasTermGrade: false }).length === 4 && readingNoteLines('numerical', { hasTermGrade: true }).length === 5, 'the transmutation sentence appears only once a term grade exists');
 assert(readingNoteLines('descriptive', { canOpen: true }).at(-1).startsWith('Tap any grade'), 'the tap sentence is the last line when a cell can open');
+assert(!readingNoteLines('descriptive', { canOpen: false }).some((l) => l.startsWith('Tap any grade')), 'a closed gate (the teacher\'s read-only card) gives no tap sentence (B7 #1)');
 assert(formatScorePair(18, 20) === '18/20' && formatScorePair(null, 20) === SCORE_PENDING && formatScorePair(18, null) === null, 'score pairs: full, pending, no denominator');
 
 console.log(`\nproof-report-card: ${passed}/${passed + failed}`);

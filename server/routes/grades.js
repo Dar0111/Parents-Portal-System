@@ -673,10 +673,12 @@ function formatManilaDay(value) {
 // average of 89.995 is otherwise a band away from what a teacher computes on
 // paper.
 //
-// Nino's five seeded rows are exactly the case this must not guess at: they
-// carry letters but no components, so every initial_grade is NULL, the
-// average is null, and the Final renders "— Pending". That is the honest
-// answer for a row whose scores were never recorded.
+// Nino's seeded card shows both outcomes (D-102, B7): Mathematics has all
+// three terms' scores, so 94.70, 85.00 and 77.50 average to 85.73 — a B;
+// Reading and Literacy has no term 3, so its Final is null and renders
+// "— Pending". A legacy row — a letter with no scores behind it, so no
+// initial_grade — still gets no Final: the honest answer for scores never
+// recorded.
 function computeFinalLetter(terms, mode) {
   if (mode !== 'descriptive') {
     return { final_grade: null, final_grade_descriptor: null };

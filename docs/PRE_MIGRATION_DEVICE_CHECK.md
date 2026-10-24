@@ -161,7 +161,7 @@ Sign in as Lito Bautista; the app opens on the Dashboard.
     No General average row, no "Term N grades are final." block, and no grade
     is a button here.
 14. Under it, **PERFORMANCE DESCRIPTORS**: A Advancing, B Benchmarking, C
-    Connecting, D Developing, E Emerging. Then **READING THIS REPORT**, five
+    Connecting, D Developing, E Emerging. Then **READING THIS REPORT**, four
     lines:
     - "This grade level uses descriptive grading (A to E)."
     - "A term shows "Pending" until its letter can be worked out — written
@@ -170,10 +170,10 @@ Sign in as Lito Bautista; the app opens on the Dashboard.
     - "The final letter for a learning area is worked out from the scores of
       all three terms, so it appears once every term has its scores recorded."
     - "There is no general average for this grade level."
-    - "Select any grade to see the scores behind it." — on this read-only card
-      no grade opens; the line shows whenever the card has a grade row
-      (`ReportCard.jsx:860`). Not B7's change; a finding only if the owner says
-      so.
+
+    **No "Select any grade to see the scores behind it."** — nothing opens on
+    this read-only card, so the line is not shown here (finding #1, §4; it
+    stays on Parent → Grades, where a grade opens its scores).
 15. **Back to class summary** returns on Term 2 (today's term), not the term
     last picked. Sign out.
 
@@ -228,6 +228,30 @@ rolled back by the server, and **Leave and discard** drops the draft.
 
 ## §4 — result
 
-To be recorded after the check: PASSED or the findings, by section, with the
-date; the survey's figures; then, last (C1), the new restore point — "backup N
-(`parents_portal_…sql`, after B7's demo data; 317 the previous one)".
+**§1 and §2 PASSED on the web (2026-10-24, the owner):** every value, letter,
+Pending cell and string matched this sheet, the Mathematics Final B included.
+
+**Finding #1 (the owner: "Go") — fixed; re-check on the web.** On the
+teacher's read-only report card (step 14), "Reading this report" ended with
+"Select any grade to see the scores behind it." while no grade opens anything
+there — copy that claims behaviour the page does not have (§5i). The survey:
+
+| Where | Role | A grade opens its scores? | The line |
+|---|---|---|---|
+| Parent → Grades, web | parent | yes (the breakdown) | shows — true |
+| Class summary → a learner, web | teacher | no | **showed — false; now gone** |
+| Parent → Grades, phone | parent | yes | "Tap any grade…" — true |
+| Class summary → a learner, phone | teacher | no | never shown (the gate already required the handler) |
+| Admin → Grades, web and phone | admin | its cells open the lock dialog | not rendered (no report card) |
+
+The web gate (`ReportCard.jsx`'s `canOpen`) checked only for a grade row; the
+cells open only when the page passes `onOpenTerm`, which only Parent → Grades
+does, and the phone's gate already required it (`ReportCardView.jsx:245`). The
+web gate now requires the handler too; no other copy changed. Proofs:
+`ssr-ui-c2` 44/44 (its two reader cases failed against the unfixed card,
+42/44) and `proof:report-card` 22/22. **Re-check:** step 14 — four lines, no
+"Select any grade"; and Parent → Grades still ends with it.
+
+Still to come: the survey after the check (§3) and, last (C1), the new restore
+point — "backup N (`parents_portal_…sql`, after B7's demo data; 317 the
+previous one)".

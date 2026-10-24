@@ -218,6 +218,8 @@ function Legend({ mode }) {
 //   "every learning area"           -> computeGeneralAverage()
 //   "no numerical final grade"      -> both short-circuit on mode
 //   "select any grade"              -> only rendered when a grade_id exists
+//                                      AND the page passes onOpenTerm, so
+//                                      the grade really opens (B7 #1)
 //
 // THE GENERAL-AVERAGE SENTENCE IS TWO SENTENCES (browser check, 2026-09-20).
 // One line said "the general average appears once every learning area has a
@@ -857,13 +859,17 @@ export default function ReportCard({
   // an empty card. Dropping the sort is not a reason to drop the identity.
   const subjects = useMemo(() => report?.subjects ?? [], [report?.subjects]);
   const statuses = useMemo(() => termStatuses(subjects, mode), [subjects, mode]);
-  const canOpen = subjects.some((subject) => [1, 2, 3].some((term) => subject.terms?.[term]?.grade_id));
+  // "Select any grade" is true only where a grade OPENS: the page passes
+  // `onOpenTerm` (Parent → Grades) AND a term has a grade row — the cells' own
+  // rule (TermCell, TermView) and the phone's (ReportCardView). The teacher's
+  // read-only drill-through passes no handler, so it gets no line (B7's device
+  // check, finding #1).
+  const canOpen = Boolean(onOpenTerm) && subjects.some((subject) => [1, 2, 3].some((term) => subject.terms?.[term]?.grade_id));
 
-  // A GRADE, not a grade ROW. `canOpen` above is true as soon as a row
-  // exists — including the shell rows `PUT /class-record` creates and the
-  // legacy letters in the seed — and all of those render "Pending". The
-  // transmutation sentence is about a computed number, so it asks for
-  // `term_grade` itself.
+  // A GRADE, not a grade ROW. `canOpen` above is true as soon as an openable
+  // row exists — including the shell rows `PUT /class-record` creates, which
+  // render "Pending". The transmutation sentence is about a computed number,
+  // so it asks for `term_grade` itself.
   const hasTermGrade = subjects.some((subject) =>
     [1, 2, 3].some((term) => subject.terms?.[term]?.term_grade != null)
   );

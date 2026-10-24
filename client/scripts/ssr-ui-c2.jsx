@@ -280,5 +280,82 @@ assert(
   'and its own lines are untouched'
 );
 
+// "Select any grade to see the scores behind it." is a claim about the card
+// (§5i): it shows only where a grade really opens its scores — the page passes
+// `onOpenTerm` (Parent → Grades) AND a term has a grade row. The teacher's
+// read-only drill-through passes no handler, so nothing opens and the line
+// must not show (B7's device check, finding #1). OPENER is the cell's own
+// label, the mark of a grade that opens.
+console.log('\n"Select any grade" only where a grade opens (B7 #1)');
+
+const SELECT_LINE = 'Select any grade to see the scores behind it.';
+const OPENER = 'see the scores behind this grade';
+const openTerm = () => {};
+const letter = (gradeId, descriptiveGrade, descriptor) => ({
+  grade_id: gradeId,
+  term_grade: null,
+  descriptive_grade: descriptiveGrade,
+  descriptor: { descriptor },
+});
+const descriptiveReport = () => ({
+  student: { first_name: 'Test', last_name: 'Learner', grade_level: 1, section: 'Section' },
+  school_year: '2026-2027',
+  grading_mode: 'descriptive',
+  subjects: [
+    {
+      subject_id: 1,
+      subject_name: 'Mathematics',
+      terms: { 1: letter(1, 'A', 'Advancing'), 2: letter(2, 'B', 'Benchmarking'), 3: letter(3, 'C', 'Connecting') },
+      final_grade: 'B',
+      final_grade_descriptor: { descriptor: 'Benchmarking' },
+    },
+    {
+      subject_id: 2,
+      subject_name: 'Makabansa',
+      terms: { 1: null, 2: null, 3: null },
+      final_grade: null,
+      final_grade_descriptor: null,
+    },
+  ],
+  term_averages: { 1: null, 2: null, 3: null },
+  general_average: null,
+  general_average_descriptor: null,
+});
+
+assert(
+  !withGrade.includes(OPENER) && !withGrade.includes(SELECT_LINE),
+  'a reader card with a grade row (no onOpenTerm): nothing opens, and no "Select any grade" line'
+);
+
+const parentCard = render(
+  <ReportCard report={numericalReport(88)} schoolName="S" adviser="A" onOpenTerm={openTerm} />
+);
+assert(
+  parentCard.includes(OPENER) && parentCard.includes(SELECT_LINE),
+  'the parent card (onOpenTerm) with a grade row: the grade opens, and the line shows'
+);
+
+const parentEmpty = render(
+  <ReportCard report={numericalReport(null)} schoolName="S" adviser="A" onOpenTerm={openTerm} />
+);
+assert(
+  !parentEmpty.includes(OPENER) && !parentEmpty.includes(SELECT_LINE),
+  'the parent card with no grade row: nothing opens, and no line'
+);
+
+const teacherGrade1 = render(<ReportCard report={descriptiveReport()} schoolName="S" adviser="A" />);
+assert(
+  !teacherGrade1.includes(OPENER) && !teacherGrade1.includes(SELECT_LINE),
+  "the teacher's drill-through on a Grade 1 card (letters, no onOpenTerm): nothing opens, and no line"
+);
+
+const parentGrade1 = render(
+  <ReportCard report={descriptiveReport()} schoolName="S" adviser="A" onOpenTerm={openTerm} />
+);
+assert(
+  parentGrade1.includes(OPENER) && parentGrade1.includes(SELECT_LINE),
+  "the parent's Grade 1 card: a letter opens, and the line shows"
+);
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
