@@ -226,6 +226,18 @@ check, a read-only survey: every count at §0's marks — `notifications` 0,
 A box typed into by accident on Teacher → Grades stores nothing: its dry run is
 rolled back by the server, and **Leave and discard** drops the draft.
 
+**As run (2026-10-24, before 3:00 PM), after the re-check:** health 200; the
+read-only survey — `notifications` 0, `grades` 5, `assessment_slots` 10,
+`grade_components` 10, `auth_codes` 11 (highest 305), `login_attempts` 17
+(highest 1606: no failed sign-in), all at §0's marks; `activity_logs` +30
+(ids 30391–30420): 28 sign-ins and 2 `accept_policy` — Lito Bautista 7,
+Principal Admin 6, Rosa Alcantara 5 + 1, Ashley Geguiera 5 + 1, Maria Santos 5:
+the fix round's `smoke:isolated` 27 (five sign-ins on each of its five
+accounts and its two parents' acceptances) and the owner's three sign-ins
+(Lito Bautista for the check and the re-check, the admin once). All kept;
+**nothing to delete.** The four seeded staff passwords still the defaults —
+a guard only, read-only, no restore.
+
 ## §4 — result
 
 **§1 and §2 PASSED on the web (2026-10-24, the owner):** every value, letter,
@@ -249,9 +261,15 @@ cells open only when the page passes `onOpenTerm`, which only Parent → Grades
 does, and the phone's gate already required it (`ReportCardView.jsx:245`). The
 web gate now requires the handler too; no other copy changed. Proofs:
 `ssr-ui-c2` 44/44 (its two reader cases failed against the unfixed card,
-42/44) and `proof:report-card` 22/22. **Re-check:** step 14 — four lines, no
-"Select any grade"; and Parent → Grades still ends with it.
+42/44) and `proof:report-card` 22/22 — commit `415064c`, with the
+database-free gate at its figures and `smoke:isolated` 20/20. **Re-checked on
+the web after `415064c` (the owner): as Lito Bautista, Class summary →
+Alcantara, Nino — "Reading this report" has four lines and no "Select any
+grade". PASSED.** (Parent → Grades still ends with the line, where a grade
+opens; no parent account was used, so `ssr-ui-c2` is that half's proof.)
 
-Still to come: the survey after the check (§3) and, last (C1), the new restore
-point — "backup N (`parents_portal_…sql`, after B7's demo data; 317 the
-previous one)".
+**The device check PASSED — §1 and §2, with finding #1 fixed and re-checked.**
+The cleanup (§3) found nothing to delete. **The new restore point, taken last
+(C1): backup 376** (`parents_portal_2026-10-24_150020.sql`, 2,734,085 bytes,
+footer present) — after B7's demo data; it still holds the old activity rows,
+whose reset is D-122's, at the end; 317 the previous one.

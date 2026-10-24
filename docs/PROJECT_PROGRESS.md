@@ -27,7 +27,8 @@ backup 362. Before it, `613c73e`, the post-merge docs of
 `b9268e2`, the fix round `c248c51` + `ce9f111`, the merge-ready docs
 `96a1776`): a visit clears a badge's information rows (the smoke gate's F3),
 device-checked 2026-10-22/23 — §1–§5, one finding fixed and re-checked — and
-cleaned up by id after backup 354; the restore point is still backup 317.
+cleaned up by id after backup 354; the restore point is backup 376 since B7
+(317 the previous one).
 Before it on `main`: `feat/grade-acknowledgement` (B1, `6c39f9c`,
 2026-10-22 — device-checked, one finding fixed in `2525215`, cleaned up after
 backup 346; its post-merge docs `1b43150`), `feat/password-alert` (`2b85331`, 2026-10-21, with B5
@@ -196,32 +197,31 @@ test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
 `main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
 detached at `774b98c`).
 **Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
-(1) B7 `chore/pre-migration`, in progress in its own worktree
-`Parents_Portal-pre-migration` — the docs pass (SMSGate cloud mode's wording,
-Q9.6's stale claims, TESTING's PENDING, the passing items), the `sms:probe`
-exit fix, the demo data of D-102 (Nino's five Grade 1 letters reproduced by
-scores and HPS), and a new restore point taken last (it still holds the old
-activity rows); (2) Session B (`migrate/postgres-prep`) — the sync with
-`main`, then the Supabase migration (the owner makes `supabase.env` at 12 PM
-on Sat 2026-10-24), copying everything; the sync adds B1's 26th table
-`grade_acknowledgements` and the two `notifications.type` values
-`grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
-2026-10-21); B2 adds no schema change, and its new SQL to port is
-MIGRATION_INVENTORY B16 — and beside it, in Session A, the E2E + P-19 branch
-(SMS end-to-end encryption and the old code-row purge; D-119); (3) the privacy
-text in the app (D-36) after the principal's approval on Mon 2026-10-26
-(D-124); (4) the reset of the old activity rows at the end, after the last
-gate and before the demo, on Supabase (D-122 — moved out of B7; B7's survey
-for it is in CLAUDE.md NEXT); (5) hosting last, once the whole system is
-complete.
+(1) B7 `chore/pre-migration` — merge-ready on its branch (the docs pass, the
+`sms:probe` exit fix, D-102's demo data and the seed fix, gated after backup
+370; device-checked 2026-10-24 on the web, one finding fixed in `415064c` and
+re-checked; nothing to clean up; the new restore point, backup 376), merged on
+the owner's word; (2) in Session A the E2E + P-19 branch (SMS end-to-end
+encryption and the old code-row purge; D-119), beside Session B
+(`migrate/postgres-prep`) — the sync with `main`, then the Supabase migration
+(the owner writes `supabase.env` after Session A), copying everything; the
+sync adds B1's 26th table `grade_acknowledgements` and the two
+`notifications.type` values `grades_locked` and `grades_acknowledged` (B1's
+build CHANGELOG row, 2026-10-21); B2 adds no schema change, and its new SQL to
+port is MIGRATION_INVENTORY B16; (3) the privacy text in the app (D-36) after
+the principal's approval on Mon 2026-10-26 (D-124); (4) the reset of the old
+activity rows at the end, after the last gate and before the demo, on
+Supabase (D-122; B7's survey for it: `docs/ACTIVITY_RESET.md`); (5) hosting
+last, once the whole system is complete — before going online, the seeded
+accounts' default passwords changed or removed.
 The owner's own target is everything finished, the Supabase migration
 included, by Mon 2026-10-26; the next system check is Wed 2026-10-28. The
-restore point is still backup 317,
-`parents_portal_2026-10-13_233314.sql` (324, 338, 346, 354, 362 and 369 are
-the six checks' pre-cleanup dumps, 361 and 368 B8's and B2's pre-check dumps,
-347 the demo
-records', and 339, 344, 345, 348, 353, 355, 360 and 363 pre-write dumps, not
-restore points).
+restore point is backup 376, `parents_portal_2026-10-24_150020.sql` (after
+B7's demo data; it still holds the old activity rows — D-122; 317,
+`parents_portal_2026-10-13_233314.sql`, the previous one). 324, 338, 346, 354,
+362 and 369 are the six checks' pre-cleanup dumps, 361, 368 and 375 B8's, B2's
+and B7's pre-check dumps, 347 the demo records', and 339, 344, 345, 348, 353,
+355, 360, 363 and 370 pre-write dumps, not restore points.
 
 The manuscript delta list stays with the team (it includes Chapter 5's
 admin Messages text). The badged-pages pass (`fix/f3-badges`) is merged;

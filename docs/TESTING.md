@@ -646,6 +646,33 @@ against the owner's SMSGate cloud server (a `GET` of its health; no text sent)
 `UV_HANDLE_CLOSING` assertion in any of the ten; that the old exit caused it
 stays an inference.
 
+**B7's device check (2026-10-24, `docs/PRE_MIGRATION_DEVICE_CHECK.md`; the
+main tree on `chore/pre-migration`, serving 5000 and 3000) — PASSED, one
+finding fixed and re-checked.** §0 (12:29 PM): health 200, **backup 375**
+(2,732,077 bytes — the pre-check dump, not a restore point), the marks
+(`activity_logs` highest id 30390; notifications 0, grades 5,
+`assessment_slots` 10, `grade_components` 10, `auth_codes` 11,
+`login_attempts` 17), the worktree detached at `7c3f558` and the main tree
+switched to it. The owner ran §1 (Lito Bautista: Teacher → Grades, the class
+summary, the read-only report card) and §2 (Principal Admin: Admin → Grades)
+on the web: every value, letter, Pending cell and string as the run sheet
+(`6611af3`) gives it, the Mathematics Final B included. **Finding #1** — the
+teacher's read-only report card said "Select any grade to see the scores
+behind it." though no grade opens there — fixed in `415064c` (the web gate
+requires `onOpenTerm`, the phone's rule; `ssr-ui-c2` 44/44, its reader cases
+42/44 against the unfixed card; the phone's `proof:report-card` 22/22; the
+database-free gate at its figures and `smoke:isolated` 20/20) and
+**re-checked on the web** (four lines, no "Select any grade"). **The cleanup
+(§3):** a read-only survey against the §0 marks — every count at its §0
+value but `activity_logs` (+30: 28 sign-ins and 2 `accept_policy` — the
+smoke's 27 on its five accounts and the owner's three sign-ins, Lito Bautista
+twice and the admin once; kept); `login_attempts` 17 (highest 1606: no failed
+sign-in); nothing to delete; the four seeded staff passwords still the
+defaults (a guard only, read-only, no restore). **The new restore point:
+backup 376** (`parents_portal_2026-10-24_150020.sql`, 2,734,085 bytes,
+footer present) — after B7's demo data; it still holds the old activity rows
+(D-122); 317 the previous one.
+
 - `npm run test:students` — **97/97** (2026-10-10, feat/privacy, −1: decision 6 — a VALUE for the learner's birthday, gender, address or contact number is 400 "no longer collected" on POST and PUT, null and empty keys are ignored, and no response carries the four; the birthday round-trip check is gone with the field, and the class-change tests edit `last_name` where they edited the contact number. 98/98 before that, was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — **30/30** (2026-10-21, feat/account-create, same count: its throwaway teacher is created with login id, password and name alone — `createTeacherBare` — because `POST /users/teachers` refuses an email or a number since the branch)
 - `npm run test:assignments` — **62/62** (2026-10-21, feat/account-create, same count: the throwaway teacher for the inactive check is created with login id, password and name alone. Count unchanged by #5a, but its two Grade 2 assertions flipped from "NULL, falls back to name ASC" to the school's confirmed order — the guard against a GUESSED order did its job on the day the school's answer arrived)

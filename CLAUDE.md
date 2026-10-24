@@ -1672,20 +1672,20 @@ with `feat/password-alert`, B1, B3, B8 and B2 are MERGED, the last `f4cc8c4`
 (2026-10-24 — B2 `feat/activity-log` by the ref move from `9c2c34b`; gated
 after backup 363, device-checked on the web with no findings, cleaned up by
 id after backup 369); each one's check, cleanup and backup: its CHANGELOG row
-and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **Next,
-in the owner's order (2026-10-24; D-119, D-122, D-124):**
+and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **B7
+`chore/pre-migration` is MERGE-READY** (worktree `Parents_Portal-pre-migration`,
+from `01495e5`): the docs pass, the probe's exit fix, D-102's demo data and the
+seed fix, gated after backup 370; device-checked 2026-10-24 on the web (finding
+#1 fixed in `415064c`, re-checked), nothing to clean up — its CHANGELOG rows;
+it merges on the owner's word. **Next, in the owner's order (2026-10-24;
+D-119, D-122, D-124):**
 
-1. **B7 `chore/pre-migration`** (worktree `Parents_Portal-pre-migration`, from
-   `01495e5`) — the docs pass, the probe's exit fix, D-102's demo data and the
-   seed fix, gated 2026-10-24 after backup 370 (their CHANGELOG rows); then
-   the device check, its cleanup and a new restore point, taken last — it
-   still holds the old activity rows.
-2. **Session B, and beside it in Session A the E2E + P-19 branch** (D-119:
-   SMS end-to-end encryption, approved 2026-10-24, and the old code-row purge,
-   P-19, approved). Session B syncs with `main`, then migrates to Supabase (the
-   owner makes `supabase.env` at 12 PM on Sat 2026-10-24); **it copies
-   everything, the old activity rows included** — their reset is step 4, on
-   Supabase. The sync adds B1's
+1. **In Session A the E2E + P-19 branch, beside Session B's sync and
+   migration** (D-119: SMS end-to-end encryption, approved 2026-10-24, and the
+   old code-row purge, P-19, approved; the owner writes `supabase.env` after
+   Session A). Session B syncs with `main`, then migrates to Supabase; **it
+   copies everything, the old activity rows included** — their reset is step
+   3, on Supabase. The sync adds B1's
    26th table `grade_acknowledgements` and the two `notifications.type` values
    `grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
    2026-10-21). **B2 adds no schema change**; its new SQL to port
@@ -1701,21 +1701,22 @@ in the owner's order (2026-10-24; D-119, D-122, D-124):**
    from `scripts/demoGrade1.js`, run by `setup-db.js` after the seed — port it
    with the seed; `db:migrate:demo-grade1` is a MySQL one-off, its rows already
    in the copied data; `verify-grading-seed` reads the same columns.
-3. **The privacy text in the app** (D-36), after the principal's approval on
+2. **The privacy text in the app** (D-36), after the principal's approval on
    Mon 2026-10-26 (D-124).
-4. **The reset of the old activity rows, at the end** — after the last gate
+3. **The reset of the old activity rows, at the end** — after the last gate
    and before the demo, on Supabase (D-122; moved out of B7); its scope is
    decided then. B7's survey for it: `docs/ACTIVITY_RESET.md`.
-5. **Hosting last**, once the whole system is complete. **Before going
+4. **Hosting last**, once the whole system is complete. **Before going
    online, change or remove the seeded accounts' default passwords** — they
    are committed in `seed.sql`'s comments (and `setup-db.js`, BEFORE THE
    PARENT DEMO).
 
 The owner's target is everything finished, the Supabase migration included, by
 Mon 2026-10-26; the next system check is Wed 2026-10-28; the restore point is
-still backup 317 (`parents_portal_2026-10-13_233314.sql`) — 324, 338, 346,
-354, 362 and 369 are the six checks' pre-cleanup dumps, 361 and 368 B8's and
-B2's pre-check dumps,
+backup 376 (`parents_portal_2026-10-24_150020.sql`, after B7's demo data; it
+still holds the old activity rows, D-122; 317 the previous one) — 324, 338,
+346, 354, 362 and 369 are the six checks' pre-cleanup dumps, 361, 368 and 375
+B8's, B2's and B7's pre-check dumps,
 347 the owner's demo records' (2026-10-22, cleaned up by id), and 339, 344,
 345, 348, 353, 355, 360, 363 and 370 pre-write dumps, not restore points. The manuscript delta list stays with the
 team; B8 adds one item to it — Chapter 5 must say an excuse decision now sets
