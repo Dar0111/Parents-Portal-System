@@ -1,6 +1,15 @@
 /**
- * Runs schema.sql + seed.sql against MySQL.
+ * Builds a fresh database on PostgreSQL (Phase 3, commit 5): the portal
+ * schema from migration/schema/001_portal_schema.sql, its grants and row-level
+ * security from 003_grants_rls.sql, then database/seed.sql, the section_id
+ * backfill and the Grade 1 demo block (scripts/demoGrade1.js) — all in ONE
+ * transaction, so a failure leaves the database as it was.
  * Hashes default passwords with bcrypt before inserting users.
+ *
+ * It DROPS the `portal` schema of the database PG_DATABASE names, on a
+ * loopback PG_HOST only, as the migrate credential (PG_MIGRATE_USER /
+ * PG_MIGRATE_PASSWORD) — see openSetupClient(). The roles 003 grants to
+ * (portal_app) are cluster-wide and must exist already.
  *
  * Usage: npm run db:setup   (from server/)
  */
@@ -8,23 +17,68 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+const { Client } = require('pg');
+const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 const { applyDemoGrade1 } = require('./demoGrade1');
 
-const DB_HOST = process.env.DB_HOST || 'localhost';
-const DB_PORT = Number(process.env.DB_PORT) || 3306;
-const DB_USER = process.env.DB_USER || 'root';
-const DB_PASSWORD = process.env.DB_PASSWORD || '';
-const DB_NAME = process.env.DB_NAME || 'parents_portal';
+// db:setup DROPS the portal schema of the database it is pointed at, so it runs
+// against a LOOPBACK host only — never a hosted project. Unlike the MySQL
+// version (KNOWN ISSUES: it dropped whatever DB_NAME named and rebuilt
+// parents_portal anyway), it touches one schema in the one database PG_DATABASE
+// names. A database that does not exist yet is created first, as MySQL's
+// schema.sql did.
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
+const DB_NAME_RULE = /^[a-z_][a-z0-9_]{0,62}$/;
 
 const ROOT = path.join(__dirname, '..', '..');
-const SCHEMA_PATH = path.join(ROOT, 'database', 'schema.sql');
+const SCHEMA_PATH = path.join(ROOT, 'migration', 'schema', '001_portal_schema.sql');
+const GRANTS_PATH = path.join(ROOT, 'migration', 'schema', '003_grants_rls.sql');
 const SEED_PATH = path.join(ROOT, 'database', 'seed.sql');
 
-async function runSqlFile(connection, filePath, multi = true) {
+// A whole SQL file as one simple-protocol query: pg runs every statement in it
+// (no parameters, so no `?` numbering), inside the caller's transaction.
+async function runSqlFile(client, filePath) {
   const sql = fs.readFileSync(filePath, 'utf8');
-  await connection.query({ sql, multipleStatements: multi });
+  await client.query(sql);
+}
+
+// The connection: the migrate credential (config/db.js settings('migrate')) —
+// on the local cluster the owner of the portal schema — refused anywhere but
+// a loopback host. A missing database (3D000) is created through the cluster's
+// maintenance database, then connected to.
+async function openSetupClient() {
+  const settings = db.settings('migrate');
+  if (!LOOPBACK.has(settings.host)) {
+    throw new Error('db:setup drops the portal schema, so it runs against a loopback PG_HOST only.');
+  }
+  if (!DB_NAME_RULE.test(settings.database)) {
+    throw new Error('PG_DATABASE must be a plain lower-case database name.');
+  }
+  try {
+    const client = new Client(settings);
+    await client.connect();
+    return client;
+  } catch (error) {
+    if (error.code !== '3D000') throw error;
+  }
+  const maintenance = new Client({ ...settings, database: 'postgres' });
+  await maintenance.connect();
+  try {
+    await maintenance.query(`CREATE DATABASE "${settings.database}"`);
+    console.log(`Created database ${settings.database}.`);
+  } finally {
+    await maintenance.end();
+  }
+  const client = new Client(settings);
+  await client.connect();
+  return client;
+}
+
+// applyDemoGrade1 writes `?` placeholders, as every route does; this numbers
+// them on the setup's own client (config/db.js toPg), inside its transaction.
+function numbered(client) {
+  return { query: (sql, params) => client.query(db.toPg(sql, params)) };
 }
 
 async function buildUserSeedSql() {
@@ -112,43 +166,45 @@ INSERT INTO activity_logs (user_id, action, description) VALUES
 async function backfillSectionIds(connection) {
   await connection.query(`
     UPDATE students s
-      JOIN sections sec
-        ON sec.name = s.section
+       SET section_id = sec.id
+      FROM sections sec
+     WHERE sec.name = s.section
        AND sec.grade_level = s.grade_level
        AND sec.school_year = '2026-2027'
-      SET s.section_id = sec.id
   `);
 
   await connection.query(`
     UPDATE teacher_assignments ta
-      JOIN sections sec
-        ON sec.name = ta.section
+       SET section_id = sec.id
+      FROM sections sec
+     WHERE sec.name = ta.section
        AND sec.grade_level = ta.grade_level
        AND sec.school_year = '2026-2027'
-      SET ta.section_id = sec.id
   `);
 
   await connection.query(`
     UPDATE announcements a
-      JOIN sections sec
-        ON sec.name = a.target_section
+       SET section_id = sec.id
+      FROM sections sec
+     WHERE sec.name = a.target_section
        AND sec.grade_level = a.target_grade
        AND sec.school_year = '2026-2027'
-      SET a.section_id = sec.id
-    WHERE a.target_section IS NOT NULL
+       AND a.target_section IS NOT NULL
   `);
 
-  const [studentRows] = await connection.query(
+  // pg results: { rows }; COUNT(*) is bigint, a number through config/db.js's
+  // int8 parser (registered on the pg module, so this client reads it too).
+  const { rows: studentRows } = await connection.query(
     'SELECT section, grade_level, COUNT(*) AS c FROM students WHERE section_id IS NULL GROUP BY section, grade_level'
   );
-  const [assignmentRows] = await connection.query(
+  const { rows: assignmentRows } = await connection.query(
     `SELECT section, grade_level, COUNT(*) AS c FROM teacher_assignments
      WHERE section_id IS NULL GROUP BY section, grade_level`
   );
   // Scoped to target_section IS NOT NULL — a school-wide announcement
   // (target_section NULL by design) has no section to match and is not a
   // backfill mismatch, unlike a grade+section-targeted one that failed to match.
-  const [announcementRows] = await connection.query(
+  const { rows: announcementRows } = await connection.query(
     `SELECT target_section AS section, target_grade AS grade_level, COUNT(*) AS c FROM announcements
      WHERE section_id IS NULL AND target_section IS NOT NULL GROUP BY target_section, target_grade`
   );
@@ -172,21 +228,27 @@ function reportUnmatched(tableName, rows) {
 }
 
 async function main() {
-  console.log('Connecting to MySQL...');
-  const connection = await mysql.createConnection({
-    host: DB_HOST,
-    port: DB_PORT,
-    user: DB_USER,
-    password: DB_PASSWORD,
-    multipleStatements: true,
-  });
+  console.log('Connecting to PostgreSQL...');
+  const connection = await openSetupClient();
 
   try {
-    console.log('Dropping existing database (if any)...');
-    await connection.query(`DROP DATABASE IF EXISTS \`${DB_NAME}\``);
+    console.log('Dropping the existing portal schema (if any)...');
+    // The roles first: 003 grants to portal_app, a cluster-wide role this
+    // script does not create (migration/schema/002_roles.sql on a hosted
+    // project; migration/scripts/apply-schema.js creates it on the local one).
+    const { rowCount: appRole } = await connection.query("SELECT 1 FROM pg_roles WHERE rolname = 'portal_app'");
+    if (!appRole) {
+      throw new Error('The portal_app role does not exist on this cluster; create the roles first (migration/schema/002_roles.sql).');
+    }
+    // ONE transaction from here to the demo block: the schema, its grants, the
+    // seed, the backfill and the demo rows commit together or not at all.
+    await connection.query('BEGIN');
+    await connection.query('DROP SCHEMA IF EXISTS portal CASCADE');
+    await connection.query('SET search_path TO portal, pg_catalog');
 
-    console.log('Running schema.sql...');
+    console.log('Running 001_portal_schema.sql and 003_grants_rls.sql...');
     await runSqlFile(connection, SCHEMA_PATH);
+    await runSqlFile(connection, GRANTS_PATH);
 
     console.log('Running seed.sql...');
     const seedSql = await buildSeedSql();
@@ -200,7 +262,8 @@ async function main() {
     // highest possible scores that compute them — the same module the live
     // database's db:migrate:demo-grade1 runs, so the two agree.
     console.log("Scoring the demo learner's Grade 1 letters (scripts/demoGrade1.js)...");
-    const demo = await applyDemoGrade1(connection);
+    const demo = await applyDemoGrade1(numbered(connection));
+    await connection.query('COMMIT');
     console.log(`  ${demo.filter((r) => r.state === 'applied').length} of ${demo.length} rows scored`);
 
     console.log('\nDatabase setup complete.\n');
@@ -213,6 +276,11 @@ async function main() {
     console.log('  Parent:  1234567   / Parent@2026  (pending — Jea, for approval flow testing)');
     console.log('  Parent:  1090001   / Parent@2026  (active — Nino, Grade 1 descriptive)');
   } catch (error) {
+    try {
+      await connection.query('ROLLBACK');
+    } catch {
+      // nothing to roll back, or the connection is gone
+    }
     console.error('Database setup failed:', error.message);
     process.exit(1);
   } finally {
@@ -234,4 +302,4 @@ async function buildSeedSql() {
 
 if (require.main === module) main();
 
-module.exports = { SCHEMA_PATH, buildSeedSql, backfillSectionIds };
+module.exports = { SCHEMA_PATH, GRANTS_PATH, buildSeedSql, backfillSectionIds };

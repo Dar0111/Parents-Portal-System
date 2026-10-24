@@ -11,7 +11,11 @@
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit 5), "retargeted with the suites"
+// (migration/docs/03 §5, step 7): the suites' own connection — the PG_* keys,
+// the API's role, loopback only, mysql2's [rows] shape (test-helpers/db.js).
+// Read-only: every statement below is a SELECT.
+const { createConnection } = require('./test-helpers/db');
 const gc = require('../utils/gradeComputation');
 const demo = require('./demoGrade1');
 
@@ -40,13 +44,7 @@ function toCents(decimalString) {
 async function run() {
   console.log(`\nParents Portal — Grading Seed Verification (${SCHOOL_YEAR})\n`);
 
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  });
+  const conn = await createConnection();
 
   try {
     // --- Subjects (Stage G1b) ---
@@ -320,7 +318,7 @@ async function run() {
     // the same functions, in the same order, as recomputeGrade.
     const gradeIds = g1Grades.map((r) => r.id);
     const [components] = gradeIds.length
-      ? await conn.query('SELECT grade_id, type, score, max_score, slot_id FROM grade_components WHERE grade_id IN (?)', [gradeIds])
+      ? await conn.query('SELECT grade_id, type, score, max_score, slot_id FROM grade_components WHERE grade_id = ANY(?::int[])', [gradeIds])
       : [[]];
     check(components.length === 10, 'Ten grade_components on the descriptive fixture — one WW and one PT per row', `found ${components.length}`);
 

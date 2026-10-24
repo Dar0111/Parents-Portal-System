@@ -76,7 +76,13 @@ function computeRow(row, weights, slotIds) {
   };
 }
 
-// DECIMAL columns come back from mysql2 as strings; compare as numbers.
+// numeric columns come back as strings (pg, as mysql2 did); compare as numbers.
+//
+// POSTGRESQL SINCE PHASE 3 (commit 5): `conn` answers pg's { rows, rowCount }
+// and numbers `?` itself — config/db.js's connect() client, or setup-db.js's
+// wrapper over its own client (config/db.js toPg). An inserted id comes from
+// RETURNING id. scripts/migrate-demo-grade1.js, the MySQL one-off, is history:
+// its rows are in the copied data (migration/docs/03 §5, step 7).
 function same(stored, expected) {
   if (expected === null) return stored === null;
   return stored !== null && Number(stored) === Number(expected);
@@ -87,7 +93,7 @@ function label(row) {
 }
 
 async function one(conn, sql, params, what) {
-  const [rows] = await conn.query(sql, params);
+  const { rows } = await conn.query(sql, params);
   if (rows.length !== 1) throw new Error(`demoGrade1: expected exactly one ${what}, found ${rows.length}.`);
   return rows[0];
 }
@@ -132,11 +138,11 @@ async function applyDemoGrade1(conn) {
       `grade row for ${label(row)}`
     );
     const classKey = [subject.id, learner.grade_level, learner.section, row.term, SCHOOL_YEAR];
-    const [slots] = await conn.query(
+    const { rows: slots } = await conn.query(
       'SELECT id, type, slot_no, max_score FROM assessment_slots WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ? ORDER BY type, slot_no',
       classKey
     );
-    const [components] = await conn.query(
+    const { rows: components } = await conn.query(
       'SELECT id, type, score, max_score, slot_id FROM grade_components WHERE grade_id = ? ORDER BY type',
       [grade.id]
     );
@@ -151,15 +157,19 @@ async function applyDemoGrade1(conn) {
       components.length === 0;
 
     if (isLegacy) {
-      const [wwSlot] = await conn.query(
-        "INSERT INTO assessment_slots (subject_id, grade_level, section, term, school_year, type, slot_no, max_score) VALUES (?, ?, ?, ?, ?, 'WW', 1, ?)",
+      const {
+        rows: [wwSlot],
+      } = await conn.query(
+        "INSERT INTO assessment_slots (subject_id, grade_level, section, term, school_year, type, slot_no, max_score) VALUES (?, ?, ?, ?, ?, 'WW', 1, ?) RETURNING id",
         [...classKey, HPS]
       );
-      const [ptSlot] = await conn.query(
-        "INSERT INTO assessment_slots (subject_id, grade_level, section, term, school_year, type, slot_no, max_score) VALUES (?, ?, ?, ?, ?, 'PT', 1, ?)",
+      const {
+        rows: [ptSlot],
+      } = await conn.query(
+        "INSERT INTO assessment_slots (subject_id, grade_level, section, term, school_year, type, slot_no, max_score) VALUES (?, ?, ?, ?, ?, 'PT', 1, ?) RETURNING id",
         [...classKey, HPS]
       );
-      const slotIds = { ww: wwSlot.insertId, pt: ptSlot.insertId };
+      const slotIds = { ww: wwSlot.id, pt: ptSlot.id };
       await conn.query(
         "INSERT INTO grade_components (grade_id, slot_id, type, score, max_score) VALUES (?, ?, 'WW', ?, ?), (?, ?, 'PT', ?, ?)",
         [grade.id, slotIds.ww, row.ww, HPS, grade.id, slotIds.pt, row.pt, HPS]
@@ -168,7 +178,7 @@ async function applyDemoGrade1(conn) {
       if (computed.descriptive_grade !== row.letter) {
         throw new Error(`demoGrade1: ${label(row)} computes ${computed.descriptive_grade}, not the seeded ${row.letter}; nothing written for it.`);
       }
-      const [update] = await conn.query(
+      const update = await conn.query(
         `UPDATE grades SET
            ex_st1 = ?, ex_st1_max = ?, ex_st2 = ?, ex_st2_max = ?, ex_te = ?, ex_te_max = ?,
            ww_percentage = ?, ww_weighted = ?, pt_percentage = ?, pt_weighted = ?,
@@ -183,7 +193,7 @@ async function applyDemoGrade1(conn) {
           grade.id,
         ]
       );
-      if (update.affectedRows !== 1) throw new Error(`demoGrade1: ${label(row)} was not updated.`);
+      if (update.rowCount !== 1) throw new Error(`demoGrade1: ${label(row)} was not updated.`);
       results.push({ subject: row.subject, term: row.term, letter: computed.descriptive_grade, initial_grade: computed.initial_grade, state: 'applied' });
       continue;
     }

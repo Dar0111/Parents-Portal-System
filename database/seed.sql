@@ -5,7 +5,7 @@
 --   Teacher: TCH-001   / Teacher@2026
 --   Parent:  LRN login / Parent@2026 (after approval)
 
-USE parents_portal;
+SET search_path TO portal, pg_catalog;
 
 -- ---------------------------------------------------------------------------
 -- System settings
@@ -343,7 +343,7 @@ UPDATE sections SET adviser_id = (SELECT id FROM users WHERE login_id = 'TCH-003
 -- N/A (the General Average, inapplicable in descriptive mode).
 -- ---------------------------------------------------------------------------
 INSERT INTO grades (student_id, subject_id, term, school_year, descriptive_grade)
-SELECT st.id, s.id, v.term, '2026-2027', v.letter
+SELECT st.id, s.id, v.term, '2026-2027', v.letter::portal.descriptive_grade
 FROM students st
 JOIN subjects s ON s.grade_level = 1
 JOIN (
