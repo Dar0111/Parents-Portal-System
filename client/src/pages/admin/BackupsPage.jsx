@@ -36,9 +36,17 @@ import Reveal from '../../motion/Reveal';
 // copy's file name. Instead the result stays on screen until the admin clicks
 // "Log in again", which logs out deliberately.
 //
-// ORPHANED FILES (.sql on disk with no backups row) are shown read-only.
-// Every action keys on a row id; they have none. No adopt affordance — the
-// server refuses to fabricate a created_by, and so does this page.
+// ORPHANED FILES (a .zip or .sql on disk with no backups row) are shown
+// read-only. Every action keys on a row id; they have none. No adopt
+// affordance — the server refuses to fabricate a created_by, and so does
+// this page.
+//
+// TWO FORMATS, FROM THE SERVER (Phase 3, commit 6). Every row carries its
+// `engine` and `format`: a PostgreSQL archive (.zip) restores from here; a
+// MySQL-era dump (.sql) does not — Restore… on one asks the server, which
+// answers with the recovery procedure before it asks for anything, and the
+// dialog shows that answer as written. The words for the two formats are
+// this page's; which one a row is, is the server's.
 //
 // SAFETY COPIES (pre_restore_*) have no Delete: one may be the only way back
 // from a bad restore. Kind is read from the filename prefix the server sets
@@ -81,6 +89,16 @@ function isSafetyCopy(row) {
   return String(row.filename).startsWith(SAFETY_PREFIX);
 }
 
+function isMysqlEra(row) {
+  return row.engine === 'mysql';
+}
+
+function formatLabel(row) {
+  if (row.engine === 'postgresql') return 'PostgreSQL archive (.zip)';
+  if (row.engine === 'mysql') return 'MySQL-era dump (.sql)';
+  return 'Unknown format';
+}
+
 // A failed download arrives as a Blob (responseType: 'blob'), so extractError
 // cannot see the JSON message inside it. Read it out so "missing from disk"
 // reaches the screen as written.
@@ -121,7 +139,9 @@ export default function AdminBackupsPage() {
   const [deleteError, setDeleteError] = useState(null);
 
   const [restoring, setRestoring] = useState(null); // the row
-  const [stage, setStage] = useState('form'); // 'form' | 'running' | 'done'
+  // 'form' | 'running' | 'done', and for a MySQL-era row 'checking' then
+  // 'refused' (the server's answer, no form).
+  const [stage, setStage] = useState('form');
   const [password, setPassword] = useState('');
   const [revealed, setRevealed] = useState(false);
   const [confirmName, setConfirmName] = useState('');
@@ -131,6 +151,9 @@ export default function AdminBackupsPage() {
   // field with a red border instead of at the top of the scrolling body;
   // restoreError keeps everything else (offline, 404, 500).
   const [restoreFieldErrors, setRestoreFieldErrors] = useState({});
+  // The server's answer for a MySQL-era file (409 MYSQL_ERA_BACKUP): not an
+  // error, the recovery procedure — so not in restoreError's red alert.
+  const [refusal, setRefusal] = useState(null);
   const [outcome, setOutcome] = useState(null);
   const attemptedRef = useRef(false);
 
@@ -228,30 +251,43 @@ export default function AdminBackupsPage() {
     }
   }
 
-  function openRestore(row) {
+  async function openRestore(row) {
     clearStrips();
     setRestoring(row);
-    setStage('form');
+    setStage(isMysqlEra(row) ? 'checking' : 'form');
     setPassword('');
     setRevealed(false);
     setConfirmName('');
     setRestoreError(null);
     setRestoreFieldErrors({});
+    setRefusal(null);
     setOutcome(null);
     attemptedRef.current = false;
+    if (!isMysqlEra(row)) return;
+    // A MySQL-era file: the server refuses it before the password, with the
+    // recovery procedure. No password is sent, so nothing can be restored.
+    try {
+      await api.post(`/backups/${row.id}/restore`, {}, { raw: true });
+      setRestoreError('The server did not refuse this file. Close this dialog and reload the page.');
+    } catch (err) {
+      if (err?.response?.data?.code === 'MYSQL_ERA_BACKUP') setRefusal(extractError(err));
+      else setRestoreError(extractError(err));
+    }
+    setStage('refused');
   }
 
   function closeRestore() {
-    // Running: nothing may interrupt it. Done: the only way out is "Log in
-    // again" — every request from here on would 401.
-    if (stage !== 'form') return;
+    // Running or checking: nothing may interrupt it. Done: the only way out
+    // is "Log in again" — every request from here on would 401.
+    if (stage !== 'form' && stage !== 'refused') return;
     setRestoring(null);
     setPassword('');
     setConfirmName('');
     setRestoreError(null);
     setRestoreFieldErrors({});
-    // A failed attempt can still have created a safety copy (a partial
-    // restore, or one that failed after the safety dump) — show it.
+    setRefusal(null);
+    // A failed attempt can still have created a safety copy (a restore that
+    // was rolled back after the safety archive was taken) — show it.
     if (attemptedRef.current) load();
   }
 
@@ -314,6 +350,11 @@ export default function AdminBackupsPage() {
         ) : (
           <span className="text-fg-secondary">Manual backup</span>
         ),
+    },
+    {
+      key: 'format',
+      header: 'Format',
+      render: (row) => <span className="text-fg-secondary">{formatLabel(row)}</span>,
     },
     {
       key: 'created_at',
@@ -411,6 +452,11 @@ export default function AdminBackupsPage() {
       render: (row) => <span className="font-mono text-xs text-fg-secondary">{row.filename}</span>,
     },
     {
+      key: 'format',
+      header: 'Format',
+      render: (row) => <span className="text-fg-secondary">{formatLabel(row)}</span>,
+    },
+    {
       key: 'file_size',
       header: 'Size',
       align: 'right',
@@ -478,7 +524,7 @@ export default function AdminBackupsPage() {
             // Static card, no chevron, the same action buttons underneath.
             renderCard={(row) => ({
               title: row.filename,
-              subtitle: isSafetyCopy(row) ? 'Safety copy' : 'Manual backup',
+              subtitle: `${isSafetyCopy(row) ? 'Safety copy' : 'Manual backup'} · ${formatLabel(row)}`,
               meta: `${formatWhen(row.created_at)} · ${formatSize(row.file_size)}`,
               actions: columns[columns.length - 1].render(row),
             })}
@@ -549,13 +595,17 @@ export default function AdminBackupsPage() {
       <Modal
         open={Boolean(restoring)}
         onClose={closeRestore}
-        closeOnBackdrop={stage === 'form'}
+        closeOnBackdrop={stage === 'form' || stage === 'refused'}
         title={stage === 'done' ? 'Database restored' : 'Restore database'}
         size="lg"
         footer={
           stage === 'done' ? (
             <Button variant="primary" onClick={logInAgain}>
               Log in again
+            </Button>
+          ) : stage === 'checking' || stage === 'refused' ? (
+            <Button onClick={closeRestore} disabled={stage === 'checking'} loading={stage === 'checking'}>
+              Close
             </Button>
           ) : (
             // The confirm of the one irreversible action on the page: the
@@ -614,6 +664,27 @@ export default function AdminBackupsPage() {
               <span className="break-all font-mono text-xs">{restoring.filename}</span> was taken.
             </p>
           </div>
+        ) : restoring && (stage === 'checking' || stage === 'refused') ? (
+          // A MySQL-era file. No form: the server's answer, as written.
+          <div className="space-y-4">
+            <p className="text-sm text-fg-secondary">
+              <span className="break-all font-mono text-xs font-semibold text-fg">{restoring.filename}</span>, taken{' '}
+              {restoreDate}, is a {formatLabel(restoring)}.
+            </p>
+            {stage === 'checking' ? <p className="text-sm text-fg-muted">Asking the server…</p> : null}
+            {refusal ? (
+              <p
+                role="status"
+                className="flex items-start gap-3 rounded-xl border border-info-edge bg-info-soft px-4 py-3 text-sm text-info-strong"
+              >
+                <span aria-hidden="true" className="mt-0.5 flex items-center justify-center">
+                  <i className="fa-solid fa-circle-info" />
+                </span>
+                <span className="min-w-0">{refusal}</span>
+              </p>
+            ) : null}
+            {restoreError ? <ErrorAlert message={restoreError} /> : null}
+          </div>
         ) : restoring ? (
           // No scroller of its own: the dialog's body is the scroller now
           // (Modal), so this long form no longer scrolls inside a scrolling
@@ -629,19 +700,23 @@ export default function AdminBackupsPage() {
                 Every sentence stays; the amber panel only marks them as what
                 they are — consequences to read before the password. */}
             <ol className="list-decimal space-y-2 rounded-xl border border-warning-edge bg-warning-soft py-3 pl-9 pr-4 text-sm text-warning-strong marker:font-semibold">
-              <li>A safety backup of the current database is taken first. If that fails, nothing is changed.</li>
+              <li>
+                The file is checked first, and a safety backup of the current database is taken. If
+                either fails, nothing is changed.
+              </li>
               <li>
                 Everything except the list of backups is replaced with this backup&apos;s contents —
                 students, grades, attendance, messages, accounts and passwords, and the activity
-                log. Anything recorded after {restoreDate} is gone.
+                log. Anything recorded after {restoreDate} is gone, and every verification code is
+                cleared.
               </li>
               <li>
-                If the restore fails partway, the database may be left partly restored. That cannot
-                be undone automatically; the safety backup is what you recover from.
+                The restore happens all at once: if any part of it fails, none of it is kept and the
+                database stays exactly as it was.
               </li>
               <li>
                 Every session ends — everyone, including you, must log in again, with the password
-                that was valid when this backup was taken.
+                that was valid when this backup was taken. Open pages stop receiving live updates.
               </li>
             </ol>
 

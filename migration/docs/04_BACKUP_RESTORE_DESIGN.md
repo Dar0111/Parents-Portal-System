@@ -47,7 +47,49 @@ itself**, not `pg_dump`.
 | Runs on Supabase with `portal_migrate` | yes if the tools are installed where the API runs | yes |
 | File format | `.sql` or custom | `.zip` holding `manifest.json` (schema fingerprint, table list, row counts, sha256 per member, source version), one `<table>.csv` per table (COPY CSV, UTF-8, `\N` nulls) |
 
-**Design (COPY archive):**
+**BUILT — Phase 3, commit 6 (2026-10-25), the owner's P4 with Q3 (a) and
+Q4 (a).** `server/utils/backupArchive.js` (write, inspect, restore, the
+fingerprint) and `server/routes/backups.js`. Where the build differs from the
+design text below, the build is what the owner approved and this list wins:
+
+1. **Create runs as `portal_app`** (SELECT is all it needs), not
+   `portal_migrate`. The file is read back whole before the rename.
+2. **The restore truncates all 26 tables in one statement** — `backups`
+   included, because its foreign key to `users` is RESTRICT and cannot be
+   deferred, so `users` cannot be truncated without it. The `backups` rows
+   are saved first (a temporary table, under the restore's locks) and put
+   back with their ids after the COPY — the catalog still survives every
+   restore. **Q3 (a):** when a saved row's creator is not in the archive the
+   whole restore is refused and rolled back (`409 CATALOG_CREATOR_MISSING`).
+3. **Q4 (a): a sequence never moves backwards.** Each is set to the furthest
+   of its live value, the archive's and the restored rows' highest id — not
+   "from the manifest" — so an id handed out before a restore is never
+   handed out again. The values are captured under the locks and put back on
+   any failure, inside the savepoint before the rollback (`setval` is not
+   transactional).
+4. **Every table is locked** (ACCESS EXCLUSIVE, `lock_timeout` 15 s) before
+   anything is read, so no write lands between the saved `backups` rows and
+   the truncate, and the schema cannot change under the fingerprint.
+5. **The fingerprint is read from `pg_catalog`**, never
+   `information_schema` (which hides what a role may not see): every table's
+   columns (type, nullability, identity, generation, collation), its
+   constraints, and the enum labels, every name schema-qualified. A mismatch
+   is refused before any write, naming each difference.
+6. **Decision 6 is kept by the restore:** the four retired learner fields are
+   cleared inside the transaction (the MySQL privacy step's data half; its
+   other half — missing tables — cannot happen, the fingerprint refuses it).
+7. **A MySQL-era `.sql` row** is listed with its engine and format and
+   refused with the recovery procedure (§2b) before any password is asked
+   for; the page shows that answer as the server wrote it.
+8. **The lost-entries count** is every live log row above the archive's own
+   highest `activity_logs` id, counted under the locks (the KNOWN ISSUES
+   off-by-one, fixed).
+
+Rehearsed on the isolated target, 39/39 (`docs/RESTORE.md`), and the suites
+are `test:backups` 63, `test:restore` 39, `test:privacy` 85
+(`docs/TESTING.md`).
+
+**Design (COPY archive), as written before the build:**
 
 - **Create** (`POST /api/backups`): open one `portal_migrate`-or-equivalent
   connection, `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY` (one
@@ -147,6 +189,32 @@ is **this package, run by hand**:
 Required tools for 2b: MySQL 8.0 client + server (a local MySQL stays
 installed for exactly this), Node 24, this package. Deployment dependency
 for 2a: none beyond the API's own `node_modules`.
+
+Step 3's archive is `scripts/reconstruct-archive.js write --database
+<scratch> --out <file.zip>` (§2c): an archive of the scratch database in the
+page's own format, which the owner then registers by hand.
+
+### 2c. The reconstruction procedure — an archive with no API to restore it
+
+`scripts/reconstruct-archive.js` (built in commit 6), on the embedded local
+cluster only — it opens no secrets file and has no staging target:
+
+- `verify <archive.zip>` — every check the restore makes on the file (a
+  complete manifest, every member against its checksum, rows and header).
+- `load <archive.zip> --database <name>` — a NEW database (or an empty one;
+  a database that already has a `portal` schema is refused): 001 and 003 in
+  one transaction, then the API's own `restoreArchive` in a second — the
+  fingerprint against the fresh schema, every member, the sequences, the
+  four retired fields, a session cutoff. It prints each table's archive and
+  database row counts and fails on any difference (`auth_security_state`
+  holds the one cutoff row). Rehearsed 2026-10-25: 24 tables at the
+  archive's counts.
+- `write --database <name> --out <file.zip>` — the archive of a database the
+  page did not write (§2b step 3); `--out` must not exist.
+
+A hosted reconstruction (onto a new Supabase project) is the same two
+transactions on the staging connection, once `supabase.env` exists — not
+built here.
 
 ## 3. User-visible consequences, stated
 

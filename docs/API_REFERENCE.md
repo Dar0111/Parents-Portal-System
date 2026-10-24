@@ -113,11 +113,13 @@ by side. Nothing here is guessed — every line traces to a specific file.
   `data`") to derive a wrapper key from a path.
 - **`POST /api/backups/:id/restore` is the ONE endpoint in this entire
   API where `success: true` does not mean the operation fully
-  succeeded.** If the post-restore bookkeeping step fails (marking every
-  session invalid), the response is still `200`/`success: true`, with a
-  message reading "Database restored, but marking sessions invalid
-  failed — see server logs...". Everywhere else in this API, checking
-  `success` is sufficient. Here, you must also read the message.
+  succeeded.** On PostgreSQL (Phase 3, commit 6) the session cutoff is
+  written inside the restore's own transaction, so the one step that can
+  fail after the commit is the activity-log write: the response is still
+  `200`/`success: true`, and its message adds "The activity-log entries for
+  this restore could not be written — see the server logs." Everywhere else
+  in this API, checking `success` is sufficient. Here, you must also read
+  the message.
 - **Teacher scope width silently differs by module.** Events scope a
   teacher by **grade alone** — any section within that grade — because the
   table has no section column (`teacherHasGradeAssignment`). Students,
@@ -1313,11 +1315,11 @@ are unchanged; this is a fourth writer of `attendance` rows.
 
 | Method | Path | Roles | Request body | Response key | Notes |
 |---|---|---|---|---|---|
-| GET | `/` | `admin` only | — | `backups` + `orphaned_files` | newest first; each row flags `file_exists` |
-| POST | `/` | `admin` only | — | `backup` | real `mysqldump`; row inserted only after success. **Since 2026-09-30 the dump is written as `<name>.sql.partial` and renamed to `.sql` only when non-empty and footer-complete**; a failure removes it, and a startup sweep removes any `.partial` older than a minute (a safeguard against a process killed mid-dump — never a `.sql`, so no backup file is deleted). The list's `orphaned_files` is `.sql` only |
+| GET | `/` | `admin` only | — | `backups` + `orphaned_files` | newest first; each row flags `file_exists` and carries **`engine` and `format`** read from the file name (Phase 3, commit 6): `.zip` → `postgresql` / `copy-archive`, `.sql` → `mysql` / `mysqldump` (a MySQL-era file), anything else → `null` / `unknown`. `orphaned_files` lists `.zip` and `.sql` files with no row, with the same two fields |
+| POST | `/` | `admin` only | — | `backup` (with `engine`, `format`) | **a PostgreSQL COPY archive** (`utils/backupArchive.js`): a `.zip` with one CSV per table but `backups` and `auth_codes`, written as the API's own role in one REPEATABLE READ, READ ONLY snapshot, and `manifest.json` last — the format and its version, the PostgreSQL version, the schema fingerprint, each member's columns, rows, bytes, highest id and SHA-256, every identity sequence's next value, the two excluded tables, then `completed_at`. Written as `<name>.zip.partial`, read back whole (every member against its checksum) and only then renamed to `.zip`; the row is inserted after that. A failure removes both names and answers `500` naming a PostgreSQL code, never a row; a startup sweep removes any `.partial` older than a minute (never a `.zip` or `.sql`, so no backup file is deleted) |
 | GET | `/:id/download` | `admin` only | — | binary file stream, no JSON on success | `404` if row or file missing |
 | DELETE | `/:id` | `admin` only | — | message only | row still removed if file already gone |
-| POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint; `400` on missing password, `403` "Incorrect password." on a wrong one (both were `401` until 2026-09-15 — the session is valid), `400` on `confirm_filename` mismatch; since 2026-09-18 the two password refusals carry `field: "password"` and the mismatch carries `field: "confirm_filename"`; each of those refusals is logged as `restore_refused` |
+| POST | `/:id/restore` | `admin` only | `password`*, `confirm_filename`* | `restored_from` + `safety_backup` + `activity_logs_wiped` | see Gotchas — the one `200`-but-degraded endpoint. **Every check before any write, in this order:** the row (`404`), the file (`404`), its format — a MySQL-era `.sql` is **`409` `code: "MYSQL_ERA_BACKUP"`** naming the recovery procedure (migration/docs/04 §2b), before any password is asked for —, `400` on missing password, `403` "Incorrect password." on a wrong one (both were `401` until 2026-09-15 — the session is valid), `400` on `confirm_filename` mismatch (since 2026-09-18 the two password refusals carry `field: "password"` and the mismatch carries `field: "confirm_filename"`), then the archive read whole — **`409` `ARCHIVE_INCOMPLETE`** (no manifest, or no `completed_at`) or **`409` `ARCHIVE_INVALID`** (a member that does not match its checksum, its rows or its header, naming it) — and the schema — **`409` `SCHEMA_MISMATCH`** with `differences` (one line each) when the archive's fingerprint is not this database's. Every refusal is logged as `restore_refused`, never with the typed values. Then the safety archive (`500`, nothing changed, if it fails), then ONE transaction as `portal_migrate`: every table locked, `backups` rows saved and put back with their ids, all tables truncated, each member copied in, the four retired learner fields cleared, every sequence set never backwards, the cutoff written. **`409` `CATALOG_CREATOR_MISSING`** when a kept `backups` row's creator is not in the archive (the owner's Q3 (a)); **`500`** "Restore failed (…). Nothing was changed — the restore was rolled back in full." on any other failure — both name the safety archive and carry `safety_backup`. **`409` `RESTORE_RUNNING`** while another restore runs. On success every open socket is closed |
 
 ### Messages (6) — `/api/messages`
 

@@ -53,9 +53,11 @@ types.setTypeParser(20, (value) => {
 //                                           Supabase's Session pooler the user
 //                                           name is portal_app.<project ref>)
 //   PG_MIGRATE_USER, PG_MIGRATE_PASSWORD    the restore's own credential,
-//                                           portal_migrate — read only by the
-//                                           Backup & Restore endpoint's one-off
-//                                           connection (migration/docs/04)
+//                                           portal_migrate, the schema's owner —
+//                                           read by the restore's one-off
+//                                           connection (routes/backups.js,
+//                                           migration/docs/04) and by db:setup;
+//                                           never by the pool
 //   PG_SSL                                  disable | require | verify-full;
 //                                           default disable on a loopback host,
 //                                           verify-full anywhere else

@@ -155,12 +155,12 @@ async function json(url, options = {}) {
 
 function footerOf(file) {
   const size = fs.statSync(file).size;
-  if (!size) return { size, footer: false };
+  if (size < 22) return { size, footer: false };
   const fd = fs.openSync(file, 'r');
-  const buf = Buffer.alloc(Math.min(200, size));
+  const buf = Buffer.alloc(Math.min(65557, size));
   fs.readSync(fd, buf, 0, buf.length, size - buf.length);
   fs.closeSync(fd);
-  return { size, footer: /-- Dump completed on/.test(buf.toString('utf8')) };
+  return { size, footer: buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])) >= 0 }; // a zip's last record (Phase 3: the archive)
 }
 
 async function runOnce(i) {
@@ -185,8 +185,8 @@ async function runOnce(i) {
     if (r.status === 201) {
       created = r.body.backup;
       const f = footerOf(path.join(BACKUP_DIR, created.filename));
-      const [[row]] = await pool.query('SELECT id FROM backups WHERE id = ?', [created.id]);
-      outcome = row && f.size > 100000 && f.footer ? 'complete' : 'incomplete_201';
+      const { rows: [row] } = await pool.query('SELECT id FROM backups WHERE id = ?', [created.id]);
+      outcome = row && f.size > 1000 && f.footer ? 'complete' : 'incomplete_201';
       detail = `${created.filename} ${f.size}B footer=${f.footer}`;
     } else {
       outcome = `http_${r.status}`;
@@ -212,7 +212,7 @@ async function runOnce(i) {
     if (created && f === created.filename) continue;
     const full = path.join(BACKUP_DIR, f);
     if (!fs.existsSync(full)) continue;
-    const [[row]] = await pool.query('SELECT id FROM backups WHERE filename = ?', [f]);
+    const { rows: [row] } = await pool.query('SELECT id FROM backups WHERE filename = ?', [f]);
     if (row) continue;
     const info = footerOf(full);
     orphans.push(`${f} ${info.size}B footer=${info.footer}`);

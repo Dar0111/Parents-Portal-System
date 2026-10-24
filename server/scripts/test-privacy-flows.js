@@ -26,8 +26,8 @@
  * consent, a confirmed Gmail or mobile number (confirmed here by a code
  * planted in auth_codes, never sent), then the new password through
  * PUT /auth/first-password — for the teacher and the parent alike. The restore's
- * privacy step runs on a DISPOSABLE schema — a scratch database made and
- * dropped here, holding a pre-privacy shape — never a real restore and never
+ * privacy guarantees run on a DISPOSABLE schema — this connection's own
+ * temporary tables, a pre-privacy shape — never a real restore and never
  * the live tables (PF1); the route's wiring is read as source, with a control.
  *
  * Usage: npm run test:privacy
@@ -44,7 +44,6 @@ const BASE = process.env.API_BASE || 'http://localhost:5000';
 const POLICY_DIR = path.join(__dirname, '..', 'policy');
 
 const { io: ioClient } = require('socket.io-client');
-const { migratePrivacy } = require('./migrate-privacy');
 
 let passed = 0;
 let failed = 0;
@@ -606,91 +605,116 @@ async function run() {
     const pSockBack = await trySocket(parentToken);
     assert(pSockBack.connected, 'socket: connects again after the new acceptance');
 
-    // --- After a restore: the privacy step, on a disposable schema ---------
-    // A restore of a backup from before this build leaves a database with
-    // neither table and the four learner values back. That shape is built
-    // here in a scratch database and the step the restore route runs is
-    // called on it directly; the scratch database is dropped in the finally.
-    console.log('\n-- After a restore: the privacy step (disposable schema) --');
-    const liveDb = process.env.DB_NAME || 'parents_portal';
-    const scratch = `pp_privacy_scratch_${tail}`;
-    const PRIVACY_TABLES = "TABLE_NAME IN ('policy_acceptances', 'login_attempts')";
-    // ON POSTGRESQL (Phase 3, commit F) THIS BLOCK HAS NOTHING TO RUN AGAINST:
-    // it builds a pre-privacy MySQL schema in a scratch DATABASE and runs the
-    // MySQL privacy migration that the MySQL restore calls. The PostgreSQL
-    // restore (migration/docs/04, commit 6) replaces no schema — an archive
-    // whose schema fingerprint differs is refused instead — so this case is
-    // rewritten with that restore. Until then its six checks are SKIPPED,
-    // said so on the run's output, and counted neither as passed nor failed.
-    const RESTORE_PORTED = false;
-    if (!RESTORE_PORTED) {
-      console.log('  SKIPPED 6 checks: the MySQL privacy step on a scratch database (rewritten with the PostgreSQL restore, commit 6)');
-    } else {
-    try {
-      await withDb(async (conn) => {
-        await conn.query(`CREATE DATABASE \`${scratch}\``);
-        await conn.query(`CREATE TABLE \`${scratch}\`.users LIKE \`${liveDb}\`.users`);
-        await conn.query(`CREATE TABLE \`${scratch}\`.students LIKE \`${liveDb}\`.students`);
-        await conn.query(
-          `INSERT INTO \`${scratch}\`.students
-             (lrn, first_name, last_name, grade_level, section, birthday, gender, address, contact_number)
-           VALUES ('0', 'Scratch', 'Learner', 1, 'Scratch', '2015-01-01', 'female', 'Scratch', '0')`
-        );
-      });
-      const tablesIn = async (schema) => {
-        const [[{ n }]] = await withDb((conn) =>
-          conn.query(`SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ${PRIVACY_TABLES}`, [schema])
-        );
-        return Number(n);
-      };
-      assert((await tablesIn(scratch)) === 0 && (await tablesIn(liveDb)) === 2, 'control: the scratch schema has neither table, the live one has both');
-
-      const onScratch = () =>
-        withDb(async (conn) => {
-          await conn.query(`USE \`${scratch}\``);
-          return migratePrivacy(conn);
-        });
-      const first = await onScratch();
-      assert(
-        first.created.join(',') === 'policy_acceptances,login_attempts' && first.cleared === 1,
-        'the step creates both tables and clears the learner values a pre-privacy restore brings back'
-      );
-      const [[{ fks }]] = await withDb((conn) =>
-        conn.query('SELECT COUNT(*) AS fks FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ?', [scratch])
-      );
-      const [[{ none_held: noneHeld }]] = await withDb((conn) =>
+    // --- After a restore: the privacy guarantees, on a disposable schema ---
+    // On MySQL a restore of a backup from before this build brought back a
+    // database with neither table and the four learner values, and a privacy
+    // step put both right afterwards. The PostgreSQL restore (Phase 3, commit
+    // 6, utils/backupArchive.js) replaces no schema: an archive whose schema
+    // fingerprint differs is REFUSED, naming the difference, and inside the
+    // restore's one transaction the four retired fields are cleared. Both are
+    // proved here on a SCRATCH SCHEMA — this connection's own temporary
+    // tables, a pre-privacy shape (users and students copied in shape from
+    // the live tables, one fictional learner holding all four values) — never
+    // a real restore and never the live tables. The tables go with the
+    // connection, and the run asserts that they did.
+    console.log('\n-- After a restore: the privacy guarantees (a scratch schema) --');
+    const { config: scratchConfig } = require('./test-helpers/db');
+    const archive = require('../utils/backupArchive');
+    const PRIVACY_TABLES = ['policy_acceptances', 'login_attempts'];
+    const tablesIn = async (schema) => {
+      const [[{ n }]] = await withDb((conn) =>
         conn.query(
-          `SELECT (birthday IS NULL AND gender IS NULL AND address IS NULL AND contact_number IS NULL) AS none_held
-             FROM \`${scratch}\`.students LIMIT 1`
+          `SELECT COUNT(*) AS n FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace s ON s.oid = c.relnamespace
+            WHERE s.nspname = ? AND c.relkind = 'r' AND c.relname = ANY(?::text[])`,
+          [schema, PRIVACY_TABLES]
         )
       );
-      assert(
-        (await tablesIn(scratch)) === 2 && Number(fks) === 2 && Number(noneHeld) === 1,
-        'afterwards the scratch schema has both tables (with their two foreign keys) and the four fields are empty'
-      );
-      const second = await onScratch();
-      assert(second.created.length === 0 && second.cleared === 0, 'a second run creates nothing and clears 0 rows (idempotent)');
-      assert((await tablesIn(liveDb)) === 2, 'the live database still has both tables');
-    } finally {
-      await withDb((conn) => conn.query(`DROP DATABASE IF EXISTS \`${scratch}\``));
-    }
-    const [[{ n: scratchLeft }]] = await withDb((conn) =>
-      conn.query('SELECT COUNT(*) AS n FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?', [scratch])
-    );
-    assert(Number(scratchLeft) === 0, 'the scratch schema is dropped');
-    }
-
-    // The wiring, read as SOURCE (a real restore drops the live database): the
-    // restore route runs the step after the pool reset, before the session cutoff.
-    const backupsSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'backups.js'), 'utf8');
-    const wired = (text) => {
-      const reset = text.indexOf('await pool.resetPool()');
-      const step = text.indexOf('await migratePrivacy(pool)');
-      const cutoff = text.indexOf('INSERT INTO auth_security_state');
-      return text.includes("require('../scripts/migrate-privacy')") && reset > 0 && step > reset && cutoff > step;
+      return Number(n);
     };
-    assert(wired(backupsSrc), 'the restore route runs the step after the pool reset and before the session cutoff');
-    assert(!wired(backupsSrc.replace('await migratePrivacy(pool)', '')), 'control: without the call, that check fails');
+    const scratch = new (require('pg').Client)(scratchConfig());
+    await scratch.connect();
+    let scratchSchema = null;
+    const fingerprintOfScratch = async () => {
+      await scratch.query('BEGIN READ ONLY');
+      try {
+        await archive.useArchiveSession(scratch);
+        return await archive.schemaFingerprint(scratch, scratchSchema);
+      } finally {
+        await scratch.query('COMMIT');
+      }
+    };
+    try {
+      await scratch.query('CREATE TEMPORARY TABLE users (LIKE portal.users INCLUDING ALL)');
+      await scratch.query('CREATE TEMPORARY TABLE students (LIKE portal.students INCLUDING ALL)');
+      await scratch.query(
+        `INSERT INTO pg_temp.students
+             (lrn, first_name, last_name, grade_level, section, birthday, gender, address, contact_number)
+           VALUES ('0', 'Scratch', 'Learner', 1, 'Scratch', '2015-01-01', 'female', 'Scratch', '0')`
+      );
+      scratchSchema = (await scratch.query('SELECT nspname FROM pg_catalog.pg_namespace WHERE oid = pg_catalog.pg_my_temp_schema()')).rows[0].nspname;
+      assert((await tablesIn(scratchSchema)) === 0 && (await tablesIn('portal')) === 2, 'control: the scratch schema has neither privacy table, the live one has both');
+
+      // An archive of this pre-privacy shape, restored onto a schema that has
+      // the two tables: its fingerprint against that one's.
+      const prePrivacy = await fingerprintOfScratch();
+      await scratch.query('CREATE TEMPORARY TABLE policy_acceptances (LIKE portal.policy_acceptances INCLUDING ALL)');
+      await scratch.query('CREATE TEMPORARY TABLE login_attempts (LIKE portal.login_attempts INCLUDING ALL)');
+      const withPrivacy = await fingerprintOfScratch();
+      const differences = archive.fingerprintDifferences(prePrivacy, withPrivacy);
+      assert(
+        differences.length === 2 &&
+          differences.every((d) => /^table (policy_acceptances|login_attempts) is in this database but not in the archive$/.test(d)) &&
+          archive.fingerprintDifferences(withPrivacy, withPrivacy).length === 0,
+        'a pre-privacy archive is refused: its fingerprint differs in the two privacy tables and nothing else'
+      );
+      const cleared = await archive.clearRetiredLearnerFields(scratch, scratchSchema);
+      const { rows: [held] } = await scratch.query(
+        `SELECT (birthday IS NULL AND gender IS NULL AND address IS NULL AND contact_number IS NULL) AS none_held
+           FROM pg_temp.students LIMIT 1`
+      );
+      assert(
+        cleared === 1 && held.none_held === true && (await tablesIn(scratchSchema)) === 2,
+        'the restore’s privacy step clears the four retired values on the learner, and the scratch schema has both tables'
+      );
+      const clearedAgain = await archive.clearRetiredLearnerFields(scratch, scratchSchema);
+      assert(clearedAgain === 0, 'a second run clears 0 rows (idempotent)');
+      assert((await tablesIn('portal')) === 2, 'the live schema still has both tables');
+    } finally {
+      await scratch.end();
+    }
+    let scratchLeft = -1;
+    for (let i = 0; i < 20 && scratchLeft !== 0; i += 1) {
+      const [[{ n }]] = await withDb((conn) =>
+        conn.query(
+          `SELECT COUNT(*) AS n FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace s ON s.oid = c.relnamespace
+            WHERE s.nspname = ? AND c.relkind = 'r' AND c.relname = ANY(?::text[])`,
+          [scratchSchema, ['users', 'students', ...PRIVACY_TABLES]]
+        )
+      );
+      scratchLeft = Number(n);
+      if (scratchLeft !== 0) await new Promise((r) => setTimeout(r, 100));
+    }
+    assert(scratchSchema !== null && scratchLeft === 0, 'the scratch schema is dropped: none of its tables outlives the connection');
+
+    // The wiring, read as SOURCE (a restore replaces every table's rows): the
+    // restore route checks the archive's schema fingerprint BEFORE it takes
+    // the safety archive, and the restore's one transaction clears the four
+    // fields before it writes the session cutoff.
+    const backupsSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'backups.js'), 'utf8');
+    const archiveSrc = fs.readFileSync(path.join(__dirname, '..', 'utils', 'backupArchive.js'), 'utf8');
+    const wired = (route, mod) => {
+      const check = route.indexOf('archive.fingerprintDifferences(');
+      const safety = route.indexOf("createBackupRecord({ prefix: 'pre_restore'");
+      const restoreAt = mod.indexOf('async function restoreArchive(');
+      const step = mod.indexOf('await clearRetiredLearnerFields(client)', restoreAt);
+      const cutoff = mod.indexOf('INSERT INTO portal.auth_security_state', restoreAt);
+      return check > 0 && safety > check && restoreAt > 0 && step > restoreAt && cutoff > step;
+    };
+    assert(
+      wired(backupsSrc, archiveSrc),
+      'the restore route checks the schema before the safety archive, and the restore clears the four fields before the session cutoff'
+    );
+    assert(!wired(backupsSrc, archiveSrc.replace('await clearRetiredLearnerFields(client)', '')), 'control: without the call, that check fails');
 
     // --- Sign-in limits ---------------------------------------------------
     console.log('\nSign-in limits');

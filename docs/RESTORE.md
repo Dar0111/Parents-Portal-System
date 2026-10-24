@@ -4,6 +4,78 @@
 > Moved out of `CLAUDE.md` on 2026-09-18 verbatim so that file fits Claude Code's 150k-char limit. `CLAUDE.md` holds the condensed version and wins on any present-tense claim; if the two disagree, the code is correct and both must be fixed.
 > Dated entries record what was true on their date and are never back-edited.
 
+## On PostgreSQL — `migrate/postgres-prep`, Phase 3 commit 6 (2026-10-25)
+
+The present tense on this branch. `migration/docs/04` is the design; the
+owner's P4 with Q3 (a) and Q4 (a) is what was built; the code is
+`server/utils/backupArchive.js` and `server/routes/backups.js`.
+
+- **A backup is a `.zip` COPY archive, written by the API itself** — no
+  `mysqldump`, no `pg_dump`. As the API's own role, `portal_app`, which needs
+  SELECT only: one REPEATABLE READ, READ ONLY transaction, one member per
+  table (`COPY … TO STDOUT`, CSV with a header, ordered by the primary key,
+  hashed as it streams), and `manifest.json` last: the format and its
+  version, the PostgreSQL version, the schema fingerprint (every table's
+  columns, constraints and the enum labels, from `pg_catalog`), each
+  member's columns, rows, bytes, highest id and SHA-256, every identity
+  sequence's next value, the excluded tables, then `completed_at`. Written
+  as `.zip.partial`, read back whole, renamed, and only then given its
+  `backups` row.
+- **`backups` and `auth_codes` are never in an archive** — the same two
+  tables, the same two reasons as below: the catalog is self-referential,
+  and a six-digit code's hash is a 10⁶ space in a file that is never
+  deleted.
+- **Every check before any write:** the row, the file, its format (a
+  MySQL-era `.sql` is refused `409 MYSQL_ERA_BACKUP` with the recovery
+  procedure, `migration/docs/04` §2b, before any password), the step-up
+  password, the typed name, the archive read whole (a missing manifest or
+  `completed_at`, a member against its checksum, rows or header — `409`,
+  naming it) and the fingerprint against the live schema (`409
+  SCHEMA_MISMATCH`, naming each difference). Every refusal is logged as
+  `restore_refused`, never with a typed value.
+- **Then the safety archive** (`pre_restore_…zip`); if it fails, the restore
+  aborts and nothing is changed.
+- **Then ONE transaction, as the owner role `portal_migrate`** (its own
+  `PG_MIGRATE_*` keys; TRUNCATE and `setval` are what `portal_app` lacks):
+  every table locked; the sequences captured under those locks; the
+  constraints deferred; the lost-entries count taken; the `backups` rows
+  saved; all 26 tables truncated in one statement; every member copied in,
+  its hash and rows checked again; the saved `backups` rows put back with
+  their ids — **or the whole restore refused** when one's creator is not in
+  the archive (Q3 (a), `409 CATALOG_CREATOR_MISSING`); the four retired
+  learner fields cleared (decision 6 — the job the MySQL privacy step did);
+  every sequence set to the furthest of its live value, the archive's and
+  the restored rows' highest id — **never backwards** (Q4 (a)); the session
+  cutoff written; the constraints checked; COMMIT.
+- **On any failure: ROLLBACK, and the captured sequence values go back** —
+  `setval` is not transactional, so they are put back inside the
+  transaction's savepoint before it rolls back (or, if the connection died,
+  on a fresh one, and only a sequence nothing has moved since). Nothing is
+  changed, and the reply names the safety archive. **"Partially restored"
+  no longer exists.**
+- **After the commit:** every open socket is closed (`io.disconnectSockets`),
+  so each reconnects and is refused on its old token; then `restore_backup`
+  and, when anything was lost, `restore_wiped_activity_logs` — the count
+  being every log row above the archive's own highest id, which fixes the
+  MySQL off-by-one (KNOWN ISSUES). No pool reset: the database is never
+  dropped.
+- **Rehearsed on the isolated target (2026-10-25), 39/39:** a successful
+  restore (every table hashing to its member, the catalog kept, the codes
+  empty, the old token refused, the same-second cutoff case — a token in the
+  cutoff's own second accepted, one a second earlier refused — a new sign-in
+  accepted, the live socket dropped); a checksum failure refused before any
+  write; a truncated member failing mid-COPY with the data, the sequences and
+  the catalog unchanged; a failure after the sequences were set, with every
+  one put back; an older archive under Q4 with no id reused; and Q3's
+  refusal. The reconstruction procedure (`migration/scripts/
+  reconstruct-archive.js`, docs/04 §2c) rebuilt a database from an archive
+  at the archive's row counts.
+
+**What `npm run test:restore` covers on PostgreSQL** is in `docs/TESTING.md`;
+it still never runs a restore.
+
+## The MySQL implementation — as it stood until Phase 3
+
 `POST /api/backups/:id/restore`, admin only, `routes/backups.js`. Restoring
 drops and recreates the whole database; a bad implementation is
 unrecoverable in a way almost nothing else in this system is. Every guard
