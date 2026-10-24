@@ -284,6 +284,83 @@ async function main() {
     await c.query('DELETE FROM teacher_assignments WHERE teacher_id = $1', [teacher.id]);
     check('assignments.delete_keeps_grades', (await c.query('SELECT COUNT(*) AS n FROM grades WHERE id = $1', [grade.id])).rows[0].n, 1);
 
+    // --- the 2026-10-24 sync with main: B1, B3, B8 and B2's statements --------
+    // 21. grade acknowledgements (feat/grade-acknowledgement): one row per
+    //     learner, school year and term; a repeat is 23505; the term range is a
+    //     CHECK; the read FOR UPDATE; the reads routes/grades.js makes with ANY
+    const ack = (await c.query('INSERT INTO grade_acknowledgements (student_id, school_year, term, user_id) VALUES ($1, $2, $3, $4) RETURNING id, acknowledged_at', [student.id, sy, 1, parent.id])).rows[0];
+    check('acknowledgements.insert_returning_id_number_and_whole_second_stamp', [typeof ack.id, /\.000Z$/.test(ack.acknowledged_at.toJSON())], ['number', true]);
+    const ackDup = await attempt(c, 's8', 'INSERT INTO grade_acknowledgements (student_id, school_year, term, user_id) VALUES ($1, $2, $3, $4)', [student.id, sy, 1, parent.id]);
+    check('acknowledgements.repeat_is_23505_(uq_grade_ack_term)', ackDup.ok ? 'accepted' : ackDup.code, '23505');
+    const ackRange = await attempt(c, 's9', 'INSERT INTO grade_acknowledgements (student_id, school_year, term, user_id) VALUES ($1, $2, $3, $4)', [student.id, sy, 4, parent.id]);
+    check('acknowledgements.term_4_is_23514_(chk_grade_ack_term)', ackRange.ok ? 'accepted' : ackRange.code, '23514');
+    const ackLock = await c.query('SELECT id FROM grade_acknowledgements WHERE student_id = $1 AND school_year = $2 AND term = $3 FOR UPDATE', [student.id, sy, 1]);
+    check('acknowledgements.read_for_update_rowCount', ackLock.rowCount, 1);
+    const ackFor = (await c.query(`SELECT ga.student_id, ga.term, ga.acknowledged_at, u.name AS by_name
+      FROM grade_acknowledgements ga LEFT JOIN users u ON u.id = ga.user_id WHERE ga.student_id = ANY($1::int[]) AND ga.school_year = $2`, [[student.id], sy])).rows;
+    check('acknowledgements.acknowledgementsFor_with_ANY_types', [ackFor.length, typeof ackFor[0].term, typeof ackFor[0].by_name, ackFor[0].acknowledged_at instanceof Date], [1, 'number', 'string', true]);
+    const ackCount = (await c.query('SELECT COUNT(*) AS n FROM grade_acknowledgements WHERE student_id = ANY($1::int[]) AND school_year = $2 AND term = $3', [[student.id], sy, 1])).rows[0].n;
+    check('acknowledgements.bulk_unlock_count_is_number_1', [typeof ackCount, ackCount], ['number', 1]);
+
+    // 22. the two new notification labels, the typed delete (utils/notify.js
+    //     removeTypedNotifications) and the parent's grades_locked self-heal
+    const typed = await c.query(`INSERT INTO notifications (user_id, type, item_type, item_id, title_snapshot, actor_id)
+      VALUES ($1,$2,$3,$4,NULL,$5),($6,$7,$8,$9,NULL,$10) ON CONFLICT DO NOTHING`,
+      [parent.id, 'grades_locked', 'grade', grade.id, admin.id, teacher.id, 'grades_acknowledged', 'grade', grade.id, parent.id]);
+    check('notify.new_labels_insert_rowCount', typed.rowCount, 2);
+    const typedAgain = await c.query('INSERT INTO notifications (user_id, type, item_type, item_id, title_snapshot, actor_id) VALUES ($1,$2,$3,$4,NULL,$5) ON CONFLICT DO NOTHING', [parent.id, 'grades_locked', 'grade', grade.id, admin.id]);
+    check('notify.relock_repeat_rowCount_0_(uq_notifications_once)', typedAgain.rowCount, 0);
+    const textArr = await attempt(c, 's10', 'SELECT 1 FROM notifications WHERE type = ANY($1::text[])', [['grades_locked']]);
+    check('notify.enum_column_vs_text_array_is_42883_(cast_to_the_enum_array)', textArr.ok ? 'accepted' : textArr.code, '42883');
+    const healed = (await c.query(`SELECT COUNT(*) AS n FROM notifications n JOIN grades g ON g.id = n.item_id
+      WHERE n.user_id = $1 AND n.item_type = 'grade' AND g.student_id = $2
+        AND (n.type <> 'grades_locked' OR NOT EXISTS (SELECT 1 FROM grade_acknowledgements ga
+              WHERE ga.student_id = g.student_id AND ga.school_year = g.school_year AND ga.term = g.term))`, [parent.id, student.id])).rows[0].n;
+    check('notify.grades_locked_self_heals_once_the_term_is_confirmed', healed, 0);
+    const typedRecipients = (await c.query('SELECT DISTINCT user_id FROM notifications WHERE type = ANY($1::portal.notification_type[]) AND item_type = $2 AND item_id = $3', [['grades_locked', 'grades_acknowledged'], 'grade', grade.id])).rows;
+    const typedDel = await c.query('DELETE FROM notifications WHERE type = ANY($1::portal.notification_type[]) AND item_type = $2 AND item_id = $3', [['grades_locked', 'grades_acknowledged'], 'grade', grade.id]);
+    check('notify.typed_delete_with_enum_array_recipients_and_rowCount', [typedRecipients.length, typedDel.rowCount], [2, 2]);
+
+    // 23. the visit clear (fix/f3-badges): the badge's own ids, then the UPDATE by id
+    await c.query('INSERT INTO notifications (user_id, type, item_type, item_id, title_snapshot, actor_id) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', [parent.id, 'excuse_reviewed', 'excuse_letter', letter.id, 'Rehearsal', teacher.id]);
+    const visitIds = (await c.query('SELECT n.id FROM notifications n WHERE n.user_id = $1 AND n.read_at IS NULL AND n.type = ANY($2::portal.notification_type[])', [parent.id, ['excuse_reviewed']])).rows.map((r) => r.id);
+    const visitClear = await c.query('UPDATE notifications SET read_at = portal.now_s() WHERE user_id = $1 AND read_at IS NULL AND id = ANY($2::int[])', [parent.id, visitIds]);
+    check('notify.visit_clear_ids_then_update_rowCount', [visitIds.length, visitClear.rowCount], [1, 1]);
+
+    // 24. the activity log (feat/activity-log): the count, the page, the actions,
+    //     the export — Date bounds on created_at, ANY / <> ALL for the code lists
+    const logFrom = 'FROM activity_logs a LEFT JOIN users u ON u.id = a.user_id';
+    const logWhere = 'WHERE a.created_at >= $1 AND a.created_at < $2 AND a.action <> ALL($3::text[])';
+    const logParams = [new Date('2026-01-01T00:00:00Z'), new Date(), ['rehearsal']];
+    const logTotal = (await c.query(`SELECT COUNT(*) AS total ${logFrom} ${logWhere}`, logParams)).rows[0].total;
+    const logPage = (await c.query(`SELECT a.id, a.created_at, a.action, u.name AS actor_name, u.role AS actor_role ${logFrom} ${logWhere} ORDER BY a.created_at DESC, a.id DESC LIMIT $4 OFFSET $5`, [...logParams, 50, 0])).rows;
+    check('activity.page_total_number_and_page_of_50_newest_first', [typeof logTotal, logPage.length, logPage.every((r, i) => i === 0 || logPage[i - 1].created_at >= r.created_at)], ['number', 50, true]);
+    const groupRows = (await c.query(`SELECT COUNT(*) AS n ${logFrom} WHERE a.action = ANY($1::text[])`, [['rehearsal']])).rows[0].n;
+    check('activity.group_list_with_ANY_counts_the_rolled_back_row', groupRows, 1);
+    const actions = (await c.query('SELECT DISTINCT action FROM activity_logs')).rows;
+    check('activity.distinct_actions_runs', actions.length > 0, true);
+    const exportRows = (await c.query(`SELECT a.id ${logFrom} ${logWhere} ORDER BY a.created_at DESC, a.id DESC LIMIT $4`, [...logParams, 50000])).rowCount;
+    check('activity.export_select_with_cap_rowCount_matches_total', exportRows === logTotal, true);
+
+    // 25. the excuse review's attendance write (feat/excuse-attendance), the
+    //     transaction's statements on synthetic rows: an unrecorded class day
+    //     becomes Excused (insert), Absent becomes Excused (update by id), a
+    //     lost race on the day is 23505 — a code isWriteConflict already lists
+    const letter2 = (await c.query('INSERT INTO excuse_letters (student_id, parent_id, absence_date, reason) VALUES ($1, $2, $3, $4) RETURNING id', [student.id, parent.id, '2026-10-20', 'Rehearsal reason'])).rows[0];
+    const rev3 = await c.query("UPDATE excuse_letters SET status = $1, teacher_remarks = $2, reviewed_by = $3 WHERE id = $4 AND status = 'Pending'", ['Approved', null, teacher.id, letter2.id]);
+    const letterRow = (await c.query('SELECT student_id, absence_date FROM excuse_letters WHERE id = $1 FOR UPDATE', [letter2.id])).rows[0];
+    const dayBefore = await c.query('SELECT id, status FROM attendance WHERE student_id = $1 AND date = $2 FOR UPDATE', [letterRow.student_id, letterRow.absence_date]);
+    const dayInsert = await c.query('INSERT INTO attendance (student_id, date, status, recorded_by) VALUES ($1, $2, $3, $4)', [letterRow.student_id, letterRow.absence_date, 'Excused', teacher.id]);
+    const dayAfter = (await c.query('SELECT * FROM attendance WHERE student_id = $1 AND date = $2 LIMIT 1', [letterRow.student_id, letterRow.absence_date])).rows[0];
+    check('excuse_attendance.unrecorded_class_day_becomes_Excused', [rev3.rowCount, letterRow.absence_date, dayBefore.rowCount, dayInsert.rowCount, dayAfter.status, dayAfter.date], [1, '2026-10-20', 0, 1, 'Excused', '2026-10-20']);
+    const race = await attempt(c, 's11', 'INSERT INTO attendance (student_id, date, status, recorded_by) VALUES ($1, $2, $3, $4)', [student.id, '2026-10-20', 'Absent', teacher.id]);
+    check('excuse_attendance.lost_race_on_the_day_is_23505_(isWriteConflict)', race.ok ? 'accepted' : race.code, '23505');
+    await c.query('INSERT INTO attendance (student_id, date, status, recorded_by) VALUES ($1, $2, $3, $4)', [student.id, '2026-10-21', 'Absent', teacher.id]);
+    const absentRow = (await c.query('SELECT id, status FROM attendance WHERE student_id = $1 AND date = $2 FOR UPDATE', [student.id, '2026-10-21'])).rows[0];
+    const toExcused = await c.query('UPDATE attendance SET status = $1, recorded_by = $2 WHERE id = $3', ['Excused', teacher.id, absentRow.id]);
+    const absentAfter = (await c.query('SELECT status, recorded_by FROM attendance WHERE id = $1', [absentRow.id])).rows[0];
+    check('excuse_attendance.Absent_becomes_Excused_by_id', [absentRow.status, toExcused.rowCount, absentAfter.status, absentAfter.recorded_by === teacher.id], ['Absent', 1, 'Excused', true]);
+
     await c.query('ROLLBACK');
     // after ROLLBACK the SET LOCAL search_path is gone too — qualify the names
     const left = (await c.query("SELECT (SELECT COUNT(*) FROM portal.users WHERE login_id COLLATE \"C\" LIKE 'ZZ%') + (SELECT COUNT(*) FROM portal.students WHERE lrn COLLATE \"C\" LIKE 'ZZREHEARSE%') AS n")).rows[0].n;

@@ -1,4 +1,5 @@
-// The 25 tables, their columns in schema.sql order, and how each value crosses
+// The 26 tables (25 on 2026-10-19; grade_acknowledgements since the 2026-10-24
+// sync with main), their columns in schema.sql order, and how each value crosses
 // from MySQL to PostgreSQL. ONE place, read by the transfer, the reconciliation
 // and the inspection script, so the three cannot disagree about a column.
 //
@@ -95,7 +96,23 @@ const TABLES = [
     c('id', 'id'), c('user_id', 'int'), c('document', 'text'), c('version', 'text'), c('student_id', 'int'), c('accepted_at', 'ts'),
   ]),
   T('login_attempts', [c('id', 'id'), c('login_key', 'text'), c('ip', 'text'), c('cleared', 'bool01'), c('attempted_at', 'ts')]),
+  T('grade_acknowledgements', [
+    c('id', 'id'), c('student_id', 'int'), c('school_year', 'text'), c('term', 'int'), c('user_id', 'int'), c('acknowledged_at', 'ts'),
+  ]),
 ];
+
+// THE SET-EQUALITY GUARD (the 2026-10-24 sync). transfer.js and reconcile.js
+// iterate TABLES, so a base table present in the source but missing here would
+// be skipped silently and RECONCILE OK would still print — the way a 26th table
+// could go unnoticed. Both scripts call this with the source's BASE TABLE names
+// and refuse on any difference. Returns null when the two sets are equal.
+function tableSetMismatch(sourceNames) {
+  const here = new Set(TABLES.map((t) => t.name));
+  const there = new Set(sourceNames);
+  const notInTables = [...there].filter((n) => !here.has(n)).sort();
+  const notInSource = [...here].filter((n) => !there.has(n)).sort();
+  return notInTables.length || notInSource.length ? { notInTables, notInSource } : null;
+}
 
 // Sensitive columns: never printed by any script, even on a mismatch — a
 // reconciliation names the table and the primary key only.
@@ -172,4 +189,4 @@ function canonical(kind, value) {
   }
 }
 
-module.exports = { TABLES, NEVER_PRINT, toPg, canonical };
+module.exports = { TABLES, NEVER_PRINT, toPg, canonical, tableSetMismatch };

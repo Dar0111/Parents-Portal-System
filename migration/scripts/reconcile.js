@@ -16,7 +16,7 @@ const crypto = require('crypto');
 const { readOnly, sourceConfig } = require('../lib/mysql');
 const { targetConfig } = require('../lib/env');
 const { pool } = require('../lib/pg');
-const { TABLES, canonical } = require('../lib/tables');
+const { TABLES, canonical, tableSetMismatch } = require('../lib/tables');
 const P = require('../lib/paths');
 
 function arg(name, fallback) {
@@ -52,6 +52,21 @@ async function main() {
   const pgc = await p.connect();
   try {
     await pgc.query("SET TIME ZONE 'UTC'");
+
+    // The set-equality guard (the 2026-10-24 sync): a source table missing from
+    // lib/tables.js would otherwise be skipped and RECONCILE OK would still print.
+    const [baseRows] = await src.query(
+      "SELECT TABLE_NAME t FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'", [sourceDb]
+    );
+    const mismatch = tableSetMismatch(baseRows.map((r) => r.t));
+    out.source_tables = baseRows.length;
+    if (mismatch) {
+      out.ok = false;
+      out.table_set_mismatch = mismatch;
+      throw new Error(`source ${sourceDb} and lib/tables.js disagree — not in tables.js: [${mismatch.notInTables.join(', ')}]; not in the source: [${mismatch.notInSource.join(', ')}]`);
+    }
+    console.log(`source ${sourceDb}: ${baseRows.length} base tables, the same set as lib/tables.js`);
+
     for (const table of TABLES) {
       const cols = table.columns.map((c) => c.name);
       const cap = transfer && transfer.tables[table.name] ? transfer.tables[table.name].max_id : null;
@@ -96,7 +111,7 @@ async function main() {
       (SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE n.nspname = 'portal' AND c.contype = 'f') AS fks,
       (SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE n.nspname = 'portal' AND c.contype = 'c') AS checks,
       (SELECT count(*) FROM pg_indexes WHERE schemaname = 'portal') AS indexes`);
-    out.catalog = { ...cat, expected: { pks: 25, uniques: 14, fks: 33, checks: '8 source + 0/1 flag and >= 0 checks', indexes: 'see 02_CONTRACTS.md' } };
+    out.catalog = { ...cat, expected: { pks: 26, uniques: 15, fks: 35, checks: '9 source + 0/1 flag and >= 0 checks (25)', indexes: '86 — see 02_CONTRACTS.md' } };
     console.log(`CATALOG ${JSON.stringify(cat)}`);
     console.log(out.ok ? 'RECONCILE OK' : 'RECONCILE FOUND DIFFERENCES');
     if (!out.ok) process.exitCode = 1;

@@ -1,4 +1,4 @@
-# 05 — Validation matrix (actual outcomes, 2026-10-19)
+# 05 — Validation matrix (actual outcomes, 2026-10-19; re-run 2026-10-24 after the sync with `main` — §0 and §3a)
 
 Three columns of truth: **ran** (with the result and the report file),
 **planned** (needs the application port or the hosted project), **blocked**
@@ -9,6 +9,20 @@ ids, types and table names — never a row value.
 Targets used: embedded PostgreSQL 17.10 (`pg17/`, ICU, `en-US` ICU default
 locale, `C` libc) and the isolated MySQL copy `parents_portal_migsrc_20261019_145706`.
 The application database was only ever read (session `READ ONLY`).
+
+## 0. The re-run after the sync with `main` `5426b70` (2026-10-24, 26 tables)
+
+| Requirement | Status | Result / evidence |
+|---|---|---|
+| Fresh verified snapshot, 26 tables | **ran** | `snapshots/source_parents_portal_20261024_164012.sql`, 2,759,750 B, footer, 26 CREATE TABLE, UTC preamble — `manifests/snapshot_20261024_164012.json` |
+| Isolated restore of the snapshot (MySQL) | **ran** | `parents_portal_migsrc_20261024_164012`: 26/26 tables — row counts, AUTO_INCREMENT and CHECKSUM TABLE equal to the live database's consistent snapshot; the seeded baseline's four counts held (grades 5, assessment_slots 10, grade_components 10, grade_acknowledgements 0) |
+| Schema applied | **ran** | local 17.10, `--drop-first`: tables 26, indexes 86, fks 35, uniques 15, checks 25, pks 26, enums 13, triggers 7, sequences 25; `portal.ci` = ICU `und-u-ks-level1` nondeterministic |
+| Source table set equals `lib/tables.js` | **ran** (the new guard) | 26 base tables, the same set — checked by `transfer.js` before `BEGIN` and by `reconcile.js` before the first table |
+| Transfer | **ran** | from the isolated scratch (`--source-db`): 26 tables, 30,780 rows, one transaction, every sequence set — `rehearsal/transfer_local_20261024T084124.json` |
+| Per-table reconciliation | **ran** | `rehearsal/reconcile_local_20261024T084250.json`: `RECONCILE OK`, 26 tables, 0 missing / extra / differing, 0 grown, every sequence equal; catalog pks 26, uniques 15, fks 35, checks 25, indexes 86 |
+| Semantics matrix | **ran** | `rehearsal/semantics_local_20261024T084545.json`: `SEMANTICS OK`, 0 failures against the new scratch; every conclusion of §2 unchanged |
+| Workflow rehearsal | **ran** | `rehearsal/rehearse_local_20261024T084423.json`: `REHEARSAL OK`, 90 checks (71 + the 19 of §3a), 0 synthetic rows left |
+| Query inventory | **ran** | 350 `.query(` call sites in 27 files (`03`) |
 
 ## 1. Data
 
@@ -38,7 +52,7 @@ The application database was only ever read (session `READ ONLY`).
 | Driver/port checks | **ran** | boolean→smallint 22P02; `ANY([])` ok vs mysql2 `IN ()` parse error; ON CONFLICT batches; aggregate JS types; error classes 23505/23503/23502/23514/42703/ECONNREFUSED/28P01 vs ER_DUP_ENTRY; RETURNING; enum ordering/casing; null-last ordering; string_agg |
 | Concurrency: FOR UPDATE, guarded UPDATE race, concurrent upserts, duplicate-key race, RR vs RC write conflict | **ran, both engines** | `03_QUERY_PORT_INVENTORY.md` §4; keep READ COMMITTED |
 
-## 3. Workflows (`rehearsal/rehearse_local_20261019T110102.json`, `REHEARSAL OK`, 71 checks)
+## 3. Workflows (`rehearsal/rehearse_local_20261019T110102.json`, `REHEARSAL OK`, 71 checks; 2026-10-24 `rehearse_local_20261024T084423.json`, 90 checks — §3a)
 
 Ported statements run on the migrated copy inside one rolled-back
 transaction with synthetic rows (no real row printed, nothing persisted —
@@ -69,7 +83,17 @@ the last check proves 0 synthetic rows remain).
 | Backup recovery + post-restore auth | **planned** — needs `04`'s implementation; the cutoff statement and the `token_version` argument rehearsed | — |
 | Existing suites retargeted | **planned** — rules below | — |
 
-### Retargeting rules for the 22 HTTP suites (inspected 2026-10-19 through a masked viewer)
+### 3a. The 19 checks added by the sync (2026-10-24; all PASS)
+
+| Requirement | Status | Result |
+|---|---|---|
+| Grade acknowledgements (B1): insert RETURNING a whole-second stamp, a repeat 23505 (`uq_grade_ack_term`), term 4 refused 23514 (`chk_grade_ack_term`), the read `FOR UPDATE`, `acknowledgementsFor` with `= ANY($n::int[])` and its JSON types, the unlock's count | **rehearsed (SQL)** | 6/6 |
+| The two new notification labels insert and a relock repeat is absorbed; `type = ANY($1::text[])` on the ENUM column is 42883 and `= ANY($1::portal.notification_type[])` is the port form; the parent's `grades_locked` row self-heals once the term is confirmed; the typed delete returns the recipients and the rowCount | **rehearsed (SQL)** | 5/5 |
+| The visit clear (B3): the badge's ids by enum-array ANY, then the UPDATE by `id = ANY($n::int[])` | **rehearsed (SQL)** | 1/1 |
+| The activity log (B2): the count and a newest-first page of 50 with `Date` bounds on `created_at`, `= ANY($n::text[])` for a group, `<> ALL($n::text[])` for Other, `SELECT DISTINCT action`, the export's count equal to the total | **rehearsed (SQL)** | 4/4 |
+| The excuse review's attendance write (B8): an unrecorded class day inserted as Excused after the guarded letter UPDATE and the two `FOR UPDATE` reads, a duplicate day 23505 (`isWriteConflict`), Absent → Excused by id with `recorded_by` | **rehearsed (SQL)** | 3/3 |
+
+### Retargeting rules for the 24 HTTP suites (22 inspected 2026-10-19 through a masked viewer; `test:grade-acknowledgements` and `test:activity-log` since the sync, plus the pure `test:excuse-attendance-rule`, which opens no database)
 
 - Every HTTP suite builds `dbConfig` from `DB_HOST/PORT/USER/PASSWORD/NAME`
   with `mysql.createConnection(dbConfig)` for fixtures and cleanup; none
@@ -102,7 +126,8 @@ the last check proves 0 synthetic rows remain).
 
 | Check | Why blocked locally | Where it runs |
 |---|---|---|
-| Supabase version, ICU, TimeZone, isolation default, extensions | no staging project yet | `06` §4 items 1–3, 5 |
+| Supabase version, ICU, TimeZone, isolation default | **read 2026-10-24 through the read-only MCP (D-70):** PostgreSQL 17.11, ICU present, `TimeZone` UTC, read committed — recorded in `06` by the fix round | `06` §4 items 1–3 |
+| Supabase extensions, privileges | no `supabase.env` yet | `06` §4 item 5 |
 | API-host ↔ database clock skew | one machine today | `06` §4 item 4 |
 | Connection mode (session pooler over IPv4), idle limits, TLS verify-full | no project | `06` §4 item 6 |
 | Schema, transfer, reconcile, semantics, rehearsal on the hosted target | no project | `06` §4 items 7–10 |

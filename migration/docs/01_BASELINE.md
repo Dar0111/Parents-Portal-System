@@ -95,3 +95,27 @@ keeps all 136: `04_BACKUP_RESTORE_DESIGN.md`.
    and are handled by the design in §04, not by rewriting rows.
 5. Profile photos stay on the API host's disk (0 files today). Object
    storage is a separate decision.
+
+## 7. Re-baseline after the sync with `main` (2026-10-24)
+
+The branch was rebased onto `main` `5426b70` (B4 `feat/first-signin`'s
+merge, B5 `feat/account-create`, B6 `feat/password-alert`, B1
+`feat/grade-acknowledgement`, B3 `fix/f3-badges`, B8 `feat/excuse-attendance`,
+B2 `feat/activity-log` and B7 `chore/pre-migration`, merged since
+`546a4c1`), so §1's "source branch" is now `main` at that commit; §2–§6 stay
+as the 2026-10-19 record. Measured again on 2026-10-24, the source opened
+read-only as before:
+
+| Fact | Value |
+|---|---|
+| Source objects | **26 tables** — `grade_acknowledgements` since B1 (2026-10-21), with `uq_grade_ack_term`, `idx_grade_ack_user`, `chk_grade_ack_term` and two FKs; `notifications.type` carries `grades_locked` and `grades_acknowledged` at the end of its list. B2, B3, B5–B8 changed no schema |
+| Snapshot | `snapshots/source_parents_portal_20261024_164012.sql` — 2,759,750 bytes, footer present, 26 `CREATE TABLE`, UTC preamble; `manifests/snapshot_20261024_164012.json` |
+| Isolated restore | `parents_portal_migsrc_20261024_164012` on the same MySQL server: 26 of 26 row counts, AUTO_INCREMENTs and `CHECKSUM TABLE` equal to the live database's consistent snapshot. The 2026-10-19 scratch stays beside it until after the cutover; the owner drops both by hand then (the owner's answer of 2026-10-24) |
+| Rows at dump time | 30,780: activity_logs 30,409 · backups 130 · transmutation_table 41 · subjects 40 · grade_weight_configs 40 · sections 23 · login_attempts 17 · auth_codes 11 · assessment_slots 10 · grade_components 10 · system_settings 9 · users 8 · teacher_assignments 8 · policy_acceptances 8 · grading_mode_configs 6 · grades 5 · students 4 · auth_security_state 1 · eight tables empty (attendance, excuse_letters, messages, announcements, memos, events, notifications, grade_acknowledgements) |
+| The seeded baseline | grades 5, assessment_slots 10, grade_components 10, grade_acknowledgements 0 — the four counts the owner named. Session A's HTTP suites were running on 5001 against the source at the time and left no row in the dump, so no second snapshot was needed |
+| Local PostgreSQL | embedded 17.10, re-applied with `--drop-first`: tables 26, indexes 86, fks 35, uniques 15, checks 25, pks 26, enums 13, triggers 7, sequences 25; `portal.ci` ICU nondeterministic |
+| Transfer and reconciliation | from the isolated scratch (`--source-db`), one transaction, 26 tables, 30,780 rows, every sequence at the source AUTO_INCREMENT; `RECONCILE OK`, grown 0 on every table; catalog pks 26 / uniques 15 / fks 35 / checks 25 / indexes 86. Both scripts now refuse a source whose base-table set is not exactly `lib/tables.js`'s (printed as "26 base tables, the same set") |
+| Rehearsal | `REHEARSAL OK`, 90 checks — the 71 of 2026-10-19 plus 19 for the acknowledgements, the two new notification labels and the typed delete, the visit clear, the activity log's page and export, and the excuse review's attendance write (`05` §3a) |
+| Semantics | `SEMANTICS OK`, 0 failures, against the new scratch; no conclusion changed |
+| Inventory | 350 `.query(` call sites in 27 files (`03`) |
+| Supabase | a project exists (the owner's, D-70's read-only MCP registered); read-only catalog facts of 2026-10-24 for the fix round's docs: PostgreSQL 17.11, `TimeZone` UTC, read committed, ICU present; no `portal` schema and no table in `public` yet; the two portal roles not created yet |

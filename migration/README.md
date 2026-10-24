@@ -18,7 +18,8 @@ migration/
   schema/002_roles.sql           the two hosted roles (migration/restore, runtime)
   lib/                           paths, env (secrets read from files, never printed),
                                  read-only MySQL, pg with the type parsers, the
-                                 25-table column map + conversions, safeMessage
+                                 26-table column map + conversions + the
+                                 set-equality guard, safeMessage
   scripts/                       the pipeline (below)
   docs/                          the eight deliverables
 ```
@@ -47,6 +48,22 @@ at the session level; no value from a real row is printed (counts, ids,
 types and table names only); every error message passes through
 `lib/safeMessage.js`; nothing is written under `server/backups` or into
 any git tree.
+
+## Status (2026-10-24 — the sync with `main` `5426b70`)
+
+The branch was rebased onto `main` (B4–B8, B1, B3, B2 and B7 merged since
+the 2026-10-19 base) and the package now carries **26 tables**:
+`grade_acknowledgements` and the two `notifications.type` labels
+`grades_locked` / `grades_acknowledged` (B1). New: `lib/tables.js`'s
+set-equality guard — the transfer and the reconciliation refuse a source
+whose base tables are not exactly the map's. Re-run on the local 17.10 from a
+fresh verified snapshot (26 tables, loaded into the isolated
+`parents_portal_migsrc_20261024_164012`): schema tables 26 / indexes 86 /
+fks 35 / uniques 15 / checks 25 / sequences 25; transfer 26 tables, 30,780
+rows; `RECONCILE OK`; `REHEARSAL OK` 90 checks (71 + 19 for B1, B3, B8 and
+B2's statements); `SEMANTICS OK`; inventory 350 call sites in 27 files
+(`docs/01` §7, `03`, `05` §0). The D-65 fix round and the hosted steps wait
+for their own go.
 
 ## Status (2026-10-19)
 

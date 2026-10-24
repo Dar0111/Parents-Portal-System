@@ -8,7 +8,7 @@
 //     snapshot (START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY), in the
 //     UTC session time zone — see lib/mysql.js
 //   - the destination is written in ONE transaction with every FK deferred:
-//     either all 25 tables land, every count matches and every sequence is set,
+//     either all 26 tables land, every count matches and every sequence is set,
 //     or nothing changes (ROLLBACK) and the run can simply be repeated
 //   - every value crosses through lib/tables.js#toPg, which throws on anything
 //     it does not recognise (a zero date, a non-0/1 flag, a malformed decimal)
@@ -16,8 +16,11 @@
 //   - ids are inserted explicitly; afterwards each identity sequence is set so
 //     that its NEXT value equals MySQL's AUTO_INCREMENT (empty tables too), so
 //     no id MySQL ever handed out is reused
-//   - it touches only the 25 tables in schema portal; it refuses a target
+//   - it touches only the 26 tables in schema portal; it refuses a target
 //     table that already has rows unless --truncate (local only)
+//   - the source's base tables must be EXACTLY lib/tables.js's set (the
+//     2026-10-24 sync): a table missing from the map is a refusal, never a
+//     silent skip
 //   - the report (counts, ids, sequences — never values) goes to
 //     <DATA_DIR>/rehearsal/transfer_<target>_<stamp>.json
 const fs = require('fs');
@@ -25,7 +28,7 @@ const path = require('path');
 const { readOnly, sourceConfig } = require('../lib/mysql');
 const { targetConfig } = require('../lib/env');
 const { pool } = require('../lib/pg');
-const { TABLES, toPg } = require('../lib/tables');
+const { TABLES, toPg, tableSetMismatch } = require('../lib/tables');
 const P = require('../lib/paths');
 
 const BATCH = 500;
@@ -55,6 +58,17 @@ async function main() {
       'SELECT TABLE_NAME t, AUTO_INCREMENT ai FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?', [sourceDb]
     );
     const autoInc = new Map(aiRows.map((r) => [r.t, r.ai === null ? null : Number(r.ai)]));
+
+    // The set-equality guard: the source's base tables are exactly the map's.
+    const [baseRows] = await src.query(
+      "SELECT TABLE_NAME t FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE'", [sourceDb]
+    );
+    const mismatch = tableSetMismatch(baseRows.map((r) => r.t));
+    if (mismatch) {
+      throw new Error(`source ${sourceDb} and lib/tables.js disagree — not in tables.js: [${mismatch.notInTables.join(', ')}]; not in the source: [${mismatch.notInSource.join(', ')}]`);
+    }
+    report.source_tables = baseRows.length;
+    console.log(`source ${sourceDb}: ${baseRows.length} base tables, the same set as lib/tables.js`);
 
     await pgc.query('BEGIN');
     await pgc.query('SET CONSTRAINTS ALL DEFERRED');

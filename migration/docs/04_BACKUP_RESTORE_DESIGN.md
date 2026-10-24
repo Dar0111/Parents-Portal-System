@@ -52,7 +52,8 @@ itself**, not `pg_dump`.
 - **Create** (`POST /api/backups`): open one `portal_migrate`-or-equivalent
   connection, `BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY` (one
   consistent snapshot for all tables — the counterpart of
-  `--single-transaction`), for each of the 25 tables except `backups` and
+  `--single-transaction`), for each of the 26 tables (since the 2026-10-24
+  sync; `grade_acknowledgements` included) except `backups` and
   `auth_codes` data: `COPY (SELECT * FROM portal.<t> ORDER BY id) TO STDOUT
   WITH (FORMAT csv, HEADER)`; also record every sequence's `last_value`.
   Write to `<name>.zip.partial`, rename to `.zip` only after the manifest's
@@ -69,7 +70,8 @@ itself**, not `pg_dump`.
   `information_schema.columns` for `portal`) — a mismatch is refused with
   the exact difference, which replaces today's "old dump drops
   `assessment_slots`" hazard; then **one transaction**: `SET CONSTRAINTS
-  ALL DEFERRED`, `TRUNCATE` the 23 restorable tables, `COPY FROM STDIN` each
+  ALL DEFERRED`, `TRUNCATE` the 24 restorable tables (26 minus `backups` and
+  `auth_codes`), `COPY FROM STDIN` each
   member, `setval` every sequence from the manifest (never from `MAX(id)`),
   then `INSERT INTO auth_security_state (id, token_valid_after) VALUES (1,
   portal.now_s()) ON CONFLICT (id) DO UPDATE SET token_valid_after =

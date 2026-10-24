@@ -83,8 +83,9 @@ Each is a command in this package or a dashboard read; record the answer in
    host; a 15-minute idle transaction is not killed (the class-record PUT
    is seconds, but the pooler's limits must be known).
 7. `scripts/apply-schema.js --target staging` → expect the same COUNTS line
-   as local: tables 25, indexes 83, fks 33, uniques 14, checks 24, enums 13,
-   triggers 7, sequences 24, and `COLLATION portal.ci provider=i`.
+   as local (26 tables since the 2026-10-24 sync): tables 26, indexes 86,
+   fks 35, uniques 15, checks 25, pks 26, enums 13, triggers 7, sequences 25,
+   and `COLLATION portal.ci provider=i`.
 8. `scripts/transfer.js --target staging` then `scripts/reconcile.js
    --target staging` → `RECONCILE OK`, every sequence equal to the source
    AUTO_INCREMENT.
