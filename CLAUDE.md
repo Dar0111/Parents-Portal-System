@@ -104,7 +104,7 @@ behind is the rule and the pointer, nothing else.
 
 ## CURRENT STATE
 
-**Last verified:** 2026-10-24, `main` `f4cc8c4` plus this commit (the post-merge docs) — `feat/activity-log` (B2) merged fast-forward from `9c2c34b` (five commits: trim-11 `00235a0`, the writers' ids `04258c8`, the build `d516c61`, the gate `774b98c`, the merge-ready docs `f4cc8c4`): Admin → Activity log (§36), gated after backup 363, device-checked 2026-10-24 on the web (no findings), cleaned up by id after backup 369; before it `9c2c34b`, the post-merge docs of B8 `feat/excuse-attendance` (`47be373`: an excuse decision sets that day's attendance, device-checked 2026-10-23, cleaned up after backup 362); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
+**Last verified:** 2026-10-24, `main` `4b8be36` plus this commit (the post-merge docs) — B7 `chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight commits: the docs pass `50ab559`, the probe's exit fix `ff426bb`, D-102 `bff57b6`, the seed fix `a882711`, the gate `7c3f558`, the run sheet `6611af3`, finding #1's fix `415064c`, the merge-ready docs `4b8be36`): gated after backup 370, device-checked 2026-10-24 on the web (one finding fixed and re-checked), nothing to clean up, the new restore point backup 376; before it `01495e5`, the post-merge docs of B2 `feat/activity-log` (`f4cc8c4`: Admin → Activity log, §36, device-checked 2026-10-24, cleaned up by id after backup 369); earlier merges: `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23" (**Stage 4 is COMPLETE, and
 every role has its phone screens.** Admin → Backup & Restore was the last
 web page: every Figure 5 admin process has a page. **Admin
 nav is 11 items, all built** (ADMIN SCOPE AUDIT; the Activity log since B2, §36), and **About is last on every
@@ -1668,24 +1668,21 @@ Merged after the close, each device-checked, with their item pointers:
 `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23"; rules: §5, §5f–§5g, §11, §29–§32, M11, M26–M29.
 
 **NEXT (the owner's pre-Oct-21 order, 2026-10-18):** `feat/first-signin`, `feat/account-create`
-with `feat/password-alert`, B1, B3, B8 and B2 are MERGED, the last `f4cc8c4`
-(2026-10-24 — B2 `feat/activity-log` by the ref move from `9c2c34b`; gated
-after backup 363, device-checked on the web with no findings, cleaned up by
-id after backup 369); each one's check, cleanup and backup: its CHANGELOG row
-and `docs/ARCHIVE.md` → "Blocks moved from CLAUDE.md on 2026-10-23". **B7
-`chore/pre-migration` is MERGE-READY** (worktree `Parents_Portal-pre-migration`,
-from `01495e5`): the docs pass, the probe's exit fix, D-102's demo data and the
-seed fix, gated after backup 370; device-checked 2026-10-24 on the web (finding
-#1 fixed in `415064c`, re-checked), nothing to clean up — its CHANGELOG rows;
-it merges on the owner's word. **Next, in the owner's order (2026-10-24;
+with `feat/password-alert`, B1, B3, B8, B2 and B7 are MERGED, the last `4b8be36`
+(2026-10-24 — B7 `chore/pre-migration` by the ref move from `01495e5`; gated
+after backup 370, device-checked on the web with one finding fixed and
+re-checked, nothing to clean up, the new restore point backup 376); each one's
+check, cleanup and backup: its CHANGELOG row and `docs/ARCHIVE.md` → "Blocks
+moved from CLAUDE.md on 2026-10-23". **Next, in the owner's order (2026-10-24;
 D-119, D-122, D-124):**
 
-1. **In Session A the E2E + P-19 branch, beside Session B's sync and
-   migration** (D-119: SMS end-to-end encryption, approved 2026-10-24, and the
-   old code-row purge, P-19, approved; the owner writes `supabase.env` after
-   Session A). Session B syncs with `main`, then migrates to Supabase; **it
-   copies everything, the old activity rows included** — their reset is step
-   3, on Supabase. The sync adds B1's
+1. **Session A: the E2E + P-19 branch** (D-119: SMS end-to-end encryption,
+   approved 2026-10-24, and the old code-row purge, P-19, approved) — **PLAN
+   ONLY first.**
+2. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
+   then Phase 3; the owner writes `supabase.env` after Session A. **It copies
+   everything, the old activity rows included** — their reset is step 4, on
+   Supabase. The sync adds B1's
    26th table `grade_acknowledgements` and the two `notifications.type` values
    `grades_locked` and `grades_acknowledged` (B1's build CHANGELOG row,
    2026-10-21). **B2 adds no schema change**; its new SQL to port
@@ -1696,17 +1693,18 @@ D-119, D-122, D-124):**
    `SELECT … LIMIT ?` (`:236`), their WHERE from `a.created_at >= ?` / `< ?`
    (JS `Date` instants), `u.role = ?`, `a.user_id IS NULL`, `a.action = ?` and
    `IN` / `NOT IN` lists written as `?, ?, …`; the writers' change
-   (`routes/users.js`) is description text only. **B7 for the port:** no
-   schema change; Nino's 10 slots, 10 components and computed columns come
-   from `scripts/demoGrade1.js`, run by `setup-db.js` after the seed — port it
-   with the seed; `db:migrate:demo-grade1` is a MySQL one-off, its rows already
-   in the copied data; `verify-grading-seed` reads the same columns.
-2. **The privacy text in the app** (D-36), after the principal's approval on
+   (`routes/users.js`) is description text only. **B7 adds no schema change;
+   port** its seed Grade 1 block (Nino's 10 slots, 10 components and computed
+   columns, from `scripts/demoGrade1.js`, run by `setup-db.js` after the
+   seed), the demo-grade1 migration (`db:migrate:demo-grade1`, a MySQL
+   one-off — its rows already in the copied data) and `verify-grading-seed`'s
+   new SQL (the same columns).
+3. **The privacy text in the app** (D-36), after the principal's approval on
    Mon 2026-10-26 (D-124).
-3. **The reset of the old activity rows, at the end** — after the last gate
+4. **The reset of the old activity rows, at the end** — after the last gate
    and before the demo, on Supabase (D-122; moved out of B7); its scope is
    decided then. B7's survey for it: `docs/ACTIVITY_RESET.md`.
-4. **Hosting last**, once the whole system is complete. **Before going
+5. **Hosting last**, once the whole system is complete. **Before going
    online, change or remove the seeded accounts' default passwords** — they
    are committed in `seed.sql`'s comments (and `setup-db.js`, BEFORE THE
    PARENT DEMO).

@@ -11,7 +11,15 @@
 **Captain H. Francisco Elementary School – Main (Grades 1–6)** · Pateros
 Technological College, IICT · Final defense expected around November 2026.
 
-**Snapshot, 2026-10-24: `main` is the post-merge docs of `f4cc8c4` —
+**Snapshot, 2026-10-24: `main` is the post-merge docs of `4b8be36` — B7
+`chore/pre-migration` merged fast-forward from `01495e5` by the ref move (eight
+commits: the docs pass `50ab559`, the probe's exit fix `ff426bb`, D-102
+`bff57b6`, the seed fix `a882711`, the gate `7c3f558`, the run sheet
+`6611af3`, finding #1's fix `415064c`, the merge-ready docs `4b8be36`): the
+docs before the migration and D-102's demo data, gated after backup 370,
+device-checked 2026-10-24 on the web — §1–§2, one finding fixed and
+re-checked — nothing to clean up, and the new restore point, backup 376.
+Before it, `01495e5`, the post-merge docs of `f4cc8c4` —
 `feat/activity-log` (B2) merged fast-forward from `9c2c34b` (five commits:
 trim-11 `00235a0`, the three writers' ids `04258c8`, the build `d516c61`, the
 gate `774b98c`, the merge-ready docs `f4cc8c4`): Admin → Activity log, gated
@@ -197,18 +205,16 @@ test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
 `main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
 detached at `774b98c`).
 **Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
-(1) B7 `chore/pre-migration` — merge-ready on its branch (the docs pass, the
-`sms:probe` exit fix, D-102's demo data and the seed fix, gated after backup
-370; device-checked 2026-10-24 on the web, one finding fixed in `415064c` and
-re-checked; nothing to clean up; the new restore point, backup 376), merged on
-the owner's word; (2) in Session A the E2E + P-19 branch (SMS end-to-end
-encryption and the old code-row purge; D-119), beside Session B
-(`migrate/postgres-prep`) — the sync with `main`, then the Supabase migration
-(the owner writes `supabase.env` after Session A), copying everything; the
-sync adds B1's 26th table `grade_acknowledgements` and the two
-`notifications.type` values `grades_locked` and `grades_acknowledged` (B1's
-build CHANGELOG row, 2026-10-21); B2 adds no schema change, and its new SQL to
-port is MIGRATION_INVENTORY B16; (3) the privacy text in the app (D-36) after
+(1) Session A: the E2E + P-19 branch (SMS end-to-end encryption and the old
+code-row purge; D-119), PLAN ONLY first; (2) Session B
+(`migrate/postgres-prep`), beside it — the sync with `main`, then the D-65 fix
+round, then Phase 3 (the owner writes `supabase.env` after Session A),
+copying everything; the sync adds B1's 26th table `grade_acknowledgements`
+and the two `notifications.type` values `grades_locked` and
+`grades_acknowledged` (B1's build CHANGELOG row, 2026-10-21); B2 adds no
+schema change, and its new SQL to port is MIGRATION_INVENTORY B16; B7 adds
+none either — port its seed Grade 1 block, the demo-grade1 migration and
+`verify-grading-seed`'s new SQL (CLAUDE.md NEXT); (3) the privacy text in the app (D-36) after
 the principal's approval on Mon 2026-10-26 (D-124); (4) the reset of the old
 activity rows at the end, after the last gate and before the demo, on
 Supabase (D-122; B7's survey for it: `docs/ACTIVITY_RESET.md`); (5) hosting
