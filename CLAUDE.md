@@ -1451,7 +1451,7 @@ gate in full on its `POST /api/users/parents` row.
 | **The restore's lost-entries count undercounts by the source backup's own `create_backup` row** | `routes/backups.js` (`created_at > ?`) | Measured 2026-09-15: real loss 3, shown 2. `>=` would over-count rows the dump did contain; a correct count compares against what the dump holds. Restore also rewinds `activity_logs` AUTO_INCREMENT, so ids are reused. A server change |
 | **HAZARD — if the only admin loses its password and has no confirmed email, nobody can restore access through the app** | `routes/users.js` `POST /:id/temp-password` + forgot-password | The fallback is admin-only AND refuses your own id; self-service needs a CONFIRMED email or mobile number. The seed ships one admin, never verified, so both paths can be shut at once and the remedy is a direct DB write. **Before the pilot: confirm ADMIN001's email** — that is the ONLY in-app remedy: no endpoint creates an admin (both create routes hardcode their role), so a second admin is a direct DB insert. Do not let an admin set their own temporary password, and do not link to a Create-admin screen that does not exist |
 | **A broken mailer or SMS gateway is invisible — forgot-password answers the same `202` either way** | `utils/mailer.js` + `utils/smsTransport.js` + `routes/auth.js` | The uniform reply must not change (LRN oracle). **Check `activity_logs` for `password_reset_email_failed` / `password_reset_sms_failed` before believing a user typed their login id wrong**; `npm run sms:probe` for the gateway. Fix is a health probe, never a different response body |
-| **In SMSGate cloud mode (since 2026-10-24) every text, its code included, passes through the cloud relay unencrypted** — added 2026-10-24 (B7) | `utils/smsTransport.js` `send()` + SMSGate's cloud server | https protects the hop, but the relay reads number and message. Fix: the SMS end-to-end encryption branch (NEXT). The plain-HTTP LAN risk now applies only to the local-mode fallback |
+| **In SMSGate cloud mode (since 2026-10-24) every text, its code included, passes through the cloud relay unencrypted** — added 2026-10-24 (B7) | `utils/smsTransport.js` `send()` + SMSGate's cloud server | https protects the hop, but the relay reads number and message. Fix BUILT on `feat/sms-e2e-code-purge` (both encrypted, both modes; fail closed); the row closes once encryption is on, at its device check (Q3e). The plain-HTTP LAN risk now covers only local mode's credentials |
 | **Restoring a backup taken before `feat/sms-transport` (2026-09-29) brings back the old `users` / `auth_codes` shape** | `server/backups/*.sql` | Re-run `npm run db:migrate:contact-verification` afterwards (idempotent) |
 | **Restoring a backup taken before `feat/grade-acknowledgement` (2026-10-21) drops `grade_acknowledgements` and the two newer `notifications.type` values** — the report card and the class summary answer `500` until the migration is re-run | `server/backups/*.sql` | Re-run `npm run db:migrate:grade-acknowledgements` afterwards (idempotent) |
 | **DO NOT move a learner to another section by editing the database** — the API refuses a class change, and a hand edit mixes scores | `students` + `routes/grades.js` `recomputeGrade` | Grades follow the learner, slots stay with the old class: the next recompute needs the new class's slots, then SUMS old and new scores. A transfer policy is a separate PLAN ONLY |
@@ -1676,9 +1676,18 @@ check, cleanup and backup: its CHANGELOG row and `docs/ARCHIVE.md` → "Blocks
 moved from CLAUDE.md on 2026-10-23". **Next, in the owner's order (2026-10-24;
 D-119, D-122, D-124):**
 
-1. **Session A: the E2E + P-19 branch** (D-119: SMS end-to-end encryption,
-   approved 2026-10-24, and the old code-row purge, P-19, approved) — **PLAN
-   ONLY first.**
+1. **Session A: `feat/sms-e2e-code-purge`** (D-119; worktree
+   `Parents_Portal-sms-e2e`, from `5426b70`) — P-19 `e8236ac` (a code row
+   older than 24 hours goes with the next code) and the E2E `fe53aad`
+   (SMSGate's passphrase scheme, both modes, fail closed), gated 2026-10-24
+   after backup 377; next its device check (`docs/SMS_E2E_DEVICE_CHECK.md`;
+   §0 on the owner's go — the passphrase in `server/.env` and the phone
+   first, then the switch). **For Session B's last sync before the cutover's
+   freeze (C4):** P-19's DELETE — MySQL `DELETE FROM auth_codes WHERE
+   created_at < (NOW() - INTERVAL ? HOUR)`, PostgreSQL `DELETE FROM
+   auth_codes WHERE created_at < NOW() - ($1 * INTERVAL '1 hour')`
+   (`utils/authCodes.js`, `KEEP_HOURS = 24`) — and the env key
+   `SMS_ENCRYPTION_PASSPHRASE`.
 2. **Session B, beside it:** the sync with `main`, then the D-65 fix round,
    then Phase 3; the owner writes `supabase.env` after Session A. **It copies
    everything, the old activity rows included** — their reset is step 4, on

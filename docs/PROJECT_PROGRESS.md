@@ -205,8 +205,13 @@ test verified after backup 369, `docs/ACTIVITY_LOG_DEVICE_CHECK.md` §7–§8;
 `main` fast-forwarded from `9c2c34b` by the ref move; the B2 worktree left
 detached at `774b98c`).
 **Next, in the owner's order (2026-10-24; CLAUDE.md NEXT names each item):**
-(1) Session A: the E2E + P-19 branch (SMS end-to-end encryption and the old
-code-row purge; D-119), PLAN ONLY first; (2) Session B
+(1) Session A: `feat/sms-e2e-code-purge` (D-119; worktree
+`Parents_Portal-sms-e2e`) — P-19 `e8236ac` (a code row older than 24 hours,
+its IP with it, goes with the next code; `auth_codes` 0 between runs since the
+gate) and the SMS end-to-end encryption `fe53aad` (SMSGate's passphrase
+scheme, both modes, nothing sent without `SMS_ENCRYPTION_PASSPHRASE`), gated
+2026-10-24 after backup 377; next its device check
+(`docs/SMS_E2E_DEVICE_CHECK.md`, §0 on the owner's go); (2) Session B
 (`migrate/postgres-prep`), beside it — the sync with `main`, then the D-65 fix
 round, then Phase 3 (the owner writes `supabase.env` after Session A),
 copying everything; the sync adds B1's 26th table `grade_acknowledgements`
