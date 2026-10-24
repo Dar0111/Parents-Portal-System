@@ -210,8 +210,13 @@ detached at `774b98c`).
 its IP with it, goes with the next code; `auth_codes` 0 between runs since the
 gate) and the SMS end-to-end encryption `fe53aad` (SMSGate's passphrase
 scheme, both modes, nothing sent without `SMS_ENCRYPTION_PASSPHRASE`), gated
-2026-10-24 after backup 377; next its device check
-(`docs/SMS_E2E_DEVICE_CHECK.md`, §0 on the owner's go); (2) Session B
+2026-10-24 after backup 377; the device check PASSED 2026-10-25
+(`docs/SMS_E2E_DEVICE_CHECK.md` §4 — `encryption: on`, a real reset code
+arrived in plain words; cleaned up by id after backup 382; the cloud-relay
+KNOWN_ISSUES row closed) and its fix round gave the SMS probe a second guard
+against Node 24.14.1's exit-time abort (nodejs/node#56645, fixed in Node
+24.20.0 — the upgrade is the owner's decision); merge on the owner's word
+after the re-check; (2) Session B
 (`migrate/postgres-prep`), beside it — the sync with `main`, then the D-65 fix
 round, then Phase 3 (the owner writes `supabase.env` after Session A),
 copying everything; the sync adds B1's 26th table `grade_acknowledgements`

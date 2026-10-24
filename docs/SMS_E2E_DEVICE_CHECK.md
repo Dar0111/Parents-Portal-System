@@ -99,6 +99,36 @@ A read-only survey against §0's marks: the `auth_codes` rows above the mark
 after 24 hours — the owner's choice; `activity_logs` rows are kept, as always.
 **Q3e:** once §1 has passed, the KNOWN_ISSUES cloud-relay row closes.
 
-## §4 — result
+## §4 — result: PASSED (2026-10-25)
 
-Not yet run.
+- **§0 (as run).** The owner made the passphrase and set it in the Tecno's
+  SMSGate app (Settings → Encryption → Passphrase — the field was there, so
+  C1's fallback was not needed) and in `server/.env`. The switch at 01:06:
+  the worktree detached at `82b8cf8`, the main tree on
+  `feat/sms-e2e-code-purge` at `82b8cf8`, both clean. The owner restarted the
+  5000 API with `npm start` — the startup output named no missing variable —
+  and `npm run sms:probe` answered: reachable yes, http 200, gateway status
+  pass, app version 1.52.0, **encryption: on**, `db:ping` pass; no crash on
+  that run. The marks: `auth_codes` 0, `activity_logs` highest id 31088,
+  `login_attempts` 24 (highest 1710), `notifications` 0.
+- **§1 — PASSED.** Forgot password for Lito Bautista on the web: the heading,
+  the sentence under it and the green box exactly as §1 gives them; **the
+  text arrived at 1:17 AM in plain words** — "Parent's Portal: your password
+  reset code is ______. It expires in 10 minutes. Nobody from the school will
+  ever ask for this code." The server sent the text and the number only as
+  passphrase values; the phone decrypted both. The reset was not completed.
+- **§2** — not run (optional; `test:sms-transport` proves it).
+- **§3 — the cleanup.** Health 200; **backup 382** (201, 2,795,994 bytes,
+  footer present — the pre-cleanup dump, not a restore point); one code row
+  above the mark, #516 (Lito Bautista's `password_reset`, created 01:16:50,
+  never used), **deleted by id** in one transaction — `auth_codes` back to 0.
+  The survey against §0's marks: every count at its mark but
+  `activity_logs` +3 — §1's `password_reset_requested` (Lito Bautista) and
+  the backup's own sign-in and `create_backup`, kept — and the backup row.
+  No `password_reset_sms_failed`.
+- **Q3e:** encryption is on and proved end to end, so the KNOWN_ISSUES
+  cloud-relay row is CLOSED.
+- **Finding #1** (the owner's, from 2026-10-24 16:59, `main` at `5426b70`):
+  `npm run sms:probe` printed every result and then the libuv assertion
+  `!(handle->flags & UV_HANDLE_CLOSING)` — fixed in the fix round (the probe's
+  second guard; `docs/TESTING.md` has the measurements).

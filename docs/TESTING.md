@@ -704,6 +704,34 @@ a table P-19 does not touch); `activity_logs` +633 (one the suite's
 `export_activity_log`; kept); every other count unchanged. **`smoke:isolated`
 20/20 (6.0 min)** on 5001/3001, no listener after it; `activity_logs` +27.
 
+**Its device check (2026-10-25, `docs/SMS_E2E_DEVICE_CHECK.md` §4) — PASSED**
+(§0 `encryption: on`; §1 a real reset code arrived in plain words; the code row
+deleted by id after backup 382). **The fix round, finding #1 — the probe's
+exit-time abort (`UV_HANDLE_CLOSING`, `src\win\async.c:76`).** A read-only
+survey (three researchers, a synthesis, two adversarial checks) named the
+cause: nodejs/node#56645, fixed in Node 24.20.0 (#61999); this machine runs
+24.14.1. **The proof — `server/scripts/probe-sms-gateway.js` run as a child
+process one run at a time** (a harness in the job's tmp folder, not in the
+repo: counts only, stdout and stderr captured apart; a local stub on 127.0.0.1
+with dummy credentials, so nothing real is read). Before the fix: the current
+probe 0/100 on the stub, 0/100 against a refused port. The amplifier
+(`--wasm-tiering-budget=1 --wasm-caching-threshold=50000`, a 64 KB body):
+**a `process.exit()` copy of the probe crashed 150/150** (exit 0xC0000409,
+the assertion in stderr; 1/200 with the budget flag alone, 0/200 with
+neither); the same copy with `--wasm-caching-timeout-ms=0` on the command line
+0/150, and with that flag set inside the script 0/150; **the current probe
+(natural exit, `ff426bb`) 0/150**; npm's own process under the amplifier
+(`node <flags> npm-cli.js run sms:probe`) 0/100 — npm compiles no
+WebAssembly. **After the fix (the caching timeout set to 0 in the probe):**
+0/150 under the amplifier, 0/200 on the stub (all exit 0), 50 × exit 1 against
+a refused port, and **50/50 paced `npm run sms:probe` runs against the real
+cloud** (3 s apart, GET /health only; all exit 0, no stderr). The owner's
+2026-10-24 16:59 sighting (the main tree at `5426b70`, a natural-exit probe)
+is not reproduced by any arm; KNOWN_ISSUES has the open row (Node ≥ 24.20.0,
+the owner's decision). The eight unit tests after the last code file: 9, 77,
+34, 48, **94**, 44, 47, 58. No HTTP suite and no smoke: no file the API, the
+suites or the clients load changed.
+
 - `npm run test:students` — **97/97** (2026-10-10, feat/privacy, −1: decision 6 — a VALUE for the learner's birthday, gender, address or contact number is 400 "no longer collected" on POST and PUT, null and empty keys are ignored, and no response carries the four; the birthday round-trip check is gone with the field, and the class-change tests edit `last_name` where they edited the contact number. 98/98 before that, was 94; pre-Stage-5 #4 — an adviser-only teacher enrols into their own section (+ `section_id`), a minted assigned-not-adviser teacher is refused with the class named, and the adviser PUT that used to be a 403 is a 200 re-read on the run's own fixture. The out-of-scope create targets a REAL Grade 3 section now — a fictional one is the 400 "no section named" since the resolve precedes the gate)
 - `npm run test:sections` — **30/30** (2026-10-21, feat/account-create, same count: its throwaway teacher is created with login id, password and name alone — `createTeacherBare` — because `POST /users/teachers` refuses an email or a number since the branch)
 - `npm run test:assignments` — **62/62** (2026-10-21, feat/account-create, same count: the throwaway teacher for the inactive check is created with login id, password and name alone. Count unchanged by #5a, but its two Grade 2 assertions flipped from "NULL, falls back to name ASC" to the school's confirmed order — the guard against a GUESSED order did its job on the day the school's answer arrived)
