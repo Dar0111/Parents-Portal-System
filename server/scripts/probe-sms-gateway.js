@@ -37,6 +37,9 @@ const sms = require('../utils/smsTransport');
   console.log(`http: ${h.httpStatus}`);
   console.log(`gateway status: ${h.status ?? 'not reported'}`);
   console.log(`app version: ${h.version ?? 'not reported'}`);
+  // feat/sms-e2e-code-purge: whether SMS_ENCRYPTION_PASSPHRASE is SET — on or
+  // off, never the value. /health answers either way; a send does not without it.
+  console.log(`  encryption: ${h.encryption ? 'on' : 'off (SMS_ENCRYPTION_PASSPHRASE is missing, so no text will be sent)'}`);
   const keys = Object.keys(h.checks);
   if (!keys.length) console.log('checks: none reported');
   for (const key of keys) {

@@ -809,8 +809,9 @@ from client arithmetic.
 | CORS_ORIGIN | `utils/corsOrigins.js:50` | Allowed origins for HTTP and the socket |
 | SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM | `utils/mailer.js:40-44` | Outgoing email |
 | MAIL_TRANSPORT | `utils/mailer.js:36` | `file` = write mail to disk (suites); not set in `.env` |
-| SMS_TRANSPORT | `utils/smsTransport.js:140` | `gateway` / `file` / off |
-| SMS_GATEWAY_URL, SMS_GATEWAY_USER, SMS_GATEWAY_PASS | `utils/smsTransport.js:143-155` | The SMS gateway (cloud mode's https API base since 2026-10-24) |
+| SMS_TRANSPORT | `utils/smsTransport.js:163` (`:140` until feat/sms-e2e-code-purge) | `gateway` / `file` / off |
+| SMS_ENCRYPTION_PASSPHRASE | `utils/smsTransport.js:168-179` | Since feat/sms-e2e-code-purge (2026-10-24): the end-to-end passphrase, the same one in the phone's SMSGate app; both modes; in gateway mode no text is sent without it. Its own key in the host's environment — never in a file |
+| SMS_GATEWAY_URL, SMS_GATEWAY_USER, SMS_GATEWAY_PASS | `utils/smsTransport.js:168-179` (`:143-155` until feat/sms-e2e-code-purge) | The SMS gateway (cloud mode's https API base since 2026-10-24) |
 | MYSQLDUMP_PATH | `routes/backups.js:110` | The mysqldump binary (default: on PATH); not set in `.env` |
 | NODE_ENV | — | In `.env` and the template; read by no server code |
 | SMS_CHECK_PASSWORD | — | In `server/.env` only (not in the template); read by no code |

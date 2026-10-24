@@ -732,6 +732,19 @@ the hotspot LAN, which stays the fallback); `docs/KNOWN_ISSUES.md`.
   (`password_reset_sms_failed`, `contact_verification_sms_failed`) and on
   the console. Never the fetch error's message, which can carry the
   gateway's host and port; never the URL, credentials, number or code.
+- **End-to-end encrypted, in both modes (feat/sms-e2e-code-purge,
+  2026-10-24; D-119).** `utils/smsEncryption.js` encrypts the text and the
+  number with SMSGate's passphrase scheme — PBKDF2-HMAC-SHA1 (75,000
+  iterations, a fresh 16-byte salt per value) and AES-256-CBC with the IV
+  equal to the salt, written `$aes-256-cbc/pbkdf2-sha1$i=<n>$<salt>$<data>` —
+  and the request carries `isEncrypted: true`; `ttl` stays plain. The phone's
+  app holds the same passphrase (`SMS_ENCRYPTION_PASSPHRASE` on the server)
+  and decrypts before it sends, so the cloud relay — or the hotspot, in local
+  mode — reads neither. **Fail closed** (the owner's Q2 (a)): in gateway
+  mode without the passphrase nothing is sent and the send fails as
+  `bad_config`, logged like any other; forgot-password's reply does not
+  change. The startup line names a missing `SMS_ENCRYPTION_PASSPHRASE` by
+  name only. File mode (the suites) stays plain.
 - **The texts** are ASCII, one GSM-7 part, and carry no LRN, login id or
   student name.
 
