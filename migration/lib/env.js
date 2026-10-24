@@ -41,9 +41,19 @@ const STAGING_KEYS = ['PG_OWNER_URL', 'PORTAL_MIGRATE_PASSWORD', 'PORTAL_APP_PAS
 const ROLES = ['portal_migrate', 'portal_app'];
 const SESSION_POOLER_PORT = 5432;
 
+// A file written in Windows Notepad arrives with CRLF line endings and, often,
+// a UTF-8 byte-order mark; dotenv tolerates both, but nothing here relies on
+// that: the BOM is dropped, CRLF becomes LF, and every value is trimmed of
+// trailing whitespace before it is used.
+function readTextFile(file) {
+  return fs.readFileSync(file, 'utf8').replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+}
+
 function readEnvFile(file) {
   if (!fs.existsSync(file)) return null;
-  return dotenv.parse(fs.readFileSync(file));
+  const parsed = dotenv.parse(readTextFile(file));
+  for (const key of Object.keys(parsed)) parsed[key] = String(parsed[key]).trim();
+  return parsed;
 }
 
 function sourceConfig() {
@@ -123,7 +133,7 @@ function stagingTls(host, argv = process.argv) {
   if (fs.existsSync(CA_FILE)) {
     return {
       mode: 'verify-full',
-      ssl: { rejectUnauthorized: true, ca: fs.readFileSync(CA_FILE, 'utf8'), servername: host },
+      ssl: { rejectUnauthorized: true, ca: readTextFile(CA_FILE), servername: host },
     };
   }
   if (argv.includes('--tls-encrypt-only')) {

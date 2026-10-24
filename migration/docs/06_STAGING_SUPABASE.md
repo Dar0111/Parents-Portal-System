@@ -1,11 +1,27 @@
 # 06 — The Supabase staging target
 
-**Status 2026-10-24 (the D-65 fix round): the project exists; `supabase.env`
-does not yet.** The owner created the project and registered its read-only
-MCP (D-70); the catalog facts read through it on 2026-10-24 are in §4. No
-script contacts Supabase until the secrets file of §0 exists and `--target
-staging` is passed explicitly; nothing in this package asks for a value in a
-chat. Statements still marked **pending** are listed in §4 as checks to run.
+**Status 2026-10-25 (Session B step 3, the staging run): the project holds
+the portal.** The owner wrote the three keys of §0 and the CA file; then, in
+order and each its own command: `002` as the owner, the two passwords set
+and verified through the pooler, `001` + `003` applied (COUNTS and POLICIES
+equal to the local lines), the 2026-10-24 scratch transferred (26 tables,
+30,780 rows) and reconciled (`RECONCILE OK`, every sequence equal), the RLS
+catalog checks and the behavioural probe (three Data API roles refused with
+42501 on `portal`), the semantics matrix and the rehearsal. Every connection
+was `verify-full` over TLSv1.3 against the project's intermediate CA, the
+certificate matching the pooler host. **Three things the run found, §4:**
+the clock of this laptop is about 9.8 s behind the database (item 4 — the
+two hosted check failures are that, nothing else); the semantics script
+installed the `citext` extension into `portal` as a side effect (item 5 — a
+`DROP EXTENSION` awaiting the owner's approval); the read-only MCP runs as
+`supabase_read_only_user` and cannot `SET ROLE`, so the behavioural probe
+ran as the owner instead (item 13). The application stays on MySQL; nothing
+in `server/`, `client/` or `mobile/` changed.
+
+(2026-10-24, the D-65 fix round: the project existed, `supabase.env` did
+not; the catalog facts read through the MCP that day are in §4.) No script
+contacts Supabase unless `--target staging` is passed explicitly; nothing in
+this package asks for a value in a chat.
 
 Sources consulted on 2026-10-19: Supabase "Connecting to Postgres",
 "Using custom schemas", "Hardening the Data API", the platform upgrade
@@ -94,9 +110,14 @@ application objects" rule enforced by the database, not by discipline.
 and `authenticator` with INHERIT and SET; `supabase_admin` — the superuser;
 `supabase_read_only_user` — BYPASSRLS. They are the platform's own roles: the
 dashboard, the read-only MCP and Supabase's operators read through them, and
-`003` does not fight them. Consequence for the proofs: the MCP (as `postgres`)
-can prove the CATALOG and can probe as `anon` through `SET LOCAL ROLE`, but
-can never serve as a deny probe for its own role.
+`003` does not fight them. Consequence for the proofs: the read-only MCP
+runs as **`supabase_read_only_user`** (read 2026-10-25: `current_user` and
+`session_user` both that role, BYPASSRLS, `transaction_read_only` on, no SET
+on `anon`), so it proves the CATALOG only; the behavioural probe runs as the
+owner `postgres.<ref>` through the pooler, inside `BEGIN READ ONLY`, because
+`postgres` holds SET on the three Data API roles (item 13). Neither can be a
+deny probe for its own role: on 2026-10-25 the owner's own `SELECT` on
+`portal.users` returned its 8 rows, as this paragraph predicts.
 
 ### 2a. The RLS file — `schema/003_grants_rls.sql` (D-83 Option A, D-13)
 
@@ -191,36 +212,79 @@ Each is a command in this package or a dashboard read; record the answer in
    `authenticated` and `authenticator` 8 s, a custom role none; default ACLs
    grant the Data API roles on new objects in `public` and `storage` only,
    never in `portal`.
-4. Clock skew API host ↔ database: `SELECT extract(epoch from now())` against
-   `Date.now()` from the host that will run the API, five samples. The
-   restore cutoff and the "confirmed since sign-in" rule compare the API's
-   JWT `iat` with database stamps in whole seconds; skew above one second
-   must be fixed on the host before cutover, not tolerated.
-5. Privileges: `CREATE SCHEMA` and `CREATE COLLATION` as `portal_migrate`
-   (both needed by `001_portal_schema.sql`); `CREATE EXTENSION citext` and
-   `unaccent` availability (`pg_available_extensions`) — neither is required
-   by the schema; `unaccent` is the candidate for the accent-insensitive
-   search gap.
-6. Connection mode: session-mode pooler reachable over IPv4 from the API
-   host; a 15-minute idle transaction is not killed (the class-record PUT
-   is seconds, but the pooler's limits must be known).
-7. `scripts/apply-schema.js --target staging` (001 + 003, as
-   `portal_migrate.<ref>`) → expect the same COUNTS line as local (26 tables
-   since the 2026-10-24 sync): tables 26, indexes 86, fks 35, uniques 15,
-   checks 25, pks 26, enums 13, triggers 7, sequences 25, `COLLATION
-   portal.ci provider=i`, and the POLICIES line of §2a (26 / 0 / 26 / 26,
-   the three Data API roles at false / 0). Before it: `002` as the owner,
-   then `scripts/set-role-passwords.js --target staging` (ROLE PASSWORDS OK,
-   both roles verified through the pooler, the TLS facts printed).
-8. `scripts/transfer.js --target staging` then `scripts/reconcile.js
-   --target staging` → `RECONCILE OK`, every sequence equal to the source
-   AUTO_INCREMENT; `scripts/rls-check.js --target staging` → the catalog
-   checks PASS, the behaviour matrix reported as skipped.
-9. `scripts/semantics.js --target staging` (no `--mysql-db`; the MySQL side
-   is already recorded locally) → the same PASS set as the local run;
-   section F needs two connections, so it must run through session mode
-   or direct, never 6543.
-10. `scripts/rehearse.js --target staging` → `REHEARSAL OK`.
+4. Clock skew API host ↔ database — **measured 2026-10-25 from this laptop,
+   five samples of `clock_timestamp()` with the round trip halved (43–47 ms):
+   the database is 9,776 ms AHEAD of this host, median, spread 1 ms.** That
+   is the laptop's clock, not the port: the semantics matrix's
+   `B.cutoff_same_second_token_minted_after_write_is_accepted` and the
+   rehearsal's `restore.cutoff_rejects_old_token_accepts_new` are the only
+   two hosted expectations not met, and both compare `Date.now()` here with
+   `portal.now_s()` there (locally one clock served both). **Open until the
+   host that will run the API is time-synced and this measurement reads
+   under one second**; the restore cutoff and "confirmed since this sign-in"
+   compare a JWT `iat` with database stamps in whole seconds, and a skew
+   above one second is fixed on the host before cutover, never tolerated.
+5. Privileges — **answered 2026-10-25:** `CREATE SCHEMA` and `CREATE
+   COLLATION` as `portal_migrate` both worked (`001` applied, `portal.ci`
+   ICU nondeterministic). `pg_available_extensions`: `citext` 1.6 and
+   `unaccent` 1.1 available, neither installed before the run. **Side effect
+   to undo:** `scripts/semantics.js` §D runs `CREATE EXTENSION IF NOT EXISTS
+   citext` to measure it, and on Supabase a trusted extension may be created
+   by a non-superuser — it is now installed **in schema `portal`**, owned by
+   `supabase_admin` (the platform's extension mechanism), adding its
+   functions to the schema (50 functions where `001` makes 3). `02` §D
+   measured `citext` and did NOT choose it. The remedy is one statement,
+   `DROP EXTENSION citext;` as the owner, which waits for the owner's
+   approval like every DROP (D-19); the script itself should measure
+   `citext` only where it is already present — a change for the next round,
+   not this one. The rehearsal's `CREATE EXTENSION IF NOT EXISTS unaccent`
+   also succeeded but inside a savepoint that the rolled-back transaction
+   discarded: `unaccent` is NOT installed. No `zz_%` relation or collation
+   remains in `portal` (0 and 0); relations 51 = 26 tables + 25 sequences.
+6. Connection mode — **partly answered 2026-10-25:** the session-mode pooler
+   is reachable over IPv4 from this host (every step of the run went through
+   it, as `postgres.<ref>`, `portal_migrate.<ref>` and `portal_app.<ref>`).
+   Still open: a 15-minute idle transaction is not killed (the class-record
+   PUT is seconds, but the pooler's limits must be known).
+7. `scripts/apply-schema.js --target staging` — **ran 2026-10-25, as
+   `portal_migrate.<ref>`:** COUNTS tables 26, indexes 86, fks 35, uniques
+   15, checks 25, pks 26, enums 13, triggers 7, sequences 25; POLICIES
+   `rls_on 26, forced 0, policies 26, portal_app_all 26, app_schema_usage
+   true, app_schema_create false, app_dml_tables 26, app_truncate_tables 0,
+   app_usage_sequences 25, anon / authenticated / service_role schema usage
+   false, anon / service_role select tables 0`; `COLLATION portal.ci
+   provider=i deterministic=false`; database `postgres`, encoding UTF8,
+   provider ICU — every figure equal to the local lines. Before it, the same
+   day: `002` as the owner (both roles LOGIN, no superuser, no BYPASSRLS,
+   `VALID UNTIL` infinity, `search_path` set; `portal_migrate` holds CREATE
+   on the database), then `scripts/set-role-passwords.js --target staging`
+   → `ROLE PASSWORDS OK`, each role verified by signing in through the
+   pooler. TLS, printed once by `tlsFacts()`: encrypted, TLSv1.3, chain
+   verified, no authorization error, subject `*.pooler.supabase.com`,
+   issuer `Supabase Intermediate 2021 CA`, valid to March 2030, SANs the
+   two pooler wildcards — `verify-full` held on every connection.
+8. `scripts/transfer.js --target staging --source-db
+   parents_portal_migsrc_20261024_164012` — **ran 2026-10-25:** 26 tables,
+   30,780 rows (activity_logs 30,409), one transaction
+   (`rehearsal/transfer_staging_20261024T170617.json`); `scripts/reconcile.js
+   --target staging --source-db …` → **`RECONCILE OK`**, 26 tables, 0 missing /
+   extra / differing, 0 grown, every sequence equal, catalog pks 26 /
+   uniques 15 / fks 35 / checks 25 / indexes 86
+   (`reconcile_staging_20261024T170651.json`); `scripts/rls-check.js --target
+   staging` → **`RLS CHECK OK`**, the 7 catalog checks PASS, the behaviour
+   matrix reported as skipped (`rlscheck_staging_20261024T170700.json`).
+9. `scripts/semantics.js --target staging` (no `--mysql-db`) — **ran
+   2026-10-25: one expectation not met of the PostgreSQL-side set, the
+   clock-skew one (item 4); every other PASS, the collation matrix identical
+   to the local run** (`semantics_staging_20261024T170819.json`). Section F
+   ran through session mode with its two connections. The run's `citext`
+   side effect is item 5. Its §F creates and drops throwaway tables in
+   `portal` rather than rolling back — nothing remained.
+10. `scripts/rehearse.js --target staging` — **ran 2026-10-25: 90 checks,
+    89 PASS, 1 FAIL — the restore cutoff's same-second case, item 4;
+    `rollback.left_no_synthetic_rows` 0** (`rehearse_staging_20261024T170837.json`).
+    The `unaccent` INFO read `true` inside its savepoint and left nothing
+    (item 5).
 11. Data API (D-17 keeps it on): **a dashboard check, no curl** — Project
     Settings → Data API: the **Exposed schemas** list does not contain
     `portal`, and `public` holds no portal table (the Table Editor shows
@@ -229,19 +293,26 @@ Each is a command in this package or a dashboard read; record the answer in
     has_schema_privilege('authenticated', 'portal', 'USAGE'),
     has_schema_privilege('service_role', 'portal', 'USAGE')` → three
     `false`. (The 2026-10-19 curl with the anon key is withdrawn: it put a key
-    on a command line and proved less than the catalog does.)
+    on a command line and proved less than the catalog does.) **Catalog part
+    ran 2026-10-25 through the MCP: the three `false`; `rls_on` 26 of 26;
+    26 `portal_app_all` policies; `current_setting('pgrst.db_schemas', true)`
+    is null, and `pg_db_role_setting` holds no `pgrst.*` entry for
+    `authenticator` or any role — the exposed-schema list lives in the
+    dashboard's API settings, not in the catalog, so the dashboard read is
+    the part still open, the owner's.**
 12. Backups: confirm the plan's automatic backup cadence and PITR
-    availability for the project (both are inputs to §04).
-13. **The RLS proof on the hosted target** (once 003 is applied there),
-    through the read-only MCP — all in one read-only transaction, so nothing
-    is changed: `SELECT count(*) FILTER (WHERE rowsecurity), count(*) FROM
-    pg_tables WHERE schemaname = 'portal'` → 26, 26; `SELECT count(*) FROM
-    pg_policies WHERE schemaname = 'portal' AND policyname = 'portal_app_all'
-    AND roles = ARRAY['portal_app']::name[] AND cmd = 'ALL'` → 26; then `SET
-    LOCAL ROLE anon; SELECT 1 FROM portal.users LIMIT 1` → SQLSTATE 42501
-    (`postgres` holds SET on `anon`, `authenticated` and `service_role`, so
-    the three can be probed in turn). The MCP's own role cannot be a deny
-    probe (§2).
+    availability for the project (both are inputs to §04). **Open.**
+13. **The RLS proof on the hosted target — ran 2026-10-25.** The catalog
+    statements through the MCP as planned (item 11's figures). The
+    behavioural probe could NOT run through the MCP: its session is
+    `supabase_read_only_user`, which holds no SET on the Data API roles
+    (`permission denied to set role`), so it ran as the owner through the
+    pooler, each role in its own `BEGIN READ ONLY … ROLLBACK`: `SET LOCAL
+    ROLE anon`, then `authenticated`, then `service_role`, each followed by
+    `SELECT 1 FROM portal.users LIMIT 1` → **42501 "permission denied for
+    schema portal", three of three** — the privilege wall, before RLS is
+    consulted. The owner's own read of the same table returned 8 rows, the
+    platform-role fact §2 records.
 14. Supabase's automatic-RLS trigger — **answered 2026-10-24, present:**
     event trigger `ensure_rls` on `ddl_command_end` for `CREATE TABLE`,
     `CREATE TABLE AS` and `SELECT INTO`, calling `public.rls_auto_enable()`
