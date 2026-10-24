@@ -31,7 +31,9 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit 2): the PG_* keys, the API's own role,
+// loopback only (test-helpers/db.js). Results keep mysql2's [rows] shape.
+const { withDb } = require('./test-helpers/db');
 const { pairsFor, countNotificationsFor } = require('./test-helpers/notifications');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
@@ -40,14 +42,6 @@ const GRADE = 4;
 const LAST = 'Bulklock';
 const FIRSTS = ['Ana', 'Ben', 'Cara', 'Dan', 'Eli', 'Fe'];
 const TAIL = 'for this subject and term — ask an admin to unlock before changing a highest possible score.';
-
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
 
 // Every sign-in accepts the privacy notice and terms first; this run's rows
 // go in the finally (scripts/policyFixture.js).
@@ -100,14 +94,6 @@ function why(res) {
   return `status ${res.status}: ${String(res.data?.message || '(no message)').replace(/\d{6,}/g, '<num>')}`;
 }
 
-async function withDb(fn) {
-  const conn = await mysql.createConnection(dbConfig);
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
 
 const login = (loginId, password) => request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 
@@ -154,10 +140,10 @@ async function main() {
   async function cleanup() {
     let gradeIds = [];
     if (createdStudentIds.length) {
-      const [rows] = await withDb((conn) => conn.query('SELECT id FROM grades WHERE student_id IN (?)', [createdStudentIds]));
+      const [rows] = await withDb((conn) => conn.query('SELECT id FROM grades WHERE student_id = ANY(?::int[])', [createdStudentIds]));
       gradeIds = rows.map((r) => r.id);
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id IN (?)', [createdStudentIds]));
-      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id = ANY(?::int[])', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]));
     }
     // A column this run created would only exist if a refusal below failed;
     // only ids that were not there at the start are removed.
@@ -166,7 +152,7 @@ async function main() {
         conn.query('SELECT id FROM assessment_slots WHERE grade_level = ? AND section = ? AND term = ?', [GRADE, classSection, TERM])
       );
       const extra = slotRows.map((r) => r.id).filter((id) => !slotIdsBefore.has(id));
-      if (extra.length) await withDb((conn) => conn.query('DELETE FROM assessment_slots WHERE id IN (?)', [extra]));
+      if (extra.length) await withDb((conn) => conn.query('DELETE FROM assessment_slots WHERE id = ANY(?::int[])', [extra]));
     }
     // Neither a bulk lock nor a direct insert notifies anybody; asserted, not
     // deleted.
@@ -252,13 +238,18 @@ async function main() {
     }
     for (const s of subjects.slice(0, 3)) rows.push([eli.id, s.id, TERM, SCHOOL_YEAR, 85]);
     rows.push([eli.id, subjects[3].id, TERM, SCHOOL_YEAR, null]);
+    // mysql2's nested-array `VALUES ?` has no PostgreSQL form: the rows are
+    // written out, one placeholder group each.
     await withDb((conn) =>
-      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES ?', [rows])
+      conn.query(
+        `INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES ${rows.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+        rows.flat()
+      )
     );
 
     const lockedCount = async (ids) => {
       const [[r]] = await withDb((conn) =>
-        conn.query('SELECT COUNT(*) AS total, COALESCE(SUM(is_locked), 0) AS locked FROM grades WHERE student_id IN (?) AND term = ?', [ids, TERM])
+        conn.query('SELECT COUNT(*) AS total, COALESCE(SUM(is_locked), 0) AS locked FROM grades WHERE student_id = ANY(?::int[]) AND term = ?', [ids, TERM])
       );
       return { total: Number(r.total), locked: Number(r.locked) };
     };

@@ -38,7 +38,9 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const fs = require('fs');
 const path = require('path');
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit 2): the PG_* keys, the API's own role,
+// loopback only (test-helpers/db.js). Results keep mysql2's [rows] shape.
+const { withDb } = require('./test-helpers/db');
 const { pairsFor, deleteNotificationsFor, countNotificationsFor } = require('./test-helpers/notifications');
 const { createPolicyFixture, clearForcedChange } = require('./policyFixture');
 
@@ -47,14 +49,6 @@ const TERM = 2;
 const GRADE = 4;
 const LAST = 'Ackcheck';
 const FIRST = 'Ima';
-
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
 
 // Every sign-in accepts the privacy notice and terms first; this run's rows
 // go in the finally (scripts/policyFixture.js).
@@ -107,14 +101,6 @@ function why(res) {
   return `status ${res.status}: ${String(res.data?.message || '(no message)').replace(/\d{6,}/g, '<digits>')}`;
 }
 
-async function withDb(fn) {
-  const conn = await mysql.createConnection(dbConfig);
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
 
 const login = (loginId, password) => request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 
@@ -171,20 +157,20 @@ async function main() {
       await withDb((conn) => deleteNotificationsFor(conn, pairsFor('user', createdParentUserIds)));
     }
     if (createdStudentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grade_acknowledgements WHERE student_id IN (?)', [createdStudentIds]));
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM grade_acknowledgements WHERE student_id = ANY(?::int[])', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id = ANY(?::int[])', [createdStudentIds]));
     }
     if (createdUserIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM notifications WHERE user_id IN (?)', [createdUserIds]));
+      await withDb((conn) => conn.query('DELETE FROM notifications WHERE user_id = ANY(?::int[])', [createdUserIds]));
     }
     if (adviserChanged && sectionId) {
       await withDb((conn) => conn.query('UPDATE sections SET adviser_id = ? WHERE id = ?', [adviserBefore, sectionId]));
     }
     if (createdStudentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]));
     }
     if (createdUserIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM users WHERE id IN (?)', [createdUserIds]));
+      await withDb((conn) => conn.query('DELETE FROM users WHERE id = ANY(?::int[])', [createdUserIds]));
     }
     const leftover = gradeIds.length
       ? await withDb((conn) => countNotificationsFor(conn, pairsFor('grade', gradeIds)))
@@ -280,8 +266,13 @@ async function main() {
     // A grade in every Grade 4 subject for Term 2, inserted directly — no
     // recompute, so no grade_available row either.
     const rows = subjects.map((s) => [studentId, s.id, TERM, SCHOOL_YEAR, 85]);
+    // mysql2's nested-array `VALUES ?` has no PostgreSQL form: the rows are
+    // written out, one placeholder group each.
     await withDb((conn) =>
-      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES ?', [rows])
+      conn.query(
+        `INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES ${rows.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+        rows.flat()
+      )
     );
     const [gradeRows] = await withDb((conn) =>
       conn.query('SELECT id FROM grades WHERE student_id = ? AND term = ? ORDER BY id', [studentId, TERM])

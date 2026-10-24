@@ -56,7 +56,7 @@ function isValidMax(value) {
 // PT slot would compute under the wrong weight, so it is refused here
 // rather than left to be noticed on the report card.
 async function loadSlotForGrade(slotId, grade, expectedType) {
-  const [rows] = await pool.query('SELECT * FROM assessment_slots WHERE id = ? LIMIT 1', [slotId]);
+  const { rows } = await pool.query('SELECT * FROM assessment_slots WHERE id = ? LIMIT 1', [slotId]);
   const slot = rows[0];
   if (!slot) {
     return { errorStatus: 404, errorMessage: 'Assessment slot not found.' };
@@ -133,7 +133,7 @@ function isValidSchoolYear(value) {
 // reserved for exactly two routes (attendance, the unbuilt Class Board),
 // neither of which is Grades.
 async function teacherCanEncodeGrade(teacherId, subjectId, gradeLevel, section) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT 1 FROM teacher_assignments
      WHERE teacher_id = ? AND subject_id = ? AND grade_level = ? AND section = ?
      LIMIT 1`,
@@ -167,7 +167,7 @@ async function teacherCanEncodeGrade(teacherId, subjectId, gradeLevel, section) 
 // that file's note for why the class-keyed form exists alongside the
 // student-keyed one and why the two must move together.
 async function teacherCanViewGrade(teacherId, gradeLevel, section) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT 1 WHERE
        EXISTS (
          SELECT 1 FROM teacher_assignments ta
@@ -207,7 +207,7 @@ async function teacherCanViewGrade(teacherId, gradeLevel, section) {
 // endpoints contradict each other on one resource. GET endpoints never
 // look at canEncode at all — view-scope alone is sufficient to read.
 async function loadAuthorizedGrade(req, gradeId) {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     `SELECT g.*, s.grade_level AS student_grade_level, s.section AS student_section,
             sub.name AS subject_name
      FROM grades g
@@ -271,7 +271,7 @@ function encodeScopeError(loaded) {
 // inside the transaction, and removes any chance the two disagree about the
 // same row. Callers test `.errorStatus`, never truthiness.
 async function preflightGradeWrite(grade, expectedMode) {
-  const [modeRows] = await pool.query(
+  const { rows: modeRows } = await pool.query(
     'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
     [grade.student_grade_level, grade.school_year]
   );
@@ -304,7 +304,7 @@ async function preflightGradeWrite(grade, expectedMode) {
   }
 
   {
-    const [weightRows] = await pool.query(
+    const { rows: weightRows } = await pool.query(
       'SELECT 1 FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
       [grade.subject_id, grade.school_year]
     );
@@ -349,7 +349,8 @@ async function preflightGradeWrite(grade, expectedMode) {
 //
 // ONCE PER SUBJECT + TERM COSTS NO CODE: uq_notifications_once is
 // (user_id, type, item_id) and a grades row already IS one
-// (student, subject, term, school_year), so INSERT IGNORE does it. A later
+// (student, subject, term, school_year), so ON CONFLICT DO NOTHING in
+// utils/notify.js does it (MySQL's INSERT IGNORE until Phase 3). A later
 // correction that clears the grade back to NULL and recomputes will not
 // re-notify, which is correct -- the parent was already told it is there.
 //
@@ -358,11 +359,11 @@ async function preflightGradeWrite(grade, expectedMode) {
 // rolled back would be a lie); the socket event must not be, for the same
 // reason.
 async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = null) {
-  const [gradeRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+  const { rows: gradeRows } = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
   const grade = gradeRows[0];
   const isDescriptive = mode === 'descriptive';
 
-  const [weightRows] = await conn.query(
+  const { rows: weightRows } = await conn.query(
     'SELECT ww_weight, pt_weight, ex_weight FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
     [grade.subject_id, grade.school_year]
   );
@@ -371,11 +372,11 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
   // the transaction would just be trusting the same query twice.
   const weights = weightRows[0];
 
-  const [wwRows] = await conn.query(
+  const { rows: wwRows } = await conn.query(
     "SELECT score, max_score, slot_id FROM grade_components WHERE grade_id = ? AND type = 'WW'",
     [gradeId]
   );
-  const [ptRows] = await conn.query(
+  const { rows: ptRows } = await conn.query(
     "SELECT score, max_score, slot_id FROM grade_components WHERE grade_id = ? AND type = 'PT'",
     [gradeId]
   );
@@ -393,13 +394,15 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
   // recorded before the class record existed — produces an empty list, and
   // an empty list changes nothing. That is what keeps those rows computing
   // exactly as they always did.
-  const [[classRow]] = await conn.query('SELECT grade_level, section FROM students WHERE id = ? LIMIT 1', [
+  const {
+    rows: [classRow],
+  } = await conn.query('SELECT grade_level, section FROM students WHERE id = ? LIMIT 1', [
     grade.student_id,
   ]);
   let requiredWw = [];
   let requiredPt = [];
   if (classRow) {
-    const [usedSlots] = await conn.query(
+    const { rows: usedSlots } = await conn.query(
       `SELECT id, type FROM assessment_slots
         WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ?
           AND max_score IS NOT NULL`,
@@ -441,7 +444,7 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
     // defines no band. See gradeComputation.js.
     descriptiveGrade = gc.bandForScore(ig);
   } else if (ig !== null) {
-    const [transmutedRows] = await conn.query(
+    const { rows: transmutedRows } = await conn.query(
       'SELECT transmuted_grade FROM transmutation_table WHERE school_year = ? AND ig_min <= ? AND ig_max >= ? LIMIT 1',
       [grade.school_year, ig, ig]
     );
@@ -499,7 +502,7 @@ async function recomputeGrade(conn, gradeId, mode, pending = null, actorId = nul
     pending.push(...notified);
   }
 
-  const [updatedRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+  const { rows: updatedRows } = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
   return updatedRows[0];
 }
 
@@ -584,10 +587,12 @@ function termFullyLocked(rows, subjectCount) {
 
 // The term's lock state and notification key for one learner, read live.
 async function loadTermLockState(conn, { studentId, gradeLevel, term, schoolYear }) {
-  const [[{ subjects }]] = await conn.query('SELECT COUNT(*) AS subjects FROM subjects WHERE grade_level = ?', [
+  const {
+    rows: [{ subjects }],
+  } = await conn.query('SELECT COUNT(*) AS subjects FROM subjects WHERE grade_level = ?', [
     gradeLevel,
   ]);
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     'SELECT id, subject_id, is_locked, term_grade, descriptive_grade FROM grades WHERE student_id = ? AND term = ? AND school_year = ?',
     [studentId, term, schoolYear]
   );
@@ -595,7 +600,7 @@ async function loadTermLockState(conn, { studentId, gradeLevel, term, schoolYear
   return { fullyLocked: termFullyLocked(rows, Number(subjects)), itemId };
 }
 
-// The parent's "please confirm" — INSERT IGNORE on uq_notifications_once, so a
+// The parent's "please confirm" — ON CONFLICT DO NOTHING on uq_notifications_once, so a
 // repeat (a relock of an already-locked row, two admins at once) inserts
 // nothing. Returns the recipients for the emit after commit.
 async function notifyGradesLocked(conn, { studentId, itemId, actorId }) {
@@ -615,12 +620,12 @@ async function notifyGradesLocked(conn, { studentId, itemId, actorId }) {
 // typed notifications go; the grade_available rows stay. Returns how many
 // confirmation rows were deleted and who to signal.
 async function clearTermAcknowledgement(conn, { studentId, term, schoolYear, itemId }) {
-  const [result] = await conn.query(
+  const result = await conn.query(
     'DELETE FROM grade_acknowledgements WHERE student_id = ? AND school_year = ? AND term = ?',
     [studentId, schoolYear, term]
   );
   const recipients = itemId ? await removeTypedNotifications(conn, TERM_ACK_TYPES, 'grade', itemId) : [];
-  return { cleared: result.affectedRows, recipients };
+  return { cleared: result.rowCount, recipients };
 }
 
 // The confirmations of some learners for one school year, keyed
@@ -629,11 +634,11 @@ async function clearTermAcknowledgement(conn, { studentId, term, schoolYear, ite
 async function acknowledgementsFor(conn, studentIds, schoolYear) {
   const map = new Map();
   if (!studentIds.length) return map;
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     `SELECT ga.student_id, ga.term, ga.acknowledged_at, u.name AS by_name
        FROM grade_acknowledgements ga
        LEFT JOIN users u ON u.id = ga.user_id
-      WHERE ga.student_id IN (?) AND ga.school_year = ?`,
+      WHERE ga.student_id = ANY(?::int[]) AND ga.school_year = ?`,
     [studentIds, schoolYear]
   );
   for (const row of rows) {
@@ -927,8 +932,10 @@ router.get('/', authenticate, authorize('teacher', 'admin', 'parent'), async (re
        JOIN students s ON s.id = g.student_id
        JOIN subjects sub ON sub.id = g.subject_id
        ${whereClause}`;
-    const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
-    const [rows] = await pool.query(
+    const {
+      rows: [{ total }],
+    } = await pool.query(`SELECT COUNT(*) AS total ${fromClause}`, params);
+    const { rows } = await pool.query(
       `SELECT g.*, s.first_name, s.last_name, s.grade_level AS student_grade_level, s.section AS student_section,
               sub.name AS subject_name
        ${fromClause}
@@ -985,7 +992,7 @@ function readClassKey(source) {
 
 // Every slot for a class, ordered the way the grid prints them.
 async function loadSlots(conn, key) {
-  const [rows] = await conn.query(
+  const { rows } = await conn.query(
     `SELECT * FROM assessment_slots
       WHERE subject_id = ? AND grade_level = ? AND section = ? AND term = ? AND school_year = ?
       ORDER BY type ASC, slot_no ASC`,
@@ -1098,7 +1105,7 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
       req.user.role === 'admin' ||
       (await teacherCanEncodeGrade(req.user.id, key.subjectId, key.gradeLevel, key.section));
 
-    const [subjectRows] = await pool.query('SELECT * FROM subjects WHERE id = ? LIMIT 1', [key.subjectId]);
+    const { rows: subjectRows } = await pool.query('SELECT * FROM subjects WHERE id = ? LIMIT 1', [key.subjectId]);
     const subject = subjectRows[0];
     if (!subject) {
       return res.status(404).json({ success: false, message: 'Subject not found.' });
@@ -1110,7 +1117,7 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
       });
     }
 
-    const [modeRows] = await pool.query(
+    const { rows: modeRows } = await pool.query(
       'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
       [key.gradeLevel, key.schoolYear]
     );
@@ -1122,7 +1129,7 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
     }
     const mode = modeRows[0].mode;
 
-    const [weightRows] = await pool.query(
+    const { rows: weightRows } = await pool.query(
       'SELECT ww_weight, pt_weight, ex_weight FROM grade_weight_configs WHERE subject_id = ? AND school_year = ? LIMIT 1',
       [key.subjectId, key.schoolYear]
     );
@@ -1139,7 +1146,7 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
     // ACTIVE learners only — the same filter Teacher → Attendance uses for
     // its roster. An inactive learner is not in the class any more and a
     // column of disabled cells for them is noise.
-    const [students] = await pool.query(
+    const { rows: students } = await pool.query(
       `SELECT id, lrn, first_name, last_name FROM students
         WHERE grade_level = ? AND section = ? AND status = 'active'
         ORDER BY last_name ASC, first_name ASC`,
@@ -1150,16 +1157,15 @@ router.get('/class-record', authenticate, authorize('teacher', 'admin'), async (
     let gradeRows = [];
     let componentRows = [];
     if (studentIds.length) {
-      [gradeRows] = await pool.query(
-        'SELECT * FROM grades WHERE student_id IN (?) AND subject_id = ? AND term = ? AND school_year = ?',
+      ({ rows: gradeRows } = await pool.query(
+        'SELECT * FROM grades WHERE student_id = ANY(?::int[]) AND subject_id = ? AND term = ? AND school_year = ?',
         [studentIds, key.subjectId, key.term, key.schoolYear]
-      );
+      ));
       const gradeIds = gradeRows.map((g) => g.id);
       if (gradeIds.length) {
-        [componentRows] = await pool.query(
-          'SELECT * FROM grade_components WHERE grade_id IN (?)',
-          [gradeIds]
-        );
+        ({ rows: componentRows } = await pool.query('SELECT * FROM grade_components WHERE grade_id = ANY(?::int[])', [
+          gradeIds,
+        ]));
       }
     }
 
@@ -1444,7 +1450,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
         if (!canView) {
           return res.status(404).json({ success: false, message: 'Class record not found.' });
         }
-        const [subjectRows] = await pool.query('SELECT name FROM subjects WHERE id = ? LIMIT 1', [key.subjectId]);
+        const { rows: subjectRows } = await pool.query('SELECT name FROM subjects WHERE id = ? LIMIT 1', [key.subjectId]);
         const subjectName = subjectRows[0] ? subjectRows[0].name : 'this subject';
         return res.status(403).json({
           success: false,
@@ -1453,7 +1459,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       }
     }
 
-    const [students] = await pool.query(
+    const { rows: students } = await pool.query(
       `SELECT id, first_name, last_name FROM students
         WHERE grade_level = ? AND section = ? AND status = 'active'`,
       [key.gradeLevel, key.section]
@@ -1468,7 +1474,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       }
     }
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
     // ---- slots: upsert, and guard the two HPS rules ----
@@ -1494,7 +1500,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       return existing ? currentMax !== nextMax : nextMax !== null;
     });
     if (hpsWouldChange) {
-      const [lockedLearners] = await conn.query(
+      const { rows: lockedLearners } = await conn.query(
         `SELECT st.first_name, st.last_name
            FROM grades g
            JOIN students st ON st.id = g.student_id
@@ -1523,8 +1529,10 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       const existing = slotByKey.get(`${slot.type}-${slotNo}`);
 
       if (existing) {
-        const [[scored]] = await conn.query(
-          'SELECT COUNT(*) n FROM grade_components WHERE slot_id = ?',
+        const {
+          rows: [scored],
+        } = await conn.query(
+          'SELECT COUNT(*) AS n FROM grade_components WHERE slot_id = ?',
           [existing.id]
         );
         const scoreCount = Number(scored.n);
@@ -1564,13 +1572,14 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
         if (Number(existing.max_score ?? NaN) !== Number(nextMax ?? NaN)) slotSetChanged = true;
         slotByKey.set(`${slot.type}-${slotNo}`, { ...existing, name: named.value, max_score: nextMax });
       } else {
-        const [result] = await conn.query(
+        const { rows: insertedSlot } = await conn.query(
           `INSERT INTO assessment_slots (subject_id, grade_level, section, term, school_year, type, slot_no, name, max_score)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           RETURNING id`,
           [key.subjectId, key.gradeLevel, key.section, key.term, key.schoolYear, slot.type, slotNo, named.value, nextMax]
         );
         slotByKey.set(`${slot.type}-${slotNo}`, {
-          id: result.insertId,
+          id: insertedSlot[0].id,
           type: slot.type,
           slot_no: slotNo,
           name: named.value,
@@ -1597,8 +1606,8 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
     // locked grade is not recomputed by anything this endpoint does.
     const affected = new Set();
     if (slotSetChanged) {
-      const [rows] = await conn.query(
-        'SELECT id FROM grades WHERE subject_id = ? AND term = ? AND school_year = ? AND is_locked = 0 AND student_id IN (?)',
+      const { rows } = await conn.query(
+        'SELECT id FROM grades WHERE subject_id = ? AND term = ? AND school_year = ? AND is_locked = 0 AND student_id = ANY(?::int[])',
         [key.subjectId, key.term, key.schoolYear, students.length ? students.map((s) => s.id) : [0]]
       );
       for (const row of rows) affected.add(row.id);
@@ -1632,7 +1641,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
 
       if (columns.length) {
         for (const student of students) {
-          const [gradeRows] = await conn.query(
+          const { rows: gradeRows } = await conn.query(
             'SELECT id, is_locked FROM grades WHERE student_id = ? AND subject_id = ? AND term = ? AND school_year = ? LIMIT 1',
             [student.id, key.subjectId, key.term, key.schoolYear]
           );
@@ -1640,11 +1649,11 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
           if (gradeRows[0]?.is_locked) continue;
 
           if (!gradeId) {
-            const [created] = await conn.query(
-              'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?)',
+            const { rows: created } = await conn.query(
+              'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?) RETURNING id',
               [student.id, key.subjectId, key.term, key.schoolYear]
             );
-            gradeId = created.insertId;
+            gradeId = created[0].id;
           }
           await conn.query(`UPDATE grades SET ${columns.join(', ')} WHERE id = ?`, [...values, gradeId]);
           affected.add(gradeId);
@@ -1657,7 +1666,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       const studentId = parseId(entry.student_id);
       const student = studentById.get(studentId);
 
-      const [gradeRows] = await conn.query(
+      const { rows: gradeRows } = await conn.query(
         'SELECT * FROM grades WHERE student_id = ? AND subject_id = ? AND term = ? AND school_year = ? LIMIT 1',
         [studentId, key.subjectId, key.term, key.schoolYear]
       );
@@ -1675,11 +1684,11 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       }
 
       if (!grade) {
-        const [created] = await conn.query(
-          'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?)',
+        const { rows: created } = await conn.query(
+          'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?) RETURNING id',
           [studentId, key.subjectId, key.term, key.schoolYear]
         );
-        const [freshRows] = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [created.insertId]);
+        const { rows: freshRows } = await conn.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [created[0].id]);
         grade = freshRows[0];
       }
 
@@ -1716,7 +1725,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
         // slot.id, NOT slotId — a score that named its column by type and
         // number has no slotId, and the resolved slot is the only place the
         // real id exists.
-        const [existingRows] = await conn.query(
+        const { rows: existingRows } = await conn.query(
           'SELECT id FROM grade_components WHERE grade_id = ? AND slot_id = ? LIMIT 1',
           [grade.id, slot.id]
         );
@@ -1824,7 +1833,7 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       // displays a saved one — a preview that omitted Total would leave a
       // column blanking and refilling as the teacher types, which reads as
       // a bug rather than as a preview.
-      const [rowComponents] = await conn.query(
+      const { rows: rowComponents } = await conn.query(
         'SELECT type, score, max_score FROM grade_components WHERE grade_id = ?',
         [gradeId]
       );
@@ -1862,9 +1871,9 @@ router.put('/class-record', authenticate, authorize('teacher', 'admin'), async (
       const previewUsedTotal = (type) =>
         previewSlots.filter((s) => s.type === type && s.max_score !== null).reduce((sum, s) => sum + s.max_score, 0) ||
         null;
-      const [previewExam] = await conn.query(
+      const { rows: previewExam } = await conn.query(
         `SELECT ex_st1_max AS st1, ex_st2_max AS st2, ex_te_max AS te FROM grades
-          WHERE subject_id = ? AND term = ? AND school_year = ? AND student_id IN (?)`,
+          WHERE subject_id = ? AND term = ? AND school_year = ? AND student_id = ANY(?::int[])`,
         [key.subjectId, key.term, key.schoolYear, students.length ? students.map((s) => s.id) : [0]]
       );
       const previewExamTotal = previewExam.reduce((best, row) => {
@@ -1967,7 +1976,7 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
 
   let schoolYear = req.query.school_year;
   if (schoolYear === undefined) {
-    const [settingRows] = await pool.query(
+    const { rows: settingRows } = await pool.query(
       "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
     );
     schoolYear = settingRows[0]?.setting_value;
@@ -1982,7 +1991,7 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
   }
 
   try {
-    const [sectionRows] = await pool.query(
+    const { rows: sectionRows } = await pool.query(
       'SELECT sec.id, sec.grade_level, sec.name, sec.adviser_id, u.name AS adviser_name FROM sections sec LEFT JOIN users u ON u.id = sec.adviser_id WHERE sec.grade_level = ? AND sec.name = ? LIMIT 1',
       [gradeLevel, section]
     );
@@ -2007,7 +2016,7 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
       return res.status(404).json({ success: false, message: 'Class summary not found.' });
     }
 
-    const [modeRows] = await pool.query(
+    const { rows: modeRows } = await pool.query(
       'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
       [gradeLevel, schoolYear]
     );
@@ -2021,14 +2030,14 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
 
     // The school's printed order (CR3a). These are the COLUMNS of the sheet,
     // which is why alphabetical was not good enough here.
-    const [subjects] = await pool.query(
+    const { rows: subjects } = await pool.query(
       `SELECT id, name, display_order FROM subjects
         WHERE grade_level = ?
         ORDER BY display_order IS NULL, display_order, name`,
       [gradeLevel]
     );
 
-    const [learners] = await pool.query(
+    const { rows: learners } = await pool.query(
       `SELECT id, first_name, last_name FROM students
         WHERE grade_level = ? AND section = ? AND status = 'active'
         ORDER BY last_name ASC, first_name ASC`,
@@ -2038,8 +2047,8 @@ router.get('/class-summary', authenticate, authorize('teacher', 'admin'), async 
     const learnerIds = learners.map((l) => l.id);
     let gradeRows = [];
     if (learnerIds.length) {
-      const [rows] = await pool.query(
-        'SELECT * FROM grades WHERE student_id IN (?) AND school_year = ?',
+      const { rows } = await pool.query(
+        'SELECT * FROM grades WHERE student_id = ANY(?::int[]) AND school_year = ?',
         [learnerIds, schoolYear]
       );
       gradeRows = rows;
@@ -2206,7 +2215,7 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
   try {
     let schoolYear = schoolYearIn;
     if (schoolYear === undefined || schoolYear === null || schoolYear === '') {
-      const [settingRows] = await pool.query(
+      const { rows: settingRows } = await pool.query(
         "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
       );
       schoolYear = settingRows[0]?.setting_value;
@@ -2220,7 +2229,7 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
       });
     }
 
-    const [studentRows] = await pool.query('SELECT id, grade_level FROM students WHERE id = ? LIMIT 1', [studentId]);
+    const { rows: studentRows } = await pool.query('SELECT id, grade_level FROM students WHERE id = ? LIMIT 1', [studentId]);
     const student = studentRows[0];
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -2232,10 +2241,10 @@ router.post('/acknowledgements', authenticate, authorize('parent'), async (req, 
       return ack ? { term: termNum, school_year: schoolYear, ...ack } : null;
     };
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
-    const [existingRows] = await conn.query(
+    const { rows: existingRows } = await conn.query(
       'SELECT id FROM grade_acknowledgements WHERE student_id = ? AND school_year = ? AND term = ? FOR UPDATE',
       [studentId, schoolYear, termNum]
     );
@@ -2373,7 +2382,7 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
 
   let conn;
   try {
-    const [settingRows] = await pool.query(
+    const { rows: settingRows } = await pool.query(
       "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
     );
     const schoolYear = settingRows[0]?.setting_value;
@@ -2381,7 +2390,7 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
       return res.status(500).json({ success: false, message: 'academic_year is not configured in system settings.' });
     }
     if (section !== null) {
-      const [sectionRows] = await pool.query(
+      const { rows: sectionRows } = await pool.query(
         'SELECT 1 FROM sections WHERE grade_level = ? AND name = ? AND school_year = ? LIMIT 1',
         [gradeLevel, section, schoolYear]
       );
@@ -2406,19 +2415,19 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
     }
     const scopeSql = scope.join(' AND ');
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
-    const [learnerRows] = await conn.query(
+    const { rows: learnerRows } = await conn.query(
       `SELECT st.id, st.first_name, st.last_name, st.grade_level, st.section
          FROM students st
         WHERE ${scopeSql}
         ORDER BY st.grade_level, st.section, st.last_name, st.first_name, st.id`,
       scopeParams
     );
-    const [subjectCounts] = await conn.query('SELECT grade_level, COUNT(*) AS n FROM subjects GROUP BY grade_level');
+    const { rows: subjectCounts } = await conn.query('SELECT grade_level, COUNT(*) AS n FROM subjects GROUP BY grade_level');
     const subjectsByGrade = new Map(subjectCounts.map((r) => [Number(r.grade_level), Number(r.n)]));
-    const [gradeRows] = await conn.query(
+    const { rows: gradeRows } = await conn.query(
       `SELECT g.id, g.student_id, g.subject_id, g.is_locked,
               (g.term_grade IS NOT NULL OR g.descriptive_grade IS NOT NULL) AS has_value
          FROM grades g
@@ -2480,8 +2489,10 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
     const changedIds = [...changedLearners];
     let acknowledgementsCleared = 0;
     if (!lock && changedIds.length) {
-      const [[{ n }]] = await conn.query(
-        'SELECT COUNT(*) AS n FROM grade_acknowledgements WHERE student_id IN (?) AND school_year = ? AND term = ?',
+      const {
+        rows: [{ n }],
+      } = await conn.query(
+        'SELECT COUNT(*) AS n FROM grade_acknowledgements WHERE student_id = ANY(?::int[]) AND school_year = ? AND term = ?',
         [changedIds, schoolYear, termNum]
       );
       acknowledgementsCleared = Number(n);
@@ -2495,12 +2506,14 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
     } else {
       if (targetIds.length) {
         const next = lock ? 1 : 0;
-        const [result] = await conn.query('UPDATE grades SET is_locked = ? WHERE id IN (?) AND is_locked <> ?', [
+        // The guarded UPDATE stays (migration/docs/03 §4, measured race-safe);
+        // rowCount is the matched rows, the meaning affectedRows had here.
+        const result = await conn.query('UPDATE grades SET is_locked = ? WHERE id = ANY(?::int[]) AND is_locked <> ?', [
           next,
           targetIds,
           next,
         ]);
-        recordsChanged = result.affectedRows;
+        recordsChanged = result.rowCount;
       }
       if (lock) {
         // Every learner this lock changed is now FULLY locked — it took them
@@ -2508,13 +2521,25 @@ router.post('/locks', authenticate, authorize('admin'), async (req, res) => {
         // each one's parent is asked to confirm (Q4). The term's lowest grade
         // id is the key. Best effort, like every fan-out: a failed insert
         // must not undo the lock.
+        //
+        // A SAVEPOINT ON POSTGRESQL. A failed statement aborts the whole
+        // transaction there (MySQL kept it open), and the COMMIT below would
+        // then roll the lock back while this handler reported it — so the hook
+        // runs inside its own savepoint, and a failure rolls back to it,
+        // leaving the lock intact. The recipients are pushed only after the
+        // savepoint is released, so a rolled-back insert signals nobody.
+        await conn.query('SAVEPOINT grades_locked_hook');
         try {
+          const hookSignal = [];
           for (const studentId of changedIds) {
             const rows = rowsByLearner.get(studentId) || [];
             const itemId = rows.length ? Math.min(...rows.map((r) => Number(r.id))) : null;
-            signal.push(...(await notifyGradesLocked(conn, { studentId, itemId, actorId: req.user.id })));
+            hookSignal.push(...(await notifyGradesLocked(conn, { studentId, itemId, actorId: req.user.id })));
           }
+          await conn.query('RELEASE SAVEPOINT grades_locked_hook');
+          signal.push(...hookSignal);
         } catch (hookError) {
+          await conn.query('ROLLBACK TO SAVEPOINT grades_locked_hook');
           console.error('Bulk grade lock notification error:', hookError.code || hookError.message);
         }
       } else {
@@ -2614,7 +2639,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     let grade;
 
     if (req.user.role === 'parent') {
-      const [rows] = await pool.query(
+      const { rows } = await pool.query(
         `SELECT g.*, s.first_name, s.last_name, s.grade_level AS student_grade_level, s.section AS student_section,
                 sub.name AS subject_name
          FROM grades g
@@ -2644,7 +2669,7 @@ router.get('/:id', authenticate, authorize('teacher', 'admin', 'parent'), async 
     // it always did. The ordering adds slot type and number so a card
     // reads down the class record rather than by whenever a score happened
     // to be typed.
-    const [componentRows] = await pool.query(
+    const { rows: componentRows } = await pool.query(
       `SELECT c.*, s.name AS slot_name, s.slot_no, s.type AS slot_type
          FROM grade_components c
          LEFT JOIN assessment_slots s ON s.id = c.slot_id
@@ -2702,7 +2727,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
   }
 
   try {
-    const [studentRows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
+    const { rows: studentRows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
     const student = studentRows[0];
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found.' });
@@ -2721,7 +2746,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
 
     let schoolYear = req.query.school_year;
     if (schoolYear === undefined) {
-      const [settingRows] = await pool.query(
+      const { rows: settingRows } = await pool.query(
         "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
       );
       schoolYear = settingRows[0]?.setting_value;
@@ -2735,7 +2760,7 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
       });
     }
 
-    const [modeRows] = await pool.query(
+    const { rows: modeRows } = await pool.query(
       'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
       [student.grade_level, schoolYear]
     );
@@ -2754,14 +2779,14 @@ router.get('/student/:studentId', authenticate, authorize('teacher', 'admin', 'p
     // order, would come back with the unordered rows leading. A grade level
     // with no order recorded falls back to name ASC, which is what the report
     // card did for every grade level before this column existed.
-    const [subjects] = await pool.query(
+    const { rows: subjects } = await pool.query(
       `SELECT id, name, display_order FROM subjects
         WHERE grade_level = ?
         ORDER BY display_order IS NULL, display_order, name`,
       [student.grade_level]
     );
 
-    const [gradeRows] = await pool.query('SELECT * FROM grades WHERE student_id = ? AND school_year = ?', [
+    const { rows: gradeRows } = await pool.query('SELECT * FROM grades WHERE student_id = ? AND school_year = ?', [
       studentId,
       schoolYear,
     ]);
@@ -2877,13 +2902,13 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
   try {
     // Checked before touching the student at all — subjects are unscoped
     // reference data, so this leaks nothing role-sensitive either way.
-    const [subjectRows] = await pool.query('SELECT * FROM subjects WHERE id = ? LIMIT 1', [subjectId]);
+    const { rows: subjectRows } = await pool.query('SELECT * FROM subjects WHERE id = ? LIMIT 1', [subjectId]);
     const subject = subjectRows[0];
     if (!subject) {
       return res.status(400).json({ success: false, message: 'subject_id does not reference an existing subject.' });
     }
 
-    const [studentRows] = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
+    const { rows: studentRows } = await pool.query('SELECT * FROM students WHERE id = ? LIMIT 1', [studentId]);
     const student = studentRows[0];
 
     if (req.user.role === 'admin') {
@@ -2931,7 +2956,7 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       return res.status(400).json({ success: false, message: 'Cannot create a grade record for an inactive student.' });
     }
 
-    const [existing] = await pool.query(
+    const { rows: existing } = await pool.query(
       'SELECT id FROM grades WHERE student_id = ? AND subject_id = ? AND term = ? AND school_year = ? LIMIT 1',
       [studentId, subjectId, termNum, school_year]
     );
@@ -2942,12 +2967,12 @@ router.post('/', authenticate, authorize('teacher', 'admin'), async (req, res) =
       });
     }
 
-    const [result] = await pool.query(
-      'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?)',
+    const { rows: created } = await pool.query(
+      'INSERT INTO grades (student_id, subject_id, term, school_year) VALUES (?, ?, ?, ?) RETURNING id',
       [studentId, subjectId, termNum, school_year]
     );
 
-    const [rows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [result.insertId]);
+    const { rows } = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [created[0].id]);
     await logActivity(
       req.user.id,
       'create_grade',
@@ -3045,11 +3070,11 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
       return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
-    const [result] = await conn.query(
-      'INSERT INTO grade_components (grade_id, slot_id, type, score, max_score, label, date_recorded) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    const { rows: insertedComponent } = await conn.query(
+      'INSERT INTO grade_components (grade_id, slot_id, type, score, max_score, label, date_recorded) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
       [gradeId, slotId, type, score, max_score, label ?? null, date_recorded || null]
     );
 
@@ -3059,7 +3084,9 @@ router.post('/:id/components', authenticate, authorize('teacher', 'admin'), asyn
     await conn.commit();
     emitNotifications(req, notified);
 
-    const [componentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [result.insertId]);
+    const { rows: componentRows } = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [
+      insertedComponent[0].id,
+    ]);
     await logActivity(
       req.user.id,
       'record_grade_component',
@@ -3172,7 +3199,7 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
       return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
-    const [componentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
+    const { rows: componentRows } = await pool.query('SELECT * FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
       componentId,
       gradeId,
     ]);
@@ -3209,7 +3236,7 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
     const nextDateRecorded = date_recorded !== undefined ? date_recorded || null : existing.date_recorded;
     const nextSlotId = newSlotId !== null ? newSlotId : existing.slot_id;
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
     await conn.query(
@@ -3223,7 +3250,7 @@ router.put('/:id/components/:componentId', authenticate, authorize('teacher', 'a
     await conn.commit();
     emitNotifications(req, notified);
 
-    const [updatedComponentRows] = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [componentId]);
+    const { rows: updatedComponentRows } = await pool.query('SELECT * FROM grade_components WHERE id = ? LIMIT 1', [componentId]);
     await logActivity(req.user.id, 'update_grade_component', `Updated component #${componentId} on grade #${gradeId}`);
 
     return res.json({
@@ -3280,7 +3307,7 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
       return res.status(preflight.errorStatus).json({ success: false, message: preflight.errorMessage });
     }
 
-    const [componentRows] = await pool.query('SELECT id, type FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
+    const { rows: componentRows } = await pool.query('SELECT id, type FROM grade_components WHERE id = ? AND grade_id = ? LIMIT 1', [
       componentId,
       gradeId,
     ]);
@@ -3289,7 +3316,7 @@ router.delete('/:id/components/:componentId', authenticate, authorize('teacher',
       return res.status(404).json({ success: false, message: 'Component not found.' });
     }
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
     await conn.query('DELETE FROM grade_components WHERE id = ?', [componentId]);
@@ -3470,7 +3497,7 @@ router.patch('/:id/exam', authenticate, authorize('teacher', 'admin'), async (re
       });
     }
 
-    conn = await pool.getConnection();
+    conn = await pool.connect();
     await conn.beginTransaction();
 
     await conn.query(
@@ -3551,7 +3578,7 @@ router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => 
   }
 
   try {
-    const [gradeRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+    const { rows: gradeRows } = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
     const grade = gradeRows[0];
     if (!grade) {
       return res.status(404).json({ success: false, message: 'Grade record not found.' });
@@ -3587,15 +3614,15 @@ router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => 
     // log used to read "from 1 to 1". The guarded UPDATE decides that in one
     // statement, so two admins acting at once cannot both log a change.
     const next = is_locked ? 1 : 0;
-    const [result] = await pool.query('UPDATE grades SET is_locked = ? WHERE id = ? AND is_locked <> ?', [
+    const result = await pool.query('UPDATE grades SET is_locked = ? WHERE id = ? AND is_locked <> ?', [
       next,
       gradeId,
       next,
     ]);
 
-    const [updatedRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+    const { rows: updatedRows } = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
 
-    if (result.affectedRows === 0) {
+    if (result.rowCount === 0) {
       return res.json({
         success: true,
         message: `Grade is already ${is_locked ? 'locked' : 'unlocked'}. Nothing was changed.`,
@@ -3612,12 +3639,12 @@ router.patch('/:id/lock', authenticate, authorize('admin'), async (req, res) => 
     // THE TERM'S CONFIRMATION FOLLOWS THE SINGLE LOCK TOO (feat/grade-
     // acknowledgement, 2026-10-21). A lock that completes the term — every
     // subject now locked with a value — asks the parent to confirm (Q4, once:
-    // INSERT IGNORE); an unlock of any row of the term clears the
+    // ON CONFLICT DO NOTHING); an unlock of any row of the term clears the
     // confirmation and both typed notifications (Q2) and says so in
     // activity_logs. Best effort after the lock is written and logged: a
     // failure here is reported, never a 500 for a lock that happened.
     try {
-      const [studentRows] = await pool.query('SELECT grade_level FROM students WHERE id = ? LIMIT 1', [grade.student_id]);
+      const { rows: studentRows } = await pool.query('SELECT grade_level FROM students WHERE id = ? LIMIT 1', [grade.student_id]);
       const gradeLevel = studentRows[0]?.grade_level;
       const state = await loadTermLockState(pool, {
         studentId: grade.student_id,
@@ -3678,7 +3705,7 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
   }
 
   try {
-    const [gradeRows] = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
+    const { rows: gradeRows } = await pool.query('SELECT * FROM grades WHERE id = ? LIMIT 1', [gradeId]);
     const grade = gradeRows[0];
     if (!grade) {
       return res.status(404).json({ success: false, message: 'Grade record not found.' });
@@ -3694,7 +3721,7 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
     // The row and its `grade_available` notifications go together, then the
     // parent's bell refetches (fix/server-reliability, 2026-09-30 — the same
     // rule as the content deletes; no screen surfaces this endpoint).
-    const conn = await pool.getConnection();
+    const conn = await pool.connect();
     let recipients = [];
     try {
       await conn.beginTransaction();

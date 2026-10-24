@@ -29,18 +29,12 @@
  * Usage: npm run test:class-summary
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit 2): the PG_* keys, the API's own role,
+// loopback only (test-helpers/db.js). Results keep mysql2's [rows] shape.
+const { withDb } = require('./test-helpers/db');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const SCHOOL_YEAR = '2026-2027';
-
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
 
 // Every sign-in accepts the privacy notice and terms first (parents since
 // feat/privacy, staff since feat/staff-acceptance); this run's rows
@@ -91,14 +85,6 @@ function why(res) {
   return `got ${res.status}: ${res.data?.message || JSON.stringify(res.data)}`;
 }
 
-async function withDb(fn) {
-  const conn = await mysql.createConnection(dbConfig);
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
 
 const login = (loginId, password) => request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 
@@ -140,9 +126,9 @@ async function main() {
     // learners in the same section are removed too.
     const [gradeRes] = await withDb((conn) =>
       conn.query(
-        `DELETE g FROM grades g
-           JOIN students s ON s.id = g.student_id
-          WHERE g.id > ? AND s.grade_level = 5 AND s.section = 'Masigasig'`,
+        `DELETE FROM grades g
+          USING students s
+          WHERE s.id = g.student_id AND g.id > ? AND s.grade_level = 5 AND s.section = 'Masigasig'`,
         [gradeWatermark]
       )
     );
@@ -150,11 +136,11 @@ async function main() {
       console.log(`  · cleanup: ${gradeRes.affectedRows} grade row(s) created by this run, including shells for seeded learners`);
     }
     if (createdStudentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id IN (?)', [createdStudentIds]));
-      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id = ANY(?::int[])', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]));
     }
     if (createdAssignmentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM teacher_assignments WHERE id IN (?)', [createdAssignmentIds]));
+      await withDb((conn) => conn.query('DELETE FROM teacher_assignments WHERE id = ANY(?::int[])', [createdAssignmentIds]));
     }
     // Slots this run's class-record saves created. Safe because the grades
     // that referenced them are gone above (the slot FK is ON DELETE RESTRICT,

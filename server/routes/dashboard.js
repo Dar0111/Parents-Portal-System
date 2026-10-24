@@ -68,7 +68,7 @@ const router = express.Router();
 // handler below refuses when the setting's school year and the calendar's
 // disagree — starting a new school year is a new table AND a new setting.
 async function readSchoolContext() {
-  const [rows] = await pool.query(
+  const { rows } = await pool.query(
     "SELECT setting_value FROM system_settings WHERE setting_key = 'academic_year' LIMIT 1"
   );
   return { schoolYear: rows[0]?.setting_value, term: currentTerm(todayLocalDateString()) };
@@ -88,7 +88,7 @@ async function readSchoolContext() {
 // Grade 1 class as 0 recorded forever. A shell row from POST /api/grades has
 // neither and is correctly not counted — it is a row, not a grade.
 async function teacherDashboard(userId, schoolYear, term) {
-  const [assignments] = await pool.query(
+  const { rows: assignments } = await pool.query(
     `SELECT ta.id AS assignment_id, ta.subject_id, ta.grade_level, ta.section,
             s.name AS subject_name
        FROM teacher_assignments ta
@@ -100,11 +100,15 @@ async function teacherDashboard(userId, schoolYear, term) {
 
   const classes = [];
   for (const row of assignments) {
-    const [[roster]] = await pool.query(
+    const {
+      rows: [roster],
+    } = await pool.query(
       "SELECT COUNT(*) AS n FROM students WHERE grade_level = ? AND section = ? AND status = 'active'",
       [row.grade_level, row.section]
     );
-    const [[done]] = await pool.query(
+    const {
+      rows: [done],
+    } = await pool.query(
       `SELECT COUNT(DISTINCT g.student_id) AS n
          FROM grades g
          JOIN students st ON st.id = g.student_id
@@ -157,22 +161,28 @@ async function teacherDashboard(userId, schoolYear, term) {
 // Getting this wrong is not a rounding error: a card reading 42 that opens a
 // list of 37 is a bug report, and the cause would be invisible.
 async function adminDashboard(schoolYear, term) {
-  const [[students]] = await pool.query('SELECT COUNT(*) AS n FROM students');
-  const [[teachers]] = await pool.query("SELECT COUNT(*) AS n FROM users WHERE role = 'teacher'");
-  const [[parents]] = await pool.query(
-    "SELECT COUNT(*) AS n FROM users WHERE role = 'parent' AND status = 'active'"
-  );
-  const [[pending]] = await pool.query(
-    "SELECT COUNT(*) AS n FROM users WHERE role = 'parent' AND status = 'pending'"
-  );
+  const {
+    rows: [students],
+  } = await pool.query('SELECT COUNT(*) AS n FROM students');
+  const {
+    rows: [teachers],
+  } = await pool.query("SELECT COUNT(*) AS n FROM users WHERE role = 'teacher'");
+  const {
+    rows: [parents],
+  } = await pool.query("SELECT COUNT(*) AS n FROM users WHERE role = 'parent' AND status = 'active'");
+  const {
+    rows: [pending],
+  } = await pool.query("SELECT COUNT(*) AS n FROM users WHERE role = 'parent' AND status = 'pending'");
 
   // Lock status as a COUNT for the current term (Darryl, Q3, option b).
   // There is no global lock and no `is_locked` filter on GET /api/grades —
   // `is_locked` is per grade row, so "lock status" can only mean how many of
-  // this term's rows are finalized. SUM over a TINYINT comes back as a string
-  // or null from mysql2; Number() on null is 0, which is the right answer for
-  // "no rows yet".
-  const [[locks]] = await pool.query(
+  // this term's rows are finalized. SUM over the smallint flag is bigint on
+  // PostgreSQL (a number through config/db.js's int8 parser) or null with no
+  // rows; Number() on null is 0, which is the right answer for "no rows yet".
+  const {
+    rows: [locks],
+  } = await pool.query(
     'SELECT COUNT(*) AS total, SUM(is_locked) AS locked FROM grades WHERE school_year = ? AND term = ?',
     [schoolYear, term]
   );
@@ -184,8 +194,13 @@ async function adminDashboard(schoolYear, term) {
   // seed ships precisely that. Reported as a flag, never as a message, and
   // never naming an account: the client owns the wording, and there is only
   // one account it could be about.
-  const [[admins]] = await pool.query(
-    "SELECT COUNT(*) AS n, SUM(email_verified_at IS NULL) AS unverified FROM users WHERE role = 'admin' AND status = 'active'"
+  //
+  // `(… IS NULL)::int`: PostgreSQL has no SUM over a boolean, where MySQL
+  // summed the 1/0 the comparison gave (migration/docs/03, measured).
+  const {
+    rows: [admins],
+  } = await pool.query(
+    "SELECT COUNT(*) AS n, SUM((email_verified_at IS NULL)::int) AS unverified FROM users WHERE role = 'admin' AND status = 'active'"
   );
 
   return {
@@ -240,12 +255,14 @@ async function parentDashboard(studentId, schoolYear) {
     return { role: 'parent', school_year: schoolYear, student_id: null, grades: null };
   }
 
-  const [[student]] = await pool.query('SELECT id, grade_level FROM students WHERE id = ? LIMIT 1', [studentId]);
+  const {
+    rows: [student],
+  } = await pool.query('SELECT id, grade_level FROM students WHERE id = ? LIMIT 1', [studentId]);
   if (!student) {
     return { role: 'parent', school_year: schoolYear, student_id: studentId, grades: null };
   }
 
-  const [modeRows] = await pool.query(
+  const { rows: modeRows } = await pool.query(
     'SELECT mode FROM grading_mode_configs WHERE grade_level = ? AND school_year = ? LIMIT 1',
     [student.grade_level, schoolYear]
   );
@@ -262,7 +279,9 @@ async function parentDashboard(studentId, schoolYear) {
     };
   }
 
-  const [[subjectCount]] = await pool.query('SELECT COUNT(*) AS n FROM subjects WHERE grade_level = ?', [
+  const {
+    rows: [subjectCount],
+  } = await pool.query('SELECT COUNT(*) AS n FROM subjects WHERE grade_level = ?', [
     student.grade_level,
   ]);
   const subjectsTotal = Number(subjectCount.n);
@@ -287,7 +306,7 @@ async function parentDashboard(studentId, schoolYear) {
   // Restricted to subjects at the learner's own grade level, matching the
   // report card's subject list — a stale row for a subject from another
   // grade level must not count towards "recorded".
-  const [graded] = await pool.query(
+  const { rows: graded } = await pool.query(
     `SELECT g.term, g.subject_id, g.term_grade
        FROM grades g
        JOIN subjects s ON s.id = g.subject_id AND s.grade_level = ?

@@ -151,22 +151,10 @@ async function run() {
   const jeaId = jea?.id;
   assert(Number.isInteger(jeaId), "Resolve Jea's student id (Grade 5 - Masigasig, outside TCH-001's scope)");
 
-  const mysql = require('mysql2/promise');
-  const dbConfig = {
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'parents_portal',
-  };
-  async function withDb(fn) {
-    const conn = await mysql.createConnection(dbConfig);
-    try {
-      return await fn(conn);
-    } finally {
-      await conn.end();
-    }
-  }
+  // PostgreSQL since Phase 3 (commit 2): the PG_* keys, the API's own role,
+  // loopback only (test-helpers/db.js). Results keep mysql2's [rows] shape;
+  // an INSERT's insertId comes from its RETURNING id.
+  const { withDb } = require('./test-helpers/db');
 
   // SLOT FIXTURES (CR1, 2026-09-22). Every component write now needs a
   // slot_id — a score with no column is a score nobody can find on the class
@@ -202,7 +190,8 @@ async function run() {
         `INSERT INTO assessment_slots
            (subject_id, grade_level, section, term, school_year, type, slot_no, max_score)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE max_score = VALUES(max_score), id = LAST_INSERT_ID(id)`,
+         ON CONFLICT ON CONSTRAINT uq_slot DO UPDATE SET max_score = EXCLUDED.max_score
+         RETURNING id`,
         [g.subject_id, g.grade_level, g.section, g.term, g.school_year, type, slotNo, maxScore]
       )
     );
@@ -272,13 +261,13 @@ async function run() {
     ].filter(Boolean);
     if (fixtureStudentIds.length) {
       const [rows] = await withDb((conn) =>
-        conn.query('SELECT id FROM grades WHERE student_id IN (?)', [fixtureStudentIds])
+        conn.query('SELECT id FROM grades WHERE student_id = ANY(?::int[])', [fixtureStudentIds])
       );
       for (const r of rows) gradeIds.add(r.id);
     }
     const notificationPairs = pairsFor('grade', [...gradeIds]);
     if (createdGradeIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [createdGradeIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE id = ANY(?::int[])', [createdGradeIds]));
     }
     if (inactiveStudentId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [inactiveStudentId]));
@@ -290,13 +279,13 @@ async function run() {
       await withDb((conn) => conn.query('DELETE FROM teacher_assignments WHERE id = ?', [grade1TeacherAssignmentId]));
     }
     if (gaGradeIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [gaGradeIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE id = ANY(?::int[])', [gaGradeIds]));
     }
     if (gaStudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [gaStudentFixtureId]));
     }
     if (roundingGradeIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [roundingGradeIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE id = ANY(?::int[])', [roundingGradeIds]));
     }
     if (roundingStudentFixtureId) {
       await withDb((conn) => conn.query('DELETE FROM students WHERE id = ?', [roundingStudentFixtureId]));
@@ -310,7 +299,7 @@ async function run() {
     // what frees the slots. Put this any earlier and cleanup fails on
     // whichever grade list had not been deleted yet.
     if (createdSlotIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM assessment_slots WHERE id IN (?)', [createdSlotIds]));
+      await withDb((conn) => conn.query('DELETE FROM assessment_slots WHERE id = ANY(?::int[])', [createdSlotIds]));
     }
     await withDb(async (conn) => {
       const deleted = await deleteNotificationsFor(conn, notificationPairs);
@@ -851,7 +840,8 @@ async function run() {
       const [res] = await conn.query(
         `INSERT INTO assessment_slots
            (subject_id, grade_level, section, term, school_year, type, slot_no, max_score)
-         VALUES (?, ?, ?, ?, ?, 'PT', 19, NULL)`,
+         VALUES (?, ?, ?, ?, ?, 'PT', 19, NULL)
+         RETURNING id`,
         [g.subject_id, g.grade_level, g.section, g.term, g.school_year]
       );
       createdSlotIds.push(res.insertId);
@@ -1227,7 +1217,7 @@ async function run() {
     // fixture student's section, so a SUBJECT TEACHER (not just admin) is
     // proved able to encode a Grade 1 score.
     const [assignmentResult] = await withDb((conn) =>
-      conn.query('INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section) VALUES (?, ?, 1, ?)', [
+      conn.query('INSERT INTO teacher_assignments (teacher_id, subject_id, grade_level, section) VALUES (?, ?, 1, ?) RETURNING id', [
         teacherId,
         mathGrade1Id,
         'Matipid',
@@ -2126,7 +2116,7 @@ async function run() {
         [3, 87],
       ]) {
         const [result] = await withDb((conn) =>
-          conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, ?, ?, ?)', [
+          conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, ?, ?, ?) RETURNING id', [
             gaStudentFixtureId,
             subject.id,
             term,
@@ -2145,7 +2135,7 @@ async function run() {
     const fifthSubject = grade2Subjects[4];
 
     const [term1Insert] = await withDb((conn) =>
-      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 1, ?, 80)', [
+      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 1, ?, 80) RETURNING id', [
         gaStudentFixtureId,
         fifthSubject.id,
         schoolYear,
@@ -2191,7 +2181,7 @@ async function run() {
     );
 
     const [term2Insert] = await withDb((conn) =>
-      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, 85)', [
+      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, 85) RETURNING id', [
         gaStudentFixtureId,
         fifthSubject.id,
         schoolYear,
@@ -2212,7 +2202,7 @@ async function run() {
     );
 
     const [term3Insert] = await withDb((conn) =>
-      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 3, ?, 90)', [
+      conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 3, ?, 90) RETURNING id', [
         gaStudentFixtureId,
         fifthSubject.id,
         schoolYear,
@@ -2312,7 +2302,7 @@ async function run() {
       const [t1, t2, t3] = roundingPlan[i];
       for (const [term, termGrade] of [[1, t1], [2, t2], [3, t3]]) {
         const [result] = await withDb((conn) =>
-          conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, ?, ?, ?)', [
+          conn.query('INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, ?, ?, ?) RETURNING id', [
             roundingStudentFixtureId,
             grade6Subjects[i].id,
             term,

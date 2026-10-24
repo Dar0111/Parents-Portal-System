@@ -140,6 +140,32 @@ dynamic `?`-list builders 1 (`activityLogs.js`) · `multipleStatements` 1
 7. `scripts/setup-db.js` → a PostgreSQL setup (`001_portal_schema.sql` + a ported `seed.sql`, then the ported seed Grade 1 block). Since B7 (2026-10-24) `setup-db.js` runs the schema, the seed as one multi-statement query, `backfillSectionIds()`, then `applyDemoGrade1()` from `scripts/demoGrade1.js`, which finds the learner by name, grade and section, inserts two slots (`insertId`), a two-row `grade_components` VALUES and updates the grade row guarded by `is_locked = 0` (`affectedRows`); the seed file itself still inserts the five letter-only grade rows. The eleven `migrate-*.js` (nine on 2026-10-19 plus `migrate-grade-acknowledgements.js` and `migrate-demo-grade1.js`) become **history** (the schema file already includes every migration's end state) except `migrate-privacy.js`'s one runtime caller (the restore) which `04` removes. `scripts/verify-grading-seed.js` (read-only SELECTs, one `IN (?)` at `:323`, `===` on counts) is retargeted with the suites.
 8. The 24 HTTP suites' fixture/cleanup code (22 on 2026-10-19; `test:grade-acknowledgements` and `test:activity-log` since) — `mysql.createConnection(dbConfig)` → pg; `insertId` → `RETURNING`; `=== 1` flag assertions stay valid; the `test:privacy` scratch-database case becomes a scratch **schema**); `05` §3 has the retargeting rules.
 
+### 5a. The split between the two sessions (the owner, 2026-10-25)
+
+The order above is the dependency order; the WORK is split in two, as
+rebalanced after commit F:
+
+- **Session B (this branch):** commit F, `7e6382e` — step 1, step 2 and,
+  because the auth, privacy and recovery suites' fixtures reach them, six
+  files of steps 3–4: `routes/users.js`, `routes/students.js`,
+  `routes/sections.js`, `routes/assignments.js`, `routes/notifications.js`,
+  `utils/notify.js`; then commit 2 — step 5's `routes/grades.js` and
+  `routes/dashboard.js` with the six grades and dashboard suites; then
+  commit 5 — step 7, the setup, the seed, the Grade 1 demo block and the
+  grading-seed verifier.
+- **Session A's half:** `routes/content.js`, `routes/excuses.js` with
+  `utils/excuseAttendance.js`, `routes/messages.js`, `routes/settings.js`,
+  `routes/attendance.js`, `routes/activityLogs.js` and
+  `routes/gradingModes.js`, with their suites. **It starts after Session A
+  merges its two branches.**
+
+Ported so far through `config/db.js`'s helpers: `?` stays at the call
+sites and is numbered at the driver (the owner's Q1 (a)); the one search
+fold lives in `config/db.js` (Q5 (b)); a `? IS NULL` parameter carries a
+cast (42P18 otherwise, measured); a best-effort hook inside a transaction
+runs in a SAVEPOINT, because a failed statement aborts a PostgreSQL
+transaction where MySQL kept it open.
+
 ## 6. Open questions carried to the port
 
 - **Q-12** accent-insensitive search (D-1). **Q-13** name ordering (D-2).

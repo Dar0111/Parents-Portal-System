@@ -89,9 +89,13 @@ const createdGradeIds = [];
 
 async function cleanup() {
   if (!createdGradeIds.length) return;
-  const [res] = await pool.query('DELETE FROM grades WHERE id IN (?)', [createdGradeIds]);
-  console.log(`  · cleanup: deleted ${res.affectedRows} fixture grade row(s)`);
-  const [[left]] = await pool.query('SELECT COUNT(*) AS n FROM grades WHERE id IN (?)', [createdGradeIds]);
+  // The app's own pool (config/db.js, PostgreSQL since Phase 3): pg results,
+  // a write's count in rowCount, an inserted id from RETURNING id.
+  const res = await pool.query('DELETE FROM grades WHERE id = ANY(?::int[])', [createdGradeIds]);
+  console.log(`  · cleanup: deleted ${res.rowCount} fixture grade row(s)`);
+  const {
+    rows: [left],
+  } = await pool.query('SELECT COUNT(*) AS n FROM grades WHERE id = ANY(?::int[])', [createdGradeIds]);
   if (Number(left.n) !== 0) {
     console.error(`  ✗ CLEANUP INCOMPLETE — ${left.n} fixture row(s) still present`);
     process.exitCode = 1;
@@ -419,7 +423,9 @@ async function run() {
   const subjectIds = grade6Subjects.data.subjects.map((s) => s.id);
   requireFixture(subjectIds.length > 1, 'Grade 6 has more than one subject');
 
-  const [[existing]] = await pool.query(
+  const {
+    rows: [existing],
+  } = await pool.query(
     'SELECT COUNT(*) AS n FROM grades WHERE student_id = ? AND term = 1 AND school_year = ?',
     [p1.student_id, p1.school_year]
   );
@@ -433,11 +439,13 @@ async function run() {
   // fractional part, so the rounding is exercised rather than assumed.
   const marks = subjectIds.map((_, i) => 80 + (i % 7) + 0.5);
   for (let i = 0; i < subjectIds.length; i += 1) {
-    const [res] = await pool.query(
-      'INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 1, ?, ?)',
+    const {
+      rows: [inserted],
+    } = await pool.query(
+      'INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 1, ?, ?) RETURNING id',
       [p1.student_id, subjectIds[i], p1.school_year, marks[i]]
     );
-    createdGradeIds.push(res.insertId);
+    createdGradeIds.push(inserted.id);
   }
   console.log(`  · fixture: inserted ${createdGradeIds.length} term-1 grade rows for Marwin`);
 
@@ -475,11 +483,13 @@ async function run() {
 
   // The latest-term rule, proved rather than assumed: one term-2 row must
   // move the card forward even though term 1 has far more recorded.
-  const [t2res] = await pool.query(
-    'INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, ?)',
+  const {
+    rows: [t2row],
+  } = await pool.query(
+    'INSERT INTO grades (student_id, subject_id, term, school_year, term_grade) VALUES (?, ?, 2, ?, ?) RETURNING id',
     [p1.student_id, subjectIds[0], p1.school_year, 91.0]
   );
-  createdGradeIds.push(t2res.insertId);
+  createdGradeIds.push(t2row.id);
   const laterTerm = (await request('GET', '/api/dashboard', { token: marwinToken })).data.dashboard;
   assert(laterTerm.grades.term === 2, 'One term-2 grade moves the card to term 2', `got ${laterTerm.grades.term}`);
   assert(laterTerm.grades.subjects_recorded === 1, 'The count is term 2s, not term 1s');

@@ -31,7 +31,9 @@
  * Usage: npm run test:class-record
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
-const mysql = require('mysql2/promise');
+// PostgreSQL since Phase 3 (commit 2): the PG_* keys, the API's own role,
+// loopback only (test-helpers/db.js). Results keep mysql2's [rows] shape.
+const { withDb } = require('./test-helpers/db');
 
 const BASE = process.env.API_BASE || `http://127.0.0.1:${process.env.PORT || 5000}`;
 const SCHOOL_YEAR = '2026-2027';
@@ -52,14 +54,6 @@ const {
   slotKey,
 } = require('../../client/src/pages/teacher/classRecord/buildPayload.js');
 const { pairsFor, countNotificationsFor } = require('./test-helpers/notifications');
-
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'parents_portal',
-};
 
 // Every sign-in accepts the privacy notice and terms first (parents since
 // feat/privacy, staff since feat/staff-acceptance); this run's rows
@@ -110,14 +104,6 @@ function why(res) {
   return `got ${res.status}: ${res.data?.message || JSON.stringify(res.data)}`;
 }
 
-async function withDb(fn) {
-  const conn = await mysql.createConnection(dbConfig);
-  try {
-    return await fn(conn);
-  } finally {
-    await conn.end();
-  }
-}
 
 const login = (loginId, password) => request('POST', '/api/auth/login', { body: { login_id: loginId, password } });
 
@@ -144,7 +130,7 @@ async function main() {
     // grades no list holds.
     const gradeIds = new Set(createdGradeIds);
     if (createdStudentIds.length) {
-      const [rows] = await withDb((conn) => conn.query('SELECT id FROM grades WHERE student_id IN (?)', [createdStudentIds]));
+      const [rows] = await withDb((conn) => conn.query('SELECT id FROM grades WHERE student_id = ANY(?::int[])', [createdStudentIds]));
       for (const r of rows) gradeIds.add(r.id);
     }
     const notificationPairs = pairsFor('grade', [...gradeIds]);
@@ -152,11 +138,11 @@ async function main() {
     // slots (the slot FK is ON DELETE RESTRICT). Then the learners, then the
     // slots for the class this run used.
     if (createdGradeIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE id IN (?)', [createdGradeIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE id = ANY(?::int[])', [createdGradeIds]));
     }
     if (createdStudentIds.length) {
-      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id IN (?)', [createdStudentIds]));
-      await withDb((conn) => conn.query('DELETE FROM students WHERE id IN (?)', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM grades WHERE student_id = ANY(?::int[])', [createdStudentIds]));
+      await withDb((conn) => conn.query('DELETE FROM students WHERE id = ANY(?::int[])', [createdStudentIds]));
     }
     const leftover = await withDb((conn) => countNotificationsFor(conn, notificationPairs));
     assert(
